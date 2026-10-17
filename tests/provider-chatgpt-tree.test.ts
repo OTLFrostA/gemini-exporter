@@ -1,3 +1,7 @@
+import { getDomainResource, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
+import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -264,13 +268,14 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
     assert.equal(detail.conversation.detail.assets[0]?.kind, 'image');
     assert.equal(detail.conversation.detail.assets[0]?.sourceUri, 'sediment://file_cat');
     assert.equal(detail.conversation.detail.assets[0]?.mediaType, 'image/png');
-    assert.ok((detail.conversation.detail.assets[0]?.dataBase64 ?? '').length > 0);
+    const resource = await getDomainResource(storageIdentity(detail.account.providerId, detail.account.id, 'conv-img'), detail.conversation.detail.assets[0].id);
+    assert.deepEqual(resource, pngBytes);
     // In-place order preserved: text -> image -> text
     const userMsg = detail.conversation.detail.messages.find((m) => m.id === 'u1');
     assert.deepEqual(userMsg?.content.map((b) => b.type), ['paragraph', 'image', 'paragraph']);
     // Failed download preserves placeholder asset + image block + partial completeness + diagnostic
     assert.equal(detail.conversation.detail.assets[1]?.sourceUri, 'sediment://file_missing');
-    assert.equal(detail.conversation.detail.assets[1]?.dataBase64, undefined);
+    assert.equal(detail.acquisitionHints[detail.conversation.detail.assets[1].id]?.dataBase64, undefined);
     const toolMsg = detail.conversation.detail.messages.find((m) => m.id === 't1');
     assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.detail.assets[1]?.id]);
     assert.ok(toolMsg?.content.some((b) => b.type === 'image'));
@@ -321,7 +326,7 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
     assert.equal(thinking?.thoughts.length, 1);
     assert.equal(thinking?.durationSeconds, 12);
     // Reasoning blocks render through the full parser (markdown included).
-    const parsed = parseChatGPTConversation({
+    const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
             id: 'conv-think', title: 't', create_time: 1, update_time: 2,
             current_node: 'a1', mapping, is_archived: false,
@@ -372,7 +377,7 @@ test('bodies parse to structured blocks and models stay per-message', () => {
             },
         },
     };
-    const parsed = parseChatGPTConversation({
+    const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
             id: 'conv-md', title: 't', create_time: 1, update_time: 2,
             current_node: 'a1', mapping, is_archived: false,
@@ -416,7 +421,7 @@ test('repeated image pointers reuse one asset instead of breaking closure', () =
         t2: { ...tool('t2', 't1'), children: [] },
     };
     const img = { pointer: 'sediment://file_dup', assetId: 'img-file_dup', dataBase64: 'aGk=' };
-    const parsed = parseChatGPTConversation({
+    const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
             id: 'conv-dup', title: 't', create_time: 1, update_time: 2,
             current_node: 't2', mapping, is_archived: false,

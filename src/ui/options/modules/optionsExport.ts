@@ -110,10 +110,10 @@ export function updateZipUi(): void {
 /** Refresh visible metadata from the accepted Domain; export callbacks never write it. */
 export async function refreshConversationIndex(chatId: string, exportSlot?: string): Promise<void> {
     const Store = getStore();
-    const slot = exportSlot || Store?.getCurrentSlot?.() || 'u0';
-    const index = await getStorage()?.conversationRepository({ providerId: 'gemini', accountSlot: slot }).getConversationIndex(normId(chatId));
-    if (Store?.getCurrentSlot?.() !== slot || !index) return;
-    const item = Store.getConversations().find(c => normId(c.id) === index.id);
+    const slot = exportSlot || Store?.getCurrentAccountId?.() || '';
+    const index = await getStorage()?.conversationRepository({ providerId: 'gemini', accountId: slot }).getConversationIndex(normId(chatId));
+    if (Store?.getCurrentAccountId?.() !== slot || !index) return;
+    const item = Store.getConversations().find(c => normId(c.key.conversationId) === index.key.conversationId);
     if (item) Object.assign(item, index);
 }
 
@@ -130,7 +130,7 @@ export async function startExportPipeline(
     const Controller = getController();
     const DirHandle = getDirHandle();
     const List = getList();
-    const currentSlot = Store?.getCurrentSlot?.() || 'u0';
+    const accountId = Store?.getCurrentAccountId?.() || '';
 
     const convs = Store ? Store.getConversations() : [];
 
@@ -189,7 +189,7 @@ export async function startExportPipeline(
             includeAssets,
             useZip: includeZip,
             dirHandle: dirHandle || (DirHandle ? DirHandle.getDirHandle() : null),
-            currentSlot,
+            accountId,
             conversations: convs,
             exportedIds,
             takeoutEngine,
@@ -212,23 +212,23 @@ export async function startExportPipeline(
                     : { text: txt || '', pct: typeof progress === 'number' ? progress : (progress?.pct || 0) };
 
                 const pct = typeof formatted.pct !== 'undefined' ? Math.max(formatted.pct, 2) : 2;
-                if (Store?.getCurrentSlot?.() === currentSlot) ProgressView.update(pct, formatted.text);
+                if (Store?.getCurrentAccountId?.() === accountId) ProgressView.update(pct, formatted.text);
             },
 
             onLog: (msg: string, lvl?: 'info' | 'warn' | 'error') => {
-                if (Store?.getCurrentSlot?.() === currentSlot) log(msg, lvl);
+                if (Store?.getCurrentAccountId?.() === accountId) log(msg, lvl);
             },
             onTitleUpdated: (chatId: string) => {
-                void refreshConversationIndex(chatId, currentSlot).catch(err => log(getErrorMessage(err), 'warn'));
+                void refreshConversationIndex(chatId, accountId).catch(err => log(getErrorMessage(err), 'warn'));
             },
             onItemPendingAssets: (chatId: string) => {
-                if (Store?.getCurrentSlot?.() !== currentSlot) return;
+                if (Store?.getCurrentAccountId?.() !== accountId) return;
                 if (List && typeof List.updateItemExportStatus === 'function') {
                     List.updateItemExportStatus(chatId, { status: 'pending_assets' });
                 }
             },
             onItemExported: async (chatId: string, titleOrRecord: ExportRecord | string, maybeRecord?: ExportRecord) => {
-                if (Store?.getCurrentSlot?.() !== currentSlot) return;
+                if (Store?.getCurrentAccountId?.() !== accountId) return;
                 const exportRecord = (maybeRecord && typeof maybeRecord === 'object')
                     ? maybeRecord
                     : ((titleOrRecord && typeof titleOrRecord === 'object') ? titleOrRecord : null);
@@ -251,7 +251,7 @@ export async function startExportPipeline(
             }
         });
 
-        if (Store?.getCurrentSlot?.() !== currentSlot) return;
+        if (Store?.getCurrentAccountId?.() !== accountId) return;
         if (result && result.aborted) {
             log(typeof t === 'function' ? t('exportAborted') : '导出任务已被用户中止', 'warn');
             ProgressView.complete(typeof t === 'function' ? t('exportAborted') : '导出已终止');
@@ -345,12 +345,12 @@ export async function startExportPipeline(
         }
     } catch (err: unknown) {
         const errMsg = getErrorMessage(err);
-        if (Store?.getCurrentSlot?.() === currentSlot) {
+        if (Store?.getCurrentAccountId?.() === accountId) {
             log(typeof t === 'function' ? t('exportFailed', errMsg) : `Export failed: ${errMsg}`, 'error');
             ProgressView.complete(typeof t === 'function' ? t('exportFailedWithMessage', errMsg) : `Error: ${errMsg}`);
         }
     } finally {
-        if (Store?.getCurrentSlot?.() === currentSlot) {
+        if (Store?.getCurrentAccountId?.() === accountId) {
             ProgressView.hide(3000);
             if (__loadStore) await __loadStore(true, remainingSelected || undefined);
         }
@@ -468,7 +468,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
                                     await Storage.setZipPreference(false);
                                 }
                             }
-                            await startExportPipeline(selected, format, skip, includeIndex, includeAssets, false, newHandle);
+                            await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, false, newHandle);
                         } catch (err: unknown) {
                             const errMsg = getErrorMessage(err);
                             log(typeof t === 'function' ? t('dirCancelled', errMsg) : `未选择导出目录: ${errMsg}`, 'warn');
@@ -479,7 +479,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
                     async () => {
                         decisionMade = true;
                         try {
-                            await startExportPipeline(selected, format, skip, includeIndex, includeAssets, true, null);
+                            await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, true, null);
                         } catch (err: unknown) {
                             const errMsg = getErrorMessage(err);
                             log(typeof t === 'function' ? t('exportFailed', errMsg) : `导出失败: ${errMsg}`, 'error');
@@ -504,7 +504,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
         }
     }
 
-    await startExportPipeline(selected, format, skip, includeIndex, includeAssets, includeZip, dirHandle);
+    await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, includeZip, dirHandle);
     } finally {
         _isExporting = false;
         setExportSessionBusy(false);

@@ -71,7 +71,7 @@ test('Batch 4 - listView restricts conversation URLs to http/https and blocks ja
         assert.ok(!html.includes('data:text/html'), 'must never render data: scheme in href');
         assert.ok(html.includes('href="https://gemini.google.com/app/evil1"'), 'must fall back to safe https Gemini URL for c_evil1');
         assert.ok(html.includes('href="https://gemini.google.com/app/evil2"'), 'must fall back to safe https Gemini URL for c_evil2');
-        assert.ok(html.includes('href="https://gemini.google.com/app/c_good"'), 'must preserve valid https URL');
+        assert.ok(html.includes('href="https://gemini.google.com/app/good"'), 'must preserve valid https URL');
         assert.ok(html.includes('rel="noopener noreferrer"'), 'must include rel="noopener noreferrer" on external link');
     } finally {
         if (origDocumentDescriptor) Object.defineProperty(globalThis, 'document', origDocumentDescriptor);

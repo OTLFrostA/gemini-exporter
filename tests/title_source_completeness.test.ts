@@ -8,7 +8,7 @@ test('canonical title authority gives every declared source a numeric rank', () 
         assert.equal(typeof rank, 'number', source);
         assert.equal(titleAuthorityRank(source), rank);
     }
-    assert.equal(titleAuthorityRank('unknown'), TITLE_AUTHORITY_RANK.default);
+    assert.equal(titleAuthorityRank('unknown'), 0);
 });
 
 test('compatibility title priority is a unique, ranked subset of canonical authority', () => {
@@ -21,14 +21,13 @@ test('compatibility title priority is a unique, ranked subset of canonical autho
 });
 
 test('detail title outranks passive sniff in canonical merge and compatibility resolution', () => {
-    assert.ok(TITLE_AUTHORITY_RANK['api-detail'] > TITLE_AUTHORITY_RANK.sniff);
+    assert.ok(TITLE_AUTHORITY_RANK.provider > TITLE_AUTHORITY_RANK.derived);
     assert.deepEqual(resolveAuthorityTitle([
-        { source: 'sniff', value: 'Passive title' },
-        { source: 'api-detail', value: 'Detailed title' },
+        { source: "derived", value: 'Passive title' },
+        { source: "provider", value: 'Detailed title' },
     ])?.value, 'Detailed title');
     assert.deepEqual(resolveTitle({
         id: 'c1',
-        title: '',
-        titles: { 'api-detail': 'Detailed title', sniff: 'Passive title' },
-    }), { title: 'Detailed title', source: 'api-detail' });
+        title: 'Detailed title', titleSource: 'provider',
+    }), { title: 'Detailed title', source: 'provider' });
 });

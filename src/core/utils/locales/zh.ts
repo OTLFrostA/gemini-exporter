@@ -124,7 +124,7 @@ const __zhFactory = (): LocaleDictionary => {
             loadStoreFailed: "加载会话列表失败: {0}",
             dirCancelled: "设置目录取消: {0}",
             currentTabMissing: "未找到当前打开的 Gemini 标签页，请先打开 gemini.google.com",
-            defaultAccount: "默认账号 (u0)",
+            defaultAccount: "默认账号",
             accountSlot: "账号",
             lastSync: "上次同步: {0} | 共 {1} 条",
             notSynced: "未同步",
@@ -322,7 +322,7 @@ const __zhFactory = (): LocaleDictionary => {
             untitledChat: "未命名对话",
             chatDeletedOrInaccessible: "云端会话已被删除或不可访问",
             domReturnEmpty: "DOM 返回内容为空",
-            schemaFrozenWriteBlocked: "存储结构版本高于当前扩展支持的版本。为防止数据损坏，已禁止写入（查看不受影响）。请更新扩展到最新版本。"
+            schemaFrozenWriteBlocked: "当前存储结构版本不受支持，已禁止写入。请使用新版扩展和全新的配置环境。"
     };
 };
 export const zh: LocaleDictionary = __zhFactory();

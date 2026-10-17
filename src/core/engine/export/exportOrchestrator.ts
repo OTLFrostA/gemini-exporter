@@ -1,3 +1,5 @@
+import { getConversationAvailability } from '../../storage/conversationAvailability.js';
+import { conversationSourceUrl } from '../../utils/conversationSourceUrl.js';
 import { normalizeArchivePath } from '../../export/assets/archivePath.js';
 import { attemptResource, missingResource, resourceDiagnostics, waitForResources, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { planExportResources } from '../../export/assets/planExportResources.js';
@@ -29,7 +31,7 @@ export interface ExportOptions {
     selected: UIExportOptions['selected'];
     format?: string;
     useZip?: boolean;
-    currentSlot?: string;
+    accountId?: string;
     dirHandle?: UIExportOptions['dirHandle'];
     skip?: boolean;
     includeIndex?: boolean;
@@ -370,7 +372,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 selected = [],
                 format = 'markdown',
                 useZip = true,
-                currentSlot = 'u0',
+                accountId = '',
                 skip = false,
                 conversations = []
             } = options;
@@ -387,7 +389,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
             const abortSignal = this._abortController ? this._abortController.signal : null;
 
-            const slot = currentSlot || 'u0';
+            const slot = accountId || '';
             // Phase A (P1-4): Storage 解析不再允许 null —— 静态 import 做 fallback，
             // 生产环境永远拿到真正的 StorageService；测试可用 __setModuleOverride 覆盖。
             // finalizeChatExport 只认 saveExportRecord 一条正式路径（fail-closed）。
@@ -426,7 +428,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     // store. A single canonical probe is enough.
                     const rec = curIds[nid] || null;
                     if (rec) {
-                        const conv = (Array.isArray(conversations) ? conversations.find(c => normId(c.id) === nid) : null) || sObj || null;
+                        const conv = (Array.isArray(conversations) ? conversations.find(c => normId(c.key.conversationId) === nid) : null) || sObj || null;
                         const isUpdated = checkUpdatedFn(conv || itemPayload, rec);
                         if (!isUpdated) {
                             skippedItems.push(itemPayload);
@@ -457,7 +459,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             if (recovery && recovery.updateSessionStatus) {
                 await recovery.updateSessionStatus({
                     status: 'running',
-                    slot,
+                    accountId: slot,
                     total: selected.length,
                     current: skippedItems.length,
                     format,
@@ -620,7 +622,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 includeIndex = false,
                 includeAssets = true,
                 useZip = true,
-                currentSlot = 'u0',
+                accountId = '',
                 conversations = [],
                 exportedIds = {},
                 takeoutEngine = null
@@ -630,7 +632,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
             const AssetPipelineClass = getAssetPipelineClass();
             const assetPipeline: AssetPipelineInstance | null = AssetPipelineClass ? new AssetPipelineClass({
-                currentSlot,
+                accountId,
                 useZip,
                 writer,
                 writeFileDirect: async (path, bytes) => { await writeExportFile(path, bytes); },
@@ -720,6 +722,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
             const CONCURRENCY = Math.max(1, typeof options.concurrency === 'number' ? options.concurrency : 3);
             let nextIndex = 0;
+            const availability = await __resolveModule<Partial<StorageServiceModule>>('StorageService', StorageServiceStatic).getConversationAvailability?.(accountId) ?? {};
             let completedCount = skipped;
 
             const exportWorker = async () => {
@@ -743,7 +746,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     // Per-chat error isolation: one failed chat must not abort the entire batch
                     try {
                         const nid = normId(requestedItem.id);
-                        const listC: DomainConversationIndex | null = (conversations || []).find(c => normId(c.id) === nid) || null;
+                        const listC: DomainConversationIndex | null = (conversations || []).find(c => normId(c.key.conversationId) === nid) || null;
                         let rawRes: FetchChatDetailResult | null = null;
                         let retryCount = 0;
                         const maxRateLimitRetries = 3;
@@ -751,7 +754,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const I18n = getI18n();
 
                         while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
-                            rawRes = await worker.fetchChatDetail({ ...requestedItem, cloudAvailability: listC?.cloudAvailability }, currentIndex, totalChats, currentSlot, skip, format, abortSignal);
+                            rawRes = await worker.fetchChatDetail({ ...requestedItem, cloudAvailability: availability[nid] }, currentIndex, totalChats, accountId, skip, format, abortSignal);
 
                             if (this.aborted || (abortSignal && abortSignal.aborted)) break;
                             if (rawRes && 'source' in rawRes && rawRes.source === 'local-cache') onLog(I18n?.t?.('archiveExportingSnapshot', requestedItem.title || nid) || `Exporting local snapshot: ${nid}`, 'warn');
@@ -800,7 +803,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         if (!success) candidate = res && !res.success ? { error: res.error, _debug: res._debug, _raw: res._raw, rawResponse: res.rawResponse, retryAfterMs: res.retryAfterMs } : { error: 'unknown' };
                         const chatCandidate = candidate;
 
-                        const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog, { source: res && 'source' in res && res.source === 'local-cache' ? 'local_snapshot' : 'online' });
+                        const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, accountId, onTitleUpdated, onLog, { source: res && 'source' in res && res.source === 'local-cache' ? 'local_snapshot' : 'online' });
 
                         if (resolvedRes.isError) {
                             const evidence: Record<string, unknown> = isObjectRecord(chatCandidate) ? chatCandidate : {};
@@ -815,12 +818,12 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         const usedLocalSnapshot = resolvedRes.source === 'local_snapshot'
-                            && listC?.cloudAvailability !== 'deleted' && !(listC?.hasTakeoutImport && listC.cloudAvailability !== 'available');
+                            && availability[nid] !== 'deleted';
                         const planned = await planExportResources(resolvedRes.chat);
                         let exportResult = planned.result;
                         const chat = exportResult.conversation;
-                        const listTitle = chat.index.title;
-                        const chatId = chat.index.id;
+                        const listTitle = chat.index.title || chat.index.key.conversationId;
+                        const chatId = chat.index.key.conversationId;
 
                         // Resource writes finish before rendering, so a failed write can never leave a dangling binding.
                         const queuedAssetsForThisChat = includeAssets ? planned.assets.length + planned.failures.length : 0;
@@ -842,8 +845,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     } else if (!assetPipeline) {
                                         outcome = missingResource(asset.assetId, 'Resource acquisition is unavailable');
                                     } else {
-                                        outcome = await assetPipeline.processAsset(asset.item, chat.index, { isImage: asset.isImage, listTitle, signal: abortSignal,
-                                            localOnly: listC?.cloudAvailability === 'deleted' || requestedItem.cloudAvailability === 'deleted' });
+                                        outcome = await assetPipeline.processAsset(asset.item, { id: chatId, title: listTitle }, { isImage: asset.isImage, listTitle, signal: abortSignal,
+                                            localOnly: availability[nid] === 'deleted' || requestedItem.cloudAvailability === 'deleted' });
                                         if (outcome.ok) outcome = { ...outcome, value: { path: normalizeArchivePath(outcome.value.path) } };
                                     }
                                 } catch (error) {
@@ -905,6 +908,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         // item gets one completion; failed writes use it only for meta, never persistence.
                         const completion = buildExportCompletion({
                             conversation: chat,
+                            evidence: exportResult.evidence,
                             conversationId: nid,
                             format: options.format || 'markdown',
                             exportedAt: new Date().toISOString(),
@@ -928,19 +932,20 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             }
                             if (driftNotable) {
                                 const bits: string[] = [`内容质量 ${quality.status}`];
-                                if ((quality.rejectedTurns ?? 0) > 0) bits.push(`拒识 ${(quality.rejectedTurns ?? 0)} 个 turn`);
+                                if (exportResult.evidence?.rejectedTurns) bits.push(`拒识 ${exportResult.evidence.rejectedTurns} 个 turn`);
+                                if (exportResult.evidence?.heuristicDocumentIds?.length) bits.push(`含启发式拼凑文档`);
                                 if (parserDiagnostics.length > 0) bits.push(`${parserDiagnostics.length} 条解析诊断`);
-                                if (quality.heuristicDocumentIds?.length) bits.push(`含启发式拼凑文档`);
                                 const statusNote = completion.exportRecord.status === 'partial' ? '，导出完整性为 partial' : '（仅告警，不影响导出完整性）';
                                 onLog(`[${listTitle}] 解析异常（${bits.join("；")}）${statusNote}`, 'warn');
                                 parseDriftChats.push({
                                     id: chatId,
                                     title: listTitle,
                                     quality,
+                                    evidence: exportResult.evidence,
                                     diagnostics: parserDiagnostics
                                 });
                             }
-                            if (quality.truncation) {
+                            if (parserDiagnostics.some(d => d.code === 'GEMINI_PAGINATION_TRUNCATED')) {
                                 onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
                             }
 
@@ -963,7 +968,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 ? 'Aborted due to permission revocation'
                                 : getErrorMessage(mainWriteError);
                             failedChats.push({
-                                id: chat.index.id || nid,
+                                id: chat.index.key.conversationId || nid,
                                 title: listTitle,
                                 error: failReason
                             });
@@ -975,7 +980,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         metaResults.push({
                             id: chatId,
                             title: listTitle,
-                            url: chat.index.url || `https://gemini.google.com/app/${chatId}`,
+                            url: conversationSourceUrl(exportResult.account.providerId, chatId),
                             createdAt: toIso(chat.index.createdAt),
                             updatedAt: toIso(chat.index.updatedAt),
                             messageCount: completion.exportRecord.messageCount,

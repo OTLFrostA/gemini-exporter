@@ -155,7 +155,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "10-cjk-math",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

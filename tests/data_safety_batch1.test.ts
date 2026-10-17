@@ -1,3 +1,5 @@
+import { withRegistry } from './helpers/registryMock.js';
+import { listFixture } from './helpers/listFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -35,7 +37,7 @@ test('D2: BatchWorker does not delete conversation when error contains 11167 or 
             reqItem,
             null,
             null,
-            'u0',
+            '10000000-0000-4000-8000-000000000001',
             () => {},
             (msg: string) => logs.push(msg)
         );
@@ -76,7 +78,7 @@ test('D2: BatchWorker confirms deletion but retains local metadata on BardErrorI
             reqItem,
             null,
             null,
-            'u0',
+            '10000000-0000-4000-8000-000000000001',
             () => {},
             (msg: string) => logs.push(msg)
         );
@@ -94,15 +96,15 @@ test('D4: StorageService.clearConversations cleans up checkpoint and exported re
     const StorageService = require('../src/core/storage/storageService.js');
 
     const mockStore: Record<string, any> = {
-        gemini_conversations: ([{ id: 'chat_1', title: 'Chat 1' }]).map(indexFixture),
-        gemini_last_count: 1,
-        gemini_scan_checkpoint: 1700000000000,
+        ['conversations_10000000-0000-4000-8000-000000000001']: ([{ id: 'chat_1', title: 'Chat 1' }]).map(indexFixture),
+        ['last_count_10000000-0000-4000-8000-000000000001']: 1,
+        ['scan_checkpoint_10000000-0000-4000-8000-000000000001']: 1700000000000,
         exportedIds: { 'chat_1': { status: 'ok', exportedAt: 1700000000000 } }
     };
 
     const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
-    (globalThis as any).chrome = {
+    (globalThis as any).chrome = withRegistry({
         storage: {
             local: {
                 get: async (keys: any) => {
@@ -124,16 +126,16 @@ test('D4: StorageService.clearConversations cleans up checkpoint and exported re
                 }
             }
         }
-    };
+    });
 
-    await StorageService.clearConversations('u0');
+    await StorageService.clearConversations('10000000-0000-4000-8000-000000000001');
 
-    assert.deepStrictEqual(mockStore.gemini_conversations, []);
-    assert.strictEqual(mockStore.gemini_last_count, 0);
-    assert.strictEqual(mockStore.gemini_scan_checkpoint, undefined, 'Scan checkpoint must be removed');
-    assert.deepStrictEqual(mockStore.exportedIds, {}, 'Exported records must be emptied');
+    assert.deepStrictEqual(mockStore['conversations_10000000-0000-4000-8000-000000000001'], []);
+    assert.strictEqual(mockStore['last_count_10000000-0000-4000-8000-000000000001'], 0);
+    assert.strictEqual(mockStore['scan_checkpoint_10000000-0000-4000-8000-000000000001'], undefined, 'Scan checkpoint must be removed');
+    assert.deepStrictEqual(mockStore['exported_10000000-0000-4000-8000-000000000001'], {}, 'Exported records must be emptied');
 
-    const checkpoint = await StorageService.getScanCoverage('u0');
+    const checkpoint = await StorageService.getScanCoverage('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(checkpoint, null, 'getScanCoverage must return null after clearConversations');
     } finally {
         if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
@@ -151,6 +153,7 @@ test('MessageBridge rejects malformed deletion IDs and verifies valid events in 
         (globalThis as any).chrome = {
             runtime: {
                 sendMessage: async (message: unknown) => {
+                    if ((message as any).action === 'accountRegistry') return { ok: true, value: { id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: '10000000001' } };
                     sent.push(message);
                     return { data: { isDeleted: true } };
                 }
@@ -164,16 +167,16 @@ test('MessageBridge rejects malformed deletion IDs and verifies valid events in 
         const event = (id: string, slot: string) => ({
             origin: typeof location === 'undefined' ? undefined : location.origin,
             source: typeof window === 'undefined' ? null : window,
-            data: { type: 'GEMINI_CONVERSATION_DELETED', payload: { id, slot } }
+            data: { type: 'GEMINI_CONVERSATION_DELETED', payload: { id, slot, requestAccountObservation: { providerId: 'gemini', providerAccountId: '10000000001' } } }
         });
-        await api.handleWindowMessage(event('../../malicious/path', 'u999'));
+        await api.handleWindowMessage(event('../../malicious/path', 'u0'));
         assert.deepStrictEqual(sent, [], 'malformed IDs cannot trigger a background fetch');
-        await api.handleWindowMessage(event('c_12345678abcdef', 'u999'));
+        await api.handleWindowMessage(event('c_12345678abcdef', 'u0'));
         assert.deepStrictEqual(sent, [{
             action: 'fetchChat',
             conversationId: 'c_12345678abcdef',
-            accountSlot: 'u0'
-        }], 'valid page events verify through the active content account, not the injected slot');
+            accountId: '10000000-0000-4000-8000-000000000001'
+        }], 'valid page events verify through the captured Registry account');
         assert.strictEqual(removedCalled, false, 'untrusted page-world deletion never removes the local archive');
     } finally {
         if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);

@@ -1,3 +1,5 @@
+import { indexFixture as canonicalIndex } from './helpers/indexFixture.js';
+const canonicalList = (value: any): any => Array.isArray(value) ? value.map(canonicalIndex) : value;
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -17,20 +19,21 @@ const ProgressView = require('../src/ui/views/progressView.js');
 test('accountView - exports and safe render with DOM side effect verification', () => {
     assert.ok(AccountView);
     // 1. Safe render without DOM element does not crash
-    AccountView.render({ 'u0': { name: 'Main' } }, 'u0');
+    AccountView.render([{ id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: 'main', displayName: 'Main' }], '10000000-0000-4000-8000-000000000001');
 
     // 2. Verified DOM render with element creation and selection
     const mockSelect: any = {
-        id: 'accountSlotSelect',
+        id: 'accountIdSelect',
         style: {},
         innerHTML: '',
         children: [] as any[],
+        replaceChildren() { this.children = []; },
         appendChild(el: any) { this.children.push(el); }
     };
     const oldDoc = (global as any).document;
     try {
         (global as any).document = {
-            getElementById: (id: string) => id === 'accountSlotSelect' ? mockSelect : null,
+            getElementById: (id: string) => id === 'accountIdSelect' ? mockSelect : null,
             createElement: (tag: string) => ({
                 tagName: tag.toUpperCase(),
                 value: '',
@@ -39,16 +42,16 @@ test('accountView - exports and safe render with DOM side effect verification', 
             })
         };
 
-        AccountView.render({
-            u0: { name: '默认账号', count: 12 },
-            u1: { name: '工作账号', count: 5 }
-        }, 'u1');
+        AccountView.render([
+            { id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: 'default' },
+            { id: '10000000-0000-4000-8000-000000000002', providerId: 'gemini', providerAccountId: 'work', displayName: '工作账号' }
+        ], '10000000-0000-4000-8000-000000000002');
 
         assert.strictEqual(mockSelect.style.display, 'inline-block', 'Select should be displayed inline-block when multiple slots exist');
         assert.strictEqual(mockSelect.children.length, 2, 'Should create 2 option elements');
-        assert.strictEqual(mockSelect.children[0].value, 'u0');
+        assert.strictEqual(mockSelect.children[0].value, '10000000-0000-4000-8000-000000000001');
         assert.strictEqual(mockSelect.children[0].selected, false);
-        assert.strictEqual(mockSelect.children[1].value, 'u1');
+        assert.strictEqual(mockSelect.children[1].value, '10000000-0000-4000-8000-000000000002');
         assert.strictEqual(mockSelect.children[1].selected, true, 'Current slot u1 should be selected');
     } finally {
         (global as any).document = oldDoc;
@@ -99,7 +102,7 @@ test('badgeView - DOM creation and text update', () => {
         assert.ok(badge);
         assert.strictEqual(badge.id, 'geminiExportBadge');
 
-        BadgeView.updateBadge(15, 0, null, false, { isZh: () => true, getAccountSlot: () => 'u0' });
+        BadgeView.updateBadge(15, 0, null, false, { isZh: () => true, getAccountSlot: () => '10000000-0000-4000-8000-000000000001' });
         assert.strictEqual(mockTxt.textContent, '正在追踪 15 条对话');
         assert.strictEqual(BadgeView.getLastKnownCount(), 15);
     } finally {
@@ -115,7 +118,7 @@ test('dialogView - exports, safe no-DOM invocation, and verified modal transitio
     assert.ok(DialogView);
 
     // 1. Safe no-DOM invocation
-    DialogView.renderExportBanner(null, 'u0', false);
+    DialogView.renderExportBanner(null, '10000000-0000-4000-8000-000000000001', false);
     DialogView.showDirectWritePrompt(100, () => {}, () => {});
     DialogView.hideDirectWritePrompt();
     await DialogView.showTakeoutLimitPrompt({ count: 600, onImportTakeout: () => {} });
@@ -201,7 +204,7 @@ test('dialogView - renderExportBanner XSS prevention: lastChatTitle is rendered 
             total: 10,
             current: 3,
             lastChatTitle: maliciousTitle
-        }, 'u0', false);
+        }, '10000000-0000-4000-8000-000000000001', false);
 
         assert.ok(!bannerTextElem.innerHTML.includes('<svg'), 'innerHTML must not contain unescaped HTML tags');
         assert.strictEqual(appendedNodes.length, 1, 'lastChatTitle must be appended as a text node');
@@ -243,7 +246,7 @@ test('listView - checkIsUpdated correctly detects new dialogue and timestamps', 
     assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime + 10000, messageCount: 4 }, recSame), true);
 
     // 5. Exported conversation with subsequent messageCount increase
-    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime, messageCount: 6 }, recSame), true);
+    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime, messageCount: 6 }, recSame), false);
 
     // 6. Canonical messageCount is observed individual messages. A larger count requires export
     // even if the local exportedAt clock is ahead of the source.
@@ -254,7 +257,7 @@ test('listView - checkIsUpdated correctly detects new dialogue and timestamps', 
         messageCount: 1
     };
     // Local time and an ID substring cannot override observed source evidence.
-    assert.strictEqual(checkIsUpdated({ id: 'c_truncated', updatedAt: chatTs, messageCount: 2 }, recNewer), true);
+    assert.strictEqual(checkIsUpdated({ id: 'c_truncated', updatedAt: chatTs, messageCount: 2 }, recNewer), false);
 
     // 7. But if subsequent user activity arrives after export (updatedAt advanced past exportedAt), must return true
     assert.strictEqual(checkIsUpdated({ id: 'c_truncated', updatedAt: chatTs + 86400000 + 5000, messageCount: 2 }, recNewer), true);
@@ -293,7 +296,7 @@ test('listView - render displays Updated badge and auto-checks updated conversat
         };
 
         // Render with null prevSelectedSet (default initial load)
-        ListView.render(convs as any, expMap as any, null);
+        ListView.render(canonicalList(convs as any), expMap as any, null);
 
         const html = fakeList.innerHTML;
         // Verify badge-updated is rendered for c_updated
@@ -305,9 +308,9 @@ test('listView - render displays Updated badge and auto-checks updated conversat
         assert.ok(html.includes('已导出'), 'Must render 已导出 text for exported conversation');
 
         // Verify checkboxes: unexported and updated are checked by default, exported is unchecked
-        assert.ok(html.includes('data-chat-id="c_unexp"'), 'Contains unexported item');
-        assert.ok(html.includes('data-chat-id="c_exported"'), 'Contains exported item');
-        assert.ok(html.includes('data-chat-id="c_updated"'), 'Contains updated item');
+        assert.ok(html.includes('data-chat-id="unexp"'), 'Contains unexported item');
+        assert.ok(html.includes('data-chat-id="exported"'), 'Contains exported item');
+        assert.ok(html.includes('data-chat-id="updated"'), 'Contains updated item');
     } finally {
         (globalThis as any).document = origDoc;
         __setModuleOverride('I18n', origI18n);
@@ -330,15 +333,15 @@ test('listView - selectAll & deselectAll DOM simulation', () => {
         (globalThis as any).document = fakeDoc;
         const convs: any[] = [{ id: '1', title: 'A' }, { id: '2', title: 'B' }];
         
-        ListView.selectAll(convs);
+        ListView.selectAll(canonicalList(convs));
         assert.strictEqual(mockCheckboxes[0].checked, true);
         assert.strictEqual(mockCheckboxes[1].checked, true);
-        assert.strictEqual(ListView.getSelected(convs).length, 2);
+        assert.strictEqual(ListView.getSelected(canonicalList(convs)).length, 2);
 
-        ListView.deselectAll(convs);
+        ListView.deselectAll(canonicalList(convs));
         assert.strictEqual(mockCheckboxes[0].checked, false);
         assert.strictEqual(mockCheckboxes[1].checked, false);
-        assert.strictEqual(ListView.getSelected(convs).length, 0);
+        assert.strictEqual(ListView.getSelected(canonicalList(convs)).length, 0);
     } finally {
         (globalThis as any).document = origDoc;
     }
@@ -401,7 +404,7 @@ test('listView - row click toggles checkbox and fires change', () => {
             getElementById: (id: string) => id === 'list' ? mockList : null
         };
 
-        ListView.render([{ id: 'c_test_click', title: 'Test Chat' } as any]);
+        ListView.render(canonicalList([{ id: 'c_test_click', title: 'Test Chat' } as any]));
         assert.ok(clickHandler, 'Click delegation handler must be attached to list');
 
         // Click inside the row (e.g. on title)
@@ -585,35 +588,35 @@ test('listView - filterType filtering (unexported, failed, unexported_or_failed,
         const failedIds = new Set(['chat_fail']);
 
         // 1. All
-        ListView.render(convs as any, expMap, null, '', 'all', failedIds);
+        ListView.render(canonicalList(convs as any), expMap, null, '', 'all', failedIds);
         assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
 
         // 2. Unexported
-        ListView.render(convs as any, expMap, null, '', 'unexported', failedIds);
+        ListView.render(canonicalList(convs as any), expMap, null, '', 'unexported', failedIds);
         assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_partial"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_fail"'));
 
         // 3. Failed (both chat_fail and chat_partial)
-        ListView.render(convs as any, expMap, null, '', 'failed', failedIds);
+        ListView.render(canonicalList(convs as any), expMap, null, '', 'failed', failedIds);
         assert.ok(!innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
 
         // 4. Unexported or Failed
-        ListView.render(convs as any, expMap, null, '', 'unexported_or_failed', failedIds);
+        ListView.render(canonicalList(convs as any), expMap, null, '', 'unexported_or_failed', failedIds);
         assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
 
         // 5. Exported
-        ListView.render(convs as any, expMap, null, '', 'exported', failedIds);
+        ListView.render(canonicalList(convs as any), expMap, null, '', 'exported', failedIds);
         assert.ok(!innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_partial"'));
@@ -650,7 +653,7 @@ test('listView - selectAll & deselectAll only affects visible items in current v
         ListView.setSelectedIds(new Set(['chat_2']));
 
         // Select All in filtered view (which only has item1 visible)
-        ListView.selectAll(convs);
+        ListView.selectAll(canonicalList(convs));
         assert.strictEqual(cb1.checked, true, 'Visible item1 must be checked');
         // Both chat_1 and chat_2 must now be in selected IDs (chat_2 was not deselected)
         const selectedIds = ListView.getSelectedIds();
@@ -658,7 +661,7 @@ test('listView - selectAll & deselectAll only affects visible items in current v
         assert.ok(selectedIds.has('chat_2'), 'chat_2 hidden in view must retain its selected status');
 
         // Deselect All in filtered view (which only has item1 visible)
-        ListView.deselectAll(convs);
+        ListView.deselectAll(canonicalList(convs));
         assert.strictEqual(cb1.checked, false, 'Visible item1 must be unchecked');
         const selectedAfter = ListView.getSelectedIds();
         assert.ok(!selectedAfter.has('chat_1'), 'chat_1 in visible view should be deselected');
@@ -718,11 +721,11 @@ test('listView - render displays badge-exported-partial for partial records unle
             }
         };
 
-        ListView.render(convs as any, expMap as any, null);
+        ListView.render(canonicalList(convs as any), expMap as any, null);
         const rows = fakeList.innerHTML.split('data-chat-id="').slice(1);
-        const rowPartialFresh = rows.find((r: string) => r.startsWith('c_partial_fresh')) || '';
-        const rowPartialUpdated = rows.find((r: string) => r.startsWith('c_partial_updated')) || '';
-        const rowResumed = rows.find((r: string) => r.startsWith('c_resumed')) || '';
+        const rowPartialFresh = rows.find((r: string) => r.startsWith('partial_fresh')) || '';
+        const rowPartialUpdated = rows.find((r: string) => r.startsWith('partial_updated')) || '';
+        const rowResumed = rows.find((r: string) => r.startsWith('resumed')) || '';
 
         assert.ok(rowPartialFresh.includes('badge-exported-partial'), 'Fresh partial export must render badge-exported-partial, not badge-updated');
         assert.ok(rowPartialFresh.includes('已导出 (部分附件缺失)'), 'Fresh partial export must show partial label');

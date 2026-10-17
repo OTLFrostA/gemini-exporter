@@ -1,4 +1,4 @@
-export {};
+import { accountRuntime } from './helpers/accountRuntime.js';
 const test = require('node:test');
 const assert = require('node:assert');
 const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
@@ -19,6 +19,7 @@ test('production scan entry admits one pagination call while another scan is pen
     (global as any).document = { getElementById: () => null };
     (global as any).location = { href: 'https://gemini.google.com/app', pathname: '/app' };
     (global as any).chrome = { runtime: { sendMessage: async () => {} } };
+    const runtime = accountRuntime();
     __setModuleOverride('StorageService', { beginScanCoverage: async () => ({ runId: 'test-run', previous: null }), finishScanCoverage: async () => true });
     defaultGeminiProvider.listConversations = async () => {
         calls++;
@@ -38,6 +39,7 @@ test('production scan entry admits one pagination call while another scan is pen
         await syncConversations();
         assert.strictEqual(calls, 2, 'a completed scan must allow a subsequent fresh pagination request');
     } finally {
+        runtime.restore();
         release();
         defaultGeminiProvider.listConversations = originalList;
         contentContext.setDeepScanPromise(null);

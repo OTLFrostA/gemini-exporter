@@ -211,7 +211,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "quote-group",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

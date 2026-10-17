@@ -1,178 +1,88 @@
-# Versioned Domain storage
+# Domain storage and admission
 
-The semantic persistence pipeline is now:
+The Domain contract describes accepted local facts. Source interpretation belongs to
+L1 Provider/Parser, pure admission rules belong to L2 Domain, and transactions belong
+to Storage. Application consumers read the accepted local result.
 
-```text
-old chrome/IndexedDB record → legacy-storage parser → Domain → v2 repository
-new raw source → native parser → TrustedDomain → v2 repository
-v2 repository → shared snapshot restoration → TrustedDomain → Document AST → renderer
-```
+## Identity and contracts
 
-`gemini_schema_version = 2` marks completion of the body, canonical index and quality migrations. Released 1.7 sources upgrade directly through the legacy-storage parser. The repository lives
-under the extension origin in `gemini_exporter_domain` (IndexedDB version 2).
-Content scripts use the background message broker; they do not create a second
-Domain repository under the Gemini web origin. Old web-origin detail databases
-are transferred separately when that origin is next opened, even if extension
-startup already completed v2. The original databases are retained.
+- `domain/accountRegistry.ts`: Account is `{id, providerId, providerAccountId,
+  email?, displayName?}`. The local ID is a UUID; matching uses the exact provider
+  and provider account ID. L1 normalizes provider identity. Each provider can have
+  an ordinary `default` account with its own UUID; it is never implicitly promoted
+  or merged into an identified account.
+- `domain/conversationKey.ts`: `{accountId, conversationId}` identifies both Index
+  and Detail. Provider ownership is resolved through Account.
+- `domain/conversationIndex.ts`: Index contains only `key`, optional `title` with
+  `titleSource`, `createdAt`, and `updatedAt`. Title authority is
+  `user > provider > derived`; the latest admission wins at equal authority.
+  Missing facts preserve existing values. Creation uses the earliest source time,
+  activity the latest source time. Unknown titles/times remain absent.
+- `domain/conversationDetail.ts`: Detail contains `key`, `messages`, `assets`,
+  `quality: {status}`, and optional `savedAt`. The latter is the source snapshot
+  version, never a local write clock or a message count.
+- `domain/indexCoverage.ts`, `streamCoverage.ts`, `scanCoverage.ts`: trusted list
+  coverage advances only after all indexes on the observed page commit.
 
-## Stored contract
+Domain excludes pagination cursors, availability, import markers, parser diagnostics,
+resource bytes, acquisition failures and export destinations. Temporary `data:` and
+`blob:` resource locations stay outside Domain. Assets retain semantic resource
+metadata and source locators; content and reasoning refer to their asset IDs.
+Generated-media identity fields are optional when the source cannot establish them.
 
-`src/core/storage/domain/contracts.ts` defines the envelope. Its storage version
-is 2 and its Domain contract version is 2; those are independent of IndexedDB's
-physical database version. Identity is the tuple `(providerId, accountSlot,
-conversationId)`. Only Gemini's historical `c_` alias is normalized; other
-providers' IDs remain opaque. Gemini's `default` account transport alias maps to
-`u0`; other providers' account identities remain opaque. Account slots retain the application's existing
-account mapping and are not invented provider account IDs.
+## Snapshot selection
 
-The `conversations` object store holds the selected `DomainStorageRecord`:
+`selectConversationDetail` selects one entire snapshot, including its asset graph.
+A complete snapshot is protected from partial/unknown input. Comparable older
+source versions are rejected. Otherwise a later admission replaces the snapshot,
+including a shorter complete body or a shorter incomplete body. There is no
+partial-body stitching or message-count preference.
 
-- A closed `DomainConversationDetail`, preserving structured body/reasoning,
-  roles, model names, dates, source facts, citations and resource relationships.
-- Storage identity, versions, source/migration origin, opaque revision and optional saved source version (`savedAt`).
-- Separate resource bindings: asset ID, original archive path when known, and
-  actual attachment bytes. Acquired bytes never become Domain or AST fields.
-- Restricted acquisition context containing original URLs and candidates.
+Index metadata merges independently, so an Index-only update cannot advance the
+selected Detail's `savedAt`. Rejected input cannot attach its acquisition hints or
+resource bindings to a retained body.
 
-Diagnostics, RPC debug/pagination state, export destinations and ZIP file handles
-are excluded. Domain is strictly validated at both write and read boundaries,
-including field shapes, content nodes, resource/citation closure and finite
-numbers. Both reads and writes accept only the unreleased Domain contract v2. Unsupported versions and obsolete fields fail closed without rewriting originals on read.
+## Ingestion and persistence
 
-The existing 1.7 legacy migration parses old completeness, truncation and heuristic resource evidence into quality before saving Domain v2. Intermediate development snapshots have no migration adapters. Original legacy values remain backed up by that migration; read paths never repair obsolete fields.
+`storage/conversationIngest.ts` is the shared admission entry point. It validates
+Account and conversation ownership, saves the selected body, then merges and
+commits the Index under the conversation lock. L1 detail acquisition (Gemini and
+ChatGPT), content observations/live saves and Takeout imports use this boundary
+before Application consumes the result. Failed commits propagate; list coverage
+does not advance after an Index failure.
 
-Restored `quality` preserves content caution even after transient parser diagnostics are gone. Resource acquisition failures are recomputed during export through ResourceResult/PreparedResources; no Domain failure state is stored.
+`storage/conversationCatalogStore.ts` owns UUID-partitioned Chrome metadata keys,
+strict detached reads and serialized read/merge/write operations.
+`storage/domain/domainStore.ts` owns the current IndexedDB snapshot and the separate
+resource-byte cache. Current Domain/storage and transport envelopes are version 3;
+the physical IndexedDB layout version remains independent. Readers reject obsolete
+or malformed contracts without repairing them. This refactor adds no migration or
+compatibility path for old identities or old Domain snapshots.
 
-Persisted `DomainStorageRecord` remains an unbranded JSON contract. Every physical record recovery establishes `TrustedDomainStorageRecord` with `restoreDomainSnapshot` (re-exported as `readStorageDomain`). Restoration intentionally retains two Schema passes, before and after JSON serialization, and one Closure pass. This is one trust-restoration operation, not one total tree traversal. Writes perform the same detached-snapshot checks because a type-only brand does not freeze caller objects; reading an existing physical record during a write requires its own restoration.
+Resources are embedded in Detail; there is no separate Domain Resource manager.
+Inline acquisition inputs are decoded into the existing byte cache. Replacements
+remove bindings for assets no longer in the selected graph. Unchanged resource
+identity/source can retain cached bytes. Actual bytes never become Domain fields.
 
-Trusted internal record adaptation retains envelope/version, identity, acquisition/resource/digest bindings and detached-copy isolation without repeating Domain AST validation. Content scripts use a current-version authenticated Broker reply adapter after the background restores a record. Raw Broker saves still establish trust at the background write snapshot boundary. Communication envelope version 2 rejects stale extension/page code carrying the previous Domain schema; publishers and consumers share the existing envelope-version constant. This protocol version remains outside Domain and does not change the IndexedDB layout. Page `postMessage` is never that authenticated channel: origin/source checks plus raw protocol field checks lead to Parser input, not TrustedDomain.
+`storage/conversationRepository.ts` combines the canonical catalog Index with the
+selected body for a read-only consumer. It does not fetch providers or repair data.
+Composer receives Domain plus Account and does not synthesize provider URLs.
+Export workers re-read the admitted result; existing format pipelines only adapt
+to the new contracts. Full unified Export/PDF lifecycle work is a separate module.
 
-See [the trust audit](domain-trust-audit.md) for authorized entries, remaining assertions, measured Schema/Closure counts, and qualified validation results.
+## Availability and explicit cleanup
 
-Each conversation has exactly one selected record in `conversations`; no
-revision history is retained. The record's `revision` field is only an opaque
-token for that current record. An identical capture leaves the current record
-unchanged. Shorter snapshots, older timestamps at the same message count, or
-reduced coverage (including a larger partial/unknown snapshot replacing a complete one) cannot replace the selected fuller snapshot;
-their body is not selected. Explicit placeholder titles are excluded before title authority comparison. A stronger non-placeholder title may still be adopted through the shared title authority without replacing that body. Stable resource bytes carry
-forward only when asset identity and source URI still match. Online acquired
-bytes use a separate `resource_bytes` store keyed by conversation identity,
-asset ID and original source URI, and survive restart. A new database creates
-only the current-record, byte-cache, migration-backup and removal-marker stores.
-There is no upgrade path for the unshipped intermediate revisions store.
-
-## Legacy interpretation and recovery
-
-`parseConversation({ format: 'legacy-storage', providerId, data })` accepts old
-metadata and an optional detail record. It reuses the characterized historical
-record grammar, joins the fuller body with metadata, preserves available model,
-reasoning and media evidence, and produces the same closed Domain result as other
-parsers. Metadata without an expected stored body reports partial coverage.
-
-Migration first scans and backs up the original list containers and detail rows
-in `legacy_imports`, then converts interpretable records. A details record shared
-by several account slots has no reliable account identity: it stays recoverable
-without being assigned to either account. Orphan details and malformed rows also
-remain in the backup/original source and appear in the migration report. They are
-not silently repaired into fabricated Domain data. Uninterpretable records are
-preserved as explicit migration issues; the v2 stamp means the transfer completed,
-not that every historical row was interpretable.
-
-Disk/open/transaction failures abort migration and withhold the application
-version stamp. The current record commits in one IDB transaction;
-request success alone is insufficient. Retrying does not overwrite a newer native
-capture and does not create duplicate records. Host-origin migration has its
-own marker and report, stamped only after its transfer completes.
-
-## Application compatibility
-
-`DomainConversationIndex` is the exact metadata contract stored in the existing
-`gemini_conversations[_uN]` chrome keys. Body/attachments remain physically separate
-in the v2 Domain repository. List/sidebar/import observations normalize above Domain;
-consumers read one title with explicit authority, source-authored `createdAt`/`updatedAt`
-in epoch milliseconds, explicit cloud availability and the independent `hasTakeoutImport` fact.
-Unknown titles are empty strings (`default` authority); UI supplies a localized label.
-Missing authored time/count is absent. `messageCount` is the largest observed number
-of individual messages; ambiguous RPC turn counts and old declared counts are omitted.
-Body snapshots can establish an observed count during migration. A title upgrade
-cannot erase Takeout history. Merge preserves strongest title authority, earliest
-creation, latest source activity and largest observed count. `indexActivityTime` uses
-only `updatedAt` for ordering and freshness; creation and message dates are not update versions.
-Native Detail metadata can advance Index activity without establishing cloud availability.
-Export `chatTime` is the source version of the body actually exported; a newer Index
-or local `exportedAt` clock cannot advance that baseline.
-
-Gemini RPC acquisition resolves a transient `sourceVersion` from the matching conversation's List metadata
-returned in the same batch. It does not derive a conversation version from message maxima.
-Detail has no `updatedAt`. `DomainStorageRecord.savedAt` records the captured source version on
-the same scale as Index `updatedAt`, only for a nonpartial, versioned body. Partial, metadata-only and unversioned captures omit it.
-A rejected incoming body cannot advance the selected body's saved version. A version
-change or missing version across pages marks the assembled body partial. Identical
-captures keep their version and opaque revision unchanged. v1 cached bodies have no
-proven source version: migration preserves their content but omits `savedAt`.
-Takeout activity dates remain partial offline evidence and cannot establish a saved cloud version.
-See [the live timestamp audit](audits/conversation-time-semantics.md) for wire evidence.
-
-Confirmed cloud deletion survives unknown, unlisted and cached/body observations.
-A successful authoritative RPC list observation may restore `available`. Same-context
-requests begun before deletion remain fenced; the in-memory fence clears only after
-the recovered index commits. Availability is not inferred from receiving a detail body.
-
-Index storage strictly restores detached exact-schema records and rejects malformed
-containers/rows, duplicate provider+ID pairs and extra fields. Reads never repair or
-write. The list setter stores indexes only; `setNativeConversations` explicitly saves
-native detail before merging its index under the same conversation lock. Partial and
-concurrent native imports retain unrelated indexes; an empty native import is a no-op.
-Index updates cannot write/truncate a body. Export
-records, settings, account mappings and credentials retain independent APIs.
-
-The index step of the startup v1-to-v2 migration runs under the cross-tab conversation lock, backs up every
-original container to `legacy_imports` before conversion, merges the u0 alias and
-records rejected rows/containers in `gemini_index_migration_v2`. Body migration uses
-the existing native store. The v2 schema stamp is written only after both body and
-index migration complete. Durable failures withhold the schema stamp and preserve
-aliases for retry; invalid source data stays recoverable in backups. Once converted,
-`titles`, `timestamp`, `chatTime`, `lastSeen`, `source`, `isTakeoutOnly`, body and parse
-transport state never enter the new index.
-
-The next step will expose index plus optional detail through one aggregate gateway;
-this migration establishes canonical metadata and storage separation first.
-Fresh native captures from network interception, detail fetching, DOM fallback,
-live saving and Takeout import write Domain directly to the new repository.
-Takeout import also stores source-bound file bytes before reporting success.
-
-Export fallback reads account-scoped native Domain records; it never decodes the
-historical detail cache at runtime. Missing bodies remain retryable failures.
-Only old-storage migration interprets historical string records. Standard JSON
-serializes native Domain directly, without an application projection.
-The old detail API remains for migration and characterization; native writes do
-not write a second legacy body. Scoped deletion removes the
-selected current record and its acquired bytes while preserving other
-accounts. `removed_conversations` markers prevent late migration/retry from
-restoring removed bodies; an explicit fresh source capture can restore them.
-Confirmed remote deletion also suppresses stale page observations in that tab.
-Conversation deletion first records account-scoped intent in
-`gemini_pending_deletions_uN`, before removing list metadata. Single deletion
-cleans by ID even when the list entry is already absent; reconciliation and clear
-also replay pending IDs. An ID is retired only after the Domain current
-record/bytes and its `removed_conversations` tombstone commit, legacy detail
-deletion commits, and export-record cleanup succeeds. Disk failures propagate
-instead of reporting memory fallback as success, so restart/retry can finish a
-partial deletion. `removeConversation` still returns whether list metadata
-changed; a successful cleanup retry may
-therefore return `false`. Reconciliation includes recovered pending IDs in its
-`removedIds` result. Original migration backups are retained for recovery.
+`storage/conversationAvailability.ts` stores account-scoped execution observations
+separately from Index/Detail. A confirmed cloud deletion can restrict acquisition,
+but deletion, list absence and network failure never erase the local archive.
+Only explicit local cleanup removes Index, Detail, resource bytes, availability and
+export records. A durable deletion intent allows failed cleanup to be retried
+without relying on an already-removed list row. Other accounts remain isolated.
 
 ## Verification
 
-Unit contracts cover strict schema validation, closed graphs, rich content/model
-round trips, account/provider isolation, coverage guards, byte durability,
-idempotence, scoped deletion and future-version freeze. Browser tests use actual
-IndexedDB transactions and reloads, inject a transaction/quota abort, acquire
-stored attachments offline, migrate the old web-origin database, and prove a
-content-script capture remains readable from the extension after its tab closes.
-Full Tier 1 and live Tier 2 remain the release gates for integration changes.
-
-Final integration acceptance: [storage v2 Tier 2 record](audits/domain-storage-v2-tier2.md).
-
-JSON archives carry this same optional `savedAt` outside the Detail object. Migration backup clocks use `backedUpAt`; legacy v1 save clocks are quarantined as migration input and never establish a source version.
+Admission tests exercise complete/partial selection, source-version ordering,
+whole asset-graph replacement, byte separation, ownership isolation and commit
+failure propagation. Existing parser, storage, export and browser audits remain
+integration gates. This round validates Tier 1 only, as requested; live Tier 2
+validation is outside its acceptance scope. Pending runs are not passing evidence.

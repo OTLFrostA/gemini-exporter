@@ -1,10 +1,10 @@
-import type { DomainConversationIndex } from '../../../domain/conversationIndex.js';
+import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
 import { parseGeminiIndexObservation } from '../parseIndexObservation.js';
 import { normId, isReservedRoute } from '../../../utils/pathUtils.js';
 import { cleanTitle, isRealTitle } from '../../../utils/titleUtils.js';
 
-export function parseGeminiDomList(document: Document): DomainConversationIndex[] {
-    const items: DomainConversationIndex[] = [];
+export function parseGeminiDomList(document: Document): GeminiIndexObservationInput[] {
+    const items: GeminiIndexObservationInput[] = [];
     const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="/app/"]');
     for (const a of Array.from(links)) {
         const href = a.href || a.getAttribute('href') || '';
@@ -13,12 +13,12 @@ export function parseGeminiDomList(document: Document): DomainConversationIndex[
             const id = normId(m[2]);
             if (isReservedRoute(id)) continue;
             const rawTitle = (a.querySelector('.title, [class*="title"]')?.textContent || a.textContent || '').trim();
-            items.push(parseGeminiIndexObservation({
+            items.push({
                 id,
-                title: rawTitle,
+                title: cleanTitle(rawTitle),
                 titleSource: 'dom',
                 url: `https://gemini.google.com/app/${id}`
-            }, 'dom'));
+            });
         }
     }
     return items;
@@ -48,9 +48,9 @@ function activeTitle(document: Document, activeId: string): { title: string; sou
 }
 
 /** Current page metadata -> Domain; DOM title precedence and message-count meaning stay here. */
-export function parseGeminiDomIndex(document: Document | null, id: string): DomainConversationIndex {
+export function parseGeminiDomIndex(document: Document | null, id: string): GeminiIndexObservationInput {
     const title = document ? activeTitle(document, id) : null;
     const count = document?.querySelectorAll('user-query, model-response').length ?? 0;
-    return parseGeminiIndexObservation({ id, ...(title ? { title: title.title, titleSource: title.source } : {}),
-        ...(count > 0 ? { messageCount: count } : {}) }, 'dom');
+    return { id, ...(title ? { title: title.title, titleSource: title.source } : {}),
+        ...(count > 0 ? { messageCount: count } : {}) };
 }

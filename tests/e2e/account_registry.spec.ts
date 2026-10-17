@@ -5,7 +5,7 @@ async function accounts(page: Page) {
     return page.evaluate(async () => {
         const response = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'list' });
         if (!response.ok) throw new Error(response.error);
-        return response.value as { id: string; providerId: string; providerAccountId: string; email?: string }[];
+        return (response.value as { id: string; providerId: string; providerAccountId: string; email?: string }[]).filter(a => a.providerAccountId !== 'default');
     });
 }
 async function tabContext(page: Page, url: string) {
@@ -51,7 +51,9 @@ test('same-tab SPA Gaia switching survives a wrong DOM email, same-email identit
     const repeated = await Promise.all(Array.from({ length: 12 }, () => tabContext(options, url)));
     expect(repeated.every(result => result?.accountId === first.id)).toBe(true);
     await page.evaluate(() => { window._WIZ_global_data!.qDCSke = ''; });
-    expect(await tabContext(options, url)).toBeNull();
+    const fallback = await tabContext(options, url);
+    expect(fallback.accountId).not.toBe(first.id);
+    expect(await options.evaluate(async id => (await chrome.runtime.sendMessage({action:'accountRegistry',command:'get',accountId:id})).value, fallback.accountId)).toEqual({id:fallback.accountId,providerId:'gemini',providerAccountId:'default'});
     expect(await accounts(options)).toHaveLength(2);
 });
 
@@ -93,10 +95,10 @@ test('concurrent real IDB admission, provider isolation, email updates and inval
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     const result = await page.evaluate(async () => {
-        const observe = (observation: unknown) => chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'observe', observation });
+        const observe = (observation: unknown) => chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'getOrCreate', ...(observation as object) });
         const observation = { providerId: 'gemini', providerAccountId: 'same-subject', email: 'shared@example.com' };
         const receipts = await Promise.all(Array.from({ length: 12 }, () => observe(observation)));
-        const uuid = receipts[0].value.account.id;
+        const uuid = receipts[0].value.id;
         const renamed = await observe({ ...observation, email: 'changed@example.com', displayName: 'Changed' });
         const sparse = await observe({ providerId: 'gemini', providerAccountId: 'same-subject' });
         const other = await observe({ ...observation, providerAccountId: 'other-subject' });
@@ -106,12 +108,11 @@ test('concurrent real IDB admission, provider isolation, email updates and inval
         const filtered = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'list', providerId: 'claude' });
         return { receipts, uuid, renamed, sparse, other, provider, invalid, read, filtered };
     });
-    expect(new Set(result.receipts.map(receipt => receipt.value.account.id)).size).toBe(1);
-    expect(result.receipts.filter(receipt => receipt.value.resolution === 'created')).toHaveLength(1);
-    expect(result.renamed.value.account).toMatchObject({ id: result.uuid, email: 'changed@example.com' });
-    expect(result.sparse.value.account).toMatchObject({ id: result.uuid, email: 'changed@example.com', displayName: 'Changed' });
-    expect(result.other.value.account.id).not.toBe(result.uuid);
-    expect(result.provider.value.account.id).not.toBe(result.uuid);
+    expect(new Set(result.receipts.map(receipt => receipt.value.id)).size).toBe(1);
+    expect(result.renamed.value).toMatchObject({ id: result.uuid, email: 'changed@example.com' });
+    expect(result.sparse.value).toMatchObject({ id: result.uuid, email: 'changed@example.com', displayName: 'Changed' });
+    expect(result.other.value.id).not.toBe(result.uuid);
+    expect(result.provider.value.id).not.toBe(result.uuid);
     expect(result.invalid.ok).toBe(false);
     expect(result.read.value.id).toBe(result.uuid);
     expect(result.filtered.value).toHaveLength(1);

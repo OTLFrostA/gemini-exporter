@@ -1,3 +1,5 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -39,9 +41,9 @@ test('candidate search metadata does not become a phantom image in native Domain
     assert.equal(answer.attachments, undefined);
 
     // Check the actual native parser -> Domain -> Document -> Markdown path.
-    const native = parseGeminiRpcConversation(rawWithMetadata(), { providerId: 'gemini' });
+    const native = parseGeminiRpcConversation(rawWithMetadata(), { providerId: 'gemini', account: fixtureAccount() });
     assert.deepStrictEqual(native.conversation.detail.assets, [], 'search metadata is not an authored image resource');
-    const markdown = renderDocumentMarkdown(composeDomainDocument(native.conversation).document, {});
+    const markdown = renderDocumentMarkdown(composeDomainDocument(native.conversation, fixtureAccountFor(native.conversation)).document, {});
     assert.match(markdown, /Answer without pictures/);
     assert.doesNotMatch(markdown, /assets\/|Reference diagram|licensed-image/);
 });

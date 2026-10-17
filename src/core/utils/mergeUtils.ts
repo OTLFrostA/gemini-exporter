@@ -14,7 +14,7 @@ export function deduplicateConversations(list: readonly DomainConversationIndex[
     const map = new Map<string, DomainConversationIndex>();
     let changedCount = 0;
     for (const item of list) {
-        const key = JSON.stringify([item.providerId, item.id]);
+        const key = JSON.stringify([item.key.accountId, item.key.conversationId]);
         const result = mergeConversation(map.get(key), item);
         if (result.isChanged) changedCount++;
         map.set(key, result.merged);

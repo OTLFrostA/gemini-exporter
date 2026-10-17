@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test.describe('Workbench UI & Selection Controls', () => {
   test('should render workbench list, handle selection controls, search, and language switch', async ({ context, extensionId }) => {
@@ -19,8 +24,8 @@ test.describe('Workbench UI & Selection Controls', () => {
         'chat_001': { exportedAt: '2026-08-30T00:00:00Z', title: '量子计算的基本原理' }
       };
       await chrome.storage.local.set({
-        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
-        exportedIds: mockExported,
+        ['conversations_10000000-0000-4000-8000-000000000001']: (mockConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: mockExported,
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -153,8 +158,8 @@ test.describe('Workbench UI & Selection Controls', () => {
         'chat_empty': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'empty', messageCount: 0 }
       };
       await chrome.storage.local.set({
-        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
-        exportedIds: mockExported,
+        ['conversations_10000000-0000-4000-8000-000000000001']: (mockConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: mockExported,
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });

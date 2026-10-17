@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 /**
  * tests/mitex-adapter.test.ts
  *
@@ -139,12 +140,12 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
         display: true,
     }));
 
-    const domain = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'mitex-compile-test', title: 'MiTeX WASM Compilation Test', createdAt: '2026-09-28T00:00:00Z', updatedAt: '2026-09-28T00:00:00Z' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [
+    const domain = { index: { key: fixtureKey(String('mitex-compile-test'), 'gemini'),   titleSource: "derived",   title: 'MiTeX WASM Compilation Test', createdAt: '2026-09-28T00:00:00Z', updatedAt: '2026-09-28T00:00:00Z' }, detail: { key: fixtureKey(String('mitex-compile-test'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [
         { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Math test' }] }] },
         { id: 'm2', role: 'assistant', content: blocks },
     ] } };
 
-    const { payload } = renderTypstFixture(composeDomainDocument(domain).document, {}, {
+    const { payload } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {}, {
         convertMath: (source: string, display: boolean) => {
             return convertMathMitex(source, 'latex', display);
         },

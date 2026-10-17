@@ -80,7 +80,6 @@
           {
             "type": "code",
             "code": "def compute_attention_scores(query, key, scale=True):\n    \"\"\"Compute scaled dot-product attention scores.\"\"\"\n    d_k = query.shape[-1]\n    scores = query @ key.transpose(-2, -1)\n    if scale:\n        scores = scores / math.sqrt(d_k)\n    # 数值稳定性：减去每行最大值\n    scores = scores - scores.max(dim=-1, keepdim=True).values\n    return torch.softmax(scores, dim=-1)",
-            "showHeader": true,
             "language": "python"
           },
           {
@@ -113,7 +112,6 @@
           {
             "type": "code",
             "code": "export function throttle(fn, wait = 300) {\n  let lastCall = 0;\n  let timer = null;\n  return function (...args) {\n    const now = Date.now();\n    const remaining = wait - (now - lastCall);\n    if (remaining <= 0) {\n      lastCall = now;\n      fn.apply(this, args);\n    } else if (!timer) {\n      timer = setTimeout(() => {\n        lastCall = Date.now();\n        timer = null;\n        fn.apply(this, args);\n      }, remaining);\n    }\n  };\n}",
-            "showHeader": true,
             "language": "javascript"
           },
           {
@@ -129,7 +127,6 @@
           {
             "type": "code",
             "code": "#!/bin/bash\nset -euo pipefail\nIMAGE=\"registry.example.com/app:${TAG:-latest}\"\ndocker build -t \"$IMAGE\" .\ndocker push \"$IMAGE\"\nkubectl -n prod set image deploy/app \"app=$IMAGE\"\nkubectl -n prod rollout status deploy/app --timeout=300s",
-            "showHeader": true,
             "language": "bash"
           },
           {
@@ -154,7 +151,6 @@
           {
             "type": "code",
             "code": "{\"config\": {\"model\": \"gemini-2.5-pro\", \"temperature\": 0.7, \"max_tokens\": 8192, \"tools\": [{\"name\": \"search\", \"enabled\": true}, {\"name\": \"code_exec\", \"enabled\": false}]}, \"request_id\": \"req-9f8a7b6c5d4e\"}",
-            "showHeader": true,
             "language": "json"
           },
           {
@@ -187,7 +183,6 @@
           {
             "type": "code",
             "code": "CREATE TABLE review_comments (\n  id          BIGINT PRIMARY KEY AUTO_INCREMENT,\n  diff_id     VARCHAR(64)  NOT NULL,\n  file_path   VARCHAR(512) NOT NULL,\n  line_no     INT          NOT NULL,\n  author      VARCHAR(128) NOT NULL,\n  body        TEXT         NOT NULL,\n  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  INDEX idx_diff_file (diff_id, file_path)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;\n\n-- 找出每个 diff 下评论最多的文件\nSELECT diff_id, file_path, COUNT(*) AS c\nFROM review_comments\nGROUP BY diff_id, file_path\nORDER BY c DESC\nLIMIT 20;",
-            "showHeader": true,
             "language": "sql"
           },
           {
@@ -203,7 +198,6 @@
           {
             "type": "code",
             "code": "package reviewer\n\nimport (\n    \"context\"\n    \"fmt\"\n    \"time\"\n)\n\n// Comment 是一条 review 留言。\ntype Comment struct {\n    ID        int64\n    DiffID    string\n    FilePath  string\n    LineNo    int\n    Author    string\n    Body      string\n    CreatedAt time.Time\n}\n\n// TopFiles 返回评论最多的前 N 个文件。\nfunc TopFiles(ctx context.Context, comments []Comment, n int) []string {\n    counts := make(map[string]int)\n    for _, c := range comments {\n        select {\n        case <-ctx.Done():\n            return nil\n        default:\n        }\n        counts[c.FilePath]++\n    }\n    return takeTop(counts, n)\n}",
-            "showHeader": true,
             "language": "go"
           },
           {
@@ -235,24 +229,25 @@
           {
             "type": "code",
             "code": "def foo(a, b):\n    indented\n    return a + b",
-            "showHeader": true,
             "language": "python"
           },
           {
             "type": "code",
             "code": "const x = a + b;",
-            "showHeader": true,
             "language": "javascript"
           },
           {
             "type": "code",
             "code": "hello world",
-            "showHeader": true,
             "language": "text"
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "03-code-heavy",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

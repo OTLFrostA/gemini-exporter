@@ -1,3 +1,6 @@
+import { useAccountRuntime } from './helpers/accountRuntime.js';
+useAccountRuntime();
+import { withRegistry } from './helpers/registryMock.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
@@ -116,7 +119,7 @@ test('liveSaveCoordinator - executeLiveSave delegates via chrome.runtime.sendMes
     };
 
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         ...globalThis.chrome,
         runtime: {
             sendMessage: (msg: any, cb: (res: any) => void) => {
@@ -124,7 +127,7 @@ test('liveSaveCoordinator - executeLiveSave delegates via chrome.runtime.sendMes
                 if (cb) cb({ ok: true, handleName: 'MyVault' });
             }
         }
-    };
+    });
 
     try {
         LiveSaveCoordinator.init({
@@ -172,14 +175,14 @@ test('liveSaveCoordinator - executeLiveSave cleanly aborts and returns false wit
     };
 
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         ...globalThis.chrome,
         runtime: {
             sendMessage: (_msg: any, cb: (res: any) => void) => {
                 if (cb) cb({ ok: false, error: 'no_dir_handle' });
             }
         }
-    };
+    });
 
     try {
         LiveSaveCoordinator.init({
@@ -226,7 +229,7 @@ test('liveSaveCoordinator - executeLiveSave aborts and warns when configured dir
     };
 
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         ...globalThis.chrome,
         runtime: {
             sendMessage: (msg: any, cb: (res: any) => void) => {
@@ -239,7 +242,7 @@ test('liveSaveCoordinator - executeLiveSave aborts and warns when configured dir
                 }
             }
         }
-    };
+    });
 
     try {
         LiveSaveCoordinator.init({

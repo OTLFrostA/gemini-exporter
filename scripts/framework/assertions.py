@@ -139,12 +139,16 @@ def assert_scan_result(evidence: Dict[str, Any], allow_incremental_attempt=False
     return True, f"全量扫描自然耗尽: {diag.get('totalPagesFetched')} 页, {diag.get('totalConversations')} 会话"
 
 
+def is_account_uuid(value):
+    return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', value) is not None
+
+
 def assert_full_scan_coverage(evidence, coverage, allow_incremental_attempt=False):
     ok, message = assert_scan_result(evidence, allow_incremental_attempt)
     if not ok:
         return False, message
-    if (coverage.get('version') != 3 or coverage.get('providerId') != 'gemini'
-            or not coverage.get('accountId') or not coverage.get('generation')
+    if (coverage.get('version') != 4 or coverage.get('providerId') != 'gemini'
+            or not is_account_uuid(coverage.get('accountId')) or not coverage.get('generation')
             or coverage.get('initialized') is not True or coverage.get('historyComplete') is not True
             or coverage.get('complete') is not True or coverage.get('activeRunId') is not None
             or coverage.get('lastStatus') != 'complete'
@@ -169,7 +173,7 @@ def assert_incremental_scan_result(evidence, before, after):
         return False, f"Incremental scan lacks real successful closure: {evidence}"
     for record in (before, after):
         recent = record.get('streams', {}).get('recent', {})
-        if (record.get('version') != 3 or not record.get('accountId')
+        if (record.get('version') != 4 or not is_account_uuid(record.get('accountId'))
                 or record.get('providerId') != 'gemini' or record.get('initialized') is not True
                 or recent.get('initialized') is not True or not recent.get('range')
                 or recent.get('orderingInvalidated') is True):
@@ -209,8 +213,8 @@ def assert_passive_coverage(before, after, observations):
     recent = coverage.get('streams', {}).get('recent', {})
     span = recent.get('range') or {}
     rows = {row.get('id') for row in after.get('rows', [])}
-    if (before.get('coverage') is not None or coverage.get('version') != 3
-            or coverage.get('providerId') != 'gemini' or not coverage.get('accountId')
+    if (before.get('coverage') is not None or coverage.get('version') != 4
+            or coverage.get('providerId') != 'gemini' or not is_account_uuid(coverage.get('accountId'))
             or coverage.get('initialized') is not True or recent.get('initialized') is not True
             or coverage.get('activeRunId') is not None or coverage.get('lastStatus') is not None
             or not span or span.get('head', {}).get('time', 0) < span.get('tail', {}).get('time', 0)
@@ -239,7 +243,7 @@ def assert_activity_sync_result(baseline, before, scan, after, target_ids):
     for cid in target_ids:
         old_time = old_rows.get(cid, {}).get('updatedAt', frozen_head)
         row = new_rows.get(cid) or {}
-        if (row.get('titleSource') != 'rpc' or row.get('updatedAt', 0) <= old_time
+        if (row.get('titleSource') != 'provider' or row.get('updatedAt', 0) <= old_time
                 or span and span['head']['time'] < row.get('updatedAt', 0)):
             return False, f'Real activity was not saved or coverage did not advance: {cid}'
     for state in (initial, before):
@@ -313,10 +317,10 @@ class CDPAssertions:
         order_info = cdp_opt.eval(f"""
         (() => {{
             return new Promise((resolve) => {{
-                chrome.storage.local.get(['gemini_conversations'], (data) => {{
-                    const convs = data.gemini_conversations || [];
-                    const c1 = convs.find(c => c.id === '{promoted_chat_id}' || c.id === 'c_{promoted_chat_id}');
-                    const c2 = convs.find(c => c.id === '{older_chat_id}' || c.id === 'c_{older_chat_id}');
+                chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
+                    const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
+                    const c1 = convs.find(c => c.key.conversationId === '{promoted_chat_id}' || c.key.conversationId === 'c_{promoted_chat_id}');
+                    const c2 = convs.find(c => c.key.conversationId === '{older_chat_id}' || c.key.conversationId === 'c_{older_chat_id}');
                     const domItems = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM}'));
                     const el1 = domItems.find(el => el.dataset.chatId === '{promoted_chat_id}' || el.dataset.chatId === 'c_{promoted_chat_id}');
                     const el2 = domItems.find(el => el.dataset.chatId === '{older_chat_id}' || el.dataset.chatId === 'c_{older_chat_id}');
@@ -420,9 +424,9 @@ class CDPAssertions:
             check = cdp_opt.eval(f"""
             (() => {{
                 return new Promise((resolve) => {{
-                    chrome.storage.local.get(['gemini_conversations'], (data) => {{
-                        const convs = data.gemini_conversations || [];
-                        const inStorage = convs.some(c => c.id === '{deleted_chat_id}' || c.id === 'c_{clean_id}' || c.id === '{clean_id}');
+                    chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
+                        const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
+                        const inStorage = convs.some(c => c.key.conversationId === '{deleted_chat_id}' || c.key.conversationId === 'c_{clean_id}' || c.key.conversationId === '{clean_id}');
                         const inDom = !!document.querySelector('{pruned_sel}');
                         resolve({{
                             inStorage: inStorage,
@@ -454,9 +458,11 @@ class CDPAssertions:
             last = cdp_opt.eval(f"""(async () => {{
                 const store = window.ConversationsStore;
                 const conversations = store ? store.getConversations() : [];
-                const item = conversations.find(c => String(c.id).replace(/^c_/, '') === {json.dumps(clean_id)});
+                const slot = store.getCurrentAccountId();
+                const availability = (await chrome.storage.local.get('conversation_availability_' + slot))['conversation_availability_' + slot] || {{}};
+                const item = conversations.find(c => String(c.key.conversationId).replace(/^c_/, '') === {json.dumps(clean_id)});
                 const row = Array.from(document.querySelectorAll('#list .item')).find(el => String(el.dataset.chatId).replace(/^c_/, '') === {json.dumps(clean_id)});
-                return {{ retained: !!item, deleted: item?.cloudAvailability === 'deleted', inDom: !!row, marked: !!row?.querySelector('.cloud-status') }};
+                return {{ retained: !!item, deleted: availability[{json.dumps(clean_id)}] === 'deleted', inDom: !!row, marked: !!row?.querySelector('.cloud-status') }};
             }})()""", await_promise=True) or {}
             if all(last.get(key) for key in ['retained', 'deleted', 'inDom', 'marked']):
                 return True, '云端删除已确认，本地归档与列表保留', last
@@ -469,17 +475,16 @@ class CDPAssertions:
         status = cdp_opt.eval(f"""
         (() => {{
             return new Promise((resolve) => {{
-                chrome.storage.local.get(['gemini_conversations'], (data) => {{
-                    const convs = data.gemini_conversations || [];
+                chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
+                    const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
                     const checkList = {json.dumps(check_ids)};
-                    const matched = convs.filter(c => checkList.some(cid => c.id === cid || c.id === 'c_' + cid));
+                    const matched = convs.filter(c => checkList.some(cid => c.key.conversationId === cid || c.key.conversationId === 'c_' + cid));
                     resolve({{
                         total: convs.length,
                         matched: matched.map(c => ({{
-                            id: c.id,
+                            id: c.key.conversationId,
                             title: c.title,
-                            source: c.titleSource,
-                            hasTakeoutImport: c.hasTakeoutImport
+                            source: c.titleSource
                         }}))
                     }});
                 }});
@@ -497,9 +502,8 @@ class CDPAssertions:
         upgraded_count = 0
         for m in matched:
             source = m.get("source", "")
-            has_takeout = m.get("hasTakeoutImport") is True
-            is_rpc = source == "rpc" and bool(m.get("title"))
-            if has_takeout and is_rpc:
+            is_rpc = source == "provider" and bool(m.get("title"))
+            if is_rpc:
                 upgraded_count += 1
 
         if upgraded_count != len(check_ids):

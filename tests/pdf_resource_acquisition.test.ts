@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { resourceValue } from './helpers/resources.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
@@ -10,7 +11,7 @@ import { missingResource, type ResourceResult, type ResourceBytes } from '../src
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
-import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
+import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 
 const url = 'https://example.test/shared-image';
 const firstBytes = new Uint8Array([11, 22, 33]);
@@ -35,7 +36,7 @@ test('same URL with different generation/provider identities acquires separately
     const ids = parsed.conversation.detail.assets.map(asset => asset.id);
     assert.notEqual(ids[0], ids[1]);
     assert.deepEqual(Object.keys(parsed.acquisitionHints), ids);
-    const document = composeDomainDocument(parsed.conversation).document;
+    const document = composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation)).document;
     const calls: string[] = [];
     const prepared = await preparePdfResources((parsed.conversation).detail, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
         acquire: async (id, hint) => {
@@ -52,10 +53,10 @@ test('same URL with different generation/provider identities acquires separately
     assert.deepEqual(resourceValue(prepared.resources.get(ids[1])).bytes, secondBytes);
     // Exercise the actual PDF orchestrator as well, not just the preparation helper.
     const requests: Array<string | undefined> = [];
-    const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async hint => {
+    const pdf = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ assetPipeline: { acquireAssetBytes: async hint => {
         requests.push(hint.generation?.providerRequestId);
         return result(hint.assetId, hint.generation?.providerRequestId === 'request-one' ? firstBytes : secondBytes);
-    } } });
+    } } }) });
     assert.equal(pdf.ok, true);
     assert.deepEqual(requests, ['request-one', 'request-two']);
     assert.deepEqual(pdf.document, document);
@@ -69,7 +70,7 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
     const parsed = historicalFixture(raw, { providerId: 'gemini' });
     const domainJson = JSON.stringify(parsed.conversation);
     const hintsJson = JSON.stringify(parsed.acquisitionHints);
-    const document = composeDomainDocument(parsed.conversation).document;
+    const document = composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation)).document;
     const astJson = JSON.stringify(document);
     const imageIds = collectDocumentResources(document).imageIds;
     for (const bytes of [firstBytes, null]) {
@@ -84,14 +85,14 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
         assert.equal(JSON.stringify(parsed.conversation), domainJson);
         assert.equal(JSON.stringify(parsed.acquisitionHints), hintsJson);
         assert.equal(JSON.stringify(document), astJson);
-        assert.equal(JSON.stringify(composeDomainDocument(parsed.conversation).document), astJson);
+        assert.equal(JSON.stringify(composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation)).document), astJson);
         assert.ok(!domainJson.includes('dataBase64'));
         assert.ok(!domainJson.includes(Buffer.from(firstBytes).toString('base64')));
         for (const resource of prepared.resources.values()) {
             if (resource.ok) assert.deepEqual(resource.value.bytes, bytes);
             else { assert.equal(bytes, null); assert.equal(resource.reason, 'HTTP 404'); assert.equal(resource.code, 'HTTP_NOT_FOUND'); }
         }
-        const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async item => result(item.assetId, bytes) } });
+        const pdf = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ assetPipeline: { acquireAssetBytes: async item => result(item.assetId, bytes) } }) });
         assert.equal(pdf.ok, true);
         assert.equal(JSON.stringify(pdf.document), astJson);
         assert.equal(pdf.resources.size, imageIds.size, 'every placed image must retain an acquisition outcome');
@@ -106,7 +107,7 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
         }
     }
     const restored = JSON.parse(domainJson);
-    assert.equal(JSON.stringify(composeDomainDocument(restored).document), astJson);
+    assert.equal(JSON.stringify(composeDomainDocument(restored, fixtureAccountFor(restored)).document), astJson);
     assert.deepEqual(raw, original);
 });
 
@@ -114,9 +115,9 @@ test('source-provided original bytes survive JSON round-trip and bypass runtime 
     const raw: ConversationRecordInput = { id: 'inline-fact', messages: [{ role: 'model', content: '',
         images: [{ type: 'image', dataBuffer: firstBytes, mimeType: 'image/png' }] }] };
     const parsed = historicalFixture(raw, { providerId: 'gemini' });
-    assert.equal(parsed.conversation.detail.assets[0].dataBase64, Buffer.from(firstBytes).toString('base64'));
+    assert.equal(parsed.acquisitionHints[parsed.conversation.detail.assets[0].id]?.dataBase64, Buffer.from(firstBytes).toString('base64'));
     const domain = JSON.parse(JSON.stringify(parsed.conversation));
-    const document = composeDomainDocument(domain).document;
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
     const prepared = await preparePdfResources((domain).detail, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
         acquire: async () => { assert.fail('original inline bytes must skip acquisition'); },
     });

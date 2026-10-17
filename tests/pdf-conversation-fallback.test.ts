@@ -1,3 +1,4 @@
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
 useIndexStorage();
@@ -5,21 +6,21 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { preparePdfItem, extractChatFromDetailResult, PDF_NO_MESSAGES } = require('../src/core/export/pdf/prepareItem.js');
+const { preparePdfItem, extractChatFromDetailResult, PDF_NO_MESSAGES } = require('./helpers/pdfAcquisitionFixture.js');
 const { resolveConversationData } = require('../src/core/engine/export/batchWorker.js');
 const store = require('../src/core/storage/domain/domainStore.js');
 const message = (text: string) => ({ id: 'm1', role: 'model', content: text });
 
 test('PDF successful empty online response selects Takeout rather than reporting a cache fallback', async () => {
-    const id = 'pdf-takeout-044', slot = 'u440';
-    const takeout = historicalFixture({ id, messages: [message('Recovered Takeout')] });
+    const id = 'pdf-takeout-044', slot = '10000000-0000-4000-8000-000000000001';
+    const takeout = historicalFixture({ id, completeness: { status: 'complete' }, messages: [message('Recovered Takeout')] });
     let takeoutReads = 0;
     await catalogStorage.setNativeConversations(slot, [takeout]);
     try {
         const result = await preparePdfItem({ id }, {
-            currentSlot: slot,
+            accountId: slot,
             includeAssets: false,
-            fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ id, messages: [] })] }),
+            fetchChatDetail: async () => await acquiredReply(({ success: true, results: [historicalFixture({ id, messages: [] })] })),
             takeoutEngine: {
                 getTakeoutOfflineChat: (requestedId: string, requestedSlot?: string | null) => {
                     assert.equal(requestedId, id);
@@ -37,7 +38,7 @@ test('PDF successful empty online response selects Takeout rather than reporting
 });
 
 test('shared acquisition prefers valid online input and uses local cache after unusable Takeout', async () => {
-    const id = 'pdf-cache-044', slot = 'u441';
+    const id = 'pdf-cache-044', slot = '10000000-0000-4000-8000-000000000001';
     let calls = 0;
     const takeout = { getTakeoutOfflineChat: () => { calls++; return historicalFixture({ id, messages: [] }); } };
     const online = historicalFixture({ id, messages: [message('online')] });
@@ -50,8 +51,8 @@ test('shared acquisition prefers valid online input and uses local cache after u
         assert.equal(recovered.source, 'local_snapshot');
         assert.match(JSON.stringify(recovered.result.conversation.detail.messages), /cache/);
         const pdf = await preparePdfItem({ id }, {
-            currentSlot: slot, includeAssets: false, takeoutEngine: takeout,
-            fetchChatDetail: async () => ({ success: false, error: 'offline' }),
+            accountId: slot, includeAssets: false, takeoutEngine: takeout,
+            fetchChatDetail: async () => await acquiredReply(({ success: false, error: 'offline' })),
         });
         assert.equal(calls, 2);
         assert.equal(pdf.ok, true);
@@ -61,32 +62,32 @@ test('shared acquisition prefers valid online input and uses local cache after u
 });
 
 test('PDF reports no messages only after all sources fail', async () => {
-    const result = await preparePdfItem({ id: 'missing' }, {
+    const result = await preparePdfItem({ id: 'missing' }, { accountId: '10000000-0000-4000-8000-000000000001', ...({
         includeAssets: false,
-        fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ messages: [] })] }),
+        fetchChatDetail: async () => await acquiredReply(({ success: true, results: [historicalFixture({ messages: [] })] })),
         takeoutEngine: { getTakeoutOfflineChat: () => null },
-    });
+    }) });
     assert.equal(result.ok, false);
     assert.match(result.error, new RegExp(PDF_NO_MESSAGES));
 });
 
 test('metadata-only selected item triggers detail fetch and prepares PDF document', async () => {
     let fetched = false;
-    const result = await preparePdfItem({ id: 'meta-only', title: 'Meta Only Title' }, {
+    const result = await preparePdfItem({ id: 'meta-only', title: 'Meta Only Title' }, { accountId: '10000000-0000-4000-8000-000000000001', ...({
         includeAssets: false,
         fetchChatDetail: async (item: { id: string; title?: string }) => {
             fetched = true;
             assert.equal(item.id, 'meta-only');
-            return {
+            return await acquiredReply({
                 success: true,
                 results: [historicalFixture({
                     id: 'meta-only',
                     title: 'Authoritative Title',
                     messages: [message('Detail payload content')],
                 })],
-            };
+            });
         },
-    });
+    }) });
     assert.equal(fetched, true);
     assert.equal(result.ok, true);
     assert.match(JSON.stringify(result.document), /Detail payload content/);
@@ -109,8 +110,8 @@ test('detail extraction prefers the native results envelope over a competing nat
     );
 
     const result = await preparePdfItem({ id }, {
-        currentSlot: 'u442', includeAssets: false,
-        fetchChatDetail: async () => ({ success: true, results: [fromResults], chat: fromChat }),
+        accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false,
+        fetchChatDetail: async () => await acquiredReply(({ success: true, results: [fromResults], chat: fromChat })),
     });
     assert.equal(result.ok, true);
     assert.match(JSON.stringify(result.document), /winner from results/);
@@ -121,22 +122,22 @@ test('acquisition reports provenance beside the result and never mutates parser 
     const parsed = historicalFixture({ id: 'provenance', messages: [message('source')] });
     const original = structuredClone(parsed);
     Object.freeze(parsed);
-    const unspecified = await resolveConversationData(parsed, 'provenance');
+    const unspecified = await resolveConversationData(parsed, 'provenance', null, null, '10000000-0000-4000-8000-000000000001');
     assert.equal(unspecified.result, parsed);
     assert.equal(unspecified.source, 'unspecified');
-    const online = await resolveConversationData(parsed, 'provenance', null, null, 'u0', () => {}, 'online');
+    const online = await resolveConversationData(parsed, 'provenance', null, null, '10000000-0000-4000-8000-000000000001', () => {}, 'online');
     assert.equal(online.source, 'online');
-    const takeout = await resolveConversationData(undefined, 'provenance', null, { getTakeoutOfflineChat: () => parsed });
+    const takeout = await resolveConversationData(undefined, 'provenance', null, { getTakeoutOfflineChat: () => parsed }, '10000000-0000-4000-8000-000000000001');
     assert.equal(takeout.result, parsed);
     assert.equal(takeout.source, 'takeout');
-    await catalogStorage.setNativeConversations('u0', [parsed]);
+    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
     try {
-        const snapshot = await resolveConversationData(undefined, 'provenance');
+        const snapshot = await resolveConversationData(undefined, 'provenance', null, null, '10000000-0000-4000-8000-000000000001');
         assert.equal(snapshot.source, 'local_snapshot');
         assert.equal('resolvedSource' in snapshot.result, false);
-        const direct = await preparePdfItem(parsed, { includeAssets: false });
+        const direct = await preparePdfItem(parsed, { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
         assert.equal(direct.usedLocalSnapshot, false);
-        const explicit = await preparePdfItem(parsed, { includeAssets: false, source: 'local_snapshot' });
+        const explicit = await preparePdfItem(parsed, { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false, source: 'local_snapshot' }) });
         assert.equal(explicit.usedLocalSnapshot, true);
     } finally { store.__clearDomainMemory(); }
     assert.equal('resolvedSource' in parsed, false);

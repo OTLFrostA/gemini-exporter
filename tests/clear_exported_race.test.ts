@@ -1,3 +1,5 @@
+import { indexFixture as canonicalIndex } from './helpers/indexFixture.js';
+const canonicalList = (value: any): any => Array.isArray(value) ? value.map(canonicalIndex) : value;
 /**
  * P1-3 回归测试：conversationsStore.clearExported 必须走
  * removeExportRecords(slot, allIds) 事务性删除路径，禁止用
@@ -22,12 +24,12 @@ test.beforeEach(() => {
     previousStorageOverride = __getModuleOverride('StorageService');
     previousChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    previousSlot = ConversationsStore.getCurrentSlot();
+    previousSlot = ConversationsStore.getCurrentAccountId();
     previousExportedRecords = ConversationsStore.getExportedIds();
 });
 test.afterEach(() => {
     __setModuleOverride('StorageService', previousStorageOverride);
-    ConversationsStore.setCurrentSlot(previousSlot);
+    ConversationsStore.setCurrentAccountId(previousSlot);
     ConversationsStore.setExportedIds(previousExportedRecords);
     if (previousChrome) Object.defineProperty(globalThis, 'chrome', previousChrome);
     else delete (globalThis as any).chrome;
@@ -57,15 +59,15 @@ function makeMockStorage(initial: Record<string, any>) {
 }
 
 test('P1-3: clearExported 走 removeExportRecords(slot, allIds)，不用裸写', async () => {
-    ConversationsStore.setCurrentSlot('u0');
+    ConversationsStore.setCurrentAccountId('10000000-0000-4000-8000-000000000001');
     const storage = makeMockStorage({ a: { id: 'a' }, b: { id: 'b' } });
     __setModuleOverride('StorageService', storage);
     try {
-        await ConversationsStore.clearExported('u0');
+        await ConversationsStore.clearExported('10000000-0000-4000-8000-000000000001');
 
         const dels = storage.calls.filter((c: any[]) => c[0] === 'removeExportRecords');
         assert.strictEqual(dels.length, 1, '应恰好调用一次 removeExportRecords');
-        assert.strictEqual(dels[0][1], 'u0');
+        assert.strictEqual(dels[0][1], '10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(new Set(dels[0][2]), new Set(['a', 'b']),
             '应传入当前全部导出 id');
 
@@ -79,7 +81,7 @@ test('P1-3: clearExported 走 removeExportRecords(slot, allIds)，不用裸写',
 
 test('real StorageService serialization preserves a record saved during an in-flight deletion', async () => {
     const StorageService = require('../src/core/storage/storageService.js');
-    const stored: Record<string, any> = { exportedIds: { a: { id: 'a' } } };
+    const stored: Record<string, any> = { ['exported_10000000-0000-4000-8000-000000000001']: { a: { id: 'a' } } };
     let notifyFirstWrite!: () => void;
     let releaseFirstWrite!: () => void;
     const firstWriteStarted = new Promise<void>(resolve => { notifyFirstWrite = resolve; });
@@ -100,21 +102,21 @@ test('real StorageService serialization preserves a record saved during an in-fl
     };
 
     // Hold the actual old-ID deletion while another real storage write is queued.
-    const removal = StorageService.removeExportRecords('u0', ['a']);
+    const removal = StorageService.removeExportRecords('10000000-0000-4000-8000-000000000001', ['a']);
     await firstWriteStarted;
-    const saving = StorageService.saveExportRecord('u0', 'c', { exportedAt: 2000 });
+    const saving = StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'c', { exportedAt: 2000 });
     releaseFirstWrite();
     await Promise.all([removal, saving]);
-    const remaining = await StorageService.getExportedIds('u0');
+    const remaining = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
     assert.deepStrictEqual(Object.keys(remaining), ['c'],
         'in-flight deletion removes only the old ID and preserves the subsequent save');
-    assert.deepStrictEqual(stored.exportedIds, { c: { exportedAt: 2000 } });
+    assert.deepStrictEqual(stored['exported_10000000-0000-4000-8000-000000000001'], { c: { exportedAt: 2000 } });
 });
 
 test('StorageService.removeExportRecords: u0 清除时正确从 exportedIds 中移除记录', async () => {
     const StorageService = require('../src/core/storage/storageService.js');
     const store: Record<string, any> = {
-        exportedIds: { chat_new: { exportedAt: 100 }, chat_legacy: { exportedAt: 90 } }
+        ['exported_10000000-0000-4000-8000-000000000001']: { chat_new: { exportedAt: 100 }, chat_legacy: { exportedAt: 90 } }
     };
     const origChrome = (globalThis as any).chrome;
     (globalThis as any).chrome = {
@@ -137,12 +139,12 @@ test('StorageService.removeExportRecords: u0 清除时正确从 exportedIds 中�
         }
     };
     try {
-        const before = await StorageService.getExportedIds('u0');
+        const before = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(Object.keys(before).sort(), ['chat_legacy', 'chat_new']);
-        await StorageService.removeExportRecords('u0', Object.keys(before));
-        const after = await StorageService.getExportedIds('u0');
+        await StorageService.removeExportRecords('10000000-0000-4000-8000-000000000001', Object.keys(before));
+        const after = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(after, {}, '清除后 getExportedIds(u0) 必须为空');
-        assert.deepStrictEqual(store.exportedIds, {}, 'store.exportedIds 必须为空');
+        assert.deepStrictEqual(store['exported_10000000-0000-4000-8000-000000000001'], {}, 'store.exportedIds 必须为空');
     } finally {
         (globalThis as any).chrome = origChrome;
     }
@@ -170,11 +172,11 @@ test('ListView.render: 传入 prevSelectedSet=null 时强制重置 canonicalSele
         ];
         // 1. 初始全部已导出，默认 0 勾选（canonicalSelectedIds 为空 Set）
         ListView.setSelectedIds(null);
-        ListView.render(convs as any, { '1': { exportedAt: 2000, chatTime: 1000 }, '2': { exportedAt: 2000, chatTime: 1000 } } as any, null);
+        ListView.render(canonicalList(convs as any), { '1': { exportedAt: 2000, chatTime: 1000 }, '2': { exportedAt: 2000, chatTime: 1000 } } as any, null);
         assert.strictEqual(ListView.getSelectedIds().size, 0, '全部已导出时初始应 0 勾选');
 
         // 2. 清除导出记录后传入 expMap={} 与 prevSelectedSet=null，应重新自动全选
-        ListView.render(convs as any, {}, null);
+        ListView.render(canonicalList(convs as any), {}, null);
         const selectedAfterClear = ListView.getSelectedIds();
         assert.ok(selectedAfterClear.has('1') || selectedAfterClear.has('c_1'), '清除后 Chat 1 应自动勾选');
         assert.ok(selectedAfterClear.has('2') || selectedAfterClear.has('c_2'), '清除后 Chat 2 应自动勾选');

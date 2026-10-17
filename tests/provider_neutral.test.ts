@@ -1,3 +1,7 @@
+import { historicalFixture, rpcFixture } from './helpers/nativeFixture.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { fixtureAccount, bindFixture, sourceIndex as asSource } from './helpers/domainFixture.js';
+useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
@@ -11,15 +15,11 @@ function makeGeminiClient() {
             conversations: ([{
                 id: 'c1', title: 'T1', titleSource: 'rpc', titles: { rpc: 'T1' },
                 createdAt: 1, updatedAt: 2, chatTime: 2, timestamp: 2, messageCount: 3, url: 'u'
-            }]).map(indexFixture),
+            }]).map(indexFixture).map(asSource),
             total: 1, stoppedEarly: true, diagnostics: { d: 1 }, hitGoogleLimit: false
         }),
-        getConversationDetail: async (id: string, _sid: any) => ({
-            id, title: 'DT', titleSource: 'api-detail', titles: { rpc: 'DT' },
-            messages: [{ role: 'user', content: 'hi' }],
-            createdAt: 1, chatTime: 1, timestamp: 1, updatedAt: 1,
-            url: 'u2', nextPageToken: null, attachmentCount: 0
-        })
+        getConversationDetail: async (id: string, _sid: any, account: any) => bindFixture(rpcFixture({ id, title: 'DT', messages: [{ role: 'user', content: 'hi' }] }), account)
+
     };
 }
 
@@ -44,11 +44,11 @@ test('provider-neutral - GeminiProvider.listConversations maps to ProviderPageRe
 
 test('provider-neutral - GeminiProvider.fetchConversationDetail guarantees id/title/messages', async () => {
     const gp = new GeminiProvider(makeGeminiClient() as any);
-    const det = await gp.fetchConversationDetail('c9', { slot: 'u1' });
-    assert.strictEqual(det.id, 'c9');
-    assert.strictEqual(det.title, 'DT');
-    assert.strictEqual(det.messages.length, 1);
-    assert.strictEqual(det.nextPageToken, null); // declared Gemini companion fields are preserved
+    const det = await gp.fetchConversationDetail('c9', { slot: '10000000-0000-4000-8000-000000000002' });
+    assert.strictEqual(det.conversation.index.key.conversationId, 'c9');
+    assert.strictEqual(det.conversation.index.title, 'DT');
+    assert.strictEqual(det.conversation.detail.messages.length, 1);
+    assert.strictEqual(det.transport.nextPageToken, null); // declared Gemini companion fields are preserved
 });
 
 test('provider-neutral - listing preserves sync completeness evidence and callback control', async () => {
@@ -97,17 +97,17 @@ test('provider-neutral - detail keeps export evidence and targetSid precedence',
     };
     const slots: Array<string | null> = [];
     const gp = new GeminiProvider({
-        getConversationDetail: async (id: string, sid: string | null) => {
+        getConversationDetail: async (id: string, sid: string | null, account: any) => {
             assert.strictEqual(id, detail.id);
             slots.push(sid);
-            return detail;
+            return bindFixture(rpcFixture(detail, { decodedPayload: raw }), account);
         }
     } as any);
-    const result = await gp.fetchConversationDetail(detail.id, { targetSid: 'u2', slot: 'u1' });
-    await gp.fetchConversationDetail(detail.id, { slot: 'u1' });
+    const result = await gp.fetchConversationDetail(detail.id, { targetSid: '10000000-0000-4000-8000-000000000003', slot: '10000000-0000-4000-8000-000000000002' });
+    await gp.fetchConversationDetail(detail.id, { slot: '10000000-0000-4000-8000-000000000002' });
     await gp.fetchConversationDetail(detail.id);
-    assert.deepStrictEqual(slots, ['u2', 'u1', null]);
-    assert.deepStrictEqual(result, detail);
-    assert.strictEqual(result.messages, messages);
-    assert.strictEqual(result._raw, raw);
+    assert.deepStrictEqual(slots, ['10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000002', null]);
+    assert.equal(result.conversation.index.title, detail.title);
+    assert.equal(result.conversation.detail.messages.length, messages.length);
+    assert.deepEqual(result.transport.decodedPayload, raw);
 });

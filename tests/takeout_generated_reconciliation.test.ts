@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
@@ -15,19 +16,19 @@ test('Takeout generated ownership uses explicit response references despite clos
         + activity('closer_chat_002', '2026-09-02T12:00:01Z', '<p>No image references</p>');
     for (const names of [['first.png', 'second.png', 'unowned.png'], ['unowned.png', 'second.png', 'first.png']]) {
         const data = { htmlText, archiveFiles: Object.fromEntries(names.map(name => [name, { dir: false }])) };
-        const { conversation } = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', targetConvId: 'owner_chat_001', data });
+        const { conversation } = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout', providerId: 'gemini', targetConvId: 'owner_chat_001', data });
         assertDomainClosure((conversation).detail);
         const images = conversation.detail.messages[1].attachmentIds!.map(id => conversation.detail.assets.find(a => a.id === id)!);
         assert.deepEqual(images.map(a => a.name).sort(), ['first.png', 'second.png']);
         for (const image of images) assert.equal(image.generation?.imageOrdinal, undefined);
-        const other = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', targetConvId: 'closer_chat_002', data });
+        const other = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout', providerId: 'gemini', targetConvId: 'closer_chat_002', data });
         assert.equal(other.conversation.detail.assets.length, 0);
     }
 });
 
 test('Takeout response dates equal the source activity date without a synthetic offset', () => {
     const timestamp = Date.parse('2026-09-02T12:00:00Z');
-    const { conversation } = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', data: {
+    const { conversation } = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout', providerId: 'gemini', data: {
         htmlText: activity('same-date', '2026-09-02T12:00:00Z', '<p>Answer</p>')
     } });
     assert.deepEqual(conversation.detail.messages.map(m => m.timestamp), [timestamp, timestamp]);
@@ -40,7 +41,7 @@ test('Ambiguous ZIP media retains its original bytes without claiming either gen
     };
     const previousJSZip: unknown = Reflect.get(globalThis, 'JSZip');
     Reflect.set(globalThis, 'JSZip', JSZip);
-    const slot = 'ambiguous-generated-zip';
+    const slot = '10000000-0000-4000-8000-000000000001';
     try {
         const zip = new JSZip();
         const chatId = 'abcd1234abcd1234';

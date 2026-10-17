@@ -1,13 +1,14 @@
-import type { ScanStatus } from '../../types/ui.js';
-import type { StreamCoverage } from '../sync/streamCoverage.js';
+import { isAccountId } from '../domain/accountRegistry.js';
+type ScanStatus = 'complete' | 'up_to_date' | 'partial_limit' | 'aborted' | 'error';
+import type { StreamCoverage } from './streamCoverage.js';
 export interface ScanCoverageBaseline { headTimestamp: number | null; conversationCount: number }
 export interface ScanCoverage {
-    version: 3;
+    version: 4;
     providerId: string;
     revision: number;
     generation: string;
     resetAt: number;
-    accountId: string | null;
+    accountId: string;
     initialized: boolean;
     historyComplete: boolean;
     streams: Record<string, StreamCoverage>;
@@ -22,12 +23,12 @@ function object(value: unknown): value is Record<string, unknown> { return value
 function key(value: unknown): boolean { return object(value) && typeof value.id === 'string' && value.id.length >= 3
     && typeof value.time === 'number' && Number.isFinite(value.time) && value.time > 0; }
 export function readScanCoverage(value: unknown): ScanCoverage | null {
-    // Earlier versions cannot prove per-stream ordering or passive coverage.
-    if (!object(value) || value.version !== 3 || !Number.isSafeInteger(value.revision)
+    // Earlier versions do not establish UUID ownership for coverage.
+    if (!object(value) || value.version !== 4 || !Number.isSafeInteger(value.revision)
         || typeof value.revision !== 'number' || value.revision < 1 || typeof value.providerId !== 'string'
         || typeof value.generation !== 'string' || !value.generation || typeof value.resetAt !== 'number'
         || !Number.isFinite(value.resetAt) || value.resetAt < 0
-        || !(value.accountId === null || typeof value.accountId === 'string' && value.accountId.length > 0)
+        || !isAccountId(value.accountId)
         || !(value.activeRunId === null || typeof value.activeRunId === 'string' && value.activeRunId.length > 0)
         || typeof value.initialized !== 'boolean' || typeof value.historyComplete !== 'boolean'
         || typeof value.complete !== 'boolean' || !object(value.streams)

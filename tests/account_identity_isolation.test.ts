@@ -1,3 +1,4 @@
+import { bindTabAccounts } from './helpers/tabAccounts.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -63,7 +64,7 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     assert.ok(profile1);
     assert.strictEqual(profile1?.email, 'alice@example.com');
     assert.strictEqual(profile1?.name, 'Alice Wonderland');
-    assert.strictEqual(profile1?.identityKey, 'alice@example.com');
+    assert.strictEqual(profile1?.email, 'alice@example.com');
 
     // B: DOM element with data-email attribute
     const mockDoc2 = {
@@ -82,7 +83,7 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     assert.ok(profile2);
     assert.strictEqual(profile2?.email, 'bob@corp.com');
     assert.strictEqual(profile2?.name, undefined);
-    assert.strictEqual(profile2?.identityKey, 'bob@corp.com');
+    assert.strictEqual(profile2?.email, 'bob@corp.com');
 
     // C: Gaia ID from window._WIZ_global_data
     const mockDoc3 = {
@@ -97,7 +98,6 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     const profile3 = sniffUserProfileFromDom(mockDoc3);
     assert.ok(profile3);
     assert.strictEqual(profile3?.gaiaId, '10987654321');
-    assert.strictEqual(profile3?.identityKey, '10987654321');
     assert.strictEqual(profile3?.email, undefined);
 
     // D: Empty doc returns null
@@ -171,28 +171,29 @@ test('tabService - getGeminiTab and sendToGeminiTab enforce strict slot matching
             runtime: {}
         };
 
-        // getGeminiTab('u0') returns tab 101
-        const tabU0 = await TabService.getGeminiTab('u0');
+        bindTabAccounts({101: '10000000-0000-4000-8000-000000000001', 102: '10000000-0000-4000-8000-000000000002'});
+        // getGeminiTab('10000000-0000-4000-8000-000000000001') returns tab 101
+        const tabU0 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000001');
         assert.strictEqual(tabU0?.id, 101);
 
-        // getGeminiTab('u1') returns tab 102
-        const tabU1 = await TabService.getGeminiTab('u1');
+        // getGeminiTab('10000000-0000-4000-8000-000000000002') returns tab 102
+        const tabU1 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000002');
         assert.strictEqual(tabU1?.id, 102);
 
-        // getGeminiTab('u2') returns null because no tab matches u2
-        const tabU2 = await TabService.getGeminiTab('u2');
+        // getGeminiTab('10000000-0000-4000-8000-000000000003') returns null because no tab matches u2
+        const tabU2 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000003');
         assert.strictEqual(tabU2, null, 'Must return null when requested slot tab is absent');
 
-        // sendToGeminiTab('u1') sends message to tab 102
-        const resU1 = await TabService.sendToGeminiTab({ action: 'ping' }, 'u1');
+        // sendToGeminiTab('10000000-0000-4000-8000-000000000002') sends message to tab 102
+        const resU1 = await TabService.sendToGeminiTab({ action: 'ping' }, '10000000-0000-4000-8000-000000000002');
         assert.strictEqual(resU1.tabId, 102);
 
-        // sendToGeminiTab('u2') throws error instead of silently targeting u0 or u1
+        // sendToGeminiTab('10000000-0000-4000-8000-000000000003') throws error instead of silently targeting u0 or u1
         await assert.rejects(
             async () => {
-                await TabService.sendToGeminiTab({ action: 'ping' }, 'u2');
+                await TabService.sendToGeminiTab({ action: 'ping' }, '10000000-0000-4000-8000-000000000003');
             },
-            /未找到多账号 slot u2 对应的 Gemini 标签页/
+            /matches the selected account/
         );
     } finally {
         (global as any).chrome = origChrome;
@@ -206,12 +207,9 @@ test('conversationsStore - loadStore does not hijack empty slot', async () => {
     const origChrome = (global as any).chrome;
     try {
         const mockStorage = {
-            getAccountSlots: async () => ({
-                u0: { name: 'Main Account', count: 10 },
-                u1: { name: 'Empty Account', count: 0 }
-            }),
+            listAccounts: async () => ([{id:'10000000-0000-4000-8000-000000000001',providerId:'gemini',providerAccountId:'main'},{id:'10000000-0000-4000-8000-000000000002',providerId:'gemini',providerAccountId:'empty'}]),
             getConversations: async (slot: string) => {
-                if (slot === 'u0') return [{ id: 'c1', title: 'Chat 1' }];
+                if (slot === '10000000-0000-4000-8000-000000000001') return [{ id: 'c1', title: 'Chat 1' }];
                 return [];
             },
             getExportedIds: async () => ({})
@@ -220,11 +218,11 @@ test('conversationsStore - loadStore does not hijack empty slot', async () => {
         const origStorage = __getModuleOverride('StorageService');
         __setModuleOverride('StorageService', mockStorage);
 
-        // When explicitly loading slot 'u1', even if incoming is empty, it MUST stay on 'u1'!
-        const result = await ConversationsStore.loadStore('u1');
-        assert.strictEqual(result.slot, 'u1', 'Should stay on u1 even if u1 has 0 conversations');
+        // When explicitly loading slot '10000000-0000-4000-8000-000000000002', even if incoming is empty, it MUST stay on '10000000-0000-4000-8000-000000000002'!
+        const result = await ConversationsStore.loadStore('10000000-0000-4000-8000-000000000002');
+        assert.strictEqual(result.accountId, '10000000-0000-4000-8000-000000000002', 'Should stay on u1 even if u1 has 0 conversations');
         assert.strictEqual(result.conversations.length, 0);
-        assert.strictEqual(ConversationsStore.getCurrentSlot(), 'u1');
+        assert.strictEqual(ConversationsStore.getCurrentAccountId(), '10000000-0000-4000-8000-000000000002');
     } finally {
         __setModuleOverride('StorageService', undefined as any);
         (global as any).chrome = origChrome;
@@ -236,17 +234,18 @@ test('conversationsStore - loadStore does not hijack empty slot', async () => {
 // ---------------------------------------------------------------------------
 test('accountView - renders user email and name accurately in dropdown', () => {
     const mockSelect: any = {
-        id: 'accountSlotSelect',
+        id: 'accountIdSelect',
         style: {},
         innerHTML: '',
         children: [] as any[],
+        replaceChildren() { this.children = []; },
         appendChild(el: any) { this.children.push(el); }
     };
 
     const origDoc = (global as any).document;
     try {
         (global as any).document = {
-            getElementById: (id: string) => id === 'accountSlotSelect' ? mockSelect : null,
+            getElementById: (id: string) => id === 'accountIdSelect' ? mockSelect : null,
             createElement: (tag: string) => ({
                 tagName: tag.toUpperCase(),
                 value: '',
@@ -255,16 +254,13 @@ test('accountView - renders user email and name accurately in dropdown', () => {
             })
         };
 
-        AccountView.render({
-            u0: { name: '张三', email: 'zhangsan@gmail.com', count: 5 },
-            u1: { email: 'lisi@gmail.com', count: 0 }
-        }, 'u1');
+        AccountView.render([{ id:'10000000-0000-4000-8000-000000000001',providerId:'gemini',providerAccountId:'one',displayName:'张三',email:'zhangsan@gmail.com'},{id:'10000000-0000-4000-8000-000000000002',providerId:'gemini',providerAccountId:'two',email:'lisi@gmail.com'}], '10000000-0000-4000-8000-000000000002');
 
         assert.strictEqual(mockSelect.children.length, 2);
-        assert.strictEqual(mockSelect.children[0].value, 'u0');
-        assert.strictEqual(mockSelect.children[0].textContent, '张三 (zhangsan@gmail.com) (5)');
-        assert.strictEqual(mockSelect.children[1].value, 'u1');
-        assert.strictEqual(mockSelect.children[1].textContent, 'lisi@gmail.com [u1] (0)');
+        assert.strictEqual(mockSelect.children[0].value, '10000000-0000-4000-8000-000000000001');
+        assert.strictEqual(mockSelect.children[0].textContent, '张三 (zhangsan@gmail.com) · gemini');
+        assert.strictEqual(mockSelect.children[1].value, '10000000-0000-4000-8000-000000000002');
+        assert.strictEqual(mockSelect.children[1].textContent, 'lisi@gmail.com · gemini');
         assert.strictEqual(mockSelect.children[1].selected, true);
     } finally {
         (global as any).document = origDoc;
@@ -340,7 +336,7 @@ test('accountSniffer - current Gemini Wiz tuple wins over another account DOM la
     assert.equal(profile?.gaiaId, '109876543210987654321');
     assert.equal(profile?.email, 'active@example.com');
     assert.equal(profile?.name, undefined);
-    assert.equal(profile?.identityKey, 'active@example.com');
+    assert.equal(profile?.email, 'active@example.com');
     assert.equal('accountId' in (profile || {}), false);
 });
 

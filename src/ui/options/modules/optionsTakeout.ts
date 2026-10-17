@@ -38,8 +38,7 @@ export async function maybePromptTakeout(count: number = 600, hitGoogleLimit: bo
         const Store = getStore();
         const Storage = getStorage();
         const Dialogs = getDialogs();
-        const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
-            (Storage && Storage.hasTakeoutData && await Storage.hasTakeoutData());
+        const hasTakeout = Storage?.hasTakeoutData && await Storage.hasTakeoutData();
         if (!isCompleted && !hasTakeout && Dialogs && Dialogs.showTakeoutLimitPrompt) {
             void Dialogs.showTakeoutLimitPrompt({
                 count: count || 600,

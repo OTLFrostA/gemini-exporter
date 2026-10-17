@@ -4,7 +4,7 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
+import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 import type { ConversationRecordInput } from '../src/core/parsers/legacyStorage/conversationRecord.js';
 
 for (const layout of ['messages', 'turns'] as const) {
@@ -19,12 +19,12 @@ for (const layout of ['messages', 'turns'] as const) {
             ...(layout === 'messages' ? { messages: [message] } : { turns: [{ messages: [message] }] }),
         };
         const snapshot = structuredClone(raw);
-        const result = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
+        const result = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
         assert.equal(result.ok, true);
         assert.equal(result.resources.size, 1);
         const node = result.document.messages[0];
         assert.equal(node.label, 'unknown');
-        assert.equal(node.heading, undefined);
+        assert.ok(!('heading' in node));
         const unknownBlock = node.blocks.find((block) => block.type === 'unsupported');
         assert.ok(unknownBlock && unknownBlock.type === 'unsupported');
         assert.match(unknownBlock.text, /historical.*payload.*42/);

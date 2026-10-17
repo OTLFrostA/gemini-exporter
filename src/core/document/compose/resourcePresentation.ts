@@ -2,7 +2,7 @@ import type { DeepReadonly } from '../../domain/readonly.js';
 import type { InlineNode } from '../../domain/content/inline.js';
 import type { DomainAsset } from '../../domain/conversationDetail.js';
 
-/** Conservative fallback for legacy assets that have no provenance metadata. */
+/** Keep authored filenames while hiding transport-generated names and locators. */
 export function isHumanMeaningfulFilename(value?: string): boolean {
     if (!value?.trim()) return false;
     const name = value.trim();
@@ -19,7 +19,6 @@ export function isHumanMeaningfulFilename(value?: string): boolean {
 
 /** One policy for captions, alt text, file labels, and unavailable placeholders.
  * Explicit prose wins; opaque filenames/URLs never become visible labels.
- * Schema is intentionally unchanged in Phase 1.
  */
 export function assetPresentation(asset?: DeepReadonly<DomainAsset>, explicit?: string, fallback = 'Image'): { label: string; caption?: string } {
     const human = (value?: string): string | undefined => isHumanMeaningfulFilename(value) ? value!.trim() : undefined;

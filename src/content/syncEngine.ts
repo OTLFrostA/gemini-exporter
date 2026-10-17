@@ -1,10 +1,12 @@
-import { ingestConversation } from '../core/storage/storageService.js';
+import { setConversationAvailability } from '../core/storage/conversationAvailability.js';
+import { isAccountId } from '../core/domain/accountRegistry.js';
+import { ingestConversation, ingestIndexes } from '../core/storage/conversationIngest.js';
 import { parseGeminiIndexObservation, type GeminiIndexObservationSource } from '../core/parsers/gemini/parseIndexObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import { parseGeminiDomIndex } from '../core/parsers/gemini/dom/parseIndex.js';
-import type { PageObservation } from '../core/sync/pageObservation.js';
+import type { PageObservation } from '../core/domain/pageObservation.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
-import type { ScanCoverageRun, ScanCoverage } from '../core/storage/scanCoverage.js';
+import type { ScanCoverageRun, ScanCoverage } from '../core/domain/scanCoverage.js';
 import type { ScanStatus } from '../types/ui.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { GeminiProviderConversationItem, GeminiProviderPageResult } from "../core/provider/gemini/geminiContracts.js";
@@ -28,7 +30,7 @@ import { resolveProvider } from '../core/provider/providerResolver.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
 import { assertSchemaWritable } from '../core/storage/schemaMigration.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
-import { resolveCurrentAccount } from './accountContext.js';
+import { resolveCurrentAccount, isCurrentAccount, getAccountContext } from './accountContext.js';
 import { isPaginationExhaustive } from '../core/api/client/pagination.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
@@ -74,7 +76,7 @@ export async function refreshInitialBadge(): Promise<void> {
     try {
         const slot = getAccountSlot();
         const Storage = getStorage();
-        const convs = Storage ? await Storage.getConversations(slot) : [];
+        const convs = Storage ? await Storage.getConversations((await resolveCurrentAccount())?.accountId) : [];
         updateBadge(convs.length, 0);
     } catch (e) {
         if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine] refreshInitialBadge error', e);
@@ -84,7 +86,7 @@ export async function refreshInitialBadge(): Promise<void> {
 export function extractActiveChatTitle(activeId: string): { title: string; source: string } | null {
     if (!activeId || typeof document === 'undefined') return null;
     const index = parseGeminiDomIndex(document, activeId);
-    return index.title ? { title: index.title, source: index.titleSource } : null;
+    return index.title ? { title: index.title, source: index.titleSource ?? "derived" } : null;
 }
 
 const __fetchingDetailMap = new Map<string, number>();
@@ -96,21 +98,22 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
         try {
             const slot = getAccountSlot();
             const Storage = getStorage();
-            const existing = Storage ? await Storage.getConversations(slot) : [];
-            const found = existing.find(c => c.id === activeId);
-            const hasResolvedTitle = found && found.title !== ''
-                && found.titleSource !== 'sniff' && found.titleSource !== 'default';
+            const existing = Storage ? await Storage.getConversations((await resolveCurrentAccount())?.accountId) : [];
+            const found = existing.find(c => c.key.conversationId === activeId);
+            const hasResolvedTitle = found && Boolean(found.title)
+                && found.titleSource !== 'derived';
             if (!options?.force && hasResolvedTitle && found.updatedAt !== undefined) {
                 return;
             }
 
             const provider = resolveProvider() as ApplicationProvider | undefined;
             if (!provider) return;
-            const native = await provider.fetchConversationDetail(activeId);
-            const d = native.conversation;
-            if (d && d.index.id) {
-                await ingestConversation(slot, native);
-            }
+            const account = await resolveCurrentAccount();
+            if (!account || account.slot !== slot) return;
+            const native = await provider.fetchConversationDetail(activeId, { slot, accountId: account.accountId });
+            const fresh = await resolveCurrentAccount();
+            if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) return;
+
         } catch (err) {
             if (contentContext.isDevMode()) console.debug('[Gemini Exporter] scheduleActiveChatDetailFetch err', err);
         } finally {
@@ -150,20 +153,23 @@ export async function touchActiveConversation(
     const nid = normId(cid);
     if (!nid) return 0;
 
+    const account = await resolveCurrentAccount();
+    if (!account || slot && slot !== account.slot && slot !== account.accountId) return 0;
+    const touchKey = JSON.stringify([account.accountId, nid]);
     const now = Date.now();
-    const lastTouched = __lastTouchedMap.get(nid) || 0;
+    const lastTouched = __lastTouchedMap.get(touchKey) || 0;
     if (!options?.forceWrite && (now - lastTouched < 800)) {
         return 0;
     }
-    __lastTouchedMap.set(nid, now);
+    __lastTouchedMap.set(touchKey, now);
     pruneLastTouchedMap(now);
 
-    const targetSlot = slot || getAccountSlot();
+    const targetSlot = account.accountId;
     const item = parseGeminiDomIndex(typeof document === 'undefined' ? null : document, nid);
 
     const source = options?.source || 'stream-complete';
     // Touch changes local tie order only; no local clock or UI hint enters Domain.
-    const receipt = await persistConversationBatch([item], source, options?.forceWrite ?? true, targetSlot, now, [nid]);
+    const receipt = await persistConversationBatch([item], source, options?.forceWrite ?? true, targetSlot, now, [nid], () => isCurrentAccount(account));
     const res = receipt.count;
 
     if (source === 'stream-complete' || source === 'live-turn-complete') {
@@ -190,31 +196,26 @@ export function upsertConversations(incomingItems: readonly unknown[], source: s
 }
 
 /** Both RPC acquisition paths commit through the same merge and storage transaction. */
-export async function ingestRpcList(items: GeminiProviderConversationItem[], slot: string, requestedAt = Date.now()): Promise<RpcListIngestResult> {
+export async function ingestRpcList(items: (GeminiProviderConversationItem | DomainConversationIndex)[], slot: string, requestedAt = Date.now(), canCommit?: () => boolean): Promise<RpcListIngestResult> {
     await assertSchemaWritable();
-    return persistConversationBatch(items, 'network-list', true, slot, requestedAt);
+    return persistConversationBatch(items, 'network-list', true, slot, requestedAt, [], canCommit);
 }
 
 /** Both passive and active pages pass through this trigger-independent boundary. */
 export async function ingestPageObservation(page: PageObservation<GeminiProviderConversationItem>, slot: string,
     runId?: string): Promise<RpcListIngestResult> {
     const Storage = getStorage();
-    const canCommit = () => (typeof location === 'undefined' || getAccountSlot() === slot)
-        && (page.accountId === null || sniffUserProfileFromDom()?.identityKey === page.accountId)
-        && (runId !== undefined || page.requestedAt > contentContext.getCancelledAt())
+    if (!isAccountId(page.accountId) || page.accountId !== slot || page.providerId !== 'gemini') {
+        throw new Error('Page observation requires its captured Registry UUID');
+    }
+    const canCommit = () => (runId !== undefined || page.requestedAt > contentContext.getCancelledAt())
         && (runId === undefined || !contentContext.isAborted());
     if (!canCommit()) throw new Error('Page observation belongs to a stale account or cancelled request');
-    if (page.accountId === null) return ingestRpcList(page.items, slot, page.requestedAt);
-    const context: ScanCoverage = await Storage.preparePageCoverage(slot, page.accountId, page.providerId);
-    const receipt = await ingestRpcList(page.items, slot, page.requestedAt);
-    if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) return receipt;
-    if (!await Storage.recordPageCoverage(slot, page, context, page.streamId === 'recent', ['pinned', 'recent'], runId, canCommit)
-        && runId !== undefined) throw new Error('Coverage was cleared, cancelled or superseded');
-    return receipt;
+    return persistConversationBatch(page.items, 'network-list', true, slot, page.requestedAt, [], canCommit, page, runId);
 }
 
-function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null, requestedAt = Date.now(), localTouches: readonly string[] = []): Promise<RpcListIngestResult> {
-    if (!incomingItems || !incomingItems.length) return Promise.resolve(emptyIngest());
+async function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null, requestedAt = Date.now(), localTouches: readonly string[] = [], canCommit?: () => boolean, page?: PageObservation<unknown>, runId?: string): Promise<RpcListIngestResult> {
+    if (!incomingItems || (!incomingItems.length && !page)) return Promise.resolve(emptyIngest());
 
     // Fail-Closed Integrity Gate:
     // If incoming items lack valid IDs or are malformed (e.g. schema drift resulting
@@ -222,29 +223,33 @@ function persistConversationBatch(incomingItems: readonly unknown[], source: str
     // abort storage transaction immediately to protect existing data from corruption.
     const kind: GeminiIndexObservationSource = source === 'network-list' || source === 'batchexecute' ? 'rpc-list'
         : source.includes('detail') ? 'detail' : 'dom';
+    const captured = targetSlot ? null : await resolveCurrentAccount();
+    const targetAccountId = targetSlot || captured?.accountId;
+    if (!isAccountId(targetAccountId)) throw new Error('List ingestion requires an account UUID');
     const validIncoming: DomainConversationIndex[] = [];
     const touched = new Set(localTouches);
     for (const item of incomingItems) {
         try {
-            const index = item && typeof item === 'object' && 'providerId' in item
-                ? restoreConversationIndex(item) : parseGeminiIndexObservation(item, kind);
+            const index: DomainConversationIndex = item && typeof item === 'object' && 'key' in item
+                ? restoreConversationIndex(item) : parseGeminiIndexObservation(item, kind, targetAccountId);
             // Validate canonical identity without reparsing or rewriting the Domain fields.
-            if (index.providerId !== 'gemini' || index.id !== normId(index.id)
-                || index.id === 'unknown' || isReservedRoute(index.id)) throw new TypeError('Invalid canonical Gemini identity');
+            if (index.key.accountId !== targetAccountId || index.key.conversationId !== normId(index.key.conversationId)
+                || index.key.conversationId === 'unknown' || isReservedRoute(index.key.conversationId)) throw new TypeError('Invalid canonical Gemini identity');
             validIncoming.push(index);
-            if (item && typeof item === 'object' && 'sidebarIndex' in item && item.sidebarIndex === 0) touched.add(index.id);
+            if (item && typeof item === 'object' && 'sidebarIndex' in item && item.sidebarIndex === 0) touched.add(index.key.conversationId);
         }
         catch (error) { if (!(error instanceof TypeError)) throw error; }
     }
 
-    if (validIncoming.length === 0) {
+    if (validIncoming.length === 0 && incomingItems.length > 0) {
         console.warn('[Gemini Exporter] Fail-Closed: incoming batch has no valid conversation IDs, aborting storage write to protect existing data.');
         return Promise.resolve(emptyIngest(incomingItems.length));
     }
 
+    const commit = () => canCommit?.() !== false && (!captured || isCurrentAccount(captured));
     __storageWriteQueue = __storageWriteQueue.catch(() => emptyIngest()).then(async () => {
         try {
-            const slot = targetSlot || getAccountSlot();
+            const slot = targetAccountId;
             const Storage = getStorage();
             if (!Storage) throw new Error('Conversation storage unavailable');
 
@@ -252,62 +257,43 @@ function persistConversationBatch(incomingItems: readonly unknown[], source: str
             // transaction. The old shape read outside the lock, so two tabs
             // could build on the same stale snapshot and the later write would
             // silently discard the earlier tab's updates (lost update).
-            let accepted = 0;
             const recovered = new Map<string, { at: number }>();
-            const tx = await Storage.transactConversations(slot, existing => {
-                const map = new Map(existing.map(c => [`${c.providerId}:${c.id}`, c]));
-                let changed = 0;
-                for (const incoming of validIncoming) {
-                    const deletion = confirmedDeleted.get(slot)?.get(incoming.id);
-                    const authoritativePresence = kind === 'rpc-list' && incoming.cloudAvailability === 'available';
-                    if (deletion && (!authoritativePresence || requestedAt <= deletion.at)) continue;
-                    const old = map.get(`${incoming.providerId}:${incoming.id}`);
-                    if (old?.cloudAvailability === 'deleted' && !authoritativePresence) continue;
-                    if (deletion && authoritativePresence) recovered.set(incoming.id, deletion);
-                    accepted++;
-                    const result = mergeConversation(old, incoming);
-                    if (result.isChanged) changed++;
-                    map.set(`${incoming.providerId}:${incoming.id}`, result.merged);
-                }
-                // Local touches change tie order only, never authored activity timestamps.
-                const merged = [...map.values()].sort((a, b) => compareConversations(a, b)
-                    || Number(touched.has(b.id)) - Number(touched.has(a.id)));
-                const reordered = merged.some((item, index) => item.id !== existing[index]?.id);
-                if (!forceWrite && changed === 0 && !reordered) return null;
-                return { list: merged, changed };
+            const tx = await ingestIndexes(slot, validIncoming, {
+                storage: Storage, canCommit: commit, forceWrite, touched,
+                ...(page && validIncoming.length === incomingItems.length ? { page, runId } : {}),
+                accept: (incoming, old) => {
+                    const deletion = confirmedDeleted.get(slot)?.get(incoming.key.conversationId);
+                    const authoritativePresence = kind === 'rpc-list';
+                    if (deletion && (!authoritativePresence || requestedAt <= deletion.at)) return false;
+                    if (deletion && authoritativePresence) recovered.set(incoming.key.conversationId, deletion);
+                    return true;
+                },
             });
+            if (kind === 'rpc-list' && tx.written) for (const index of validIncoming) {
+                if (!confirmedDeleted.get(slot)?.has(index.key.conversationId) || recovered.has(index.key.conversationId)) await Storage.setConversationAvailability?.(slot, index.key.conversationId, 'available');
+            }
+            const accepted = tx.accepted;
 
             if (tx.written) for (const [id, deletion] of recovered) {
                 if (confirmedDeleted.get(slot)?.get(id) === deletion) confirmedDeleted.get(slot)?.delete(id);
             }
             const mergedLength = tx.list.length;
             const result: RpcListIngestResult = { count: mergedLength, accepted,
-                rejected: incomingItems.length - accepted, persisted: tx.written ? accepted : 0 };
+                rejected: incomingItems.length - accepted, persisted: accepted };
             if (!tx.written) {
                 if (__lastKnownCount !== mergedLength) {
-                    updateBadge(mergedLength, incomingItems.length);
+                    if (getAccountContext()?.accountId === slot) updateBadge(mergedLength, incomingItems.length);
                     __lastKnownCount = mergedLength;
                 }
                 return result;
             }
 
             await Storage.setLastSync(slot, Date.now(), mergedLength);
-            const profile = sniffUserProfileFromDom();
-            await resolveCurrentAccount();
-            const slotUpdate: Record<string, any> = {
-                slot,
-                count: mergedLength,
-                lastSync: new Date().toISOString()
-            };
-            if (profile?.email) slotUpdate.email = profile.email;
-            if (profile?.name) slotUpdate.name = profile.name;
-            if (profile?.gaiaId) slotUpdate.gaiaId = profile.gaiaId;
-            await Storage.updateAccountSlot(slot, slotUpdate);
 
             try {
                 const p = chrome.runtime.sendMessage({
                     action: 'syncUpdate',
-                    slot,
+                    accountId: slot,
                     count: mergedLength,
                     from: source
                 });
@@ -316,7 +302,7 @@ function persistConversationBatch(incomingItems: readonly unknown[], source: str
                 if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
             }
 
-            updateBadge(mergedLength, incomingItems.length);
+            if (getAccountContext()?.accountId === slot) updateBadge(mergedLength, incomingItems.length);
             __lastKnownCount = mergedLength;
             return result;
         } catch (e: unknown) {
@@ -331,7 +317,7 @@ export async function syncOnce(): Promise<number> {
     if (__syncOnceInFlight) return 0;
     __syncOnceInFlight = true;
     try {
-        const items: DomainConversationIndex[] = [];
+        const items: unknown[] = [];
         const activeId = typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null;
         if (activeId) {
             const index = parseGeminiDomIndex(typeof document === 'undefined' ? null : document, activeId);
@@ -385,6 +371,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
 
     const slot = getAccountSlot();
     const Storage = getStorage();
+    let accountId: string | null = null;
     let coverageRun: ScanCoverageRun | null = null;
     let coverageFinished = false;
     try {
@@ -398,8 +385,10 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         contentContext.setActiveClient(provider);
         contentContext.setAborted(false);
 
-        const accountId = sniffUserProfileFromDom()?.identityKey ?? null;
-        coverageRun = await Storage.beginScanCoverage(slot, accountId);
+        const account = await resolveCurrentAccount();
+        if (!account || account.slot !== slot) throw new Error('Sync requires a verified Registry account');
+        accountId = account.accountId;
+        coverageRun = await Storage.beginScanCoverage(accountId, accountId);
         const runId = coverageRun.runId;
         const effectiveMaxPages = options?.maxPages || 2000;
         let expectedPage = 1;
@@ -413,24 +402,25 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
             maxPages: effectiveMaxPages,
             includePinned: true,
             onPageBatch: async (batch, info) => {
-                if (getAccountSlot() !== slot || (accountId !== null && sniffUserProfileFromDom()?.identityKey !== accountId)) {
+                const fresh = await resolveCurrentAccount();
+                if (!fresh || fresh.accountId !== accountId || !isCurrentAccount(account)) {
                     throw new Error('Account changed during sync; retry in the current account');
                 }
                 if (contentContext.isAborted()) throw new Error('Sync aborted');
-                if (info.page !== expectedPage++ || !await Storage.isScanCoverageCurrent(slot, runId)) {
+                if (info.page !== expectedPage++ || !await Storage.isScanCoverageCurrent(accountId, runId)) {
                     throw new Error('Sync was superseded or pagination is not contiguous; retry');
                 }
                 await assertSchemaWritable();
                 const page = info.observation ? { ...info.observation, accountId } : null;
-                const receipt = page ? await ingestPageObservation(page, slot, runId) : await ingestRpcList(batch, slot);
+                const receipt = page ? await ingestPageObservation(page, accountId, runId) : await ingestRpcList(batch, accountId, Date.now(), () => isCurrentAccount(account));
                 if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) {
                     throw new Error('List page could not be fully persisted; coverage was not advanced');
                 }
                 if (page?.streamId === 'recent' && page.requestKnown && page.valid && page.ordered) {
                     if (page.requestCursor === null) recentHead = page;
-                    if (incremental && previousRecent && recentHead && await Storage.hasScanCoverageOverlap(slot, runId, recentHead, previousRecent,
+                    if (incremental && previousRecent && recentHead && await Storage.hasScanCoverageOverlap(accountId, runId, recentHead, previousRecent,
                         () => !contentContext.isAborted() && getAccountSlot() === slot
-                            && (accountId === null || sniffUserProfileFromDom()?.identityKey === accountId))) {
+                            && isCurrentAccount(account))) {
                         verifiedIncrementalStop = true;
                         return { shouldStop: true, reason: 'Connected to verified activity coverage' };
                     }
@@ -456,7 +446,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                     if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
                 }
             },
-            targetSid: null,
+            targetSid: slot,
             incremental
         });
 
@@ -476,9 +466,11 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
             headTimestamp: timestamps.length ? timestamps.reduce((max, ts) => Math.max(max, ts), 0) : null,
             conversationCount: all.items.length
         } : null;
-        if (!await Storage.finishScanCoverage(slot, runId, finalStatus, baseline, all.items.map(item => item.id),
+        const finalAccount = await resolveCurrentAccount();
+        if (finalAccount?.accountId !== accountId || !isCurrentAccount(account)) throw new Error('Account changed before sync completion');
+        if (!await Storage.finishScanCoverage(accountId, runId, finalStatus, baseline, all.items.map(item => item.id),
             () => !contentContext.isAborted() && getAccountSlot() === slot
-                && (accountId === null || sniffUserProfileFromDom()?.identityKey === accountId))) {
+                && isCurrentAccount(account))) {
             throw new Error('Sync was superseded or local history was cleared; retry');
         }
         coverageFinished = true;
@@ -490,7 +482,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                     // Persist STORAGE_KEYS.PENDING_TAKEOUT_PROMPT via StorageService
                     const setPending = Storage?.setPendingTakeoutPrompt || StorageService.setPendingTakeoutPrompt;
                     await setPending({
-                        slot,
+                        accountId,
                         count: all.items.length,
                         hitGoogleLimit: hitGoogleLimit,
                         timestamp: Date.now()
@@ -541,8 +533,8 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                 ...(['complete', 'up_to_date'].includes(status) ? {} : { error: all.completionReason || status }) };
         }
     } catch (e: unknown) {
-        if (coverageRun && !coverageFinished) {
-            try { await Storage.finishScanCoverage(slot, coverageRun.runId, contentContext.isAborted() ? 'aborted' : 'error'); }
+        if (accountId && coverageRun && !coverageFinished) {
+            try { await Storage.finishScanCoverage(accountId, coverageRun.runId, contentContext.isAborted() ? 'aborted' : 'error'); }
             catch (coverageError) { console.error('[Gemini Exporter] Could not record failed scan', coverageError); }
         }
         const errMsg = getErrorMessage(e);

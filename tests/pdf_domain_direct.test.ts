@@ -1,3 +1,4 @@
+import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { historicalFixture } from './helpers/nativeFixture.js';
@@ -5,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
+import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
 import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
@@ -29,10 +30,10 @@ test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips
     const parsed = historicalFixture(raw, { providerId: 'gemini' });
     const domain = structuredClone(parsed.conversation);
     const roundTrip = JSON.parse(JSON.stringify(domain)) as typeof domain;
-    assert.deepEqual(composeDomainDocument(roundTrip), composeDomainDocument(domain));
-    const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
+    assert.deepEqual(composeDomainDocument(roundTrip, fixtureAccountFor(roundTrip)), composeDomainDocument(domain, fixtureAccountFor(domain)));
+    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
     assert.ok(prepared.ok);
-    assert.deepEqual(prepared.document, composeDomainDocument({ index: { ...domain.index, url: `https://gemini.google.com/app/${domain.index.id}` }, detail: { ...domain.detail } }).document);
+    assert.deepEqual(prepared.document, composeDomainDocument({ index: { ...domain.index,  }, detail: {   ...domain.detail } }, fixtureAccountFor({ index: { ...domain.index, url: `https://gemini.google.com/app/${domain.index.key.conversationId}` }, detail: {  ...domain.detail } })).document);
     assert.deepEqual(JSON.parse(JSON.stringify(prepared.document)), prepared.document);
     assert.ok(!('bundle' in prepared) && !('byteStore' in prepared));
     assert.deepEqual(parsed.conversation, domain);
@@ -46,8 +47,8 @@ test('intrinsic file size and unknown role survive parser and JSON without outpu
     assert.equal(parsed.detail.messages[0].role, 'unknown');
     assert.equal(Object.hasOwn(parsed.detail.messages[0], 'provenance'), false);
     const restored = JSON.parse(JSON.stringify(parsed)) as typeof parsed;
-    assert.deepEqual(composeDomainDocument(restored), composeDomainDocument(parsed));
-    const file = composeDomainDocument(parsed).document.messages[0].blocks.find(block => block.type === 'file');
+    assert.deepEqual(composeDomainDocument(restored, fixtureAccountFor(restored)), composeDomainDocument(parsed, fixtureAccountFor(parsed)));
+    const file = composeDomainDocument(parsed, fixtureAccountFor(parsed)).document.messages[0].blocks.find(block => block.type === 'file');
     assert.ok(file && file.type === 'file');
     assert.equal(file.byteLength, 3);
     assert.equal(file.label, 'note.txt');
@@ -59,11 +60,11 @@ test('PDF hydration cannot conflate two sources sharing an export destination', 
         { type: 'image', localName: 'assets/same.png', url: 'https://example.test/one' },
         { type: 'image', localName: 'assets/same.png', url: 'https://example.test/two' },
     ] }] };
-    const prepared = await preparePdfItem(historicalFixture(raw), { fetchAsset: async request => {
+    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ fetchAsset: async request => {
         const url = typeof request === 'string' ? request : request.url ?? '';
         urls.push(url);
         return { success: true, mime: 'image/png', dataBase64: url.endsWith('/one') ? png : secondPng };
-    } });
+    } }) });
     assert.ok(prepared.ok);
     assert.deepEqual(urls, ['https://example.test/one', 'https://example.test/two']);
     assert.equal(prepared.resources.size, 2);
@@ -82,7 +83,7 @@ test('PDF hydration cannot conflate two sources sharing an export destination', 
 
 test('PDF transport matches reference and real compiled pages contain source-authored text', async () => {
     const raw = fixture();
-    const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
+    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
     assert.ok(prepared.ok);
     const resolved = await resourceStage(prepared, ctx);
     const direct = await payloadStage({ document: prepared.document, pathMap: resolved.output.pathMap, locale: 'en' }, ctx);

@@ -1,10 +1,11 @@
+import { fixtureAccountFor, fixtureKey, fixtureAccount } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { preparePdfItem, pdfDomainSelection } from '../src/core/export/pdf/prepareItem.js';
+import { preparePdfItem, pdfDomainSelection } from './helpers/pdfAcquisitionFixture.js';
 import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 
@@ -12,39 +13,39 @@ function rawIsNotExportable(raw: DomainConversationWithDetail): void {
     // @ts-expect-error Builders must establish trust at their source.
     formatHtmlDocument(raw);
     // @ts-expect-error The PDF adapter accepts only an established trusted graph.
-    pdfDomainSelection(raw);
+    pdfDomainSelection(raw, fixtureAccountFor(raw));
     const misleading = { id: 'raw', conversation: raw };
     // @ts-expect-error Extra conversation fields cannot slip through the metadata branch.
-    preparePdfItem(misleading);
+    preparePdfItem(misleading, { accountId: fixtureAccount('independent').id });
 }
 void rawIsNotExportable;
 
 test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves messages', async () => {
-    const raw: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'pdf-source', title: 'Title' }, detail: { quality: { status: 'unknown' }, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Independent body' }] }] }], assets: [] } };
+    const raw: DomainConversationWithDetail = { index: { key: fixtureKey(String('pdf-source'), 'independent'),   titleSource: "derived",   title: 'Title' }, detail: { key: fixtureKey(String('pdf-source'), 'independent'), quality: { status: 'unknown' }, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Independent body' }] }] }], assets: [] } };
     // @ts-expect-error Raw Domain is neither request metadata nor a trusted result.
-    const rejected = await preparePdfItem(raw, { includeAssets: false });
+    const rejected = await preparePdfItem(raw, { accountId: fixtureAccount('independent').id, ...({ includeAssets: false }) });
     assert.equal(rejected.ok, false);
     if (!rejected.ok) assert.match(rejected.error, /Invalid conversation ID/);
-    const selected = pdfDomainSelection(validateParserDomain(raw));
-    const prepared = await preparePdfItem(selected, { includeAssets: false });
+    const selected = pdfDomainSelection(validateParserDomain(raw), fixtureAccountFor(validateParserDomain(raw)));
+    const prepared = await preparePdfItem(selected, { accountId: fixtureAccount('independent').id, ...({ includeAssets: false }) });
     assert.equal(prepared.ok, true);
     if (prepared.ok) assert.equal(prepared.document.messages.length, 1);
 });
 
 test('one trusted graph preserves independent content across HTML, Markdown, JSON and PDF preparation', async () => {
-    const conversation = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'exports', title: '<Independent>' }, detail: { assets: [], quality: { status: 'partial' }, messages: [
+    const conversation = validateParserDomain({ index: { key: fixtureKey(String('exports'), 'independent'),   titleSource: "derived",   title: '<Independent>' }, detail: { key: fixtureKey(String('exports'), 'independent'), assets: [], quality: { status: 'partial' }, messages: [
             { id: 'q', role: 'user', content: [{ type: 'paragraph',
                 children: [{ type: 'text', text: 'Question <safe>' }] }] },
             { id: 'a', role: 'assistant', reasoning: [{ type: 'paragraph',
                 children: [{ type: 'text', text: 'Reasoning evidence' }] }],
                 content: [{ type: 'code', language: 'ts', code: 'const value = 2;' }] },
         ] } });
-    const parsed = { conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
-    const document = composeDomainDocument(conversation).document;
+    const parsed = { account: fixtureAccountFor(conversation), conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
+    const document = composeDomainDocument(conversation, fixtureAccountFor(conversation)).document;
     const html = (await formatHtmlDocument(parsed)).content;
     const markdown = (await formatMarkdownDocument(parsed)).content;
     const native = JSON.parse(formatContent(parsed, 'json').content);
-    const pdf = await preparePdfItem(pdfDomainSelection(conversation), { includeAssets: false });
+    const pdf = await preparePdfItem(pdfDomainSelection(conversation, fixtureAccountFor(conversation)), { accountId: fixtureAccount('independent').id, ...({ includeAssets: false }) });
 
     assert.equal(document.messages.length, 2);
     assert.match(html, /Question &lt;safe&gt;/);

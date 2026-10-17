@@ -14,23 +14,23 @@ const jpg = 'watermarked_img_4528137010801751197.jpg';
 test('real Takeout fixture retains generation evidence without guessing ownership of an unreferenced PNG', async () => {
     const originalZip = Object.getOwnPropertyDescriptor(globalThis, 'JSZip');
     (global as any).JSZip = require('../lib/jszip.min.js');
-    TakeoutEngine.clearTakeoutData('identity');
+    TakeoutEngine.clearTakeoutData('10000000-0000-4000-8000-000000000001');
     try {
-        const result = await TakeoutEngine.parseTakeoutZip(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), null, 'identity');
-        const offline = TakeoutEngine.getTakeoutOfflineChat(id, 'identity');
+        const result = await TakeoutEngine.parseTakeoutZip(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), null, '10000000-0000-4000-8000-000000000001');
+        const offline = TakeoutEngine.getTakeoutOfflineChat(id, '10000000-0000-4000-8000-000000000001');
         assert.ok(offline.conversation, 'production cache must carry native Domain');
         const model = offline.conversation.detail.messages.find((m: any) => m.role === 'assistant');
         assert.deepEqual(model.generation, { mediaKind: 'image', outputCount: 1 });
-        assert.deepEqual(TakeoutEngine.getTakeoutMediaForChat(id, 'identity'), []);
+        assert.deepEqual(TakeoutEngine.getTakeoutMediaForChat(id, '10000000-0000-4000-8000-000000000001'), []);
         assert.ok(result.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
         assert.ok((await result.globalMedia[png].async('uint8array')).length > 0, 'unowned archive bytes remain available as acquisition evidence');
-        assert.equal(await TakeoutEngine.getTakeoutFallbackMedia(id, { assetId: '', sourceUri: png }, 'identity'), null, 'an archive file does not establish message ownership');
+        assert.equal(await TakeoutEngine.getTakeoutFallbackMedia(id, { assetId: '', sourceUri: png }, '10000000-0000-4000-8000-000000000001'), null, 'an archive file does not establish message ownership');
         for (const record of result.conversations) {
             assert.equal('parsed' in record, false);
             assert.equal('messages' in record, false, 'imports remain metadata-only and cannot overwrite stored detail');
         }
     } finally {
-        TakeoutEngine.clearTakeoutData('identity');
+        TakeoutEngine.clearTakeoutData('10000000-0000-4000-8000-000000000001');
         if (originalZip) Object.defineProperty(globalThis, 'JSZip', originalZip);
         else delete (global as any).JSZip;
     }

@@ -75,9 +75,9 @@ function normalizeLine(s: string): string {
 function stripHtmlChrome(line: string): string | null {
     if (line === '复制') return null; // code-block copy button
     if (line === '思考过程') return null; // thought <summary> header; thought content is compared
-    const missing = /^附件缺失\s*·\s*(.*?)\s*MISSING$/.exec(line);
+    const missing = /^(?:图片不可用|附件不可用):\s*(.*?)\s*MISSING$/.exec(line);
     if (missing) return missing[1] || null; // missing attachment card keeps the asset label
-    return line.replace(/图片缺失\s*·\s*/g, ''); // missing inline-image placeholder keeps the asset name
+    return line; // Both backends retain the same localized inline unavailable text.
 }
 
 function textLinesFromHtml(html: string): string[] {
@@ -267,7 +267,7 @@ function parityInputs(name: string): ParityInputs {
     };
     const htmlParts = htmlTextParts(html);
     // Empty preparation exercises the visible unavailable-resource path.
-    const { payload, diagnostics } = renderTypstFixture(document, {}, { locale: 'en' }) as {
+    const { payload, diagnostics } = renderTypstFixture(document, {}, { locale: 'zh' }) as {
         payload: any; diagnostics: Array<{ code: string; severity: string }>;
     };
     const pdfParts = typstTextParts(payload, document);

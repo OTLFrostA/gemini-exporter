@@ -1,6 +1,6 @@
 export interface ExportSessionData {
     status?: 'running' | 'completed' | 'interrupted' | 'error' | string;
-    slot?: string;
+    accountId?: string;
     total?: number;
     current?: number;
     lastChatId?: string;

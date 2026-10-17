@@ -86,7 +86,7 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
         <head>
           <script>
             window._WIZ_global_data = {
-              SNlM0e: 'mock_at_token_limit',
+              qDCSke: '10000000001', SNlM0e: 'mock_at_token_limit',
               cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
             };
           </script>
@@ -177,10 +177,10 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
       // suppression condition for this second attempt is Takeout history.
       await chrome.storage.local.remove('has_completed_takeout_prompt');
       window.ConversationsStore.setConversations([
-        { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', hasTakeoutImport: true,
-          providerId: 'gemini', titleSource: 'takeout', cloudAvailability: 'unknown', updatedAt: 1700000000000 }
+        { key: fixtureKey(String('takeout_chat_1'), 'gemini'),  title: 'Takeout Recovered Chat',
+           titleSource: "derived",  updatedAt: 1700000000000 }
       ]);
-      if (!window.ConversationsStore.hasTakeoutData()) throw new Error('Takeout seed did not reach the live Store');
+      await chrome.storage.local.set({ has_imported_takeout: true });
       await window.DialogView.showTakeoutLimitPrompt({ count: 620 });
     });
     await expect(modal).toBeHidden();

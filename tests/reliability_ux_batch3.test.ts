@@ -17,7 +17,7 @@ test('P1-3: fetchChatDetail resolves promptly when tabService returns empty enve
 
     const promise = fetchChatDetail(
         { id: 'c_probe1', title: 'Probe 1' },
-        0, 1, 'u0', false, 'markdown', null,
+        0, 1, '10000000-0000-4000-8000-000000000001', false, 'markdown', null,
         { tabService: tabServiceMock }
     );
 
@@ -40,7 +40,7 @@ test('P1-3: fetchChatDetail resolves promptly when tabService returns unexpected
 
     const res = await fetchChatDetail(
         { id: 'c_probe2', title: 'Probe 2' },
-        0, 1, 'u0', false, 'markdown', null,
+        0, 1, '10000000-0000-4000-8000-000000000001', false, 'markdown', null,
         { tabService: tabServiceMock }
     );
 
@@ -58,7 +58,7 @@ test('P1-3: fetchChatDetail catches synchronous throw from messageSender and res
 
     const res = await fetchChatDetail(
         { id: 'c_probe3', title: 'Probe 3' },
-        0, 1, 'u0', false, 'markdown', null,
+        0, 1, '10000000-0000-4000-8000-000000000001', false, 'markdown', null,
         { tabService: null, messageSender: throwingSender }
     );
 
@@ -77,19 +77,19 @@ test('P1-4: abortManager increments slot generation epoch on abort and clear', a
     } = require('../src/background/abortManager.js');
 
     clearAllAborts();
-    const epoch0 = getSlotEpoch('u0');
+    const epoch0 = getSlotEpoch('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(epoch0, 0);
 
-    await setSlotAborted('u0', true);
-    const epoch1 = getSlotEpoch('u0');
+    await setSlotAborted('10000000-0000-4000-8000-000000000001', true);
+    const epoch1 = getSlotEpoch('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(epoch1, 1);
 
-    await setSlotAborted('u0', false);
-    const epoch2 = getSlotEpoch('u0');
+    await setSlotAborted('10000000-0000-4000-8000-000000000001', false);
+    const epoch2 = getSlotEpoch('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(epoch2, 2);
 
     clearAllAborts();
-    assert.strictEqual(getSlotEpoch('u0'), 0);
+    assert.strictEqual(getSlotEpoch('10000000-0000-4000-8000-000000000001'), 0);
 });
 
 test('P1-4: cancelled batch cannot resurrect even if slot is later reset to unaborted', async () => {
@@ -125,11 +125,11 @@ test('P1-4: cancelled batch cannot resurrect even if slot is later reset to unab
     TabService.sendToGeminiTab = async () => {
         sendCallCount++;
         await new Promise(r => setTimeout(r, 40));
-        return { success: true, domainEnvelopeVersion: 2, data: historicalFixture({ id: 'chat', messages: [] }) };
+        return { success: true, domainEnvelopeVersion: 3, data: historicalFixture({ id: 'chat', messages: [] }) };
     };
 
     try {
-        const slot = 'u0';
+        const slot = '10000000-0000-4000-8000-000000000001';
         let response: any = null;
 
         // Start batch 1 with 3 items

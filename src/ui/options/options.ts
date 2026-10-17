@@ -107,7 +107,7 @@ export async function initWorkbench(): Promise<void> {
             renderLog,
             updateZipUi: () => (OptionsExport ? OptionsExport.updateZipUi() : null),
             checkExportSession: () => (OptionsInit ? (OptionsInit.checkExportSession() as unknown as Promise<void>) : undefined),
-            updateAccountSlotSelector: () => (OptionsInit ? OptionsInit.updateAccountSlotSelector() : null),
+            updateAccountSelector: () => (OptionsInit ? OptionsInit.updateAccountSelector() : null),
             getSearchFilter: () => (OptionsInit ? OptionsInit.getSearchFilter() : ''),
             getChatFilterType: () => (OptionsInit ? OptionsInit.getChatFilterType() : 'all')
         });

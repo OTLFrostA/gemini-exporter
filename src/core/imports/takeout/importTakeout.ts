@@ -1,5 +1,7 @@
+import { getAccount } from '../../api/accountRegistry.js';
 import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
-import { ingestConversation, getConversations } from '../../storage/storageService.js';
+import { getConversations } from '../../storage/storageService.js';
+import { ingestConversation } from '../../storage/conversationIngest.js';
 import type { StoredDomainResource } from '../../storage/domain/contracts.js';
 import { ZipBombGuard } from './zipBombGuard.js';
 import { I18n } from '../../utils/i18n.js';
@@ -22,6 +24,9 @@ export { stripHtmlTags };
 
 /** UI/acquisition adapter: native parsing precedes the one-way storage projection. */
 export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number, msg: string) => void) | null, slot: string | null = null): Promise<TakeoutParseResult> {
+    if (!slot) throw new TypeError('Takeout requires an account UUID');
+    const account = await getAccount(slot);
+    if (!account || account.providerId !== 'gemini') throw new TypeError('Takeout requires an existing Gemini account');
     const i18n = __resolveModule('I18n', I18n);
     onProgress?.(15, i18n.t('takeoutUnzipping'));
     ZipBombGuard.validateZipFile(file);
@@ -34,7 +39,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
         if (!loader || (typeof loader !== 'object' && typeof loader !== 'function') || typeof (loader as { loadAsync?: unknown }).loadAsync !== 'function') throw new TypeError('JSZip 库未加载，无法解析 ZIP');
         return (loader as { loadAsync: (raw: GeminiTakeoutZipRaw) => Promise<unknown> }).loadAsync(bytes);
     };
-    const results = await parseGeminiTakeoutZipArchive(bytes, { providerId: 'gemini', onProgress: (completed, total) => onProgress?.(70 + Math.floor(completed / total * 18), i18n.t('takeoutParsingDetailProgress', completed, total)), readArchive: async () => {
+    const results = await parseGeminiTakeoutZipArchive(bytes, { account, providerId: 'gemini', onProgress: (completed, total) => onProgress?.(70 + Math.floor(completed / total * 18), i18n.t('takeoutParsingDetailProgress', completed, total)), readArchive: async () => {
         const archive = await readArchive();
         ZipBombGuard.validateZipEntries(archive);
         if (archive && typeof archive === 'object' && 'files' in archive && archive.files && typeof archive.files === 'object') inventory = archive.files as Record<string, unknown>;
@@ -48,7 +53,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
         throw new TakeoutParseError(message, false);
     });
     const store: TakeoutStore = { convCache: {}, mediaMap: {}, globalMedia: {} };
-    const importedIds = new Set(results.map(result => result.conversation.index.id));
+    const importedIds = new Set(results.map(result => result.conversation.index.key.conversationId));
     const resourceResults: ResourceResult<ResourceDelivery>[] = [];
     const diagnostics: Diagnostic[] = [];
     const basenames = new Map<string, unknown[]>();
@@ -60,9 +65,9 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
     }
     for (const [name, entries] of basenames) if (entries.length === 1) store.globalMedia[name] = entries[0] as TakeoutStore['globalMedia'][string];
     for (const [resultIndex, result] of results.entries()) {
-        const id = result.conversation.index.id;
+        const id = result.conversation.index.key.conversationId;
         const durableResources: StoredDomainResource[] = [];
-        const native = { ...(result.sourceVersion !== undefined ? { sourceVersion: result.sourceVersion } : {}), conversation: result.conversation, diagnostics: result.diagnostics, acquisitionHints: result.acquisitionHints,
+        const native = { account, ...(result.sourceVersion !== undefined ? { sourceVersion: result.sourceVersion } : {}), conversation: result.conversation, diagnostics: result.diagnostics, acquisitionHints: result.acquisitionHints,
             resourceHints: {} as Record<string, { archivePath: string }> };
         store.convCache[id] = native;
         // Only source-bound resources are available to native consumers. An unresolved
@@ -80,7 +85,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
             }
             durableResources.push({ assetId, bytes: acquired.value, sourcePath: bound.path });
         }
-        Object.assign(native, await ingestConversation(slot || 'u0', native, durableResources, 'takeout'));
+        Object.assign(native, await ingestConversation(slot, native, durableResources, 'takeout'));
         // The repository write is the delivery boundary; it stays fatal if the store itself fails.
         for (const resource of durableResources) {
             const path = resource.sourcePath!;
@@ -91,12 +96,12 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
             (store.mediaMap[id] ??= []).push({ filename: path, fileObj: bound.entry });
         }
         for (const asset of native.conversation.detail.assets) {
-            if (!result.archiveResources[asset.id] && !/^(?:https?:\/\/|\/\/|data:)/i.test(asset.sourceUri ?? '')) resourceResults.push(missingResource(asset.id, 'Archive resource is missing or ambiguous'));
+            if (!result.archiveResources[asset.id] && ![asset.sourceUri, result.acquisitionHints[asset.id]?.url, result.acquisitionHints[asset.id]?.sourceUrl].some(uri => /^(?:https?:\/\/|\/\/|data:)/i.test(uri ?? ''))) resourceResults.push(missingResource(asset.id, 'Archive resource is missing or ambiguous'));
         }
         diagnostics.push(...native.diagnostics);
         if ((resultIndex + 1) % 50 === 0) await new Promise<void>(resume => setTimeout(resume, 0));
     }
-    const conversations = (await getConversations(slot)).filter(row => row.providerId === 'gemini' && importedIds.has(row.id));
+    const conversations = (await getConversations(slot)).filter(row => importedIds.has(row.key.conversationId));
     const totalMediaCount = Object.entries(inventory).filter(([path, entry]) => entry && typeof entry === 'object' && !('dir' in entry && entry.dir) && !/\.(html|json)$/i.test(path)).length;
     MediaIndex.commitTakeoutData(slot, store);
     onProgress?.(100, i18n.t('takeoutSuccessSummary', conversations.length, totalMediaCount));

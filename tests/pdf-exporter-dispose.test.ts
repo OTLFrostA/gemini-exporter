@@ -1,3 +1,4 @@
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -46,7 +47,7 @@ function fakeExtensionPageContext() {
         value: { getElementById: () => null }, configurable: true, writable: true,
     });
     Object.defineProperty(g, 'chrome', {
-        value: { ...g.chrome, runtime: { getURL: (p: string) => `chrome-extension://fake/${p}` } },
+        value: { ...g.chrome, runtime: { ...g.chrome.runtime, getURL: (p: string) => `chrome-extension://fake/${p}` } },
         configurable: true, writable: true,
     });
     return () => {
@@ -111,8 +112,9 @@ function makeFakeCompiler(opts: { throws?: boolean } = {}) {
 
 function baseOptions(writer: any, extra: any = {}) {
     return {
+        accountId: '10000000-0000-4000-8000-000000000001',
         selected: [{ id: sample.id, title: sample.title }],
-        conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+        conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
         useZip: false,
         writer,
         ...extra,

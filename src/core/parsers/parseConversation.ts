@@ -1,3 +1,4 @@
+import type { Account } from '../domain/accountRegistry.js';
 import { parseLegacyStorageConversation, type LegacyStorageRaw } from './legacyStorage/parseConversation.js';
 import { parseGeminiDomConversation, type GeminiDomRaw, type GeminiDomParseResult } from './gemini/dom/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw, type GeminiTakeoutZipContext } from './gemini/takeout/parseZip.js';
@@ -17,9 +18,9 @@ export interface GeminiTakeoutZipParseInput extends GeminiTakeoutZipContext {
     format: 'gemini-takeout-zip';
     data: GeminiTakeoutZipRaw;
 }
-export interface GeminiDomParseInput { format: 'gemini-dom'; providerId: 'gemini'; data: GeminiDomRaw }
+export interface GeminiDomParseInput { account: Account; format: 'gemini-dom'; providerId: 'gemini'; data: GeminiDomRaw }
 /** Only formats with implemented Domain parsers belong here. */
-export interface LegacyStorageParseInput { format: 'legacy-storage'; providerId: string; data: LegacyStorageRaw }
+export interface LegacyStorageParseInput { account: Account; format: 'legacy-storage'; providerId: string; data: LegacyStorageRaw }
 export type ConversationParseInput = LegacyStorageParseInput | GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiTakeoutZipParseInput | GeminiDomParseInput;
 
 export function parseConversation(input: LegacyStorageParseInput): ResourceConversationParseResult;

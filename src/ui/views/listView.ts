@@ -1,3 +1,6 @@
+import { cachedConversationAvailability } from '../../core/storage/conversationAvailability.js';
+import { getAccounts } from '../state/conversationsStore.js';
+import { conversationSourceUrl } from '../../core/utils/conversationSourceUrl.js';
 import { indexActivityTime } from '../../core/domain/conversationIndex.js';
 import type { DomainConversationIndex } from '../../types/conversation.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
@@ -144,14 +147,14 @@ export function render(
     } else if (prevSelectedSet === null || canonicalSelectedIds === null) {
         canonicalSelectedIds = new Set<string>();
         for (const c of currentConversationsRef) {
-            const nid = normId(c.id);
+            const nid = normId(c.key.conversationId);
             const rec = expMap[nid] || null;
             const isFailedInSession = !!(
-                failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
+                failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
             );
             const st = resolveConversationExportState(c, rec, { isFailedInSession });
             if (st.shouldAutoSelect) {
-                canonicalSelectedIds.add(c.id);
+                canonicalSelectedIds.add(c.key.conversationId);
                 canonicalSelectedIds.add(nid);
             }
         }
@@ -164,10 +167,10 @@ export function render(
     const q = (searchFilter || '').trim().toLowerCase();
 
     const filtered = conversations.filter(c => {
-        const nid = normId(c.id);
+        const nid = normId(c.key.conversationId);
         const rec = expMap[nid] || null;
         const isFailedInSession = !!(
-            failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
+            failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
         );
         const st = resolveConversationExportState(c, rec, { isFailedInSession });
 
@@ -184,7 +187,7 @@ export function render(
 
         if (!matchesType) return false;
         if (!q) return true;
-        return c.title.toLowerCase().includes(q) || c.id.toLowerCase().includes(q);
+        return (c.title ?? "").toLowerCase().includes(q) || c.key.conversationId.toLowerCase().includes(q);
     });
 
     if (!filtered.length) {
@@ -197,23 +200,23 @@ export function render(
 
     filtered.forEach((c) => {
         const origIdx = idxMap.get(c) ?? -1;
-        const nid = normId(c.id);
+        const nid = normId(c.key.conversationId);
         const rec = expMap[nid] || null;
         const isFailedInSession = !!(
-            failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
+            failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
         );
         const st = resolveConversationExportState(c, rec, { isFailedInSession });
         let isChecked = false;
         if (canonicalSelectedIds) {
-            isChecked = canonicalSelectedIds.has(c.id) || canonicalSelectedIds.has(nid) || canonicalSelectedIds.has('c_' + nid);
+            isChecked = canonicalSelectedIds.has(c.key.conversationId) || canonicalSelectedIds.has(nid) || canonicalSelectedIds.has('c_' + nid);
         } else if (prevSelectedSet instanceof Set) {
-            isChecked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
+            isChecked = prevSelectedSet.has(c.key.conversationId) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
         } else {
             isChecked = st.shouldAutoSelect;
         }
 
         const displayTitle = escapeHtml(c.title || (t('untitledChat') || 'Untitled conversation'));
-        const titleStyle = c.titleSource === 'default' ? 'color:var(--warn); opacity:0.85;' : '';
+        const titleStyle = !c.title ? 'color:var(--warn); opacity:0.85;' : '';
         const ts = indexActivityTime(c);
         const dateStr = ts === undefined ? '' : new Date(ts).toLocaleDateString() + ' '
             + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -236,15 +239,16 @@ export function render(
             badgeHtml = `<span class="${b.className}" style="font-size:10px; padding:2px 6px; border-radius:4px; background:${b.bg}; color:${b.color}; margin-left:8px; border:1px solid ${b.border};">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
         }
 
-        const cloudLabel = c.cloudAvailability === 'deleted' ? t('archiveCloudDeleted') : c.cloudAvailability === 'unlisted' ? t('archiveUnlisted') : '';
+        const availability = cachedConversationAvailability(c.key.accountId)[c.key.conversationId];
+        const cloudLabel = availability === 'deleted' ? t('archiveCloudDeleted') : availability === 'unlisted' ? t('archiveUnlisted') : '';
         const cloudBadge = cloudLabel ? `<span class="cloud-status" style="font-size:10px; color:var(--muted); margin-left:8px;">${escapeHtml(cloudLabel)}</span>` : '';
-        const rawUrl = c.url;
+        const rawUrl = conversationSourceUrl(getAccounts().find(account => account.id === c.key.accountId)?.providerId ?? "gemini", c.key.conversationId);
         const url = (typeof rawUrl === 'string' && /^https?:\/\//i.test(rawUrl.trim()))
             ? rawUrl.trim()
-            : `https://gemini.google.com/app/${encodeURIComponent(c.id)}`;
+            : `https://gemini.google.com/app/${encodeURIComponent(c.key.conversationId)}`;
 
         htmlArr.push(`
-            <div class="item" data-chat-id="${escapeHtml(c.id)}" style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); font-size:13px; cursor:pointer; user-select:none;">
+            <div class="item" data-chat-id="${escapeHtml(c.key.conversationId)}" style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); font-size:13px; cursor:pointer; user-select:none;">
                 <input type="checkbox" data-idx="${origIdx}" ${isChecked ? 'checked' : ''} ${list.dataset?.selectionDisabled === 'true' ? 'disabled' : ''} style="margin-right:10px; cursor:pointer;" />
                 <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                     <span class="chat-title" style="${titleStyle}">${displayTitle}</span>
@@ -271,8 +275,8 @@ export function updateItemExportStatus(chatId: string, exportRecord?: Partial<Ex
     const item = list.querySelector(`[data-chat-id="${esc(nid)}"], [data-chat-id="${esc(chatId)}"], [data-chat-id="${esc('c_' + nid)}"]`);
     if (!item) return;
 
-    const st = resolveConversationExportState({ id: chatId }, exportRecord || { status: 'ok' });
-    const b = st.badge.kind !== 'none' ? st.badge : resolveConversationExportState({ id: chatId }, { status: 'ok' }).badge;
+    const st = resolveConversationExportState({}, exportRecord || { status: 'ok' });
+    const b = st.badge.kind !== 'none' ? st.badge : resolveConversationExportState({}, { status: 'ok' }).badge;
     const _i18n = __resolveModule('I18n', I18nStatic);
     const bText = (_i18n.t)
         ? _i18n.t(b.i18nKey)
@@ -308,8 +312,8 @@ export function updateStat(conversations?: readonly Readonly<DomainConversationI
     let checked = 0;
     if (canonicalSelectedIds && canonicalSelectedIds.size > 0 && convs.length > 0) {
         checked = convs.filter(c => {
-            const nid = normId(c.id);
-            return canonicalSelectedIds!.has(c.id) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
+            const nid = normId(c.key.conversationId);
+            return canonicalSelectedIds!.has(c.key.conversationId) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
         }).length;
     } else {
         checked = document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]:checked').length;
@@ -324,8 +328,8 @@ export function getSelected(conversations?: readonly Readonly<DomainConversation
     const convs = conversations || currentConversationsRef || [];
     if (canonicalSelectedIds && canonicalSelectedIds.size > 0) {
         const selected = convs.filter(c => {
-            const nid = normId(c.id);
-            return canonicalSelectedIds!.has(c.id) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
+            const nid = normId(c.key.conversationId);
+            return canonicalSelectedIds!.has(c.key.conversationId) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
         });
         if (selected.length > 0) return selected;
     }
@@ -334,7 +338,7 @@ export function getSelected(conversations?: readonly Readonly<DomainConversation
         const item = typeof cb.closest === 'function' ? cb.closest<HTMLElement>('.item') : null;
         const chatId = item?.dataset?.chatId;
         if (chatId) {
-            const found = convs.find(c => normId(c.id) === normId(chatId));
+            const found = convs.find(c => normId(c.key.conversationId) === normId(chatId));
             if (found) {
                 selected.push(found);
                 return;
@@ -374,8 +378,8 @@ export function selectAll(conversations?: readonly Readonly<DomainConversationIn
             const idx = parseInt(cb.dataset?.idx || '-1', 10);
             const convs = conversations || currentConversationsRef || [];
             if (idx >= 0 && convs[idx]) {
-                canonicalSelectedIds!.add(convs[idx].id);
-                canonicalSelectedIds!.add(normId(convs[idx].id));
+                canonicalSelectedIds!.add(convs[idx].key.conversationId);
+                canonicalSelectedIds!.add(normId(convs[idx].key.conversationId));
             }
         }
     });
@@ -397,8 +401,8 @@ export function deselectAll(conversations?: readonly Readonly<DomainConversation
             const idx = parseInt(cb.dataset?.idx || '-1', 10);
             const convs = conversations || currentConversationsRef || [];
             if (idx >= 0 && convs[idx]) {
-                const nid = normId(convs[idx].id);
-                canonicalSelectedIds!.delete(convs[idx].id);
+                const nid = normId(convs[idx].key.conversationId);
+                canonicalSelectedIds!.delete(convs[idx].key.conversationId);
                 canonicalSelectedIds!.delete(nid);
                 canonicalSelectedIds!.delete('c_' + nid);
             }
@@ -418,15 +422,15 @@ export function selectUnexported(conversations?: readonly Readonly<DomainConvers
             cb.checked = false;
             return;
         }
-        const nid = normId(c.id);
+        const nid = normId(c.key.conversationId);
         const rec = expMap[nid] || null;
         const check = !rec;
         cb.checked = check;
         if (check) {
-            canonicalSelectedIds!.add(c.id);
+            canonicalSelectedIds!.add(c.key.conversationId);
             canonicalSelectedIds!.add(nid);
         } else {
-            canonicalSelectedIds!.delete(c.id);
+            canonicalSelectedIds!.delete(c.key.conversationId);
             canonicalSelectedIds!.delete(nid);
             canonicalSelectedIds!.delete('c_' + nid);
         }

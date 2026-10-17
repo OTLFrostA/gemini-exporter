@@ -18,8 +18,8 @@ const ALLOWED_STORAGE_FILES = new Set<string>([
     'src/core/storage/formatStore.ts',
     'src/core/storage/liveStorageManager.ts',
     'src/core/storage/schemaMigration.ts',
-    // Owns only the durable v2 migration report and per-origin completion marker.
-    'src/core/storage/domain/migrateLegacy.ts',
+    'src/core/storage/conversationAvailability.ts',
+    'src/core/storage/conversationCatalogStore.ts',
 ]);
 
 function gitGrepFixed(pattern: string): Array<{ file: string; line: number; text: string }> {

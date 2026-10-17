@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -19,7 +20,7 @@ const paragraph = (text: string): DomainMessage => body([{ type: 'paragraph', ch
 const compare = (a: DomainMessage, b: DomainMessage, assets: DomainAsset[] = []) => differences(canonicalMessage(a, assets), canonicalMessage(b, assets));
 
 function envelope(raw = wire()) {
-    return { success: true, source: 'batchexecute', data: parseGeminiRpcConversation(raw, { providerId: 'gemini' }) };
+    return { success: true, source: 'batchexecute', data: parseGeminiRpcConversation(raw, { account: fixtureAccount('gemini'), providerId: 'gemini' }) };
 }
 
 test('same native response takes independent raw Markdown and structured branches; input is not mutated', () => {
@@ -156,7 +157,7 @@ test('offline reports retain source hash and every diff; incomplete pagination, 
         assert.equal(runAudit(input, output).counts.errors, 1);
         writeFileSync(file, JSON.stringify(envelope(wire('Hello', null))));
         assert.equal(runAudit(input, output).counts.structuredUnavailable, 1);
-        writeFileSync(file, JSON.stringify({ ...envelope(), data: { ...envelope().data, transport: { decodedPayload: [] } } }));
+        writeFileSync(file, JSON.stringify({ ...envelope(), data: {   ...envelope().data, transport: { decodedPayload: [] } } }));
         assert.equal(runAudit(input, output).passed, false);
         assert.throws(() => runAudit(input, input), /outside/);
         assert.throws(() => runAudit(input, join(input, 'report')), /outside/);

@@ -1,11 +1,10 @@
 import { missingResource, type ResourceResult, type ResourceDelivery } from '../core/resources/resourceResult.js';
-import { ingestConversation } from '../core/storage/storageService.js';
 import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import { decodeDataUrlAsset } from '../core/export/assets/dataUrl.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { AIProvider } from "../core/provider/aiProvider.js";
 import { StorageService } from '../core/storage/storageService.js';
-import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
+import { resolveCurrentAccount, isCurrentAccount } from './accountContext.js';
 import { contentContext } from './contentContext.js';
 import { LiveStorageManager, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
@@ -138,51 +137,12 @@ export function init(deps: LiveSaveCoordinatorDeps = {}): void {
     if (isDev()) console.log('[LiveSaveCoordinator] Initialized');
 }
 
-function isApplicationProvider(provider: AIProvider | null | undefined): provider is ApplicationProvider {
-    return provider !== null && provider !== undefined && typeof provider.fetchConversationDetail === 'function' && provider.id === 'gemini';
-}
-
-export async function resolveConversationDetail(cid: string): Promise<ContentConversationDetail | null> {
-    const nid = normId(cid);
-    // DI seam kept: an explicitly injected client class still uses the legacy
-    // construction path. Default now resolves through the provider registry.
-    const InjectedClass = typeof _deps.clientClass !== 'undefined' ? _deps.clientClass : null;
-    const provider = Object.hasOwn(_deps, 'clientClass') ? null : resolveProvider();
-
-    if (InjectedClass) {
-        try {
-            const detail = await new InjectedClass().getConversationDetail(nid);
-            if (detail && Array.isArray(detail.conversation.detail.messages) && detail.conversation.detail.messages.length > 0) {
-                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
-            }
-        } catch (e) {
-            if (isDev()) console.debug('[LiveSaveCoordinator] RPC fetch detail fallback to DOM:', e);
-        }
-    } else if (isApplicationProvider(provider)) {
-        try {
-            const detail = await provider.fetchConversationDetail(nid);
-            if (detail && Array.isArray(detail.conversation.detail.messages) && detail.conversation.detail.messages.length > 0) {
-                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
-            }
-        } catch (e) {
-            if (isDev()) console.debug('[LiveSaveCoordinator] RPC fetch detail fallback to DOM:', e);
-        }
-    }
-
-    const Scraper = getScraper();
-    if (Scraper && typeof Scraper.parseDoc === 'function') {
-        const doc = typeof document !== 'undefined' ? document : null;
-        try {
-            const docResult = Scraper.parseDoc(doc, nid);
-            if (docResult && Array.isArray(docResult.conversation.detail.messages) && docResult.conversation.detail.messages.length > 0) {
-                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), docResult);
-            }
-        } catch {
-            /* intentional */
-        }
-    }
-
-    return null;
+/** Live Save consumes completion from the L1 acquisition entry point. */
+export function resolveConversationDetail(cid: string, expectedAccountId?: string): Promise<ContentConversationDetail | null> {
+    return DomScraper.acquireCurrentConversation(cid, expectedAccountId, {
+        scraper: getScraper(),
+        ...(Object.hasOwn(_deps, 'clientClass') ? { clientClass: _deps.clientClass } : {}),
+    });
 }
 
 function isFailedAsset(item: unknown): item is RawFailedAsset {
@@ -251,15 +211,19 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
     if (!cid) return false;
     const nid = normId(cid);
 
+    const capturedAccount = resolveCurrentAccount();
+
     // Serialize live save operations to prevent I/O race conditions
     _saveQueue = _saveQueue.catch(() => false).then(async () => {
         try {
             _isSaving = true;
+            const captured = await capturedAccount;
+            if (!captured) return false;
             if (!await isLiveSaveFormatSupported()) return false;
 
             // In mockMode (e.g. headless/test environments without native filesystem handles), simulate live save feedback
             if (options.mockMode) {
-                const chat = await resolveConversationDetail(nid);
+                const chat = await resolveConversationDetail(nid, captured.accountId);
                 const rawTitle = chat?.conversation.index.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
                 const Utils = getUtils();
                 const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
@@ -277,7 +241,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 return false;
             }
 
-            const chat = await resolveConversationDetail(nid);
+            const chat = await resolveConversationDetail(nid, captured.accountId);
             if (!chat || !Array.isArray(chat.conversation.detail.messages) || chat.conversation.detail.messages.length === 0) {
                 if (isDev()) console.warn('[LiveSaveCoordinator] No messages extracted for', nid);
                 return false;
@@ -345,11 +309,12 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         }
                         const conversationChat: ResourceConversationParseResult = {
                             ...chat,
-                            conversation: { ...chat.conversation, index: { ...chat.conversation.index, id: nid } }
+                            conversation: chat.conversation
                         };
                         const resp = await new Promise<LiveSaveResult | null>((resolve) => {
                             const message: LiveSaveViaHandleMessage = {
                                 action: 'liveSaveViaHandle',
+                                accountId: captured.accountId,
                                 payload: {
                                     chat: conversationChat,
                                     safeTitle,
@@ -401,7 +366,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             if (dirHandle) {
                 const now = Date.now();
                 const records = _deps.exportRecordStore || StorageService;
-                const slot = detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
+                const slot = captured.accountId;
                 const doComplete = _deps.completeExport || completeConversationExport;
                 try {
                     await doComplete(
@@ -566,7 +531,7 @@ export async function processAndSaveImages(
         if (asset.kind !== 'image') continue;
         const source = chat.acquisitionHints[asset.id];
         const url = source?.resolvedUrl || source?.url || source?.sourceUrl || asset.sourceUri || '';
-        const inlineData = asset.dataBase64 ? `data:${asset.mediaType || 'image/png'};base64,${asset.dataBase64}`
+        const inlineData = source?.dataBase64 ? `data:${asset.mediaType || 'image/png'};base64,${source?.dataBase64}`
             : url.startsWith('data:') ? url : undefined;
         const turn = chat.conversation.detail.messages.findIndex(message => {
             if (message.attachmentIds?.includes(asset.id)) return true;

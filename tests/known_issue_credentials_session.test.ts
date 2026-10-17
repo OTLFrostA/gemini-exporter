@@ -18,7 +18,7 @@ function makeContext() {
         setTimeout, clearTimeout, queueMicrotask,
         URL,
         chrome: {
-            runtime: { id: 'test-extension' },
+            runtime: { id: 'test-extension', sendMessage: async (message: any) => ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}) },
             storage: {
                 local: {
                     get: async (keys: any) => {

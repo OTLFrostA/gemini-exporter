@@ -47,7 +47,7 @@ function _runScan(
 
     // Allow the background tab request to expire before releasing the UI lock.
     const uiTimeoutMs = 330000;
-    const msg: DeepScanMessage = { action: 'deepScan', accountSlot: slot || 'u0' };
+    const msg: DeepScanMessage = { action: 'deepScan', accountId: slot || '' };
     sendTypedMessage(msg, uiTimeoutMs).then((raw: unknown) => {
         if (!isScanResponse(raw)) throw new Error('Gemini returned unreadable sync data. Refresh its page and try again.');
         const res = raw;
@@ -93,7 +93,7 @@ export function startSync(slot: string, callbacks: ScanCallbacks = {}): void {
 }
 
 export function stopScan(slot: string, { onStopped, onLog }: StopScanCallbacks = {}): void {
-    const msg: StopDeepScanMessage = { action: 'stopDeepScan', accountSlot: slot || 'u0' };
+    const msg: StopDeepScanMessage = { action: 'stopDeepScan', accountId: slot || '' };
     chrome.runtime.sendMessage(msg, () => {
         const stopMsg = typeof t === 'function' ? t('stoppingSync') : '正在终止同步...';
         if (onLog) onLog(stopMsg, 'warn');

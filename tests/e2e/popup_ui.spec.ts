@@ -138,9 +138,9 @@ test('popup rejects malformed transport replies without download, releases guard
   await page.addInitScript(() => {
     const replies: unknown[] = [
       { success: 'true', data: { messages: [] } },
-      { success: true, domainEnvelopeVersion: 2, data: {} },
-      { success: true, domainEnvelopeVersion: 2, data: { diagnostics: [], resourceHints: {}, acquisitionHints: {},
-        conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'abcdef0123456789', title: 'Boundary regression', updatedAt: 1700000000000 }, detail: { quality: { status: 'unknown' }, assets: [], messages: [
+      { success: true, domainEnvelopeVersion: 3, data: {} },
+      { success: true, domainEnvelopeVersion: 3, data: { account: fixtureAccount(), diagnostics: [], resourceHints: {}, acquisitionHints: {},
+        conversation: { index: { key: fixtureKey(String('abcdef0123456789'), 'gemini'),   titleSource: "derived",   title: 'Boundary regression', updatedAt: 1700000000000 }, detail: { key: fixtureKey(String('abcdef0123456789'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Transport boundary prompt' }] }], timestamp: 1700000000000 },
             { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Transport boundary reply' }] }], timestamp: 1700000001000 }
           ] } }
@@ -150,6 +150,7 @@ test('popup rejects malformed transport replies without download, releases guard
       id: 999, active: true, url: 'https://gemini.google.com/app/abcdef0123456789',
       title: 'Boundary regression - Gemini'
     }] });
+    Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true, value: async () => ({ ok: true, accountContext: { providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001', slot: 'u0' } }) });
     Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value:
       (message: { action?: unknown }, callback?: (reply: unknown) => void) => {
         callback?.(message.action === 'fetchChat' ? replies.shift() : { ok: true });
@@ -186,9 +187,10 @@ for (const format of ['html', 'markdown', 'json']) test(`popup ${format} single-
     await page.addInitScript(() => {
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () => [{ id: 999, active: true,
             url: 'https://gemini.google.com/app/abcdef0123456789', title: 'Resource boundary - Gemini' }] });
-        Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value: (message: { action?: string }, callback: (value: unknown) => void) => callback(message.action === 'fetchChat' ? {
-            success: true, domainEnvelopeVersion: 2, data: { diagnostics: [], acquisitionHints: {}, resourceHints: { image: { archivePath: 'assets/never-delivered.png' } },
-                conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'abcdef0123456789', title: 'Resource boundary' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image', name: 'photo.png', sourceUri: 'photo.png' }], messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body survives' }] }, { type: 'image', assetId: 'image' }] }] } } },
+        Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true, value: async () => ({ ok: true, accountContext: { providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001', slot: 'u0' } }) });
+    Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value: (message: { action?: string }, callback: (value: unknown) => void) => callback(message.action === 'fetchChat' ? {
+            success: true, domainEnvelopeVersion: 3, data: { account: fixtureAccount(), diagnostics: [], acquisitionHints: {}, resourceHints: { image: { archivePath: 'assets/never-delivered.png' } },
+                conversation: { index: { key: fixtureKey(String('abcdef0123456789'), 'gemini'),   titleSource: "derived",   title: 'Resource boundary' }, detail: { key: fixtureKey(String('abcdef0123456789'), 'gemini'), quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image', name: 'photo.png', sourceUri: 'photo.png' }], messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body survives' }] }, { type: 'image', assetId: 'image' }] }] } } },
         } : { ok: true }) });
     });
     await page.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
@@ -202,7 +204,7 @@ for (const format of ['html', 'markdown', 'json']) test(`popup ${format} single-
     if (format === 'json') {
         const archive = JSON.parse(body);
         expect(archive.format).toBe('gemini-exporter-domain');
-        expect(archive.version).toBe(2);
+        expect(archive.version).toBe(3);
         expect(archive.conversation.detail.messages[0].role).toBe('assistant');
         expect(archive.resources).toBeUndefined();
         expect(archive.transport).toBeUndefined();

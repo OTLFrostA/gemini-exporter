@@ -1,5 +1,6 @@
+import type { Account } from '../../domain/accountRegistry.js';
 import { geminiListObservation } from '../../provider/gemini/listObservation.js';
-import type { PageObservation } from '../../sync/pageObservation.js';
+import type { PageObservation } from '../../domain/pageObservation.js';
 import { isResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
@@ -112,6 +113,7 @@ export interface GeminiListRequestOptions {
 }
 
 export interface GeminiDetailRequestOptions extends Omit<GeminiListRequestOptions, "_retried"> {
+    account?: Account;
     _retriedXsrf?: boolean;
     detailOnly?: boolean;
     altParams?: boolean;
@@ -138,7 +140,7 @@ export interface GeminiClientPaginationModule {
         onProgress?: PaginationProgressCallback | null, targetSid?: string | null,
         opts?: PaginationOptions) => Promise<PaginationResult>;
     getConversationDetail: (client: GeminiPaginationDetailClient, conversationId: string,
-        targetSid?: string | null) => Promise<PaginatedDetailResult>;
+        targetSid?: string | null, account?: Account) => Promise<PaginatedDetailResult>;
     isPaginationExhaustive: (res: PaginationCompletenessEvidence | null | undefined) => boolean;
 }
 
@@ -386,13 +388,13 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
         return finalResult;
     }
 
-    async function getConversationDetail(client: GeminiPaginationDetailClient, conversationId: string, targetSid?: string | null): Promise<PaginatedDetailResult> {
+    async function getConversationDetail(client: GeminiPaginationDetailClient, conversationId: string, targetSid?: string | null, account?: Account): Promise<PaginatedDetailResult> {
         const pages: DetailParseResult[] = [];
         const seenTokens = new Set<string>();
         let token: string | null = null;
         let truncateReason: 'token_loop' | 'max_turns_page_limit_20' | undefined;
         do {
-            const page = await client.fetchConversationPage(conversationId, token, targetSid);
+            const page = await client.fetchConversationPage(conversationId, token, targetSid, account ? { account } : undefined);
             if (!isResourceConversationParseResult(page)) throw new TypeError('Detail pagination requires native conversation results');
             pages.push(page);
             token = page.transport.nextPageToken;
@@ -408,7 +410,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
             && typeof inner[2][0]?.[0] === 'string' && inner[2][0][0].startsWith('c_');
         if (metadataOnly) {
             try {
-                const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true });
+                const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true, ...(account ? { account } : {}) });
                 if (!isResourceConversationParseResult(retry)) throw new TypeError('Detail retry requires native conversation results');
                 if (retry.conversation.detail.messages.length) {
                     // The retry is a new detail chain; follow its real cursor before claiming completeness.
@@ -419,7 +421,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                     while (token && pages.length < 20) {
                         if (seenTokens.has(token)) { truncateReason = 'token_loop'; break; }
                         seenTokens.add(token);
-                        const next = await client.fetchConversationPage(conversationId, token, targetSid, { detailOnly: true, altParams: true });
+                        const next = await client.fetchConversationPage(conversationId, token, targetSid, { detailOnly: true, altParams: true, ...(account ? { account } : {}) });
                         if (!isResourceConversationParseResult(next)) throw new TypeError('Detail pagination requires native conversation results');
                         pages.push(next);
                         token = next.transport.nextPageToken;
@@ -431,10 +433,10 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                 if (isDevMode()) console.warn('[Gemini Exporter Client] metadata-only retry failed:', getErrorMessage(error));
             }
         }
-        const normalizedPages = pages.map(page => ({ ...page, conversation: { ...page.conversation, index: { ...page.conversation.index, id: normId(page.conversation.index.id) } } }));
-        const result = mergeConversationPages(normalizedPages, truncateReason);
-        const sourceTitle = pages.find(page => page.conversation.index.titleSource === 'rpc')?.conversation ?? first.conversation;
-        result.conversation = { ...result.conversation, index: { ...result.conversation.index, id: String(conversationId).replace(/^c_/, '').trim(),
+        const normalizedPages = pages.map(page => ({ ...page, conversation: { ...page.conversation, index: { ...page.conversation.index, key: { ...page.conversation.index.key, conversationId: normId(page.conversation.index.key.conversationId) } } } }));
+        const result = mergeConversationPages(normalizedPages, truncateReason, !token && !metadataOnly && normalizedPages.some(page => page.conversation.detail.messages.length > 0));
+        const sourceTitle = pages.find(page => page.conversation.index.titleSource === 'provider')?.conversation ?? first.conversation;
+        result.conversation = { ...result.conversation, index: { ...result.conversation.index, key: { ...result.conversation.index.key, conversationId: String(conversationId).replace(/^c_/, '').trim() },
             title: sourceTitle.index.title, titleSource: sourceTitle.index.titleSource } };
         return { ...result, transport: { ...first.transport, nextPageToken: null } };
     }

@@ -193,6 +193,8 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     const toggle = page.locator('#liveSaveDiskToggle');
+    // Enabled markup can appear before async settings initialization subscribes to storage.
+    await expect(toggle).toHaveAttribute('data-bound', 'true');
     await expect(toggle).toBeEnabled();
     await page.evaluate(async () => {
       await chrome.storage.local.set({ live_save_config: { enabledDisk: true, format: 'markdown', includeAssets: true } });

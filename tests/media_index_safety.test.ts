@@ -12,7 +12,7 @@ import mediaIndex, {
     commitTakeoutData,
     clearTakeoutData,
     readTakeoutBytes,
-    __slotTakeouts
+    __accountTakeouts
 } from '../src/core/resources/takeout/mediaIndex.js';
 
 // ==========================================
@@ -22,16 +22,16 @@ test('mediaIndex - slot isolation and store lifecycle', () => {
     clearTakeoutData();
 
     // getStore with missing or blank slots returns fresh store and does NOT auto-commit
-    const freshU0 = getStore();
+    const freshU0 = getStore('10000000-0000-4000-8000-000000000001');
     assert.deepStrictEqual(freshU0, { mediaMap: {}, globalMedia: {}, convCache: {} });
-    assert.strictEqual(__slotTakeouts.has('u0'), false, 'getStore must not auto-commit');
+    assert.strictEqual(__accountTakeouts.has('10000000-0000-4000-8000-000000000001'), false, 'getStore must not auto-commit');
 
-    const freshBlank = getStore('   ');
+    const freshBlank = getStore('10000000-0000-4000-8000-000000000001');
     assert.deepStrictEqual(freshBlank, { mediaMap: {}, globalMedia: {}, convCache: {} });
-    assert.strictEqual(__slotTakeouts.has('u0'), false);
+    assert.strictEqual(__accountTakeouts.has('10000000-0000-4000-8000-000000000001'), false);
 
     // Commit to slot u0 and u1 independently
-    commitTakeoutData('u0', {
+    commitTakeoutData('10000000-0000-4000-8000-000000000001', {
         mediaMap: {
             'c_100': [{ filename: 'photo_u0.png', fileObj: { async: async () => new Uint8Array([10, 20]) } }]
         },
@@ -43,7 +43,7 @@ test('mediaIndex - slot isolation and store lifecycle', () => {
         }
     });
 
-    commitTakeoutData('u1', {
+    commitTakeoutData('10000000-0000-4000-8000-000000000002', {
         mediaMap: {
             'c_200': [{ filename: 'photo_u1.png', fileObj: { async: async () => new Uint8Array([30, 40]) } }]
         },
@@ -55,32 +55,32 @@ test('mediaIndex - slot isolation and store lifecycle', () => {
         }
     });
 
-    assert.strictEqual(__slotTakeouts.has('u0'), true);
-    assert.strictEqual(__slotTakeouts.has('u1'), true);
+    assert.strictEqual(__accountTakeouts.has('10000000-0000-4000-8000-000000000001'), true);
+    assert.strictEqual(__accountTakeouts.has('10000000-0000-4000-8000-000000000002'), true);
 
     // Inspect stores
-    const store0 = getStore('u0');
-    const store1 = getStore('u1');
+    const store0 = getStore('10000000-0000-4000-8000-000000000001');
+    const store1 = getStore('10000000-0000-4000-8000-000000000002');
     assert.strictEqual(store0.convCache['100']?.conversation.index.title, 'Conversation U0');
     assert.strictEqual(store0.convCache['200'], undefined);
     assert.strictEqual(store1.convCache['200']?.conversation.index.title, 'Conversation U1');
     assert.strictEqual(store1.convCache['100'], undefined);
 
     // getTakeoutOfflineChat isolation
-    assert.strictEqual(getTakeoutOfflineChat('c_100', 'u0')?.conversation.index.title, 'Conversation U0');
-    assert.strictEqual(getTakeoutOfflineChat('c_100', 'u1'), null);
-    assert.strictEqual(getTakeoutOfflineChat('c_200', 'u1')?.conversation.index.title, 'Conversation U1');
-    assert.strictEqual(getTakeoutOfflineChat('c_200', 'u0'), null);
+    assert.strictEqual(getTakeoutOfflineChat('c_100', '10000000-0000-4000-8000-000000000001')?.conversation.index.title, 'Conversation U0');
+    assert.strictEqual(getTakeoutOfflineChat('c_100', '10000000-0000-4000-8000-000000000002'), null);
+    assert.strictEqual(getTakeoutOfflineChat('c_200', '10000000-0000-4000-8000-000000000002')?.conversation.index.title, 'Conversation U1');
+    assert.strictEqual(getTakeoutOfflineChat('c_200', '10000000-0000-4000-8000-000000000001'), null);
 
     // Clearing u0 leaves u1 completely intact
-    clearTakeoutData('u0');
-    assert.strictEqual(__slotTakeouts.has('u0'), false);
-    assert.strictEqual(__slotTakeouts.has('u1'), true);
-    assert.strictEqual(getTakeoutOfflineChat('c_200', 'u1')?.conversation.index.title, 'Conversation U1');
+    clearTakeoutData('10000000-0000-4000-8000-000000000001');
+    assert.strictEqual(__accountTakeouts.has('10000000-0000-4000-8000-000000000001'), false);
+    assert.strictEqual(__accountTakeouts.has('10000000-0000-4000-8000-000000000002'), true);
+    assert.strictEqual(getTakeoutOfflineChat('c_200', '10000000-0000-4000-8000-000000000002')?.conversation.index.title, 'Conversation U1');
 
     // Global clear clears all
     clearTakeoutData();
-    assert.strictEqual(__slotTakeouts.size, 0);
+    assert.strictEqual(__accountTakeouts.size, 0);
 });
 
 // ==========================================
@@ -91,7 +91,7 @@ test('mediaIndex - generated media matching path rules', async () => {
     const fakeBytesA = new Uint8Array([1, 1, 1]);
     const fakeBytesB = new Uint8Array([2, 2, 2]);
 
-    commitTakeoutData('u0', {
+    commitTakeoutData('10000000-0000-4000-8000-000000000001', {
         mediaMap: {
             '10': [
                 {
@@ -128,7 +128,7 @@ test('mediaIndex - generated media matching path rules', async () => {
         generationOrdinal: 1, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 0,
         providerRequestId: 'req_12345678'
-    } }, 'u0');
+    } }, '10000000-0000-4000-8000-000000000001');
     assert.deepStrictEqual(res0, fakeBytesA, 'ordinal 0 must match fakeBytesA');
 
     // 2. Exact generation match: ordinal 1
@@ -137,7 +137,7 @@ test('mediaIndex - generated media matching path rules', async () => {
         generationOrdinal: 1, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 1,
         providerRequestId: 'req_12345678'
-    } }, 'u0');
+    } }, '10000000-0000-4000-8000-000000000001');
     assert.deepStrictEqual(res1, fakeBytesB, 'ordinal 1 must match fakeBytesB');
 
     // 3. Wrong chatId in generation identity
@@ -146,7 +146,7 @@ test('mediaIndex - generated media matching path rules', async () => {
         generationOrdinal: 1, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 0,
         providerRequestId: 'req_12345678'
-    } }, 'u0');
+    } }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(wrongChat, null, 'wrong chatId must return null');
 
     // 4. Mismatched generation event
@@ -155,11 +155,11 @@ test('mediaIndex - generated media matching path rules', async () => {
         generationOrdinal: 99, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 0,
         providerRequestId: 'different_req_888'
-    } }, 'u0');
+    } }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(wrongEvent, null, 'mismatched generation event must return null');
 
     // 5. Ambiguous match: more than 1 match must return null (not best-effort first match)
-    commitTakeoutData('u0', {
+    commitTakeoutData('10000000-0000-4000-8000-000000000001', {
         mediaMap: {
             '10': [
                 {
@@ -195,7 +195,7 @@ test('mediaIndex - generated media matching path rules', async () => {
         generationOrdinal: 5, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 0,
         providerRequestId: 'dup_req_12345'
-    } }, 'u0');
+    } }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(ambiguous, null, 'ambiguous match must strictly return null');
 
     clearTakeoutData();
@@ -209,7 +209,7 @@ test('mediaIndex - exact source identity rejects filename heuristics', async () 
     const bytesReport = new Uint8Array([5, 6, 7]);
     const bytesSingle = new Uint8Array([8, 9, 10]);
 
-    commitTakeoutData('u0', {
+    commitTakeoutData('10000000-0000-4000-8000-000000000001', {
         mediaMap: {
             'chat_doc': [
                 { filename: 'f1a2b3c4_financial_quarterly_report.pdf', fileObj: { async: async () => bytesReport } }
@@ -226,20 +226,20 @@ test('mediaIndex - exact source identity rejects filename heuristics', async () 
     });
 
     // Exact original names work; prefix stripping must not.
-    const hitClean = await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'financial_quarterly_report.pdf' }, 'u0');
+    const hitClean = await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'financial_quarterly_report.pdf' }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(hitClean, null, 'stripped prefixes are not source identity');
-    assert.deepStrictEqual(await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'f1a2b3c4_financial_quarterly_report.pdf' }, 'u0'), bytesReport);
+    assert.deepStrictEqual(await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'f1a2b3c4_financial_quarterly_report.pdf' }, '10000000-0000-4000-8000-000000000001'), bytesReport);
 
     // Similar stems are insufficient.
-    const hitDistinctive = await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'financial_quarterly_report-a1b2c3d4.pdf' }, 'u0');
+    const hitDistinctive = await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'financial_quarterly_report-a1b2c3d4.pdf' }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(hitDistinctive, null, 'stripped suffixes are not source identity');
 
     // A single unrelated media item is still not evidence.
-    const hitGenericSingle = await getTakeoutFallbackMedia('chat_single', { assetId: '', sourceUri: 'image.png' }, 'u0');
+    const hitGenericSingle = await getTakeoutFallbackMedia('chat_single', { assetId: '', sourceUri: 'image.png' }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(hitGenericSingle, null, 'one unrelated file does not establish source identity');
 
     // Generic name in multi-media conversation must NOT match arbitrarily
-    commitTakeoutData('u0', {
+    commitTakeoutData('10000000-0000-4000-8000-000000000001', {
         mediaMap: {
             'chat_multi': [
                 { filename: 'photo_a.jpg', fileObj: { async: async () => bytesReport } },
@@ -249,11 +249,11 @@ test('mediaIndex - exact source identity rejects filename heuristics', async () 
         globalMedia: {},
         convCache: {}
     });
-    const missMultiGeneric = await getTakeoutFallbackMedia('chat_multi', { assetId: '', sourceUri: 'image.png' }, 'u0');
+    const missMultiGeneric = await getTakeoutFallbackMedia('chat_multi', { assetId: '', sourceUri: 'image.png' }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(missMultiGeneric, null, 'generic name with multiple media must not match');
 
     // Generic names must NOT trigger unsafe global stem fallback
-    const missGlobalGeneric = await getTakeoutFallbackMedia('nonexistent_chat', { assetId: '', sourceUri: 'image.png' }, 'u0');
+    const missGlobalGeneric = await getTakeoutFallbackMedia('nonexistent_chat', { assetId: '', sourceUri: 'image.png' }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(missGlobalGeneric, null, 'generic name must never match global generic media');
 
     clearTakeoutData();
@@ -357,7 +357,7 @@ test('mediaIndex - extractC2PATimestamp accepted inputs and edge cases', () => {
 });
 
 test('mediaIndex - unknown multi-image ordinals never recover another image by request identity', async () => {
-    const slot = 'unknown-multi-ordinal';
+    const slot = '10000000-0000-4000-8000-000000000001';
     const base = { chatId: 'abc', providerRequestId: 'abcd1234abcd1234', generationOrdinal: 0, time: 1700000000000, prompt: 'Draw a diagram', imageCount: 2 };
     try {
         for (const storedOrdinal of [undefined, 0]) {

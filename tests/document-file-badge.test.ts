@@ -23,7 +23,7 @@ test('file badge maps office/media types to short labels and safely falls back',
         assert.equal(fileBadge({ ...blocks[0], kind, mediaType: 'application/unknown' }), expected);
     }
     assert.equal(fileBadge({ ...blocks[0], kind: 'other', mediaType: 'image/unknown' }), 'IMAGE');
-    const document: DocumentAst = { schemaVersion: 2, header: { title: 'Badges', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', blocks }] };
+    const document: DocumentAst = { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'Badges', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', blocks }] };
     const html = renderDocumentHtml(document, { f: 'assets/f' }).html;
     const pdf = renderDocumentTypst(document, {});
     assert.deepEqual([...html.matchAll(/gem-att-badge">([^<]+)</g)].map(match => match[1]), cases.map(([, badge]) => badge));

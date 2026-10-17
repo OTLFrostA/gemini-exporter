@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { historicalFixture } from './helpers/nativeFixture.js';
@@ -11,7 +12,7 @@ import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js'
 import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
-import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
+import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
 
 for (const messages of [
@@ -21,7 +22,7 @@ for (const messages of [
     const raw = { id: 'model', messages }; const before = JSON.stringify(raw);
     const domain = historicalFixture(raw, { providerId: 'gemini' }).conversation;
     assert.equal(domain.detail.messages[0].model, 'Gemini 2.5 Pro');
-    const document = JSON.parse(JSON.stringify(composeDomainDocument(domain).document));
+    const document = JSON.parse(JSON.stringify(composeDomainDocument(domain, fixtureAccountFor(domain)).document));
     assert.equal(document.messages[0].modelLabel, 'Gemini 2.5 Pro');
     assert.match(renderDocumentHtml(document, {}).html, /gem-model-label">Gemini 2.5 Pro</);
     assert.match(renderDocumentMarkdown(document, {}), /Gemini 2\.5 Pro/);
@@ -36,13 +37,13 @@ test('turn models, absent/invalid models and escaped model names', () => {
     for (const model of [undefined, null, '', '  ', 42, {}]) {
         assert.ok(!('model' in historicalFixture({ messages: [{ role: 'model', model, content: '' }] }, { providerId: 'gemini' }).conversation.detail.messages[0]));
     }
-    const document = composeDomainDocument(historicalFixture({ messages: [{ role: 'assistant', model: '<script>**x**</script>', content: '' }] }, { providerId: 'gemini' }).conversation).document;
+    const document = composeDomainDocument(historicalFixture({ messages: [{ role: 'assistant', model: '<script>**x**</script>', content: '' }] }, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture({ messages: [{ role: 'assistant', model: '<script>**x**</script>', content: '' }] }, { providerId: 'gemini' }).conversation)).document;
     assert.match(renderDocumentHtml(document, {}).html, /&lt;script&gt;\*\*x\*\*&lt;\/script&gt;/);
     assert.match(renderDocumentMarkdown(document, {}), /&lt;script&gt;\\\*\\\*x\\\*\\\*&lt;\/script&gt;/);
 });
 
 test('compiled PDF visibly retains the model name', async () => {
-    const document = composeDomainDocument(historicalFixture({ messages: [{ role: 'model', model: 'Gemini 2.5 Pro', content: 'Answer' }] }, { providerId: 'gemini' }).conversation).document;
+    const document = composeDomainDocument(historicalFixture({ messages: [{ role: 'model', model: 'Gemini 2.5 Pro', content: 'Answer' }] }, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture({ messages: [{ role: 'model', model: 'Gemini 2.5 Pro', content: 'Answer' }] }, { providerId: 'gemini' }).conversation)).document;
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
     try {
         const result = await compiler.compile({ rendererSchemaVersion: 1, document: renderDocumentTypst(document, {}), assetPaths: new Map() }, {
@@ -57,7 +58,7 @@ test('production export entrypoints preserve provider model names', async () => 
     const raw = { id: 'production-model', title: 'Model', messages: [{ role: 'model' as const, model: 'Gemini 2.5 Pro', content: 'Answer' }] };
     assert.match((await formatHtmlDocument(historicalFixture(raw))).content, /gem-model-label">Gemini 2.5 Pro</);
     assert.match((await formatMarkdownDocument(historicalFixture(raw))).content, /Gemini 2\.5 Pro/);
-    const pdf = await preparePdfItem(historicalFixture(raw));
+    const pdf = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001' });
     assert.equal(pdf.ok, true);
     if (!pdf.ok || !pdf.document) throw new Error('Expected prepared PDF document');
     assert.equal(pdf.document.messages[0].modelLabel, 'Gemini 2.5 Pro');

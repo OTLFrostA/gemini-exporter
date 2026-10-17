@@ -1,4 +1,4 @@
-import { codeHeader, disclosureTitle, messageLabel } from '../shared/backendPresentation.js';
+import { codeHeader, disclosureTitle, messageLabel, sourceNumberPrefix, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import type { MarkdownRenderOptions } from '../shared/renderOptions.js';
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst, ResourceBindings } from '../../document/ast/ast.js';
@@ -31,11 +31,11 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         if (!ref) throw new TypeError(`Missing prepared resource binding: ${id}`);
         return ref;
     };
-    const placeholder = (node: { text: string; kind: 'image' | 'file' }): string => `[${locale === 'zh' ? (node.kind === 'image' ? '图片不可用' : '附件不可用') : (node.kind === 'image' ? 'Image unavailable' : 'Attachment unavailable')}: ${escapeText(node.text)}]`;
+    const placeholder = (node: { text: string; kind: 'image' | 'file' }): string => `[${escapeText(unavailableResourceText(node.kind, node.text, locale))}]`;
     const image = (id: string, alt: string): string => available(id) ? `![${escapeText(alt)}](${resource(id)})` : placeholder({ kind: 'image', text: alt || id });
     const citation = (node: { label: string; href?: string }): string => {
         const url = node.href && destination(node.href);
-        return url ? `[${escapeText(node.label)}](${url})` : `[${escapeText(node.label)}]`;
+        return url ? `[${escapeText(node.label)}](${url})` : /^\[\d+\]$/.test(node.label) ? escapeText(node.label) : `[${escapeText(node.label)}]`;
     };
     const inline = (node: DisplayInline, tableCell = false): string => {
         switch (node.type) {
@@ -83,7 +83,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             case 'quote': return blocks(node.blocks).split('\n').map((line) => `> ${line}`).join('\n');
             case 'code': {
                 const fence = '`'.repeat(Math.max(2, ...(node.code.match(/`+/g) ?? []).map((run) => run.length)) + 1);
-                const label = codeHeader(node, 'markdown');
+                const label = codeHeader(node, 'markdown', options);
                 const language = (node.language ?? '').replace(/[\r\n`]/g, '');
                 const end = node.code.endsWith('\n') ? '' : '\n';
                 return `${label ? `**${escapeText(label)}**\n\n` : ''}${fence}${language}\n${node.code}${end}${fence}`;
@@ -99,15 +99,15 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return [image(node.resourceId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
             }
             case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
-            case 'disclosure': return `<details${node.initiallyCollapsed ?? options.thoughtInitiallyCollapsed ?? true ? '' : ' open'}>\n<summary>${node.title ? escapeText(node.title) : '🧠 ' + escapeText(disclosureTitle(node, { ...options, locale }))}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
+            case 'disclosure': return `<details${options.thoughtInitiallyCollapsed ?? true ? '' : ' open'}>\n<summary>${node.title ? escapeText(node.title) : '🧠 ' + escapeText(disclosureTitle(node, { ...options, locale }))}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
             case 'placeholder': return [placeholder(node), node.details && inlines(node.details)].filter(Boolean).join('\n\n');
             case 'thematicBreak': return '---';
-            case 'unsupported': return `${escapeText(`${locale === 'en' ? 'Unsupported' : strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;
+            case 'unsupported': return `${escapeText(`${strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;
         }
     };
     const metadata = document.metadata;
     if (options.includeFrontMatter && !metadata) throw new TypeError('Markdown document metadata is required');
-    const entries: Array<{ key: string; value: string | string[] }> | undefined = options.includeFrontMatter && metadata ? [
+    const entries: Array<{ key: string; value: string | string[] }> | undefined = options.includeFrontMatter ? [
         { key: 'title', value: document.header.title }, { key: 'id', value: metadata.id }, { key: 'provider', value: metadata.provider },
         ...(metadata.url ? [{ key: 'url', value: metadata.url }] : []),
         ...(metadata.createdAt ? [{ key: 'date', value: metadata.createdAt }] : []),
@@ -124,11 +124,14 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
     const header = [yaml !== undefined ? `---\n${yaml}\n---\n` : undefined, `# ${escapeText(document.header.title)}`].filter(value => value !== undefined).join('\n');
     const messages = document.messages.map(message => {
         const icons = { you: '👤', assistant: '🤖', system: '⚙️', developer: '🛠', unknown: '' };
-        const heading = message.heading ? `${'#'.repeat(message.heading.level)} ${escapeText(message.heading.text)}` : `## ${icons[message.label] ? icons[message.label] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
-        const sources = message.sources && [message.sources.heading ? `> ${inlines(message.sources.heading)}` : `> 🌐 **${strings.sources}:**`, ...message.sources.items.map(item => `> ${item.number !== undefined ? `[${item.number}] ` : ''}${citation(item)}`)].filter(Boolean).join('\n');
+        const heading = `## ${icons[message.label] ? icons[message.label] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
+        const sources = message.sources && [`> 🌐 **${strings.sources}:**`, ...message.sources.items.map(item => {
+            const prefix = sourceNumberPrefix(item);
+            return `> ${!prefix && !item.href ? item.label : prefix + citation(item)}`;
+        })].filter(Boolean).join('\n');
         return [heading, message.modelLabel && `*${escapeText(message.modelLabel)}*`, blocks(message.blocks), sources].filter(Boolean).join('\n\n');
     });
-    return [header, ...messages].join('\n\n') + '\n';
+    return [header, ...messages, ...(!messages.length ? [strings.emptyConversation] : [])].join('\n\n') + '\n';
 }
 
 /** GFM supports one header row and no spans; project without changing the shared tree. */

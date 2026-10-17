@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test.describe('E2E: Canonical Title Authority', () => {
   test('should arbitrate titles strictly by source tier and never allow low tier to corrupt high tier', async ({ context, extensionId }) => {
@@ -18,8 +23,8 @@ test.describe('E2E: Canonical Title Authority', () => {
         }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (initialConvs).map(canonicalIndexFixture),
-        exportedIds: {},
+        ['conversations_10000000-0000-4000-8000-000000000001']: (initialConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -31,7 +36,7 @@ test.describe('E2E: Canonical Title Authority', () => {
     const targetItem = optionsPage.locator('[data-chat-id="arbitration_chat_999"]');
     await expect(targetItem).toContainText('Takeout Prompt 原始提问');
 
-    // 2. Open page in intermediate loading state with <title>Google Gemini</title>
+    // 2. Open page in intermediate loading state with <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>Google Gemini</title>
     const geminiPage = await context.newPage();
     await geminiPage.route('https://gemini.google.com/app/**', async (route) => {
       await route.fulfill({
@@ -40,7 +45,7 @@ test.describe('E2E: Canonical Title Authority', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>Google Gemini</title>
         </head>
         <body>
           <div class="loading-state">Loading conversation...</div>
@@ -81,10 +86,10 @@ test.describe('E2E: Canonical Title Authority', () => {
     });
     await expect.poll(async () => {
       const data = await optionsPage.evaluate(async () => {
-        return await chrome.storage.local.get(['gemini_conversations']);
+        return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      const c = (data.gemini_conversations || []).find((x: any) => x.id === 'arbitration_chat_999');
-      return c?.titleSource === 'dom' ? c.title : undefined;
+      const c = (data['conversations_10000000-0000-4000-8000-000000000001'] || []).find((x: any) => x.key.conversationId === 'arbitration_chat_999');
+      return c?.titleSource === 'provider' ? c.title : undefined;
     }, { timeout: 10000 }).toBe('页面显式渲染的DOM标题');
 
     // 4. Simulate authoritative RPC arriving (Tier: rpc)
@@ -97,7 +102,7 @@ test.describe('E2E: Canonical Title Authority', () => {
             "tC_token_abc",
             "官方服务端RPC最终权威标题"
           ]))}]]`,
-          slot: 'u0'
+          slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: '10000000001' }
         }
       }, location.origin);
     });
@@ -106,17 +111,17 @@ test.describe('E2E: Canonical Title Authority', () => {
     let chat: any = null;
     await expect.poll(async () => {
       const storageData = await optionsPage.evaluate(async () => {
-        return await chrome.storage.local.get(['gemini_conversations']);
+        return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'arbitration_chat_999');
-      return chat?.titleSource === 'rpc' ? chat.title : undefined;
+      chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.key.conversationId === 'arbitration_chat_999');
+      return chat?.titleSource === 'provider' ? chat.title : undefined;
     }, { timeout: 10000 }).toBe('官方服务端RPC最终权威标题');
 
     expect(chat).toBeTruthy();
-    expect(chat.hasTakeoutImport).toBe(true);
+    expect(chat).not.toHaveProperty('hasTakeoutImport');
     expect(chat).not.toHaveProperty('titles');
     expect(chat.title).toBe('官方服务端RPC最终权威标题');
-    expect(chat.titleSource).toBe('rpc');
+    expect(chat.titleSource).toBe('provider');
 
     await optionsPage.bringToFront();
     await optionsPage.evaluate(async () => {
@@ -140,7 +145,7 @@ test.describe('E2E: Canonical Title Authority', () => {
         <head>
           <script>
             window._WIZ_global_data = {
-              SNlM0e: 'mock_at_token_sniff',
+              qDCSke: '10000000001', SNlM0e: 'mock_at_token_sniff',
               cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
             };
           </script>
@@ -196,8 +201,8 @@ test.describe('E2E: Canonical Title Authority', () => {
         }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (initialConvs).map(canonicalIndexFixture),
-        exportedIds: {},
+        ['conversations_10000000-0000-4000-8000-000000000001']: (initialConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -218,13 +223,13 @@ test.describe('E2E: Canonical Title Authority', () => {
     await expect(targetItem).toContainText('如何构建高性能分布式缓存系统');
 
     const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_conversations']);
+      return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'sniff_test_chat_888');
+    const chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.key.conversationId === 'sniff_test_chat_888');
 
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('如何构建高性能分布式缓存系统');
-    expect(chat.titleSource).toBe('sniff');
+    expect(chat.titleSource).toBe('derived');
     expect(chat).not.toHaveProperty('titles');
   });
 });

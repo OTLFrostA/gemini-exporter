@@ -1,3 +1,4 @@
+import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
@@ -197,21 +198,21 @@ test('binary views survive Domain JSON round trips without changing input bytes'
     const domain = await assertRoundTrip({ ...metadata, messages: [{ role: 'assistant', content: '', attachments: [
         { type: 'file', name: 'bytes.bin', dataBuffer: view },
     ] }] });
-    assert.equal(messageAssets(domain, 0)?.[0].dataBase64, 'AQID');
+    assert.equal(Object.hasOwn(messageAssets(domain, 0)![0], 'dataBase64'), false);
     assert.equal('dataBuffer' in messageAssets(domain, 0)![0], false);
     assert.deepEqual([...buffer], [9, 1, 2, 3, 9]);
     buffer[1] = 99;
-    assert.equal(messageAssets(domain, 0)?.[0].dataBase64, 'AQID');
+    assert.equal(Object.hasOwn(messageAssets(domain, 0)![0], 'dataBase64'), false);
 });
 
 test('shared source gate rejects runtime legacy aliases; Composer uses explicit Domain resources', async () => {
     const resource = { id: 'report', kind: 'file' as const, name: 'report.md', document: { contentMarkdown: '# Report' } };
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] } };
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String(metadata.id), 'gemini'),   titleSource: "derived",  title: metadata.title,  }, detail: { key: fixtureKey(String(metadata.id), 'gemini'), quality: { status: 'unknown' }, assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] } };
     const expected = await composeFixture(domain);
-    const leaked = { index: { ...domain.index }, detail: { ...domain.detail, messages: [{ ...domain.detail.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] } };
+    const leaked = { index: { ...domain.index }, detail: {   ...domain.detail, messages: [{ ...domain.detail.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] } };
     await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
     assert.equal(collectDocumentResources(expected.document).referencedIds.size, 1);
-    const explicit = { index: { ...domain.index }, detail: { ...domain.detail, assets: [resource, { ...resource, id: 'second-report' }], messages: [{ ...domain.detail.messages[0], attachmentIds: [resource.id, 'second-report'] }] } };
+    const explicit = { index: { ...domain.index }, detail: {   ...domain.detail, assets: [resource, { ...resource, id: 'second-report' }], messages: [{ ...domain.detail.messages[0], attachmentIds: [resource.id, 'second-report'] }] } };
     assert.equal(collectDocumentResources((await composeFixture(explicit)).document).referencedIds.size, 2,
         'Composer must not reconcile alias evidence or infer resource identity');
 });

@@ -1,3 +1,4 @@
+import { isAccountId } from '../domain/accountRegistry.js';
 declare const __EXT_VERSION__: string | undefined;
 
 export type AllowedFormat = 'markdown' | 'html' | 'json' | 'pdf';
@@ -11,7 +12,6 @@ export const STORAGE_KEYS = {
     SUPPRESS_DIRECT_WRITE_PROMPT: 'gemini_suppress_direct_write_prompt',
     CREDENTIALS_MAP: 'gemini_credentials_map',
     CREDENTIALS: 'gemini_credentials',
-    ACCOUNT_SLOTS: 'gemini_account_slots',
     SCAN_COVERAGE: 'gemini_scan_coverage',
     LAST_SYNC_DIAGNOSTICS: 'gemini_last_sync_diagnostics',
     LAST_EXPORT_SESSION: 'gemini_last_export_session',
@@ -76,10 +76,9 @@ export const GeminiConstants: GeminiConstantsModule = {
     exportedIdsKey
 };
 
-// Legacy compatibility: slot u0 uses historical 'exportedIds' key
-export function exportedIdsKey(slot?: string | null): string {
-    const s = slot || 'u0';
-    return s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`;
+export function exportedIdsKey(accountId?: string | null): string {
+    if (!isAccountId(accountId)) throw new TypeError('Export records require a Registry account UUID');
+    return `exported_${accountId}`;
 }
 
 if (typeof module === 'object' && module.exports) module.exports = GeminiConstants;

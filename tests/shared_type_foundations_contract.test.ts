@@ -1,10 +1,11 @@
+import type { Account } from '../src/core/domain/accountRegistry.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ChatMessage, MessageCitation, MessageDocument } from '../src/types/conversation.js';
 import type { LiveConversationRecord } from '../src/types/liveSave.js';
 import type { I18nModule, TabServiceModule, TabStatusResult } from '../src/types/utils.js';
 import type {
-    AccountSlots, DirectoryHandle, DirHandleControllerContract, ExportControllerContract,
+    DirectoryHandle, DirHandleControllerContract, ExportControllerContract,
     ExportProgress, ExportRecord, FailedChat, IConversationsStore, IDialogView, IListView,
     OptionsExportOptions, OptionsSyncOptions, OptionsTakeoutOptions, OptionsSettingsOptions,
     ReconcileOptions, ScanCallbacks, ScanResponse, TakeoutImportResult, TourGuideContract,
@@ -14,7 +15,7 @@ import type { ConversationExportState } from '../src/core/utils/titleUtils.js';
 import type { DomainMessage, DomainAsset } from '../src/core/domain/conversationDetail.js';
 import type { Citation } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { PdfExportResult } from '../src/core/export/pdf/pdfExporter.js';
-import { getAccountSlots } from '../src/ui/state/conversationsStore.js';
+import { getAccounts } from '../src/ui/state/conversationsStore.js';
 import { renderExportBanner, getLastFailedChats } from '../src/ui/views/dialogView.js';
 import { getActiveEngine, runExport } from '../src/ui/controllers/exportController.js';
 import { loadStore } from '../src/ui/options/modules/optionsInit.js';
@@ -27,9 +28,9 @@ type Contracts = [
     Assert<Equal<ChatMessage['citations'], MessageCitation[] | undefined>>,
     Assert<Equal<ChatMessage['documents'], MessageDocument[] | undefined>>,
     Assert<Equal<LiveConversationRecord['messages'], ChatMessage[]>>,
-    Assert<Equal<ReturnType<IConversationsStore['getAccountSlots']>, AccountSlots>>,
-    Assert<Equal<ReturnType<typeof getAccountSlots>, AccountSlots>>,
-    Assert<Equal<AccountSlots[string]['count'], number | undefined>>,
+    Assert<Equal<ReturnType<IConversationsStore['getAccounts']>, Account[]>>,
+    Assert<Equal<ReturnType<typeof getAccounts>, Account[]>>,
+    Assert<Equal<Account['email'], string | undefined>>,
     Assert<Equal<Parameters<IConversationsStore['reconcileWithCloud']>[1], ReconcileOptions | undefined>>,
     Assert<Equal<ReturnType<NonNullable<IListView['resolveConversationExportState']>>, ConversationExportState>>,
     Assert<Equal<ReturnType<IDialogView['getLastFailedChats']>, FailedChat[]>>,
@@ -38,7 +39,7 @@ type Contracts = [
     Assert<Equal<Awaited<ReturnType<DirHandleControllerContract['restoreSavedDirHandle']>>, DirectoryHandle | null>>,
     Assert<Equal<Parameters<DirHandleControllerContract['setDirHandle']>[0], DirectoryHandle | null>>,
     Assert<Equal<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]['res'], ScanResponse>>,
-    Assert<Equal<TakeoutImportResult['conversations'][number]['title'], string>>,
+    Assert<Equal<TakeoutImportResult['conversations'][number]['title'], string | undefined>>,
     Assert<Equal<Parameters<ExportControllerContract['runExport']>, [UIExportOptions, UIExportCallbacks]>>,
     Assert<Equal<Awaited<ReturnType<typeof runExport>>, UIExportResult>>,
     Assert<Equal<ReturnType<typeof getActiveEngine>, ReturnType<ExportControllerContract['getActiveEngine']>>>,
@@ -79,7 +80,7 @@ const live: LiveConversationRecord = {
     id: 'conversation', title: 'Report', messages: [reportMessage],
     timestamp: 1700000000000, savedAt: 1700000000000, turnCount: 1
 };
-const slots: AccountSlots = { u0: { slot: 'u0', email: 'test@example.com', count: 1, lastSync: '2026-10-02' } };
+const slots: Account[] = [{ id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: '101', email: 'test@example.com' }];
 const callbacks: UIExportCallbacks = {
     onProgress(progress) { const pct: number = progress.pct; void pct; },
     onItemExported(_id, record) { const time: string | number = record.exportedAt; void time; }
@@ -108,7 +109,7 @@ test('completed session banner distinguishes failed exports from successful sess
         const state: Array<{ message: string; border: string; background: string }> = [];
         for (const failedCount of [undefined, 0, 2]) {
             renderExportBanner({ status: 'completed', total: 3, current: 3,
-                updatedAt: Date.now(), failedCount }, 'u0', false);
+                updatedAt: Date.now(), failedCount }, '10000000-0000-4000-8000-000000000001', false);
             assert.equal(banner.style.display, 'flex', 'fresh completed sessions remain visible');
             assert.equal(resume.style.display, 'none', 'a completed run must not offer resume');
             state.push({ message: bannerText.innerHTML, border: banner.style.borderColor,
@@ -124,13 +125,13 @@ test('completed session banner distinguishes failed exports from successful sess
         assert.notEqual(state[0].background, state[2].background);
 
         renderExportBanner({ status: 'completed', total: 3, current: 3,
-            updatedAt: Date.now() - 3600000, failedCount: 2 }, 'u0', false);
+            updatedAt: Date.now() - 3600000, failedCount: 2 }, '10000000-0000-4000-8000-000000000001', false);
         assert.equal(banner.style.display, 'none', 'stale completion must not keep showing');
         renderExportBanner({ status: 'completed', total: 3, current: 3,
-            updatedAt: Date.now(), failedCount: 2, slot: 'u1' }, 'u0', false);
+            updatedAt: Date.now(), failedCount: 2, accountId: '10000000-0000-4000-8000-000000000002' }, '10000000-0000-4000-8000-000000000001', false);
         assert.equal(banner.style.display, 'none', 'another account session must not leak into this tab');
         renderExportBanner({ status: 'completed', total: 3, current: 3,
-            updatedAt: Date.now() }, 'u0', true);
+            updatedAt: Date.now() }, '10000000-0000-4000-8000-000000000001', true);
         assert.equal(banner.style.display, 'none', 'a running export hides prior completion');
     } finally {
         if (previous) Object.defineProperty(globalThis, 'document', previous);

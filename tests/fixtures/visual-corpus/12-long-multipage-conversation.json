@@ -494,7 +494,6 @@
           {
             "type": "code",
             "code": "class RateLimiter_2:\n    def __init__(self, rate, capacity):\n        self.rate = rate\n        self.capacity = capacity\n        self.tokens = capacity\n        self.updated = time.monotonic()\n\n    def allow(self):\n        now = time.monotonic()\n        self.tokens = min(self.capacity,\n            self.tokens + (now - self.updated) * self.rate)\n        self.updated = now\n        if self.tokens >= 1:\n            self.tokens -= 1\n            return True\n        return False",
-            "showHeader": true,
             "language": "python"
           },
           {
@@ -1233,7 +1232,6 @@
           {
             "type": "code",
             "code": "class RateLimiter_8:\n    def __init__(self, rate, capacity):\n        self.rate = rate\n        self.capacity = capacity\n        self.tokens = capacity\n        self.updated = time.monotonic()\n\n    def allow(self):\n        now = time.monotonic()\n        self.tokens = min(self.capacity,\n            self.tokens + (now - self.updated) * self.rate)\n        self.updated = now\n        if self.tokens >= 1:\n            self.tokens -= 1\n            return True\n        return False",
-            "showHeader": true,
             "language": "python"
           },
           {
@@ -1509,7 +1507,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "12-long-multipage-conversation",
+      "provider": "gemini"
+    }
   },
   "resourceIds": [
     "img-12a",

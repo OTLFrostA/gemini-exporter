@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,21 +14,21 @@ const chatId = 'lookup-regression';
 const generation = { generationOrdinal: 2, time: 1700000000123, prompt: 'Draw a diagram', imageCount: 2 };
 const source = (id: string, ordinal?: number): DomainAsset => ({ id, kind: 'image', name: 'diagram.png',
     sourceUri: `Takeout/Gemini Apps/${id}.png`, generation: { ...generation, imageOrdinal: ordinal } });
-const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({
-    sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: chatId, title: 'Lookup' }, detail: { quality: { status: 'partial' }, messages: [], assets } }),
+const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({ account: fixtureAccount(),
+    sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { key: fixtureKey(String(chatId), 'gemini'),   titleSource: "derived",   title: 'Lookup' }, detail: { key: fixtureKey(String(chatId), 'gemini'), quality: { status: 'partial' }, messages: [], assets } }),
     diagnostics: [], acquisitionHints: {}, resourceHints: Object.fromEntries(assets.map(asset =>
         [asset.id, { archivePath: asset.sourceUri!! }])),
 });
 
 async function recover(assets: DomainAsset[], item: ResourceRequest, options: { localOnly?: boolean } = {}) {
-    const slot = 'lookup-regression-slot';
+    const slot = '10000000-0000-4000-8000-000000000001';
     let downloads = 0;
     const written: Array<{ path: string; bytes: Uint8Array }> = [];
     // Populate only the Takeout index: the persistent resource cache is empty.
     commitTakeoutData(slot, { convCache: { [chatId]: native(assets) }, globalMedia: Object.fromEntries(assets.map((asset, i) =>
         [asset.sourceUri!!, { async: async () => new Uint8Array([i + 1, 42]) }])), mediaMap: {} });
     try {
-        const pipeline = new AssetPipeline({ currentSlot: slot, takeoutEngine: TakeoutEngine,
+        const pipeline = new AssetPipeline({ accountId: slot, takeoutEngine: TakeoutEngine,
             fetchAsset: async () => { downloads++; return { success: false, error: 'network unavailable' }; },
             writeFileDirect: async (path, bytes) => { written.push({ path, bytes }); } });
         const result = await pipeline.processAsset(item, { id: chatId }, { isImage: true, maxRetries: 0, ...options });

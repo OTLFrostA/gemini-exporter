@@ -1,10 +1,11 @@
+import { fixtureKey } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 function valid(): DomainConversationWithDetail {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future', id: 'independent', title: 'Fixture' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
+    return { index: { key: fixtureKey(String('independent'), 'future'),   titleSource: "derived",   title: 'Fixture' }, detail: { key: fixtureKey(String('independent'), 'future'), quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
             citations: [{ id: 'cite', url: 'https://example.test' }],
             content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }, { type: 'citationRef', citationId: 'cite' }] },
                 { type: 'unknown', sourceType: 'future', text: 'preserved' }] }] } };
@@ -26,21 +27,21 @@ test('parser validation preserves identity; recovery isolates all nested objects
 });
 test('both entry points reject independent malformed graphs and nonportable values', () => {
     const negatives: unknown[] = [
-        { index: { ...valid().index, title: 4 }, detail: { ...valid().detail } }, { index: { ...valid().index }, detail: { ...valid().detail, messages: {} } }, { index: { ...valid().index }, detail: { ...valid().detail }, timestamp: Infinity },
-        { index: { ...valid().index }, detail: { ...valid().detail, quality: { status: 'fabricated' } } }, { index: { ...valid().index }, detail: { ...valid().detail }, extra: true },
-        { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 1 }] }] }] } },
-        { index: { ...valid().index }, detail: { ...valid().detail, assets: [] } },
-        { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'missing' }] }] }] } },
-        { index: { ...valid().index }, detail: { ...valid().detail, assets: [{ id: 'image', kind: 'image' }, { id: 'image', kind: 'image' }] } },
-        { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [], attachmentIds: ['image', 'image'] }] } },
-        { index: { ...valid().index, title: () => 'bad' }, detail: { ...valid().detail } }, { index: { ...valid().index }, detail: { ...valid().detail }, timestamp: 1n },
+        { index: { ...valid().index, title: 4 }, detail: {   ...valid().detail } }, { index: { ...valid().index }, detail: {   ...valid().detail, messages: {} } }, { index: { ...valid().index }, detail: {   ...valid().detail }, timestamp: Infinity },
+        { index: { ...valid().index }, detail: {   ...valid().detail, quality: { status: 'fabricated' } } }, { index: { ...valid().index }, detail: {   ...valid().detail }, extra: true },
+        { index: { ...valid().index }, detail: {   ...valid().detail, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 1 }] }] }] } },
+        { index: { ...valid().index }, detail: {   ...valid().detail, assets: [] } },
+        { index: { ...valid().index }, detail: {   ...valid().detail, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'missing' }] }] }] } },
+        { index: { ...valid().index }, detail: {   ...valid().detail, assets: [{ id: 'image', kind: 'image' }, { id: 'image', kind: 'image' }] } },
+        { index: { ...valid().index }, detail: {   ...valid().detail, messages: [{ role: 'assistant', content: [], attachmentIds: ['image', 'image'] }] } },
+        { index: { ...valid().index, title: () => 'bad' }, detail: {   ...valid().detail } }, { index: { ...valid().index }, detail: {   ...valid().detail }, timestamp: 1n },
     ];
     for (const quality of [{ status: 'complete', rejectedTurns: 1 }, { status: 'partial', rejectedTurns: -1 },
         { status: 'partial', rejectedTurns: 0 }, { status: 'partial', rejectedTurns: 1.5 }, { status: 'partial', truncation: ' ' },
         { status: 'partial', heuristicDocumentIds: ['missing'] }, { status: 'partial', heuristicDocumentIds: ['image', 'image'] },
-        { status: 'partial', extra: true }]) negatives.push({ ...valid(), detail: { ...valid().detail, quality } });
-    negatives.push({ ...valid(), detail: { ...valid().detail, completeness: 'unknown' } });
-    negatives.push({ ...valid(), detail: { ...valid().detail, assets: [{ id: 'image', kind: 'image', document: { hasFabricatedText: true } }] } });
+        { status: 'partial', extra: true }]) negatives.push({ ...valid(), detail: {   ...valid().detail, quality } });
+    negatives.push({ ...valid(), detail: {   ...valid().detail, completeness: 'unknown' } });
+    negatives.push({ ...valid(), detail: {   ...valid().detail, assets: [{ id: 'image', kind: 'image', document: { hasFabricatedText: true } }] } });
     const cycle = valid(); cycle.detail.messages[0].content.push({ type: 'quote', blocks: cycle.detail.messages[0].content });
     negatives.push(cycle);
     for (const input of negatives) {
@@ -50,7 +51,7 @@ test('both entry points reject independent malformed graphs and nonportable valu
     }
 });
 test('storage rejects toJSON laundering, parser does not silently normalize it', () => {
-    const value = { index: { ...valid().index }, detail: { ...valid().detail }, toJSON: () => valid() };
+    const value = { index: { ...valid().index }, detail: {   ...valid().detail }, toJSON: () => valid() };
     assert.throws(() => restoreDomainSnapshot(value));
     assert.throws(() => validateParserDomain(value));
 });
@@ -58,7 +59,7 @@ test('storage rejects toJSON laundering, parser does not silently normalize it',
 
 test('both entry points share index identity and reference closure rules', () => {
     for (const id of ['', '   ', ' padded ']) {
-        const value = valid(); value.index.id = id;
+        const value = valid(); value.index.key.conversationId = id;
         assert.throws(() => validateParserDomain(value), TypeError);
         assert.throws(() => restoreDomainSnapshot(value), TypeError);
     }

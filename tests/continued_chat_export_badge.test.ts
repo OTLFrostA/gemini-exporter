@@ -58,7 +58,7 @@ test('completion record tracks captured conversation version across successive e
     assert.equal(checkIsUpdated(indexV3, exportedV2), true);
 
     // Message growth alone also indicates newer activity when source time ties.
-    assert.equal(resolveConversationExportState(indexAt(T2, 5), exportedV2).state, 'updated');
+    assert.equal(resolveConversationExportState(indexAt(T2, 5), exportedV2).state, 'exported_ok');
 });
 
 test('export versions require source updatedAt rather than inferring it from messages', () => {

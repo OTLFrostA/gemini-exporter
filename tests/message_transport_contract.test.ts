@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -82,9 +83,9 @@ test('scan validation rejects malformed fields while preserving valid diagnostic
 });
 
 test('popup validation preserves rich envelope/direct replies and rejects false success shapes', () => {
-    const chat = { ...historicalFixture({ id: 'abc', title: 'Report', messages: [{ role: 'model', content: 'body' }] }),
+    const chat = {   ...historicalFixture({ id: 'abc', title: 'Report', messages: [{ role: 'model', content: 'body' }] }),
         rawProviderEvidence: { keep: true } };
-    for (const value of [{ success: true, data: chat }, { success: true, ...chat }]) {
+    for (const value of [{ success: true, data: chat }, {   success: true, ...chat }]) {
         const parsed = readPopupFetchResult(value);
         assert.equal(parsed.success, true);
         if (parsed.success) {
@@ -110,7 +111,7 @@ test('scan consumer never completes malformed replies and always releases its ru
             } });
             try {
                 let completed = false;
-                const err = await new Promise<Error>(resolve => startSync('u0', {
+                const err = await new Promise<Error>(resolve => startSync('10000000-0000-4000-8000-000000000001', {
                     onFinished() { completed = true; resolve(new Error('Unexpected successful completion')); },
                     onError(error) { resolve(error); }
                 }));
@@ -130,7 +131,7 @@ test('scan consumer never completes malformed replies and always releases its ru
             } });
             try {
                 const result = await new Promise<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]>((resolve, reject) =>
-                    startSync('u0', { onFinished: resolve, onError: reject }));
+                    startSync('10000000-0000-4000-8000-000000000001', { onFinished: resolve, onError: reject }));
                 assert.equal(result.res, validSuccess);
                 assert.equal(result.hitGoogleLimit, !!validSuccess.hitGoogleLimit);
                 assert.equal(result.count, validSuccess.count || validSuccess.total || 0);
@@ -161,7 +162,7 @@ test('scan UI reports partial limits, cancellation and errors as incomplete, ret
             const response = { success: false, count: 3, status, error: 'remaining pages unavailable' };
             const restoreChrome = replaceGlobal('chrome', { runtime: { sendMessage(_msg: unknown, callback: (value: unknown) => void) { callback(response); } } });
             try {
-                const result = await new Promise<{ message?: string; details?: Parameters<NonNullable<ScanCallbacks['onError']>>[2] }>((resolve, reject) => startSync('u0', {
+                const result = await new Promise<{ message?: string; details?: Parameters<NonNullable<ScanCallbacks['onError']>>[2] }>((resolve, reject) => startSync('10000000-0000-4000-8000-000000000001', {
                     onFinished: () => reject(new Error('Incomplete sync entered the success callback')),
                     onError: (_err, message, details) => resolve({ message, details })
                 }));

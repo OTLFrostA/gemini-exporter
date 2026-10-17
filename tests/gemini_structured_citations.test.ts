@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -22,7 +23,7 @@ function wire(raw: unknown, table?: unknown, alternatives: unknown[] = []): stri
     payload[12] = raw;
     return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_citationfixture', 'r_fixture'], [1700000000, 0], [['Question']], payload]]])]]);
 }
-const parse = (raw: unknown, table?: unknown, alternatives?: unknown[]) => parseGeminiRpcConversation(wire(raw, table, alternatives), { providerId: 'gemini' });
+const parse = (raw: unknown, table?: unknown, alternatives?: unknown[]) => parseGeminiRpcConversation(wire(raw, table, alternatives), { account: fixtureAccount('gemini'), providerId: 'gemini' });
 function successful(result: ReturnType<typeof parse>) {
     assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'), JSON.stringify(result.diagnostics));
     assert.ok(!JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
@@ -99,7 +100,7 @@ test('captured native blockquote retains paragraph formatting without Markdown f
     assert.deepEqual(message.content, [{ type: 'quote', blocks: [{ type: 'paragraph', children: [
         { type: 'strong', children: [{ type: 'text', text: '切忌拿单调流量做线性外推，严防影子标识丢失穿透真实下游。' }] },
     ] }] }]);
-    const document = composeDomainDocument(result.conversation).document;
+    const document = composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document;
     assert.ok(renderDocumentMarkdown(document, {}).includes('> **切忌'));
     assert.ok(renderDocumentHtml(document, {}).html.includes('<blockquote'));
     const quote = field(16, [[text('different quoted text')]]);
@@ -157,10 +158,10 @@ test('captured source attributions retain all six URLs and nested bold formattin
     const message = successful(result);
     assert.equal(message.citations?.length, 6);
     assert.ok(!JSON.stringify(result.conversation).includes('spp_'), 'provider source IDs end at the parser boundary');
-    assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(result.conversation))).document, composeDomainDocument(result.conversation).document);
+    assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(result.conversation)), fixtureAccountFor(JSON.parse(JSON.stringify(result.conversation)))).document, composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document);
     assert.ok(JSON.stringify(message.content).includes('"type":"strong","children":[{"type":"text","text":"2021年12月25日："}]'));
     assert.equal((JSON.stringify(message.content).match(/"type":"citationRef"/g) ?? []).length, 6);
-    const document = composeDomainDocument(result.conversation).document;
+    const document = composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document;
     const md = renderDocumentMarkdown(document, {});
     const html = renderDocumentHtml(document, {}).html;
     const typst = JSON.stringify(renderDocumentTypst(document, {}));

@@ -1,4 +1,5 @@
-import { readAccountFact, readAccountObservation, type AccountObservation } from '../core/domain/accountRegistry.js';
+import { getOrCreateAccount } from '../core/api/accountRegistry.js';
+import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../core/domain/accountRegistry.js';
 import { CrossWorldEvents } from '../core/protocol/protocol.js';
 import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
 
@@ -22,17 +23,17 @@ export function getAccountContext(): AccountContext | null {
     return binding ? { ...binding.context } : null;
 }
 
-export function matchesCurrentAccount(observation: AccountObservation): boolean {
+export function matchesCurrentAccount(observation: Omit<Account, 'id'>): boolean {
     return getAccountContext() !== null && binding?.context.providerId === observation.providerId
         && binding.providerAccountId === observation.providerAccountId;
 }
 
 /** The isolated world cannot infer the current Gaia from arbitrary DOM emails. */
-function requestObservation(slot: string): Promise<AccountObservation | null> {
+function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
     if (typeof window === 'undefined') return Promise.resolve(null);
     return new Promise((resolve, reject) => {
         const requestId = crypto.randomUUID();
-        const finish = (observation: AccountObservation | null, error?: unknown): void => {
+        const finish = (observation: Omit<Account, 'id'> | null, error?: unknown): void => {
             clearTimeout(timer);
             window.removeEventListener('message', receive);
             if (error) reject(error); else resolve(observation);
@@ -42,7 +43,7 @@ function requestObservation(slot: string): Promise<AccountObservation | null> {
                 || event.data?.type !== CrossWorldEvents.ACCOUNT_OBSERVED) return;
             const payload = event.data.payload;
             if (payload?.requestId !== requestId || payload.slot !== slot) return;
-            try { finish(payload.observation === null ? null : readAccountObservation(payload.observation)); }
+            try { finish(payload.observation === null ? null : readAccountParameters(payload.observation)); }
             catch (error) { finish(null, error); }
         };
         const timer = setTimeout(() => finish(null), 2000);
@@ -52,18 +53,19 @@ function requestObservation(slot: string): Promise<AccountObservation | null> {
 }
 
 /** Resolve stable Provider evidence; email only updates the profile, never the binding identity. */
-export async function resolveCurrentAccount(observed?: AccountObservation | null, capturedSlot = slotNow()): Promise<AccountContext | null> {
+export async function resolveCurrentAccount(observed?: Omit<Account, 'id'> | null, capturedSlot = slotNow()): Promise<AccountContext | null> {
     if (capturedSlot !== slotNow()) return null;
     if (observed === undefined) {
         const before = generation;
         const fresh = await requestObservation(capturedSlot);
         if (capturedSlot !== slotNow()) return null;
         // A newer unsolicited observation supersedes this query's reply.
-        if (before !== generation) return getAccountContext();
+        if (before !== generation) return pending ? pending.result : getAccountContext();
         return resolveCurrentAccount(fresh, capturedSlot);
     }
-    if (observed === null) { invalidateAccountContext(); return null; }
-    const observation = readAccountObservation(observed);
+    const observation = observed === null
+        ? { providerId: 'gemini', providerAccountId: DEFAULT_ACCOUNT_KEY }
+        : readAccountParameters(observed);
     if (observation.providerId !== 'gemini') throw new TypeError('Wrong account observation provider');
     const current = getAccountContext();
     const signature = JSON.stringify([capturedSlot, observation]);
@@ -72,16 +74,9 @@ export async function resolveCurrentAccount(observed?: AccountObservation | null
     if (!binding || binding.providerAccountId !== observation.providerAccountId) binding = null;
     const ticket = ++generation;
     const result = (async () => {
-        const response: unknown = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'observe', observation });
+        const account = await getOrCreateAccount(observation.providerId, observation.providerAccountId,
+            observation.email, observation.displayName);
         if (ticket !== generation || capturedSlot !== slotNow()) return null;
-        if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true || !('value' in response)) {
-            throw new Error('Account registry did not acknowledge the observation');
-        }
-        const receipt = response.value;
-        if (!receipt || typeof receipt !== 'object' || !('resolution' in receipt)) throw new TypeError('Invalid account registry reply');
-        if ((receipt.resolution !== 'existing' && receipt.resolution !== 'created') || !('account' in receipt)) throw new TypeError('Invalid account registry receipt');
-        const account = readAccountFact(receipt.account);
-        if (account.providerId !== observation.providerId || account.providerAccountId !== observation.providerAccountId) throw new TypeError('Account registry identity mismatch');
         const context = { providerId: account.providerId, accountId: account.id, slot: capturedSlot };
         binding = { context, providerAccountId: account.providerAccountId };
         latestSignature = signature;
@@ -90,4 +85,23 @@ export async function resolveCurrentAccount(observed?: AccountObservation | null
     pending = { signature, result };
     try { return await result; }
     finally { if (pending?.result === result) pending = null; }
+}
+
+/** The captured request owns its response, even after the tab has switched account. */
+export async function resolveRequestAccount(value: unknown, slot: string): Promise<AccountContext | null> {
+    // Missing capture is a protocol error; explicit null means captured unknown identity.
+    if (value === undefined || !/^u\d+$/.test(slot)) return null;
+    const parameters = value === null ? { providerId: 'gemini', providerAccountId: DEFAULT_ACCOUNT_KEY }
+        : readAccountParameters(value);
+    if (parameters.providerId !== 'gemini') throw new TypeError('Wrong request account provider');
+    // Captured profile hints may predate a newer live observation of this same subject.
+    // Resolve request ownership only; current-page discovery owns profile updates.
+    const account = await getOrCreateAccount(parameters.providerId, parameters.providerAccountId);
+    return { providerId: account.providerId, accountId: account.id, slot };
+}
+
+/** Synchronous commit guard after the asynchronous source/Registry resolution. */
+export function isCurrentAccount(context: AccountContext): boolean {
+    const current = getAccountContext();
+    return current?.accountId === context.accountId && current.providerId === context.providerId && current.slot === context.slot;
 }

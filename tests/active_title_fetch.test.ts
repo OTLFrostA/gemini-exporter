@@ -1,3 +1,5 @@
+import { accountRuntime } from './helpers/accountRuntime.js';
+import { indexStorage } from './helpers/indexStorage.js';
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
@@ -8,6 +10,8 @@ const { ProviderRegistry } = require('../src/core/provider/providerRegistry.js')
 const { rpcFixture } = require('./helpers/nativeFixture.js');
 
 test('active detail fetch retries unresolved or undated titles, but skips timestamped RPC titles', async (t: any) => {
+    const store = indexStorage();
+    const runtime = accountRuntime();
     const original = ProviderRegistry.getDefault();
     assert.ok(original, 'Gemini provider must be registered');
     const fetched: string[] = [];
@@ -61,5 +65,6 @@ test('active detail fetch retries unresolved or undated titles, but skips timest
         t.mock.timers.reset();
         __setModuleOverride('StorageService', null);
         ProviderRegistry.register(original);
+        runtime.restore(); store.restore();
     }
 });

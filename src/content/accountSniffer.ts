@@ -2,8 +2,6 @@ export interface UserProfileInfo {
     email?: string;
     name?: string;
     gaiaId?: string;
-    /** Temporary source fingerprint for request guards; never a local Account UUID. */
-    identityKey?: string;
 }
 
 const EMAIL_REGEX = /[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/;
@@ -91,12 +89,9 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
         return null;
     }
 
-    const identityKey = email || gaiaId || undefined;
-
     return {
         email,
         name,
-        gaiaId,
-        identityKey
+        gaiaId
     };
 }

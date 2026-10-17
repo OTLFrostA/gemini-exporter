@@ -67,7 +67,7 @@ def build_message(idx, role, rng):
     # more than plain paragraphs.
     if role == "assistant" and idx % 10 == 0:
         blocks.append({
-            "type": "code", "language": "python", "showHeader": True,
+            "type": "code", "language": "python",
             "code": f"def round_{n}():\n    return 'parity-check-{n}'\n",
         })
     if role == "assistant" and idx % 15 == 0:
@@ -129,6 +129,7 @@ def main():
     fixture = {
         "document": {
             "schemaVersion": 2,
+            "metadata": {"id": "long-conversation-121", "provider": "gemini"},
             "header": {"title": "长会话：121 消息 parity 语料", "providerLabel": "gemini", "date": "2026-09-26", "messageCount": len(messages)},
             "messages": messages,
         },

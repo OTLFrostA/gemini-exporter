@@ -1,3 +1,4 @@
+import { semanticTitleSource } from '../shared/parseIndexMetadata.js';
 import { contentQuality, type ContentQuality } from '../../domain/quality.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { normalizeConversationTimes } from '../../domain/time.js';
@@ -114,9 +115,9 @@ export interface ConversationRecordParseContext extends ConversationParseContext
 /** Choose the authoritative title while raw source alternatives are still available. */
 function legacyTitle(conversation: ConversationRecordInput) {
     const candidates = Object.entries(isObjectRecord(conversation.titles) ? conversation.titles : {}).flatMap(([source, value]) => typeof value === 'string' && value.trim()
-        ? [{ value: value.trim(), source: isTitleSource(source) ? source : 'default' }] : []);
+        ? [{ value: value.trim(), source: semanticTitleSource(source) }] : []);
     const value = typeof conversation.title === 'string' ? conversation.title.trim() : undefined;
-    const source = typeof conversation.titleSource === 'string' && isTitleSource(conversation.titleSource) ? conversation.titleSource : 'default';
+    const source = semanticTitleSource(typeof conversation.titleSource === "string" ? conversation.titleSource : undefined);
     if (value && !candidates.some(candidate => candidate.value === value && candidate.source === source)) candidates.push({ value, source });
     return resolveTitle(candidates);
 }
@@ -161,7 +162,7 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
     const title = legacyTitle(conversation);
     const sourceVersion = normalizeConversationTimes({ updatedAt: conversation.updatedAt }).updatedAt;
     const domain = {
-        index: parseIndexMetadata({ providerId, id: conversation.id ?? '', title: title?.value ?? '',
+        index: parseIndexMetadata({ account: options.account, providerId, id: conversation.id ?? '', title: title?.value ?? '',
             ...(title ? { titleSource: title.source } : {}), ...normalizeConversationTimes({ createdAt: conversation.createdAt }),
             ...(sourceVersion !== undefined ? { updatedAt: sourceVersion } : {}), messageCount: resources.messages.length,
             ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}) }),
@@ -171,5 +172,6 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
                     ? { truncation: conversation.truncateReason || (conversation.nextPageToken?.trim() ? 'pagination_pending' : 'truncated') } : {}),
                 heuristicDocumentIds: resources.heuristicDocumentIds }) },
     };
-    return { ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics] };
+    return { evidence: { rejectedTurns, ...(conversation.truncated === true || conversation.isTruncated === true || conversation.nextPageToken?.trim()
+        ? { truncation: conversation.truncateReason || (conversation.nextPageToken?.trim() ? 'pagination_pending' : 'truncated') } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), account: options.account, conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics] };
 }

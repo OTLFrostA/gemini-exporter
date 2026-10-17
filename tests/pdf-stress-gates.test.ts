@@ -1,3 +1,4 @@
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -448,13 +449,13 @@ test('stress: full-pipeline release stress with real Typst compile (Item 4)', as
     const t0 = Date.now();
     try {
         result = await exporter.run(
-            {
+            { accountId: '10000000-0000-4000-8000-000000000001', ...({
                 selected: conversations.map((c) => ({ id: c.id, title: c.title })),
                 conversations: conversations.map(indexFixture),
-                fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+                fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
                 useZip: false,
                 writer,
-            },
+            }) },
             {
                 onItemExported: (id: string, record: any) => {
                     exported.push({ id, record });

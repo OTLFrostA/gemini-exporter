@@ -17,10 +17,11 @@ export async function planExportResources(result: ResourceConversationParseResul
         const fallback = `${asset.id}.${isImage ? 'jpg' : asset.document?.contentMarkdown ? 'md' : 'bin'}`;
         let name = sanitizeFileName(asset.name || fallback, fallback);
         if (asset.document?.contentMarkdown && !/\.md$/i.test(name)) name += '.md';
-        let path = `${isImage ? 'assets' : 'files'}/${shortScope(result.conversation.index.id)}${name}`;
+        let path = `${isImage ? 'assets' : 'files'}/${shortScope(result.conversation.index.key.conversationId)}${name}`;
         let content: string | Uint8Array | undefined = asset.document?.contentMarkdown;
-        const dataUrl = asset.dataBase64 ? `data:${asset.mediaType ?? 'application/octet-stream'};base64,${asset.dataBase64}`
-            : asset.sourceUri?.startsWith('data:') ? asset.sourceUri : undefined;
+        const dataBase64 = result.acquisitionHints[asset.id]?.dataBase64;
+        const dataUrl = dataBase64 ? `data:${asset.mediaType ?? 'application/octet-stream'};base64,${dataBase64}`
+            : [result.acquisitionHints[asset.id]?.url, result.acquisitionHints[asset.id]?.sourceUrl, asset.sourceUri].find(uri => /^data:/i.test(uri ?? ''));
         if (dataUrl) {
             const attempt = await attemptResource(asset.id, () => decodeDataUrlAsset(dataUrl));
             if (!attempt.ok) { failures.push(attempt); continue; }

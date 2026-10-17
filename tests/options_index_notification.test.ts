@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -13,7 +14,7 @@ test('Options observes accepted Index writes even when acquisition emits no sync
     let refreshed = 0;
     Reflect.set(globalThis, 'document', { getElementById: () => null });
     Reflect.set(chrome.storage, 'onChanged', { addListener: (fn: typeof listener) => { listener = fn; } });
-    __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0' });
+    __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001' });
     try {
         await init({ loadStore: async () => { refreshed++; } });
         assert.ok(listener);
@@ -22,9 +23,9 @@ test('Options observes accepted Index writes even when acquisition emits no sync
             await originalSet(values);
             listener!(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { newValue: value }])), 'local');
         };
-        await StorageService.ingestConversation('u0', historicalFixture({ id: 'chat', title: 'Fresh', messages: [{ role: 'user', content: 'Question' }] }));
+        await StorageService.ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture({ id: 'chat', title: 'Fresh', messages: [{ role: 'user', content: 'Question' }] }));
         assert.equal(refreshed, 1);
-        await StorageService.ingestConversation('u1', historicalFixture({ id: 'chat', title: 'Other account', messages: [{ role: 'user', content: 'Question' }] }));
+        await StorageService.ingestConversation('10000000-0000-4000-8000-000000000002', historicalFixture({ id: 'chat', title: 'Other account', messages: [{ role: 'user', content: 'Question' }] }, { account: fixtureAccount('gemini', '10000000-0000-4000-8000-000000000002') }));
         assert.equal(refreshed, 1);
     } finally {
         if (previousDocument === undefined) Reflect.deleteProperty(globalThis, 'document');

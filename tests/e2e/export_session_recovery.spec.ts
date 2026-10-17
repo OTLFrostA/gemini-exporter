@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () => {
   test('interrupted export banner survives reload, re-localizes and does not overwrite stored chat titles', async ({ context, extensionId }) => {
@@ -25,8 +30,8 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
         }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (initialConvs).map(canonicalIndexFixture),
-        exportedIds: {}
+        ['conversations_10000000-0000-4000-8000-000000000001']: (initialConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {}
       });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
@@ -81,13 +86,13 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     await expect(banner).not.toBeVisible();
 
     const sessionData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_last_export_session', 'gemini_conversations']);
+      return await chrome.storage.local.get(['gemini_last_export_session', 'conversations_10000000-0000-4000-8000-000000000001']);
     });
     expect(sessionData.gemini_last_export_session).toBeUndefined();
-    const savedIndex = sessionData.gemini_conversations as Array<{ id: string; title: string; titleSource: string }>;
-    const originalIndex = savedIndex.find(item => item.id === 'chat_session_test_1');
+    const savedIndex = sessionData['conversations_10000000-0000-4000-8000-000000000001'] as Array<{ key: { conversationId: string }; title: string; titleSource: string }>;
+    const originalIndex = savedIndex.find(item => item.key.conversationId === 'chat_session_test_1');
     expect(originalIndex?.title).toBe('Takeout Prompt 临时问题');
-    expect(originalIndex?.titleSource).toBe('takeout');
+    expect(originalIndex?.titleSource).toBe('derived');
   });
 
   test('should disable scan during export and never show interruption banner during active run', async ({ context, extensionId }) => {
@@ -103,7 +108,7 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
         <head>
           <script>
             window._WIZ_global_data = {
-              SNlM0e: 'mock_at_token_recovery',
+              qDCSke: '10000000001', SNlM0e: 'mock_at_token_recovery',
               cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
             };
           </script>
@@ -163,8 +168,8 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
         }))
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (convs).map(canonicalIndexFixture),
-        exportedIds: {}
+        ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {}
       });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);

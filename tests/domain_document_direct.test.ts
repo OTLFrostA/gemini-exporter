@@ -1,3 +1,4 @@
+import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 import test from 'node:test';
@@ -44,7 +45,7 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
     assert.deepEqual(domain.detail.messages[1].citations, [
         { id: 'citation-0', title: 'Source', url: 'https://example.test/source' }, { id: 'grounding-2' },
     ]);
-    const ast = composeDomainDocument(domain).document;
+    const ast = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
     assert.equal(ast.messages[0].blocks.length, 1, 'inline placement suppresses the attachment tail');
     const answer = ast.messages[1].blocks[1];
     assert.equal(answer.type, 'paragraph');
@@ -60,37 +61,37 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
 test('Domain JSON round-trip gives the same AST and HTML/Markdown, including resource identities', async () => {
     const domain = freeze(historicalFixtureDomain(structuredClone(raw)));
     const restored = JSON.parse(JSON.stringify(domain));
-    assert.deepEqual(composeDomainDocument(domain), composeDomainDocument(restored));
+    assert.deepEqual(composeDomainDocument(domain, fixtureAccountFor(domain)), composeDomainDocument(restored, fixtureAccountFor(restored)));
     assert.deepEqual(await prepareDomainResources(await fixtureResourceResults(domain)), await prepareDomainResources(await fixtureResourceResults(restored)));
     const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceResults: await fixtureResourceResults(domain, historicalFixture(raw).resourceHints) };
-    assert.equal(await exportDomainMarkdown(domain, options), await exportDomainMarkdown(restored, options));
-    assert.equal(await exportDomainHtml(domain, options), await exportDomainHtml(restored, options));
-    assert.equal(await formatMarkdownDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainMarkdown(domain, options));
-    assert.equal(await formatHtmlDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainHtml(domain, options));
+    assert.equal(await exportDomainMarkdown(domain, fixtureAccountFor(domain), options), await exportDomainMarkdown(restored, fixtureAccountFor(restored), options));
+    assert.equal(await exportDomainHtml(domain, fixtureAccountFor(domain), options), await exportDomainHtml(restored, fixtureAccountFor(restored), options));
+    assert.equal(await formatMarkdownDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainMarkdown(domain, fixtureAccountFor(domain), options));
+    assert.equal(await formatHtmlDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainHtml(domain, fixtureAccountFor(domain), options));
 });
 
 test('composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'literal', title: 'Literal' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('literal'), 'custom'),   titleSource: "derived",   title: 'Literal' }, detail: { key: fixtureKey(String('literal'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal** [1] [cite:2] ![pic](url)' }] }],
             citations: [{ id: 'source', url: 'https://example.test' }] },
     ] } };
-    const ast = composeDomainDocument(validateParserDomain(domain), { documentLanguage: 'zh' }).document;
+    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)), { documentLanguage: 'zh' }).document;
     assert.equal(ast.header.providerLabel, 'custom');
     assert.equal(ast.documentLanguage, 'zh');
     assert.deepEqual(ast.messages[0].blocks, domain.detail.messages[0].content);
 });
 
 test('reasoning placement prevents another attachment copy and dangling citations fail closed', () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: 'custom', id: 'placement', title: '' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('placement'), 'custom'),    }, detail: { key: fixtureKey(String('placement'), 'custom'), quality: { status: 'unknown' }, assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
             { role: 'assistant', content: [], reasoning: [{ type: 'image', assetId: 'shared' }], attachmentIds: ['shared'] },
             { role: 'user', content: [], attachmentIds: ['shared'] },
         ] } };
-    const ast = composeDomainDocument(validateParserDomain(domain)).document;
+    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document;
     assert.equal(ast.messages[0].blocks.length, 1);
     assert.equal(ast.messages[1].blocks.length, 1);
     const broken = structuredClone(domain);
     broken.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'unknown' }] }];
-    assert.throws(() => composeDomainDocument(validateParserDomain(broken)), /Unregistered Domain citation/);
+    assert.throws(() => composeDomainDocument(validateParserDomain(broken), fixtureAccountFor(validateParserDomain(broken))), /Unregistered Domain citation/);
 });
 
 test('direct export dependency closure cannot load Canonical conversation normalization/composition', () => {
@@ -124,14 +125,14 @@ test('provider citation binding covers rich captions/descriptions and ignores co
 });
 
 test('prepared paths retain archive namespaces, hash inline bytes and omit failed/remote resources', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: 'custom', id: 'resources', title: '' }, detail: { quality: { status: 'unknown' }, messages: [], assets: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('resources'), 'custom'),    }, detail: { key: fixtureKey(String('resources'), 'custom'), quality: { status: 'unknown' }, messages: [], assets: [
         { id: 'path', kind: 'file',  },
-        { id: 'bytes', kind: 'image', mediaType: 'image/png', dataBase64: 'AQID' },
-        { id: 'uri', kind: 'image', sourceUri: 'data:image/png;base64,AQID' },
+        { id: 'bytes', kind: 'image', mediaType: 'image/png' },
+        { id: 'uri', kind: 'image' },
         { id: 'failed', kind: 'file' },
         { id: 'remote', kind: 'image', sourceUri: 'https://example.test/image.png' },
     ] } };
-    const prepared = await prepareDomainResources(await fixtureResourceResults(freeze(domain), { path: { archivePath: 'files/report.pdf' }, failed: { unresolvedReference: 'files/missing.pdf' } }));
+    const prepared = await prepareDomainResources(await fixtureResourceResults(freeze(domain), { path: { archivePath: 'files/report.pdf' }, failed: { unresolvedReference: 'files/missing.pdf' } }, { bytes: { dataBase64: 'AQID' }, uri: { url: 'data:image/png;base64,AQID' } }));
     assert.equal(prepared.path, 'files/report.pdf');
     assert.match(prepared.bytes, /^assets\/sha256\/\w{2}\/\w{2}\/\w{64}\.png$/);
     assert.equal(prepared.bytes, prepared.uri);
@@ -141,11 +142,11 @@ test('prepared paths retain archive namespaces, hash inline bytes and omit faile
 
 
 test('citation numbering is conversation-wide in body, reasoning and Sources, including references without URLs', async () => {
-    const domain = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'citations', title: 'Citations' }, detail: { quality: { status: 'complete' }, assets: [], messages: [
+    const domain = validateParserDomain({ index: { key: fixtureKey(String('citations'), 'custom'),   titleSource: "derived",   title: 'Citations' }, detail: { key: fixtureKey(String('citations'), 'custom'), quality: { status: 'complete' }, assets: [], messages: [
         { id: 'first', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[17]' }] }], citations: [{ id: 'same', url: 'https://example.test/one', title: 'First source' }] },
         { id: 'second', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same' }] }], reasoning: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[91]' }] }], citations: [{ id: 'same', title: 'Offline source' }] },
     ] } });
-    const document = composeDomainDocument(domain).document;
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
     const first = document.messages[0].blocks[0];
     assert.ok(first.type === 'paragraph');
     assert.deepEqual(first.children, [{ type: 'citation', id: 'msg-0:same', label: '[1]', href: 'https://example.test/one' }]);
@@ -157,7 +158,7 @@ test('citation numbering is conversation-wide in body, reasoning and Sources, in
     assert.deepEqual(reasoning.blocks, [{ type: 'paragraph', children: second.children }]);
     assert.equal(document.messages[0].sources?.items[0].number, 1);
     assert.equal(document.messages[1].sources?.items[0].number, 2);
-    const markdown = await exportDomainMarkdown(domain);
+    const markdown = await exportDomainMarkdown(domain, fixtureAccountFor(domain));
     assert.ok(markdown.includes('[2]'));
     assert.ok(markdown.includes('Offline source'));
 });

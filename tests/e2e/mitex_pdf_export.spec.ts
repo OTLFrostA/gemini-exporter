@@ -1,3 +1,4 @@
+import { fixtureAccountFor, fixtureKey } from '../helpers/domainFixture.js';
 import { validateParserDomain } from '../../src/core/domain/runtimeValidation.js';
 /**
  * tests/e2e/mitex_pdf_export.spec.ts
@@ -15,12 +16,17 @@ import { validateParserDomain } from '../../src/core/domain/runtimeValidation.js
  * 6. Zero remote requests occur during the entire flow.
  */
 
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
 import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentTypst } from '../../src/core/renderers/typst/renderTypst.js';
 import type { TypstConversationRenderPayload } from '../../src/core/renderers/typst/transport.js';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
@@ -50,10 +56,13 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
         String.raw`\begin{cases} 1 & x > 0 \\ 0 & x \le 0 \end{cases}`,
       ];
       // Exercise the production composition path rather than hand-maintaining its wire schema.
-      const ast = composeDomainDocument(validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'mitex-e2e', title: 'MiTeX Browser E2E Test', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
+      const ast = composeDomainDocument(validateParserDomain({ index: { key: fixtureKey(String('mitex-e2e'), 'gemini'),   titleSource: "derived",   title: 'MiTeX Browser E2E Test', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey(String('mitex-e2e'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
         { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
         ...formulas.map(source => ({ type: 'math' as const, source })),
-      ] }] } })).document;
+      ] }] } }), fixtureAccountFor(validateParserDomain({ index: { key: fixtureKey(String('mitex-e2e'), 'gemini'),   titleSource: "derived",   title: 'MiTeX Browser E2E Test', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey(String('mitex-e2e'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
+        { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
+        ...formulas.map(source => ({ type: 'math' as const, source })),
+      ] }] } }))).document;
       const payload = renderDocumentTypst(ast, {});
 
       // 1. In-browser pipeline evaluation
@@ -208,7 +217,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
           <head>
             <script>
               window._WIZ_global_data = {
-                SNlM0e: 'mock_token_mitex_123',
+                qDCSke: '10000000001', SNlM0e: 'mock_token_mitex_123',
                 cfb2h: 'boq_assistant-bard-web-server_20260928.01_p1'
               };
             </script>
@@ -263,8 +272,8 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
           { id: 'mitex_pdf_001', title: english ? 'Gaussian integral derivation' : '高斯积分推导', timestamp: 1700000000000 },
         ];
         await chrome.storage.local.set({
-          gemini_conversations: (convs).map(canonicalIndexFixture),
-          exportedIds: {},
+          ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture),
+          ['exported_10000000-0000-4000-8000-000000000001']: {},
           has_completed_tour: true,
           last_seen_feature_version: '999.0.0',
         });

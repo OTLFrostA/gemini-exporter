@@ -5,7 +5,7 @@ import type { ResourceAcquisitionHints } from '../resources/resourceAcquisition.
 import type { DomainStorageIdentity, TrustedDomainStorageRecord } from './domain/contracts.js';
 import { domainStorageKey, storageIdentity } from './domain/domainStore.js';
 
-export interface ConversationScope { readonly providerId: string; readonly accountSlot: string }
+export interface ConversationScope { readonly providerId: string; readonly accountId: string }
 
 /** Persistence evidence accompanies the aggregate; it never becomes source metadata. */
 export interface StoredConversation extends Omit<DomainConversation, 'detail'> {
@@ -29,18 +29,18 @@ interface ReadPorts {
 /** Local reads only: no fetching, read repair, orphan promotion or swallowed I/O errors. */
 export function createConversationRepository(scope: ConversationScope, ports: ReadPorts): ConversationRepository {
     if (!scope.providerId || scope.providerId !== scope.providerId.trim()
-        || !scope.accountSlot || scope.accountSlot !== scope.accountSlot.trim()) throw new TypeError('Invalid conversation scope');
-    const normalized = storageIdentity(scope.providerId, scope.accountSlot, 'scope');
-    const boundScope = Object.freeze({ providerId: normalized.providerId, accountSlot: normalized.accountSlot });
+        || !scope.accountId || scope.accountId !== scope.accountId.trim()) throw new TypeError('Invalid conversation scope');
+    const normalized = storageIdentity(scope.providerId, scope.accountId, 'scope');
+    const boundScope = Object.freeze({ providerId: normalized.providerId, accountId: normalized.accountId });
     const identityFor = (id: string) => {
         if (typeof id !== 'string' || !id.trim() || id !== id.trim()) throw new TypeError('Invalid conversation ID');
-        const identity = storageIdentity(boundScope.providerId, boundScope.accountSlot, id);
+        const identity = storageIdentity(boundScope.providerId, boundScope.accountId, id);
         if (!identity.conversationId.trim()) throw new TypeError('Invalid conversation ID');
         return identity;
     };
     const readIndex = async (identity: DomainStorageIdentity): Promise<DomainConversationIndex | null> => {
         const rows = await ports.readIndexes();
-        const matches = rows.filter(row => row.providerId === identity.providerId && row.id === identity.conversationId);
+        const matches = rows.filter(row => row.key.accountId === identity.accountId && row.key.conversationId === identity.conversationId);
         if (matches.length > 1) throw new TypeError('Duplicate conversation identity');
         return matches.length ? restoreConversationIndex(matches[0]) : null;
     };
@@ -51,8 +51,8 @@ export function createConversationRepository(scope: ConversationScope, ports: Re
         const stored = await ports.readBody(identity);
         if (!stored) return { index };
         if (stored.key !== domainStorageKey(identity) || domainStorageKey(stored.identity) !== stored.key
-            || stored.conversation.index.providerId !== identity.providerId
-            || storageIdentity(identity.providerId, identity.accountSlot, stored.conversation.index.id).conversationId !== identity.conversationId) {
+            || stored.conversation.index.key.accountId !== identity.accountId
+            || storageIdentity(identity.providerId, identity.accountId, stored.conversation.index.key.conversationId).conversationId !== identity.conversationId) {
             throw new TypeError('Conversation body identity mismatch');
         }
         return structuredClone({ index, detail: selectConversationBody(stored.conversation),

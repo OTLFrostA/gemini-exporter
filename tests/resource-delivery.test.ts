@@ -1,3 +1,6 @@
+import { ingestConversation } from '../src/core/storage/conversationIngest.js';
+import { acquiredReply } from './helpers/acquisitionFixture.js';
+import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
@@ -12,7 +15,7 @@ import type { ResourceResult, ResourceDelivery } from '../src/core/resources/res
 import { makeTestWorker } from './helpers/makeTestWorker.js';
 import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
 import { formatHtmlDocument, formatMarkdownDocument, formatContent } from '../src/core/engine/chatFormatter.js';
-import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
+import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
 import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
 import { PdfExporter } from '../src/core/export/pdf/pdfExporter.js';
@@ -24,17 +27,17 @@ const JSZip = require('../lib/jszip.min.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6aAAAAABJRU5ErkJggg==', 'base64');
 afterEach(() => { __clearModuleOverrides(); mock.restoreAll(); });
 function native(failure: string): ResourceConversationParseResult {
-    return { conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure' }, detail: { quality: { status: 'unknown' }, assets: [
+    return { account: fixtureAccount(), conversation: validateParserDomain({ index: { key: fixtureKey(String(`delivery-${failure}`), 'gemini'),   titleSource: "derived",   title: 'Resource failure' }, detail: { key: fixtureKey(String(`delivery-${failure}`), 'gemini'), quality: { status: 'unknown' }, assets: [
         { id: 'good', kind: 'image', name: `${'delivered_'.repeat(10)}.png`, mediaType: 'image/png', sourceUri: 'https://example.test/good' },
         { id: 'good-doc', kind: 'file', name: 'good.md', document: { contentMarkdown: '# Delivered companion' } },
         { id: 'bad', kind: failure === 'file-write' ? 'file' : 'image', name: 'bad.png',
-            ...(failure === 'inline' ? { dataBase64: '!broken!' } : { sourceUri: 'missing/bad.png' }),
+            ...(failure === 'inline' ? {} : { sourceUri: 'missing/bad.png' }),
             ...(failure === 'file-write' ? { document: { contentMarkdown: '# Cannot write' } } : {}) },
     ], messages: [{ id: 'answer', role: 'assistant', content: [
         { type: 'paragraph', children: [{ type: 'text', text: 'Conversation survives resource failure' }] },
         { type: 'image', assetId: 'good' }, { type: 'file', assetId: 'good-doc' },
         { type: failure === 'file-write' ? 'file' : 'image', assetId: 'bad' },
-    ] }] } }), diagnostics: [], acquisitionHints: {}, resourceHints: { bad: { archivePath: 'assets/never-delivered.png' } } };
+    ] }] } }), diagnostics: [], acquisitionHints: failure === 'inline' ? { bad: { dataBase64: '!broken!' } } : {}, resourceHints: { bad: { archivePath: 'assets/never-delivered.png' } } };
 }
 for (const format of ['markdown', 'html', 'json']) for (const failure of ['throw', 'empty', 'write', 'file-write', 'inline']) {
     test(`${format}: ${failure} preserves body, delivered references and partial status in actual ZIP`, async () => {
@@ -63,14 +66,14 @@ for (const format of ['markdown', 'html', 'json']) for (const failure of ['throw
             });
         }
         let archive: Blob | undefined;
-        const worker = makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: source }) });
-        const result = await new ExportOrchestrator().run({ selected: [{ id: source.conversation.index.id, title: source.conversation.index.title }], format, useZip: true, includeAssets: true, includeIndex: true,
-            worker, downloadHandler: blob => { assert.deepEqual(records, {}, 'no partial records before ZIP delivery'); archive = blob; } });
+        const worker = makeTestWorker({ fetchChatDetail: async () => await ({ success: true, chat: source }) });
+        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({ selected: [{ id: source.conversation.index.key.conversationId, title: source.conversation.index.title }], format, useZip: true, includeAssets: true, includeIndex: true,
+            worker, downloadHandler: blob => { assert.deepEqual(records, {}, 'no partial records before ZIP delivery'); archive = blob; } }) });
         assert.equal(result.landedChats, 1); assert.equal(result.failedChats.length, 0);
-        assert.equal(result.failedAttachments.length, 1); assert.equal(records[source.conversation.index.id].status, 'partial');
+        assert.equal(result.failedAttachments.length, 1); assert.equal(records[source.conversation.index.key.conversationId].status, 'partial');
         assert.ok(archive);
         const zip = await JSZip.loadAsync(await archive.arrayBuffer());
-        assert.equal(JSON.parse(await zip.file('gemini_export/meta.json').async('string')).conversations[0].status, records[source.conversation.index.id].status);
+        assert.equal(JSON.parse(await zip.file('gemini_export/meta.json').async('string')).conversations[0].status, records[source.conversation.index.key.conversationId].status);
         const bodyPath = Object.keys(zip.files).find(path => path.endsWith(format === 'html' ? '.html' : format === 'markdown' ? '.md' : '.json') && !path.includes('/files/'))!;
         const body: string = await zip.files[bodyPath].async('text');
         assert.match(body, /Conversation survives resource failure/);
@@ -100,7 +103,7 @@ for (const failure of ['throw', 'empty', 'corrupt']) for (const useZip of [false
         }
         return { ok: true as const, resourceId: item.assetId, value: { bytes: png, mediaType: 'image/png' } };
     } };
-    const prep = await preparePdfItem(source, { assetPipeline: pipeline }); assert.ok(prep.ok);
+    const prep = await preparePdfItem(source, { accountId: '10000000-0000-4000-8000-000000000001', ...({ assetPipeline: pipeline }) }); assert.ok(prep.ok);
     const ctx = { signal: new AbortController().signal, reportProgress: () => {}, log: () => {} };
     const resources = await resourceStage({ document: prep.document, resources: prep.resources }, ctx);
     assert.deepEqual(resources.output.resourceResults.map(result => [result.resourceId, result.ok]), [['good', true], ['bad', false]]);
@@ -109,15 +112,15 @@ for (const failure of ['throw', 'empty', 'corrupt']) for (const useZip of [false
     assert.match(JSON.stringify(payload.output.payload), /Conversation survives resource failure/);
     assert.ok(!JSON.stringify(payload.output.payload).includes('never-delivered.png'));
     const files: Uint8Array[] = [], records: Array<{ status: string; hasFailedAssets: boolean }> = [];
-    const result = await new PdfExporter(new StubPdfCompiler()).run({ selected: [source], assetPipeline: pipeline, useZip, includeAssets, downloadHandler: async () => {},
+    const result = await new PdfExporter(new StubPdfCompiler()).run({ accountId: '10000000-0000-4000-8000-000000000001', ...({ selected: [source], assetPipeline: pipeline, useZip, includeAssets, downloadHandler: async () => {},
         writer: { type: 'directory', writeFile: (_name: string, bytes: Uint8Array) => { files.push(bytes); return 'file.pdf'; }, generateBlob: async () => new Blob(['zip']) },
-    }, { onItemExported: (_id, record) => records.push(record) });
+    }) }, { onItemExported: (_id, record) => records.push(record) });
     assert.equal(result.succeeded, 1); assert.equal(result.failed.length, 0); assert.equal(files.length, 1);
     assert.equal(records[0].status, includeAssets ? 'partial' : 'ok'); assert.equal(records[0].hasFailedAssets, includeAssets); assert.deepEqual(source, before);
 });
 test('Takeout entry rejection or zero bytes retains its conversation and healthy resource bytes', async () => {
     for (const mode of ['throw', 'empty']) {
-        const slot = `delivery-${mode}`;
+        const slot = '10000000-0000-4000-8000-000000000001';
         const zip = new JSZip();
         zip.file('Takeout/Gemini/MyActivity.html', '<div class="outer-cell"><a href="https://gemini.google.com/app/delivery-takeout">Conversation</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Resource failure<br>2026-10-07T09:00:00Z<br><p>Conversation survives</p><img src="good.png"><img src="bad.png"></div></div>');
         zip.file('Takeout/Gemini/good.png', png); zip.file('Takeout/Gemini/bad.png', png);
@@ -165,8 +168,8 @@ test('background live save renders only after attachments settle and keeps a par
     setMemoryDirHandle(directory(''));
     try {
         const source = native('throw');
-        const result = await handleLiveSaveViaHandle({ chat: source, safeTitle: source.conversation.index.title, nid: source.conversation.index.id,
-            assets: ['good', 'bad'].map(assetId => ({ assetId, fileName: `${assetId}.png`, subDir: 'assets', base64: png.toString('base64') })) });
+        const result = await handleLiveSaveViaHandle({ chat: source, safeTitle: source.conversation.index.title, nid: source.conversation.index.key.conversationId,
+            assets: ['good', 'bad'].map(assetId => ({ assetId, fileName: `${assetId}.png`, subDir: 'assets', base64: png.toString('base64') })) }, '10000000-0000-4000-8000-000000000001');
         assert.equal(result.ok, false); assert.equal(result.failedAssets.length, 1);
         assert.equal(records[0].status, 'partial');
         const body = written.get(`gemini_export/${result.targetFile}`) as string;
@@ -190,9 +193,9 @@ for (const mode of ['queued', 'transport']) test(`resource cancellation ${mode} 
         }
     });
     const engine = new ExportOrchestrator(); let downloaded = false;
-    const pending = engine.run({ selected: [{ id: source.conversation.index.id, title: source.conversation.index.title }],
-        worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: source }) }),
-        useZip: true, includeIndex: false, downloadHandler: () => { downloaded = true; } });
+    const pending = engine.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({ selected: [{ id: source.conversation.index.key.conversationId, title: source.conversation.index.title }],
+        worker: makeTestWorker({ fetchChatDetail: async () => await ({ success: true, chat: source }) }),
+        useZip: true, includeIndex: false, downloadHandler: () => { downloaded = true; } }) });
     await startedWork;
     if (mode === 'queued') engine.abort();
     const result = await pending;
@@ -239,9 +242,10 @@ for (const [kind, broken] of [
     const pipeline = { acquireAssetBytes: async (item: ResourceRequest) => ({ ok: true as const, resourceId: item.assetId, value: { bytes: item.assetId === 'good' ? Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') : broken, mediaType: 'image/png' } }) };
     const files: Uint8Array[] = [], records: Array<{ status: string; hasFailedAssets: boolean }> = [];
     try {
-        const result = await new PdfExporter(compiler).run({ selected: [source], assetPipeline: pipeline, useZip: false,
+        await ingestConversation(source.account.id, source);
+        const result = await new PdfExporter(compiler).run({ accountId: '10000000-0000-4000-8000-000000000001', ...({ selected: [source], assetPipeline: pipeline, useZip: false,
             writer: { type: 'directory', writeFile: (_name: string, bytes: Uint8Array) => { files.push(bytes); return 'recovered.pdf'; } },
-        }, { onItemExported: (_id, record) => records.push(record) });
+        }) }, { onItemExported: (_id, record) => records.push(record) });
         assert.equal(result.failed.length, 0); assert.equal(result.succeeded, 1); assert.equal(files.length, 1);
         assert.equal(records[0].status, 'partial'); assert.equal(records[0].hasFailedAssets, true);
         const extracted = extractPdfText(files[0]);
@@ -264,13 +268,13 @@ test('direct live save uses distinct actual filesystem paths for long image name
     const source = native('throw');
     for (const asset of source.conversation.detail.assets.filter(asset => asset.kind === 'image')) {
         asset.name = `${'long_name_'.repeat(10)}${asset.id}.png`;
-        asset.dataBase64 = png.toString('base64');
+        source.acquisitionHints = { ...source.acquisitionHints, [asset.id]: { dataBase64: png.toString('base64') } };
         delete asset.sourceUri;
     }
     const receipts: import('../src/core/resources/resourceResult.js').ResourceResult<import('../src/core/resources/resourceResult.js').ResourceDelivery>[] = [];
     const failures: Array<{ file: string; error: string }> = [];
     const writer = await createLiveSaveWriter(directory(''));
-    await processAndSaveImages(source, source.conversation.index.id, writer, failures, receipts);
+    await processAndSaveImages(source, source.conversation.index.key.conversationId, writer, failures, receipts);
     assert.equal(failures.length, 0); assert.equal(receipts.length, 2);
     const paths = receipts.flatMap(result => result.ok ? [result.value.path] : []);
     assert.equal(new Set(paths).size, 2);
@@ -302,9 +306,9 @@ test('real WASM PDF: unrelated Typst compile failure stays fatal and does not di
     let writes = 0;
     const pipeline = { acquireAssetBytes: async (item: ResourceRequest) => ({ ok: true as const, resourceId: item.assetId, value: { bytes: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'), mediaType: 'image/png' } }) };
     try {
-        const result = await new PdfExporter(compiler).run({ selected: [native('throw')], assetPipeline: pipeline, useZip: false,
+        const result = await new PdfExporter(compiler).run({ accountId: '10000000-0000-4000-8000-000000000001', ...({ selected: [await ingestConversation(fixtureAccount().id, native('throw'))], assetPipeline: pipeline, useZip: false,
             writer: { type: 'directory', writeFile: () => { writes++; return 'should-not-exist.pdf'; } },
-        });
+        }) });
         assert.equal(result.succeeded, 0); assert.equal(result.failed.length, 1); assert.equal(writes, 0);
         assert.match(result.failed[0].error ?? '', /compiler.*failed/i);
         assert.ok(!result.failed[0].diagnostics.some(d => d.code === 'TYPST_ASSET_DECODE_FAILED'));

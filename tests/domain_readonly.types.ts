@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import type { ReadonlyDomain, TrustedDomain } from '../src/core/domain/runtimeValidation.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
@@ -42,7 +43,7 @@ function contentContract(nodes: Parameters<ReturnType<typeof contentComposer>>[0
 function producerContract(builder: DomainConversationWithDetail, trusted: TrustedDomain) {
     builder.detail.messages.push({ role: 'assistant', content: [] });
     const view: ReadonlyDomain = trusted;
-    composeDomainDocument(view);
-    void exportDomainHtml(view); void exportDomainMarkdown(view);
+    composeDomainDocument(view, fixtureAccountFor(view));
+    void exportDomainHtml(view, fixtureAccountFor(view)); void exportDomainMarkdown(view, fixtureAccountFor(view));
 }
 void [consumerContract, contentContract, producerContract];

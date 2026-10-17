@@ -1,6 +1,11 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
@@ -18,7 +23,7 @@ test.describe('Export Workflow & State Update', () => {
         <head>
           <script>
             window._WIZ_global_data = {
-              SNlM0e: 'mock_at_token_123',
+              qDCSke: '10000000001', SNlM0e: 'mock_at_token_123',
               cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
             };
           </script>
@@ -69,8 +74,8 @@ test.describe('Export Workflow & State Update', () => {
         { id: 'exp_chat_001', title: '深度学习神经网络实践', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
-        exportedIds: {},
+        ['conversations_10000000-0000-4000-8000-000000000001']: (mockConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -98,7 +103,7 @@ test.describe('Export Workflow & State Update', () => {
     expect(zipPath).toBeTruthy();
     const zip = await JSZip.loadAsync(fs.readFileSync(zipPath!));
     const markdownNames = Object.keys(zip.files).filter(name => name.endsWith('.md') && !zip.files[name].dir);
-    expect(markdownNames).toHaveLength(1);
+    expect(markdownNames, await page.locator('#log').innerText()).toHaveLength(1);
     const markdown = await zip.files[markdownNames[0]].async('text');
     expect(markdown).toContain('请概述深度学习神经网络的实践要点');
     expect(markdown).toContain('数据预处理');
@@ -109,9 +114,9 @@ test.describe('Export Workflow & State Update', () => {
 
     // 6. Verify Storage contains valid export record persisted by ExportEngine
     const storageData = await page.evaluate(async () => {
-      return await chrome.storage.local.get(['exportedIds']);
+      return await chrome.storage.local.get(['exported_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    const record = storageData.exportedIds['exp_chat_001'];
+    const record = storageData['exported_10000000-0000-4000-8000-000000000001']['exp_chat_001'];
     expect(record).toBeTruthy();
     expect(record.title).toBe('深度学习神经网络实践');
     expect(record.format).toBe('markdown');
@@ -130,9 +135,9 @@ test.describe('Export Workflow & State Update', () => {
         { id: 'exp_chat_skip_001', title: '跳过测试会话', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
+        ['conversations_10000000-0000-4000-8000-000000000001']: (mockConvs).map(canonicalIndexFixture),
         gemini_export_zip: true,
-        exportedIds: {
+        ['exported_10000000-0000-4000-8000-000000000001']: {
           'exp_chat_skip_001': {
             exportedAt: 1700000000000,
             title: '跳过测试会话'
@@ -180,9 +185,9 @@ test.describe('Export Workflow & State Update', () => {
 
     // Assert no empty ZIP appeared even after the completion UI settled.
     expect(await unexpectedDownload).toBe(false);
-    const stored = await page.evaluate(async () => chrome.storage.local.get('exportedIds')) as { exportedIds: Record<string, { exportedAt: number }> };
-    expect(Object.keys(stored.exportedIds || {})).toEqual(['exp_chat_skip_001']);
-    expect(stored.exportedIds['exp_chat_skip_001'].exportedAt).toBe(1700000000000);
+    const stored = await page.evaluate(async () => chrome.storage.local.get('exported_10000000-0000-4000-8000-000000000001')) as { ['exported_10000000-0000-4000-8000-000000000001']: Record<string, { exportedAt: number }> };
+    expect(Object.keys(stored['exported_10000000-0000-4000-8000-000000000001'] || {})).toEqual(['exp_chat_skip_001']);
+    expect(stored['exported_10000000-0000-4000-8000-000000000001']['exp_chat_skip_001'].exportedAt).toBe(1700000000000);
   });
 
   test('should clear exported records via #btnClearExported, re-select chats, and not toggle #skipExported', async ({ context, extensionId }) => {
@@ -196,8 +201,8 @@ test.describe('Export Workflow & State Update', () => {
         { id: 'clear_chat_002', title: '已导出会话二', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
-        exportedIds: {
+        ['conversations_10000000-0000-4000-8000-000000000001']: (mockConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {
           'clear_chat_001': { exportedAt: 1700000005000, chatTime: 1700000000000, title: '已导出会话一' },
           'clear_chat_002': { exportedAt: 1700000005000, chatTime: 1700000000000, title: '已导出会话二' }
         },
@@ -223,9 +228,9 @@ test.describe('Export Workflow & State Update', () => {
 
     // Verify storage keys (exportedIds) are cleared
     const storageAfter = await page.evaluate(async () => {
-      return await chrome.storage.local.get(['exportedIds']);
+      return await chrome.storage.local.get(['exported_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    expect(Object.keys(storageAfter.exportedIds || {})).toHaveLength(0);
+    expect(Object.keys(storageAfter['exported_10000000-0000-4000-8000-000000000001'] || {})).toHaveLength(0);
   });
 });
 

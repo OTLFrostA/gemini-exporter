@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +7,7 @@ import { assertDocumentAst, assertDocumentAsts } from './helpers/assertDocumentA
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
-const valid = () => ({ schemaVersion: 2, header: { title: 'T', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', modelLabel: 'Model', blocks: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'i', alt: 'Image' }] }] }] }] });
+const valid = () => ({ schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'T', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', modelLabel: 'Model', blocks: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'i', alt: 'Image' }] }] }] }] });
 
 test('every visual/parity corpus fixture satisfies the exact current DocumentAst definition', () => {
     const entries: Array<{ value: unknown; context: string }> = [];
@@ -22,7 +23,7 @@ test('every visual/parity corpus fixture satisfies the exact current DocumentAst
     assert.ok(domainFixtures.length > 0, 'document-domain must contain contract fixtures');
     for (const file of domainFixtures) {
         const input: DomainConversationWithDetail = JSON.parse(readFileSync(`tests/fixtures/document-domain/${file}`, 'utf8'));
-        entries.push({ value: composeDomainDocument(validateParserDomain(input)).document, context: file });
+        entries.push({ value: composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document, context: file });
     }
     assertDocumentAsts(entries);
 });
@@ -42,6 +43,13 @@ test('contract rejects stale fields, nested extras, missing fields, wrong types 
         value => Object.assign(value.messages[0], { modelLabel: 42 }),
         value => Object.assign(value.messages[0], { blocks: {} }),
         value => Object.assign(value.messages[0], { sources: { type: 'sources', items: [], anchor: 'legacy' } }),
+        value => { Reflect.deleteProperty(value, 'metadata'); },
+        value => Object.assign(value, { emptyNotice: 'legacy' }),
+        value => Object.assign(value.messages[0], { heading: { level: 2, text: 'legacy' } }),
+        value => Object.assign(value.messages[0], { sources: { type: 'sources', heading: [], items: [] } }),
+        value => Object.assign(value.messages[0], { sources: { type: 'sources', items: [{ id: 's', label: 'Unnumbered' }] } }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'code', code: 'x', showHeader: true }] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'disclosure', kind: 'reasoning', blocks: [], initiallyCollapsed: false }] }),
     ];
     for (const mutate of mutations) {
         const value = valid(); mutate(value);

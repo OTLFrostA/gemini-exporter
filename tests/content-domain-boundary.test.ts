@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
@@ -9,7 +10,7 @@ import type { DomainConversationWithDetail } from '../src/core/domain/conversati
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 
-const metadata = { index: { id: 'semantic', title: 'Semantic input', titleSource: 'legacy' as const, cloudAvailability: 'unknown' as const, hasTakeoutImport: false, providerId: 'other' }, detail: { quality: { status: 'unknown' } as const, assets: [] } };
+const metadata = { index: { key: fixtureKey(String('semantic'), 'other'),  title: 'Semantic input', titleSource: "derived" as const,    }, detail: { key: fixtureKey(String('semantic'), 'other'), quality: { status: 'unknown' } as const, assets: [] } };
 
 test('Document composition contains no body parsing or provider-format decisions', () => {
     for (const file of ['composeDomainDocument.ts', 'composeContent.ts']) {
@@ -20,14 +21,14 @@ test('Document composition contains no body parsing or provider-format decisions
 });
 
 test('Domain semantic nodes are composed without reparsing and raw Markdown-looking text remains literal', async () => {
-    const domain: DomainConversationWithDetail = { index: { ...metadata.index }, detail: { ...metadata.detail, messages: [{
+    const domain: DomainConversationWithDetail = { index: { ...metadata.index }, detail: {   ...metadata.detail, messages: [{
         id: 'message', role: 'assistant', content: [
             { type: 'paragraph', children: [{ type: 'text', text: '**literal** $x$ ![not an image](file.png)' }] },
             { type: 'unknown', sourceType: 'semantic-extension', text: 'visible unknown' },
         ],
     }] } };
     const original = structuredClone(domain);
-    const { document } = composeDomainDocument(validateParserDomain(domain));
+    const { document } = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)));
     assert.deepEqual(document.messages[0].blocks[0], domain.detail.messages[0].content[0]);
     assert.deepEqual(document.messages[0].blocks[1], { type: 'unsupported', sourceType: 'semantic-extension', text: 'visible unknown' });
     assert.equal(collectDocumentResources(document).referencedIds.size, 0);
@@ -35,11 +36,11 @@ test('Domain semantic nodes are composed without reparsing and raw Markdown-look
 });
 
 test('separate reasoning presentation does not reinterpret the Domain body', async () => {
-    const domain: DomainConversationWithDetail = { index: { ...metadata.index }, detail: { ...metadata.detail, messages: [{
+    const domain: DomainConversationWithDetail = { index: { ...metadata.index }, detail: {   ...metadata.detail, messages: [{
         role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal body**' }] }],
         reasoning: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'formatted reasoning' }] }] }],
     }] } };
-    const result = composeDomainDocument(validateParserDomain(domain));
+    const result = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)));
     const [reasoning, body] = result.document.messages[0].blocks;
     assert.ok(reasoning.type === 'disclosure' && reasoning.blocks[0].type === 'paragraph');
     assert.equal(reasoning.blocks[0].children[0].type, 'strong');

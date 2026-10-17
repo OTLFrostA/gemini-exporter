@@ -30,10 +30,16 @@ export async function handleTakeoutImport(
 
     try {
         const Store = getStore();
-        const slot = Store ? (Store.getCurrentSlot() || 'u0') : 'u0';
         const Storage = getStorage();
+        const selected = Store?.getCurrentAccountId();
+        const available = await Storage.listAccounts('gemini');
+        const account = !available.length ? await Storage.getOrCreateAccount('gemini', 'default')
+            : selected ? await Storage.getAccount(selected) : null;
+        if (!account || account.providerId !== 'gemini') throw new Error('Select a Gemini account before importing Takeout');
+        const slot = account.id;
+        if (selected !== slot) Store?.setCurrentAccountId(slot);
         const previous = await Storage.getConversations(slot);
-        const previousIds = new Set(previous.map(row => JSON.stringify([row.providerId, row.id])));
+        const previousIds = new Set(previous.map(row => JSON.stringify([row.key.accountId, row.key.conversationId])));
         const res = await Takeout.parseTakeoutZip(file, (pct: number, txt: string) => {
             if (onProgress) onProgress(pct, txt);
             if (onLog) onLog(txt, 'info');
@@ -44,9 +50,9 @@ export async function handleTakeoutImport(
         }
         const incoming = Array.isArray(res.conversations) ? res.conversations : [];
 
-        const addedCount = incoming.filter(row => !previousIds.has(JSON.stringify([row.providerId, row.id]))).length;
+        const addedCount = incoming.filter(row => !previousIds.has(JSON.stringify([row.key.accountId, row.key.conversationId]))).length;
         const accepted = await Storage.getConversations(slot);
-        if (Store?.getCurrentSlot() === slot) Store.setConversations(accepted);
+        if (Store?.getCurrentAccountId() === slot) Store.setConversations(accepted);
 
         if (Storage) {
             if (Storage.setTakeoutPromptCompleted) await Storage.setTakeoutPromptCompleted(true);

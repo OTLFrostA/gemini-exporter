@@ -35,7 +35,7 @@ export interface BaseMessage {
 
 export interface SyncUpdateMessage extends BaseMessage {
     action: 'syncUpdate';
-    slot: string;
+    accountId: string;
     count?: number;
     from?: string;
     conversations?: DomainConversationIndex[];
@@ -43,7 +43,7 @@ export interface SyncUpdateMessage extends BaseMessage {
 
 export interface ScanProgressMessage extends BaseMessage {
     action: 'scanProgress';
-    slot?: string;
+    accountId?: string;
     scanned?: number;
     total?: number;
     status?: string;
@@ -51,6 +51,7 @@ export interface ScanProgressMessage extends BaseMessage {
 }
 
 export interface DownloadAssetDirectMessage extends BaseMessage {
+    accountId?: string;
     action: 'downloadAssetDirect';
     url: string;
     referer?: string;
@@ -77,7 +78,7 @@ export interface DownloadAssetResponse {
 export interface GetConversationDetailMessage extends BaseMessage {
     action: 'getConversationDetail';
     conversationId: string;
-    accountSlot?: string;
+    accountId?: string;
     targetSid?: string;
 }
 
@@ -115,13 +116,13 @@ export interface LiveSaveViaHandlePayload {
 export interface LiveSaveViaHandleMessage extends BaseMessage {
     action: 'liveSaveViaHandle';
     payload: LiveSaveViaHandlePayload;
-    accountSlot?: string;
+    accountId?: string;
 }
 
 export interface FetchChatMessage extends BaseMessage {
     action: 'fetchChat';
     conversationId: string;
-    accountSlot?: string;
+    accountId?: string;
 }
 
 export interface GetFileBlobMessage extends BaseMessage {
@@ -146,24 +147,24 @@ export interface FetchBatchMessage extends BaseMessage {
     skipExported?: boolean;
     globalOffset?: number;
     globalTotal?: number;
-    accountSlot?: string;
+    accountId?: string;
 }
 
 export interface AbortSyncMessage extends BaseMessage {
     // Kept for backward compatibility even though no direct UI sender currently exists
     action: 'abortSync';
-    accountSlot?: string;
+    accountId?: string;
 }
 
 export interface DeepScanMessage extends BaseMessage {
     action: 'deepScan';
     maxIter?: number;
-    accountSlot?: string;
+    accountId?: string;
 }
 
 export interface StopDeepScanMessage extends BaseMessage {
     action: 'stopDeepScan';
-    accountSlot?: string;
+    accountId?: string;
 }
 
 export interface PingMessage extends BaseMessage {

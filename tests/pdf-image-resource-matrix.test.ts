@@ -10,7 +10,7 @@ import type { DocumentAst } from '../src/core/document/ast/ast.js';
 function sha256hex(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }
 const PATH_RE = /^assets\/sha256\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{64}\.[a-z0-9]+$/;
 async function mount(resources: Record<string, ResourceBytes | ResourceFailure>, ids = Object.keys(resources)) {
-    const document: DocumentAst = { schemaVersion: 2, header: { title: 'Image matrix', providerLabel: 'test', messageCount: 1 }, messages: [{ type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
+    const document: DocumentAst = { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'Image matrix', providerLabel: 'test', messageCount: 1 }, messages: [{ type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
     const before = JSON.stringify(document);
     const result = await resourceStage({ document, resources: new Map(Object.entries(resources).map(([resourceId, value]) => [resourceId, 'ok' in value ? value : { ok: true as const, resourceId, value }])) }, { signal: new AbortController().signal, log() {}, reportProgress() {} });
     assert.equal(JSON.stringify(document), before);
@@ -170,9 +170,9 @@ test('svg sniff: xml declaration, comments, doctype and BOM still resolve', asyn
 
 test('svg sniff: unterminated prolog or duplicate xml declaration is refused', async () => {
     const cases: Array<[string, string]> = [
-        ['u1', '<!-- never closed <svg/>'],
-        ['u2', '<?xml version="1.0"'],
-        ['u3', '<?xml version="1.0"?><?xml version="1.0"?><svg/>'],
+        ['10000000-0000-4000-8000-000000000002', '<!-- never closed <svg/>'],
+        ['10000000-0000-4000-8000-000000000003', '<?xml version="1.0"'],
+        ['10000000-0000-4000-8000-000000000004', '<?xml version="1.0"?><?xml version="1.0"?><svg/>'],
     ];
     for (const [id, text] of cases) {
         const result = await mount({ [id]: { mediaType: 'image/svg+xml', name: 'v.svg', bytes: Buffer.from(text, 'utf8') } });

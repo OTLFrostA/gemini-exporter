@@ -6,6 +6,7 @@ export interface RenderOptions {
     locale?: 'zh' | 'en';
     theme?: 'dark' | 'light';
     thoughtInitiallyCollapsed?: boolean;
+    showCodeHeader?: boolean;
 }
 export interface HtmlRenderOptions extends RenderOptions {
     copyCode?: boolean;

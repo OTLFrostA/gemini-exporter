@@ -10,6 +10,10 @@ export interface RendererStrings {
     systemMessage: string;
     developerMessage: string;
     unknownRole: string;
+    emptyConversation: string;
+    imageUnavailable: string;
+    fileUnavailable: string;
+    roles: Record<'you' | 'assistant' | 'system' | 'developer' | 'unknown', string>;
 }
 
 const EN: RendererStrings = {
@@ -19,11 +23,15 @@ const EN: RendererStrings = {
     sources: 'Sources',
     sizeUnknown: 'size unknown',
     dateUnknown: 'date unknown',
-    unsupportedContent: 'Unsupported content',
+    unsupportedContent: 'Unsupported',
     mathFallback: 'Could not typeset this formula; original LaTeX preserved:',
     systemMessage: 'System message',
     developerMessage: 'Developer message',
     unknownRole: 'Unknown role',
+    emptyConversation: 'Empty conversation.',
+    imageUnavailable: 'Image unavailable',
+    fileUnavailable: 'Attachment unavailable',
+    roles: { you: 'You', assistant: 'Assistant', system: 'System', developer: 'Developer', unknown: 'Message' },
 };
 
 const ZH: RendererStrings = {
@@ -38,6 +46,10 @@ const ZH: RendererStrings = {
     systemMessage: '系统消息',
     developerMessage: '开发者消息',
     unknownRole: '未知角色',
+    emptyConversation: '暂无对话记录。',
+    imageUnavailable: '图片不可用',
+    fileUnavailable: '附件不可用',
+    roles: { you: '你', assistant: '助手', system: '系统', developer: '开发者', unknown: '消息' },
 };
 
 export function getRendererStrings(locale: 'zh' | 'en'): RendererStrings {

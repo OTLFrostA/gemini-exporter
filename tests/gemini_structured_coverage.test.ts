@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -15,7 +16,7 @@ function wire(raw: unknown, candidates: unknown[] = [['rc_answer', [[fallback]]]
     if (raw !== undefined) payload[12] = raw;
     return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_coverage', 'r_coverage'], [1700000000, 0], [['Question']], payload]]])]]);
 }
-const parse = (raw: unknown) => parseGeminiRpcConversation(wire(raw), { providerId: 'gemini' });
+const parse = (raw: unknown) => parseGeminiRpcConversation(wire(raw), { account: fixtureAccount('gemini'), providerId: 'gemini' });
 
 test('captured long report uses structured data through native RPC, not equivalent Markdown fallback', () => {
     const result = parse(report);
@@ -93,7 +94,7 @@ test('captured Imagen envelope retains resource panels and closes exactly one na
     assert.equal(decoded.children.length, 1);
     assert.equal(decoded.children[0].nodeType, 0);
     assert.ok(JSON.stringify(decoded).includes('generatedImagePayload'), 'resource evidence is retained, not dropped');
-    const result = parseGeminiRpcConversation(wire(panel, [['rc_image', [['\n']]]]), { providerId: 'gemini' });
+    const result = parseGeminiRpcConversation(wire(panel, [['rc_image', [['\n']]]]), { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(result.conversation.detail.assets.length, 1);
     assert.equal(result.conversation.detail.assets[0].kind, 'image');
     assert.equal(result.conversation.detail.assets[0].name, 'fixture.jpg');

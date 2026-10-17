@@ -21,7 +21,7 @@ test('storageService rejects fat metadata without changing stored indexes', asyn
     const env = indexStorage();
     try {
         const storage = require('../src/core/storage/storageService.js');
-        await assert.rejects(storage.setConversations('u0', [{ ...indexFixture({ id: 'chat', title: 'Research' }), messages: [] }]), /index schema/);
+        await assert.rejects(storage.setConversations('10000000-0000-4000-8000-000000000001', [{ ...indexFixture({ id: 'chat', title: 'Research' }), messages: [] }]), /index schema/);
         assert.equal(env.writes(), 0);
     } finally { env.restore(); }
 });
@@ -32,41 +32,41 @@ test('mediaIndex: strict slot isolation prevents cross-account data corruption',
     try {
 
     // Commit takeout data for Slot u0
-    MediaIndex.commitTakeoutData('u0', {
+    MediaIndex.commitTakeoutData('10000000-0000-4000-8000-000000000001', {
         mediaMap: { chat_u0: [{ filename: 'image_u0.png' }] },
         globalMedia: { 'image_u0.png': {} },
         convCache: { chat_u0: { title: 'Slot 0 Chat' } }
     });
 
     // Commit takeout data for Slot u1
-    MediaIndex.commitTakeoutData('u1', {
+    MediaIndex.commitTakeoutData('10000000-0000-4000-8000-000000000002', {
         mediaMap: { chat_u1: [{ filename: 'image_u1.png' }] },
         globalMedia: { 'image_u1.png': {} },
         convCache: { chat_u1: { title: 'Slot 1 Chat' } }
     });
 
     // Verify Slot u0 has only Slot u0 data
-    const storeU0 = MediaIndex.getStore('u0');
+    const storeU0 = MediaIndex.getStore('10000000-0000-4000-8000-000000000001');
     assert.ok(storeU0.mediaMap['chat_u0'], 'Slot u0 must have chat_u0');
     assert.strictEqual(storeU0.mediaMap['chat_u1'], undefined, 'Slot u0 must NOT contain chat_u1');
-    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u0', 'u0')?.title, 'Slot 0 Chat');
-    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u1', 'u0'), null);
+    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u0', '10000000-0000-4000-8000-000000000001')?.title, 'Slot 0 Chat');
+    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u1', '10000000-0000-4000-8000-000000000001'), null);
 
     // Verify Slot u1 has only Slot u1 data
-    const storeU1 = MediaIndex.getStore('u1');
+    const storeU1 = MediaIndex.getStore('10000000-0000-4000-8000-000000000002');
     assert.ok(storeU1.mediaMap['chat_u1'], 'Slot u1 must have chat_u1');
     assert.strictEqual(storeU1.mediaMap['chat_u0'], undefined, 'Slot u1 must NOT contain chat_u0');
-    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u1', 'u1')?.title, 'Slot 1 Chat');
-    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u0', 'u1'), null);
+    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u1', '10000000-0000-4000-8000-000000000002')?.title, 'Slot 1 Chat');
+    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u0', '10000000-0000-4000-8000-000000000002'), null);
 
     // Verify clearing Slot u1 does NOT affect Slot u0
-    MediaIndex.clearTakeoutData('u1');
-    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u1', 'u1'), null);
-    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u0', 'u0')?.title, 'Slot 0 Chat');
+    MediaIndex.clearTakeoutData('10000000-0000-4000-8000-000000000002');
+    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u1', '10000000-0000-4000-8000-000000000002'), null);
+    assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u0', '10000000-0000-4000-8000-000000000001')?.title, 'Slot 0 Chat');
 
     } finally {
-        MediaIndex.clearTakeoutData('u1');
-        MediaIndex.clearTakeoutData('u0');
+        MediaIndex.clearTakeoutData('10000000-0000-4000-8000-000000000002');
+        MediaIndex.clearTakeoutData('10000000-0000-4000-8000-000000000001');
     }
 });
 

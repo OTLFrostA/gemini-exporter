@@ -65,6 +65,7 @@ export interface BuildExportCompletionInput {
     messageCount?: number;
     /** Explicit authoritative timestamp if available */
     chatTime?: number | string | Date | null;
+    evidence?: import('../../domain/quality.js').QualityEvidence;
     usedLocalSnapshot?: boolean;
 }
 
@@ -95,7 +96,7 @@ export function computeExportMessageCount(conversation: ExportCompletionConversa
         return explicitCount;
     }
     if (!conversation || typeof conversation !== 'object') return 0;
-    if ('index' in conversation) return Math.max(conversation.index.messageCount ?? 0, conversation.detail.messages.length);
+    if ('index' in conversation) return conversation.detail.messages.length;
     const candidates = [
         conversation.messageCount,
         Array.isArray(conversation.messages) ? conversation.messages.length : 0,
@@ -114,7 +115,7 @@ export function computeExportMessageCount(conversation: ExportCompletionConversa
  */
 export function computeAuthoritativeTimestamp(conversation: ExportCompletionConversation, explicitTime?: number | string | Date | null): number | undefined {
     // Native metadata may be newer than the retained body; only its explicit capture version proves freshness.
-    if (conversation && typeof conversation === 'object' && 'index' in conversation) return toTimestampMs(explicitTime) ?? undefined;
+    if (conversation && typeof conversation === 'object' && 'index' in conversation) return conversation.detail.savedAt ?? toTimestampMs(explicitTime) ?? undefined;
     const metadata = conversation && typeof conversation === 'object' ? conversation : undefined;
     // A saved/exported version is a source update value. Neither local export time,
     // creation time nor arbitrary message dates can manufacture that version.
@@ -128,6 +129,7 @@ export interface ResolveExportRecordStatusOptions {
     messageCount?: number;
     isEmpty?: boolean;
     quality?: ContentQuality;
+    evidence?: import('../../domain/quality.js').QualityEvidence;
     usedLocalSnapshot?: boolean;
 }
 
@@ -179,7 +181,7 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
     const value = input.conversation && typeof input.conversation === 'object' ? input.conversation : {};
     const native = 'index' in value ? value : undefined;
     const chat: ExportCompletionFacts = native ? native.index : value as ExportCompletionFacts;
-    const rawId = input.conversationId || chat.id || '';
+    const rawId = input.conversationId || native?.index.key.conversationId || chat.id || '';
     const targetId = normId(rawId);
 
     // 1. Resolve title candidate & provenance
@@ -227,7 +229,7 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         status: statusInfo.status,
         hasFailedAssets: statusInfo.hasFailedAssets,
         ...(chatTime ? { chatTime } : {}),
-        ...(quality?.truncation ? { isTruncated: true, truncateReason: quality.truncation } : {})
+        ...(input.evidence?.truncation ? { isTruncated: true, truncateReason: input.evidence.truncation } : {})
     };
 
 
@@ -266,7 +268,7 @@ export async function completeConversationExport(
         } catch { /* callback errors must not abort export completion */ }
     } else {
         throw new Error(
-            `[completeConversationExport] storageAdapter must implement finalizeConversationExport or saveExportRecord for conversation ${completion.targetId} (slot ${slot || 'u0'})`
+            `[completeConversationExport] storageAdapter must implement finalizeConversationExport or saveExportRecord for conversation ${completion.targetId} (slot ${slot || ''})`
         );
     }
 

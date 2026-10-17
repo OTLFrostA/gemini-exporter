@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 const { rpcFixture } = require('./helpers/nativeFixture.js');
 const { parseGeminiRpcConversation } = require('../src/core/parsers/gemini/rpc/parseConversation.js');
 /**
@@ -62,11 +63,11 @@ test('P1-8b: 正常 payload 无拒识、无漂移', () => {
 test('P1-8c: parser 统一质量状态，拒识内容判 partial', () => {
     const junk = [["x_123"], [1, 0], [["u"]]];
     const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), junk]]));
-    const result = parseGeminiRpcConversation(makeDetailRpc([[makeTurn(), junk]]), { providerId: 'gemini', targetConvId: 'abc123def456' });
+    const result = parseGeminiRpcConversation(makeDetailRpc([[makeTurn(), junk]]), { providerId: 'gemini', account: fixtureAccount(), targetConvId: 'abc123def456' });
     const quality = result.conversation.detail.quality;
-    assert.strictEqual(quality.rejectedTurns, 1);
+    assert.strictEqual(result.evidence?.rejectedTurns, 1);
     assert.ok(result.diagnostics.some((d: { code: string }) => d.code === 'GEMINI_TURNS_REJECTED'));
-    assert.strictEqual(quality.heuristicDocumentIds, undefined);
+    assert.deepEqual(result.evidence?.heuristicDocumentIds ?? [], []);
     assert.strictEqual(resolveExportRecordStatus({ quality }).status, 'partial', 'turnsRejected>0 必须标 partial，不能是 ok');
 });
 
@@ -85,7 +86,7 @@ test('P1-8e: pagination 跨页合并 turnsRejected 与 schemaDrift（去重）',
     let calls = 0;
     const client = { fetchConversationPage: async () => { const page = pages[calls++]; return rpcFixture(page, { nextPageToken: page.nextPageToken, schemaDrift: page.schemaDrift, turnsRejected: page.turnsRejected }); } };
     const res = await pagination.getConversationDetail(client, "c_x");
-    assert.strictEqual(res.conversation.detail.quality.rejectedTurns, 3, 'turnsRejected 应跨页累加');
+    assert.strictEqual(res.evidence?.rejectedTurns, 3, 'turnsRejected 应跨页累加');
     assert.deepStrictEqual([...new Set(res.diagnostics.filter((d: { code: string }) => d.code === 'GEMINI_SCHEMA_DRIFT').map((d: { message: string }) => d.message))].sort(), ["drift-a", "drift-b"], 'schemaDrift 应跨页合并去重');
 });
 

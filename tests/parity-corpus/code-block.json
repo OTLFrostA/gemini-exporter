@@ -51,7 +51,6 @@
           {
             "type": "code",
             "code": "from dataclasses import dataclass, field\n\n@dataclass\nclass ExportJob:\n    \"\"\"导出任务：支持取消与重试。\"\"\"\n    conversation_id: str\n    formats: list[str] = field(default_factory=list)\n    cancelled: bool = False\n\n    def cancel(self) -> None:\n        self.cancelled = True  # 幂等：重复调用无副作用\n",
-            "showHeader": true,
             "language": "python"
           },
           {
@@ -66,7 +65,6 @@
           {
             "type": "code",
             "code": "export interface ParityResult {\n  fixture: string;\n  htmlText: string;\n  pdfText: string;\n  /** 归一化后的差异行，空数组表示通过 */\n  diffs: string[];\n}\n\nexport function normalizeForParity(s: string): string {\n  return s\n    .replace(/\\r\\n/g, \"\\n\")\n    .replace(/[ \\t]+/g, \" \")\n    .trim();\n}\n",
-            "showHeader": true,
             "language": "typescript"
           },
           {
@@ -86,7 +84,6 @@
           {
             "type": "code",
             "code": "#!/usr/bin/env bash\nset -euo pipefail\n# 121 消息长会话 fixture 生成\npython3 generate_long_conversation.py --messages 121 --out long-conversation-121.json\n",
-            "showHeader": true,
             "language": "bash",
             "meta": "fixture-gen"
           },
@@ -101,7 +98,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "code-block",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

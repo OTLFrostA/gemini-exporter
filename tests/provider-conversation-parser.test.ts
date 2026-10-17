@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
@@ -209,19 +210,19 @@ test('title authority: rpc candidate wins over takeout/sniff', async () => {
     const { domain, document, resources, sourceVersion } = await parseFixture(sample);
     const title = domain.index.title;
     assert.strictEqual(title, 'RPC Authoritative Title');
-    const low = await parseFixture({ id: 'x', titles: { takeout: 'T' }, messages: [] });
-    assert.strictEqual(low.domain.index.title, 'T');
+    const low = await parseFixture({ id: 'x', title: 'Derived topic', titleSource: 'derived', messages: [] });
+    assert.strictEqual(low.domain.index.title, 'Derived topic');
 });
 
 test('conversation identity and authored timestamp facts are preserved', async () => {
     const { domain, document, resources, sourceVersion } = await parseFixture(sample);
     const conv = domain.index;
-    assert.strictEqual(conv.providerId, 'gemini');
-    assert.strictEqual(conv.id, 'f2b_sample_001');
+    assert.strictEqual(fixtureAccountFor(domain).providerId, 'gemini');
+    assert.strictEqual(conv.key.conversationId, 'f2b_sample_001');
     assert.strictEqual(conv.createdAt, sample.createdAt);
     assert.strictEqual(sourceVersion, sample.updatedAt);
     assert.strictEqual(conv.updatedAt, sample.updatedAt);
-    assert.strictEqual(conv.url, 'https://gemini.google.com/share/f2b-sample');
+    assert.strictEqual(conv.url, undefined);
 });
 
 test('turns shape flattens to user/assistant messages', async () => {
@@ -250,7 +251,7 @@ test('parsed Domain is closed, JSON portable and does not mutate raw fixtures', 
         assertDomainClosure((domain).detail);
         const roundTrip = JSON.parse(JSON.stringify(domain));
         assertDomainClosure((roundTrip).detail);
-        assert.deepEqual(composeDomainDocument(roundTrip, { sourceVersion: require('./helpers/nativeFixture.js').historicalFixture(raw).sourceVersion }).document, document);
+        assert.deepEqual(composeDomainDocument(roundTrip, fixtureAccountFor(roundTrip), { sourceVersion: require('./helpers/nativeFixture.js').historicalFixture(raw).sourceVersion }).document, document);
         assert.equal(JSON.stringify(raw), before);
         assert.ok(!diagnostics.some((d: any) => d.severity === 'error'));
     }
@@ -442,15 +443,15 @@ test('title authority and unknown source handling remain ingestion concerns', as
     assert.equal(domain.index.title, 'Good');
     const unknown = await parseFixture({ id: 'unknown-source-only', title: 'Plain title', titleSource: 'future-provider-tier', messages: [] });
     assert.equal(unknown.domain.index.title, 'Plain title');
-    assert.equal(unknown.domain.index.titleSource, 'legacy');
-    assert.equal(require('../src/core/domain/titleAuthority.js').titleAuthorityRank(unknown.domain.index.titleSource), require('../src/core/domain/titleAuthority.js').titleAuthorityRank('legacy'));
+    assert.equal(unknown.domain.index.titleSource, 'derived');
+    assert.equal(require('../src/core/domain/titleAuthority.js').titleAuthorityRank(unknown.domain.index.titleSource), require('../src/core/domain/titleAuthority.js').titleAuthorityRank('derived'));
 });
-test('raw URL facts remain semantic; export envelope selects url before href', async () => {
+test('source URL aliases do not enter Domain or get synthesized by Composer', async () => {
     for (const raw of [{ url: 'https://gemini.google.com/app/url', href: 'https://gemini.google.com/app/href' }, { href: 'https://gemini.google.com/app/href' }]) {
         const { domain } = await parseFixture({ id: 'url', messages: [], ...raw });
-        assert.equal(domain.index.url, raw.url || raw.href);
+        assert.equal(domain.index.url, undefined);
         assert.equal(domain.href, undefined);
-        assert.ok((await exportDomainMarkdown(domain)).includes(`url: "${raw.url || raw.href}"`));
+        assert.ok(!/^url:/m.test(await exportDomainMarkdown(domain, fixtureAccountFor(domain))));
     }
 });
 test('unknown raw fields are omitted from Domain and AST without mutating input', async () => {

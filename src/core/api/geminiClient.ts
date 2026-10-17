@@ -1,3 +1,5 @@
+import { getOrCreateAccount } from './accountRegistry.js';
+import type { Account } from '../domain/accountRegistry.js';
 import { parseGeminiRpcConversation } from '../parsers/gemini/rpc/parseConversation.js';
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
 import { isDevMode, getErrorMessage } from "../utils/utils.js";
@@ -169,6 +171,7 @@ const pagination = GeminiClientPagination;
         }
 
         async fetchConversationPage(conversationId: string, pageToken?: string | null, targetSid?: string | null, opts?: GeminiDetailRequestOptions): Promise<DetailParseResult> {
+            const account = opts?.account ?? await getOrCreateAccount('gemini', 'default');
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
@@ -259,7 +262,7 @@ const pagination = GeminiClientPagination;
 
             let text = await resp.text();
             try {
-                const native = parseGeminiRpcConversation(text, { providerId: 'gemini', targetConvId: conversationId });
+                const native = parseGeminiRpcConversation(text, { providerId: 'gemini', account, targetConvId: conversationId });
                 const parsed = native;
                 if (isDev) {
                     console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.conversation.detail.messages.length}`);
@@ -285,9 +288,9 @@ const pagination = GeminiClientPagination;
             }
         }
 
-        async getConversationDetail(conversationId: string, targetSid?: string | null): Promise<PaginatedDetailResult> {
+        async getConversationDetail(conversationId: string, targetSid?: string | null, account?: Account): Promise<PaginatedDetailResult> {
             if (pagination.getConversationDetail) {
-                return pagination.getConversationDetail(this, conversationId, targetSid);
+                return pagination.getConversationDetail(this, conversationId, targetSid, account);
             }
             throw new Error("pagination module not found");
         }

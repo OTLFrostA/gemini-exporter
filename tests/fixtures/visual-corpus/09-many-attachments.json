@@ -138,7 +138,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "09-many-attachments",
+      "provider": "gemini"
+    }
   },
   "resourceIds": [
     "img-a",

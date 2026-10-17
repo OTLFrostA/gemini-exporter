@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTakeoutResourceResolver, type TakeoutSourceFile } from '../src/core/parsers/gemini/takeout/archiveResources.js';
@@ -86,7 +87,7 @@ test('URI decoding applies only to source references and archive filenames remai
 test('extensionless image resolution retains generation facts and a separate acquisition handle', () => {
     const path = `${directory}/image-0123456789abcdef`;
     const entry = { _data: { uncompressedSize: 3 }, async: async () => new Uint8Array([0xff, 0xd8, 0xff]) };
-    const result = parseGeminiTakeoutConversation({ htmlText: activity('<p><img src="image-0123456789abcdef.png"></p>'), activityPath, archiveFiles: { [path]: entry } }, { providerId: 'gemini' });
+    const result = parseGeminiTakeoutConversation({ htmlText: activity('<p><img src="image-0123456789abcdef.png"></p>'), activityPath, archiveFiles: { [path]: entry } }, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     const asset = result.conversation.detail.assets[0];
     assert.equal(result.conversation.detail.assets.length, 1);
     assert.equal(asset.kind, 'image');
@@ -109,7 +110,7 @@ test('ZIP selected and batch parsing retain the Gemini Apps activity directory i
     zip.file('Takeout/My Activity/Other Product/MyActivity.html', 'other product activity');
     zip.file('Takeout/My Activity/Other Product/photo.png', 'Other image bytes');
     const bytes = await zip.generateAsync({ type: 'uint8array' });
-    const context = { providerId: 'gemini' as const, readArchive: (bytes: Uint8Array | ArrayBuffer | Blob) => JSZip.loadAsync(bytes) };
+    const context = { account: fixtureAccount(), providerId: 'gemini' as const, readArchive: (bytes: Uint8Array | ArrayBuffer | Blob) => JSZip.loadAsync(bytes) };
     const selected = await parseGeminiTakeoutZip(bytes, context);
     const batch = await parseGeminiTakeoutZipArchive(bytes, context);
     const asset = selected.conversation.detail.assets[0];

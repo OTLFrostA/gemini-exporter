@@ -2,10 +2,10 @@ import { GeminiProtocol } from '../../../protocol/protocol.js';
 import { normId, cleanTitle, isRealTitle } from './extractors.js';
 import { extractInnerPayload } from './payload.js';
 import { extractListItemTimestamp } from './parseList.js';
-import { restoreConversationIndex, type DomainConversationIndex } from '../../../domain/conversationIndex.js';
+import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
 
 /** Metadata returned beside detail belongs to the requested conversation, never a nearby row. */
-export function findListConversationMetadata(top: unknown, targetId: string): DomainConversationIndex | undefined {
+export function findListConversationMetadata(top: unknown, targetId: string): (GeminiIndexObservationInput & { id: string }) | undefined {
     const protocol = GeminiProtocol;
     if (!targetId || !Array.isArray(top)) return undefined;
     for (const rpc of [protocol.RPCS.LIST, protocol.RPCS.LEGACY_LIST]) {
@@ -17,9 +17,9 @@ export function findListConversationMetadata(top: unknown, targetId: string): Do
         const title = cleanTitle(item[1]);
         const realTitle = isRealTitle(title, normId(targetId));
         const updatedAt = extractListItemTimestamp(item);
-        return restoreConversationIndex({ providerId: 'gemini', id: normId(targetId), title: realTitle ? title : '',
-            titleSource: realTitle ? 'rpc' : 'default', cloudAvailability: 'available', hasTakeoutImport: false,
-            ...(updatedAt !== null ? { updatedAt } : {}) });
+        return { id: normId(targetId), title: realTitle ? title : '',
+            titleSource: realTitle ? 'rpc' : 'derived',
+            ...(updatedAt !== null ? { updatedAt } : {}) };
     }
     return undefined;
 }

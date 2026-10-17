@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,12 +13,12 @@ const parse = (data: ConversationRecordInput) => historicalFixture(data, { provi
 test('unified parsing requires explicit provider identity and implemented format', () => {
     const data = { source: 'openai-import', messages: [{ role: 'model', model: 'Model A', content: '**Answer**' }] };
     const result = historicalFixture(data, { providerId: 'custom' });
-    assert.equal(result.conversation.index.providerId, 'custom');
+    assert.equal(fixtureAccountFor(result.conversation).providerId, 'custom');
     assert.equal(result.conversation.detail.messages[0].model, 'Model A');
     for (const providerId of ['', '  ']) {
         assert.throws(() => historicalFixture(data, { providerId: providerId as never }), /providerId/);
     }
-    assert.throws(() => parseConversation({ format: 'raw-rpc' as never, providerId: 'gemini', data: data as never }), /Unsupported conversation format/);
+    assert.throws(() => parseConversation({ account: fixtureAccount('gemini'), format: 'raw-rpc' as never, providerId: 'gemini', data: data as never }), /Unsupported conversation format/);
 });
 
 test('historical record fixtures retain provider inference inside the migration boundary', () => {
@@ -42,7 +43,7 @@ test('source provenance and explicit completeness survive JSON without leaking t
     assertDomainClosure((conversation).detail);
     assert.equal('nextPageToken' in conversation, false);
     assert.equal('source' in conversation, false);
-    const document = composeDomainDocument(conversation).document;
+    const document = composeDomainDocument(conversation, fixtureAccountFor(conversation)).document;
     assert.equal(document.messages[0].modelLabel, 'Model A');
     assert.equal('provenance' in document, false);
     assert.equal('completeness' in document, false);

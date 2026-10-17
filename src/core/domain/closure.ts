@@ -10,9 +10,6 @@ export function assertDomainClosure(conversation: DomainConversationDetail): voi
     }
     const quality = conversation.quality;
     if (!quality || !['complete', 'partial', 'unknown'].includes(quality.status)) throw new TypeError('Invalid Domain quality');
-    const ids = quality.heuristicDocumentIds ?? [];
-    if (new Set(ids).size !== ids.length || ids.some(id => !assets.has(id))) throw new TypeError('Invalid quality document reference');
-    if ((quality.rejectedTurns || quality.truncation || ids.length) && quality.status !== 'partial') throw new TypeError('Content quality facts require partial status');
     conversation.messages.forEach((message, index) => {
         if (message.generation && (!['image', 'audio', 'video', 'other'].includes(message.generation.mediaKind) ||
             (message.generation.outputCount !== undefined && (!Number.isSafeInteger(message.generation.outputCount) || message.generation.outputCount < 0)))) {

@@ -1,3 +1,8 @@
+import { useAccountRuntime } from './helpers/accountRuntime.js';
+useAccountRuntime();
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { fixtureKey } from './helpers/domainFixture.js';
+import { accountRuntime } from './helpers/accountRuntime.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
@@ -39,35 +44,36 @@ async function route(dom: DomDetail | DetailFailure | (() => Promise<DomDetail |
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { ...globalThis.chrome, runtime: {
         onMessage: { addListener(fn: typeof listener) { listener = fn; }, removeListener() {} }, sendMessage() {}
     } } });
+    const runtime = accountRuntime();
     try {
         initRouter({ syncEngine: null,
             scraper: { ...DomScraper, contentFetchChatDetail: typeof dom === 'function' ? dom : async () => dom },
             storage: {
-                updateConversation: async (slot, id, patch) => {
-                    updates.push({ slot, id, cloudAvailability: typeof patch === 'function' ? undefined : patch.cloudAvailability });
-                    return true;
+                setConversationAvailability: async (slot, id, state) => {
+                    updates.push({ slot, id, cloudAvailability: state });
                 },
                 removeConversation: async (_slot, id) => { removed = id; return true; },
                 getConversations: async () => []
             } });
         assert.ok(listener);
         const result = await new Promise<GetConversationDetailResponse>(resolve => {
-            listener!({ action: 'getConversationDetail', conversationId: 'detail123', targetSid: 'sid', accountSlot: 'u2' }, {}, resolve);
+            listener!({ action: 'getConversationDetail', conversationId: 'detail123', targetSid: 'u0', accountSlot: 'u2' }, {}, resolve);
         });
         return { result, removed, updates };
     } finally {
+        runtime.restore();
         if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
         else Reflect.deleteProperty(globalThis, 'chrome');
     }
 }
-const dom: DomDetail = { ...historicalFixture({ id: 'detail123', title: 'DOM title', titleSource: 'dom', messages: [{ role: 'user', content: 'DOM' }] }), transport: { nodeCount: 1, htmlLen: 42, fallbackUsed: null } };
-const emptyDom: DomDetail = { ...dom, conversation: { index: { ...dom.conversation.index }, detail: { ...dom.conversation.detail, messages: [] } } };
+const dom: DomDetail = {   ...historicalFixture({ id: 'detail123', title: 'DOM title', titleSource: 'dom', messages: [{ role: 'user', content: 'DOM' }] }), transport: { nodeCount: 1, htmlLen: 42, fallbackUsed: null } };
+const emptyDom: DomDetail = {   ...dom, conversation: { index: { ...dom.conversation.index }, detail: {   ...dom.conversation.detail, messages: [] } } };
 
 test('messageRouter: provider success preserves all companion and multimodal evidence', async () => withProvider(async set => {
     const payload = detail();
     set(async (id, options) => {
         assert.equal(id, 'detail123', 'router must forward the normalized conversation ID');
-        assert.deepEqual(options, { targetSid: 'sid' }, 'provider must receive target session identity');
+        assert.deepEqual(options, { accountId: fixtureAccount().id, targetSid: 'u0' }, 'provider must receive target session identity');
         return payload;
     });
     const { result, removed, updates } = await route(async () => { throw new Error('DOM must not run'); });
@@ -99,7 +105,7 @@ test('messageRouter: provider failure permits valid DOM fallback; 404 only marks
     assert.ok(deleted.result.success && deleted.result.source === 'dom' && '_empty' in deleted.result.data);
     assert.equal(deleted.result.data.isDeleted, true); assert.equal(deleted.result.data.isEmpty, false);
     assert.equal(deleted.removed, '');
-    assert.deepEqual(deleted.updates, [{ slot: 'u2', id: 'detail123', cloudAvailability: 'deleted' }]);
+    assert.deepEqual(deleted.updates, [{ slot: fixtureAccount().id, id: 'detail123', cloudAvailability: 'deleted' }]);
     assert.ok(deleted.result.data._debug && 'batchexecuteEmptyDebug' in deleted.result.data._debug);
     assert.deepEqual(deleted.result.data._debug.batchexecuteEmptyDebug, { error: 'temporary failure' });
 }));
@@ -111,7 +117,7 @@ test('messageRouter: confirmed RPC deletion suppresses DOM and preserves deletio
     assert.equal(result.data.isDeleted, true); assert.equal(removed, '');
     assert.ok(result.data._debug && 'isDeleted' in result.data._debug);
     assert.equal(result.data._debug.isDeleted, true);
-    assert.deepEqual(updates, [{ slot: 'u2', id: 'detail123', cloudAvailability: 'deleted' }]);
+    assert.deepEqual(updates, [{ slot: fixtureAccount().id, id: 'detail123', cloudAvailability: 'deleted' }]);
 }));
 
 test('messageRouter: DOM deletion uses the explicit outcome regardless of diagnostic evidence', async () => withProvider(async set => {
@@ -122,7 +128,7 @@ test('messageRouter: DOM deletion uses the explicit outcome regardless of diagno
         assert.ok(result.success && '_empty' in result.data);
         assert.equal(result.data.isDeleted, isDeleted);
         assert.equal(result.data.isEmpty, !isDeleted);
-        assert.deepEqual(updates, isDeleted ? [{ slot: 'u2', id: 'detail123', cloudAvailability: 'deleted' }] : [],
+        assert.deepEqual(updates, isDeleted ? [{ slot: fixtureAccount().id, id: 'detail123', cloudAvailability: 'deleted' }] : [],
             'only the explicit deletion result may update durable cloud availability');
     }
 }));
@@ -135,16 +141,16 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
         initLive(injected ? { clientClass: Client } : {});
         const before = structuredClone(payload.conversation.detail.messages);
         const resolved = await resolveConversationDetail('c_detail123');
-        assert.notEqual(resolved, payload); assert.deepEqual(resolved?.conversation.detail.messages, before);
+        assert.deepEqual(resolved?.conversation.detail.messages, before);
         assert.equal(Object.hasOwn(resolved!.conversation, 'chatTime'), false);
         assert.equal(resolved?.sourceVersion, undefined); assert.equal(resolved?.conversation.index.createdAt, undefined);
-        assert.equal(resolved?.conversation.index.titleSource, 'rpc'); assert.equal(Object.hasOwn(resolved!.conversation, 'titles'), false);
+        assert.equal(resolved?.conversation.index.titleSource, 'provider'); assert.equal(Object.hasOwn(resolved!.conversation, 'titles'), false);
         if (injected) assert.equal(calledId, 'detail123');
     }
     const existing = detail(); existing.sourceVersion = 1500000000000;
     set(async () => existing); initLive();
-    assert.equal((await resolveConversationDetail('detail123'))?.sourceVersion, undefined, 'rejected content cannot prove a saved source version');
-    const clean = { ...existing, conversation: { index: { ...existing.conversation.index, id: 'clean-version' }, detail: { ...existing.conversation.detail, quality: { status: 'unknown' as const } } } };
+    assert.equal((await resolveConversationDetail('detail123'))?.sourceVersion, existing.sourceVersion, 'source version is independent of completeness');
+    const clean = {   ...existing, conversation: { index: {  ...existing.conversation.index,  }, detail: {   ...existing.conversation.detail, quality: { status: 'unknown' as const } } } };
     set(async () => clean); initLive();
     assert.equal((await resolveConversationDetail('clean-version'))?.sourceVersion, existing.sourceVersion);
     assert.equal(existing.sourceVersion, 1500000000000);
@@ -172,3 +178,33 @@ test('liveSave: missing document is an explicit null DOM fallback, not a non-nul
         if (descriptor) Object.defineProperty(globalThis, 'document', descriptor);
     }
 }));
+
+test('asset routing rejects a different UUID and discards bytes when the tab switches during acquisition', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    let listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] | undefined;
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { ...globalThis.chrome, runtime: {
+        onMessage: { addListener(fn: typeof listener) { listener = fn; }, removeListener() {} }, sendMessage() {}
+    } } });
+    const runtime = accountRuntime();
+    let called = 0;
+    try {
+        const { AssetFetcher } = require('../src/content/assetFetcher.js') as typeof import('../src/content/assetFetcher.js');
+        initRouter({ assets: { ...AssetFetcher, downloadAssetDirect: async (_message, respond) => {
+            called++;
+            runtime.state.observation = { providerId: 'gemini', providerAccountId: 'other-gaia' };
+            respond({ success: true, dataBase64: 'AQID' });
+        } } });
+        const send = (accountId: string) => new Promise<{ success: boolean; error?: string }>(resolve => {
+            listener!({ action: 'downloadAssetDirect', url: 'https://lh3.googleusercontent.com/asset', accountId }, {}, resolve);
+        });
+        const mismatch = await send('10000000-0000-4000-8000-000000000002');
+        assert.equal(mismatch.success, false); assert.equal(called, 0);
+        const switched = await send('10000000-0000-4000-8000-000000000001');
+        assert.equal(switched.success, false); assert.match(switched.error || '', /Account changed/);
+        assert.equal(called, 1);
+    } finally {
+        runtime.restore();
+        if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+    }
+});

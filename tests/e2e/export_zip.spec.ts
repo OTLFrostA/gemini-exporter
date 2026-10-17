@@ -1,6 +1,11 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
@@ -19,7 +24,7 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
         <head>
           <script>
             window._WIZ_global_data = {
-              SNlM0e: 'mock_at_token_123',
+              qDCSke: '10000000001', SNlM0e: 'mock_at_token_123',
               cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
             };
           </script>
@@ -71,8 +76,8 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
         { id: 'real_exp_001', title: '深度学习反向传播算法详解', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (convs).map(canonicalIndexFixture),
-        exportedIds: {},
+        ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -117,10 +122,10 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
     await expect(optionsPage.locator('[data-chat-id="real_exp_001"] .badge')).toContainText(/已导出|Exported/);
 
     const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['exportedIds']);
+      return await chrome.storage.local.get(['exported_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    expect(storageData.exportedIds['real_exp_001']).toBeTruthy();
-    expect(storageData.exportedIds['real_exp_001'].title).toBe('深度学习反向传播算法详解');
+    expect(storageData['exported_10000000-0000-4000-8000-000000000001']['real_exp_001']).toBeTruthy();
+    expect(storageData['exported_10000000-0000-4000-8000-000000000001']['real_exp_001'].title).toBe('深度学习反向传播算法详解');
   });
 });
 

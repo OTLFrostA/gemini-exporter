@@ -23,12 +23,12 @@ export type DisplayBlock = (
     | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: DisplayInline[] }
     | { type: 'list'; ordered: boolean; start?: number; items: Array<{ blocks: DisplayBlock[] }> }
     | { type: 'quote'; blocks: DisplayBlock[] }
-    | { type: 'code'; code: string; language?: string; meta?: string; showHeader: boolean }
+    | { type: 'code'; code: string; language?: string; meta?: string }
     | { type: 'math'; source: string }
     | { type: 'table'; caption?: DisplayInline[]; columnAlignments: DisplayCell['align'][]; headerRows: DisplayCell[][]; rows: DisplayCell[][] }
     | { type: 'image'; resourceId: string; alt: string; caption?: DisplayInline[] }
     | { type: 'file'; resourceId: string; label: string; kind: string; mediaType?: string; byteLength?: number; description?: DisplayInline[] }
-    | { type: 'disclosure'; kind: string; title?: string; initiallyCollapsed?: boolean; blocks: DisplayBlock[] }
+    | { type: 'disclosure'; kind: string; title?: string; blocks: DisplayBlock[] }
     | { type: 'thematicBreak' }
     | { type: 'placeholder'; resourceId?: string; kind: 'image' | 'file'; text: string; details?: DisplayInline[] }
     | { type: 'unsupported'; sourceType: string; text: string }
@@ -36,15 +36,13 @@ export type DisplayBlock = (
 
 export interface SourceGroup {
     type: 'sources';
-    heading?: DisplayInline[];
-    items: Array<{ id: string; label: string; href?: string; number?: number }>;
+    items: Array<{ id: string; label: string; href?: string; number: number }>;
 }
 
 export interface DisplayMessage {
     type: 'message';
     id: string;
     variant: 'bubble' | 'flow';
-    heading?: { level: 1 | 2 | 3 | 4 | 5 | 6; text: string };
     label: 'you' | 'assistant' | 'system' | 'developer' | 'unknown';
     modelLabel?: string;
     blocks: DisplayBlock[];
@@ -55,18 +53,17 @@ export interface DocumentAst {
     schemaVersion: 2;
     documentLanguage?: string;
     /** Format-neutral document identity and ISO dates, selected once by the composer. */
-    metadata?: { id: string; provider: string; url?: string; createdAt?: string; updatedAt?: string };
+    metadata: { id: string; provider: string; url?: string; createdAt?: string; updatedAt?: string };
     header: {
         title: string;
         providerLabel: string;
         /** UTC YYYY-MM-DD display date, not an export date or a raw timestamp.
-         * Source version, then creation date; omitted if neither is valid.
+         * Index activity, then creation date; omitted if neither is valid.
          * Composers select it once; backends must not reselect or reinterpret it.
          */
         date?: string;
         messageCount: number;
     };
-    emptyNotice?: string;
     messages: DisplayMessage[];
 }
 

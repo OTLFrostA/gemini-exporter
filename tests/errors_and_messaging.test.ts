@@ -31,10 +31,10 @@ test('errors - GeminiError and error hierarchy inheritance', () => {
     assert.strictEqual(takeoutErr.entryName, 'MyActivity.html');
 
     // 4. StorageError
-    const storageErr = new StorageError('Quota exceeded', 'set', 'gemini_conversations');
+    const storageErr = new StorageError('Quota exceeded', 'set', 'conversations_10000000-0000-4000-8000-000000000001');
     assert.ok(storageErr instanceof GeminiError);
     assert.strictEqual(storageErr.operation, 'set');
-    assert.strictEqual(storageErr.key, 'gemini_conversations');
+    assert.strictEqual(storageErr.key, 'conversations_10000000-0000-4000-8000-000000000001');
 });
 
 test('messaging - getErrorMessage safely normalizes all error types', () => {

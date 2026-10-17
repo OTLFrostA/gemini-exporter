@@ -1,3 +1,5 @@
+import { useAccountRuntime } from './helpers/accountRuntime.js';
+useAccountRuntime();
 import test from 'node:test';
 import assert from 'node:assert';
 
@@ -100,7 +102,7 @@ test('S1 - getConversationDetail intercepts BardErrorInfo 1167 directly without 
     let prunedId = '';
     let availability = '';
     const mockStorage = {
-        updateConversation: async (_slot: string, _id: string, patch: { cloudAvailability: string }) => { availability = patch.cloudAvailability; },
+        setConversationAvailability: async (_slot: string, _id: string, state: string) => { availability = state; },
         removeConversation: async (_slot: string, id: string) => {
             prunedId = id;
         },
@@ -143,10 +145,10 @@ for (const failure of ['HTTP 401', 'HTTP 403', 'HTTP 429', 'request timeout', 'p
         let removed = false;
         try {
             freshInit({ syncEngine: null, assets: null,
-                storage: { updateConversation: async () => { marked = true; }, removeConversation: async () => { removed = true; } },
+                storage: { setConversationAvailability: async () => { marked = true; }, removeConversation: async () => { removed = true; } },
                 scraper: { contentFetchChatDetail: async () => ({ id: 'auth_failure', error: failure, isDeleted: false }) }
             });
-            const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'auth_failure', accountSlot: 'u1' });
+            const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'auth_failure', accountSlot: '10000000-0000-4000-8000-000000000002' });
             assert.equal(responses.length, 1);
             assert.equal(responses[0].data.isDeleted, false);
             assert.equal(responses[0].data.isEmpty, true, 'transient failures do not imply a deleted cloud conversation');
@@ -162,7 +164,7 @@ test('S1 - cloud availability write failure retains deletion evidence without de
     let removed = false;
     try {
         freshInit({ syncEngine: null, scraper: null, assets: null,
-            storage: { updateConversation: async () => { throw new Error('quota failure'); }, removeConversation: async () => { removed = true; } } });
+            storage: { setConversationAvailability: async () => { throw new Error('quota failure'); }, removeConversation: async () => { removed = true; } } });
         const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'write_fail' });
         assert.equal(responses.length, 1); assert.equal(responses[0].success, true);
         assert.equal(responses[0].data.isDeleted, true); assert.equal(removed, false);
@@ -178,7 +180,8 @@ for (const failure of ['memory', 'ui-throw', 'ui-reject']) {
         const order: string[] = [];
         provider.fetchConversationDetail = async () => { throw new Error('HTTP 404'); };
         console.warn = (...args: unknown[]) => { warnings.push(args); };
-        Reflect.set(chrome.runtime, 'sendMessage', () => {
+        Reflect.set(chrome.runtime, 'sendMessage', (message: {action:string}) => {
+            if (message.action === 'accountRegistry') return Reflect.apply(originalSend, chrome.runtime, [message]);
             order.push('ui');
             if (failure === 'ui-throw') throw new Error('UI unavailable');
             if (failure === 'ui-reject') return Promise.reject(new Error('UI unavailable'));
@@ -189,7 +192,7 @@ for (const failure of ['memory', 'ui-throw', 'ui-reject']) {
                     order.push('memory');
                     if (failure === 'memory') throw new Error('Memory marker unavailable');
                 } },
-                storage: { updateConversation: async () => { order.push('storage'); throw new Error('quota failure'); } }
+                storage: { setConversationAvailability: async () => { order.push('storage'); throw new Error('quota failure'); } }
             });
             const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'isolated_deletion' });
             assert.equal(responses.length, 1); assert.equal(responses[0].success, true);

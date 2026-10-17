@@ -602,3 +602,15 @@ test('C3 review: numeric SID HTTP diagnostics use the real SID contract', async 
         await assert.rejects(new Client().getConversationList(null, '12345'), /sidLen:5/);
     } finally { glob.chrome = previousChrome; glob.fetch = previousFetch; }
 });
+
+test('email cannot route credentials even when a stored key matches it', async () => {
+    const glob = globalThis as Record<string, unknown>;
+    const previous = glob.chrome;
+    const raw = { 'alice@example.com': { sid: 'session', at: 'token', bl: 'build', accountSlot: 'u0' } };
+    const mock = makeMockStorage({ gemini_credentials_map: raw });
+    glob.chrome = { storage: { session: mock, local: mock } };
+    try {
+        await assert.rejects(getFreshCredManager().resolveCred('alice@example.com'), /Email is not a credential routing identity/);
+        assert.deepEqual(mock.data.gemini_credentials_map, raw);
+    } finally { glob.chrome = previous; }
+});

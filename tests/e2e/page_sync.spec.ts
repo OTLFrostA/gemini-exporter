@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test.describe('In-Page Active Chat & Real Title Synchronization', () => {
   test('should detect active Gemini conversation and update real title in place', async ({ context, extensionId }) => {
@@ -12,7 +17,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         { id: '39d5b41870e49a67', title: '未命名对话(39d5b4)', timestamp: 1680000000000 },
         { id: 'newer_chat_999', title: '最新对话', timestamp: 1700000000000 }
       ];
-      await chrome.storage.local.set({ gemini_conversations: (initialConvs).map(canonicalIndexFixture) });
+      await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (initialConvs).map(canonicalIndexFixture) });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
       }
@@ -31,7 +36,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>量子纠缠物理原理深度解析 - Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>量子纠缠物理原理深度解析 - Google Gemini</title>
         </head>
         <body>
           <h1 data-test-id="conversation-title">量子纠缠物理原理深度解析</h1>
@@ -73,7 +78,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
             "tC_token_xyz",
             "量子纠缠物理原理深度解析"
           ]))}]]`,
-          slot: 'u0'
+          slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: '10000000001' }
         }
       }, location.origin);
     });
@@ -82,9 +87,9 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     await optionsPage.bringToFront();
     await expect.poll(async () => {
       const data = await optionsPage.evaluate(async () => {
-        return await chrome.storage.local.get(['gemini_conversations']);
+        return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      const c = (data.gemini_conversations || []).find((x: any) => x.id === '39d5b41870e49a67' || x.id === 'c_39d5b41870e49a67');
+      const c = (data['conversations_10000000-0000-4000-8000-000000000001'] || []).find((x: any) => x.key.conversationId === '39d5b41870e49a67' || x.key.conversationId === 'c_39d5b41870e49a67');
       return c?.title;
     }, { timeout: 10000 }).toBe('量子纠缠物理原理深度解析');
 
@@ -114,7 +119,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
       const takeoutConvs = [
         { id: 'takeout_chat_888', title: '微服务与分布式事务设计', timestamp: 1670000000000 }
       ];
-      await chrome.storage.local.set({ gemini_conversations: (takeoutConvs).map(canonicalIndexFixture) });
+      await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (takeoutConvs).map(canonicalIndexFixture) });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
       }
@@ -131,7 +136,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>微服务与分布式事务设计 - Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>微服务与分布式事务设计 - Google Gemini</title>
         </head>
         <body>
           <h1 data-test-id="conversation-title">微服务与分布式事务设计 - Google Gemini</h1>
@@ -145,9 +150,9 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     let chat: any = null;
     await expect.poll(async () => {
       const storageData = await optionsPage.evaluate(async () => {
-        return await chrome.storage.local.get(['gemini_conversations']);
+        return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'takeout_chat_888');
+      chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.key.conversationId === 'takeout_chat_888');
       return chat?.title;
     }, { timeout: 10000 }).toBe('微服务与分布式事务设计');
 
@@ -176,7 +181,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
       const convs = [
         { id: 'loading_chat_777', title: '如何用Rust实现异步Actor模型', timestamp: 1670000000000 }
       ];
-      await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
+      await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture) });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
       }
@@ -191,7 +196,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>Google Gemini</title>
         </head>
         <body>
           <div class="loading-spinner">Loading...</div>
@@ -206,9 +211,9 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
 
     // 3. Verify that storage and options page RETAINED the real title and NEVER became "Google Gemini"
     const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_conversations']);
+      return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'loading_chat_777');
+    const chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.key.conversationId === 'loading_chat_777');
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('如何用Rust实现异步Actor模型');
     expect(chat.title).not.toBe('Google Gemini');
@@ -225,7 +230,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>测试对话 - Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>测试对话 - Google Gemini</title>
         </head>
         <body style="width: 1000px; height: 800px;">
           <h1 data-test-id="conversation-title">测试对话</h1>

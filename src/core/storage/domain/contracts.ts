@@ -2,14 +2,14 @@ import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import type { DomainConversationWithDetail } from '../../domain/conversation.js';
 import type { ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
 
-export const DOMAIN_STORAGE_VERSION = 2;
-export const DOMAIN_CONTRACT_VERSION = 2;
+export const DOMAIN_STORAGE_VERSION = 3;
+export const DOMAIN_CONTRACT_VERSION = 3;
 export const DOMAIN_DB_NAME = 'gemini_exporter_domain';
 export const DOMAIN_DB_VERSION = 3;
 export const ACCOUNT_STORE = 'accounts';
 
 /** Storage identity includes the account; provider IDs and conversation IDs are opaque. */
-export interface DomainStorageIdentity { providerId: string; accountSlot: string; conversationId: string }
+export interface DomainStorageIdentity { providerId: string; accountId: string; conversationId: string }
 /** Acquired/archive bytes are durable acquisition context, never semantic Domain fields. */
 export interface StoredDomainResource { assetId: string; bytes: Uint8Array; sourcePath?: string }
 export interface DomainStorageRecord {
@@ -20,7 +20,7 @@ export interface DomainStorageRecord {
     origin: 'source' | 'legacy-storage';
     /** Opaque token for the current record; no revision history is retained. */
     revision: string;
-    /** Source updatedAt version of the saved body. Absent for partial/unversioned captures. */
+    /** Source updatedAt version of the saved body. Absent when the source provides no version. */
     savedAt?: number;
     conversation: DomainConversationWithDetail;
     acquisitionHints: ResourceAcquisitionHints;

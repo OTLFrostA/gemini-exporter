@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -19,19 +20,19 @@ function turn(text: string, id: string, document: boolean): unknown[] {
 }
 test('generated file stays on its source turn, retains chip position, and carries exact UTF-8 source bytes', () => {
     const input = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn('Before\n\nAfter', 'later', true), turn('Earlier caption', 'earlier', false)]])]]);
-    const result = parseGeminiRpcConversation(input, { providerId: 'gemini', targetConvId: 'e6dc4e0732ba568b' });
+    const result = parseGeminiRpcConversation(input, { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'e6dc4e0732ba568b' });
     const { conversation } = result;
     assert.equal(conversation.detail.assets.length, 1, 'no heuristic duplicate or cross-turn document');
     const asset = conversation.detail.assets[0];
     assert.equal(asset.name, packet[9]);
-    const bytes = Uint8Array.from(atob(asset.dataBase64!), value => value.charCodeAt(0));
+    const bytes = Uint8Array.from(atob(result.acquisitionHints[asset.id].dataBase64!), value => value.charCodeAt(0));
     assert.equal(new TextDecoder().decode(bytes), (packet[32] as unknown[])[2]);
     const earlier = conversation.detail.messages.find(message => message.id === 'rc_earlier')!;
     assert.equal(earlier.attachmentIds?.length ?? 0, 0);
     assert.deepEqual(earlier.content.map(node => node.type), ['paragraph']);
     const later = conversation.detail.messages.find(message => message.id === 'rc_later')!;
     assert.deepEqual(later.content.map(node => node.type), ['paragraph', 'file', 'paragraph']);
-    const output = renderDocumentMarkdown(composeDomainDocument(conversation).document, { [asset.id]: 'files/plant_hydraulic_models.tex' });
+    const output = renderDocumentMarkdown(composeDomainDocument(conversation, fixtureAccountFor(conversation)).document, { [asset.id]: 'files/plant_hydraulic_models.tex' });
     assert.equal(output.match(/\[Plant Hydraulic Network Modeling\]/g)?.length, 1);
     assert.match(output, /Before\n\n\[Plant Hydraulic Network Modeling\].*\n\nAfter/);
 });

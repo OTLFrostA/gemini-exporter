@@ -1,3 +1,5 @@
+import { useAccountRuntime } from './helpers/accountRuntime.js';
+useAccountRuntime();
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');

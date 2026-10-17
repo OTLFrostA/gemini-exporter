@@ -8,7 +8,7 @@ const mediaIndex = require('../src/core/resources/takeout/mediaIndex.js');
 // The full media-index suite covers general matching/slot isolation. This is a
 // distinct substring-direction regression: the requested name contains a stored one.
 test('p1_h1 - fallback must not match another file via substring', async () => {
-    const slot = 'p1-h1-substring';
+    const slot = '10000000-0000-4000-8000-000000000001';
     const fakeBytes = new Uint8Array([1, 2, 3]);
     mediaIndex.commitTakeoutData(slot, {
         mediaMap: { '1': [{ filename: 'cat-photo.png', fileObj: { async: async () => fakeBytes } }] },

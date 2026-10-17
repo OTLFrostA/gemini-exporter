@@ -14,27 +14,14 @@ export interface StoredExportRecord extends StoredObject {
     hasFailedAssets?: boolean;
 }
 
-export interface StoredAccountSlot extends StoredObject {
-    email?: string;
-    name?: string;
-    slot?: string;
-    accountId?: string;
-    gaiaId?: string;
-    count?: number;
-    lastSync?: number | string;
-}
-
 // Invalid historical objects remain explicit alternatives. They are not a
 // catch-all that erases the ordinary record's field contract.
 type IncompatibleFields<Model, Keys extends keyof Model> = {
     [Key in Keys]-?: StoredObject & { [Field in Key]-?: Exclude<StoredValue, Model[Field]> }
 }[Keys];
 type ExportKeys = 'format' | 'exportedAt' | 'title' | 'messageCount' | 'files' | 'status' | 'hasFailedAssets';
-type SlotKeys = 'email' | 'name' | 'slot' | 'accountId' | 'gaiaId' | 'count' | 'lastSync';
 type LegacyStoredExportRecord = IncompatibleFields<StoredExportRecord, ExportKeys>;
-type LegacyStoredAccountSlot = IncompatibleFields<StoredAccountSlot, SlotKeys>;
 export type StoredExportRecordMap = Record<string, StoredExportRecord | LegacyStoredExportRecord | StoredPrimitive | StoredValue[]>;
-export type StoredAccountSlotMap = Record<string, StoredAccountSlot | LegacyStoredAccountSlot | StoredPrimitive | StoredValue[]>;
 export interface StoredSyncStatus { timestamp: StoredValue; count: StoredValue; }
 
 /** Validate the storage value capability, not a complete domain record. */
@@ -92,24 +79,5 @@ function isStoredExportMap(value: unknown): value is StoredExportRecordMap {
 }
 export function readStoredExportMap(value: unknown): StoredExportRecordMap {
     if (!isStoredExportMap(value)) throw new TypeError('Expected stored export records');
-    return value;
-}
-function isStoredAccountSlot(value: unknown): value is StoredAccountSlot {
-    return isRecordContainer(value) && optionalStrings(value, ['email', 'name', 'slot', 'accountId', 'gaiaId'])
-        && optionalNumber(value.count)
-        && (value.lastSync === undefined || typeof value.lastSync === 'string' || typeof value.lastSync === 'number');
-}
-function isLegacyStoredAccountSlot(value: unknown): value is LegacyStoredAccountSlot {
-    return isRecordContainer(value) && !isStoredAccountSlot(value);
-}
-function isStoredSlotEntry(value: unknown): value is StoredAccountSlotMap[string] {
-    return isStoredPrimitive(value) || (Array.isArray(value) && value.every(isStoredValue))
-        || isStoredAccountSlot(value) || isLegacyStoredAccountSlot(value);
-}
-function isStoredSlotMap(value: unknown): value is StoredAccountSlotMap {
-    return typeof value === 'object' && value !== null && Object.values(value).every(isStoredSlotEntry);
-}
-export function readStoredSlotMap(value: unknown): StoredAccountSlotMap {
-    if (!isStoredSlotMap(value)) throw new TypeError('Expected stored account slots');
     return value;
 }

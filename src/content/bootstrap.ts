@@ -7,7 +7,7 @@ import {
     withCredMapLock,
 } from '../core/api/client/credStorage.js';
 import { resolveCurrentAccount, matchesCurrentAccount } from './accountContext.js';
-import { readAccountObservation } from '../core/domain/accountRegistry.js';
+import { readAccountParameters } from '../core/domain/accountRegistry.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { getErrorMessage } from '../core/utils/messaging.js';
 
@@ -292,7 +292,7 @@ if (typeof window !== 'undefined') {
             if ('requestId' in payload) return; // The requesting resolver owns this reply.
             // The same-window payload is untrusted and is validated before Registry access.
             try {
-                const observation = payload.observation === null ? null : readAccountObservation(payload.observation);
+                const observation = payload.observation === null ? null : readAccountParameters(payload.observation);
                 void resolveCurrentAccount(observation, payload.slot).catch(error => console.warn('[Gemini Exporter] Account discovery failed', getErrorMessage(error)));
             } catch (error) { if (isDev()) console.debug('[Gemini Exporter] Invalid account observation', error); }
             return;
@@ -332,15 +332,6 @@ if (typeof window !== 'undefined') {
                         sid
                     });
                     updateContextCreds(map[sid]);
-                    if (profile?.email || profile?.name) {
-                        try {
-                            const slotUpdate: Record<string, any> = { slot };
-                            if (profile.email) slotUpdate.email = profile.email;
-                            if (profile.name) slotUpdate.name = profile.name;
-                            if (profile.gaiaId) slotUpdate.gaiaId = profile.gaiaId;
-                            await StorageService.updateAccountSlot(slot, slotUpdate);
-                        } catch { /* best effort */ }
-                    }
                     if (isDev()) {
                         console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (map[sid].at || '').length);
                     }

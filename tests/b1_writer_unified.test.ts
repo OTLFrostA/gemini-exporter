@@ -48,10 +48,10 @@ test.afterEach(() => {
 test('B1 - 10 张 PNG 经 writer 落盘：totalBytes 含附件且 compression=STORE', async () => {
     const writer = new ZipWriter('test_export');
     const pngBytes = new Uint8Array(64 * 1024); // 每张 64KB
-    const pipeline = new AssetPipeline({
+    const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         writer,
         fetchAssetDelegate: async () => ({ success: true, dataBuffer: pngBytes.buffer.slice(0) })
-    });
+    }) });
 
     for (let i = 0; i < 10; i++) {
         const res = await pipeline.processAsset(
@@ -102,13 +102,13 @@ test('B1 - takeout fallback 统一走 writer.writeFile', async () => {
     const writer = {
         writeFile: async (p: string, c: any) => { written.push([p, c]); return p; }
     };
-    const pipeline = new AssetPipeline({
+    const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         writer: writer as any,
         fetchAssetDelegate: async () => ({ success: false, error: 'network down' }),
         takeoutEngine: {
             getTakeoutFallbackMedia: async () => new Uint8Array([9, 9, 9])
         }
-    });
+    }) });
 
     const res = await pipeline.processAsset(
         { assetId: 'test-asset', url: 'https://example.com/f.bin', localName: 'f.bin' },

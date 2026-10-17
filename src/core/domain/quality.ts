@@ -1,21 +1,13 @@
-/** Content facts established by parsers, independent of diagnostics and resource delivery. */
-export interface ContentQuality {
-    status: 'complete' | 'partial' | 'unknown';
+/** Persisted semantic quality. Parser evidence belongs beside the Domain snapshot. */
+export interface ContentQuality { status: 'complete' | 'partial' | 'unknown' }
+
+export interface QualityEvidence {
     rejectedTurns?: number;
-    /** Source acquisition stopped before the full body was read. */
     truncation?: string;
-    /** Asset identities whose document content was assembled heuristically. */
     heuristicDocumentIds?: string[];
 }
 
-/** Known content loss or uncertain reconstruction always makes the body partial. */
-export function contentQuality(facts: ContentQuality): ContentQuality {
-    const { rejectedTurns = 0, truncation, heuristicDocumentIds = [] } = facts;
-    const ids = [...new Set(heuristicDocumentIds)];
-    return {
-        status: rejectedTurns > 0 || truncation || ids.length ? 'partial' : facts.status,
-        ...(rejectedTurns ? { rejectedTurns } : {}),
-        ...(truncation ? { truncation } : {}),
-        ...(ids.length ? { heuristicDocumentIds: ids } : {}),
-    };
+/** Known content loss or uncertain reconstruction makes the body partial. */
+export function contentQuality(facts: ContentQuality & QualityEvidence): ContentQuality {
+    return { status: (facts.rejectedTurns ?? 0) > 0 || facts.truncation || facts.heuristicDocumentIds?.length ? 'partial' : facts.status };
 }

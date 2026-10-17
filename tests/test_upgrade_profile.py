@@ -74,18 +74,15 @@ const detail={local:empty.local,databases:{...before.databases,gemini_exporter_d
 await assertPersistedBaseline(before,detail);
 const sameIdTwoAccounts=structuredClone(before);sameIdTwoAccounts.local.gemini_conversations_u1=[{id:'a',messages:[{role:'user',content:'Other account body'}]}];
 assert.equal(bodyFacts(sameIdTwoAccounts).length,2); // Inline bodies carry their own account identity.
-// Actual migration contract, loaded independently to construct the valid disk fixture.
-const {build}=await import('esbuild');
-const bundle=await build({stdin:{contents:"export {parseLegacyStorageConversation} from './src/core/parsers/legacyStorage/parseConversation.ts'",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node'});
-const {parseLegacyStorageConversation}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
-const conversation=parseLegacyStorageConversation({metadata:before.local.gemini_conversations[0]},{providerId:'gemini'}).conversation;
+// Frozen historical v2 fixture: this harness audits old disk records, independently of today's UUID parser.
+const conversation={index:{id:'a',providerId:'gemini',title:'',titleSource:'default',cloudAvailability:'unknown',hasTakeoutImport:false},detail:{quality:{status:'unknown'},assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Persisted body'}]}]}]}};
 const record={key:JSON.stringify(['gemini','u0','a']),storageVersion:2,domainVersion:2,origin:'legacy-storage',revision:'test-revision',savedAt:1234,acquisitionHints:{},resources:[],identity:{providerId:'gemini',accountSlot:'u0',conversationId:'a'},conversation};
 const migrated={local:empty.local,databases:{...before.databases,gemini_exporter_domain:{stores:{conversations:[record]}}}};
-await assertPersistedBaseline(before,migrated);
+await assert.rejects(()=>assertPersistedBaseline(before,migrated)); // Old Domain contracts have no compatibility adapter.
 const padded=structuredClone(before);padded.local.gemini_conversations[0].id=' c_a '.trim();
-await assertPersistedBaseline(padded,migrated); // Same production c_ normalization.
+await assert.rejects(()=>assertPersistedBaseline(padded,migrated));
 const spaced=structuredClone(before);spaced.local.gemini_conversations[0].id=' a ';
-await assertPersistedBaseline(spaced,migrated); // Production normalizes surrounding whitespace.
+await assert.rejects(()=>assertPersistedBaseline(spaced,migrated));
 for(const change of [
  r=>{r.identity.accountSlot='u1';r.key=JSON.stringify(['gemini','u1','a']);},
  r=>{r.identity.conversationId='other';r.key=JSON.stringify(['gemini','u0','other']);r.conversation.index.id='other';},

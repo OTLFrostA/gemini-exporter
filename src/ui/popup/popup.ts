@@ -8,7 +8,6 @@ import { FormatStore } from '../../core/storage/formatStore.js';
 import { ChatFormatter } from '../../core/engine/chatFormatter.js';
 import {
     isGeminiUrl,
-    detectSlotFromUrl,
     extractConversationIdFromUrl,
     buildExportFileName
 } from '../../core/utils/pathUtils.js';
@@ -22,7 +21,7 @@ import { STORAGE_KEYS } from '../../core/utils/constants.js';
 const getStorage = () => __resolveModule('StorageService', StorageService);
 
 let _activeConvId: string | null = null;
-let _activeSlot: string = 'u0';
+let _activeAccountId = '';
 let _activeChatTitle: string = '';
 let _activeFormat = 'markdown';
 
@@ -91,16 +90,21 @@ function updateUiForTabState(isGemini: boolean): void {
 
 async function updateCount(): Promise<void> {
     try {
-        let slot = 'u0';
+        let slot = '';
         let isGemini = false;
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
         if (tab?.url && isGeminiUrl(tab.url)) {
             isGemini = true;
-            slot = detectSlotFromUrl(tab.url);
-            _activeSlot = slot;
+            if (tab.id == null) throw new Error('Active tab is unavailable');
+            const binding: unknown = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
+            if (!binding || typeof binding !== 'object' || !('accountContext' in binding) || !isStoredObject(binding.accountContext)
+                || typeof binding.accountContext.accountId !== 'string') throw new Error('Active tab account is unavailable');
+            slot = binding.accountContext.accountId;
+            _activeAccountId = slot;
             _activeConvId = extractConversationIdFromUrl(tab.url);
         } else {
+            _activeAccountId = '';
             _activeConvId = null;
         }
         updateUiForTabState(isGemini);
@@ -111,7 +115,7 @@ async function updateCount(): Promise<void> {
 
         if (isGemini && _activeConvId) {
             const list = getStorage() ? await getStorage().getConversations(slot) : [];
-            const rawFound = list.find((c: any) => c.id === _activeConvId || c.id === `c_${_activeConvId}`);
+            const rawFound = list.find((c: any) => c.key.conversationId === _activeConvId);
             const found = isStoredObject(rawFound) && !Array.isArray(rawFound) ? rawFound : null;
             if (found && found.title) {
                 _activeChatTitle = cleanTitle(typeof found.title === 'string' ? found.title : undefined);
@@ -126,7 +130,8 @@ async function updateCount(): Promise<void> {
                 currentChatTitleEl.title = _activeChatTitle;
             }
 
-            const msgCount = found?.messageCount || (Array.isArray(found?.messages) ? found.messages.length : 0) || 0;
+            const detail = await getStorage().conversationRepository({ providerId: 'gemini', accountId: slot }).getConversation(_activeConvId);
+            const msgCount = detail?.detail?.messages.length ?? 0;
             if (chatTurnBadgeEl) {
                 chatTurnBadgeEl.textContent = Number(msgCount) > 0
                     ? (i18n.t('chatMessagesCount', msgCount))
@@ -142,16 +147,16 @@ async function updateCount(): Promise<void> {
         }
 
         let count: StoredValue = 0;
-        const convs = await getStorage().getConversations(slot);
+        const convs = slot ? await getStorage().getConversations(slot) : [];
         count = convs.length;
-        if (!count) {
+        if (!count && slot) {
             const syncInfo = await getStorage().getLastSync(slot);
             count = syncInfo?.count || 0;
         }
         const badge = $('countBadge');
         if (badge) {
             const text = i18n.t('syncedBadge', count);
-            const label = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
+            const label = text;
             const offlineLabel = i18n.t('badgeOffline');
             badge.textContent = isGemini ? label : `${label} (${offlineLabel})`;
         }
@@ -269,7 +274,7 @@ function initPopupEvents(): void {
                 __releaseExportGuard();
                 return;
             }
-            requestNativeDetail(() => sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 40000)).then(async (raw) => {
+            requestNativeDetail(() => sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountId: _activeAccountId }, 40000)).then(async (raw) => {
                 const res = readPopupFetchResult(raw);
                 try {
                     if (!res || !res.success) {
@@ -292,7 +297,7 @@ function initPopupEvents(): void {
                     } else {
                         formatted = ChatFormatter.formatContent(chat, format, missing);
                     }
-                    const fileName = buildExportFileName(chat.conversation.index.title || chat.conversation.index.id, _activeConvId, formatted.ext);
+                    const fileName = buildExportFileName(chat.conversation.index.title || chat.conversation.index.key.conversationId, _activeConvId, formatted.ext);
                     const blob = new Blob([formatted.content], { type: formatted.mime });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -363,7 +368,7 @@ function initPopupEvents(): void {
                     else document.body.classList.remove('dev-mode');
                     updateFormatTabsUI(_activeFormat);
                 }
-                if (changes.gemini_conversations || changes.gemini_last_count || changes.gemini_last_sync) {
+                if (Object.keys(changes).some(key => /^(conversations|last_count|last_sync)_/.test(key))) {
                     void updateCount();
                 }
             }

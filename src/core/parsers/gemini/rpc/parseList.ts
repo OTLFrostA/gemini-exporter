@@ -1,7 +1,8 @@
+import { normId, isReservedRoute } from '../../../utils/pathUtils.js';
 import type { GeminiProtocolModule } from "../../../protocol/protocol.js";
 import { parseGeminiIndexObservation } from '../parseIndexObservation.js';
-import type { DomainConversationIndex } from '../../../domain/conversationIndex.js';
-export type ConversationListItem = DomainConversationIndex;
+import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
+export type ConversationListItem = GeminiIndexObservationInput & { id: string };
 
 /** Source-layout validity and official ordering evidence, independent of request/account context. */
 export interface GeminiListPageEvidence {
@@ -124,10 +125,12 @@ function listResult(conversations: ConversationListItem[], nextPageToken: string
                 createTs = payloadToMs(createArr);
 
                 if (typeof id !== 'string' || !id) continue;
+                id = normId(id);
+                if (!id || id === 'unknown' || isReservedRoute(id)) continue;
                 try {
-                    convs.push(parseGeminiIndexObservation({ id, title, titleSource: 'rpc',
+                    convs.push({ id, title: typeof title === 'string' ? title.trim() : '', titleSource: 'rpc',
                         ...(createTs !== null ? { createdAt: createTs } : {}),
-                        ...(serverTs !== null ? { updatedAt: serverTs } : {}) }, 'rpc-list'));
+                        ...(serverTs !== null ? { updatedAt: serverTs } : {}) });
                 } catch (error) {
                     if (!(error instanceof TypeError)) throw error;
                 }

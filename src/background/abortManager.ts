@@ -22,8 +22,8 @@ function getOrCreateController(slot: string): AbortController {
     return c;
 }
 
-export function getSlotAbortSignal(slot: string = 'u0'): AbortSignal {
-    return getOrCreateController(slot || 'u0').signal;
+export function getSlotAbortSignal(slot: string = ''): AbortSignal {
+    return getOrCreateController(slot || '').signal;
 }
 
 /**
@@ -52,27 +52,27 @@ export async function restoreAbortFlags(): Promise<void> {
     _restorePromise = null;
 }
 
-export function isSlotAborted(slot: string = 'u0'): boolean {
-    return !!__bgAborts.get(slot || 'u0');
+export function isSlotAborted(slot: string = ''): boolean {
+    return !!__bgAborts.get(slot || '');
 }
 
 export const __slotEpochs: Map<string, number> = new Map();
 const __slotCancelEpochs: Map<string, number> = new Map();
 
-export function getSlotCancelEpoch(slot: string = 'u0'): number {
-    return __slotCancelEpochs.get(slot || 'u0') || 0;
+export function getSlotCancelEpoch(slot: string = ''): number {
+    return __slotCancelEpochs.get(slot || '') || 0;
 }
 
 /**
  * Returns the current monotonically increasing generation/epoch for the given slot.
  * Any batch launched at epoch E will be invalidated if the slot is aborted or reset (epoch changed).
  */
-export function getSlotEpoch(slot: string = 'u0'): number {
-    return __slotEpochs.get(slot || 'u0') || 0;
+export function getSlotEpoch(slot: string = ''): number {
+    return __slotEpochs.get(slot || '') || 0;
 }
 
-export async function setSlotAborted(slot: string = 'u0', val: boolean = true): Promise<void> {
-    const s = slot || 'u0';
+export async function setSlotAborted(slot: string = '', val: boolean = true): Promise<void> {
+    const s = slot || '';
     // Invalidate queued work as soon as cancellation is requested, even if
     // restoring a previous worker's abort flags is still in flight.
     if (val) __slotCancelEpochs.set(s, getSlotCancelEpoch(s) + 1);

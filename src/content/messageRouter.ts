@@ -1,11 +1,11 @@
+import { setConversationAvailability } from '../core/storage/conversationAvailability.js';
 import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { isResourceConversationParseResult } from '../core/parsers/parsingResult.js';
-import { ingestConversation } from '../core/storage/storageService.js';
 import { readStoredObject, type StoredObject } from '../core/storage/storageCompatibility.js';
 import type { ContentConversationDetail, DomDetailDebug, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import { SyncEngine } from './syncEngine.js';
-import { resolveCurrentAccount } from './accountContext.js';
+import { resolveCurrentAccount, isCurrentAccount } from './accountContext.js';
 import { DomScraper } from './domScraper.js';
 import { AssetFetcher } from './assetFetcher.js';
 import { contentContext } from './contentContext.js';
@@ -33,7 +33,7 @@ export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine | null;
     scraper?: typeof DomScraper | null;
     assets?: typeof AssetFetcher | null;
-    storage?: Partial<Pick<typeof StorageService, 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
+    storage?: Partial<Pick<typeof StorageService, 'setConversationAvailability' | 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
 }
 
 export function init({
@@ -54,12 +54,12 @@ export function init({
             console.warn('[Gemini Exporter] cloud deletion memory marker failed', cid, getErrorMessage(error));
         }
         try {
-            if (Storage?.updateConversation) await Storage.updateConversation(slot, cid, { cloudAvailability: 'deleted' });
+            await Storage?.setConversationAvailability?.(slot, cid, 'deleted');
         } catch (error: unknown) {
             console.warn('[Gemini Exporter] cloud deletion status persistence failed; local archive retained', cid, getErrorMessage(error));
         }
         try {
-            const pending = chrome.runtime.sendMessage({ action: 'syncUpdate', slot, from: 'cloud-deleted-archive-retained' });
+            const pending = chrome.runtime.sendMessage({ action: 'syncUpdate', accountId: slot, from: 'cloud-deleted-archive-retained' });
             if (pending) void Promise.resolve(pending).catch(() => {});
         } catch { /* A missing UI must not suppress confirmed deletion. */ }
     }
@@ -93,6 +93,8 @@ export function init({
         if (msg.action === 'deepScan') {
             void (async () => {
                 try {
+                    const account = await resolveCurrentAccount();
+                    if (!account || msg.accountId && msg.accountId !== account.accountId) throw new Error('Requested account does not match this tab');
                     let res: any = null;
                     if (Sync && Sync.syncConversations) {
                         res = await Sync.syncConversations();
@@ -156,24 +158,28 @@ export function init({
                 return true;
             }
             void (async () => {
-                async function acceptDetail(chatObj: ContentConversationDetail): Promise<ContentConversationDetail> {
-                    return { ...chatObj, ...await ingestConversation(detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0'), chatObj) };
-                }
+                const account = await resolveCurrentAccount();
+                if (!account || detailMsg.accountId && detailMsg.accountId !== account.accountId) throw new Error('Requested account does not match this tab');
+                const assertActive = async () => {
+                    const fresh = await resolveCurrentAccount();
+                    if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during detail acquisition');
+                };
 
                 let batchexecuteEmptyDebug: ProviderEmptyDebug | null = null;
                 try {
                     const provider = resolveProvider() as ApplicationProvider | undefined;
                     if (provider) {
-                        const detail = await provider.fetchConversationDetail(cid, { targetSid: detailMsg.targetSid || null });
+                        const detail = await provider.fetchConversationDetail(cid, { targetSid: account.slot, accountId: account.accountId });
                         if (detail && isResourceConversationParseResult(detail) && detail.conversation.detail.messages.length > 0) {
-                            const accepted = await acceptDetail(detail);
+                            await assertActive();
+                            const accepted = detail;
                             respondDetail({ success: true, data: accepted, source: 'batchexecute' });
                             return;
                         } else if (detail) {
                             const rawKeys = detail.transport.decodedPayload ? Object.keys(detail.transport.decodedPayload) : [];
                             const rawPreview = detail.transport.decodedPayload ? JSON.stringify(detail.transport.decodedPayload).slice(0, 4000) : '';
                             const topPreview = detail.transport.decodedPayload ? JSON.stringify(detail).slice(0, 1000) : '';
-                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.conversation.detail.messages.length, hasRaw: !!detail.transport.decodedPayload, titleSeen: detail.conversation.index.title };
+                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.conversation.detail.messages.length, hasRaw: !!detail.transport.decodedPayload, titleSeen: detail.conversation.index.title ?? "" };
                             if (contentContext.isDevMode()) {
                                 console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, batchexecuteEmptyDebug);
                             }
@@ -187,7 +193,8 @@ export function init({
                     }
                     const isRpcDeleted = isConfirmedDeletedError(errMsg);
                     if (isRpcDeleted) {
-                        const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
+                        await assertActive();
+                        const slot = account.accountId;
                         await recordCloudDeletion(slot, cid);
                         const errDeleted = contentContext.isZh() ? '云端会话已被删除或不存在' : 'Cloud conversation deleted or does not exist';
                         respondDetail({
@@ -207,16 +214,18 @@ export function init({
                 }
                 try {
                     if (Scraper) {
-                        const chat = await Scraper.contentFetchChatDetail(cid);
+                        const chat = await Scraper.contentFetchChatDetail(cid, account.accountId);
                         if (chat && isResourceConversationParseResult(chat) && chat.conversation.detail.messages.length > 0) {
-                            const accepted = await acceptDetail(chat);
+                            await assertActive();
+                            const accepted = chat;
                             respondDetail({ success: true, data: accepted, source: 'dom' });
                             return;
                         } else {
                             const failure = chat && 'error' in chat ? chat : { id: cid, error: 'DOM returned empty content' };
                             const isConfirmedDeleted = failure.isDeleted === true;
                             if (isConfirmedDeleted) {
-                                const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
+                                await assertActive();
+                        const slot = account.accountId;
                                 await recordCloudDeletion(slot, cid);
                             }
                             const domDebug = chat && isResourceConversationParseResult(chat) && 'transport' in chat ? chat.transport as DomDetailDebug : failure._debug && 'batchexecuteEmptyDebug' in failure._debug ? failure._debug.domDebug ?? undefined : failure._debug;
@@ -255,24 +264,23 @@ export function init({
             return true;
         }
 
-        if (msg.action === 'getFileBlob') {
-            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted (' + String(msg.url).split('?')[0].slice(0, 160) + ')'  }); return true; }
-            if (Assets) void Assets.handleGetFileBlob(msg, respond);
-            else respond({ success: false, error: 'AssetFetcher not loaded' });
-            return true;
-        }
-
-        if (msg.action === 'getImageBlob') {
-            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted (' + String(msg.url).split('?')[0].slice(0, 160) + ')'  }); return true; }
-            if (Assets) void Assets.handleGetImageBlob(msg, respond);
-            else respond({ success: false, error: 'AssetFetcher not loaded' });
-            return true;
-        }
-
-        if (msg.action === 'downloadAssetDirect') {
-            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted (' + String(msg.url).split('?')[0].slice(0, 160) + ')'  }); return true; }
-            if (Assets) void Assets.downloadAssetDirect(msg, respond);
-            else respond({ success: false, error: 'AssetFetcher not loaded' });
+        if (msg.action === 'getFileBlob' || msg.action === 'getImageBlob' || msg.action === 'downloadAssetDirect') {
+            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted (' + String(msg.url).split('?')[0].slice(0, 160) + ')' }); return true; }
+            if (!Assets) { respond({ success: false, error: 'AssetFetcher not loaded' }); return true; }
+            void (async () => {
+                const account = await resolveCurrentAccount();
+                if (!account || msg.accountId && msg.accountId !== account.accountId) throw new Error('Requested account does not match this tab');
+                const handler = msg.action === 'getFileBlob' ? Assets.handleGetFileBlob
+                    : msg.action === 'getImageBlob' ? Assets.handleGetImageBlob : Assets.downloadAssetDirect;
+                await handler(msg, result => {
+                    // An asset fetched after a tab switch must not enter the original account's cache.
+                    void resolveCurrentAccount().then(fresh => {
+                        if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) {
+                            respond({ success: false, error: 'Account changed during asset acquisition' });
+                        } else respond(result);
+                    }).catch((error: unknown) => respond({ success: false, error: getErrorMessage(error) }));
+                });
+            })().catch((error: unknown) => respond({ success: false, error: getErrorMessage(error) }));
             return true;
         }
 

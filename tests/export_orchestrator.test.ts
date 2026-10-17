@@ -1,3 +1,7 @@
+import { withRegistry } from './helpers/registryMock.js';
+import { sourceIndex } from './helpers/domainFixture.js';
+import { acquiredReply } from './helpers/acquisitionFixture.js';
+import { fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
 useIndexStorage();
@@ -89,6 +93,7 @@ function setupMockJSZip() {
 function setupMockStorage() {
     const mem: Record<string, any> = {};
     __setModuleOverride('StorageService', {
+        getConversationAvailability: catalogStorage.getConversationAvailability,
         getExportedIds: async (_slot: string) => ({ ...mem }),
         saveExportRecord: async (_slot: string, id: string, rec: any) => {
             mem[id] = rec;
@@ -115,12 +120,12 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
     const mockWorker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => {
             if (requestedItem.id === 'chat-2') {
-                return {
+                return await {
                     success: false,
                     error: '429 Rate Limit Exceeded'
                 };
             }
-            return {
+            return await {
                 success: true,
                 chat: historicalFixture({
                     id: requestedItem.id,
@@ -135,13 +140,13 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
     });
 
     const logs: string[] = [];
-    const result = await orchestrator.run({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         selected,
         format: 'markdown',
         useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: mockWorker
-    }, {
+    }) }, {
         onLog: (msg: string) => logs.push(msg)
     });
 
@@ -170,7 +175,7 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
     const mockWorker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => {
             fetchCount++;
-            return {
+            return await {
                 success: true,
                 chat: historicalFixture({
                     id: requestedItem.id,
@@ -193,7 +198,7 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
     };
 
     const logs: string[] = [];
-    const result = await orchestrator.run({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         selected,
         format: 'markdown',
         useZip: false,
@@ -201,7 +206,7 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
         dirHandle: mockDirHandle,
         worker: mockWorker,
         concurrency: 1
-    }, {
+    }) }, {
         onLog: (msg: string) => logs.push(msg)
     });
 
@@ -245,7 +250,7 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
     const mockWorker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => {
             fetchedIds.push(requestedItem.id);
-            return {
+            return await {
                 success: true,
                 chat: historicalFixture({
                     id: requestedItem.id,
@@ -257,8 +262,8 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
     });
 
     const logs: string[] = [];
-    const result = await orchestrator.run({
-        selected: conversations,
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
         format: 'markdown',
         useZip: true, downloadHandler: async () => {},
         skip: true,
@@ -266,7 +271,7 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
         exportedIds,
         includeAssets: false,
         worker: mockWorker
-    }, {
+    }) }, {
         onLog: (msg: string) => logs.push(msg)
     });
 
@@ -307,13 +312,13 @@ test('ExportOrchestrator - skip: true when all selected chats are up-to-date com
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => {
             fetchCalls++;
-            return { success: true, results: [] };
+            return await { success: true, results: [] };
         }
     });
 
     const logs: string[] = [];
-    const result = await orchestrator.run({
-        selected: conversations,
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
         format: 'markdown',
         useZip: true,
         skip: true,
@@ -321,7 +326,7 @@ test('ExportOrchestrator - skip: true when all selected chats are up-to-date com
         exportedIds,
         includeAssets: false,
         worker: mockWorker
-    }, {
+    }) }, {
         onLog: (msg: string) => logs.push(msg)
     });
 
@@ -353,15 +358,15 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
     const mockWorker = makeTestWorker({
         fetchChatDetail: async (item: any) => {
             fetchCalls++;
-            return {
+            return await {
                 success: true,
                 chat: historicalFixture({ id: item.id, title: item.title, messages: [{ role: 'user', content: 'Body' }] }),
             };
         }
     });
 
-    const result = await orchestrator.run({
-        selected: conversations,
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
         format: 'markdown',
         useZip: true, downloadHandler: async () => {},
         skip: false,
@@ -369,7 +374,7 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
         exportedIds,
         includeAssets: false,
         worker: mockWorker
-    });
+    }) });
 
     assert.strictEqual(fetchCalls, 2, 'All chats should be fetched when skip is false');
     assert.strictEqual(result.landedChats, 2, 'All chats should land');
@@ -420,7 +425,7 @@ test('BatchWorker.resolveChat - reports unavailable bodies without fabricating a
         reqItem,
         null,
         null,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         () => {},
         (msg: string) => logs.push(msg)
     );
@@ -447,7 +452,7 @@ test('BatchWorker.resolveChat - detects cloud-deleted chat with BardErrorInfo: 1
         reqItem,
         null,
         null,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         () => {},
         (msg: string) => logs.push(msg)
     );
@@ -488,7 +493,7 @@ test('ExportOrchestrator - unavailable body remains retryable and is not marked 
     ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
-        fetchChatDetail: async () => ({
+        fetchChatDetail: async () => await ({
             success: true,
             chat: historicalFixture({
                 id: 'cca63136d0630930',
@@ -502,8 +507,8 @@ test('ExportOrchestrator - unavailable body remains retryable and is not marked 
     const exportedIds: Record<string, any> = {};
     const logs: string[] = [];
 
-    const result = await orchestrator.run({
-        selected: conversations,
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
         format: 'markdown',
         useZip: true, downloadHandler: async () => {},
         skip: true,
@@ -514,7 +519,7 @@ test('ExportOrchestrator - unavailable body remains retryable and is not marked 
         onExportFinalized: async (id: string) => {
             exportedIds[id] = { exportedAt: new Date().toISOString(), status: 'empty' };
         }
-    }, {
+    }) }, {
         onLog: (msg: string) => logs.push(msg)
     });
 
@@ -535,7 +540,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
     ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
-        fetchChatDetail: async () => ({
+        fetchChatDetail: async () => await ({
             success: true,
             chat: historicalFixture({
                 id: 'chat_with_img',
@@ -565,8 +570,8 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
     const finalizedEvents: Array<{ id: string; rec: any }> = [];
 
     try {
-        const result = await orchestrator.run({
-            selected: conversations,
+        const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+            selected: conversations.map(sourceIndex),
             format: 'markdown',
             useZip: true, downloadHandler: async () => {},
             skip: false,
@@ -574,7 +579,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
             exportedIds: {},
             includeAssets: true,
             worker: mockWorker
-        }, {
+        }) }, {
             onItemPendingAssets: (id: string, count: number) => pendingEvents.push({ id, count }),
             onItemExported: (id: string, rec: any) => finalizedEvents.push({ id, rec })
         });
@@ -607,12 +612,12 @@ test('ExportOrchestrator - resolves the original first candidate without changin
     const selected = [{ id: 'candidate_first', title: 'First candidate' }];
     let receivedChat: unknown;
 
-    const result = await orchestrator.run({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         selected,
         useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: makeTestWorker({
-            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, historicalFixture(validSecond)], chat: historicalFixture(validSecond) } as never),
+            fetchChatDetail: async () => await ({ success: true, results: [malformedFirst, historicalFixture(validSecond)], chat: historicalFixture(validSecond) } as never),
             resolveChat: async (chat: any) => {
                 receivedChat = chat;
                 return {
@@ -625,7 +630,7 @@ test('ExportOrchestrator - resolves the original first candidate without changin
                 };
             }
         })
-    });
+    }) });
 
     assert.strictEqual(receivedChat, malformedFirst, 'The original first candidate object must be passed to resolveChat');
     assert.strictEqual(malformedFirst.id, 42, 'Source data must remain unchanged');
@@ -641,18 +646,18 @@ test('ExportOrchestrator - rejects a primitive first candidate without choosing 
     const validSecond = { id: 'candidate_second', title: 'Must not be selected', messages: [] };
     let resolveCalls = 0;
 
-    const result = await orchestrator.run({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         selected: [{ id: 'candidate_primitive', title: 'Primitive candidate' }],
         useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: makeTestWorker({
-            fetchChatDetail: async () => ({ success: true, results: [42, historicalFixture(validSecond)] } as never),
+            fetchChatDetail: async () => await ({ success: true, results: [42, historicalFixture(validSecond)] } as never),
             resolveChat: async (value, ...args) => {
                 resolveCalls++;
                 return BatchWorker.resolveChat(value, ...args);
             }
         })
-    });
+    }) });
 
     assert.strictEqual(resolveCalls, 1, 'The native boundary validates the selected source');
     assert.strictEqual(result.landedChats, 0, 'A truthy primitive first candidate must fail');
@@ -687,12 +692,12 @@ test('ExportOrchestrator - prepares asset destinations while retaining Domain as
     });
 
     try {
-        const result = await orchestrator.run({
+        const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: 'asset_identity', title: 'Resolved chat' }],
             useZip: true, downloadHandler: async () => {},
             includeAssets: true,
             worker: makeTestWorker({
-                fetchChatDetail: async () => ({ success: true, chat: historicalFixture(fetchedChat) }),
+                fetchChatDetail: async () => await ({ success: true, chat: historicalFixture(fetchedChat) }),
                 resolveChat: async () => ({
                     chat: historicalFixture(resolvedChat),
                     displayTitle: 'Resolved chat',
@@ -703,7 +708,7 @@ test('ExportOrchestrator - prepares asset destinations while retaining Domain as
                     convsNeedSave: false
                 })
             })
-        });
+        }) });
 
         assert.strictEqual(result.landedChats, 1);
         assert.equal((receivedItem as any).url, attachment.url);
@@ -726,7 +731,7 @@ test('ExportOrchestrator - writes native document content without reinterpreting
     ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
-        fetchChatDetail: async () => ({
+        fetchChatDetail: async () => await ({
             success: true,
             chat: historicalFixture({
                 id: 'chat_doc_1',
@@ -761,8 +766,8 @@ test('ExportOrchestrator - writes native document content without reinterpreting
         resolveChat: BatchWorker.resolveChat
     });
 
-    const result = await orchestrator.run({
-        selected: conversations,
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
         format: 'markdown',
         useZip: true, downloadHandler: async () => {},
         skip: false,
@@ -770,7 +775,7 @@ test('ExportOrchestrator - writes native document content without reinterpreting
         exportedIds: {},
         includeAssets: true,
         worker: mockWorker
-    });
+    }) });
 
     assert.strictEqual(result.landedChats, 1);
     assert.strictEqual(result.failedChats.length, 0);
@@ -795,12 +800,13 @@ test('BatchWorker - accepts typed native results; storage rejects a mutated grap
     const record = { id: 'boundary', title: 'Boundary', messages: [{ role: 'user', content: 'Question' }] };
     const native = historicalFixture(record);
     assert.equal(isWorkerChat(record), false);
-    assert.equal((await BatchWorker.resolveChat(record, { id: 'boundary' })).isError, true);
-    assert.equal((await BatchWorker.resolveChat(native, { id: 'boundary' })).isError, false);
+    assert.equal((await BatchWorker.resolveChat(record, { id: 'boundary' }, null, null, '10000000-0000-4000-8000-000000000001')).isError, true);
+    await catalogStorage.ingestConversation('10000000-0000-4000-8000-000000000001', native);
+    assert.equal((await BatchWorker.resolveChat(native, { id: 'boundary' }, null, null, '10000000-0000-4000-8000-000000000001')).isError, false);
     const invalid = structuredClone(native);
     invalid.conversation.detail.messages[0].attachmentIds = ['missing'];
     const { saveDomainConversation } = require('../src/core/storage/domain/domainStore.js');
-    await assert.rejects(saveDomainConversation('u0', invalid), /asset|missing|reference/i);
+    await assert.rejects(saveDomainConversation('10000000-0000-4000-8000-000000000001', invalid), /asset|missing|reference/i);
 });
 
 test('ExportOrchestrator - uses native envelope bodies and reports missing bodies', async () => {
@@ -812,7 +818,7 @@ test('ExportOrchestrator - uses native envelope bodies and reports missing bodie
         const candidate = historicalFixture({ id: 'fallback', title: 'Envelope chat', messages: [{ role: 'user', content: 'Question' }] });
         let received: unknown;
         const worker = makeTestWorker({
-            fetchChatDetail: async () => ({ success: true, results: mode === 'falsy-first' ? [null] : [], ...(mode !== 'missing' ? { chat: candidate } : {}) }),
+            fetchChatDetail: async () => await ({ success: true, results: mode === 'falsy-first' ? [null] : [], ...(mode !== 'missing' ? { chat: candidate } : {}) }),
             resolveChat: async (chat, ...args) => {
                 received = chat;
                 assert.ok(chat == null || typeof chat === 'object');
@@ -820,9 +826,9 @@ test('ExportOrchestrator - uses native envelope bodies and reports missing bodie
                 return BatchWorker.resolveChat(chat, ...args);
             }
         });
-        const result = await new ExportOrchestrator().run({
+        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: 'fallback', title: 'Requested title' }], useZip: true, downloadHandler: async () => {}, includeAssets: false, worker
-        });
+        }) });
         if (useEnvelopeChat) assert.strictEqual(received, candidate);
         assert.strictEqual(result.landedChats, useEnvelopeChat ? 1 : 0);
         assert.strictEqual(result.failedChats.length, useEnvelopeChat ? 0 : 1);
@@ -842,10 +848,10 @@ test('AssetPipeline - preserves URL priorities and filename fallbacks for typed 
     const chat = { id: 'asset_priority', title: 'Asset priority' };
     for (const scenario of cases) {
         const requests: FetchAssetParams[] = [];
-        const pipeline = new AssetPipeline({ fetchAssetDelegate: async (params: FetchAssetParams) => {
+        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({ fetchAssetDelegate: async (params: FetchAssetParams) => {
             requests.push(params);
             return { success: true, dataBuffer: new Uint8Array([1, 2, 3]) };
-        } });
+        } }) });
         const item = { ...scenario.item, assetId: 'test-asset' };
         const result = await pipeline.acquireAssetBytes(item, chat, { isImage: scenario.isImage, maxRetries: 0 });
         assert.strictEqual(result.ok, true);
@@ -861,7 +867,7 @@ test('AssetPipeline - passes the original generation identity to Takeout fallbac
     const generation = { chatId: 'generated_boundary', generationOrdinal: 2, imageOrdinal: 1, providerRequestId: 'request' };
     let received: unknown[] = [];
     const pipeline = new AssetPipeline({
-        currentSlot: 'u1',
+        accountId: '10000000-0000-4000-8000-000000000002',
         takeoutEngine: { getTakeoutFallbackMedia: async (...args: unknown[]) => {
             received = args;
             return new Uint8Array([4, 5, 6]);
@@ -869,7 +875,7 @@ test('AssetPipeline - passes the original generation identity to Takeout fallbac
     });
     const result = await pipeline.acquireAssetBytes({ assetId: 'online-image', sourceUrl: 'Takeout/original.png', fileName: 'generated.png', generation }, { id: 'generated_boundary' }, { isImage: true });
     assert.strictEqual(result.ok, true);
-    assert.deepStrictEqual(received, ['generated_boundary', { assetId: 'online-image', sourceUri: 'Takeout/original.png', generation }, 'u1']);
+    assert.deepStrictEqual(received, ['generated_boundary', { assetId: 'online-image', sourceUri: 'Takeout/original.png', generation }, '10000000-0000-4000-8000-000000000002']);
     assert.strictEqual((received[1] as { generation: unknown }).generation, generation);
 });
 
@@ -895,10 +901,10 @@ test('ExportOrchestrator - queues image and file attachments while preserving im
         }
     });
     try {
-        const result = await new ExportOrchestrator().run({
+        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: 'mixed_assets', title: 'Mixed assets' }], useZip: true, downloadHandler: async () => {}, includeAssets: true,
-            worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: historicalFixture(chat) }) })
-        });
+            worker: makeTestWorker({ fetchChatDetail: async () => await ({ success: true, chat: historicalFixture(chat) }) })
+        }) });
         assert.strictEqual(result.failedChats.length, 0);
         assert.strictEqual(result.totalAssets, 2);
         assert.strictEqual(received.length, 2);
@@ -922,8 +928,8 @@ test('all ordinary formats use completion for both records and meta, including f
             }, { turnsRejected: scenario === 'rejected' ? 1 : 0, schemaDrift: scenario === 'warning' ? ['benign'] : [] });
             if (scenario === 'heuristic') {
                 const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
-                parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { ...parsed.conversation.detail,
-                    quality: { status: 'partial', heuristicDocumentIds: ['report'] },
+                parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { key: fixtureKey(), ...parsed.conversation.detail,
+                    quality: { status: 'partial' },
                     assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated' } }],
                 } });
             }
@@ -942,16 +948,16 @@ test('all ordinary formats use completion for both records and meta, including f
             }
             const { savedRecords } = setupMockStorage();
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (fallback) await catalogStorage.setNativeConversations('u0', [parsed]);
-            if (scenario === 'deleted') await catalogStorage.updateConversation('u0', id, { cloudAvailability: 'deleted' });
+            if (fallback) await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
+            if (scenario === 'deleted') await catalogStorage.setConversationAvailability('10000000-0000-4000-8000-000000000001', id, 'deleted');
             try {
-                const result = await new ExportOrchestrator().run({
+                const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
                     selected: [{ id, title: 'Integrity contract' }], format, useZip: true, downloadHandler: async () => {}, includeAssets: false, includeIndex: true,
                     conversations: ([{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }]).map(indexFixture),
                     takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
-                    worker: makeTestWorker({ fetchChatDetail: async () => fallback || scenario === 'fetch-failed'
+                    worker: makeTestWorker({ fetchChatDetail: async () => await fallback || scenario === 'fetch-failed'
                         ? { success: false, error: 'offline' } : { success: true, chat: parsed } }),
-                });
+                }) });
                 if (scenario === 'empty' || scenario === 'fetch-failed' || scenario === 'write-failed') {
                     assert.equal(result.landedChats, 0);
                     assert.equal(result.failedChats.length, 1);
@@ -964,7 +970,7 @@ test('all ordinary formats use completion for both records and meta, including f
                     const meta = JSON.parse(zips[0].files['meta.json']).conversations[0];
                     assert.equal(meta.status, expected === 'ok' ? 'success' : expected);
                     if (scenario === 'warning') { assert.equal(meta.quality.status, 'unknown'); assert.ok(meta.diagnostics.length > 0); }
-                    if (scenario === 'rejected') assert.equal(meta.quality.rejectedTurns, 1);
+                    if (scenario === 'rejected') assert.equal(meta.quality.status, 'partial');
                 }
             } finally { store.__clearDomainMemory(); }
         }
@@ -978,13 +984,13 @@ test('ZIP delivery with stub generator preserves real Storage, UI, counts and re
     const previousChrome = Reflect.get(globalThis, 'chrome');
     for (const format of ['markdown', 'html', 'json']) {
         for (const failure of ['none', 'generate', 'download-throw', 'download-reject', 'missing-handler', 'cancel-generate', 'cancel-download', 'index', 'meta', 'storage', 'item']) {
-            const slot = 'u1', { expKey } = Storage.getStorageKeys(slot);
+            const slot = '10000000-0000-4000-8000-000000000002', { expKey } = Storage.getStorageKeys(slot);
             const old = { n2: { status: 'ok', exportedAt: new Date(1000).toISOString(), chatTime: 1, title: 'Old export' },
                 history: { status: 'ok', exportedAt: new Date(1000).toISOString(), title: 'Unrelated history' } };
             let injecting = true;
             const memory: Record<string, unknown> = { [expKey]: structuredClone(old) };
             const persisted: string[] = [], notified: string[] = [], ui: Record<string, unknown> = structuredClone(old);
-            Reflect.set(globalThis, 'chrome', { storage: { local: {
+            Reflect.set(globalThis, 'chrome', withRegistry({ storage: { local: {
                 get: async (keys: string | string[] | null) => structuredClone(Object.fromEntries(Object.entries(memory)
                     .filter(([key]) => keys === null || (Array.isArray(keys) ? keys.includes(key) : keys === key)))),
                 set: async (patch: Record<string, unknown>) => {
@@ -998,7 +1004,7 @@ test('ZIP delivery with stub generator preserves real Storage, UI, counts and re
                     Object.assign(memory, structuredClone(patch));
                 },
                 remove: async (keys: string | string[]) => { for (const key of Array.isArray(keys) ? keys : [keys]) delete memory[key]; },
-            } } });
+            } } }));
             const zips = setupMockJSZip(), BaseZip = __getModuleOverride('JSZip');
             __setModuleOverride('StorageService', Storage);
             const orchestrator = new ExportOrchestrator();
@@ -1025,14 +1031,14 @@ test('ZIP delivery with stub generator preserves real Storage, UI, counts and re
             const selected = ['n1', 'n2', 'n3', ...(failure === 'storage' ? [] : ['c_n1']), ...(failure === 'item' ? ['broken'] : [])].map(id => ({ id, title: id }));
             const worker = makeTestWorker({ fetchChatDetail: async (item: { id: string }) => {
                 fetchedIds.push(item.id);
-                if (item.id === 'broken') return { success: false, error: 'Injected detail failure' };
+                if (item.id === 'broken') return await { success: false, error: 'Injected detail failure' };
                 await new Promise(resolve => setTimeout(resolve, item.id === 'n1' ? 2 : 0));
-                return { success: true, chat: historicalFixture({ id: item.id.replace(/^c_/, ''), title: item.id,
+                return await { success: true, chat: historicalFixture({ id: item.id.replace(/^c_/, ''), title: item.id,
                     timestamp: 1720000000000, completeness: { status: item.id === 'n2' ? 'partial' : 'unknown' },
                     messages: [{ role: 'user', content: 'Q' }, { role: 'model', content: 'A' }],
                 }) };
             } });
-            const options = { selected, format, useZip: true, currentSlot: slot, includeAssets: false, includeIndex: true, concurrency: failure === 'storage' ? 1 : 4,
+            const options = { selected, format, useZip: true, accountId: slot, includeAssets: false, includeIndex: true, concurrency: failure === 'storage' ? 1 : 4,
                 conversations: selected.map(item => indexFixture({ ...item, updatedAt: 1720000000000 })), exportedIds: ui, worker,
                 downloadHandler: failure === 'missing-handler' ? undefined : () => {
                     downloads++;
@@ -1117,12 +1123,12 @@ test('ZIP finalize returning false does not count a newly completed record', asy
     recovery.finalizeChatExport = async () => false;
     let notified = 0;
     try {
-        const result = await new ExportOrchestrator().run({
+        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: 'n1', title: 'n1' }], useZip: true, includeAssets: false,
-            downloadHandler: () => {}, worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true,
+            downloadHandler: () => {}, worker: makeTestWorker({ fetchChatDetail: async () => await ({ success: true,
                 chat: historicalFixture({ id: 'n1', messages: [{ role: 'user', content: 'Q' }] }),
             }) }),
-        }, { onItemExported: () => { notified++; } });
+        }) }, { onItemExported: () => { notified++; } });
         assert.equal(result.landedChats, 0);
         assert.equal(result.exportedCount, 0);
         assert.equal(notified, 0);

@@ -27,7 +27,6 @@ export function collectDocumentResources(document: DocumentAst): { referencedIds
         }
     };
     for (const message of document.messages) {
-        inlines(message.sources?.heading);
         blocks(message.blocks);
     }
     return { referencedIds, imageIds };

@@ -148,7 +148,6 @@
           {
             "type": "code",
             "code": "def scaled_dot_product_attention(Q, K, V, mask=None):\n    d_k = Q.size(-1)\n    scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(d_k)\n    if mask is not None:\n        scores = scores.masked_fill(mask == 0, float('-inf'))\n    weights = torch.softmax(scores, dim=-1)\n    return torch.matmul(weights, V)",
-            "showHeader": true,
             "language": "python"
           },
           {
@@ -424,7 +423,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "01-long-assistant-answer",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

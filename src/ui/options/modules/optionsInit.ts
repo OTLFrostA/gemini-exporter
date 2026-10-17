@@ -81,11 +81,11 @@ export function setSearchFilter(filter?: string): void {
     __chatSearchFilter = filter || '';
 }
 
-export function updateAccountSlotSelector(): void {
+export function updateAccountSelector(): void {
     const Account = getAccount();
     const Store = getStore();
     if (Account && Account.render && Store) {
-        Account.render(Store.getAccountSlots(), Store.getCurrentSlot());
+        Account.render(Store.getAccounts(), Store.getCurrentAccountId());
     }
 }
 
@@ -103,7 +103,7 @@ export async function checkExportSession(): Promise<void> {
                 (Dialogs as any).setLastFailedChats(session.failedChats);
             }
         }
-        const slot = Store ? Store.getCurrentSlot() : 'u0';
+        const slot = Store ? Store.getCurrentAccountId() : '';
         Dialogs.renderExportBanner(session, slot, isRunning);
     } catch (e) {
         console.debug('[workbench:init] checkExportSession error', e);
@@ -116,12 +116,12 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
         const List = getList();
         const Storage = getStorage();
         if (!Store) return;
-        const slot = Store.getCurrentSlot() || 'u0';
+        const slot = Store.getCurrentAccountId() || '';
         const hadExistingConvs = Store.getConversations().length > 0;
         const { conversations: incoming, exportedIds } = await Store.loadStore(slot);
-        updateAccountSlotSelector();
+        updateAccountSelector();
 
-        const syncInfo = await Store.getLastSync(slot);
+        const syncInfo = await Store.getLastSync(Store.getCurrentAccountId());
         const lastSyncVal = syncInfo.timestamp;
 
         const incomingSig = Store.getSignature(incoming);
@@ -175,7 +175,7 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
             List.updateStat(processed);
         }
 
-        await renderArchiveNotice(processed, slot, () => loadStore(true));
+        await renderArchiveNotice(processed, Store.getCurrentAccountId(), () => loadStore(true));
         __lastRenderedSignature = Store.getSignature(processed);
         __lastRenderTime = Date.now();
         await checkExportSession();
@@ -235,12 +235,12 @@ function bindSearchAndSelection(): void {
         if (List) List.deselectAll(convs);
     });
 
-    $('accountSlotSelect')?.addEventListener('change', async (e: Event) => {
+    $('accountIdSelect')?.addEventListener('change', async (e: Event) => {
         const newSlot = (e.target as HTMLSelectElement).value;
         console.log('[workbench] Account slot changed to:', newSlot);
         const Store = getStore();
         if (Store) {
-            Store.setCurrentSlot(newSlot);
+            Store.setCurrentAccountId(newSlot);
             await loadStore();
         }
     });
@@ -278,7 +278,7 @@ export function init({ onCheckPendingTakeout }: OptionsInitOptions = {}): void {
 export const OptionsInit = {
     init,
     loadStore,
-    updateAccountSlotSelector,
+    updateAccountSelector,
     checkExportSession,
     getSearchFilter,
     setSearchFilter,

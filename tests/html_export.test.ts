@@ -100,11 +100,11 @@ test('html_export - supports English localization and handles empty conversation
 
     const resEn = await ChatFormatter.formatHtmlDocument(historicalFixture(emptyChat), { lang: 'en' });
     assert.ok(resEn.content.includes('<html>'), 'Unknown document language must not be inferred from English UI');
-    assert.ok(resEn.content.includes('Empty conversation or fetch failed.'), 'Must render English empty notice');
+    assert.ok(resEn.content.includes('Empty conversation.'), 'Must render English empty notice');
 
     const resZh = await ChatFormatter.formatHtmlDocument(historicalFixture(emptyChat), { lang: 'zh' });
     assert.ok(resZh.content.includes('<html>'), 'Unknown document language must not be inferred from Chinese UI');
-    assert.ok(resZh.content.includes('暂无对话记录或拉取失败。'), 'Must render Chinese empty notice');
+    assert.ok(resZh.content.includes('暂无对话记录。'), 'Must render Chinese empty notice');
 });
 
 test('html_export - XSS protection escapes malicious tags', async () => {

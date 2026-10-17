@@ -42,14 +42,14 @@ test('read-path normalization - StorageService.getExportedIds folds legacy alias
     // Simulates a map persisted by the old triple-alias writers: the same
     // conversation under raw (padded), 'c_'-prefixed, and canonical keys.
     const restore = installChromeMock({
-        exportedIds: {
+        ['exported_10000000-0000-4000-8000-000000000001']: {
             '  xyz789  ': { exportedAt: '2025-01-01T00:00:00.000Z', title: 'legacy raw' },
             'c_xyz789': { exportedAt: '2025-01-01T00:00:00.000Z', title: 'legacy alias' },
             'xyz789': { exportedAt: '2025-02-01T00:00:00.000Z', title: 'canonical' }
         }
     });
     try {
-        const merged = await StorageService.getExportedIds('u0');
+        const merged = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(Object.keys(merged).sort(), ['xyz789']);
         // Single canonical probe is all a consumer needs — no triple lookup.
         assert.ok(merged['xyz789']);
@@ -63,9 +63,9 @@ test('read-path normalization - StorageService.getExportedIds folds legacy alias
 test('read-path normalization - alias-only legacy storage stays readable via single canonical probe', async () => {
     const StorageService = require('../src/core/storage/storageService.js');
     const rec = { exportedAt: '2025-03-01T00:00:00.000Z', title: 'legacy only' };
-    const restore = installChromeMock({ exportedIds: { 'c_abc123': rec } });
+    const restore = installChromeMock({ ['exported_10000000-0000-4000-8000-000000000001']: { 'c_abc123': rec } });
     try {
-        const merged = await StorageService.getExportedIds('u0');
+        const merged = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(Object.keys(merged), ['abc123']);
         assert.strictEqual(merged['abc123'], rec);
     } finally {

@@ -23,7 +23,7 @@ export interface TitleResolution {
 
 export const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-export const TITLE_SOURCE_PRIORITY: TitleSource[] = ['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy', 'default'];
+export const TITLE_SOURCE_PRIORITY: TitleSource[] = ['user', 'provider', 'derived'];
 
 export const TITLE_TIER_RANK = Object.fromEntries(TITLE_SOURCE_PRIORITY.map(source => [source, TITLE_AUTHORITY_RANK[source]]));
 
@@ -55,7 +55,7 @@ export function resolveReliableTitleSource(...sources: (string | null | undefine
 
 
 export function isTakeoutConversation(c?: Readonly<Partial<DomainConversationIndex>> | null): boolean {
-    return c?.hasTakeoutImport === true;
+    return false;
 }
 
 export function cleanZeroWidth(t: unknown): string {
@@ -162,20 +162,7 @@ export function cleanTitle(rawTitle?: string | null): string {
  * Resolve the most authoritative valid title from a chat object with multi-tier source slots.
  */
 export function resolveTitle(chat?: TitleResolutionInput | null): TitleResolution {
-    if (!chat) return { title: '未命名对话', source: 'default' };
-    const id = chat.id || '';
-    const candidates: Array<{ value: string; source: TitleSource }> = [];
-    const source = normalizeReliableTitleSource(chat.titleSource) || 'legacy';
-    const value = cleanTitle(chat.title);
-    if (isRealTitle(value, id) || source === 'takeout' && value && !isBrandPlaceholderTitle(value)) candidates.push({ value, source });
-    // List index owns source alternatives; arbitration is shared with parser finalization.
-    for (const source of [...TITLE_SOURCE_PRIORITY].reverse()) {
-        if (source === 'default') continue;
-        const value = cleanTitle(chat.titles?.[source]);
-        if (isRealTitle(value, id) || source === 'takeout' && value && !isBrandPlaceholderTitle(value)) candidates.push({ value, source });
-    }
-    const winner = resolveAuthorityTitle(candidates);
-    return winner ? { title: winner.value, source: TITLE_SOURCE_PRIORITY.find(source => source === winner.source) ?? 'legacy' } : { title: '未命名对话', source: 'default' };
+    return { title: cleanTitle(chat?.title) || '未命名对话', source: normalizeReliableTitleSource(chat?.titleSource) ?? 'derived' };
 }
 
 export function toTimestampMs(raw: unknown): number | null {
@@ -314,7 +301,7 @@ function computeHasNewerActivity(c: Readonly<Partial<DomainConversationIndex>> |
     const savedVersion = toTimestampMs(rec.chatTime);
     // Local exportedAt only describes a disk write. It can never suppress a source update.
     if (cTs !== undefined && savedVersion !== null && cTs > savedVersion) return true;
-    return (rec.messageCount ?? 0) > 0 && (c.messageCount ?? 0) > (rec.messageCount ?? 0);
+    return false;
 }
 
 export function resolveConversationExportState(
@@ -387,14 +374,14 @@ export function checkIsUpdated(c: Readonly<Partial<DomainConversationIndex>> | n
 export function resolveDetailTitle(
     messages: ({ role?: unknown; content?: unknown } | null | undefined)[] | null | undefined,
     convId?: string | number
-): { title: string; source: 'sniff' } | null {
+): { title: string; source: 'derived' } | null {
     if (!Array.isArray(messages)) return null;
     const firstUser = messages.find(m => m && m.role === 'user' && m.content && String(m.content).trim());
     if (!firstUser) return null;
     const rawContent = String(firstUser.content).trim().slice(0, 60).replace(/\n+/g, ' ');
     const candidate = cleanTitle(rawContent);
     if (isRealTitle(candidate, convId)) {
-        return { title: candidate, source: 'sniff' };
+        return { title: candidate, source: 'derived' };
     }
     return null;
 }

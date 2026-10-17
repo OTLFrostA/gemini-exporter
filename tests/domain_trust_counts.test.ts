@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccount } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
@@ -9,15 +10,15 @@ import type { DomainConversationWithDetail } from '../src/core/domain/conversati
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {
     try {
     for (const status of ['complete', 'partial', 'unknown'] as const) {
-        const builder: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph' }, detail: { quality: { status }, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }], messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown',
+        const builder: DomainConversationWithDetail = { index: { key: fixtureKey(String(`large-${status}`), 'future-provider'),   titleSource: "derived",   title: 'Independent large graph' }, detail: { key: fixtureKey(String(`large-${status}`), 'future-provider'), quality: { status }, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }], messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown',
                 content: [{ type: 'unknown', sourceType: 'future-block', text: `Preserved ${index}` }], attachmentIds: ['bytes'] })) } };
         const trusted = validateParserDomain(builder);
         assert.equal(restoreDomainSnapshot(trusted).detail.messages.length, 1000);
         __clearDomainMemory();
         const bytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
-        await saveDomainConversation('opaque-account', { conversation: trusted, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'bytes', bytes }]);
+        await saveDomainConversation(fixtureAccount('future-provider').id, { account: fixtureAccount('future-provider'), conversation: trusted, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'bytes', bytes }]);
         bytes[0] = 99;
-        const read = await getStoredDomain(storageIdentity('future-provider', 'opaque-account', builder.index.id));
+        const read = await getStoredDomain(storageIdentity('future-provider', fixtureAccount('future-provider').id, builder.index.key.conversationId));
         assert.ok(read); const recoveredBytes = await getDomainResource(read.identity, 'bytes');
         assert.ok(recoveredBytes); assert.deepEqual([...recoveredBytes], [0, 1, 2, 253, 254, 255]);
         assert.equal(read.conversation.detail.quality.status, status);

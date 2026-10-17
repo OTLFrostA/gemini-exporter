@@ -25,19 +25,19 @@ test('aborted transaction never acknowledges creation and retry persists one acc
             return request;
         };
         let rejected = false;
-        try { await api.acceptAccountObservation({ providerId: 'gemini', providerAccountId: 'abort-subject' }); }
+        try { await api.getOrCreateAccount('gemini', 'abort-subject'); }
         catch { rejected = true; }
         finally { IDBObjectStore.prototype.add = original; }
         const empty = await api.listAccounts();
-        const saved = await api.acceptAccountObservation({ providerId: 'gemini', providerAccountId: 'abort-subject' });
+        const saved = await api.getOrCreateAccount('gemini', 'abort-subject');
         return { rejected, empty, saved };
     });
     expect(result.rejected).toBe(true);
     expect(result.empty).toEqual([]);
-    expect(result.saved.resolution).toBe('created');
+    expect(result.saved.id).toMatch(/^[a-f0-9-]{36}$/);
     await page.reload(); await page.addScriptTag({ content: bundle });
     const restored = await page.evaluate(async () => Reflect.get(globalThis, 'registryProbe').listAccounts());
-    expect(restored).toEqual([result.saved.account]);
+    expect(restored).toEqual([result.saved]);
 });
 test('malformed disk accounts fail closed without read repair or replacement', async ({ page }) => {
     const result = await page.evaluate(async () => {
@@ -52,7 +52,7 @@ test('malformed disk accounts fail closed without read repair or replacement', a
         db.close();
         let readRejected = false, writeRejected = false;
         try { await api.listAccounts(); } catch { readRejected = true; }
-        try { await api.acceptAccountObservation({ providerId: 'gemini', providerAccountId: 'new-subject' }); } catch { writeRejected = true; }
+        try { await api.getOrCreateAccount('gemini', 'new-subject'); } catch { writeRejected = true; }
         const readDB = await api.openDomainDB();
         const raw = await new Promise(resolve => {
             const tx = readDB.transaction('accounts', 'readonly');
@@ -65,4 +65,22 @@ test('malformed disk accounts fail closed without read repair or replacement', a
     expect(result.readRejected).toBe(true);
     expect(result.writeRejected).toBe(true);
     expect(result.raw).toEqual([result.bad]);
+});
+
+test('concurrent default admission is provider-local, durable and never promoted into a real account', async ({ page }) => {
+    const result = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'registryProbe');
+        const defaults = await Promise.all(Array.from({length: 16}, () => api.getOrCreateAccount('gemini', 'default', 'unverified@example.com', 'Unverified')));
+        const other = await api.getOrCreateAccount('chatgpt', 'default');
+        const real = await api.getOrCreateAccount('gemini', 'verified-gaia', 'verified@example.com');
+        return { defaults, other, real, all: await api.listAccounts() };
+    });
+    const fallback = result.defaults[0];
+    expect(new Set(result.defaults.map(account => account.id)).size).toBe(1);
+    expect(fallback).toEqual({id:fallback.id, providerId:'gemini', providerAccountId:'default'});
+    expect(result.other.id).not.toBe(fallback.id);
+    expect(result.real.id).not.toBe(fallback.id);
+    expect(result.all).toHaveLength(3);
+    await page.reload(); await page.addScriptTag({content:bundle});
+    expect(await page.evaluate(async () => Reflect.get(globalThis, 'registryProbe').getOrCreateAccount('gemini','default'))).toEqual(fallback);
 });

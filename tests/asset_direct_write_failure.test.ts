@@ -19,7 +19,7 @@ test('direct asset writer rejection records failure instead of success or refetc
     };
 
     try {
-        const pipeline = new AssetPipeline({
+        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
             useZip: false,
             writeFileDirect: async (fileName, bytes) => {
                 writeCalls++;
@@ -34,7 +34,7 @@ test('direct asset writer rejection records failure instead of success or refetc
             onLog: (message, level) => {
                 if (level === 'warn') warnings.push(message);
             },
-        });
+        }) });
 
         const result = await pipeline.processAsset(
             { assetId: 'test-asset',

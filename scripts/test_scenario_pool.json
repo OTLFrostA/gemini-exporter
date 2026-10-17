@@ -1,121 +1,5 @@
 [
   {
-    "id": "fluid_mechanics_pipe_network_hardy_cross_conservation",
-    "domain": "fluid_mechanics_hydraulic_pipe_networks",
-    "title": "Hydraulic pipe networks: nodal mass balance, Darcy-Weisbach head loss and Hardy-Cross loop corrections",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate steady incompressible flow in a looped pipe network using LaTeX. State the nodal continuity equations, loop head-loss compatibility conditions and the Darcy-Weisbach resistance law for a concrete two-loop network.",
-      "Derive the Newton-Raphson Hardy-Cross loop-flow correction formula and explain why the signed quadratic resistance derivative remains strictly positive for non-zero flows.",
-      "Write complete runnable Python using only the standard library to solve a two-loop hydraulic network via Hardy-Cross iterations, with assertions for nodal conservation, loop head-loss closure and monotonic residual reduction.",
-      "Compare Hardy-Cross loop methods, nodal-head Newton solvers and linear-theory methods in a Markdown table covering Jacobian structure, initial-guess requirements and convergence rate. Include an English and Chinese glossary.",
-      "Design a reproducible hydraulic verification report under demand perturbations and valve throttling. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating exact conservation invariants from empirical friction correlations."
-    ]
-  },
-  {
-    "id": "celestial_mechanics_kepler_anomaly_symplectic_integrators",
-    "domain": "celestial_mechanics_orbital_dynamics",
-    "title": "Orbital mechanics: Kepler equation, eccentric anomaly and symplectic Störmer-Verlet integration",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Derive Kepler's equation relating mean anomaly, eccentric anomaly and true anomaly for an elliptical orbit using LaTeX. Prove uniqueness of the root for eccentricity in [0, 1) and work through a concrete bound-orbit example.",
-      "Compare fixed-point iteration and Newton-Raphson root finding for Kepler's equation, and derive the second-order symplectic Störmer-Verlet (leapfrog) scheme for the planar two-body Hamiltonian.",
-      "Provide complete runnable Python standard-library code for solving Kepler's equation and integrating a planar elliptical orbit with both explicit Euler and symplectic leapfrog, asserting bounded energy and exact angular-momentum conservation for leapfrog.",
-      "Compare analytical Kepler propagation, symplectic leapfrog, classical fourth-order Runge-Kutta and explicit Euler in a Markdown table across phase-space volume preservation, secular energy drift and per-step cost. Include English and Chinese terminology.",
-      "Construct a reproducible multi-orbit numerical audit across eccentricities. Include LaTeX invariant equations, runnable tests and a Markdown results table comparing energy and angular-momentum errors over ten orbital periods."
-    ]
-  },
-  {
-    "id": "heat_transfer_transient_slab_fourier_biot",
-    "domain": "heat_transfer_transient_conduction",
-    "title": "Transient heat conduction: Biot number, Fourier series eigenmodes and Crank-Nicolson stability",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate one-dimensional transient heat conduction in a plane wall with convective boundary conditions using LaTeX. Nondimensionalize the PDE and boundary conditions to define the Fourier and Biot numbers.",
-      "Derive the separation-of-variables eigenfunction expansion and the transcendental eigenvalue equation tan(lambda_n) = Bi / lambda_n. Explain the lumped-capacitance limit as Bi approaches zero.",
-      "Write complete runnable Python using only the standard library to solve for the first five eigenvalues by bisection and compare the analytical series against a Crank-Nicolson finite-difference solver, asserting energy balance and symmetry.",
-      "Compare lumped capacitance, one-term Fourier approximation, explicit FTCS and Crank-Nicolson schemes in a Markdown table across Biot-number validity, time-step stability and truncation order. Include an English and Chinese glossary.",
-      "Design a reproducible thermal verification report across Biot regimes. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating analytical bounds from grid discretization error."
-    ]
-  },
-  {
-    "id": "graph_spectral_fiedler_cheeger_conductance",
-    "domain": "spectral_graph_theory_conductance",
-    "title": "Spectral graph theory: algebraic connectivity, Fiedler vectors and Cheeger conductance bounds",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define the combinatorial and normalized graph Laplacians for an undirected weighted graph using LaTeX. Prove positive semidefiniteness via the quadratic form and interpret the multiplicity of the zero eigenvalue.",
-      "State the Rayleigh-Ritz characterization of the Fiedler eigenvalue (algebraic connectivity) and the Cheeger inequality relating cut conductance to the second smallest Laplacian eigenvalue.",
-      "Provide complete runnable Python standard-library code to construct graph Laplacians, compute the Fiedler vector via deflated power/inverse iteration on small graphs and evaluate sweep-cut conductance with exact assertions on path and barbell graphs.",
-      "Compare exhaustive min-cut enumeration, spectral sweep cuts, Kernighan-Lin refinement and max-flow min-cut in a Markdown table covering approximation guarantees, computational complexity and balanced-cut behavior. Include English and Chinese terminology.",
-      "Construct a reproducible graph-partitioning audit on synthetic bottleneck graphs. Include LaTeX proof sketches, runnable test cases and a Markdown results table comparing exact conductance against Cheeger lower and upper bounds."
-    ]
-  },
-  {
-    "id": "acoustics_room_image_source_reverberation",
-    "title": "Room acoustics: image sources and impulse response",
-    "domain": "acoustics_room_image_sources",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an original educational image of a rectangular room showing a sound source, receiver, and first-order image sources reflected across walls. Distinguish real and virtual positions with a legend, and state that rays are conceptual.",
-      "Derive direct and reflected path arrival times and inverse-distance amplitudes in LaTeX for a rectangular room with explicitly chosen dimensions and sound speed. State the limits of specular reflection and frequency-independent absorption.",
-      "Write complete runnable standard-library Python enumerating image sources up to reflection order two, accumulating a sampled impulse response with fractional-delay interpolation. Assert the direct path arrival time and invariance under swapping source and receiver.",
-      "Use a Markdown table to compare direct sound, early reflections, diffuse reverberation, room modes, and numerical artifacts. Include units, approximations, and an appropriate validation method for each.",
-      "Write a long reproducibility report covering sample rate, finite reflection order, wall coefficients, energy decay estimation, and why image-source geometry alone cannot establish perceptual quality."
-    ]
-  },
-  {
-    "id": "probability_markov_absorbing_chain_fundamental_matrix",
-    "title": "Absorbing Markov chains: exact probabilities and hitting times",
-    "domain": "probability_absorbing_markov_chains",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a fictional absorbing Markov chain with three transient and two absorbing states, using explicit rational transition probabilities. Explain the state semantics and verify each row sums to one.",
-      "Derive the fundamental matrix, absorption probabilities, and expected absorption time in LaTeX. Explain the condition ensuring the transient submatrix has spectral radius below one.",
-      "Write complete runnable standard-library Python using fractions.Fraction and Gaussian elimination to calculate exact absorption probabilities and hitting times. Test a chain with immediate absorption, a self-loop, and a state that cannot reach absorption.",
-      "Use a Markdown table to report exact and decimal probabilities and expected times for every transient state. Compare them with a seeded Monte Carlo simulation and distinguish sampling error from implementation error.",
-      "Write a detailed numerical audit discussing conditioning, nearly absorbing states, termination bounds, uncertainty intervals, and the distinction between finite sample evidence and exact algebraic verification."
-    ]
-  },
-  {
     "id": "coastal_wetland_sediment_elevation_budget",
     "title": "Tidal wetlands: sediment budgets and elevation resilience",
     "domain": "hydrology_coastal_wetland_sediment",
@@ -409,6 +293,133 @@
       "Design negative tests for missing operands, unmatched parentheses, trailing tokens and a valid empty production. State the exact rejection point and prove that successful parses consume the entire input.",
       "Compare LL(1), recursive descent with backtracking, Pratt parsing and LR(1) in a Markdown table covering grammar restrictions, lookahead, conflict diagnosis and error recovery. Include an English and Chinese terminology glossary.",
       "Build a reproducible grammar-transformation audit: enumerate short token strings and compare acceptance before and after left-recursion elimination and factoring. Provide runnable tests, LaTeX language-equivalence claims with explicit bounds and a Markdown summary separating bounded evidence from a general proof."
+    ]
+  },
+  {
+    "id": "coding_theory_hamming_syndrome_single_error_correction",
+    "domain": "coding_theory_linear_block_codes",
+    "title": "Hamming codes: binary parity checks, syndrome decoding and exhaustive verification",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a Hamming (7,4) code over GF(2). Show explicit generator and parity-check matrices in LaTeX, state bit order conventions, and verify their orthogonality.",
+      "Derive syndrome decoding for every possible single-bit error using your chosen matrices. Work through one encoded message and one corrupted codeword with all intermediate vectors.",
+      "Write complete runnable standard-library Python that encodes all 16 messages and exhaustively corrects all seven possible single-bit flips. Include assertions for parity checks and round-trip decoding.",
+      "Compare Hamming (7,4), extended Hamming (8,4) and triple repetition in a Markdown table: rates, minimum distance, detection and correction capabilities. Explain the meaning of SECDED in English and Chinese.",
+      "Design an adversarial verification report including zero-error, single-error, double-error and invalid-input cases. Distinguish a decoder returning some codeword from proving it recovered the transmitted message, with equations and executable tests."
+    ]
+  },
+  {
+    "id": "numerical_pde_finite_volume_upwind_mass_cfl",
+    "domain": "numerical_pde_conservative_transport",
+    "title": "Conservative transport: finite-volume fluxes, CFL stability and periodic mass audits",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Formulate one-dimensional linear advection on a periodic interval using conservative finite volumes. Specify cell averages, boundary indexing and numerical fluxes with LaTeX equations.",
+      "Derive the first-order upwind update for positive and negative speeds. Explain the CFL bound through positivity of update weights and show exact discrete mass conservation.",
+      "Give a small numeric worked example with four periodic cells, both velocity signs and a nontrivial Courant number. Present cell values, fluxes and before/after total mass in a Markdown table.",
+      "Write runnable standard-library Python implementing periodic upwind transport. Include tests for constant-state preservation, mass conservation and nonnegativity under the stated CFL condition.",
+      "Compare upwind, Lax-Wendroff and limited MUSCL reconstruction in a Markdown table covering order, diffusion, oscillations and boundary handling. Include an English/Chinese terminology glossary.",
+      "Derive a grid-refinement experiment against a smooth translated sine wave. Specify the final-time alignment, error norms and observed-order calculation in LaTeX.",
+      "Extend the verification script to run several grids and print a Markdown convergence table. Add a discontinuous pulse case, keeping smooth convergence claims separate from discontinuous behavior.",
+      "Design a failure audit using an excessive time step and a deliberately incorrect periodic flux index. Show which invariants detect each defect and explain the limits of conservation as a correctness test."
+    ]
+  },
+  {
+    "id": "electrochemistry_randles_impedance_nyquist_validation",
+    "domain": "electrochemistry_impedance_spectroscopy",
+    "title": "Electrochemical impedance: Randles circuit, Nyquist geometry and parameter identifiability",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Derive the complex impedance of a Randles circuit containing solution resistance Rs in series with a parallel charge-transfer resistor Rct and double-layer capacitor Cdl. State frequency and sign conventions using LaTeX.",
+      "Generate a labeled educational image containing the equivalent circuit and a Nyquist plot with the high-frequency intercept, low-frequency intercept and characteristic angular frequency. Keep units and the negative imaginary axis explicit.",
+      "Write complete runnable Python using only the standard library to tabulate real and imaginary impedance over a logarithmic frequency grid. Assert both limits and the semicircle identity, and verify the peak frequency numerically.",
+      "Compare ideal Randles, a constant-phase element and a diffusion extension in a Markdown table. Distinguish observed curve features from identifiable parameters and include an English/Chinese glossary.",
+      "Build a reproducible validation report for synthetic noisy impedance data. Include LaTeX error measures, executable tests for units and limiting cases, a table of residual diagnostics, and explain when circuit fitting cannot identify a unique physical mechanism."
+    ]
+  },
+  {
+    "id": "bayesian_beta_binomial_sequential_calibration",
+    "domain": "statistical_inference_beta_binomial",
+    "title": "Bayesian sequential inference: beta-binomial updating, predictive calibration and stopping rules",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "For Bernoulli observations with a Beta prior, derive the posterior and beta-binomial predictive distribution with LaTeX. Separate likelihood, prior, posterior and prediction.",
+      "Write runnable standard-library Python to update the posterior sequentially and calculate predictive probabilities in log space. Assert normalization, order independence and batch/sequential equivalence.",
+      "Derive posterior mean and variance and distinguish credible intervals from frequentist confidence intervals. Give a small worked example and a Markdown table of assumptions.",
+      "Implement a deterministic numerical calculation of equal-tailed credible bounds without third-party packages. Include endpoint handling and monotonicity tests against analytically tractable Beta cases.",
+      "Create a reproducible simulation comparing two fixed priors under several true probabilities. Report coverage and predictive calibration in Markdown tables; include English and Chinese descriptions.",
+      "Examine a posterior-threshold stopping rule. Explain how optional stopping changes a repeated-sampling evaluation and what the Bayesian likelihood principle does and does not establish.",
+      "Add sequential-versus-batch and probability-sum property checks, and show a counterexample where reusing an informative prior after every batch double counts evidence.",
+      "Consolidate a verification report with LaTeX derivations, complete runnable code, explicit random seeds and a Markdown results table. Separate Monte Carlo error from numerical integration error."
+    ]
+  },
+  {
+    "id": "biophysics_membrane_diffusion_finite_volume",
+    "title": "Membrane diffusion: conservative compartments and flux",
+    "domain": "biophysics_membrane_diffusion",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational image showing two fictional well-mixed fluid compartments separated by a permeable membrane. Label concentration, volume and the direction of net diffusive flux; use a legend and mark the diagram as conceptual.",
+      "Derive the coupled concentration equations from Fick’s law in LaTeX, distinguishing concentration, amount, permeability and area. Prove total solute conservation in a closed system and calculate the equilibrium concentration for unequal volumes.",
+      "Write complete runnable standard-library Python solving the two-compartment system with an exact exponential update. Assert conservation, nonnegative amounts, zero-permeability behavior and invariance under exchanging compartment labels.",
+      "Provide a Markdown table comparing numerical concentrations at four times against the analytical solution for three permeability values. State all fictional parameters and units, and distinguish computed results from schematic labels in the image.",
+      "Write a detailed bilingual reproducibility report on mixing assumptions, membrane storage, osmotic volume changes excluded by the model, dimensionless timescale and validation. Explain why this educational solute model cannot establish medical conclusions."
+    ]
+  },
+  {
+    "id": "signal_processing_aliasing_discrete_fourier_audit",
+    "title": "Sampling and aliasing: finite-window Fourier verification",
+    "domain": "signal_processing_sampling_aliasing",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a fictional signal consisting of three sinusoids with explicit rational frequencies, amplitudes and phases. Choose sampling rates illustrating both safe sampling and aliasing; state the distinction between a continuous signal and its finite observation.",
+      "Derive frequency alias equivalence and the Nyquist criterion in LaTeX. Explain why the finite observation window changes spectral resolution without changing the mathematical alias frequencies.",
+      "Write complete runnable standard-library Python computing a direct discrete Fourier transform with complex numbers for a small synthetic dataset. Include a single-bin sinusoid, constant signal and zero signal as deterministic tests.",
+      "Add Hann and rectangular window implementations. Verify their coherent gains and explain how amplitude normalization differs for DC, positive-frequency bins and the Nyquist bin.",
+      "Produce a Markdown table of predicted alias frequencies, measured peak bins, leakage and amplitude estimates at each sampling rate. Label the exact analytical values separately from finite-window estimates.",
+      "Derive and implement zero-padding for the same samples. Demonstrate that it interpolates the spectrum but does not improve the ability to resolve two nearby tones.",
+      "Add a seeded noise experiment and compare spectral estimates across repeated observations. Report uncertainty with explicit units and separate stochastic variation from deterministic leakage.",
+      "Write a long English-Chinese reproducibility audit including normalization conventions, phase, endpoint conventions, numerical tolerances, signal identifiability and limitations of interpolation. Include the final runnable Python and a concise validation table."
     ]
   }
 ]

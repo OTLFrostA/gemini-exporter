@@ -1,4 +1,4 @@
-import type { AccountObservation } from '../../domain/accountRegistry.js';
+import type { Account } from '../../domain/accountRegistry.js';
 
 function record(value: unknown): Record<string, unknown> | null {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -9,7 +9,7 @@ function text(value: unknown): string | undefined {
 }
 
 /** Session evidence only. A ChatGPT archive scope is one login subject in one workspace. */
-export function chatgptAccountObservation(session: unknown): AccountObservation | null {
+export function chatgptAccountObservation(session: unknown): Omit<Account, 'id'> | null {
     const raw = record(session), user = record(raw?.user), workspace = record(raw?.account);
     const userId = text(user?.id), workspaceId = text(workspace?.id);
     if (!userId || !workspaceId || workspaceId === 'default') return null;

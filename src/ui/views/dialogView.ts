@@ -9,7 +9,7 @@ import { $, t } from '../uiCommon.js';
 const getStorage = () => __resolveModule('StorageService', StorageService);
 const getStore = () => __resolveModule('ConversationsStore', ConversationsStore);
 
-export function renderExportBanner(session: ExportSession | null | undefined, currentSlot: string, isRunning: boolean): void {
+export function renderExportBanner(session: ExportSession | null | undefined, accountId: string, isRunning: boolean): void {
     const banner = $('exportSessionBanner');
     const bannerText = $('exportSessionText');
     const btnResume = $('btnResumeExport');
@@ -20,8 +20,8 @@ export function renderExportBanner(session: ExportSession | null | undefined, cu
         return;
     }
 
-    const slot = currentSlot || 'u0';
-    if (session.slot && session.slot !== slot) {
+    const slot = accountId || '';
+    if (session.accountId && session.accountId !== slot) {
         banner.style.display = 'none';
         return;
     }
@@ -162,7 +162,6 @@ export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogl
             }
         }
         try {
-            if (store?.hasTakeoutData && store.hasTakeoutData()) return;
             if (storage?.hasTakeoutData && await storage.hasTakeoutData()) return;
         } catch (e) {
             console.warn("[GemExporter:dialogView.ts]", e);

@@ -1,11 +1,12 @@
+import type { Account } from '../../domain/accountRegistry.js';
 import type {
     AIProvider, ProviderReadiness
 } from "../aiProvider.js";
-import type { DomainConversationIndex } from "../../domain/conversationIndex.js";
+import type { GeminiIndexObservationInput } from '../../parsers/gemini/parseIndexObservation.js';
 import type { PaginationOptions, PaginationResult, PaginatedDetailResult } from "../../api/client/pagination.js";
 
 /** Full parser/pagination evidence retained for current Gemini consumers. */
-export type GeminiProviderConversationItem = DomainConversationIndex;
+export type GeminiProviderConversationItem = GeminiIndexObservationInput & { id: string };
 export type GeminiProviderConversationDetail = PaginatedDetailResult;
 
 export interface GeminiProviderPageResult extends PaginationResult {
@@ -31,7 +32,7 @@ export interface GeminiProviderDetailOptions {
 /** The two client operations this adapter actually calls; also permits typed DI. */
 export interface GeminiProviderClient {
     getAllConversations(options?: GeminiProviderListOptions): Promise<PaginationResult>;
-    getConversationDetail(conversationId: string, targetSid?: string | null): Promise<PaginatedDetailResult>;
+    getConversationDetail(conversationId: string, targetSid?: string | null, account?: Account): Promise<PaginatedDetailResult>;
 }
 
 export interface GeminiProviderContract extends AIProvider {

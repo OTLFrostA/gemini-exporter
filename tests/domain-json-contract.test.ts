@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
@@ -20,8 +21,8 @@ test('each Domain fixture is closed and JSON round-trip preserves every backend 
         const domain = restoreDomainSnapshot(fixture);
         assertDomainClosure((domain).detail);
         const before = JSON.stringify(domain);
-        const document = composeDomainDocument(domain).document;
-        const roundTrip = composeDomainDocument(restoreDomainSnapshot(JSON.parse(before))).document;
+        const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
+        const roundTrip = composeDomainDocument(restoreDomainSnapshot(JSON.parse(before)), fixtureAccountFor(restoreDomainSnapshot(JSON.parse(before)))).document;
         assert.deepEqual(roundTrip, document, file);
         const backends = [renderDocumentHtml, renderDocumentMarkdown, renderDocumentTypst];
         for (const backend of backends) assert.deepEqual(backend(document, {}), backend(roundTrip, {}), file);
@@ -34,8 +35,8 @@ test('provider-only state and malformed title data cannot become document contex
     const raw = { id: 'state', title: { text: 'not a title' }, theme: 'dark', messages: [{ role: 'model', content: 'Authored content', initiallyCollapsed: false }] };
     const original = structuredClone(raw);
     const { conversation } = historicalFixture(raw as never, { providerId: 'gemini' });
-    assert.equal(typeof conversation.index.title, 'string');
-    const document = composeDomainDocument(conversation).document;
+    assert.equal(typeof conversation.index.title, 'undefined');
+    const document = composeDomainDocument(conversation, fixtureAccountFor(conversation)).document;
     assert.ok(!JSON.stringify(document).includes('initiallyCollapsed'));
     assert.ok(!JSON.stringify(document).includes('not a title'));
     assert.deepEqual(raw, original);

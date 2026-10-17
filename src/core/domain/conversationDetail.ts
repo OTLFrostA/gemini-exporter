@@ -1,3 +1,5 @@
+import { sameConversationKey } from './conversationKey.js';
+import type { ConversationKey } from './conversationKey.js';
 import type { ContentQuality } from './quality.js';
 import type { BlockNode } from './content/blocks.js';
 
@@ -18,10 +20,9 @@ export interface DomainAsset {
     name?: string;
     mediaType?: string;
     byteLength?: number;
-    /** Original acquisition URI, never an export destination or legacy localName. */
+    /** Source locator; never inline bytes, a temporary blob URL or an export destination. */
     sourceUri?: string;
-    dataBase64?: string;
-    generation?: Partial<DomainGeneratedMediaIdentity>;
+    generation?: DomainGeneratedMediaIdentity;
     document?: {
         id?: string;
         contentMarkdown?: string;
@@ -33,7 +34,7 @@ export interface DomainGeneratedMediaIdentity {
     /** Unix epoch milliseconds; omit when unknown. */
     time?: number;
     prompt?: string;
-    generationOrdinal: number;
+    generationOrdinal?: number;
     imageCount?: number;
     imageOrdinal?: number;
 }
@@ -71,8 +72,22 @@ export interface DomainMessage {
 
 /** Body facts only. All conversation metadata belongs to DomainConversationIndex. */
 export interface DomainConversationDetail {
+    key: ConversationKey;
+    /** Source version captured with this snapshot; never the local write clock. */
+    savedAt?: number;
     quality: ContentQuality;
     /** One record per semantic resource; body/reasoning assetId values refer to these IDs. */
     assets: DomainAsset[];
     messages: DomainMessage[];
+}
+
+/** Select a single snapshot; neither message count nor local capture time proves coverage. */
+export function selectConversationDetail<T extends { detail: DomainConversationDetail }>(
+    existing: T | undefined, incoming: T,
+): T {
+    if (!existing) return incoming;
+    if (!sameConversationKey(existing.detail.key, incoming.detail.key)) throw new TypeError('Detail identity mismatch');
+    if (existing.detail.quality.status === 'complete' && incoming.detail.quality.status !== 'complete') return existing;
+    if (existing.detail.savedAt !== undefined && incoming.detail.savedAt !== undefined && incoming.detail.savedAt < existing.detail.savedAt) return existing;
+    return incoming;
 }

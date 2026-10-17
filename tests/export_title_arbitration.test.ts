@@ -8,11 +8,11 @@ test('authoritative online title replaces Takeout title without erasing import h
     const incoming = indexFixture({ id: 'chat', title: 'Online rename', titleSource: 'rpc', hasTakeoutImport: false });
     const merged = mergeConversationIndex(old, incoming);
     assert.equal(merged.title, 'Online rename');
-    assert.equal(merged.titleSource, 'rpc');
-    assert.equal(merged.hasTakeoutImport, true);
+    assert.equal(merged.titleSource, 'provider');
+    assert.equal(Reflect.get(merged ?? {}, 'hasTakeoutImport'), undefined);
     assert.equal(Object.hasOwn(merged, 'titles'), false);
     assert.equal(old.title, 'Imported title');
-    assert.equal(old.hasTakeoutImport, true);
+    assert.equal(Reflect.get(old ?? {}, 'hasTakeoutImport'), undefined);
     assert.equal(incoming.title, 'Online rename');
-    assert.equal(incoming.hasTakeoutImport, false);
+    assert.equal(Reflect.get(incoming ?? {}, 'hasTakeoutImport'), undefined);
 });

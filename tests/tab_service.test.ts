@@ -1,3 +1,4 @@
+import { bindTabAccounts } from './helpers/tabAccounts.js';
 import test from 'node:test';
 import assert from 'node:assert';
 
@@ -38,16 +39,17 @@ test('TabService - getGeminiTab slot matching and active fallback', async () => 
             }
         };
 
-        const tabU1 = await TabService.getGeminiTab('u1');
+        bindTabAccounts({10:'10000000-0000-4000-8000-000000000001',20:'10000000-0000-4000-8000-000000000002',30:'10000000-0000-4000-8000-000000000003'});
+        const tabU1 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000002');
         assert.strictEqual(tabU1?.id, 20, 'Should match tab with /u/1/');
 
-        const tabU2 = await TabService.getGeminiTab('u2');
+        const tabU2 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000003');
         assert.strictEqual(tabU2?.id, 30, 'Should match tab with /u/2/');
 
-        const tabU3 = await TabService.getGeminiTab('u3');
+        const tabU3 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000004');
         assert.strictEqual(tabU3, null, 'Should return null when requested slot is not open');
 
-        const tabU0 = await TabService.getGeminiTab('u0');
+        const tabU0 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000001');
         assert.strictEqual(tabU0?.id, 10, 'Should match default u0 tab without /u/N/');
 
         const tabDefault = await TabService.getGeminiTab();

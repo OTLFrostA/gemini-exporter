@@ -1,3 +1,4 @@
+import { bindTabAccounts } from './helpers/tabAccounts.js';
 import { listFixture } from './helpers/listFixture.js';
 export {};
 const test = require('node:test');
@@ -235,6 +236,7 @@ function installChromeStub(tabResponder: (msg: any) => any) {
         },
         storage: { session: { get: async () => ({}), set: async () => {}, remove: async () => {} } }
     };
+    bindTabAccounts({7:'10000000-0000-4000-8000-000000000001'});
 }
 
 test('p1c - fetchBatch: 429 退避睡眠可被取消中断（不再睡满整个 backoff）', async () => {
@@ -244,9 +246,9 @@ test('p1c - fetchBatch: 429 退避睡眠可被取消中断（不再睡满整个 
         const t0 = Date.now();
         const p = batchFetcherMod.fetchBatch(
             [{ id: 'c_1', title: 't1' }], 'md', false,
-            (r: any) => { portRes = r; }, 0, 1, 'u0'
+            (r: any) => { portRes = r; }, 0, 1, '10000000-0000-4000-8000-000000000001'
         );
-        setTimeout(() => { abortMgr.setSlotAborted('u0', true); }, 300);
+        setTimeout(() => { abortMgr.setSlotAborted('10000000-0000-4000-8000-000000000001', true); }, 300);
         await p;
         const elapsed = Date.now() - t0;
         // 修复前：裸 sleep 2-3s（首轮）且循环继续，最长可达 ~56s；修复后 300ms 左右即退出
@@ -268,9 +270,9 @@ test('p1c - fetchBatch: 在途 tab 消息期间取消也生效（不等 25s tab 
         const t0 = Date.now();
         const p = batchFetcherMod.fetchBatch(
             [{ id: 'c_2', title: 't2' }], 'md', false,
-            (r: any) => { portRes = r; }, 0, 1, 'u0'
+            (r: any) => { portRes = r; }, 0, 1, '10000000-0000-4000-8000-000000000001'
         );
-        setTimeout(() => { abortMgr.setSlotAborted('u0', true); }, 200);
+        setTimeout(() => { abortMgr.setSlotAborted('10000000-0000-4000-8000-000000000001', true); }, 200);
         await p;
         const elapsed = Date.now() - t0;
         assert.ok(elapsed < 2000, `cancel during in-flight tab message should be fast (took ${elapsed}ms)`);
@@ -297,7 +299,7 @@ test('p1c - fetchBatch: 接收侧 retryAfterMs 生效（content 侧透传的 ser
         const t0 = Date.now();
         await batchFetcherMod.fetchBatch(
             [{ id: 'c_3', title: 't3' }], 'md', false,
-            (r: any) => { portRes = r; }, 0, 1, 'u0'
+            (r: any) => { portRes = r; }, 0, 1, '10000000-0000-4000-8000-000000000001'
         );
         const elapsed = Date.now() - t0;
         // 无 hint 时首轮 backoff ∈ [2000,3000)；hint=4000 被采用 → delay 恒为 4000
@@ -317,7 +319,7 @@ test('p1c - fetchBatch: 接收侧 retryAfterMs 生效（content 侧透传的 ser
 test('p1c - processAsset: 瞬时失败重试后成功（默认最多 3 次重试）', async () => {
     const files: Array<[string, any]> = [];
     let calls = 0;
-    const pipe = new AssetPipeline({
+    const pipe = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         useZip: true,
         writer: { writeFile: async (name: string, data: any) => { files.push([name, data]); return name; } },
         fetchAssetDelegate: async () => {
@@ -325,7 +327,7 @@ test('p1c - processAsset: 瞬时失败重试后成功（默认最多 3 次重试
             if (calls < 3) return { success: false, error: 'timeout' };
             return { success: true, dataBase64: 'aGk=' };
         }
-    });
+    }) });
     const res = await pipe.processAsset(
         { assetId: 'test-asset', url: 'https://example.com/a.png', localName: 'a.png' },
         { id: 'c_1', title: 'chat' },
@@ -341,22 +343,22 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
     let callsA = 0;
     const cA = new AbortController();
     cA.abort();
-    const pipeA = new AssetPipeline({
+    const pipeA = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         useZip: true,
         writer: { writeFile: async () => 'a.png' },
         fetchAssetDelegate: async () => { callsA++; return { success: false, error: 'x' }; }
-    });
+    }) });
     await assert.rejects(pipeA.processAsset({ assetId: 'test-asset', url: 'https://example.com/a.png' }, { id: 'c_1' }, { signal: cA.signal, maxRetries: 3 }), { name: 'AbortError' });
     assert.strictEqual(callsA, 0, 'no download attempt after pre-abort');
 
     // 情形 B：退避期间取消 → 停止重试，不再打满 3 次
     let callsB = 0;
     const cB = new AbortController();
-    const pipeB = new AssetPipeline({
+    const pipeB = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         useZip: true,
         writer: { writeFile: async () => 'b.png' },
         fetchAssetDelegate: async () => { callsB++; return { success: false, error: 'timeout' }; }
-    });
+    }) });
     const pB = pipeB.processAsset({ assetId: 'test-asset', url: 'https://example.com/b.png' }, { id: 'c_2' }, { signal: cB.signal, maxRetries: 3 });
     setTimeout(() => cB.abort(), 300); // 首轮 backoff 约 1000-1500ms，300ms 时中断
     await assert.rejects(pB, { name: 'AbortError' });
@@ -365,7 +367,7 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
 
 test('p1c - processAsset: 本地写入异常立即终止，不盲目重试网络拉取', async () => {
     let fetchCalls = 0;
-    const pipe = new AssetPipeline({
+    const pipe = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         useZip: true,
         writer: {
             writeFile: async () => {
@@ -376,7 +378,7 @@ test('p1c - processAsset: 本地写入异常立即终止，不盲目重试网络
             fetchCalls++;
             return { success: true, dataBase64: 'aGk=' };
         }
-    });
+    }) });
     const res = await pipe.processAsset(
         { assetId: 'test-asset', url: 'https://example.com/asset.png', localName: 'asset.png' },
         { id: 'c_write_err', title: 'chat' },

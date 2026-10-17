@@ -1,3 +1,4 @@
+import { isAccountId } from '../../domain/accountRegistry.js';
 import { extractC2PATimestamp } from '../../parsers/shared/resources/c2paTimestamp.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { findResourceMatch, resourceIdentity, type ResourceIdentity } from '../../parsers/shared/resources/resourceIdentity.js';
@@ -44,18 +45,19 @@ interface MediaIndexModule {
     getTakeoutFallbackMedia: (chatId: string, lookup: TakeoutResourceLookup, slot?: string | null) => Promise<Uint8Array | null>;
     commitTakeoutData: (slot: string | null | undefined, data: Partial<TakeoutStore>) => void;
     clearTakeoutData: (slot?: string | null) => void;
-    __slotTakeouts: Map<string, TakeoutStore>;
+    __accountTakeouts: Map<string, TakeoutStore>;
 }
 
-const __slotTakeouts = new Map<string, TakeoutStore>();
+const __accountTakeouts = new Map<string, TakeoutStore>();
 
-function normSlot(slot?: string | null): string {
-    return (slot && typeof slot === 'string' && slot.trim()) ? slot.trim() : 'u0';
+function requireAccountId(slot?: string | null): string {
+    if (!isAccountId(slot)) throw new TypeError('Takeout resources require an account UUID');
+    return slot;
 }
 
 export function getStore(slot?: string | null): TakeoutStore {
-    const s = normSlot(slot);
-    const existing = __slotTakeouts.get(s);
+    const s = requireAccountId(slot);
+    const existing = __accountTakeouts.get(s);
     if (existing) {
         return existing;
     }
@@ -95,7 +97,7 @@ async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLo
     const requested: ResourceIdentity = { conversationId: nid, assetId: lookup.assetId, sourceUris: lookup.sourceUri ? [lookup.sourceUri] : [], generation: lookup.generation };
     const native = store.convCache[nid];
     if (native) {
-        const candidates = native.conversation.detail.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversation.index.id)), sourceUris:
+        const candidates = native.conversation.detail.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversation.index.key.conversationId)), sourceUris:
             [asset.sourceUri, native.acquisitionHints[asset.id]?.url, native.acquisitionHints[asset.id]?.sourceUrl,
                 native.resourceHints[asset.id]?.archivePath].filter((uri): uri is string => !!uri) }));
         const match = findResourceMatch(nid, requested, candidates);
@@ -111,8 +113,8 @@ async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLo
 }
 
 function commitTakeoutData(slot: string | null | undefined, data: Partial<TakeoutStore>): void {
-    const s = normSlot(slot);
-    __slotTakeouts.set(s, {
+    const s = requireAccountId(slot);
+    __accountTakeouts.set(s, {
         mediaMap: data.mediaMap || {},
         globalMedia: data.globalMedia || {},
         convCache: data.convCache || {}
@@ -121,9 +123,9 @@ function commitTakeoutData(slot: string | null | undefined, data: Partial<Takeou
 
 function clearTakeoutData(slot?: string | null): void {
     if (slot) {
-        __slotTakeouts.delete(normSlot(slot));
+        __accountTakeouts.delete(requireAccountId(slot));
     } else {
-        __slotTakeouts.clear();
+        __accountTakeouts.clear();
     }
 }
 
@@ -135,7 +137,7 @@ export {
     commitTakeoutData,
     clearTakeoutData,
     readTakeoutBytes,
-    __slotTakeouts
+    __accountTakeouts
 };
 
 export const MediaIndex: MediaIndexModule = {
@@ -147,7 +149,7 @@ export const MediaIndex: MediaIndexModule = {
     getTakeoutFallbackMedia,
     commitTakeoutData,
     clearTakeoutData,
-    __slotTakeouts
+    __accountTakeouts
 };
 
 export default MediaIndex;

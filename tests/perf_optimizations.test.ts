@@ -119,7 +119,7 @@ test('perf - takeoutEngine yields to event loop and reports incremental progress
     TakeoutEngine.clearTakeoutData();
     const res = await TakeoutEngine.parseTakeoutZip(buf, (pct: any, msg: any) => {
         progressReports.push({ pct, msg });
-    });
+    }, '10000000-0000-4000-8000-000000000001');
 
     assert.strictEqual(res.conversations.length, 120, 'all 120 conversations should be parsed');
     // Check that incremental progress for block 100 was reported
@@ -219,10 +219,10 @@ test('perf - AssetPipeline times out and recovers gracefully when tabs.sendMessa
             }
         };
 
-        const pipeline = new AssetPipeline({
+        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
             downloadTimeoutMs: 50, // fast timeout for unit test
             getGeminiTab: async () => ({ id: 12345 })
-        });
+        }) });
 
         const start = Date.now();
         const res = await pipeline.processAsset(

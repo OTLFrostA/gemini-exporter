@@ -385,7 +385,7 @@ class ExtensionActions:
                                 success: true,
                                 addedCount: result.addedCount,
                                 totalMediaCount: result.totalMediaCount,
-                                importedIds: (result.res?.conversations || []).map(c => c.id),
+                                importedIds: (result.res?.conversations || []).map(c => c.key.conversationId),
                                 status: result.res?.status,
                                 mediaDigests,
                                 diagnostics: result.res?.diagnostics || []

@@ -1,3 +1,4 @@
+import { fixtureKey } from './helpers/domainFixture.js';
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 const { messageAssets } = require('./helpers/domainAssets.js');
 export {};
@@ -46,13 +47,13 @@ test('Domain adapter preserves a normal RPC conversation and message order', asy
         updatedAt: 1700000001000,
         url: 'https://gemini.google.com/app/conversation-1',
         messages: [
-            { id: 'u1', role: 'user', content: 'Question', timestamp: 1700000000000 },
+            { id: '10000000-0000-4000-8000-000000000002', role: 'user', content: 'Question', timestamp: 1700000000000 },
             { id: 'a1', role: 'model', content: 'Answer', timestamp: 1700000001000 },
         ],
     };
     await assertExportEquivalent(conversation);
     const domain = historicalFixtureDomain(conversation);
-    assert.deepEqual(domain.detail.messages.map((m: { id?: string }) => m.id), ['u1', 'a1']);
+    assert.deepEqual(domain.detail.messages.map((m: { id?: string }) => m.id), ['10000000-0000-4000-8000-000000000002', 'a1']);
     assert.equal('turns' in domain, false);
 });
 
@@ -82,7 +83,7 @@ test('Domain adapter preserves attachments and images without mutating binary da
     const original = structuredClone(conversation);
     const domain = historicalFixtureDomain(conversation);
     assert.deepEqual(conversation, original);
-    assert.equal(messageAssets(domain)?.[0].dataBase64, 'AQID');
+    assert.equal(messageAssets(domain)?.[0].dataBase64, undefined);
     await assertExportEquivalent(conversation);
 });
 
@@ -431,14 +432,14 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
 }
 
 test('source validation rejects reasoning/citation aliases before document composition', async () => {
-    const clean = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: base.id, title: base.title, providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] } };
-    const leaked = { index: { ...clean.index }, detail: { ...clean.detail, messages: [{ ...clean.detail.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] } };
+    const clean = { index: { key: fixtureKey(String(base.id), 'gemini'),   titleSource: "derived",  title: base.title,  }, detail: { key: fixtureKey(String(base.id), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] } };
+    const leaked = { index: { ...clean.index }, detail: {   ...clean.detail, messages: [{ ...clean.detail.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] } };
     await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
     const document = (await composeFixture(clean)).document;
     assert.equal(document.messages[0].blocks[0].type, 'disclosure');
     assert.equal(document.messages[0].sources.items[0].href, 'https://example.com');
-    const absent = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: base.id, title: base.title, providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] } };
-    const aliasesOnly = { index: { ...absent.index }, detail: { ...absent.detail, messages: [{ ...absent.detail.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] } };
+    const absent = { index: { key: fixtureKey(String(base.id), 'gemini'),   titleSource: "derived",  title: base.title,  }, detail: { key: fixtureKey(String(base.id), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] } };
+    const aliasesOnly = { index: { ...absent.index }, detail: {   ...absent.detail, messages: [{ ...absent.detail.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] } };
     await assert.rejects(composeFixture(aliasesOnly), /Invalid persisted Domain contract: messages/);
     assert.equal((await composeFixture(absent)).document.messages[0].blocks.some((block: { type: string }) => block.type === 'disclosure'), false);
 });

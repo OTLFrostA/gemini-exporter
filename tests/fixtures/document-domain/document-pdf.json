@@ -1,12 +1,12 @@
 {
   "index": {
-    "providerId": "example",
-    "id": "c",
+    "key": {
+      "accountId": "10000000-0000-4000-8000-000000000008",
+      "conversationId": "c"
+    },
     "title": "Title",
-    "createdAt": 1791244800000,
-    "cloudAvailability": "unknown",
-    "hasTakeoutImport": false,
-    "titleSource": "legacy"
+    "titleSource": "derived",
+    "createdAt": 1791244800000
   },
   "detail": {
     "assets": [
@@ -196,6 +196,10 @@
     ],
     "quality": {
       "status": "unknown"
+    },
+    "key": {
+      "accountId": "10000000-0000-4000-8000-000000000008",
+      "conversationId": "c"
     }
   }
 }

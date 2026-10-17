@@ -1,3 +1,5 @@
+import type { Account } from '../../domain/accountRegistry.js';
+import { semanticTitleSource, parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../../domain/conversationIndex.js';
 import { normalizeTimestamp } from '../../domain/time.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../utils/titleUtils.js';
@@ -16,33 +18,17 @@ function legacyTime(value: unknown): number | undefined {
     }
     return normalizeTimestamp(value);
 }
-/** Released disk metadata -> Domain Index. Historical aliases are interpreted only here. */
-export function parseLegacyConversationIndex(value: unknown, providerId = 'gemini'): DomainConversationIndex {
+/** Explicit fixture/source conversion; never used to recover persisted Index rows. */
+export function parseLegacyConversationIndex(value: unknown, account: Account): DomainConversationIndex {
     const row = object(value);
     if (typeof row.id !== 'string' && typeof row.id !== 'number') throw new TypeError('Index source has no identity');
-    const id = providerId === 'gemini' ? normId(String(row.id)) : String(row.id).trim();
-    if (!id || providerId === 'gemini' && (id === 'unknown' || isReservedRoute(id))) throw new TypeError('Index source has invalid identity');
     const candidates: TitleCandidate[] = [];
-    const addTitle = (value: unknown, provenance: string) => {
-        if (typeof value !== 'string' || !isTitleSource(provenance) || provenance === 'default') return;
-        const title = cleanTitle(value);
-        if (isRealTitle(title, id) || provenance === 'takeout' && title && !isBrandPlaceholderTitle(title)) candidates.push({ value: title, source: provenance });
-    };
-    addTitle(row.title, typeof row.titleSource === 'string' && isTitleSource(row.titleSource) && row.titleSource !== 'default' ? row.titleSource : 'legacy');
-    const titleSlots = row.titles && typeof row.titles === 'object' && !Array.isArray(row.titles) ? row.titles as Record<string, unknown> : {};
-    for (const [provenance, value] of Object.entries(titleSlots)) addTitle(value, provenance);
-    const resolved = resolveTitle(candidates);
-    const rawUrl = typeof row.url === 'string' ? row.url : typeof row.href === 'string' ? row.href : undefined;
-    if (rawUrl && /accounts\.google\.com|SignOutOptions/i.test(rawUrl)) throw new TypeError('Not a conversation URL');
-    const url = rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : providerId === 'gemini' ? `https://gemini.google.com/app/${encodeURIComponent(id)}` : undefined;
-    const createdAt = legacyTime(row.createdAt);
-    const updatedAt = legacyTime(row.updatedAt) ?? legacyTime(row.timestamp) ?? legacyTime(row.chatTime);
-    const takeout = row.hasTakeoutImport === true || (row.source === 'takeout' || row.source === 'takeout-import' || row.titleSource === 'takeout' || row.isTakeoutOnly === true || typeof titleSlots.takeout === 'string');
-    // Retain recorded availability during migration, without establishing fresh cloud presence.
-    const cloudAvailability = (row.cloudAvailability === 'deleted' || row.cloudAvailability === 'unlisted' || row.cloudAvailability === 'available') ? row.cloudAvailability : 'unknown';
-    // Historical counts have mixed units and cannot establish individual-message facts.
-    return restoreConversationIndex({ providerId, id, title: resolved?.value ?? '', titleSource: resolved?.source ?? 'default',
-        cloudAvailability, hasTakeoutImport: !!takeout, ...(createdAt !== undefined ? { createdAt } : {}),
-        ...(updatedAt !== undefined ? { updatedAt } : {}),
-        ...(url ? { url } : {}) });
+    if (typeof row.title === 'string' && !isBrandPlaceholderTitle(row.title)) candidates.push({ value: cleanTitle(row.title), source: semanticTitleSource(typeof row.titleSource === 'string' ? row.titleSource : undefined) });
+    if (row.titles && typeof row.titles === 'object') for (const [source, value] of Object.entries(row.titles)) {
+        if (typeof value === 'string' && !isBrandPlaceholderTitle(value)) candidates.push({ value: cleanTitle(value), source: semanticTitleSource(source) });
+    }
+    const title = resolveTitle(candidates);
+    return parseIndexMetadata({ account, providerId: account.providerId, id: String(row.id),
+        title: title?.value ?? '', titleSource: title?.source,
+        createdAt: legacyTime(row.createdAt), updatedAt: legacyTime(row.updatedAt) ?? legacyTime(row.timestamp) ?? legacyTime(row.chatTime) });
 }

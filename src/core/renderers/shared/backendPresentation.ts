@@ -1,4 +1,4 @@
-import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst } from '../../document/ast/ast.js';
+import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceGroup } from '../../document/ast/ast.js';
 import type { RenderOptions } from './renderOptions.js';
 import { getRendererStrings } from './renderStrings.js';
 
@@ -27,8 +27,8 @@ export function blockText(node: DisplayBlock): string {
         case 'thematicBreak': return '';
     }
 }
-export function codeHeader(node: Extract<DisplayBlock, { type: 'code' }>, format: 'html' | 'markdown' | 'pdf'): string {
-    if (!node.showHeader) return '';
+export function codeHeader(node: Extract<DisplayBlock, { type: 'code' }>, format: 'html' | 'markdown' | 'pdf', options: RenderOptions = {}): string {
+    if (options.showCodeHeader === false) return '';
     if (format === 'markdown') return node.meta ?? '';
     const language = node.language || 'text';
     const title = language;
@@ -88,7 +88,20 @@ export function headerMetadata(document: DocumentAst, locale: 'zh' | 'en', pdf =
     return `${document.header.providerLabel}${document.header.date ? ' · ' + document.header.date : pdf ? ' · ' + strings.dateUnknown : ''} · ${document.header.messageCount} ${pdf || locale === 'en' ? 'messages' : '条消息'}`;
 }
 export function messageLabel(message: DisplayMessage, locale: 'zh' | 'en'): string {
-    const en = { you: 'You', assistant: 'Assistant', system: 'System', developer: 'Developer', unknown: 'Message' };
-    const zh = { you: '你', assistant: '助手', system: '系统', developer: '开发者', unknown: '消息' };
-    return message.heading?.text ?? (locale === 'zh' ? zh : en)[message.label];
+    return getRendererStrings(locale).roles[message.label];
+}
+
+/** Preserve Composer numbering, including the numeric label used for untitled sources. */
+export function sourceLabel(item: SourceGroup['items'][number]): string {
+    return sourceNumberPrefix(item) + item.label;
+}
+
+export function sourceNumberPrefix(item: SourceGroup['items'][number]): string {
+    return item.label === `[${item.number}]` ? '' : `[${item.number}] `;
+}
+
+export function unavailableResourceText(kind: 'image' | 'file', label: string, locale: 'zh' | 'en'): string {
+    const strings = getRendererStrings(locale);
+    const text = kind === 'image' ? strings.imageUnavailable : strings.fileUnavailable;
+    return label ? `${text}: ${label}` : text;
 }

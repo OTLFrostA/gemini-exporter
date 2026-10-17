@@ -117,7 +117,7 @@ test('PR 3 - 3: User uploaded image attachment renders 1 inline figure and no co
         title: 'User Upload Test',
         messages: [
             {
-                id: 'u1',
+                id: '10000000-0000-4000-8000-000000000002',
                 role: 'user',
                 content: 'Analyze this photo from my garden.',
                 attachments: [

@@ -1,3 +1,4 @@
+import { fixtureAccount } from './domainFixture.js';
 /** Test-only differential audit. Never imported into the extension. */
 import type { BlockNode } from '../../src/core/domain/content/blocks.js';
 import type { InlineNode } from '../../src/core/domain/content/inline.js';
@@ -124,7 +125,7 @@ export function differences(left: Value | undefined, right: Value | undefined, p
 }
 
 export function auditGeminiEvidence(evidence: GeminiDetailEvidence) {
-    const context = { providerId: 'gemini' as const };
+    const context = { account: fixtureAccount(), providerId: 'gemini' as const };
     const native = parseGeminiDetailEvidence(structuredClone(evidence), context);
     const markdownEvidence = structuredClone(evidence);
     for (const message of markdownEvidence.messages) {
@@ -170,10 +171,11 @@ export function readGeminiAuditInput(input: string, kind: 'raw_rpc' | 'native_en
     const data = object(envelope.data), transport = object(data.transport);
     if (!Array.isArray(transport.decodedPayload)) throw new Error('Missing native decodedPayload');
     const conversation = object(data.conversation), index = object(conversation.index), detail = object(conversation.detail);
-    if (index.providerId !== 'gemini' || typeof index.id !== 'string' || !Array.isArray(detail.messages)) throw new Error('Not a Gemini native detail');
+    const account = object(data.account), key = object(index.key);
+    if (account.providerId !== 'gemini' || typeof key.conversationId !== 'string' || !Array.isArray(detail.messages)) throw new Error('Not a Gemini native detail');
     // Historical captures retain the exact inner payload, not the original HTTP framing.
     // Reconstitute only its transport wrapper, explicitly label this provenance in the report.
     const wrapper = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(transport.decodedPayload)]]);
-    return { evidence: decodeGeminiDetail(wrapper, index.id), provenance: 'captured_decoded_payload',
+    return { evidence: decodeGeminiDetail(wrapper, key.conversationId), provenance: 'captured_decoded_payload',
         expectedMessages: detail.messages.map(item => { const message = object(item); return { id: message.id, role: message.role === 'assistant' ? 'model' : message.role }; }) };
 }

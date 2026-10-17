@@ -85,12 +85,12 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
     const title = (doc.title ?? doc.querySelector('title')?.textContent ?? '').trim().replace(/\s*[-–|]\s*(?:Google\s+)?Gemini$/i, '').trim();
     const authoredTitle = title && !/^(?:Google\s+)?(?:Gemini|Bard)$/i.test(title);
     const conversation = {
-        index: parseIndexMetadata({ providerId: 'gemini', id, title: authoredTitle ? title : '',
+        index: parseIndexMetadata({ account: context.account, providerId: 'gemini', id, title: authoredTitle ? title : '',
             titleSource: authoredTitle ? 'dom' : 'default', messageCount: resources.messages.length,
             url: raw.url ?? `https://gemini.google.com/app/${id}` }),
         detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), messages: resources.messages, assets: resources.assets },
     };
-    return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
+    return { evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, account: context.account, conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
         diagnostics,
         transport: { fallbackUsed, nodeCount: nodes.length, htmlLen: doc.documentElement?.outerHTML?.length ?? 0 } };
 }

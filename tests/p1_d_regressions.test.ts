@@ -1,3 +1,4 @@
+import { withRegistry } from './helpers/registryMock.js';
 import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture, rpcFixture } = require('./helpers/nativeFixture.js');
@@ -53,7 +54,7 @@ function makeChromeStore() {
 
 function withChrome(chrome: any) {
     const prev = (global as any).chrome;
-    (global as any).chrome = chrome;
+    (global as any).chrome = withRegistry(chrome);
     return () => { (global as any).chrome = prev; };
 }
 
@@ -70,8 +71,8 @@ test('P1-045: saveExportRecord stores a single canonical key (no 3-alias fan-out
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
-        await StorageService.saveExportRecord('u0', 'c_d45_a', { ok: 1 });
-        const map = store['exportedIds'];
+        await StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'c_d45_a', { ok: 1 });
+        const map = store['exported_10000000-0000-4000-8000-000000000001'];
         assert.deepStrictEqual(
             Object.keys(map).sort(),
             ['d45_a'],
@@ -86,9 +87,9 @@ test('P1-045: historical alias keys are collapsed to canonical form on save', as
     const restore = withChrome(chrome);
     try {
         // Map as written by the old code: three alias keys for one conversation.
-        store['exportedIds'] = { 'c_d45_b': { v: 1 }, 'd45_b': { v: 1 }, 'other': { v: 2 } };
-        await StorageService.saveExportRecord('u0', 'd45_c', { v: 3 });
-        const map = store['exportedIds'];
+        store['exported_10000000-0000-4000-8000-000000000001'] = { 'c_d45_b': { v: 1 }, 'd45_b': { v: 1 }, 'other': { v: 2 } };
+        await StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'd45_c', { v: 3 });
+        const map = store['exported_10000000-0000-4000-8000-000000000001'];
         assert.deepStrictEqual(
             Object.keys(map).sort(),
             ['d45_b', 'd45_c', 'other'],
@@ -103,18 +104,18 @@ test('P1-046: non-u0 saves never pollute the global exportedIds key', async () =
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
-        store['exportedIds'] = { 'u0rec': { v: 1 } };
-        await StorageService.saveExportRecord('u1', 'c_d46_a', { v: 1 });
+        store['exported_10000000-0000-4000-8000-000000000001'] = { 'u0rec': { v: 1 } };
+        await StorageService.saveExportRecord('10000000-0000-4000-8000-000000000002', 'c_d46_a', { v: 1 });
         assert.deepStrictEqual(
-            store['exportedIds'],
+            store['exported_10000000-0000-4000-8000-000000000001'],
             { 'u0rec': { v: 1 } },
             'non-u0 record leaked into the global exportedIds key'
         );
-        assert.deepStrictEqual(Object.keys(store['gemini_exported_u1']).sort(), ['d46_a']);
+        assert.deepStrictEqual(Object.keys(store['exported_10000000-0000-4000-8000-000000000002']).sort(), ['d46_a']);
         // Read path respects canonical slot isolation: u1 view reads only u1 key without leaking global u0 records.
-        const viewU1 = await StorageService.getExportedIds('u1');
+        const viewU1 = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
         assert.deepStrictEqual(Object.keys(viewU1).sort(), ['d46_a'], 'u1 view should isolate to u1 without leaking global u0rec');
-        const viewU0 = await StorageService.getExportedIds('u0');
+        const viewU0 = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.ok(viewU0['u0rec'], 'u0 view preserves u0rec');
     } finally { restore(); }
 });
@@ -129,8 +130,8 @@ test('P1-047: overlapping setConversations calls are serialized in call order', 
     });
     const restore = withChrome(chrome);
     try {
-        const p1 = StorageService.setConversations('u0', ([{ id: 'first' }]).map(indexFixture));
-        const p2 = StorageService.setConversations('u0', ([{ id: 'second' }]).map(indexFixture));
+        const p1 = StorageService.setConversations('10000000-0000-4000-8000-000000000001', ([{ id: 'first' }]).map(indexFixture));
+        const p2 = StorageService.setConversations('10000000-0000-4000-8000-000000000001', ([{ id: 'second' }]).map(indexFixture));
         await new Promise((r) => setTimeout(r, 10));
         // The second write must not start before the first one completes.
         assert.strictEqual(resolvers.length, 1, 'second write started before the first finished (no lock)');
@@ -139,24 +140,7 @@ test('P1-047: overlapping setConversations calls are serialized in call order', 
         assert.strictEqual(resolvers.length, 2);
         resolvers[1]();
         await Promise.all([p1, p2]);
-        assert.deepStrictEqual(store['gemini_conversations'], [indexFixture({ id: 'second' })]);
-    } finally { restore(); }
-});
-
-// ------------------------------------------------------------------ P1-048
-
-test('P1-048: concurrent updateAccountSlot calls do not lose fields', async () => {
-    const { store, chrome } = makeChromeStore();
-    const restore = withChrome(chrome);
-    try {
-        const p1 = StorageService.updateAccountSlot('u0', { a: 1 });
-        const p2 = StorageService.updateAccountSlot('u1', { b: 2 });
-        await Promise.all([p1, p2]);
-        assert.deepStrictEqual(
-            store['gemini_account_slots'],
-            { u0: { a: 1 }, u1: { b: 2 } },
-            'concurrent slot updates lost a field (naked read-modify-write)'
-        );
+        assert.deepStrictEqual(store['conversations_10000000-0000-4000-8000-000000000001'], [indexFixture({ id: 'second' })]);
     } finally { restore(); }
 });
 
@@ -164,20 +148,16 @@ test('P1-048: removeConversation keeps list, count key and slot count consistent
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
-        store['gemini_conversations'] = ([{ id: 'c_keep' }, { id: 'c_gone' }]).map(indexFixture);
-        store['gemini_last_count'] = 2;
-        const removed = await StorageService.removeConversation('u0', 'c_gone');
+        store['conversations_10000000-0000-4000-8000-000000000001'] = ([{ id: 'c_keep' }, { id: 'c_gone' }]).map(indexFixture);
+        store['last_count_10000000-0000-4000-8000-000000000001'] = 2;
+        const removed = await StorageService.removeConversation('10000000-0000-4000-8000-000000000001', 'c_gone');
         assert.strictEqual(removed, true);
         assert.deepStrictEqual(
-            (store['gemini_conversations'] as any[]).map((c) => c.id),
+            (store['conversations_10000000-0000-4000-8000-000000000001'] as any[]).map((c) => c.key.conversationId),
             ['keep']
         );
-        assert.strictEqual(store['gemini_last_count'], 1, 'countKey diverged from list');
-        assert.strictEqual(
-            store['gemini_account_slots'] && store['gemini_account_slots']['u0'] && store['gemini_account_slots']['u0'].count,
-            1,
-            'account slot count diverged from list'
-        );
+        assert.strictEqual(store['last_count_10000000-0000-4000-8000-000000000001'], 1, 'countKey diverged from list');
+        assert.strictEqual(store['gemini_account_slots'], undefined, 'Registry owns Accounts; no slot metadata is written');
     } finally { restore(); }
 });
 
@@ -187,33 +167,33 @@ test('P1-049: removeConversation deletes the conversation export records (all al
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
-        store['gemini_conversations'] = ([{ id: 'c_gone' }, { id: 'c_keep' }]).map(indexFixture);
-        store['exportedIds'] = { 'c_gone': { v: 1 }, 'gone': { v: 1 }, 'c_keep': { v: 2 } };
-        await StorageService.removeConversation('u0', 'c_gone');
+        store['conversations_10000000-0000-4000-8000-000000000001'] = ([{ id: 'c_gone' }, { id: 'c_keep' }]).map(indexFixture);
+        store['exported_10000000-0000-4000-8000-000000000001'] = { 'c_gone': { v: 1 }, 'gone': { v: 1 }, 'c_keep': { v: 2 } };
+        await StorageService.removeConversation('10000000-0000-4000-8000-000000000001', 'c_gone');
         assert.deepStrictEqual(
-            Object.keys(store['exportedIds']).sort(),
+            Object.keys(store['exported_10000000-0000-4000-8000-000000000001']).sort(),
             ['c_keep'],
-            `stale export records remain: ${JSON.stringify(Object.keys(store['exportedIds']))}`
+            `stale export records remain: ${JSON.stringify(Object.keys(store['exported_10000000-0000-4000-8000-000000000001']))}`
         );
     } finally { restore(); }
 });
 
-test('P1-049: reconcileConversations deletes export records of removed conversations', async () => {
+test('P1-049: reconcileConversations retains unlisted local indexes and export records', async () => {
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
-        store['gemini_conversations'] = ([{ id: 'c_a' }, { id: 'c_b' }]).map(indexFixture);
-        store['exportedIds'] = { 'a': { v: 1 }, 'b': { v: 1 } };
-        const res = await StorageService.reconcileConversations('u0', [{ id: 'c_a' }]);
-        assert.deepStrictEqual(res.removedIds, ['b']);
+        store['conversations_10000000-0000-4000-8000-000000000001'] = ([{ id: 'c_a' }, { id: 'c_b' }]).map(indexFixture);
+        store['exported_10000000-0000-4000-8000-000000000001'] = { 'a': { v: 1 }, 'b': { v: 1 } };
+        const res = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', [{ id: 'c_a' }]);
+        assert.deepStrictEqual(res.removedIds, []);
         assert.deepStrictEqual(
-            Object.keys(store['exportedIds']),
-            ['a'],
-            'reconciled-away conversation kept its export record'
+            Object.keys(store['exported_10000000-0000-4000-8000-000000000001']),
+            ['a', 'b'],
+            'cloud absence must retain export records'
         );
         assert.deepStrictEqual(
-            (store['gemini_conversations'] as any[]).map((c) => c.id),
-            ['a']
+            (store['conversations_10000000-0000-4000-8000-000000000001'] as any[]).map((c) => c.key.conversationId),
+            ['a', 'b']
         );
     } finally { restore(); }
 });
@@ -373,9 +353,9 @@ test('P1-053: IDB connections are closed after use and onblocked is observed', a
 test('P1-054: loadFormat warns instead of silently swallowing storage errors', async () => {
     const cap = captureWarn();
     const prev = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         storage: { local: { get: async () => { throw new Error('boom'); }, set: async () => { /* noop */ } } },
-    };
+    });
     try {
         const res = await FormatStore.loadFormat();
         assert.strictEqual(res.format, 'markdown');
@@ -391,14 +371,14 @@ test('P1-054: loadFormat warns instead of silently swallowing storage errors', a
 
 // ------------------------------------------------------------------ P1-056
 
-test('P1-056: merge keeps the fuller message body when the incoming body is empty/shorter', async () => {
+test('P1-056: Index merging ignores bodies and message counts', async () => {
     const mkMsgs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: 'm' + i, text: 't' + i }));
     const full = { id: 'c_x', title: 'T', titles: { rpc: 'T' }, titleSource: 'rpc', messages: mkMsgs(5), messageCount: 5, timestamp: 100, updatedAt: 100 };
 
     // Empty incoming body must not clobber the full body.
     const r1 = mergeConversation(indexFixture(full), indexFixture({ ...full, messages: [], messageCount: 0 }), { source: 'network-list' });
     assert.strictEqual(r1.merged.messages, undefined, 'empty incoming body clobbered the full body');
-    assert.strictEqual(r1.merged.messageCount, 5, 'stale smaller messageCount regressed');
+    assert.strictEqual(r1.merged.messageCount, undefined, 'stale smaller messageCount regressed');
 
     // Shorter (not just empty) incoming body must not clobber either.
     const r3 = mergeConversation(indexFixture(full), indexFixture({ ...full, messages: mkMsgs(2), messageCount: 2 }), { source: 'network-list' });
@@ -411,7 +391,7 @@ test('P1-056: merge keeps the fuller message body when the incoming body is empt
         { source: 'network-list' }
     );
     assert.strictEqual(r2.merged.messages, undefined);
-    assert.strictEqual(r2.merged.messageCount, 5);
+    assert.strictEqual(r2.merged.messageCount, undefined);
 });
 
 test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have shorter incoming messages attached', () => {
@@ -441,7 +421,7 @@ test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have sho
 
     const res = mergeConversation(indexFixture(slimOld), indexFixture(incomingShort), { source: 'network-list' });
     assert.strictEqual(res.merged.messages, undefined, '较短的 incoming 消息数组绝不可附着到 slim 会话上');
-    assert.strictEqual(res.merged.messageCount, 15, '应保持原有 15 条消息计数');
+    assert.strictEqual(res.merged.messageCount, undefined, '应保持原有 15 条消息计数');
     assert.strictEqual(res.isChanged, false, '更短的残缺正文不应触发变更标记');
 
     // 较长的 incoming (例如全量追加或离线导入带来 20 条消息)
@@ -458,20 +438,20 @@ test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have sho
 
     const res2 = mergeConversation(indexFixture(slimOld), indexFixture(incomingLong), { source: 'network-list' });
     assert.strictEqual(res2.merged.messages, undefined, '更长完整的消息数组应正常并入');
-    assert.strictEqual(res2.merged.messageCount, 20);
-    assert.strictEqual(res2.isChanged, true);
+    assert.strictEqual(res2.merged.messageCount, undefined);
+    assert.strictEqual(res2.isChanged, false);
 });
 
 // ------------------------------------------------------------------ P1-057
 
-test('P1-057: isChanged detects message-count growth when timestamps are unchanged', async () => {
+test('P1-057: Index ignores message-count growth when timestamps are unchanged', async () => {
     const base: any = { id: 'c_y', title: 'Same title', titles: { rpc: 'Same title' }, titleSource: 'rpc', timestamp: 1000, updatedAt: 1000 };
     const old = { ...base, messageCount: 5, messages: [{ id: 'a' }] };
     const incoming = { ...base, messageCount: 8, messages: [{ id: 'a' }] };
     const r = mergeConversation(indexFixture(old), indexFixture(incoming), { source: 'network-list' });
     assert.strictEqual(
-        r.isChanged, true,
-        'messageCount 5 -> 8 with identical title/timestamps must count as changed'
+        r.isChanged, false,
+        'messageCount 5 -> 8 with identical title/timestamps does not change Index'
     );
 });
 

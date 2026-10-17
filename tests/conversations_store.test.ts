@@ -12,12 +12,12 @@ let previousSlot: string;
 test.beforeEach(() => {
     previousConversations = ConversationsStore.getConversations();
     previousExportedIds = ConversationsStore.getExportedIds();
-    previousSlot = ConversationsStore.getCurrentSlot();
+    previousSlot = ConversationsStore.getCurrentAccountId();
 });
 test.afterEach(() => {
     ConversationsStore.setConversations(previousConversations);
     ConversationsStore.setExportedIds(previousExportedIds);
-    ConversationsStore.setCurrentSlot(previousSlot);
+    ConversationsStore.setCurrentAccountId(previousSlot);
 });
 
 test('conversationsStore - normId', () => {
@@ -37,8 +37,8 @@ test('conversationsStore - in-memory get and set', () => {
     ConversationsStore.setExportedIds(expMap);
     assert.deepStrictEqual(ConversationsStore.getExportedIds(), expMap);
 
-    ConversationsStore.setCurrentSlot('u1');
-    assert.strictEqual(ConversationsStore.getCurrentSlot(), 'u1');
+    ConversationsStore.setCurrentAccountId('10000000-0000-4000-8000-000000000002');
+    assert.strictEqual(ConversationsStore.getCurrentAccountId(), '10000000-0000-4000-8000-000000000002');
 });
 
 test('conversationsStore - getExportedRecord normalization', () => {
@@ -74,23 +74,11 @@ test('conversationsStore - getSignature', () => {
     assert.ok(sigA !== sigD);
 });
 
-test('conversationsStore detects historical import fact, not title provenance', () => {
-    const canonical = (id: string, titleSource: 'rpc' | 'takeout', hasTakeoutImport: boolean) =>
-        indexFixture({ providerId: 'gemini', id, title: 'Valid title', titleSource,
-            cloudAvailability: 'unknown', hasTakeoutImport });
-
-    const online = canonical('online', 'rpc', false);
-    const titleOnly = canonical('title-only', 'takeout', false);
-    const importedRenamed = canonical('imported', 'rpc', true);
-
-    ConversationsStore.setConversations([online, titleOnly]);
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), false,
-        'a Takeout-looking title does not prove a prior import');
-    ConversationsStore.setConversations([online, importedRenamed]);
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true,
-        'a conversation renamed online still carries its import history');
-    ConversationsStore.setConversations([online]);
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), false);
+test('conversationsStore retains only canonical Index facts', () => {
+    const list = [indexFixture({ id: 'imported', title: 'Renamed online', titleSource: 'rpc', hasTakeoutImport: true })];
+    ConversationsStore.setConversations(list);
+    assert.equal(Object.hasOwn(ConversationsStore.getConversations()[0], 'hasTakeoutImport'), false);
+    assert.equal(ConversationsStore.getConversations()[0].titleSource, 'provider');
 });
 
 test('conversationsStore consumes canonical indexes without rewriting them', () => {
@@ -104,4 +92,55 @@ test('conversationsStore signature observes activity changes without a title or 
     const original = Array.from({ length: 8 }, (_, i) => indexFixture({ id: `signature-${i}`, title: 'Same title', updatedAt: 10 }));
     const changed = original.map((row, i) => i === 4 ? { ...row, updatedAt: 20 } : row);
     assert.notStrictEqual(ConversationsStore.getSignature(original), ConversationsStore.getSignature(changed));
+});
+
+for (const switchAccount of [false, true]) test(`a delayed account load cannot replace a newer ${switchAccount ? 'account selection' : 'snapshot'}`, async () => {
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const firstId = '10000000-0000-4000-8000-000000000001';
+    const nextId = switchAccount ? '10000000-0000-4000-8000-000000000002' : firstId;
+    let release!: (rows: ReturnType<typeof indexFixture>[]) => void;
+    const held = new Promise<ReturnType<typeof indexFixture>[]>(resolve => { release = resolve; });
+    let arrived!: () => void;
+    const pendingRead = new Promise<void>(resolve => { arrived = resolve; });
+    let reads = 0;
+    __setModuleOverride('StorageService', {
+        listAccounts: async () => [firstId, '10000000-0000-4000-8000-000000000002'].map((id, i) => ({ id, providerId: 'gemini', providerAccountId: 'gaia-' + i })),
+        getConversations: async () => { if (reads++ === 0) { arrived(); return held; } return [indexFixture({ id: 'newer', title: 'Newer snapshot' })]; },
+        getExportedIds: async () => ({}),
+    });
+    try {
+        ConversationsStore.setCurrentAccountId(firstId);
+        const older = ConversationsStore.loadStore(firstId);
+        await pendingRead;
+        ConversationsStore.setCurrentAccountId(nextId);
+        await ConversationsStore.loadStore(nextId);
+        release([indexFixture({ id: 'older', title: 'Older snapshot' })]);
+        await older;
+        assert.strictEqual(ConversationsStore.getCurrentAccountId(), nextId);
+        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { key: { conversationId: string } }) => row.key.conversationId), ['newer']);
+    } finally { release([]); __clearModuleOverrides(); }
+});
+
+for (const operation of ['remove']) test(`completion of ${operation} in A cannot remove the same conversation from the visible B account`, async () => {
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const firstId = '10000000-0000-4000-8000-000000000001';
+    const nextId = '10000000-0000-4000-8000-000000000002';
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    let arrived!: () => void;
+    const pendingWrite = new Promise<void>(resolve => { arrived = resolve; });
+    __setModuleOverride('StorageService', {
+        removeConversation: async (id: string) => { assert.strictEqual(id, firstId); arrived(); await held; return true; },
+        reconcileConversations: async (id: string) => { assert.strictEqual(id, firstId); arrived(); await held; return { kept: 0, removed: 1, removedIds: ['shared'] }; },
+    });
+    try {
+        ConversationsStore.setCurrentAccountId(firstId);
+        const pending = operation === 'remove' ? ConversationsStore.removeConversation('shared') : ConversationsStore.reconcileWithCloud([]);
+        await pendingWrite;
+        ConversationsStore.setCurrentAccountId(nextId);
+        ConversationsStore.setConversations([indexFixture({ id: 'shared', title: 'B keeps this conversation' })]);
+        release(); await pending;
+        assert.strictEqual(ConversationsStore.getCurrentAccountId(), nextId);
+        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { key: { conversationId: string } }) => row.key.conversationId), ['shared']);
+    } finally { release(); __clearModuleOverrides(); }
 });

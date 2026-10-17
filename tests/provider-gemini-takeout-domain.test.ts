@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { parseGeminiTakeoutZipArchive } from '../src/core/parsers/gemini/takeout/parseZip.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,12 +18,12 @@ const ID = 'CaseSensitive_99';
 function activity(prompt = 'Question', answer = '<p><strong>Answer</strong></p>', date = '2026-09-02T12:00:00Z', id = ID, extra = ''): string {
     return `<div class="outer-cell"><a href="https://gemini.google.com/app/c_${id}">Conversation</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted ${prompt}<br>${date}<br>${answer}</div>${extra}</div>`;
 }
-const native = (data: GeminiTakeoutRaw, targetConvId?: string) => parseConversation({ format: 'gemini-takeout', providerId: 'gemini', data, targetConvId });
+const native = (data: GeminiTakeoutRaw, targetConvId?: string) => parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout', providerId: 'gemini', data, targetConvId });
 const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(block => extractBlockText(block)).join('\n');
 
 test('Takeout raw HTML constructs Domain without persisted records or fabricated message dates', () => {
     const { conversation } = native({ htmlText: activity() });
-    assert.equal(conversation.index.id, ID);
+    assert.equal(conversation.index.key.conversationId, ID);
     assert.equal(conversation.index.title, 'Question');
     assert.equal(Reflect.get(conversation, 'provenance'), undefined);
     assert.deepEqual(conversation.detail.messages.map(m => m.role), ['user', 'assistant']);
@@ -47,12 +48,12 @@ test('missing Takeout dates remain absent and activity logs never claim complete
 test('batch and selected parsing preserve separate conversation identities and source chronology', () => {
     const htmlText = activity('Newer', '<p>New answer</p>', '2026-09-03T12:00:00Z') + activity('Older') + activity('Other', '<p>Other answer</p>', '', 'other_chat_99');
     assert.throws(() => native({ htmlText }), /targetConvId/);
-    const batch = parseGeminiTakeoutArchive({ htmlText }, { providerId: 'gemini' });
+    const batch = parseGeminiTakeoutArchive({ htmlText }, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(batch.length, 2);
     const selected = native({ htmlText }, `c_${ID}`);
     assert.deepEqual(selected.conversation, batch[0].conversation);
     assert.deepEqual(selected.conversation.detail.messages.map(m => text(m.content)), ['Older', 'Answer', 'Newer', 'New answer']);
-    assert.equal(batch[1].conversation.index.id, 'other_chat_99');
+    assert.equal(batch[1].conversation.index.key.conversationId, 'other_chat_99');
 });
 
 test('archive source paths and handles stay separate from export destinations', () => {
@@ -119,8 +120,8 @@ test('long report HTML becomes authored Content AST without synthetic document I
     assert.ok(result.conversation.detail.messages[1].content.some(block => block.type === 'heading'));
     assert.ok(result.conversation.detail.messages[1].content.some(block => block.type === 'table'));
     const before = JSON.stringify(result.conversation);
-    const document = composeDomainDocument(result.conversation).document;
-    const restored = composeDomainDocument(JSON.parse(before)).document;
+    const document = composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document;
+    const restored = composeDomainDocument(JSON.parse(before), fixtureAccountFor(JSON.parse(before))).document;
     for (const backend of [renderDocumentHtml, renderDocumentMarkdown, renderDocumentTypst]) assert.deepEqual(backend(document, {}), backend(restored, {}));
     assert.equal(JSON.stringify(result.conversation), before);
 });
@@ -131,7 +132,7 @@ test('Takeout extraction has no export naming and native parsing does not call c
     assert.doesNotMatch(source, /parseTakeoutHtmlBlocks|correlateGeneratedImages|parseConversationRecord|Date\.now|sanitizeFileName|localName/);
     assert.equal(decodeTakeoutHtml(activity())[0].conversationIds[0], ID);
     assert.throws(() => native({ htmlText: 'unsupported format' }), /Unsupported Takeout/);
-    assert.throws(() => parseGeminiTakeoutArchive({ htmlText: activity() }, { providerId: 'openai' }), /providerId gemini/);
+    assert.throws(() => parseGeminiTakeoutArchive({ htmlText: activity() }, { account: fixtureAccount('openai'), providerId: 'openai' }), /providerId gemini/);
 });
 
 
@@ -141,23 +142,23 @@ test('raw ZIP bytes decode directly to selected and batch Domain results with ac
     zip.file('Takeout/Gemini/MyActivity.html', activity('Question', '<p>Output <img src="photo.png"></p>'));
     zip.file('Takeout/Gemini/photo.png', 'image source bytes');
     const data = await zip.generateAsync({ type: 'uint8array' });
-    const result = await parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data, readArchive: bytes => JSZip.loadAsync(bytes) });
-    assert.equal(result.conversation.index.id, ID);
+    const result = await parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout-zip', providerId: 'gemini', data, readArchive: bytes => JSZip.loadAsync(bytes) });
+    assert.equal(result.conversation.index.key.conversationId, ID);
     assert.equal(result.conversation.detail.assets.length, 1);
     const handle = result.archiveResources[result.conversation.detail.assets[0].id];
     assert.equal(handle.path, 'Takeout/Gemini/photo.png');
     assert.equal(await handle.entry.async!('text'), 'image source bytes');
     assertDomainClosure((JSON.parse(JSON.stringify(result.conversation))).detail);
-    const batch = await parseGeminiTakeoutZipArchive(data, { providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
+    const batch = await parseGeminiTakeoutZipArchive(data, { account: fixtureAccount('gemini'), providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
     assert.deepEqual(batch[0].conversation, result.conversation);
 });
 
 test('ZIP parsing rejects malformed inventories, unverifiable HTML sizes and ambiguous activity selection', async () => {
     const data = new Uint8Array([1]);
-    await assert.rejects(parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data, readArchive: async () => ({}) }), /inventory/);
-    await assert.rejects(parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data,
+    await assert.rejects(parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout-zip', providerId: 'gemini', data, readArchive: async () => ({}) }), /inventory/);
+    await assert.rejects(parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout-zip', providerId: 'gemini', data,
         readArchive: async () => ({ files: { 'MyActivity.html': { async: async () => activity() } } }) }), /size|大小/);
-    await assert.rejects(parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data,
+    await assert.rejects(parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout-zip', providerId: 'gemini', data,
         readArchive: async () => ({ files: { 'a/MyActivity.html': { _data: { uncompressedSize: 0 } }, 'b/MyActivity.html': { _data: { uncompressedSize: 0 } } } }) }), /activityPath/);
 });
 

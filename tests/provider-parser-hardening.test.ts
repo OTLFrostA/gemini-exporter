@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/provider-parser-hardening.test.ts
@@ -152,7 +153,7 @@ test('image with no source remains a semantic asset and the backend reports unav
     assert.ok(asset, 'asset registered');
     assert.ok(!asset.sourceUri);
     assert.doesNotThrow(() => assertDomainClosure((domain).detail));
-    const rendered = renderDocumentHtml(composeDomainDocument(domain).document, {});
+    const rendered = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {});
     assert.ok(rendered.diagnostics.some((d: any) => d.code === 'HTML_ASSET_UNRESOLVED'));
     assert.ok(rendered.html.includes('gem-missing-asset'));
 });

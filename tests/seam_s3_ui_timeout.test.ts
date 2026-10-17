@@ -69,13 +69,13 @@ test('S3 - failed deepScan reply releases the scan lock and reports an error', a
     } };
     try {
         const result = await new Promise<{ kind: string; error?: Error }>((resolve) =>
-            startSync('u0', {
+            startSync('10000000-0000-4000-8000-000000000001', {
                 onFinished: () => resolve({ kind: 'finished' }),
                 onError: (error: Error) => resolve({ kind: 'error', error })
             })
         );
         assert.equal(sent.action, 'deepScan');
-        assert.equal(sent.accountSlot, 'u0');
+        assert.equal(sent.accountId, '10000000-0000-4000-8000-000000000001');
         assert.equal(result.kind, 'error');
         assert.match(result.error?.message || '', /injected scan failure/);
         assert.equal(isScanning(), false, 'a failed request must release the scan lock');

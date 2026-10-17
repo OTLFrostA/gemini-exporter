@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
@@ -10,9 +11,9 @@ const { formatMarkdownDocument } = require('../src/core/engine/chatFormatter.js'
 const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 function domainFixture(blocks: any[], extra: any = {}): DomainConversationWithDetail {
-    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c', title: 'Title' }, detail: { quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: [{ id: 'm', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
+    return restoreDomainSnapshot({ index: { key: fixtureKey(String('c'), 'gemini'),   titleSource: "derived",   title: 'Title' }, detail: { key: fixtureKey(String('c'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: [{ id: 'm', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
 }
-const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra)).document, extra.resources ?? {});
+const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra), fixtureAccountFor(domainFixture(blocks, extra))).document, extra.resources ?? {});
 
 test('Markdown code serialization preserves existing final newlines without adding a blank line', () => {
     for (const source of ['run()', 'run()\n', 'run()\n\n']) {
@@ -22,11 +23,11 @@ test('Markdown code serialization preserves existing final newlines without addi
 });
 
 test('Markdown export envelope uses Domain metadata and omits absent optional fields', async () => {
-    const b = domainFixture([]); Object.assign(b.index, { url: 'https://example.com/chat', createdAt: Date.parse('2026-01-01T00:00:00Z') });
-    const md = await exportDomainMarkdown({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } });
-    assert.ok(md.startsWith('---\ntitle: "Title"\nid: "c"\nprovider: "gemini"\nurl: "https://example.com/chat"\ndate: "2026-01-01T00:00:00.000Z"\nupdated: "2026-01-02T00:00:00.000Z"\nexported: "'));
+    const b = domainFixture([]); Object.assign(b.index, { createdAt: Date.parse('2026-01-01T00:00:00Z') });
+    const md = await exportDomainMarkdown({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } }, fixtureAccountFor({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } }));
+    assert.ok(md.startsWith('---\ntitle: "Title"\nid: "c"\nprovider: "gemini"\ndate: "2026-01-01T00:00:00.000Z"\nupdated: "2026-01-02T00:00:00.000Z"\nexported: "'));
     assert.ok(md.includes('tags:\n  - gemini-export\n---\n\n# Title'));
-    const minimal = await exportDomainMarkdown(domainFixture([])); assert.ok(!/^url:|^date:|^updated:/m.test(minimal));
+    const minimal = await exportDomainMarkdown(domainFixture([]), fixtureAccountFor(domainFixture([]))); assert.ok(!/^url:|^date:|^updated:/m.test(minimal));
 });
 
 test('Markdown paragraph preserves nested inline formatting and line breaks', () => {
@@ -37,7 +38,7 @@ test('Markdown paragraph preserves nested inline formatting and line breaks', ()
 test('Markdown emits headings and every message role in source order', () => {
     const b = domainFixture([{ type: 'heading', level: 3, children: [txt('Section')] }]);
     b.detail.messages = (['user', 'assistant', 'system', 'developer', 'unknown'] as const).map((role, i) => ({ id: `${i}`, role, content: b.detail.messages[0].content }));
-    const md = renderDocumentMarkdown(composeDomainDocument(b).document, {}); const headings = ['## 👤 You', '## 🤖 Assistant', '## ⚙️ System', '## 🛠 Developer', '## Message'];
+    const md = renderDocumentMarkdown(composeDomainDocument(b, fixtureAccountFor(b)).document, {}); const headings = ['## 👤 You', '## 🤖 Assistant', '## ⚙️ System', '## 🛠 Developer', '## Message'];
     assert.deepEqual(headings.map((h) => md.indexOf(h)), headings.map((h) => md.indexOf(h)).sort((a, b) => a - b));
     assert.ok(md.includes('### Section'));
 });
@@ -97,7 +98,7 @@ test('Markdown inline citations link URLs and retain labels without URLs', () =>
 
 test('Markdown message Sources preserve citation order after the body', () => {
     const b = domainFixture([para('body')], { citations: [{ id: 'c', title: 'Web', url: 'https://example.com' }, { id: 'd', title: 'Local' }] }); b.detail.messages[0].citations!.reverse();
-    assert.ok(renderDocumentMarkdown(composeDomainDocument(b).document, {}).includes('body\n\n> 🌐 **Sources:**\n> [1] [Local]\n> [2] [Web](https://example.com)'));
+    assert.ok(renderDocumentMarkdown(composeDomainDocument(b, fixtureAccountFor(b)).document, {}).includes('body\n\n> 🌐 **Sources:**\n> [1] [Local]\n> [2] [Web](https://example.com)'));
 });
 
 test('Markdown unknown content remains visible as escaped text', () => {
@@ -117,7 +118,7 @@ test('Gemini Markdown fallback reaches Document Markdown with semantic formattin
 
 test('Markdown escapes unsafe links, local paths and YAML title boundaries', async () => {
     const b = domainFixture([{ type: 'paragraph', children: [{ type: 'link', href: 'javascript:alert(1)', children: [txt('safe')] }, { type: 'image', assetId: 'a', alt: 'blocked' }] }], { assets: [{ id: 'a', kind: 'image', sourceUri: 'https://remote/pic.png' }] });
-    b.index.title = 'Title"\nextra: yes'; const md = await exportDomainMarkdown({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } });
+    b.index.title = 'Title"\nextra: yes'; const md = await exportDomainMarkdown({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } }, fixtureAccountFor({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } }));
     assert.ok(md.includes('title: "Title\\" extra: yes"')); assert.ok(!md.includes('javascript:')); assert.ok(!md.includes('https://remote')); assert.ok(md.includes('[Image unavailable: blocked]'));
 });
 

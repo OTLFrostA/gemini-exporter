@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 /**
  * tests/provider-gemini-markup-sanitization.test.ts
  * Runtime provider content-adapter and Document renderer contract.
@@ -48,7 +49,7 @@ test('Gemini interactive markup is removed by provider content adapter before Do
         '思考过程：\n<Elicitation label="内部测试"/>\n分析比特与量子比特。',
         { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'messages[0].reasoning' } },
     );
-    const domain = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: 'gemini_markup_test_chat', providerId: 'gemini', title: 'Structured Markup Sanitization Test' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: parseGeminiBody(rawContent), reasoning }] } });
+    const domain = validateParserDomain({ index: { key: fixtureKey(String('gemini_markup_test_chat'), 'gemini'),   titleSource: "derived",   title: 'Structured Markup Sanitization Test' }, detail: { key: fixtureKey(String('gemini_markup_test_chat'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: parseGeminiBody(rawContent), reasoning }] } });
     const msg = domain.detail.messages[0];
     assert.ok(msg.reasoning?.length, 'authored reasoning must remain visible');
     assert.ok(JSON.stringify(msg.reasoning).includes('分析比特与量子比特'));
@@ -65,7 +66,7 @@ test('Gemini interactive markup is removed by provider content adapter before Do
     assert.ok(allText.includes('量子比特具备指数级并行潜力。'));
 
     // Both backend outputs receive the same already-sanitized, trusted Domain content.
-    const document = composeDomainDocument(domain).document;
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
     const { html } = renderDocumentHtml(document, {});
     const markdown = renderDocumentMarkdown(document, {});
     for (const output of [html, markdown]) {

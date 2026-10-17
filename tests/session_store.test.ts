@@ -64,7 +64,7 @@ test('sessionStore - setSession stores session snapshot with updatedAt', async (
 
     await SessionStore.setSession({
         status: 'running',
-        slot: 'u0',
+        slot: '10000000-0000-4000-8000-000000000001',
         total: 10,
         current: 2,
         lastChatId: 'c_abc123'
@@ -83,7 +83,7 @@ test('sessionStore - updateSession merges patch and updates timestamp', async ()
     const memoryStorage: Record<string, any> = {
         [EXPORT_SESSION_KEY]: {
             status: 'running',
-            slot: 'u0',
+            slot: '10000000-0000-4000-8000-000000000001',
             total: 20,
             current: 5,
             updatedAt: 1000

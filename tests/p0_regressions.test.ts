@@ -51,7 +51,7 @@ test('P0-1: export-record save chain recovers after a single failed batch (no po
         // 第一次保存失败（模拟配额超限）：应当 reject
         failNextSet = true;
         await assert.rejects(
-            StorageService.saveExportRecord('u0', 'c_p0_1_probe_a', { probe: 1 }),
+            StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'c_p0_1_probe_a', { probe: 1 }),
             /simulated-quota-failure/
         );
 
@@ -59,13 +59,13 @@ test('P0-1: export-record save chain recovers after a single failed batch (no po
         // （原报告误称此处会以陈旧错误 reject 即"链中毒"；实际 .catch(reject)
         //  已将链重置为 resolved，见 P0-1 勘误。）
         // Let the second write fail the test directly if the chain is still poisoned.
-        await StorageService.saveExportRecord('u0', 'c_p0_1_probe_b', { probe: 1 });
-        const got: any = await (global as any).chrome.storage.local.get(['exportedIds']);
+        await StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'c_p0_1_probe_b', { probe: 1 });
+        const got: any = await (global as any).chrome.storage.local.get(['exported_10000000-0000-4000-8000-000000000001']);
         // P1-045 (2026-09-15): export records are now stored under a single canonical
         // key normId(id); readers look up all historical alias forms, so the record
         // saved here as 'c_p0_1_probe_b' persists under 'p0_1_probe_b'.
         assert.ok(
-            got.exportedIds && got.exportedIds['p0_1_probe_b'],
+            got['exported_10000000-0000-4000-8000-000000000001'] && got['exported_10000000-0000-4000-8000-000000000001']['p0_1_probe_b'],
             'second export record must be persisted after storage recovered'
         );
     } finally {
@@ -99,8 +99,8 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
         // map 里已有两个账号：首条目是缺 at 的半成品，第二条是好的
         await (global as any).chrome.storage.session.set({
             gemini_credentials_map: {
-                bad: { sid: 'bad', at: '', bl: 'BL_X', accountSlot: 'u0', lastUsed: 1 },
-                good: { sid: 'good', at: 'AT_GOOD', bl: 'BL_X', accountSlot: 'u1', lastUsed: 2 },
+                bad: { sid: 'bad', at: '', bl: 'BL_X', accountSlot: '10000000-0000-4000-8000-000000000001', lastUsed: 1 },
+                good: { sid: 'good', at: 'AT_GOOD', bl: 'BL_X', accountSlot: '10000000-0000-4000-8000-000000000002', lastUsed: 2 },
             },
         });
         const resolved = await CredManager.resolveCred();

@@ -1,9 +1,11 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
 import { build } from 'esbuild';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+
+test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
 let bundle: string;
 test.beforeAll(async () => {
@@ -28,17 +30,18 @@ test.beforeAll(async () => {
                 { url: 'https://lh3.googleusercontent.com/deletion-missing.png', fileName: 'missing.png' }
             ] }] });
             const [cached, takeout] = source.conversation.detail.assets;
-            await domain.saveDomainConversation('u0', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
+            await domain.saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
             const list = scenario.noList ? [] : [indexFixture({ id, title: source.conversation.index.title, timestamp: 1, cloudAvailability: 'unlisted' })];
-            await StorageService.setConversations('u0', list);
+            await StorageService.setConversations('10000000-0000-4000-8000-000000000001', list);
+            await StorageService.setConversationAvailability('10000000-0000-4000-8000-000000000001', id, 'unlisted');
             let writeFailures = 0, remoteCalls = 0, domCalls = 0;
             const order = [], warnings = [], logs = [], replies = [];
-            const storage = { ...StorageService, updateConversation: async (slot, cid, patch) => {
-                if (patch && typeof patch === 'object' && patch.cloudAvailability === 'deleted') {
+            const storage = { ...StorageService, setConversationAvailability: async (slot, cid, state) => {
+                if (state === 'deleted') {
                     order.push('storage');
                     if (scenario.writeFailure) { writeFailures++; throw new Error('Injected deletion persistence failure'); }
                 }
-                return StorageService.updateConversation(slot, cid, patch);
+                return StorageService.setConversationAvailability(slot, cid, state);
             } };
             const provider = ProviderRegistry.getDefault();
             const originalFetch = provider.fetchConversationDetail;
@@ -78,7 +81,7 @@ test.beforeAll(async () => {
             });
             try {
                 const result = await new ExportOrchestrator().run({ selected: [{ id }], conversations: list,
-                    currentSlot: 'u0', worker: BatchWorker, useZip: true,
+                    accountId: '10000000-0000-4000-8000-000000000001', worker: BatchWorker, useZip: true,
                     takeoutEngine: { getTakeoutOfflineChat: () => null, getTakeoutMediaForChat: () => [],
                         getTakeoutFallbackMedia: async (_id, lookup) => lookup.assetId === takeout.id ? new Uint8Array([4, 5, 6]) : null },
                     downloadHandler: blob => {
@@ -87,10 +90,10 @@ test.beforeAll(async () => {
                     }
                 }, { onLog: message => logs.push(message) });
                 return { result, remoteCalls, domCalls, writeFailures, order, warnings, logs, replies,
-                    listAvailability: list[0]?.cloudAvailability,
-                    persistedList: await StorageService.getConversations('u0'),
-                    records: await StorageService.getExportedIds('u0'),
-                    savedConversation: await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' }).getConversation(id),
+                    availability: (await StorageService.getConversationAvailability('10000000-0000-4000-8000-000000000001'))[id],
+                    persistedList: await StorageService.getConversations('10000000-0000-4000-8000-000000000001'),
+                    records: await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001'),
+                    savedConversation: await StorageService.conversationRepository({ providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001' }).getConversation(id),
                     conversation: source.conversation, assetId: cached.id };
             } finally {
                 provider.fetchConversationDetail = originalFetch;
@@ -124,6 +127,16 @@ for (const scenario of scenarios) {
             status: 200, contentType: 'image/png', body: Buffer.from([7, 8, 9])
         }));
         await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+        await page.evaluate(() => {
+            // The router runs in this extension document; supply explicit MAIN identity evidence.
+            window.addEventListener('message', event => {
+                if (event.source !== window || event.data?.type !== 'GEMINI_ACCOUNT_REQUESTED') return;
+                window.postMessage({ type: 'GEMINI_ACCOUNT_OBSERVED', payload: {
+                    requestId: event.data.payload.requestId, slot: 'u0',
+                    observation: { providerId: 'gemini', providerAccountId: '10000000001' }
+                } }, location.origin);
+            });
+        });
         await page.evaluate(bundle);
         const download = scenario.noList ? null : page.waitForEvent('download');
         const observed = await page.evaluate(scenario => Reflect.get(globalThis, 'deletionProbe').run(scenario), scenario);
@@ -155,8 +168,8 @@ for (const scenario of scenarios) {
         expect(observed.records['deletion-isolation'].status).toBe('partial');
         if (scenario.route === 'network') {
             expect(observed.replies[0].data.isDeleted).toBe(false);
-            expect(observed.listAvailability).toBe('unlisted');
-            expect(observed.persistedList[0].cloudAvailability).toBe('unlisted');
+            expect(observed.availability).toBe('unlisted');
+            expect(observed.availability).toBe('unlisted');
             expect(observed.writeFailures).toBe(0);
             expect(observed.remoteCalls).toBe(2);
             expect(assetRequests).toHaveLength(2);
@@ -173,19 +186,19 @@ for (const scenario of scenarios) {
             expect(contents).toContainEqual([4, 5, 6]);
             expect(observed.logs.join(' ')).not.toMatch(/后重试|backoff/);
             expect(observed.order.slice(0, 2)).toEqual(['memory', 'storage']);
-            if (!scenario.noList) expect(observed.listAvailability).toBe('deleted');
+            expect(observed.persistedList[0]).not.toHaveProperty('cloudAvailability');
             if (scenario.writeFailure) {
                 expect(observed.writeFailures).toBe(2);
                 expect(observed.warnings.join(' ')).toContain('Injected deletion persistence failure');
-                if (!scenario.noList) expect(observed.persistedList[0].cloudAvailability).toBe('unlisted');
-            } else expect(observed.persistedList[0].cloudAvailability).toBe('deleted');
+                if (!scenario.noList) expect(observed.availability).toBe('unlisted');
+            } else expect(observed.availability).toBe('deleted');
         }
         // Reload proves the archive body and cached bytes survived on disk.
         await page.reload(); await page.evaluate(bundle);
         const retained = await page.evaluate(async assetId => {
             const api = Reflect.get(globalThis, 'deletionProbe');
-            return { body: (await api.getDomainConversationResult('u0', 'deletion-isolation')).conversation,
-                bytes: [...await api.getDomainResource(api.storageIdentity('gemini', 'u0', 'deletion-isolation'), assetId)] };
+            return { body: (await api.getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'deletion-isolation')).conversation,
+                bytes: [...await api.getDomainResource(api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'deletion-isolation'), assetId)] };
         }, observed.assetId);
         expect(retained.body).toEqual(observed.conversation);
         expect(retained.bytes).toEqual([1, 2, 3]);

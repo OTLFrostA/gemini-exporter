@@ -96,7 +96,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "11-missing-asset",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

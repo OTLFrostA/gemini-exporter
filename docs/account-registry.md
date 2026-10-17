@@ -1,61 +1,74 @@
-# AccountRegistry: first implementation stage
+# AccountRegistry and UUID attribution
 
-The [final AccountRegistry design](https://app.notion.com/p/3fb5d4d759e1811f8d00c0d6b26ff696) is the identity contract. This change establishes the registry and connects online discovery; it does not complete the Conversation, UI, Takeout or legacy storage migration.
+The [AccountRegistry design](https://app.notion.com/p/3fb5d4d759e1811f8d00c0d6b26ff696) defines the current identity contract. Registry UUIDs own all conversation indexes, Domain bodies/resources, export records, synchronization state and UI selection. Provider routing values such as Gemini `u0` never identify a local storage partition.
 
-## Current identity and persistence map
+## Account contract
 
-| Responsibility | Code | Behavior in this stage |
+`src/core/domain/accountRegistry.ts` defines the only durable account entity:
+
+```ts
+interface Account {
+    id: string; // local UUID v4
+    providerId: string;
+    providerAccountId: string;
+    email?: string;
+    displayName?: string;
+}
+```
+
+Matching uses the exact `(providerId, providerAccountId)` pair. Email and display name update the profile without changing the UUID; missing profile fields preserve known values. Email is never a matching key. Gemini uses Gaia as `providerAccountId`; ChatGPT uses `JSON.stringify([userId, workspaceId])`.
+
+Each Provider can have one ordinary fallback Account with `providerAccountId: 'default'` and its own UUID. Missing reliable Provider identity resolves to this Account. Unverified email/name is discarded for default. Unknown sources can share its archive scope; later discovery creates/reuses the real Account without moving, promoting or merging default data. A missing request capture is a protocol error, distinct from an explicitly captured unknown identity.
+
+## Definitions and consumers
+
+| Responsibility | Implementation | Contract |
 | --- | --- | --- |
-| Gemini profile discovery | `src/content/accountSniffer.ts` | Reads Gaia `qDCSke` and email `oPEP7c` from the same active page's Wiz object; DOM labels supply display names only when their email agrees. Missing Gaia cannot establish a Registry account. |
-| Provider normalization | `src/core/provider/gemini/accountObservation.ts` | Maps Gaia to `providerAccountId`; emits no slot, UUID or credentials. |
-| ChatGPT identity normalization | `src/core/provider/chatgpt/accountObservation.ts` | Maps one Session's User + Workspace to a canonical tuple key; email and name stay profile fields. Pure normalization only; the online provider remains disabled. |
-| Domain account identity | `src/core/domain/accountRegistry.ts` | Matches `(providerId, providerAccountId)`, preserves UUID and absent profile facts, never matches email, never generates IDs or performs IO. |
-| Atomic persistence | `src/core/storage/accountRegistryStore.ts` | Uses an `accounts` store in the existing Domain IndexedDB. One read/write transaction covers lookup, pure decision, UUID generation and commit. Reads validate without data repair. No memory fallback. |
-| Content/background boundary | `src/background/accountRegistryHandler.ts` | Validates extension sender and request; supports observe, list (optional Provider filter), and read by UUID. |
-| MAIN-world evidence transport | `src/content/hookCredentials.ts`, `src/content/bootstrap.ts` | Publishes changed Gaia/profile/slot evidence separately from credentials, observes SPA changes without network activity, and answers correlated fresh-identity queries. Request-triggered discovery runs only after recognizing a `batchexecute` URL, so ordinary Fetch/XHR traffic adds no profile scans. Treats page messages as untrusted input. |
-| Runtime UUID binding | `src/content/accountContext.ts`, `src/content/messageRouter.ts` | Binds the stable Provider identity and current slot to a UUID. Public `getAccountContext` messages first query MAIN; missing Gaia or an unavailable bridge returns no binding. DOM email cannot veto Gaia. Duplicate observations coalesce and same-Gaia profile updates retain the committed UUID while persistence is pending. |
-| Credential identity | `src/content/bootstrap.ts` | Newly captured credential `accountId` comes from the Registry UUID after refreshing current Gaia. A queued credential from another Gaia cannot bind to the new account even when email and slot match. Profile hints come from the matching MAIN observation. |
-| Legacy account metadata | `src/core/storage/storageService.ts`, `src/types/ui.ts` | Existing `AccountSlots` display/count compatibility remains. New discovery does not write a UUID-to-slot registry here. |
-| Legacy account selection | `src/ui/state/conversationsStore.ts`, `src/ui/views/accountView.ts` | Still selects the old slot-partitioned conversations, pending the separate storage/UI migration. |
+| Pure account rules | `src/core/domain/accountRegistry.ts` | Validate Account fields/UUIDs, reject duplicate identities, find existing Account and update profile. No IO or ID generation. |
+| Atomic persistence | `src/core/storage/accountRegistryStore.ts` | `getOrCreateAccount(providerId, providerAccountId, email?, displayName?)`, `listAccounts(providerId?)`, `getAccount(id)`. Lookup, UUID allocation and writes commit in one IndexedDB `accounts` transaction across tabs. No memory fallback or receipt model. |
+| Background/API boundary | `src/background/accountRegistryHandler.ts`, `src/core/api/accountRegistry.ts` | Validate extension sender, requests and replies; wait for storage initialization. Broadcast `accountsChanged` after durable changes. |
+| Provider discovery | `src/content/accountSniffer.ts`, Provider `accountObservation.ts` modules | Normalize reliable Provider facts into temporary Account parameters. Parsers and Providers do not allocate local UUIDs. |
+| MAIN-world capture | `src/content/hookCredentials.ts` | Capture immutable identity and routing before Fetch/XHR send, publish SPA profile changes, answer correlated current-identity queries. Ordinary network requests do not trigger DOM profile scans. |
+| Runtime binding | `src/content/accountContext.ts`, `src/content/bootstrap.ts` | Resolve current or captured Provider facts through Registry; coalesce identical updates, retain committed UUID during same-identity profile updates, reject superseded bindings. Credentials reference the UUID; routing stays separate. |
+| Request admission | `src/content/messageBridge.ts`, `src/content/messageRouter.ts`, `src/content/syncEngine.ts`, `src/content/liveSaveCoordinator.ts` | Resolve UUID before persistence. Request captures resolve ownership without replaying stale profile hints over newer live observations. A late passive response from A remains A's response after the tab switches to B. Active page/DOM work checks the current binding and routing before use. |
+| Tab routing | `src/core/utils/tabService.ts` | Ask each tab for fresh account context, match the requested UUID and pass it back in commands so a subsequent switch cannot redirect work. URL slots alone do not prove identity. Direct asset requests also carry the UUID, and the content router checks the binding before acquisition and again before returning bytes. |
+| Storage partitions | `src/core/storage/storageService.ts`, `src/core/storage/domain/` | UUID required. Local keys: `conversations_<UUID>`, `exported_<UUID>`, `last_sync_<UUID>`, `last_count_<UUID>`, `scan_coverage_<UUID>`, `scan_checkpoint_<UUID>`. Domain identity: `{providerId, accountId, conversationId}`; physical tuple key uses all three. Deletion intents and media caches use the same UUID scope. |
+| Workbench/Popup | `src/ui/state/conversationsStore.ts`, `src/ui/views/accountView.ts`, Options/Popup modules | Account list comes solely from Registry; selection stores a UUID. Counts derive from that account's conversation data. An empty Options page does not create an account. Later loads supersede earlier snapshots, and completions of deletion/reconciliation in A cannot change visible account B. |
+| Takeout | `src/ui/controllers/takeoutController.ts`, `src/core/engine/takeoutEngine.ts` | Import into a selected existing Gemini UUID. With no Gemini Accounts, create/reuse Gemini default. With existing accounts and no valid selection, require selection. Engine validates existence and Provider before parsing or writes. |
+| Export | Export orchestration, pipeline, PDF and session recovery | Carry the selected UUID into list/body/resource reads and export-record writes. Internal parameters still named `slot` in a few helpers contain a UUID, never `u0`. |
 
-## Deliberate implementation boundary
+L1 resolves the Registry Account before parsing. Parser input and output carry that Account; Index and Detail share `{accountId, conversationId}`. The shared ingestion boundary validates ownership before persistence. Parsers do not allocate local UUIDs.
 
-- Account facts contain only `id`, `providerId`, required `providerAccountId`, optional `email` and `displayName`. Different Providers or remote IDs remain different accounts even with identical email.
-- Only the online observation admission path allocates UUIDs. This stage adds no manual creation or Takeout creation API. The existing Takeout flow still requires its later UUID selection integration.
-- The database's physical version becomes 3 to add `accounts`; Conversation record/schema versions stay unchanged. Old account records and Conversation partitions are not automatically assigned to new UUIDs.
-- Existing Sync `PageObservation.accountId`/Coverage and MAIN-world `requestAccountId` fields still represent the older source fingerprint. The Sniffer calls that fingerprint `identityKey` so it cannot masquerade as a local account ID. Converting those request paths to UUIDs and migrating their storage is subsequent work; current conversation writes still use their old slot scope.
-- Runtime binding protects discovery/credential identity against delayed registration replies and stable-identity/slot switches. Email never serves as its switch detector. This stage does not claim that every existing list/detail/export path already uses UUID-scoped request attribution.
+## Clean schema boundary
 
-## Verification
+Current storage schema is version 3. Initialization creates current stores and stamps fresh storage. Unsupported stored schema versions fail; no old account fingerprint, slot partition, alias read, dual write, AccountSlots map, default promotion or migration is provided. Existing legacy-format conversation parsing is a content adapter, not an account identity fallback. The standalone historical release-upgrade harness still describes its old-profile baseline and is not acceptance evidence for this deliberately incompatible schema.
 
-Unit tests cover pure identity selection, schema constraints, normalization, UUID receipt binding, stale responses, coalesced observations, retryable profile updates and account switches. Browser tests exercise the real MAIN/isolated/background boundary, cross-slot discovery, concurrent IndexedDB get-or-create, durable reads after reload, transaction aborts and malformed stored data. A controlled same-tab SPA test changes Gaia A → B → A without reload or credential requests, with the same email and a different account's DOM label; it also checks profile updates, repeated queries and missing Gaia. Real Gemini testing must separately validate actual Wiz fields and multi-account correspondence; these controlled fixtures do not establish genuine multi-account Provider behavior.
+## Provider evidence and limits
 
-Review follow-up tests verify zero additional profile scans for 20 ordinary Fetch and 20 XHR requests, while both `batchexecute` paths still capture account-bearing credentials. DAG regression coverage verifies that a WARN prerequisite permits downstream execution and failed execution still blocks it. Independent webpage evidence excludes Canvas `immersive-entry-chip inline-preview` UI, retaining attachment titles and identical error strings in ordinary authored paragraphs; this prevents application error cards from being mistaken for missing exported prose.
+Read-only probes of logged-in debug Chrome on 2026-10-15 retained field names/equality checks, not actual identifiers, email, tokens or full session payloads. Website fields are internal implementation details.
 
-## Live source findings (2026-10-15)
-
-Read-only probes used the logged-in debug Chrome. Reports retain field names and equality checks, never actual identifiers, emails, tokens or full session payloads. These internal website fields are not a supported public API contract.
-
-| Provider | Observed source | Finding and consequence |
+| Provider | Observed source | Finding |
 | --- | --- | --- |
-| Gemini | MAIN-world `window.WIZ_global_data` | `qDCSke` is a 21-digit Gaia candidate, equal to `S06Grb` and `W3Yyqf` in this sample. `oPEP7c` agrees with the current Google Account label's email. The old `oTI7oc` field is absent; `FdrFJe` is a different session identifier. Use the explicit Gaia/email tuple, not arbitrary numeric or email fields. |
-| Gemini | Matching account DOM label | Supplies a display name only when the email agrees. An email prefix is not a confirmed display name. |
-| Gemini | Final-code extension, background Registry and tab context | Exactly one stored Gemini account matches the current Gaia/email; the tab's local UUID matches that record, with slot `u0`. Actual multiple signed-in accounts and slot reordering remain unverified. |
-| ChatGPT | `/api/auth/session`, `/backend-api/me` | Session `user.id` is a `user-…` login subject equal to `me.id`. Email, name and picture/image URLs are available. Repeated reads retain the same user ID. |
-| ChatGPT | Session `account`, `/backend-api/accounts/check/v4-2023-04-27` | Session `account.id` is a workspace UUID equal to the returned `account_id`, distinct from the login subject. `account_user_id` is a third distinct value. The `default` entry aliases the same workspace, not a new account. |
-| ChatGPT | Actual browser requests after page reload | `/backend-api/conversations`, `/backend-api/me` and Accounts requests carry `Chatgpt-Account-Id` equal to the current workspace ID. The scaffold's token-only requests do not establish correct multi-workspace attribution. |
-| ChatGPT | Account and session metadata | Structure, plan, roles, MFA and authentication information exist, but do not belong to the minimal Registry account. Only one personal workspace was available for verification. |
+| Gemini | MAIN `WIZ_global_data` | `qDCSke` is the Gaia candidate, agreeing with `S06Grb`/`W3Yyqf` in the sample. `oPEP7c` is current email. `oTI7oc` was absent; `FdrFJe` is a different session identifier. |
+| Gemini | Account DOM labels | Supply a display name only when their email agrees with the MAIN profile. Arbitrary DOM email can describe another signed-in account. |
+| ChatGPT | `/api/auth/session`, `/backend-api/me` | Session `user.id` equals `me.id`; email, name and image URLs are available. |
+| ChatGPT | Session `account`, `/backend-api/accounts/check/v4-2023-04-27` | Workspace `account.id` equals returned `account_id`, distinct from the user subject and `account_user_id`. The `default` entry aliases the workspace. |
+| ChatGPT | Actual list/me/accounts requests | `Chatgpt-Account-Id` carries the current workspace ID. Token alone does not establish workspace routing. |
 
-The confirmed Provider rules collect Gaia + email for Gemini, and email + User + Workspace for ChatGPT. Email is mutable profile data: changing it retains the existing UUID. Gemini's stable key is Gaia; ChatGPT's is `JSON.stringify([userId, workspaceId])`. Thus each user/workspace pair is a separate local archive scope, including two users in one shared workspace. This is a local isolation decision, not a claim that team-workspace behavior was tested. Keys preserve ID case and avoid ambiguous delimiter concatenation. Missing Gemini Gaia or either ChatGPT ID cannot create an account; `default` is not a workspace identity. Email may be absent.
+Only one Gemini signed-in account and one ChatGPT personal workspace were actually inspected. Controlled switch/concurrency tests do not establish real multi-account or team-workspace behavior. ChatGPT normalization is unit tested; its online scaffold remains disabled and has not been integrated with live workspace-aware Registry admission. Enabling it requires real list/detail/attachment routing validation. No generic User/Workspace/Membership entity is introduced.
 
-The ChatGPT normalizer is covered by unit tests but is not connected to live Registry admission. Before enabling the online provider, verify multiple-workspace list/detail/attachment requests and bind their workspace header to the same user/workspace tuple. No generic User/Workspace/Membership model is added. The existing ChatGPT provider remains unregistered with optional hosts; permissions are unchanged.
+## Verification scope
 
-Earlier validation recorded 24 PASS / 1 FAIL, then 21 PASS / 3 FAIL / 1 dependency SKIP. The initial differential result reproduced on clean `main` using identical captured source. Those runs were not passing Tier 2 results.
+Account regressions exercise pure matching/default rules, profile retries/coalescing, malformed replies, atomic concurrent creation and transaction aborts, durable reloads, SPA switching, and native Fetch/XHR list/detail responses released after a switch. Default tests cover Provider isolation and verify that later real identity does not promote default. UI/import/export/deletion tests use explicit current-schema Registry Accounts and UUID partitions.
 
-The follow-up fixes the badge check's asynchronous-injection wait and the independent PDF extractor's nested Formula/Table grouping: the retained failing 8-turn PDF now passes complete ordered-content verification without loosening formula count/order checks. Provider parsing also preserves line-start display formulas and physical fenced-code final newlines, and normalizes narrowly evidenced TeX bar aliases. The Markdown renderer avoids adding another final newline. Minimal live-source fixtures and counterexamples cover these changes.
+Historical Tier 2 runs on earlier commits are not current-head validation. Prior failures included vanished debug targets and an independently reproduced Canvas/webpage-evidence discrepancy; parser output on clean main and the earlier branch was byte-identical for that captured input. Current validation results belong in the PR, with failures and incomplete live coverage reported explicitly.
 
-At the user's request, structured/Markdown equality is a nonblocking Tier 2 audit. Differences remain fully reported as WARN, never counted as matches. DAG prerequisite checks and the final gate share the same PASS/WARN acceptance rule, so an audit warning allows downstream cases to execute. Failed execution still records FAIL and blocks dependents. Missing native evidence, decoder unavailability, exceptions and incomplete target/turn coverage still fail. The standalone differential CLI retains its strict equality result for inspection.
+## Live acceptance status (2026-10-16)
 
-The complete follow-up live Tier 2 run finished with 24 PASS, 0 FAIL, 0 SKIP and 1 WARN (exit 0). All 25 stages executed, including badge injection, real conversations, Takeout, physical Markdown/HTML/PDF downloads, image/attachment checks, stale-tab export and uninstall lifecycle. The audit captured all 18 expected assistant replies across seven conversations: 9 match and 9 differ (3 content/metadata, 6 structure/format), with no unavailable decodes, errors or incomplete evidence. A subsequent own-line guard preserves same-line formula/prose behavior; replay of all seven captured inputs produces identical complete audit reports. Evidence is retained under `tests/output/account_registry_fixes_live/` and `tests/output/account_registry_validation/final/` (git-ignored). Final `npm test` passes scoped zero-any, strict types, all unit suites, the production build and all 104 Playwright tests. The PR remains open with auto-merge disabled.
+After manual completion of Google's verification, the full 25-feature Tier 2 run passed on code commit `d0784aee`: **24 PASS, 0 FAIL, 0 SKIP, 1 nonblocking WARN**. No feature/domain filter or skip flag was used. The run reused the two five-turn scenarios from the earlier attempt through `--dataset`; all configured turns and subsequent append/update stages ran.
 
-The subsequent small-review follow-up passes all focused checks and final `npm test`, including 105/105 Playwright tests. Its initial live run (14 PASS / 4 FAIL / 6 dependency SKIP / 1 WARN) exposed Canvas preview error chrome in the independent webpage evidence; the structural collector fix and an authored-text counterexample are covered in browser tests. A full retry using the same two scenarios generated both five-turn chats and passed the first physical Markdown baseline, but then incremental synchronization returned `Failed to fetch`; the Gemini debug target disappeared (`No such target id`) and no Gemini tab was available to later scans. The retry ended 8 PASS / 5 FAIL / 12 dependency SKIP, exit 1. These latest Tier 2 runs are not passing results; the prior 24 PASS / 1 WARN run must not be presented as current-head validation. Logs, original evidence, DOM component proof and replay dataset are retained in `tests/output/account_registry_review_followup_live/`, `tests/output/account_registry_review_followup_retry/` and `tests/output/account_registry_review_followup_validation/` (git-ignored).
+Coverage includes genuine webpage RPCs, full 10-page synchronization (419 conversations), incremental closure, both generated conversations with a real CSV upload, cloud deletion with local archive retention, Takeout/title upgrade, live save and old-conversation promotion, physical Markdown/HTML/PDF content, seven-conversation ZIP/image/attachment assertions, skip-exported behavior, stale-tab image export after reinstall, and uninstall/reinstall isolation. The formerly failing stale-tab case passed with the fresh source tab's Registry UUID. The dual-parser audit compared 18 replies: 9 matched, 9 differed, and none lacked structured output; differences remain nonblocking audit evidence under the agreed policy.
+
+Local evidence is saved in the ignored `tests/output/account_registry_verified_retry/` directory, including `run.log`, `dataset.json`, exported ZIPs, extracted files, synchronization/image evidence and `gemini_dual_parse/report/REPORT.md`. Earlier attempts failed through fallback-account selection or Google's verification redirect; they are superseded by this complete successful run, rather than counted as passes.
+
+Local acceptance on the final source/test tree: `npm test` passed (scoped zero-any, TypeScript, Python checks, 283 TypeScript unit suites, production build and 105 Playwright tests). `python3 tests/test_tier2_assertions.py` passed 88 tests. The live-save UI suite passed 20/20 across five repeats after waiting for the existing asynchronous settings-binding signal before changing storage. The scenario pool remains 20/20. GitHub checks on `d0784aee` also passed. ChatGPT online and real multiple-account/workspace behavior remain unverified.

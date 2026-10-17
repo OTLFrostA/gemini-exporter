@@ -15,14 +15,15 @@ function fixture(): DocumentAst {
     const rich = (label: string): DisplayInline[] => [{ type: 'strong', children: [
         { type: 'text', text: label }, { type: 'image', resourceId: 'rich', alt: label }, { type: 'inlineMath', source: 'x' },
     ] }];
-    return { schemaVersion: 2, header: { title: 'Rich PDF', providerLabel: 'custom', messageCount: 1 }, messages: [{
+    return { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'Rich PDF', providerLabel: 'custom', messageCount: 1 }, messages: [{
         type: 'message', id: 'm', variant: 'flow', label: 'assistant', blocks: [
             { type: 'image', resourceId: 'main', alt: 'Main', caption: rich('Image caption') },
             { type: 'table', caption: rich('Table caption'), columnAlignments: ['left'], headerRows: [], rows: [[{ column: 0, colSpan: 1, rowSpan: 1, align: 'left', children: rich('Table cell') }]] },
             { type: 'file', resourceId: 'file', kind: 'file', label: 'File', description: rich('File description') },
             { type: 'image', resourceId: 'unavailable', alt: 'Unavailable', caption: rich('Missing image caption') },
             { type: 'placeholder', kind: 'file', text: 'Unavailable file', details: rich('Placeholder details') },
-        ], sources: { type: 'sources', heading: rich('Source heading'), items: [] },
+            { type: 'paragraph', children: rich('Body ending') },
+        ], sources: { type: 'sources', items: [{ id: 's', number: 1, label: 'Source title' }] },
     }] };
 }
 
@@ -47,7 +48,7 @@ test('rich PDF fields render physical images, including captions of missing pare
         const extracted = extractPdfText(result.pdfBytes);
         const probe = probePdfLayout(result.pdfBytes);
         assert.equal(probe.pages.reduce((sum, page) => sum + page.imageDraws.length, 0), 8, 'main figure plus seven rich inline placements are physically drawn');
-        for (const label of ['Image caption', 'Table caption', 'Table cell', 'File description', 'Missing image caption', 'Placeholder details', 'Source heading']) assert.ok(extracted.text.includes(label), label);
+        for (const label of ['Image caption', 'Table caption', 'Table cell', 'File description', 'Missing image caption', 'Placeholder details', 'Body ending', 'Source title']) assert.ok(extracted.text.includes(label), label);
         assert.equal(mounted.size, 1);
         assert.equal(JSON.stringify(document), before);
     } finally { compiler.dispose(); }

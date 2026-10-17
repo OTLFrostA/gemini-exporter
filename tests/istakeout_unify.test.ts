@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -9,7 +10,7 @@ import { StorageService } from '../src/core/storage/storageService.js';
 // The current Domain contract records import history independently of title provenance.
 // A later RPC title must not erase a prior Takeout import.
 function index(id: string, hasTakeoutImport: boolean, titleSource: 'rpc' | 'takeout' = 'rpc'): DomainConversationIndex {
-    return restoreConversationIndex({
+    return indexFixture({
         providerId: 'gemini', id, title: `Conversation ${id}`, titleSource,
         cloudAvailability: 'available', hasTakeoutImport,
     });
@@ -24,43 +25,42 @@ const cases = () => [
 
 test('UI/cloud reconciliation retains imported conversations after an RPC title update', async () => {
     const env = indexStorage();
-    const previousSlot = ConversationsStore.getCurrentSlot();
+    const previousSlot = ConversationsStore.getCurrentAccountId();
     const previousList = ConversationsStore.getConversations();
     try {
         const originals = cases();
-        await StorageService.setConversations('u45', originals);
-        ConversationsStore.setCurrentSlot('u45');
+        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', originals);
+        ConversationsStore.setCurrentAccountId('10000000-0000-4000-8000-000000000001');
         ConversationsStore.setConversations(originals);
 
         const result = await ConversationsStore.reconcileWithCloud([{ id: 'active' }], { keepTakeout: true });
-        assert.deepEqual(new Set(ConversationsStore.getConversations().map(c => c.id)),
-            new Set(['mixed', 'takeout', 'active']));
-        assert.deepEqual(new Set((await StorageService.getConversations('u45')).map(c => c.id)),
-            new Set(['mixed', 'takeout', 'active']), 'UI and persisted reconciliation must agree');
-        assert.deepEqual(result.removedIds, ['stale']);
-        assert.equal(result.kept, 3);
-        assert.equal(ConversationsStore.hasTakeoutData(), true);
+        assert.deepEqual(new Set(ConversationsStore.getConversations().map(c => c.key.conversationId)),
+            new Set(['mixed', 'takeout', 'active', 'stale']));
+        assert.deepEqual(new Set((await StorageService.getConversations('10000000-0000-4000-8000-000000000001')).map(c => c.key.conversationId)),
+            new Set(['mixed', 'takeout', 'active', 'stale']), 'UI and persisted reconciliation must agree');
+        assert.deepEqual(result.removedIds, []);
+        assert.equal(result.kept, 4);
     } finally {
         ConversationsStore.setConversations(previousList);
-        ConversationsStore.setCurrentSlot(previousSlot);
+        ConversationsStore.setCurrentAccountId(previousSlot);
         env.restore();
     }
 });
 
-test('persistent reconciliation with keepTakeout=false may explicitly drop absent imported chats', async () => {
+test('persistent cloud reconciliation preserves local archives regardless of list absence', async () => {
     const env = indexStorage();
     try {
-        await StorageService.setConversations('u45', cases());
-        const result = await StorageService.reconcileConversations('u45', [{ id: 'active' }], { keepTakeout: false });
-        assert.deepEqual(new Set(result.removedIds), new Set(['mixed', 'takeout', 'stale']));
-        assert.equal(result.kept, 1);
-        assert.deepEqual((await StorageService.getConversations('u45')).map(c => c.id), ['active']);
+        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', cases());
+        const result = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', [{ id: 'active' }], { keepTakeout: false });
+        assert.deepEqual(new Set(result.removedIds), new Set([]));
+        assert.equal(result.kept, 4);
+        assert.deepEqual((await StorageService.getConversations('10000000-0000-4000-8000-000000000001')).map(c => c.key.conversationId), ['mixed', 'takeout', 'active', 'stale']);
     } finally { env.restore(); }
 });
 
-test('Takeout status depends on import history, not title provenance', () => {
-    assert.equal(isTakeoutConversation(index('mixed', true, 'rpc')), true);
-    assert.equal(isTakeoutConversation(index('takeout', true, 'takeout')), true);
+test('Domain Index does not expose transient Takeout import state', () => {
+    assert.equal(isTakeoutConversation(index('mixed', true, 'rpc')), false);
+    assert.equal(isTakeoutConversation(index('takeout', true, 'takeout')), false);
     assert.equal(isTakeoutConversation(index('active', false, 'rpc')), false);
     assert.equal(isTakeoutConversation(null), false);
 });

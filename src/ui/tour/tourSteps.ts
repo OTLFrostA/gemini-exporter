@@ -3,13 +3,13 @@ import type { TourStep } from '../../types/ui.js';
 export const STEPS: TourStep[] = [
     {
         id: 'connect',
-        getTarget: () => document.getElementById('accountSlotSelect') || document.querySelector('header h1') || null,
+        getTarget: () => document.getElementById('accountIdSelect') || document.querySelector('header h1') || null,
         placement: 'bottom',
         titleKey: 'tourStep1Title',
         isDynamicConnect: true,
         setupAction: (advance: () => void) => {
             const cleanups: (() => void)[] = [];
-            const slotSelect = document.getElementById('accountSlotSelect');
+            const slotSelect = document.getElementById('accountIdSelect');
             if (slotSelect) {
                 const onSlotChange = () => setTimeout(advance, 300);
                 slotSelect.addEventListener('change', onSlotChange);

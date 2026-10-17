@@ -25,18 +25,20 @@ export async function preparePdfResources(
         if (options.signal?.aborted) return { resources, diagnostics, aborted: true };
         // File cards already have their presentation metadata in AST.
         if (!imageIds.has(asset.id)) continue;
-        const uri = asset.sourceUri;
+        const hint = acquisitionHints[asset.id];
+        const uri = [hint?.url, hint?.sourceUrl, asset.sourceUri].find(value => /^data:/i.test(value ?? '')) ?? asset.sourceUri;
+        const dataBase64 = acquisitionHints[asset.id]?.dataBase64;
         let outcome: ResourceResult<ResourceBytes>;
         try {
-            if (asset.dataBase64 || /^data:/i.test(uri ?? '')) {
-                const raw = asset.dataBase64?.replace(/^data:[^,]*,/i, '').replace(/\s+/g, '');
+            if (dataBase64 || /^data:/i.test(uri ?? '')) {
+                const raw = dataBase64?.replace(/^data:[^,]*,/i, '').replace(/\s+/g, '');
                 const source = raw ? `data:${asset.mediaType ?? 'application/octet-stream'};base64,${raw.padEnd(Math.ceil(raw.length / 4) * 4, '=')}` : uri!;
-                const decoded = asset.dataBase64 ? decodeDataUrl(source, MAX_ASSET_BYTES) : decodeDataUrl(source);
+                const decoded = dataBase64 ? decodeDataUrl(source, MAX_ASSET_BYTES) : decodeDataUrl(source);
                 outcome = decoded.ok ? { ok: true, resourceId: asset.id, value: { bytes: decoded.bytes, mediaType: decoded.mimeType } }
                     : missingResource(asset.id, decoded.message, decoded.code);
             } else {
                 const hint = acquisitionHints[asset.id];
-                if (!options.acquire || (!hint && !uri)) throw new Error('Image acquisition is unavailable (no network fetch without an acquisition transport)');
+                if (!options.acquire) throw new Error('Image acquisition is unavailable (no network fetch without an acquisition transport)');
                 outcome = await options.acquire(asset.id, {
                     ...(uri ? { url: uri } : {}),
                     ...(hint ?? { localName: `assets/${asset.name || asset.id}`, fileName: asset.name }),

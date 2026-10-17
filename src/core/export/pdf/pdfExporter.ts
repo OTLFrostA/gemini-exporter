@@ -72,7 +72,7 @@ export interface PdfExporterOptions {
     writer?: IExportWriter;
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     locale?: 'zh' | 'en';
-    currentSlot?: string;
+    accountId?: string;
     skip?: boolean;
     /**
      * Detail-fetch seam. Production defaults to BatchWorker.fetchChatDetail —
@@ -248,15 +248,15 @@ export class PdfExporter {
         const locale = options.locale === 'en' ? 'en' : 'zh';
         const folderName = options.folderName || DEFAULT_EXPORT_FOLDER_NAME;
         const fetchChatDetailFn = options.fetchChatDetail ?? BatchWorker.fetchChatDetail;
-        const currentSlot = options.currentSlot ?? 'u0';
+        const accountId = options.accountId ?? '';
         const skip = options.skip ?? false;
 
         const items = selected.map((s) => {
             const native = typeof s === 'object' && s.conversation ? s : null;
             const source = native?.conversation.index ?? s;
-            const id = typeof source === 'string' ? source : source && typeof source === 'object' && 'id' in source ? source.id : '';
+            const id = typeof source === 'string' ? source : native ? native.conversation.index.key.conversationId : source && typeof source === 'object' && 'id' in source ? source.id : '';
             const title = source && typeof source === 'object' && 'title' in source && typeof source.title === 'string' ? source.title : String(id ?? '');
-            return { id: native && native.conversation.index.providerId !== 'gemini' ? String(id ?? '') : normId(String(id ?? '')), title, selected: s };
+            return { id: native && native.account.providerId !== 'gemini' ? String(id ?? '') : normId(String(id ?? '')), title, selected: s };
         }).filter((it) => it.id);
 
         const total = items.length;
@@ -404,7 +404,7 @@ export class PdfExporter {
                 fetchChatDetail: fetchChatDetailFn,
                 index: i,
                 total,
-                currentSlot,
+                accountId,
                 skip,
                 signal,
                 onLog,
