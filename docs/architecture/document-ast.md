@@ -128,3 +128,5 @@ Resource runtime contracts live in `core/resources`, shared by parsers, storage,
 The AST metadata has no conversation URL: L2 Index supplies no such fact. Composer returns the document directly; callers must stop unpacking `.document` / `.diagnostics`. Consumers must obtain resource binding types from L4 rather than importing them from the AST. These interface changes deliberately leave Application and L4 migration to their module owners.
 
 AST-only Tier 1 verification: `node -r ./tests/ts_register.js --test tests/ast-composer.test.ts tests/document-ast-contract.test.ts`. The first suite exercises trusted projection, source labels/numbering, message-owned media and the recursive resource query without invoking renderers, export orchestration or live tests. The second checks the production schema against existing document fixtures and rejects obsolete fields.
+
+Existing AST unit cases use the direct Composer return as well. See [the AST audit](ast-v2-audit.md#verification) for the complete AST-only commands, including `AST:`-prefixed cases in mixed files. Renderer/export assertions remain in integration cases and are not run as AST unit tests.

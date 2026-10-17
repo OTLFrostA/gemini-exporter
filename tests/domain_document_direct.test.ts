@@ -45,7 +45,7 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
     assert.deepEqual(domain.detail.messages[1].citations, [
         { id: 'citation-0', title: 'Source', url: 'https://example.test/source' }, { id: 'grounding-2' },
     ]);
-    const ast = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
+    const ast = composeDomainDocument(domain, fixtureAccountFor(domain));
     assert.equal(ast.messages[0].blocks.length, 1, 'inline placement suppresses the attachment tail');
     const answer = ast.messages[1].blocks[1];
     assert.equal(answer.type, 'paragraph');
@@ -70,23 +70,23 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
     assert.equal(await formatHtmlDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainHtml(domain, fixtureAccountFor(domain), options));
 });
 
-test('composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {
+test('AST: composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('literal'), 'custom'),   titleSource: "derived",   title: 'Literal' }, detail: { key: fixtureKey(String('literal'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal** [1] [cite:2] ![pic](url)' }] }],
             citations: [{ id: 'source', url: 'https://example.test' }] },
     ] } };
-    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)), { documentLanguage: 'zh' }).document;
+    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)), { documentLanguage: 'zh' });
     assert.equal(ast.header.providerLabel, 'custom');
     assert.equal(ast.documentLanguage, 'zh');
     assert.deepEqual(ast.messages[0].blocks, domain.detail.messages[0].content);
 });
 
-test('reasoning placement prevents another attachment copy and dangling citations fail closed', () => {
+test('AST: reasoning placement prevents another attachment copy and dangling citations fail closed', () => {
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('placement'), 'custom'),    }, detail: { key: fixtureKey(String('placement'), 'custom'), quality: { status: 'unknown' }, assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
             { role: 'assistant', content: [], reasoning: [{ type: 'image', assetId: 'shared' }], attachmentIds: ['shared'] },
             { role: 'user', content: [], attachmentIds: ['shared'] },
         ] } };
-    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document;
+    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)));
     assert.equal(ast.messages[0].blocks.length, 1);
     assert.equal(ast.messages[1].blocks.length, 1);
     const broken = structuredClone(domain);
@@ -146,7 +146,7 @@ test('citation numbering is conversation-wide in body, reasoning and Sources, in
         { id: 'first', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[17]' }] }], citations: [{ id: 'same', url: 'https://example.test/one', title: 'First source' }] },
         { id: 'second', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same' }] }], reasoning: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[91]' }] }], citations: [{ id: 'same', title: 'Offline source' }] },
     ] } });
-    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain));
     const first = document.messages[0].blocks[0];
     assert.ok(first.type === 'paragraph');
     assert.deepEqual(first.children, [{ type: 'citation', id: 'msg-0:same', label: '[1]', href: 'https://example.test/one' }]);

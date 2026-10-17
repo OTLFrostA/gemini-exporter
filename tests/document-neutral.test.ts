@@ -17,8 +17,8 @@ function freeze(value: unknown): void { if (!value || typeof value !== 'object')
 
 test('one immutable JSON document serves all three backends without losing rich structure', () => {
     const input = fixture(), inputBefore = JSON.stringify(input); freeze(input);
-    const { document } = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)), { documentLanguage: 'zh-CN' });
-    assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)), { documentLanguage: 'zh-CN' }).document, document);
+    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)), { documentLanguage: 'zh-CN' });
+    assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)), { documentLanguage: 'zh-CN' }), document);
     const restored = JSON.parse(JSON.stringify(document)) as typeof document; freeze(restored);
     const before = JSON.stringify(restored), resources = { image: 'assets/image.png', file: 'assets/report.pdf' };
     const md = renderDocumentMarkdown(restored, resources, { locale: 'en' });
@@ -38,7 +38,7 @@ test('one immutable JSON document serves all three backends without losing rich 
 });
 
 test('UI locale, theme and page policy change independently of document language and content', () => {
-    const { document } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())), { documentLanguage: 'zh-CN' });
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())), { documentLanguage: 'zh-CN' });
     const resources = { image: 'assets/image.png', file: 'assets/report.pdf' }, before = JSON.stringify(document);
     const en = renderDocumentHtml(document, resources, { locale: 'en', theme: 'light', copyCode: false }).html;
     const zh = renderDocumentHtml(document, resources, { locale: 'zh' }).html;
@@ -52,8 +52,8 @@ test('UI locale, theme and page policy change independently of document language
     assert.equal(JSON.stringify(document), before);
 });
 
-test('neutral AST has no output controls and renderers do not import source models', () => {
-    const { document } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
+test('AST: neutral tree has no output controls and renderers do not import source models', () => {
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     const forbidden = new Set(['pdfLayout', 'layout', 'gapBeforePt', 'gapAfterPt', 'measurementText', 'minWidthCards', 'profile', 'theme', 'frontMatter', 'copy', 'repeatHeader', 'locale', 'badge', 'openLabel', 'showHeader', 'initiallyCollapsed', 'emptyNotice']);
     function check(value: unknown): void { if (!value || typeof value !== 'object') return; for (const [key, child] of Object.entries(value)) { assert.ok(!forbidden.has(key), key); check(child); } }
     check(document);
@@ -76,7 +76,7 @@ test('neutral AST has no output controls and renderers do not import source mode
 
 test('prepared resource absence is reported by each backend without deleting the display reference', () => {
     const input = fixture(); input.detail.messages[0].reasoning = undefined; input.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
-    const { document } = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), before = JSON.stringify(document);
+    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), before = JSON.stringify(document);
     const diagnostics: import('../src/core/diagnostics/diagnostic.js').Diagnostic[] = [];
     const pdf = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic) });
     assert.ok(diagnostics.some(d => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));

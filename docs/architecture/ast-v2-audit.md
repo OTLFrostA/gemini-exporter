@@ -42,8 +42,15 @@ PR CI currently reports a failed `Unit Tests & Syntax` gate. This audit does not
 
 ## Verification
 
-- 12 AST-only Tier 1 tests passed: `node -r ./tests/ts_register.js --test tests/ast-composer.test.ts tests/document-ast-contract.test.ts`.
-- Strict targeted TypeScript compilation passed for the AST tests/type fixtures and the extracted Notion schema/interface equality assertions.
+- 26 AST-only Tier 1 tests passed after migrating the existing AST cases as well as the new contract suite. Run the complete pure AST files, then select the AST cases in mixed legacy files:
+
+```sh
+node -r ./tests/ts_register.js --test tests/ast-composer.test.ts tests/document-ast-contract.test.ts tests/domain-ast-projection.test.ts
+node -r ./tests/ts_register.js --test --test-name-pattern '^AST:' tests/content-domain-boundary.test.ts tests/domain_document_direct.test.ts tests/document-neutral.test.ts tests/document-freeze.test.ts tests/conversation-representation.test.ts
+```
+
+The `AST:` selection is an ownership boundary, not a claim that the omitted integration tests pass. Existing renderer/export assertions from `domain-ast-projection.test.ts` are preserved in `document-ast-integration.test.ts`. Date and metadata ownership cases in mixed files are separated from their integration assertions. AST setup in the affected model/boundary tests now consumes the direct Composer return. Source-list labels no longer duplicate numbering.
+- Strict targeted TypeScript compilation passed for `ast-composer.test.ts`, `ast-composer.types.ts`, `document-ast-contract.test.ts` and `domain-ast-projection.test.ts`. The earlier extracted Notion schema/interface equality assertions also passed. Whole mixed-file type checking still reaches deferred downstream modules and is not claimed green.
 - No other module tests, full suite, live tests, Tier 2 or Tier 3 were executed locally.
 
 Conclusion: no remaining discrepancy was found inside the audited AST implementation or its two documented public function contracts. Full cross-module conformance remains unverified and has known outstanding caller migrations.
