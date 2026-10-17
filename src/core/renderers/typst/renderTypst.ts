@@ -2,6 +2,7 @@ import type { DisplayBlock, DisplayInline, DocumentAst, ResourceBindings } from 
 import { visual } from '../shared/visualContract.js';
 import { blockText, codeHeader, fileBadge, humanBytes, disclosureTitle, headerMetadata, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
+import { isResourcePath } from '../shared/resourcePath.js';
 import type { PdfRenderOptions } from '../shared/renderOptions.js';
 import { defaultPdfLayout, applyLayout } from './layout.js';
 export { defaultPdfLayout } from './layout.js';
@@ -31,8 +32,8 @@ export function renderDocumentTypst(
             case 'link': return { type: 'link', url: node.href, children: node.children.map(inline) };
             case 'citation': return node.href ? { type: 'link', url: node.href, children: [{ type: 'text', text: node.label }] } : { type: 'text', text: node.label };
             case 'image':
-                if (!resources[node.resourceId]) options.onDiagnostic?.({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_MISSING', message: `Missing prepared image ${node.resourceId}` });
-                return resources[node.resourceId] ? { type: 'image', asset: resource(node.resourceId), ...(node.alt ? { alt: node.alt } : {}) } : { type: 'text', text: unavailableResourceText('image', node.alt || node.resourceId, locale) };
+                if (!isResourcePath(resources[node.resourceId])) options.onDiagnostic?.({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_MISSING', message: `Missing prepared image ${node.resourceId}` });
+                return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.alt ? { alt: node.alt } : {}) } : { type: 'text', text: unavailableResourceText('image', node.alt || node.resourceId, locale) };
             case 'lineBreak': return { type: 'lineBreak' };
             case 'inlineMath': {
                 const typst = options.convertMath?.(node.source, false);
@@ -60,7 +61,7 @@ export function renderDocumentTypst(
                 const cell = (entry: typeof node.rows[number][number]): TypstTableCell => ({ children: entry.children.map(inline), ...(entry.colSpan > 1 ? { colspan: entry.colSpan } : {}), ...(entry.rowSpan > 1 ? { rowspan: entry.rowSpan } : {}) });
                 return { type: 'table', headers: node.headerRows.map(row => row.map(cell)), rows: node.rows.map(row => row.map(cell)), columnCount: node.columnAlignments.length, aligns: node.columnAlignments.map(align => align === 'default' ? 'left' : align), repeatHeader: options.repeatTableHeader ?? true, ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout };
             }
-            case 'image': return resources[node.resourceId] ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout } : missing('image', node.caption?.length ? '' : node.alt, node.caption);
+            case 'image': return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout } : missing('image', node.caption?.length ? '' : node.alt, node.caption);
             case 'file': {
                 const kind = fileBadge(node), size = humanBytes(node.byteLength, strings.sizeUnknown);
                 return { type: 'file', name: node.label, kind, size, metadata: `${kind} · ${size}`, ...(node.description?.length ? { description: node.description.map(inline) } : {}), layout };

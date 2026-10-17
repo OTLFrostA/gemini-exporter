@@ -48,17 +48,12 @@ function neutralContract(document: DocumentAst): void {
 void neutralContract;
 
 
-import type { ResourceStageInput, PayloadStageInput, CompileStageInput } from '../src/core/export/pdf/pipeline/types.js';
-function pdfPipelineBoundary(domain: DomainConversationWithDetail): void {
-    // @ts-expect-error PDF resources must receive an already composed Document AST.
-    const resources: ResourceStageInput = { document: domain, resources: new Map() };
-    // @ts-expect-error PDF payload generation cannot reinterpret Domain content.
-    const payload: PayloadStageInput = { document: domain, pathMap: new Map(), locale: 'en' };
-    // @ts-expect-error Compile stage no longer accepts a source conversation.
-    const compile: CompileStageInput = { bundle: domain };
-    void resources; void payload; void compile;
+import { compileDocumentPdf } from '../src/core/export/pdf/compileDocumentPdf.js';
+function pdfFormatBoundary(domain: DomainConversationWithDetail): void {
+    // @ts-expect-error PDF Format receives an already composed document, never Domain.
+    compileDocumentPdf(domain, {}, new Map(), {} as never, {} as never);
 }
-void pdfPipelineBoundary;
+void pdfFormatBoundary;
 
 // @ts-expect-error Diagnostic types live in the independent diagnostics module.
 import type { Diagnostic } from '../src/core/document/ast/ast.js';

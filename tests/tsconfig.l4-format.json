@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "include": [
+    "../src/core/renderers/**/*.ts",
+    "../src/core/export/pdf/*.ts",
+    "../src/core/export/typst/**/*.ts",
+    "./pdf-format.test.ts",
+    "./native-json-export.test.ts"
+  ]
+}
