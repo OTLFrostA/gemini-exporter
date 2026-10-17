@@ -128,7 +128,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         const heading = `## ${icons[message.label] ? icons[message.label] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
         const sources = message.sources && [`> 🌐 **${strings.sources}:**`, ...message.sources.items.map(item => {
             const prefix = sourceNumberPrefix(item);
-            return `> ${!prefix && !item.href ? item.label : prefix + citation(item)}`;
+            return `> ${!item.label && !item.href ? prefix.trimEnd() : !prefix && !item.href ? item.label : prefix + citation(item)}`;
         })].filter(Boolean).join('\n');
         return [heading, message.modelLabel && `*${escapeText(message.modelLabel)}*`, blocks(message.blocks), sources].filter(Boolean).join('\n\n');
     });

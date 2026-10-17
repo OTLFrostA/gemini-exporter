@@ -1,7 +1,7 @@
 import type { Account } from '../../domain/accountRegistry.js';
 import type { DomainConversationIndex } from '../../domain/conversationIndex.js';
 import type { TitleSource } from '../../domain/titleAuthority.js';
-import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../utils/titleUtils.js';
+import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../utils/titleText.js';
 import { normId, isReservedRoute } from '../../utils/pathUtils.js';
 
 export type ConversationIngestionSource = 'detail' | 'takeout' | 'snapshot';

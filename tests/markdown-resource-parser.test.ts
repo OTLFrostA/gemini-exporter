@@ -41,7 +41,7 @@ test('serialized literal dollars round-trip as text while links and math retain 
                 { type: 'code', language: 'md', code: '[fake](files/missing.pdf)' },
                 { type: 'paragraph', children: [{ type: 'inlineCode', code: '[fake](files/missing.pdf)' }] },
             ] }] } };
-    const markdown = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document, {});
+    const markdown = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))), {});
     assert.ok(markdown.includes(String.raw`The price changed from \$5 [receipt](files/foo.pdf) to \$10. $E = mc^2$`));
     assert.ok(markdown.includes('$$\n' + String.raw`\left[W(k)\right](\mathbf{t})` + '\n$$'));
     const tree = parseMarkdownAst(markdown);

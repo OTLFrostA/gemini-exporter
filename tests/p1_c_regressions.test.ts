@@ -206,7 +206,7 @@ test('p1c - getConversationList: 429 退避期间 abort 直接抛取消，不睡
 
 test('p1c - listConversations: pre-start cancellation propagates AbortError without a request', async () => {
     const controller = new AbortController(); controller.abort();
-    const provider = new GeminiProvider({ getConversationList: async () => { assert.fail('request after cancellation'); }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    const provider = new GeminiProvider({ getConversationList: async () => { throw new Error('request after cancellation'); }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     await assert.rejects(provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', signal: controller.signal }), { name: 'AbortError' });
 });
 

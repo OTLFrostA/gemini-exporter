@@ -5,7 +5,6 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/exportDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
@@ -24,10 +23,10 @@ function input(): DomainConversationWithDetail {
 // Existing renderer/export coverage, separated from AST unit tests.
 test('integration: exported metadata and message order', async () => {
     const domain = validateParserDomain(input());
-    const markdown = await exportDomainMarkdown(domain, account, { exportedAt: '2026-01-01T00:00:00Z' });
+    const markdown = renderDocumentMarkdown(composeDomainDocument(domain, account), {}, { exportedAt: '2026-01-01T00:00:00Z', includeFrontMatter: true });
     assert.ok(markdown.includes('provider: "chatgpt"'));
     assert.ok(markdown.indexOf('First body') < markdown.indexOf('Second body'));
-    assert.ok((await exportDomainHtml(domain, account)).includes('Index title'));
+    assert.ok((renderDocumentHtml(composeDomainDocument(domain, account), {}).html).includes('Index title'));
     const document = composeDomainDocument(domain, account);
     const otherAccount = fixtureAccount('chatgpt', '20000000-0000-4000-8000-000000000001');
     const other = input(); other.index.key.accountId = otherAccount.id; other.detail.key.accountId = otherAccount.id;
@@ -47,7 +46,7 @@ test('integration: renderers preserve Composer citation numbers', () => {
     const markdown = renderDocumentMarkdown(document, {});
     assert.ok(markdown.includes('> [4] [Article](https://example.test/article)'));
     assert.ok(markdown.includes('Read this'));
-    assert.ok(markdown.includes('> [3]\n'), 'untitled offline source has one plain display number');
+    assert.ok(markdown.split('\n').includes('> [3]'), 'untitled offline source has one plain display number');
     assert.ok(!markdown.includes('[3] \\[3\\]'), 'untitled source number appears once');
     const html = renderDocumentHtml(document, {}, { locale: 'en' }).html;
     assert.ok(html.includes('>[4] Article</a>'));
@@ -92,7 +91,7 @@ test('integration: renderer options control code headers and disclosure folding'
     assert.ok(!markdown.includes('Authored filename'));
     const pdf = renderDocumentTypst(document, {}, options);
     assert.equal(pdf.messages[0].blocks[1].type === 'code' && pdf.messages[0].blocks[1].header, '');
-    assert.ok(!(await exportDomainMarkdown(domain, account, options)).includes('Authored filename'));
-    assert.ok(!(await exportDomainHtml(domain, account, options)).includes('<div class="gem-code-header">'));
+    assert.ok(!(renderDocumentMarkdown(document, {}, options)).includes('Authored filename'));
+    assert.ok(!(renderDocumentHtml(document, {}, options).html).includes('<div class="gem-code-header">'));
 
 });

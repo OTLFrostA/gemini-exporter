@@ -1,14 +1,7 @@
 import type { BaseMessage, MessageAction } from '../../types/messages.js';
 
-export function getErrorMessage(err: unknown): string {
-    if (!err) return 'Unknown error';
-    if (typeof err === 'string') return err;
-    if (err instanceof Error) return err.message;
-    if (typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
-        return err.message;
-    }
-    return String(err);
-}
+import { getErrorMessage } from './errorText.js';
+export { getErrorMessage } from './errorText.js';
 
 // Typed request; Chrome replies remain unknown until a consumer validates them.
 export async function sendTypedMessage<T extends BaseMessage>(

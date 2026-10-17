@@ -2,7 +2,7 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 export {};
 const test = require('node:test');
-const assert = require('node:assert/strict');
+import assert from 'node:assert/strict';
 const fs = require('node:fs');
 const path = require('node:path');
 import { parseGeminiTakeoutZipArchive } from '../src/core/imports/takeout/readArchive.js';

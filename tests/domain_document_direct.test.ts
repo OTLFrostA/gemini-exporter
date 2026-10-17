@@ -9,9 +9,15 @@ import type { DomainConversationWithDetail } from '../src/core/domain/conversati
 import { closeLegacyCitations } from '../src/core/parsers/shared/resources/domainCitationAdapter.js';
 import { historicalFixtureDomain, historicalFixture } from './helpers/nativeFixture.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/exportDomainDocument.js';
-import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
-import { formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+const prepareDomainResources = async (results: Awaited<ReturnType<typeof fixtureResourceResults>>) => Object.fromEntries(results.map(result => [result.resourceId, result.value.path]));
+async function exportDomainMarkdown(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: string; locale?: 'en' | 'zh' } = {}) {
+    return renderDocumentMarkdown(composeDomainDocument(domain, account), await prepareDomainResources(options.resourceResults ?? []), options);
+}
+async function exportDomainHtml(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: string; locale?: 'en' | 'zh' } = {}) {
+    return renderDocumentHtml(composeDomainDocument(domain, account), await prepareDomainResources(options.resourceResults ?? []), options).html;
+}
 
 const raw = {
     id: 'direct', title: 'Draft', titles: { rpc: 'Authoritative title' }, timestamp: 1700000000000,
@@ -66,8 +72,6 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
     const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceResults: await fixtureResourceResults(domain, historicalFixture(raw).resourceHints) };
     assert.equal(await exportDomainMarkdown(domain, fixtureAccountFor(domain), options), await exportDomainMarkdown(restored, fixtureAccountFor(restored), options));
     assert.equal(await exportDomainHtml(domain, fixtureAccountFor(domain), options), await exportDomainHtml(restored, fixtureAccountFor(restored), options));
-    assert.equal(await formatMarkdownDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainMarkdown(domain, fixtureAccountFor(domain), options));
-    assert.equal(await formatHtmlDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainHtml(domain, fixtureAccountFor(domain), options));
 });
 
 test('AST: composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {
@@ -108,7 +112,9 @@ test('direct export dependency closure cannot load Canonical conversation normal
             if (fs.existsSync(dependency)) visit(dependency);
         }
     };
-    visit(path.resolve(__dirname, '../src/core/engine/chatFormatter.ts'));
+    visit(path.resolve(__dirname, '../src/core/document/compose/composeDomainDocument.ts'));
+    visit(path.resolve(__dirname, '../src/core/renderers/html/renderHtml.ts'));
+    visit(path.resolve(__dirname, '../src/core/renderers/markdown/renderMarkdown.ts'));
 });
 
 test('provider citation binding covers rich captions/descriptions and ignores code/math markers', () => {

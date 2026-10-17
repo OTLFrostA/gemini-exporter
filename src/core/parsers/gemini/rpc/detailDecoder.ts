@@ -2,7 +2,6 @@ import { extractSourceAttributions } from './sourceAttributions.js';
 import { findListConversationMetadata } from './listMetadata.js';
 import { extractGeneratedFiles } from './generatedFiles.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
-import type { GeminiUtilsModule } from "../../../utils/utils.js";
 import type { GeminiProtocolModule } from "../../../protocol/protocol.js";
 import { stripInternalChipMarkdown } from "../../../utils/chipUtils.js";
 import { __resolveModule } from "../../../utils/moduleOverrides.js";
@@ -41,15 +40,16 @@ import {
     isInternalChipUrl
 } from "./sourceAttachments.js";
 import GeminiProtocol from "../../../protocol/protocol.js";
-import GeminiUtils from "../../../utils/utils.js";
+import { isDevMode } from "../../../utils/devMode.js";
+const GeminiUtils = { isDevMode };
 import { extractInnerPayload, extractNextPageToken } from "./payload.js";
-import { resolveDetailTitle, RESEARCH_PROMPT_PREFIX_RE } from "../../../utils/titleUtils.js";
+import { resolveDetailTitle, RESEARCH_PROMPT_PREFIX_RE } from "../../../utils/titleText.js";
 import { shortId } from "../../../utils/pathUtils.js";
 import { inspectStructuredContent } from "./structuredContent.js";
 
 const DOC_TITLE_FALLBACK_RE = /^#\s+(.+)$/m;
 
-function getUtils(): Pick<GeminiUtilsModule, "isDevMode"> {
+function getUtils(): typeof GeminiUtils {
     return __resolveModule('GeminiUtils', GeminiUtils);
 }
 

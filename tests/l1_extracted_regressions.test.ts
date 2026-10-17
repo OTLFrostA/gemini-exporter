@@ -353,6 +353,7 @@ test('P2 regression: robustFirstPayload handles strings containing brackets with
     const res = Extractors.robustFirstPayload(jsonStr);
     assert.ok(Array.isArray(res));
     assert.strictEqual(res.length, 1);
+    assert.ok(Array.isArray(res[0]));
     assert.strictEqual(res[0][0], 'wrb.fr');
     assert.strictEqual(res[0][1], 'MaZiqc');
 });

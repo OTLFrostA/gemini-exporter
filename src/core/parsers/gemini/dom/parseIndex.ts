@@ -1,6 +1,6 @@
 import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
 import { normId, isReservedRoute } from '../../../utils/pathUtils.js';
-import { cleanTitle, isRealTitle } from '../../../utils/titleUtils.js';
+import { cleanTitle, isRealTitle } from '../../../utils/titleText.js';
 
 export function parseGeminiDomList(document: Document): GeminiIndexObservationInput[] {
     const items: GeminiIndexObservationInput[] = [];

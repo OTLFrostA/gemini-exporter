@@ -23,7 +23,7 @@ async function inlineNodes(content: string): Promise<any[]> {
     const msg = domain.detail.messages[0];
     const out: any[] = [];
     for (const b of msg.content) {
-        if (b.children) out.push(...b.children);
+        if (b.type === 'paragraph' || b.type === 'heading') out.push(...b.children);
     }
     return out;
 }

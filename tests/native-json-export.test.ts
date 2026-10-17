@@ -3,9 +3,9 @@ import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDomainJson } from '../src/core/renderers/json/serializeDomainJson.js';
-import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import type { DomainFixture } from './helpers/domainFixture.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-const native: ResourceConversationParseResult = { account: fixtureAccount('test-provider'),
+const native: DomainFixture = { account: fixtureAccount('test-provider'),
     conversation: validateParserDomain({ index: { key: fixtureKey(String('opaque-id'), 'test-provider'),   titleSource: "derived",   title: 'Portable archive', createdAt: 0 }, detail: { key: fixtureKey(String('opaque-id'), 'test-provider'), quality: { status: 'partial' }, assets: [
             { id: 'image', kind: 'image', name: 'image.png', mediaType: 'image/png', sourceUri: 'https://example.test/image.png' },
             { id: 'file', kind: 'file', name: 'report.pdf', mediaType: 'application/pdf', byteLength: 42 } ], messages: [{ id: 'system', role: 'system', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Instruction' }] }] },

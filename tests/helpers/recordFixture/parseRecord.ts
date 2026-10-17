@@ -13,9 +13,11 @@ import { parseGeminiBody, parseLegacyReasoning } from '../../../src/core/parsers
 import { supplementLegacyGeneratedMedia } from './generatedMediaReconciliation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
 import type { ConversationParseContext } from '../../../src/core/parsers/contracts.js';
-import type { ResourceConversationParseResult } from '../../../src/core/parsers/parsingResult.js';
+import type { DomainFixture } from '../domainFixture.js';
 import type { Diagnostic } from '../../../src/core/diagnostics/diagnostic.js';
-import { isObjectRecord } from '../../../src/core/utils/messageResponses.js';
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 import type {
     DomainCitation,
     DomainConversationDetail,
@@ -106,6 +108,7 @@ function flattenLegacyTurns(conversation: ConversationRecordInput): Conversation
 
 /** Provider evidence accepted only while constructing Domain. */
 export interface ConversationRecordParseContext extends ConversationParseContext {
+    account: import('../../../src/core/domain/accountRegistry.js').Account;
     /** Detached Takeout/provider generated-media evidence, reconciled before returning Domain. */
     generatedMedia?: readonly unknown[];
     /** Migration coverage correction is applied before final schema validation. */
@@ -123,7 +126,7 @@ function legacyTitle(conversation: ConversationRecordInput) {
 }
 
 /** Resolve provider media and whitelist message fields without mutating legacy input. */
-export function parseConversationRecord(conversation: ConversationRecordInput, options: ConversationRecordParseContext): ResourceConversationParseResult {
+export function parseConversationRecord(conversation: ConversationRecordInput, options: ConversationRecordParseContext): DomainFixture {
     if (typeof options.providerId !== 'string' || !options.providerId.trim()) throw new TypeError('Domain providerId must be a non-empty string');
     const diagnostics: Diagnostic[] = [];
     const parserDiagnostics: Diagnostic[] = [];
@@ -161,10 +164,10 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
     const title = legacyTitle(conversation);
     const sourceVersion = normalizeConversationTimes({ updatedAt: conversation.updatedAt }).updatedAt;
     const domain = {
-        index: parseIndexMetadata({ account: options.account, providerId, id: conversation.id ?? '', title: title?.value ?? '',
+        index: { key: { accountId: options.account.id, conversationId: providerId === 'gemini' ? (conversation.id ?? '').replace(/^c_/, '') : conversation.id ?? '' }, ...parseIndexMetadata({ providerId, id: conversation.id ?? '', title: title?.value ?? '',
             ...(title ? { titleSource: title.source } : {}), ...normalizeConversationTimes({ createdAt: conversation.createdAt }),
             ...(sourceVersion !== undefined ? { updatedAt: sourceVersion } : {}), messageCount: resources.messages.length,
-            ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}) }),
+            ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}) }) },
         detail: { assets: resources.assets, messages: resources.messages,
             quality: contentQuality({ status: options.qualityStatusOverride ?? conversation.completeness?.status ?? 'unknown', rejectedTurns,
                 ...(conversation.truncated === true || conversation.isTruncated === true || conversation.nextPageToken?.trim()

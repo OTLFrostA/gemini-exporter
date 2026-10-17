@@ -13,7 +13,7 @@ const { parseFixture } = require('./helpers/documentFixture.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { assertDomainClosure } = require('../src/core/domain/closure.js');
 const { extractBlockText, extractInlineText } = require('../src/core/domain/content/unknownFallback.js');
-const { exportDomainMarkdown } = require('../src/core/export/exportDomainDocument.js');
+const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
 const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
@@ -251,7 +251,7 @@ test('parsed Domain is closed, JSON portable and does not mutate raw fixtures', 
         assertDomainClosure((domain).detail);
         const roundTrip = JSON.parse(JSON.stringify(domain));
         assertDomainClosure((roundTrip).detail);
-        assert.deepEqual(composeDomainDocument(roundTrip, fixtureAccountFor(roundTrip), { sourceVersion: require('./helpers/nativeFixture.js').historicalFixture(raw).sourceVersion }).document, document);
+        assert.deepEqual(composeDomainDocument(roundTrip, fixtureAccountFor(roundTrip), { sourceVersion: require('./helpers/nativeFixture.js').historicalFixture(raw).sourceVersion }), document);
         assert.equal(JSON.stringify(raw), before);
         assert.ok(!diagnostics.some((d: any) => d.severity === 'error'));
     }
@@ -451,7 +451,7 @@ test('source URL aliases do not enter Domain or get synthesized by Composer', as
         const { domain } = await parseFixture({ id: 'url', messages: [], ...raw });
         assert.equal(domain.index.url, undefined);
         assert.equal(domain.href, undefined);
-        assert.ok(!/^url:/m.test(await exportDomainMarkdown(domain, fixtureAccountFor(domain))));
+        assert.ok(!/^url:/m.test(renderDocumentMarkdown(composeDomainDocument(domain, fixtureAccountFor(domain)), {}, { includeFrontMatter: true })));
     }
 });
 test('unknown raw fields are omitted from Domain and AST without mutating input', async () => {

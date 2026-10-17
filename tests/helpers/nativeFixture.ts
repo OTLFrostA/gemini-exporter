@@ -19,5 +19,10 @@ export function rpcFixture<T extends ConversationRecordInput>(record: T, transpo
     parsed.conversation.detail.quality = contentQuality({ ...parsed.conversation.detail.quality, ...parsed.evidence,
         ...(acquisition.nextPageToken ? { truncation: 'pagination_pending' } : {}) });
     parsed.diagnostics.push(...schemaDrift.map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })));
-    return {   ...parsed, transport: { nextPageToken: null, ...acquisition } };
+    const { key: indexKey, ...index } = parsed.conversation.index;
+    const { key: _detailKey, ...detail } = parsed.conversation.detail;
+    return { conversationId: indexKey.conversationId, conversation: { index, detail },
+        diagnostics: parsed.diagnostics, resourceHints: parsed.resourceHints,
+        acquisitionHints: parsed.acquisitionHints, evidence: parsed.evidence,
+        sourceVersion: parsed.sourceVersion, transport: { nextPageToken: null, ...acquisition } };
 }

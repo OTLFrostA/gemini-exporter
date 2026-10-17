@@ -153,7 +153,7 @@ test('image with no source remains a semantic asset and the backend reports unav
     assert.ok(asset, 'asset registered');
     assert.ok(!asset.sourceUri);
     assert.doesNotThrow(() => assertDomainClosure((domain).detail));
-    const rendered = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {});
+    const rendered = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)), {});
     assert.ok(rendered.diagnostics.some((d: any) => d.code === 'HTML_ASSET_UNRESOLVED'));
     assert.ok(rendered.html.includes('gem-missing-asset'));
 });

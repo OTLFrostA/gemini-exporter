@@ -36,8 +36,8 @@ test('AST: composer gives every message a unique positional ID without changing 
 });
 test('unknown content and message order survive a JSON round trip across all backends', () => {
     const value = domain(); value.detail.messages.push({ id: 'second', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second message' }] }] });
-    const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value))).document;
-    assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(value)), fixtureAccountFor(JSON.parse(JSON.stringify(value)))).document, document);
+    const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value)));
+    assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(value)), fixtureAccountFor(JSON.parse(JSON.stringify(value)))), document);
     for (const output of [renderDocumentHtml(document, {}).html, renderDocumentMarkdown(document, {}), JSON.stringify(renderDocumentTypst(document, {}))]) {
         assert.ok(output.includes('Visible fallback'));
         assert.ok(output.indexOf('Visible fallback') < output.indexOf('Second message'));
@@ -46,7 +46,7 @@ test('unknown content and message order survive a JSON round trip across all bac
 test('HTML and Markdown sanitize hostile link protocols without rejecting visible labels', () => {
     for (const href of ['javascript:alert(1)', 'vbscript:evil', 'data:text/html,evil']) {
         const value = domain(); value.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'link', href, children: [{ type: 'text', text: 'Safe label' }] }] }];
-        const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value))).document;
+        const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value)));
         for (const output of [renderDocumentHtml(document, {}).html, renderDocumentMarkdown(document, {})]) {
             assert.ok(output.includes('Safe label'));
             assert.ok(!output.includes(href));

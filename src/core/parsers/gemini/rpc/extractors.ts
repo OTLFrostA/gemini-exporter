@@ -1,4 +1,3 @@
-import type { GeminiUtilsModule } from "../../../utils/utils.js";
 import type { GeminiProtocolModule } from "../../../protocol/protocol.js";
 export interface JspbTurnSchema {
     ID_META: number;
@@ -157,8 +156,12 @@ export interface GeminiParserExtractorsModule {
     getProtocol: () => GeminiProtocolModule;
 }
 
-import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../../utils/utils.js";
-import { RESEARCH_PROMPT_PREFIX_RE } from "../../../utils/titleUtils.js";
+import { normId } from "../../../utils/pathUtils.js";
+import { isRealTitle, cleanTitle } from "../../../utils/titleText.js";
+import { isDevMode } from "../../../utils/devMode.js";
+const GeminiUtils = { normId, isRealTitle, cleanTitle, isDevMode };
+type GeminiUtilsModule = typeof GeminiUtils;
+import { RESEARCH_PROMPT_PREFIX_RE } from "../../../utils/titleText.js";
 import { GeminiProtocol } from "../../../protocol/protocol.js";
 import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.js";
 

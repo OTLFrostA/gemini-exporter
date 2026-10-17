@@ -11,7 +11,7 @@ test('nested resource references are checked before composition; unavailable byt
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('conversation'), 'test'),   titleSource: "derived",   title: 'Nested' }, detail: { key: fixtureKey(String('conversation'), 'test'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'message', role: 'assistant', content: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [{ type: 'image', assetId: 'missing', alt: 'Nested figure' }] }] }] }] }] } };
     assert.throws(() => assertDomainClosure((domain).detail), /Unregistered Domain asset 'missing' in messages\[0\]/);
     domain.detail.assets.push({ id: 'missing', kind: 'image' });
-    const document = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document;
+    const document = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)));
     const html = renderDocumentHtml(document, {});
     assert.equal(html.diagnostics.filter(d => d.code === 'HTML_ASSET_UNRESOLVED').length, 1);
     assert.ok(html.html.includes('Nested figure'));

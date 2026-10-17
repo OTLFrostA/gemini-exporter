@@ -10,7 +10,10 @@ import type { GeminiParserExtractorsModule } from '../src/core/parsers/gemini/rp
 import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseList.js';
 import type { Citation } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { GeminiProtocolModule } from '../src/core/protocol/protocol.js';
-import type { GeminiUtilsModule } from '../src/core/utils/utils.js';
+import { normId } from '../src/core/utils/pathUtils.js';
+import { cleanTitle, isRealTitle } from '../src/core/utils/titleText.js';
+import { isDevMode } from '../src/core/utils/devMode.js';
+type ParserUtils = { normId: typeof normId; cleanTitle: typeof cleanTitle; isRealTitle: typeof isRealTitle; isDevMode: typeof isDevMode };
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
 
@@ -24,7 +27,7 @@ type OutputContracts = [
     Assert<Equal<ListParseResult['_debug'], ListParseDiagnostics | undefined>>,
     Assert<Equal<DetailParseResult['conversation']['detail']['messages'][number], DomainMessage>>,
     Assert<Equal<ReturnType<GeminiParserExtractorsModule['getProtocol']>, GeminiProtocolModule>>,
-    Assert<Equal<ReturnType<GeminiParserExtractorsModule['getUtils']>, GeminiUtilsModule>>,
+    Assert<Equal<ReturnType<GeminiParserExtractorsModule['getUtils']>, ParserUtils>>,
     Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,
     Assert<Equal<ReturnType<typeof parseGeminiRpcConversation>, DetailParseResult>>,
     Assert<Equal<ReturnType<typeof decodeGeminiDetail>, GeminiDetailEvidence>>,

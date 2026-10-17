@@ -1,7 +1,7 @@
 import type { DirectoryHandle } from './directoryHandle.js';
 
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
-import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../utils/utils.js';
+import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../utils/pathUtils.js';
 import { assertExportPath } from '../../export/packaging/exportPath.js';
 
 export interface FsWriterModule {

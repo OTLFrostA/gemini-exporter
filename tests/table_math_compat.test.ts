@@ -34,7 +34,7 @@ test('Domain and serialized Markdown preserve the captured numeric row and all e
     const raw = readFileSync('tests/fixtures/provider/math/gm_md_002_evidence.md', 'utf8');
     const blocks = parseMarkdownToBlocks(preprocessGeminiMarkdown(raw), 'live', { sourceRef: { providerId: 'gemini', locator: 'live.5' }, diagnostics: [] });
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('live'), 'gemini'),   titleSource: "derived",   title: 'Live' }, detail: { key: fixtureKey(String('live'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content: blocks }] } };
-    const output = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document, {});
+    const output = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))), {});
     const table = parseMarkdownAst(output).children.find(node => node.type === 'table');
     assert.ok(table?.type === 'table');
     const content = (node: { value?: string; children?: unknown[] }): string => node.value ?? (node.children ?? []).map(child => content(child as typeof node)).join('');
@@ -58,7 +58,7 @@ function renderCapturedTable(wire: unknown): { blocks: BlockNode[]; output: stri
     const blocks = geminiStructuredToContent({ children: [node] });
     assert.ok(blocks, 'all native table children must remain supported');
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('captured'), 'gemini'),   titleSource: "derived",   title: 'Captured' }, detail: { key: fixtureKey(String('captured'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content: blocks }] } };
-    return { blocks, output: renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document, {}) };
+    return { blocks, output: renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))), {}) };
 }
 
 test('native display math inside a captured table does not reinterpret neighboring literal TeX', () => {

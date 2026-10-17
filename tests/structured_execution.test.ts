@@ -16,7 +16,7 @@ test('captured execution panels survive structured RPC, Domain and physical Mark
     assert.equal(content.length, 2);
     assert.ok(content.every(node => node.type === 'code'));
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('execution'), 'gemini'),   titleSource: "derived",   title: 'Execution' }, detail: { key: fixtureKey(String('execution'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content }] } };
-    const serialized = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document, {});
+    const serialized = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))), {});
     const result = spawnSync('node', ['scripts/framework/markdown_evidence.mjs'], { input: JSON.stringify(serialized), encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     const evidence = JSON.parse(result.stdout) as { executionBlocks: { code: string; stdout: string }[]; codeBlocks: string[] };

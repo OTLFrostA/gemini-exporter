@@ -2318,18 +2318,65 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/document-ast-integration.test.ts",
+      "domain": "document",
+      "classification": "P2",
+      "provenanceSource": "Composer to Format integration: account isolation, metadata, citation numbering and unavailable media",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Exercises current module interfaces without the retired Application export facade.",
+      "testCount": 4,
+      "tests": [
+        {
+          "name": "integration: exported metadata and message order",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "integration: renderers preserve Composer citation numbers",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "integration: renderers express unavailable media",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "integration: renderer options control code headers and disclosure folding",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/v2-module-integration.test.ts",
+      "domain": "document",
+      "classification": "P2",
+      "provenanceSource": "Real keyless source parsing, direct L2 admission, AST projection, task-scoped resource acquisition and physical ZIP bytes",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Exercises current module interfaces without the retired Application export facade.",
+      "testCount": 1,
+      "tests": [
+        {
+          "name": "L1 → L2 → Composer → Format → Packaging keeps account, resource identities and physical bytes aligned",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 43,
-    "totalTests": 362,
+    "totalSuites": 45,
+    "totalTests": 367,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 342,
+      "P2": 347,
       "P3": 2,
       "P4": 0
     }
   },
-  "lastAudited": "2026-10-07"
+  "lastAudited": "2026-10-17"
 }

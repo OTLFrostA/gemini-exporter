@@ -54,7 +54,7 @@ test('one registry resource spans messages, attachment aliases, body and reasoni
     assert.deepEqual(restored, domain);
     const result = await composeFixture(domain);
     assert.deepEqual((await composeFixture(restored)).document, result.document);
-    assert.equal(result.diagnostics.some(d => d.severity === 'error'), false);
+    assert.ok(Array.isArray(result.document.messages), 'Composer returns the direct AST without diagnostics');
     assert.deepEqual(input, original);
     assert.deepEqual(domain, restored, 'export must not mutate Domain');
 });

@@ -99,7 +99,14 @@ function forbidden(owner: string, target: string): boolean {
     }
     if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/');
     if (owner.startsWith('document/compose/')) return !/^(domain\/|document\/|diagnostics\/|utils\/)/.test(target);
-    if (owner.startsWith('renderers/')) return /^(parsers\/|imports\/|domain\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
+    if (owner.startsWith('renderers/')) {
+        // Packaging owns the type-only binding; JSON intentionally reads trusted Domain.
+        if (target === 'export/packaging/resourceBindings.ts') return false;
+        if (owner === 'renderers/json/serializeDomainJson.ts' && /^domain\//.test(target)) {
+            return /(?:Admission|ingestion|indexCoverage|pageObservation)/.test(target);
+        }
+        return /^(parsers\/|imports\/|domain\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
+    }
     if (owner.startsWith('parsers/')) {
         if (target.startsWith('parsers/legacyStorage/') && !owner.startsWith('parsers/legacyStorage/')
             && owner !== 'parsers/parseConversation.ts' && owner !== 'parsers/index.ts') return true;
@@ -111,6 +118,7 @@ function forbidden(owner: string, target: string): boolean {
 test('semantic layers own their files and obey dependency direction, including type-only references', () => {
     for (const [owner, edges] of graph) for (const edge of edges) {
         assert.ok(!forbidden(owner, edge.target), `${owner} must not depend on ${edge.target}`);
+        if (owner.startsWith('renderers/') && edge.target === 'export/packaging/resourceBindings.ts') assert.equal(edge.runtime, false, `${owner} must import bindings as a type`);
     }
     for (const old of ['api/parser/', 'content/', 'export/document/', 'engine/takeout/', 'engine/template/', 'provider/record/']) {
         assert.ok(![...sources.keys()].some(name => name.startsWith(old)), `obsolete directory still owns code: ${old}`);

@@ -123,7 +123,8 @@ test('native Detail source versions align with Index without claiming cloud rest
         assert.equal(indexActivityTime(merged), 300);
         assert.equal(merged.createdAt, 10);
         assert.equal(Reflect.get(merged ?? {}, 'cloudAvailability'), undefined);
-        const listed = mergeConversationIndex(merged, parseGeminiIndexObservation({ id: 'chat', title: 'Research', updatedAt: 350 }, 'rpc-list', fixtureAccount().id));
+        const observation = parseGeminiIndexObservation({ id: 'chat', title: 'Research', updatedAt: 350 }, 'rpc-list');
+        const listed = mergeConversationIndex(merged, restoreConversationIndex({ key: merged.key, ...observation.fields }));
         assert.equal(listed.updatedAt, 350);
         assert.equal(Reflect.get(listed ?? {}, 'cloudAvailability'), undefined);
     }

@@ -36,6 +36,17 @@ const {
 const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const { extractImageEvidence: extractImages } = require('../src/core/parsers/gemini/rpc/sourceAttachments.js');
 
+import type { BlockNode } from '../src/core/domain/content/blocks.js';
+import type { InlineNode } from '../src/core/domain/content/inline.js';
+function firstText(block: BlockNode): string {
+    assert.ok(block.type === 'paragraph');
+    return inlineText(block.children[0]);
+}
+function inlineText(inline: InlineNode): string {
+    assert.ok(inline.type === 'text');
+    return inline.text;
+}
+
 const fixturesDir = path.join(__dirname, 'fixtures', 'provider', 'structured_rpc');
 
 function loadProbeFixture(filename: string): any {
@@ -94,7 +105,7 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
     const strongInline = p.children.find((c: any) => c.type === 'strong');
     assert.ok(strongInline?.type === 'strong');
     assert.ok(strongInline, 'Strong inline exists from annotation');
-    assert.strictEqual(strongInline.children[0].text, 'structured');
+    assert.strictEqual(inlineText(strongInline.children[0]), 'structured');
 
     // Check math block:
     const math = modelMsg.content[1];
@@ -178,6 +189,7 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     assert.ok(tableBlockAlpha?.type === 'table');
     assert.ok(tableBlockAlpha, 'Table block exists for Case C-alpha');
 
+    assert.ok(tableBlockAlpha.headerRows);
     // Header row should have exactly 5 cells
     assert.strictEqual(tableBlockAlpha.headerRows.length, 1);
     assert.strictEqual(tableBlockAlpha.headerRows[0].cells.length, 5);
@@ -215,6 +227,7 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     assert.ok(tableBlockPsi?.type === 'table');
     assert.ok(tableBlockPsi, 'Table block exists for Case C-psi');
 
+    assert.ok(tableBlockPsi.headerRows);
     // Header row should have exactly 3 cells
     assert.strictEqual(tableBlockPsi.headerRows[0].cells.length, 3);
     for (let r = 0; r < tableBlockPsi.rows.length; r++) {
@@ -334,7 +347,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
 
     const resList = await sourceConversation(listConv as any);
     assert.strictEqual(
-        resList.conversation.detail.messages[0].content[0].children[0].text,
+        firstText(resList.conversation.detail.messages[0].content[0]),
         'Raw list markdown fallback',
         'List with unknown child must fail closed to markdown without silent item dropping'
     );
@@ -369,7 +382,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
 
     const resTable = await sourceConversation(tableConv as any);
     assert.strictEqual(
-        resTable.conversation.detail.messages[0].content[0].children[0].text,
+        firstText(resTable.conversation.detail.messages[0].content[0]),
         'Raw table markdown fallback',
         'Table with unknown cell child must fail closed to markdown'
     );
@@ -400,7 +413,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
 
     const resBq = await sourceConversation(bqConv as any);
     assert.strictEqual(
-        resBq.conversation.detail.messages[0].content[0].children[0].text,
+        firstText(resBq.conversation.detail.messages[0].content[0]),
         'Raw bq markdown fallback',
         'Blockquote with unknown child must fail closed to markdown'
     );
@@ -439,7 +452,7 @@ test('Unknown annotation shape/type fails closed and is never coerced to bold', 
     const res = await sourceConversation(conv as any);
     const msg = res.conversation.detail.messages[0];
     assert.strictEqual(
-        msg.content[0].children[0].text,
+        firstText(msg.content[0]),
         'Raw markdown fallback for unknown annotation',
         'Unknown annotation must trigger Markdown fallback instead of guessing as bold'
     );
@@ -521,7 +534,7 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     const strong1 = msg1.content[0].children.find((c: any) => c.type === 'strong');
     assert.ok(strong1?.type === 'strong');
     assert.ok(strong1, 'Candidate 1 used markdown parser for bold');
-    assert.strictEqual(strong1.children[0].text, 'bold from markdown');
+    assert.strictEqual(inlineText(strong1.children[0]), 'bold from markdown');
 });
 
 test('Wire JSPB decoding in Gemini parser layer', () => {
@@ -613,7 +626,7 @@ test('Fallback: unknown nodeType triggers complete fallback to Markdown parser',
     assert.strictEqual(msg.content.length, 1);
     assert.strictEqual(msg.content[0].type, 'paragraph');
     assert.ok(msg.content[0]?.type === 'paragraph');
-    assert.strictEqual(msg.content[0].children[0].text, 'Fallback to markdown text when structured has unknown nodeType.');
+    assert.strictEqual(firstText(msg.content[0]), 'Fallback to markdown text when structured has unknown nodeType.');
 });
 
 test('Fallback: crossing overlap annotations trigger fallback to Markdown parser', async () => {
@@ -644,7 +657,7 @@ test('Fallback: crossing overlap annotations trigger fallback to Markdown parser
     const { conversation: domain } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 1);
-    assert.strictEqual(msg.content[0].children[0].text, 'Fallback text on crossing overlap.');
+    assert.strictEqual(firstText(msg.content[0]), 'Fallback text on crossing overlap.');
 });
 
 test('Fallback: empty structured document with non-empty raw markdown triggers fallback', async () => {
@@ -666,7 +679,7 @@ test('Fallback: empty structured document with non-empty raw markdown triggers f
     const { conversation: domain } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 1);
-    assert.strictEqual(msg.content[0].children[0].text, 'Non-empty raw markdown should not be lost if structured is empty.');
+    assert.strictEqual(firstText(msg.content[0]), 'Non-empty raw markdown should not be lost if structured is empty.');
 });
 
 test('structured source AST retains headings, math, code and lists', async () => {
