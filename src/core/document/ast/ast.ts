@@ -53,7 +53,7 @@ export interface DocumentAst {
     schemaVersion: 2;
     documentLanguage?: string;
     /** Format-neutral document identity and ISO dates, selected once by the composer. */
-    metadata: { id: string; provider: string; url?: string; createdAt?: string; updatedAt?: string };
+    metadata: { id: string; provider: string; createdAt?: string; updatedAt?: string };
     header: {
         title: string;
         providerLabel: string;
@@ -66,6 +66,3 @@ export interface DocumentAst {
     };
     messages: DisplayMessage[];
 }
-
-/** Output URLs are supplied by export preparation; bytes never enter the tree. */
-export type ResourceBindings = Readonly<Record<string, string>>;
