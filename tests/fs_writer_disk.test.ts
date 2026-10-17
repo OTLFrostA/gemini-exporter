@@ -10,29 +10,15 @@ const { FsWriter } = require('../src/core/engine/writers/fsWriter.js');
 test('fsWriter - writes supplied conversation and asset paths under export folder', async () => {
     const written: Record<string, unknown> = {};
     let closeCount = 0;
-    const mockDir = {
+    const directory = (prefix: string): any => ({
         name: 'MyVault',
-        getDirectoryHandle: async (folder: string) => ({
-            name: folder,
-            getFileHandle: async (file: string) => ({
-                createWritable: async () => ({
-                    write: async (content: any) => { written[`${folder}/${file}`] = content; },
-                    close: async () => { closeCount++; },
-                    abort: async () => {}
-                })
-            }),
-            getDirectoryHandle: async (subFolder: string) => ({
-                name: subFolder,
-                getFileHandle: async (assetFile: string) => ({
-                    createWritable: async () => ({
-                        write: async (content: any) => { written[`${folder}/${subFolder}/${assetFile}`] = content; },
-                        close: async () => { closeCount++; },
-                        abort: async () => {}
-                    })
-                })
-            })
-        })
-    };
+        getDirectoryHandle: async (folder: string) => directory(prefix + folder + '/'),
+        getFileHandle: async (file: string) => ({ createWritable: async () => ({
+            write: async (content: unknown) => { written[prefix + file] = content; },
+            close: async () => { closeCount++; }, abort: async () => {},
+        }) }),
+    });
+    const mockDir = directory('');
 
     const writer = new FsWriter(mockDir, 'gemini_export');
     await writer.init();
@@ -45,11 +31,11 @@ test('fsWriter - writes supplied conversation and asset paths under export folde
     assert.strictEqual(markdownReceipt, 'Quantum Computing_abcdef.md');
     assert.strictEqual(assetReceipt, 'assets/abcdef_t1_img1.png');
     assert.deepStrictEqual(Object.keys(written).sort(), [
-        'gemini_export/Quantum Computing_abcdef.md',
-        'gemini_export/assets/abcdef_t1_img1.png',
+        'Quantum Computing_abcdef.md',
+        'assets/abcdef_t1_img1.png',
     ].sort());
-    assert.strictEqual(written['gemini_export/Quantum Computing_abcdef.md'], markdown);
-    assert.deepStrictEqual(written['gemini_export/assets/abcdef_t1_img1.png'], imageBytes);
+    assert.strictEqual(written['Quantum Computing_abcdef.md'], markdown);
+    assert.deepStrictEqual(written['assets/abcdef_t1_img1.png'], imageBytes);
     assert.strictEqual(closeCount, 2, 'both successful writes must close their file handles');
 });
 
@@ -58,8 +44,7 @@ test('fsWriter - invokes abort() on writable when write operation fails', async 
     let closeCalled = false;
     const mockDir = {
         name: 'MyVault',
-        getDirectoryHandle: async () => ({
-            getFileHandle: async () => ({
+        getFileHandle: async () => ({
                 createWritable: async () => ({
                     write: async () => {
                         throw new Error('Simulated disk full during write');
@@ -68,7 +53,6 @@ test('fsWriter - invokes abort() on writable when write operation fails', async 
                     abort: async () => { abortCalled = true; }
                 })
             })
-        })
     };
 
     const writer = new FsWriter(mockDir, 'gemini_export');

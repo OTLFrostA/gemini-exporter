@@ -1,7 +1,7 @@
-# L4 Format migration
+# L4 Format / Packaging / Delivery migration
 
 Authority: [L4 Format design](https://app.notion.com/p/3fc5d4d759e1813f9483eebd058f7066).
-This change implements Format only. Application, Packaging, Delivery, L2 and L3b are not migrated here.
+This change implements all three L4 responsibilities: Format, Packaging and Delivery. Application, UI, Settings, L1/L2 and L3b callers remain outside this change.
 
 ## Public inputs and outputs
 
@@ -21,7 +21,7 @@ Font resolution and sandbox initialization remain existing Format capabilities. 
 
 The legacy `PdfExporter`, `prepareItem`, `prepareResources` and PDF four-stage pipeline are removed, including their Writer/ZIP/record ownership. They are not retained as a parallel export route. Tests asserting their stage states and content-hash paths are replaced by Format tests; font, math and sandbox tests remain.
 
-Callers outside Format are intentionally unchanged:
+Callers outside L4 are intentionally unchanged:
 
 - `src/core/engine/chatFormatter.ts` still imports the removed `toJsonStandard`. The Application owner must supply Domain + Account + Packaging bindings to `serializeDomainJson`.
 - `src/ui/controllers/exportController.ts` still imports the removed `PdfExporter`. The Application owner must use its single export workflow, supply the composed AST and shared image resources, call `compileDocumentPdf`, and pass final bytes to Packaging/Delivery.
@@ -29,7 +29,26 @@ Callers outside Format are intentionally unchanged:
 
 The ResourceBindings type remains at its existing AST import location to avoid an unrelated L3b migration. Its runtime ownership is Packaging → Format; no bytes or paths are added to the AST.
 
+## Packaging and Delivery
+
+Authority: [Packaging](https://app.notion.com/p/3fc5d4d759e181c4b0a7c48df1ef2168), [Delivery](https://app.notion.com/p/3fc5d4d759e181118042d6d531e78257).
+
+`export/packaging/index.ts` exposes the three frozen functions: `planExportPaths(inputs, format)`, `buildExportFiles(format, plan, content, prepared)` and `packageExportFiles(groups, delivery, userRequestedZip)`. Each conversation keeps its own resource ID map. One batch-local case-insensitive path set reserves main and asset paths, with suffixes allocated before Format. Resource files use assets/ or files/. No hashes, acquisition or receipt-derived bindings remain in this chain.
+
+Artifact now has exactly fileName, mimeType and content. Markdown/HTML/JSON emit every successful binding as an external file, and missing bound bytes fail before Delivery. PDF emits only the compiled main file. Resource MIME uses prepared mediaType, with application/octet-stream when absent. ZIP uses the actual flattened file count: explicit preference, or browserDownload with more than one file. Empty input stays empty; ZIP entries have no hidden directory prefix. Single-group ZIP names follow the main basename; multi-group names use conversations_<timestamp>.zip.
+
+`export/delivery/index.ts` exposes `startBrowserDownload(file)` and `writeToFolder(files, directory)`, both Promise<void>. Browser Delivery creates a Blob URL, clicks one download anchor, then schedules URL cleanup. Folder Delivery writes directly into the supplied directory, preserving every planned path. Writers reject unsafe/noncanonical paths rather than renaming them. FsWriter queries existing permission and never requests authorization; writable close/abort and same-path serialization are retained. Neither function chooses a mode, falls back, handles records, or transports bytes/handles through runtime IPC.
+
+The old `planExportResources`, `prepareDomainResources` and `exportDomainDocument` are removed. Their acquisition/orchestration callers belong to Application and must migrate to PreparedResources → plan → Format → build/package → Delivery. `chatFormatter` and `exportOrchestrator` still reference removed interfaces; this is an explicit integration handoff, not a working full-application build. Settings and Live Save changes (including enabledDisk intent and effective state) remain with their owners.
+
 ## Module verification
 
-`node_modules/.bin/tsc -p tests/tsconfig.l4-format.json` checks Format sources and the new JSON/PDF contract tests.
-Tier 1 execution uses `node -r ./tests/ts_register.js --test` with explicit renderer, JSON, PDF compiler, MiTeX and font test files. It includes real offline Typst WASM compilation with a Packaging image path, PDF image/text inspection, missing/corrupt bytes, cancellation, archive identity checks and input immutability. No Tier 2, Tier 3 or full application test run belongs to this change.
+- `node tests/run_l4.cjs`: **346 selected L4 Tier 1 tests pass**, zero failures. `tests/l4-tests.json` is the explicit file/name manifest; the runner fails on any selected group failure and sums executed cases.
+- `npx tsc --noEmit -p tests/tsconfig.l4.json`: passes for Format, Packaging, Delivery and Writer sources plus the new public contract tests.
+- Scoped no-explicit-any lint for new production functions: passes.
+
+Coverage includes renderer semantics, JSON identity/schema, real offline Typst WASM PDF compilation and image/text inspection, fonts/MiTeX, corrupt/missing image bytes, renderer immutability, batch duplicate IDs across accounts, case-insensitive/long/unsafe path collisions, actual ZIP entries matching rendered MD/HTML/JSON references, embedded PDF file count, direct/ZIP policy, permission refusal without a prompt, failed writes/abort, same-path serialization, and one anchor trigger with URL cleanup.
+
+Mixed suites run only their L4 cases: document-freeze (renderer cases), pdf-stress-gates (renderer preprocessing), archive-resource-path (paths/rendered file references), p1_h2_pathwriter (path safety and Writer cases). Application acquisition/selection/Skip/record tests such as resource-delivery, pdf-export and b1_writer_unified are not counted as L4 verification. The old Application integration tests still require their owner's migration; selecting this manifest does not mean those suites pass. Historical renderer fixtures now supply paths independently of production write receipts. Legacy tests expecting resource hashes, absolute bindings or per-PDF orchestration stages were migrated to the new L4 contracts.
+
+Only L4 Tier 1 was run. No full application build/suite, unrelated tests, Tier 2 or Tier 3 was run. Node DOM/filesystem doubles establish the L4 contract, not real Chrome authorization/download compatibility; the design's real-browser checks remain outside this scoped request.

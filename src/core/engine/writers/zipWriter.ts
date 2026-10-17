@@ -1,6 +1,6 @@
 
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
-import { sanitizeRelativePath } from '../../utils/utils.js';
+import { assertExportPath } from '../../export/packaging/exportPath.js';
 import { __resolveModule } from '../../utils/moduleOverrides.js';
 
 export interface ZipWriterClass {
@@ -17,7 +17,7 @@ export function isPrecompressedAsset(path: string): boolean {
     return /\.(png|jpe?g|webp|gif|bmp|mp3|mp4|m4a|wav|ogg|zip|gz|tar|pdf)$/i.test(path);
 }
 
-import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
+
 
 /** Size probes are optional on the shared string/binary content contract. */
 type ZipContent = WriteFileContent & { byteLength?: number; length?: number };
@@ -30,7 +30,7 @@ class ZipWriter implements IExportWriter {
 
     static ZipWriter = ZipWriter;
 
-    constructor(folderName: string = DEFAULT_EXPORT_FOLDER_NAME) {
+    constructor(_folderName: string = '') {
         const JSZipLib = __resolveModule('JSZip', null)
             || (typeof self !== 'undefined' ? (self as any).JSZip : null)
             || (typeof require !== 'undefined' ? (function() { try { return require('jszip'); } catch { return null; } })() : null);
@@ -38,14 +38,14 @@ class ZipWriter implements IExportWriter {
             throw new Error('JSZip library is not available');
         }
         this.zip = new JSZipLib();
-        this.folder = this.zip.folder(folderName);
+        this.folder = this.zip;
         this.totalBytes = 0;
         this.MAX_SAFE_ZIP_BYTES = 200 * 1024 * 1024; // 200MB safe memory warning threshold to prevent V8 tab OOM
     }
 
     sanitizePath(p?: string | null): string {
-        if (!p) return '';
-        return sanitizeRelativePath(p, 'file');
+        assertExportPath(p ?? '');
+        return p!;
     }
 
     writeFile(relativePath: string, content?: ZipContent | null, options?: WriteFileOptions): string {

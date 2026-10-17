@@ -5,11 +5,11 @@ import { historicalFixture } from './nativeFixture.js';
 
 
 import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
-import { prepareDomainResources } from '../../src/core/export/assets/prepareDomainResources.js';
+
 
 /** Exercise the public semantic and resource boundaries independently. */
 export async function composeFixture(domain: DomainConversationWithDetail, resourceHints: LegacyResourceHints = {}, sourceVersion?: number, acquisitionHints: ResourceAcquisitionHints = {}) {
-    return { ...composeDomainDocument(validateParserDomain(sourceVersion === undefined ? domain : { ...domain, index: { ...domain.index, updatedAt: sourceVersion } }), fixtureAccountFor(validateParserDomain(sourceVersion === undefined ? domain : { ...domain, index: { ...domain.index, updatedAt: sourceVersion } }))), resources: await prepareDomainResources(await fixtureResourceResults(domain, resourceHints, acquisitionHints)) };
+    return { ...composeDomainDocument(validateParserDomain(sourceVersion === undefined ? domain : { ...domain, index: { ...domain.index, updatedAt: sourceVersion } }), fixtureAccountFor(validateParserDomain(sourceVersion === undefined ? domain : { ...domain, index: { ...domain.index, updatedAt: sourceVersion } }))), resources: await fixtureBindings(domain, resourceHints, acquisitionHints) };
 }
 
 import type { ConversationRecordInput } from './recordFixture/conversationRecord.js';

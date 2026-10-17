@@ -150,7 +150,7 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
     }
     const display = item.document;
     assert.strictEqual(typeof display.header.title, 'string', `${item.id}: fixture titles follow the current semantic contract`);
-    const { payload: document, diagnostics: payloadDiagnostics } = renderTypstFixture(display, Object.fromEntries(item.resourceIds.map((id: string) => [id, `/assets/${id}`])), {
+    const { payload: document, diagnostics: payloadDiagnostics } = renderTypstFixture(display, Object.fromEntries(item.resourceIds.map((id: string) => [id, `assets/${id}`])), {
         convertMath,
         locale: 'zh',
     });
@@ -169,7 +169,7 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
             rendererSchemaVersion: 1,
 
             document,
-            assetPaths: new Map(assetIds.map((id: string) => [id, `/assets/${id}`])),
+            assetPaths: new Map(assetIds.map((id: string) => [id, `assets/${id}`])),
         } as never,
         context as never,
     );

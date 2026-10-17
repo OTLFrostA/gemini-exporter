@@ -1,6 +1,5 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { fixtureResourceResults } from './helpers/documentFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +8,6 @@ import type { DomainConversationWithDetail } from '../src/core/domain/conversati
 import type { DocumentAst } from '../src/core/document/ast/ast.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { formatHtmlDocument } from '../src/core/engine/chatFormatter.js';
 
 function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-html.json', 'utf8'));
@@ -115,11 +113,12 @@ test('known empty state uses shared localized text without claiming acquisition 
 
 
 
-test('production HTML facade uses prepared archive paths consistently', async () => {
+test('HTML backend uses supplied Packaging paths consistently', async () => {
     const native = historicalFixture({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] });
-    const result = await formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
-    assert.ok(result.content.includes('assets/p.png'));
-    assert.ok(!result.content.includes('gem-missing-asset">'));
+    const document = composeDomainDocument(native.conversation, native.account).document;
+    const result = renderDocumentHtml(document, Object.fromEntries(native.conversation.detail.assets.map(asset => [asset.id, 'assets/p.png'])));
+    assert.ok(result.html.includes('assets/p.png'));
+    assert.ok(!result.html.includes('gem-missing-asset">'));
 });
 
 test('backend accepts safe custom bindings and reports unsafe bindings as unavailable', () => {

@@ -1,5 +1,3 @@
-import type { Diagnostic } from '../diagnostics/diagnostic.js';
-
 export interface CompanionResourcePlan {
     resourceIds: string[];
     omitted: Array<{ resourceId: string; reason: string }>;
@@ -16,8 +14,4 @@ export interface ExportArtifact {
     fileName: string;
     mimeType: string;
     content: string | Blob | Uint8Array;
-    companionResourceIds: string[];
-    companionPlan?: CompanionResourcePlan;
-    writeReport?: ArtifactWriteReport;
-    diagnostics?: Diagnostic[];
 }

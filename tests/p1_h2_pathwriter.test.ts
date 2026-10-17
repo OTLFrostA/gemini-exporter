@@ -7,7 +7,6 @@ const pathUtils = require('../src/core/utils/pathUtils.js');
 const titleUtils = require('../src/core/utils/titleUtils.js');
 const { mergeConversation } = require('../src/core/domain/indexCollection.js');
 const progressUtils = require('../src/core/utils/progressUtils.js');
-const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
 
 test('p1_h2 - P1-102: con.md is rewritten, not left as a reserved name', () => {
     const out = pathUtils.sanitizeFileName('con.md');
@@ -98,6 +97,7 @@ test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
     const html = '<pre><code class="language-html">&lt;div&gt;hi&lt;/div&gt;</code></pre>'
         + '<p>real <b>bold</b> text</p>'
         + '<p>sample <code>List&lt;String&gt;</code> and <code>&lt;h1&gt;t&lt;/h1&gt;</code></p>';
+    const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
     const out = ChatFormatter.convertHtmlToMarkdown(html);
     assert.ok(out.includes('<div>hi</div>'), 'fenced code content must survive');
     assert.ok(out.includes('`List<String>`'), 'inline code generic must survive');
