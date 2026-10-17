@@ -22,9 +22,7 @@ export interface IExportWriter {
 }
 
 export interface WriterFactoryOptions {
-    folderName?: string;
     dirHandle?: ConstructorParameters<typeof FsWriter>[0];
-    [key: string]: any;
 }
 
 export interface WriterInterfaceModule {

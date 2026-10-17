@@ -1,4 +1,5 @@
-import type { DocumentAst, ResourceBindings } from '../../document/ast/ast.js';
+import type { DocumentAst } from '../../document/ast/ast.js';
+import type { ResourceBindings } from '../packaging/resourceBindings.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import type { PreparedResources } from '../../resources/resourceResult.js';
 import type { PdfRenderOptions } from '../../renderers/shared/renderOptions.js';

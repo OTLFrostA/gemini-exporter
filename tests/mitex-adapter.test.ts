@@ -145,7 +145,7 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
         { id: 'm2', role: 'assistant', content: blocks },
     ] } };
 
-    const { payload } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {}, {
+    const { payload } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)), {}, {
         convertMath: (source: string, display: boolean) => {
             return convertMathMitex(source, 'latex', display);
         },

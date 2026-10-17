@@ -103,7 +103,7 @@ test('Format references resolve to the same planned ZIP entries for Markdown, HT
     const c = conversation();
     c.detail.messages = [{ role: 'assistant', content: [{ type: 'image', assetId: 'a' }, { type: 'image', assetId: 'b' }] }];
     const account = fixtureAccountFor(c);
-    const { document } = composeDomainDocument(c, account);
+    const document = composeDomainDocument(c, account);
     for (const format of ['markdown', 'html', 'json'] as const) {
         const [plan] = planExportPaths([{ conversation: c, prepared }], format);
         const content = format === 'markdown' ? renderDocumentMarkdown(document, plan.resources)
@@ -117,4 +117,27 @@ test('Format references resolve to the same planned ZIP entries for Markdown, HT
             assert.ok(zip.file(path), `${format} entry: ${path}`);
         }
     }
+});
+
+test('Packaging adds missing resource extensions and preserves existing ones', () => {
+    const c = conversation();
+    c.detail.assets = [
+        { id: 'a', kind: 'image', name: 'Generated Image', mediaType: 'image/png' },
+        { id: 'b', kind: 'image', name: 'Generated Image.png', mediaType: 'image/png' },
+        { id: 'doc', kind: 'file', name: 'Notes', document: { contentMarkdown: '# Notes' } },
+        { id: 'unnamed.id', kind: 'file' },
+    ];
+    const bytes = new Uint8Array([1]);
+    // Application has filled the trusted Domain MIME fallback for a and b.
+    const resources: PreparedResources = new Map(c.detail.assets.map(asset => [asset.id, {
+        ok: true, resourceId: asset.id, value: { bytes, mediaType: asset.mediaType },
+    }]));
+    const [plan] = planExportPaths([{ conversation: c, prepared: resources }], 'markdown');
+    assert.deepEqual(Object.values(plan.resources), [
+        'assets/123456_Generated Image.png', 'assets/123456_Generated Image_2.png',
+        'files/123456_Notes.md', 'files/123456_unnamed.id.bin',
+    ]);
+    const files = buildExportFiles('markdown', plan, 'body', resources);
+    assert.equal(files[1].mimeType, 'image/png');
+    assert.equal(files[4].mimeType, 'application/octet-stream');
 });

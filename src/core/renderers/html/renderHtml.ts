@@ -6,7 +6,8 @@ import { visual } from '../shared/visualContract.js';
 import { GEM_HTML_CSS, GEM_HTML_SCRIPT, sanitizeUrl } from './htmlTemplate.js';
 import { renderMathHtml } from './htmlMath.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
-import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, ResourceBindings, SourceGroup } from '../../document/ast/ast.js';
+import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceGroup } from '../../document/ast/ast.js';
+import type { ResourceBindings } from '../../export/packaging/resourceBindings.js';
 
 const CANONICAL_EXTRA_CSS = `
 .gem-unknown-block {

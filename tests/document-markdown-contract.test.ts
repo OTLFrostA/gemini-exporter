@@ -6,14 +6,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const exportDomainMarkdown = (conversation: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(conversation, account).document, {}, { includeFrontMatter: true, exportedAt: new Date().toISOString() });
-const renderFixtureMarkdown = (parsed: ReturnType<typeof historicalFixture>): string => renderDocumentMarkdown(composeDomainDocument(parsed.conversation, parsed.account).document, {});
+const exportDomainMarkdown = (conversation: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(conversation, account), {}, { includeFrontMatter: true, exportedAt: new Date().toISOString() });
+const renderFixtureMarkdown = (parsed: ReturnType<typeof historicalFixture>): string => renderDocumentMarkdown(composeDomainDocument(parsed.conversation, parsed.account), {});
 const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 function domainFixture(blocks: any[], extra: any = {}): DomainConversationWithDetail {
     return restoreDomainSnapshot({ index: { key: fixtureKey(String('c'), 'gemini'),   titleSource: "derived",   title: 'Title' }, detail: { key: fixtureKey(String('c'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: [{ id: 'm', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
 }
-const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra), fixtureAccountFor(domainFixture(blocks, extra))).document, extra.resources ?? {});
+const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra), fixtureAccountFor(domainFixture(blocks, extra))), extra.resources ?? {});
 
 test('Markdown code serialization preserves existing final newlines without adding a blank line', () => {
     for (const source of ['run()', 'run()\n', 'run()\n\n']) {
@@ -38,7 +38,7 @@ test('Markdown paragraph preserves nested inline formatting and line breaks', ()
 test('Markdown emits headings and every message role in source order', () => {
     const b = domainFixture([{ type: 'heading', level: 3, children: [txt('Section')] }]);
     b.detail.messages = (['user', 'assistant', 'system', 'developer', 'unknown'] as const).map((role, i) => ({ id: `${i}`, role, content: b.detail.messages[0].content }));
-    const md = renderDocumentMarkdown(composeDomainDocument(b, fixtureAccountFor(b)).document, {}); const headings = ['## 👤 You', '## 🤖 Assistant', '## ⚙️ System', '## 🛠 Developer', '## Message'];
+    const md = renderDocumentMarkdown(composeDomainDocument(b, fixtureAccountFor(b)), {}); const headings = ['## 👤 You', '## 🤖 Assistant', '## ⚙️ System', '## 🛠 Developer', '## Message'];
     assert.deepEqual(headings.map((h) => md.indexOf(h)), headings.map((h) => md.indexOf(h)).sort((a, b) => a - b));
     assert.ok(md.includes('### Section'));
 });
@@ -98,7 +98,7 @@ test('Markdown inline citations link URLs and retain labels without URLs', () =>
 
 test('Markdown message Sources preserve citation order after the body', () => {
     const b = domainFixture([para('body')], { citations: [{ id: 'c', title: 'Web', url: 'https://example.com' }, { id: 'd', title: 'Local' }] }); b.detail.messages[0].citations!.reverse();
-    assert.ok(renderDocumentMarkdown(composeDomainDocument(b, fixtureAccountFor(b)).document, {}).includes('body\n\n> 🌐 **Sources:**\n> [1] [Local]\n> [2] [Web](https://example.com)'));
+    assert.ok(renderDocumentMarkdown(composeDomainDocument(b, fixtureAccountFor(b)), {}).includes('body\n\n> 🌐 **Sources:**\n> [1] [Local]\n> [2] [Web](https://example.com)'));
 });
 
 test('Markdown unknown content remains visible as escaped text', () => {

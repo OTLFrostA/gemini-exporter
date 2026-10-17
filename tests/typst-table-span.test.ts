@@ -29,19 +29,19 @@ const row = (...cells: any[]) => ({ cells });
 const opts = {};
 
 function typstOf(blocks: any[]) {
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(domainFixture(blocks), fixtureAccountFor(domainFixture(blocks))).document, {}, opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(domainFixture(blocks), fixtureAccountFor(domainFixture(blocks))), {}, opts);
     return { node: payload.messages[0].blocks[0] as any, diagnostics: diagnostics as any[] };
 }
 
 function htmlOf(blocks: any[]) {
-    return renderDocumentHtml(composeDomainDocument(domainFixture(blocks), fixtureAccountFor(domainFixture(blocks))).document, {}).html as string;
+    return renderDocumentHtml(composeDomainDocument(domainFixture(blocks), fixtureAccountFor(domainFixture(blocks))), {}).html as string;
 }
 
 async function compileOnce(blocks: any[]) {
     const b = domainFixture(blocks);
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
-    const { payload: document } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, { convertMath });
+    const { payload: document } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), {}, { convertMath });
     const context = {
 
         assets: { resolve: async (id: string) => null },

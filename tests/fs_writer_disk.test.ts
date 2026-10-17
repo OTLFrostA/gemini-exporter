@@ -20,7 +20,7 @@ test('fsWriter - writes supplied conversation and asset paths under export folde
     });
     const mockDir = directory('');
 
-    const writer = new FsWriter(mockDir, 'gemini_export');
+    const writer = new FsWriter(mockDir);
     await writer.init();
 
     const markdown = '# Quantum Computing\n\nContent';
@@ -55,7 +55,7 @@ test('fsWriter - invokes abort() on writable when write operation fails', async 
             })
     };
 
-    const writer = new FsWriter(mockDir, 'gemini_export');
+    const writer = new FsWriter(mockDir);
     await writer.init();
 
     await assert.rejects(

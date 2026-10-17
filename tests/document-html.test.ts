@@ -27,7 +27,7 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
     const first = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
     assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), first);
     assert.equal(JSON.stringify(input), before);
-    const { document } = first;
+    const document = first;
     assert.equal(document.header.providerLabel, 'example');
     assert.equal(document.messages[0].variant, 'bubble');
     assert.ok(renderDocumentHtml(document, resources, { locale: 'en' }).html.includes('Show more'));
@@ -44,7 +44,7 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
 
 test('JSON roundtrip and explicit presentation edits work without semantic input', () => {
     const resources = { img: 'assets/img.png' };
-    const { document } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     const restored: DocumentAst = JSON.parse(JSON.stringify(document));
     assert.deepEqual(restored, document);
     assert.deepEqual(renderDocumentHtml(restored, resources), renderDocumentHtml(document, resources));
@@ -67,7 +67,7 @@ test('table alignment follows logical columns for colSpan and rowSpan', () => {
         { cells: [{ children: [{ type: 'text', text: 'span' }], colSpan: 2, rowSpan: 2 }, { children: [{ type: 'text', text: 'last' }] }] },
         { cells: [{ children: [{ type: 'text', text: 'under' }] }] },
     ] }];
-    const { document } = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
+    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
     const table = document.messages[0].blocks[0];
     assert.equal(table.type, 'table');
     if (table.type === 'table') {
@@ -80,8 +80,7 @@ test('table alignment follows logical columns for colSpan and rowSpan', () => {
 });
 
 test('backend decides unavailable resources, preserves caption, and keeps nested diagnostics', () => {
-    const { document, diagnostics } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
-    assert.equal(diagnostics.length, 0);
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     assert.ok(renderDocumentHtml(document, {}).diagnostics.some(d => d.code === 'HTML_ASSET_UNRESOLVED'));
     const html = renderDocumentHtml(document, {}).html;
     assert.ok(html.includes('gem-missing-inline'));
@@ -91,7 +90,7 @@ test('backend decides unavailable resources, preserves caption, and keeps nested
 });
 
 test('renderer requires prepared bindings and escapes text and URL attributes', () => {
-    const { document } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     assert.ok(renderDocumentHtml(document, {}).html.includes('gem-missing-asset'));
     const html = renderDocumentHtml(document, { img: 'assets/a" onload="evil.png' }).html;
     assert.ok(html.includes('&quot;'));
@@ -105,7 +104,7 @@ test('renderer requires prepared bindings and escapes text and URL attributes', 
 
 test('known empty state uses shared localized text without claiming acquisition failure', () => {
     const input = fixture(); input.detail.messages = [];
-    const { document } = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
+    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
     assert.ok(!('emptyNotice' in document));
     assert.ok(renderDocumentHtml(document, {}, { locale: 'en' }).html.includes('Empty conversation.'));
     assert.ok(renderDocumentHtml(document, {}, { locale: 'zh' }).html.includes('暂无对话记录。'));
@@ -115,14 +114,14 @@ test('known empty state uses shared localized text without claiming acquisition 
 
 test('HTML backend uses supplied Packaging paths consistently', async () => {
     const native = historicalFixture({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] });
-    const document = composeDomainDocument(native.conversation, native.account).document;
+    const document = composeDomainDocument(native.conversation, native.account);
     const result = renderDocumentHtml(document, Object.fromEntries(native.conversation.detail.assets.map(asset => [asset.id, 'assets/p.png'])));
     assert.ok(result.html.includes('assets/p.png'));
     assert.ok(!result.html.includes('gem-missing-asset">'));
 });
 
 test('backend accepts safe custom bindings and reports unsafe bindings as unavailable', () => {
-    const { document } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     const custom = renderDocumentHtml(document, { img: 'assets/custom.png' });
     assert.deepEqual(custom.diagnostics.filter(d => d.code === 'HTML_ASSET_UNRESOLVED'), []);
     assert.ok(custom.html.includes('src="assets/custom.png"'));

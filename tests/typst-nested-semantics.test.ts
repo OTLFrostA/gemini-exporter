@@ -31,7 +31,7 @@ test('quote keeps nested image as a real image node', async () => {
             ],
         },
     ])], [imgAsset('a1')]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const quote = payload.messages[0].blocks[0] as any;
     assert.strictEqual(quote.type, 'quote');
     assert.strictEqual(quote.blocks.length, 2);
@@ -46,7 +46,7 @@ test('thought keeps nested image as a real image node', async () => {
         { type: 'paragraph', children: [{ type: 'text', text: 'thinking' }] },
         { type: 'image', assetId: 'a1', alt: 'pic' },
     ] })], [imgAsset('a1')]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const note = payload.messages[0].blocks[0] as any;
     assert.strictEqual(note.type, 'note');
     assert.strictEqual(note.blocks.length, 2);
@@ -64,7 +64,7 @@ test('quote keeps code and math as structured nodes instead of flat text', async
             ],
         },
     ])]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const quote = payload.messages[0].blocks[0] as any;
     assert.strictEqual(quote.blocks[0].type, 'code');
     assert.strictEqual(quote.blocks[0].text, 'print(1)');
@@ -74,7 +74,7 @@ test('quote keeps code and math as structured nodes instead of flat text', async
 
 test('thought keeps code as a structured node instead of flat text', async () => {
     const b = domainFixture([msg('m1', 'assistant', [], { reasoning: [{ type: 'code', language: 'ts', code: 'const x = 1' }] })]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const note = payload.messages[0].blocks[0] as any;
     assert.strictEqual(note.blocks[0].type, 'code');
     assert.strictEqual(note.blocks[0].text, 'const x = 1');
@@ -88,7 +88,7 @@ test('strikethrough is transported natively without a warning', async () => {
     const b = domainFixture([msg('m1', 'user', [
         { type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'text', text: 'gone' }] }] },
     ])]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_STRIKETHROUGH_DROPPED'));
     const node = (payload.messages[0].blocks[0] as any).children[0];
     assert.strictEqual(node.type, 'strikethrough');

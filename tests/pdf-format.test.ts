@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { DocumentAst, ResourceBindings } from '../src/core/document/ast/ast.js';
+import type { DocumentAst } from '../src/core/document/ast/ast.js';
+import type { ResourceBindings } from '../src/core/export/packaging/resourceBindings.js';
 import type { PreparedResources } from '../src/core/resources/resourceResult.js';
 import type { IPdfCompiler } from '../src/core/export/pdf/pdfCompiler.js';
 import { compileDocumentPdf } from '../src/core/export/pdf/compileDocumentPdf.js';
