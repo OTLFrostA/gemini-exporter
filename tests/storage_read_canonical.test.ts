@@ -32,17 +32,17 @@ function makeMockStorage() {
 
     const mkArea = (store: Record<string, any>, onSet: () => void, onRemove: () => void) => ({
         get: async (keys: any) => {
-            if (keys === null || keys === undefined) return { ...store };
+            if (keys === null || keys === undefined) return structuredClone(store);
             if (typeof keys === 'string') keys = [keys];
             const out: Record<string, any> = {};
             for (const k of keys) {
-                if (k in store) out[k] = store[k];
+                if (k in store) out[k] = structuredClone(store[k]);
             }
             return out;
         },
         set: async (items: Record<string, any>) => {
             onSet();
-            Object.assign(store, items);
+            Object.assign(store, structuredClone(items));
         },
         remove: async (keys: any) => {
             onRemove();
@@ -78,7 +78,7 @@ function makeMockStorage() {
 
 function installMock() {
     const s = makeMockStorage();
-    const origChrome = (global as any).chrome;
+    const originalChromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     (global as any).chrome = s.chromeMock;
     SchemaMigration.__setSchemaFrozenForTest(false);
     SchemaMigration.__resetStorageReadyForTest();
@@ -86,7 +86,9 @@ function installMock() {
     return {
         ...s,
         restore() {
-            (global as any).chrome = origChrome;
+            if (originalChromeDescriptor) Object.defineProperty(globalThis, 'chrome', originalChromeDescriptor);
+            else Reflect.deleteProperty(globalThis, 'chrome');
+            DetailStore.__clearMemoryStore();
             SchemaMigration.__setSchemaFrozenForTest(false);
             SchemaMigration.__resetStorageReadyForTest();
         }
@@ -118,8 +120,7 @@ test('PR-B: Current-schema read paths read only canonical keys', async () => {
         assert.deepStrictEqual(Object.keys(u1Exp), ['u1_c1']);
 
         const creds = await CredentialManager.loadCredMap();
-        assert.ok(creds['sid_main']);
-        assert.strictEqual(creds['sid_main'].at, 'at_val');
+        assert.deepStrictEqual(creds['sid_main'], { at: 'at_val', bl: 'bl_val', sid: 'sid_main', accountSlot: 'default' });
     } finally {
         env.restore();
     }
