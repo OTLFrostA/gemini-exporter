@@ -2,7 +2,7 @@ import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatContent } from '../src/core/engine/chatFormatter.js';
+import { serializeDomainJson } from '../src/core/renderers/json/serializeDomainJson.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 const native: ResourceConversationParseResult = { account: fixtureAccount('test-provider'),
@@ -17,17 +17,37 @@ const native: ResourceConversationParseResult = { account: fixtureAccount('test-
     resourceHints: { image: { archivePath: 'assets/image.png' }, file: { archivePath: 'files/report.pdf' } },
     acquisitionHints: { image: { url: 'https://example.test/image.png' } },
 };
-const delivered = Object.entries(native.resourceHints).map(([resourceId, hint]) => ({ ok: true as const, resourceId, value: { path: hint.archivePath! } }));
-test('complete JSON preserves the full native Domain and versioned resource destinations', () => {
+const bindings = { image: 'assets/image.png', file: 'files/report.pdf' };
+test('Archive v1 preserves trusted Domain and Account with flat Packaging bindings', () => {
     const before = structuredClone(native);
-    const archive = JSON.parse(formatContent(native, 'json', delivered).content);
-    assert.equal(archive.format, 'gemini-exporter-domain'); assert.equal(archive.version, 3);
-    assert.deepEqual(archive.conversation, native.conversation); assertDomainClosure((archive.conversation).detail);
-    assert.deepEqual(archive.resources, { image: { path: 'assets/image.png' }, file: { path: 'files/report.pdf' } });
-    for (const name of ['diagnostics', 'transport', 'acquisitionHints']) assert.equal(name in archive, false);
+    const archive = JSON.parse(serializeDomainJson(native.conversation, native.account, bindings));
+    assert.deepEqual(Object.keys(archive), ['format', 'version', 'account', 'conversation', 'resources']);
+    assert.equal(archive.format, 'gemini-exporter-domain'); assert.equal(archive.version, 1);
+    assert.deepEqual(archive.account, native.account);
+    assert.deepEqual(archive.conversation, native.conversation); assertDomainClosure(archive.conversation.detail);
+    assert.deepEqual(archive.resources, bindings);
     assert.deepEqual(native, before);
 });
-for (const format of ['json_openai', 'json_raw']) test(`removed format ${format} is rejected even with provider evidence`, () => {
-    const raw = {   ...native, transport: { decodedPayload: [null, ['source bytes']] } };
-    assert.throws(() => formatContent(raw, format), /unsupported format/);
+test('no resource bytes still preserves all Asset facts and only Detail savedAt', () => {
+    const conversation = { ...native.conversation, detail: { ...native.conversation.detail, savedAt: 123 } };
+    const archive = JSON.parse(serializeDomainJson(conversation, native.account, {}));
+    assert.deepEqual(archive.resources, {});
+    assert.equal(archive.savedAt, undefined);
+    assert.equal(archive.conversation.detail.savedAt, 123);
+    assert.deepEqual(archive.conversation.detail.assets, native.conversation.detail.assets);
+});
+test('Archive refuses mismatched accounts and mismatched conversation keys', () => {
+    assert.throws(() => serializeDomainJson(native.conversation, fixtureAccount('other'), {}), /mismatch/);
+    const conversation = { ...native.conversation, detail: { ...native.conversation.detail,
+        key: { ...native.conversation.detail.key, conversationId: 'other' } } };
+    assert.throws(() => serializeDomainJson(conversation, native.account, {}), /mismatch/);
+});
+test('Account profiles and default source identity are retained verbatim', () => {
+    const account = { ...native.account, providerAccountId: 'default', email: 'user@example.test', displayName: 'Name' };
+    assert.deepEqual(JSON.parse(serializeDomainJson(native.conversation, account, {})).account, account);
+});
+test('non-encodable input throws rather than returning a successful archive', () => {
+    const conversation = structuredClone(native.conversation);
+    Object.assign(conversation, { cycle: conversation });
+    assert.throws(() => serializeDomainJson(conversation, native.account, {}), /circular/i);
 });

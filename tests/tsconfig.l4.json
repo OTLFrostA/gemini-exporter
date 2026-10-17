@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "include": [
+    "../src/core/renderers/**/*.ts",
+    "../src/core/export/pdf/*.ts",
+    "../src/core/export/typst/**/*.ts",
+    "./pdf-format.test.ts",
+    "./native-json-export.test.ts",
+    "../src/core/export/packaging/**/*.ts",
+    "../src/core/export/delivery/**/*.ts",
+    "../src/core/engine/writers/**/*.ts",
+    "./l4-packaging.test.ts",
+    "./l4-delivery.test.ts"
+  ]
+}

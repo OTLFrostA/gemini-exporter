@@ -19,7 +19,7 @@ function freeze(value: unknown): void {
     if (!value || typeof value !== 'object') return;
     Object.freeze(value); Object.values(value).forEach(freeze);
 }
-const resources = { image: '/assets/image.png' };
+const resources = { image: 'assets/image.png' };
 
 test('PDF backend derives policies and metadata from immutable JSON display data', () => {
     const input = fixture(); const before = JSON.stringify(input); freeze(input);

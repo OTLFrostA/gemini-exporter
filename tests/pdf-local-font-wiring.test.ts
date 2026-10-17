@@ -13,7 +13,7 @@ const {
     BUNDLED_MATH_FALLBACK,
     SYSTEM_FALLBACK,
 } = require('../src/core/export/typst/fonts/localFontProvider.js');
-const { mountRuntimeFonts } = require('../src/core/export/pdf/pdfExporter.js');
+const { mountRuntimeFonts } = require('../src/core/export/typst/fonts/mountRuntimeFonts.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
     RealWasmSandboxHost,

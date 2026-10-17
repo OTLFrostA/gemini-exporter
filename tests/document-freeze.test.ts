@@ -1,5 +1,4 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { resourceValue } from './helpers/resources.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
@@ -13,7 +12,6 @@ import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
-import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 
 function domain(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('freeze'), 'custom'),   titleSource: "derived",   title: 'Boundary' }, detail: { key: fixtureKey(String('freeze'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [
@@ -102,7 +100,7 @@ test('parser removes math delimiters; HTML renders source verbatim and preserves
     }
 });
 
-test('PDF acquires every AST image; one frozen rich JSON AST serves all backends', async () => {
+test('PDF renders prepared AST images; one frozen rich JSON AST serves all backends', async () => {
     const input = domain();
     const inline = (id: string) => ({ type: 'image' as const, assetId: id, alt: id });
     const rendered = ['main', 'inline', 'heading', 'header', 'cell', 'nested'];
@@ -127,17 +125,6 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     const imageIds = collectDocumentResources(document).imageIds;
     assert.deepEqual([...imageIds].sort(), [...rendered, ...rich].sort());
     assert.equal(collectDocumentResources(document).imageIds.size, rendered.length + rich.length);
-    const acquired: string[] = [];
-    // Distinct bytes ensure resource ownership cannot pass via a swapped/shared receipt.
-    const bytesFor = (id: string) => new TextEncoder().encode(id);
-    const prepared = await preparePdfResources((input).detail, imageIds, {}, { acquire: async id => {
-        acquired.push(id);
-        return { ok: true as const, resourceId: id, value: { bytes: bytesFor(id), mediaType: 'image/png' } };
-    } });
-    assert.deepEqual(acquired.sort(), [...rendered, ...rich].sort());
-    for (const id of [...rendered, ...rich]) {
-        assert.deepEqual(resourceValue(prepared.resources.get(id)).bytes, bytesFor(id), `wrong acquired bytes bound to ${id}`);
-    }
     const bindings = Object.fromEntries([...collectDocumentResources(document).referencedIds].map(id => [id, `assets/${id}.png`]));
     assert.ok(renderDocumentHtml(document, bindings).html.includes('src="assets/image-caption.png"'));
     assert.ok(renderDocumentMarkdown(document, bindings).includes('assets/image-caption.png'));

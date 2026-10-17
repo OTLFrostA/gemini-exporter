@@ -1,5 +1,6 @@
 import { codeHeader, disclosureTitle, messageLabel, sourceNumberPrefix, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
+import { isResourcePath } from '../shared/resourcePath.js';
 import type { MarkdownRenderOptions } from '../shared/renderOptions.js';
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst, ResourceBindings } from '../../document/ast/ast.js';
 import { inlineMathMarkdown } from '../../utils/markdownMath.js';
@@ -24,7 +25,7 @@ function codeSpan(value: string): string {
 export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings, options: MarkdownRenderOptions = {}): string {
     const locale = options.locale ?? 'en';
     const strings = getRendererStrings(locale);
-    const available = (id: string) => Boolean(resources[id] && !/(^\/|\\|^[a-z][a-z\d+.-]*:|(^|\/)\.\.(\/|$))/i.test(resources[id]));
+    const available = (id: string) => isResourcePath(resources[id]);
     const resource = (id: string): string => {
         const value = resources[id];
         const ref = value && destination(value);

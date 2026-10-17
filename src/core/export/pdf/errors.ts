@@ -7,7 +7,7 @@ export function isAbortError(e: unknown): boolean {
     );
 }
 
-/** Only failures identified for particular images may trigger a body-preserving retry. */
+/** Image resolution failures abort this compile; Format does not retry or reacquire. */
 export class PdfResourceError extends Error {
     constructor(readonly failures: readonly ResourceFailure[]) {
         super('PDF image resources unavailable');

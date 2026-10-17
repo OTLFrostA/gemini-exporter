@@ -35,7 +35,7 @@ export interface WriterInterfaceModule {
 import { ZipWriter } from './zipWriter.js';
 import { FsWriter } from './fsWriter.js';
 
-import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
+
 
 export function isWriter(obj: any): boolean {
     return Boolean(obj && typeof obj.writeFile === 'function');
@@ -44,11 +44,11 @@ export function isWriter(obj: any): boolean {
 export function createWriter(type: 'zip' | 'fs' | string, options: WriterFactoryOptions = {}): IExportWriter {
     if (type === 'zip') {
         const Cls = ZipWriter?.ZipWriter || ZipWriter;
-        return new Cls(options.folderName || DEFAULT_EXPORT_FOLDER_NAME);
+        return new Cls();
     }
     if (type === 'fs') {
         const Cls = FsWriter?.FsWriter || FsWriter;
-        return new Cls(options.dirHandle, options.folderName || DEFAULT_EXPORT_FOLDER_NAME);
+        return new Cls(options.dirHandle);
     }
     throw new Error(`Unsupported writer type: ${type}`);
 }

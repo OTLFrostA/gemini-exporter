@@ -102,7 +102,7 @@ test('unknown text remains visible without nested render blocks', async () => {
 async function compileOnce(domain: any, assets: Record<string, Uint8Array>) {
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
-    const resources = Object.fromEntries(domain.detail.assets.map((asset: { id: string }) => [asset.id, `/assets/${asset.id}.png`]));
+    const resources = Object.fromEntries(domain.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`]));
     const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, resources, { convertMath });
     const context = {
 

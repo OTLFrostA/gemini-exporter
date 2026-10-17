@@ -282,7 +282,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         if (!doc) {
             throw new Error(
                 'TypstSandboxCompiler requires a prebuilt Typst document payload; ' +
-                'pass { document, assetPaths } built by the PDF pipeline payloadStage.',
+                'pass { document, assetPaths } built by PDF Format.',
             );
         }
         context.reportProgress('typst-payload', 1, 4);

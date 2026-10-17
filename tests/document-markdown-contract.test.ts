@@ -6,8 +6,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { exportDomainMarkdown } = require('../src/core/export/exportDomainDocument.js');
-const { formatMarkdownDocument } = require('../src/core/engine/chatFormatter.js');
+const exportDomainMarkdown = (conversation: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(conversation, account).document, {}, { includeFrontMatter: true, exportedAt: new Date().toISOString() });
+const renderFixtureMarkdown = (parsed: ReturnType<typeof historicalFixture>): string => renderDocumentMarkdown(composeDomainDocument(parsed.conversation, parsed.account).document, {});
 const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 function domainFixture(blocks: any[], extra: any = {}): DomainConversationWithDetail {
@@ -107,13 +107,13 @@ test('Markdown unknown content remains visible as escaped text', () => {
 });
 
 test('Gemini structuredContent reaches Document Markdown without using the string body', async () => {
-    const result = await formatMarkdownDocument(historicalFixture({ id: 'c', title: 'Structured', messages: [{ id: 'm', role: 'model', content: 'wrong string', structuredContent: { children: [{ nodeType: 18, text: 'structured answer' }] } }] }));
-    assert.ok(result.content.includes('structured answer')); assert.ok(!result.content.includes('wrong string'));
+    const result = renderFixtureMarkdown(historicalFixture({ id: 'c', title: 'Structured', messages: [{ id: 'm', role: 'model', content: 'wrong string', structuredContent: { children: [{ nodeType: 18, text: 'structured answer' }] } }] }));
+    assert.ok(result.includes('structured answer')); assert.ok(!result.includes('wrong string'));
 });
 
 test('Gemini Markdown fallback reaches Document Markdown with semantic formatting', async () => {
-    const result = await formatMarkdownDocument(historicalFixture({ id: 'c', title: 'Fallback', messages: [{ id: 'm', role: 'model', content: '**bold**\n\n```js\nconst x = 1;\n```' }] }));
-    assert.ok(result.content.includes('**bold**')); assert.ok(result.content.includes('```js\nconst x = 1;\n```'));
+    const result = renderFixtureMarkdown(historicalFixture({ id: 'c', title: 'Fallback', messages: [{ id: 'm', role: 'model', content: '**bold**\n\n```js\nconst x = 1;\n```' }] }));
+    assert.ok(result.includes('**bold**')); assert.ok(result.includes('```js\nconst x = 1;\n```'));
 });
 
 test('Markdown escapes unsafe links, local paths and YAML title boundaries', async () => {
@@ -123,9 +123,9 @@ test('Markdown escapes unsafe links, local paths and YAML title boundaries', asy
 });
 
 test('Document Markdown preserves both messages with duplicate source IDs', async () => {
-    const result = await formatMarkdownDocument(historicalFixture({ id: 'c', messages: [{ id: 'm', role: 'user', content: 'one' }, { id: 'm', role: 'model', content: 'two' }] }));
-    assert.ok(result.content.includes('one'));
-    assert.ok(result.content.includes('two'));
+    const result = renderFixtureMarkdown(historicalFixture({ id: 'c', messages: [{ id: 'm', role: 'user', content: 'one' }, { id: 'm', role: 'model', content: 'two' }] }));
+    assert.ok(result.includes('one'));
+    assert.ok(result.includes('two'));
 });
 
 

@@ -63,7 +63,8 @@ test('zipWriter - exports, instantiation, and sanitization', () => {
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder(_name: string) {
+        file(...args: any[]) { return this.legacyFolder('').file(...args); }
+        legacyFolder(_name: string) {
             return {
                 file: (path: string, content: any) => { this.files[path] = content; }
             };
@@ -79,7 +80,7 @@ test('zipWriter - exports, instantiation, and sanitization', () => {
     assert.strictEqual(typeof writer.writeFile, 'function');
     assert.strictEqual(typeof writer.generateBlob, 'function');
     assert.strictEqual(typeof writer.sanitizePath, 'function');
-    assert.strictEqual(writer.sanitizePath('foo/../bar/test.md'), 'foo/_/bar/test.md');
+    assert.throws(() => writer.sanitizePath('foo/../bar/test.md'), /Unsafe|Noncanonical/);
 });
 
 test('zipWriter - writeFile and generateBlob', async () => {
@@ -117,7 +118,8 @@ test('writerInterface - isWriter and createWriter factory', () => {
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder(_name: string) { return { file: (_p: string, _c: any) => {} }; }
+        file(...args: any[]) { return this.legacyFolder('').file(...args); }
+        legacyFolder(_name: string) { return { file: (_p: string, _c: any) => {} }; }
         async generateAsync(_opts?: any) { return new Blob(['']); }
     });
 
@@ -197,7 +199,8 @@ test('zipWriter - selective compression uses STORE for media and DEFLATE for tex
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder(_name: string) {
+        file(...args: any[]) { return this.legacyFolder('').file(...args); }
+        legacyFolder(_name: string) {
             return {
                 file: (path: string, content: any, opts: any) => {
                     this.files[path] = content;
@@ -221,7 +224,8 @@ test('zipWriter - generateBlob uses generateInternalStream when available', asyn
     let asyncUsed = false;
 
     __setModuleOverride('JSZip', class MockJSZipWithStream {
-        folder(_name: string) {
+        file(...args: any[]) { return this.legacyFolder('').file(...args); }
+        legacyFolder(_name: string) {
             return { file: () => {} };
         }
         generateInternalStream(opts: any) {
@@ -258,7 +262,8 @@ test('zipWriter - passes (path, content, options) through to JSZip file()', () =
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder(_name: string) {
+        file(...args: any[]) { return this.legacyFolder('').file(...args); }
+        legacyFolder(_name: string) {
             return {
                 file: (p: string, c: any, o: any) => {
                     capturedPath = p;

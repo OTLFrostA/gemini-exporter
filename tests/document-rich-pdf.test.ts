@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import type { DocumentAst, DisplayInline } from '../src/core/document/ast/ast.js';
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
-import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
+import { compileDocumentPdf } from '../src/core/export/pdf/compileDocumentPdf.js';
 import { TypstSandboxCompiler, stripConvertedMath } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { probePdfLayout } from './helpers/pdfPageProbe.js';
@@ -31,31 +31,33 @@ test('rich PDF fields render physical images, including captions of missing pare
     const document = fixture(), before = JSON.stringify(document);
     const corpus = JSON.parse(readFileSync('tests/fixtures/visual-corpus/08-image-caption.json', 'utf8'));
     const png = new Uint8Array(Buffer.from(Object.values(corpus.binaries)[0] as string, 'base64'));
-    const staged = await resourceStage({ document, resources: preparedResources(['main', 'rich'].map(id => [id, { bytes: png, mediaType: 'image/png' }])) }, {
-        signal: new AbortController().signal, log: () => undefined, reportProgress: () => undefined,
-    });
     assert.deepEqual([...collectDocumentResources(document).imageIds].sort(), ['main', 'rich', 'unavailable']);
-    assert.equal(staged.output.mounts.length, 1, 'shared bytes mount once');
-    assert.equal(staged.output.pathMap.size, 2);
-    const payload = renderDocumentTypst(document, Object.fromEntries(staged.output.pathMap));
+    const bindings = { main: 'assets/main.png', rich: 'assets/rich.png' };
+    const resources = preparedResources(['main', 'rich'].map(id => [id, { bytes: png, mediaType: 'image/png' }]));
     const mounted = new Set<string>();
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
     try {
-        const result = await compiler.compile({ rendererSchemaVersion: 1, document: payload, assetPaths: staged.output.pathMap }, {
-            assets: { resolve: async (id: string) => { mounted.add(id); return staged.output.mounts.find(mount => mount.virtualPath === staged.output.pathMap.get(id)) ?? null; } },
-            signal: new AbortController().signal, reportProgress: () => undefined,
-        });
+        const result = await compileDocumentPdf(document, bindings, resources, {
+            name: compiler.name,
+            async compile(payload, context) {
+                assert.deepEqual([...payload.assetPaths], Object.entries(bindings));
+                return compiler.compile(payload, { ...context, assets: { async resolve(id) {
+                    mounted.add(id);
+                    return context.assets.resolve(id);
+                } } });
+            },
+        }, { signal: new AbortController().signal, reportProgress() {} }, { convertMath: () => undefined });
         const extracted = extractPdfText(result.pdfBytes);
         const probe = probePdfLayout(result.pdfBytes);
         assert.equal(probe.pages.reduce((sum, page) => sum + page.imageDraws.length, 0), 8, 'main figure plus seven rich inline placements are physically drawn');
         for (const label of ['Image caption', 'Table caption', 'Table cell', 'File description', 'Missing image caption', 'Placeholder details', 'Body ending', 'Source title']) assert.ok(extracted.text.includes(label), label);
-        assert.equal(mounted.size, 1);
+        assert.equal(mounted.size, 2);
         assert.equal(JSON.stringify(document), before);
     } finally { compiler.dispose(); }
 });
 
 test('font fallback visits converted math in all rich PDF fields', () => {
-    const payload = renderDocumentTypst(fixture(), { main: '/main', rich: '/rich' }, { convertMath: () => 'x' });
+    const payload = renderDocumentTypst(fixture(), { main: 'assets/main.png', rich: 'assets/rich.png' }, { convertMath: () => 'x' });
     assert.equal(stripConvertedMath(payload), 7);
     assert.ok(!JSON.stringify(payload).includes('"typst"'));
 });

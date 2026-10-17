@@ -1,5 +1,6 @@
 import { blockText, inlineText, codeHeader, fileBadge, disclosureTitle, headerMetadata, messageLabel, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
+import { isResourcePath } from '../shared/resourcePath.js';
 import type { HtmlRenderOptions } from '../shared/renderOptions.js';
 import { visual } from '../shared/visualContract.js';
 import { GEM_HTML_CSS, GEM_HTML_SCRIPT, sanitizeUrl } from './htmlTemplate.js';
@@ -151,7 +152,7 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
     const strings = getRendererStrings(locale);
     const isEn = locale === 'en';
     const unavailableText = (kind: 'image' | 'file', label: string) => unavailableResourceText(kind, label, locale);
-    const available = (id: string) => Boolean(resources[id] && sanitizeUrl(resources[id], true) !== '#');
+    const available = (id: string) => isResourcePath(resources[id]) && sanitizeUrl(resources[id], true) !== '#';
     const missing = (id: string) => diagnostics.push({ severity: 'warning', code: 'HTML_ASSET_UNRESOLVED', message: `Resource ${id} has no prepared safe URL` });
     const diagnostics: Diagnostic[] = [];
     // The shared URL sanitizer already escapes the attribute value.

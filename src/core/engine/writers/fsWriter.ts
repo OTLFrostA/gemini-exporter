@@ -2,7 +2,7 @@ import type { DirectoryHandle } from './directoryHandle.js';
 
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
 import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../utils/utils.js';
-import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
+import { assertExportPath } from '../../export/packaging/exportPath.js';
 
 export interface FsWriterModule {
     FsWriter: typeof FsWriter;
@@ -26,7 +26,8 @@ function sanitizeRelativePath(p?: string | null, defaultName: string = 'file'): 
 
 async function ensureSubDir(root: any, subPath: string): Promise<any> {
     let cur = root;
-    const cleanSubPath = sanitizeRelativePath(subPath, 'dir');
+    assertExportPath(subPath);
+    const cleanSubPath = subPath;
     const parts = cleanSubPath.split('/').filter(Boolean);
     for (let p of parts) {
         if (!p || p === '.' || p === '..') continue;
@@ -47,7 +48,7 @@ class FsWriter implements IExportWriter {
     static sanitizeFileName = sanitizeFileName;
     static sanitizeRelativePath = sanitizeRelativePath;
 
-    constructor(dirHandle: (FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>) | null | undefined, folderName: string = DEFAULT_EXPORT_FOLDER_NAME) {
+    constructor(dirHandle: (FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>) | null | undefined, folderName: string = '') {
         if (!dirHandle) throw new Error('Directory handle is required for FsWriter');
         this.rootDirHandle = dirHandle;
         this.folderName = folderName;
@@ -59,15 +60,10 @@ class FsWriter implements IExportWriter {
         if (this.rootDirHandle.queryPermission) {
             const perm = await this.rootDirHandle.queryPermission({ mode: 'readwrite' });
             if (perm !== 'granted') {
-                const req = this.rootDirHandle.requestPermission ? await this.rootDirHandle.requestPermission({ mode: 'readwrite' }) : perm;
-                if (req !== 'granted') throw new Error('Directory permission not granted: ' + req);
+                throw new Error('Directory permission not granted: ' + perm);
             }
         }
-        if (this.rootDirHandle.name === this.folderName) {
-            this.batchDirHandle = this.rootDirHandle;
-        } else {
-            this.batchDirHandle = await this.rootDirHandle.getDirectoryHandle(this.folderName, { create: true });
-        }
+        this.batchDirHandle = this.rootDirHandle;
         return this.batchDirHandle;
     }
 
@@ -76,7 +72,8 @@ class FsWriter implements IExportWriter {
         // The legacy (subDirPath, fileName, content) overload was retired:
         // it had zero production callers (live-save uses the separate
         // LiveSaveWriter facade, not this interface).
-        const clean = sanitizeRelativePath(relativePath, 'file');
+        assertExportPath(relativePath);
+        const clean = relativePath;
         const lastSlash = clean.lastIndexOf('/');
         const actualSubDir = lastSlash !== -1 ? clean.slice(0, lastSlash) : '';
         const actualFileName = lastSlash !== -1 ? clean.slice(lastSlash + 1) : clean;
@@ -93,7 +90,7 @@ class FsWriter implements IExportWriter {
 
         if (!this.batchDirHandle) await this.init();
         const targetDir = actualSubDir ? await ensureSubDir(this.batchDirHandle, actualSubDir) : this.batchDirHandle;
-        const cleanName = sanitizeFileName(actualFileName, 'file');
+        const cleanName = actualFileName;
 
         if (actualContent === null || actualContent === undefined) {
             throw new Error(`[FsWriter] Cannot write null or undefined content to ${cleanName}`);
