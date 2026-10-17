@@ -1,3 +1,5 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { bindFixture, fixtureAccountFor } from './helpers/domainFixture.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
@@ -6,7 +8,7 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
-import { saveDomainConversation, getStoredDomain, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { getStoredDomain, storageIdentity } from '../src/core/storage/domain/domainStore.js';
 import { createConversationRepository } from '../src/core/storage/conversationRepository.js';
 import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 import { resolveChat } from '../src/core/engine/export/batchWorker.js';
@@ -53,13 +55,13 @@ test('index-only, absent, empty saved body and incomplete body remain distinct w
 test('index owns every metadata field while capture retains the actual older body version', async () => {
     const env = indexStorage();
     try {
-        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed()]);
-        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Renamed', titleSource: "provider", createdAt: 50, updatedAt: 200,
+        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed()]);
+        await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Renamed', titleSource: "provider", createdAt: 50, updatedAt: 200,
              });
         const repository = storage.conversationRepository(scope);
         const before = await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat'));
         const writes = env.writes();
-        const stored = await repository.getConversation('c_chat');
+        const stored = await repository.getConversation('chat');
         assert.ok(stored?.detail);
         assert.deepEqual(Object.keys(stored.detail).sort(), ['assets', 'key', 'messages', 'quality', 'savedAt']);
         assert.equal(stored.index.updatedAt, 200);
@@ -93,7 +95,7 @@ test('cached projections cannot roll back newer metadata passed by a caller', as
     const env = indexStorage();
     try {
         const cached = parsed();
-        await storage.ingestConversation(scope.accountId, cached);
+        await DomainAdmission.ingestConversation(scope.accountId, cached);
         const current = indexFixture({ id: 'chat', title: 'Renamed', titleSource: 'rpc', updatedAt: 200, createdAt: 50,
             url: 'https://gemini.google.com/u/1/app/chat' });
         await storage.setConversations('10000000-0000-4000-8000-000000000001', [current]);
@@ -112,12 +114,12 @@ test('cached projections cannot roll back newer metadata passed by a caller', as
 test('a rename after preparation survives direct and staged cached export completion', async () => {
     const env = indexStorage();
     try {
-        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed()]);
+        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed()]);
         const resolved = await resolveChat(undefined, { id: 'chat' }, undefined, null, '10000000-0000-4000-8000-000000000001');
         assert.equal(resolved.isError, false);
         if (resolved.isError) return;
         const old = resolved.chat;
-        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Rename during export', titleSource: "provider", updatedAt: 200 });
+        await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Rename during export', titleSource: "provider", updatedAt: 200 });
         const input = { conversation: old.conversation, chatTime: old.sourceVersion, usedLocalSnapshot: true };
         await completeConversationExport(storage, '10000000-0000-4000-8000-000000000001', input);
         assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0].title, 'Rename during export');
@@ -135,17 +137,17 @@ test('bound scope isolates accounts/providers, rejects unsupported slots and ign
         const mutableScope = { ...scope };
         const repository = storage.conversationRepository(mutableScope);
         mutableScope.accountId = '10000000-0000-4000-8000-000000000002';
-        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed()]);
+        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed()]);
         const other = bindFixture(parsed(), '10000000-0000-4000-8000-000000000002'); other.conversation.index.title = 'Other account';
-        await storage.setNativeConversations('10000000-0000-4000-8000-000000000002', [other]);
+        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000002', [other]);
         const foreign = bindFixture(parsed(), { ...fixtureAccount('other'), id: scope.accountId });
-        await assert.rejects(storage.setNativeConversations(scope.accountId, [foreign]), /mismatch/);
+        await assert.rejects(DomainAdmission.ingestDetails(scope.accountId, [foreign]), /mismatch/);
         assert.equal((await repository.getConversationIndex('chat'))?.title, 'Old title');
         assert.equal((await storage.conversationRepository({ ...scope, accountId: '10000000-0000-4000-8000-000000000002' }).getConversationIndex('chat'))?.title, 'Other account');
         assert.throws(() => storage.conversationRepository({ ...scope, accountId: 'typo' }), /UUID/);
         assert.throws(() => storage.conversationRepository({ ...scope, providerId: ' gemini' }), /scope/);
         await assert.rejects(repository.getConversation(''), /ID/);
-        await assert.rejects(repository.getConversationIndex('c_'), /ID/);
+        assert.equal(await repository.getConversationIndex('c_'), null, 'Provider IDs are opaque at the repository boundary');
         const orphan = parsed(); orphan.conversation.index.key.conversationId = 'orphan'; orphan.conversation.detail.key.conversationId = 'orphan';
         await saveDomainConversation('10000000-0000-4000-8000-000000000001', orphan);
         assert.equal(await repository.getConversation('orphan'), null);
@@ -174,9 +176,9 @@ test('index reads avoid body I/O; malformed identities and storage failures reje
         });
         await assert.rejects(broken.getConversationIndex('chat'), error => error === failure);
         await assert.rejects(broken.getConversation('chat'), error => error === failure);
-        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed()]);
+        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed()]);
         const ordered = storage.conversationRepository(scope);
-        const write = storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Queued rename', titleSource: "provider" });
+        const write = DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Queued rename', titleSource: "provider" });
         const read = ordered.getConversation('chat');
         await write; assert.equal((await read)?.index.title, 'Queued rename');
     } finally { env.restore(); }
@@ -189,7 +191,7 @@ test('fresh acquisition commits all metadata before rendering, independently of 
         fresh.conversation.index.createdAt = 20;
 
         const prepared = await preparePdfItem({ id: 'chat', title: 'Stale selection' }, { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false,
-            fetchChatDetail: async () => ({ success: true, chat: await storage.ingestConversation(scope.accountId, fresh) }) }) });
+            fetchChatDetail: async () => ({ success: true, chat: await DomainAdmission.ingestConversation(scope.accountId, fresh) }) }) });
         assert.equal(prepared.ok, true);
         const stored = await storage.conversationRepository(scope).getConversation('chat');
         assert.ok(stored?.detail);
@@ -206,13 +208,13 @@ test('fresh acquisition commits all metadata before rendering, independently of 
 test('accepting a partial observation advances Index but returns the retained complete body and its version', async () => {
     const env = indexStorage();
     try {
-        await storage.ingestConversation('10000000-0000-4000-8000-000000000001', parsed());
+        await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', parsed());
         const partial = parsed();
         partial.conversation.detail.messages = partial.conversation.detail.messages.slice(0, 1);
         partial.conversation.detail.quality.status = 'partial';
         partial.conversation.index.title = 'New authoritative title';
         partial.sourceVersion = 200; partial.conversation.index.updatedAt = 200;
-        const accepted = await storage.ingestConversation('10000000-0000-4000-8000-000000000001', partial);
+        const accepted = await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', partial);
         assert.equal(accepted.conversation.index.title, 'New authoritative title');
         assert.equal(accepted.conversation.detail.messages.length, 2);
         assert.equal(accepted.sourceVersion, 100);
@@ -227,7 +229,7 @@ test('initial partial capture publishes activity to Index without claiming a sav
     const env = indexStorage();
     try {
         const partial = parsed(); partial.conversation.detail.quality.status = 'partial';
-        const accepted = await storage.ingestConversation('10000000-0000-4000-8000-000000000001', partial);
+        const accepted = await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', partial);
         assert.equal(accepted.sourceVersion, 100);
         const stored = await storage.conversationRepository(scope).getConversation('chat');
         assert.equal(stored?.capture?.savedAt, 100);
@@ -238,10 +240,10 @@ test('initial partial capture publishes activity to Index without claiming a sav
 test('Takeout export cache reads current Domain and cannot republish old metadata or resurrect a missing Index', async () => {
     const env = indexStorage();
     try {
-        const cached = await storage.ingestConversation('10000000-0000-4000-8000-000000000001', parsed(), [], 'takeout');
+        const cached = await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', parsed(), []);
         const fresh = parsed(); fresh.sourceVersion = 200; fresh.conversation.index.updatedAt = 200; fresh.conversation.index.title = 'New title';
         fresh.conversation.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'New body' }] }];
-        await storage.ingestConversation('10000000-0000-4000-8000-000000000001', fresh);
+        await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', fresh);
         const writes = env.writes();
         const takeout = { getTakeoutOfflineChat: () => cached };
         const resolved = await resolveChat({ error: 'offline' }, { id: 'chat' }, null, takeout, '10000000-0000-4000-8000-000000000001');

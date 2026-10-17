@@ -20,6 +20,8 @@ export interface ProviderPageResult<T> {
 export interface ProviderPageBatchInfo {
     page: number;
     hasMore: boolean;
+    count: number;
+    scanHead?: import('../domain/coverageAdmission.js').ScanHead;
 }
 
 export interface ProviderStopDecision {
@@ -32,17 +34,18 @@ export interface ProviderProgressInfo<T = ProviderConversationItem> {
     added: number;
     total: number;
     hasMore: boolean;
-    batch?: T[];
     stoppedEarly?: boolean;
     reason?: string;
 }
 
 export interface ProviderListOptions<T = ProviderConversationItem> {
+    accountId?: string;
+    canCommit?: () => boolean;
     maxPages?: number;
     incremental?: boolean;
     signal?: AbortSignal | null;
     onProgress?: ((info: ProviderProgressInfo<T>) => void) | null;
-    onPageBatch?: ((batch: T[], info: ProviderPageBatchInfo) => Promise<ProviderStopDecision | void>) | null;
+    onPageBatch?: ((info: ProviderPageBatchInfo) => Promise<ProviderStopDecision | void>) | null;
 }
 
 export interface ProviderReadiness {

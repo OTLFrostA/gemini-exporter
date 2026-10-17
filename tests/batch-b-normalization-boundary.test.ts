@@ -5,7 +5,7 @@ import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
-import type { ConversationRecordInput } from '../src/core/parsers/legacyStorage/conversationRecord.js';
+import type { ConversationRecordInput } from './helpers/recordFixture/conversationRecord.js';
 
 for (const layout of ['messages', 'turns'] as const) {
     test(`PDF ${layout}: typeless historical image, unknown content and role survive normalization`, async () => {

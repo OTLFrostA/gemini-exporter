@@ -92,7 +92,11 @@ test('the compatibility directory is retired and no production source imports it
 });
 function forbidden(owner: string, target: string): boolean {
     if (owner === 'diagnostics/diagnostic.ts') return target !== 'utils/jsonTypes.ts';
-    if (owner.startsWith('domain/')) return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
+    if (owner.startsWith('domain/')) {
+        const admission = new Set(['domain/accountAdmission.ts', 'domain/ingestion.ts', 'domain/snapshotAdmission.ts', 'domain/coverageAdmission.ts']);
+        if (admission.has(owner)) return !/^(domain\/|storage\/|api\/accountRegistry\.ts$|parsers\/(?:parsingResult|contracts)\.ts$|resources\/resourceAcquisition\.ts$)/.test(target);
+        return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
+    }
     if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/');
     if (owner.startsWith('document/compose/')) return !/^(domain\/|document\/|diagnostics\/|utils\/)/.test(target);
     if (owner.startsWith('renderers/')) return /^(parsers\/|imports\/|domain\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
@@ -192,13 +196,28 @@ test('normal runtime cannot parse historical records or depend on application pr
 });
 
 
-test('fresh conversation persistence is owned by ingestion, with only startup migration allowed raw writes', () => {
-    const owners = new Set(['storage/conversationIngest.ts', 'storage/domain/domainStore.ts']);
+test('fresh conversation persistence is owned by Domain admission', () => {
+    const owners = new Set(['domain/ingestion.ts', 'domain/snapshotAdmission.ts']);
     for (const file of files(resolve(root, 'src'))) {
         const owner = relative(core, file).replace(/\\/g, '/');
         if (owners.has(owner)) continue;
         const text = readFileSync(file, 'utf8');
         assert.ok(!tokens(text).some(token => !token.literal && token.value === 'saveDomainConversation'),
             `${owner} bypasses conversation ingestion`);
+    }
+});
+
+
+test('Storage exposes transactions and cannot own Domain selection or scan lifecycle rules', () => {
+    const rules = new Set(['mergeConversationIndex', 'selectConversationDetail', 'selectSnapshot', 'findAccount',
+        'advanceIndexCoverage', 'indexCoverageConnects', 'indexCoverageExhausted', 'assertCoverageCompletion']);
+    for (const [name, file] of sources) if (name.startsWith('storage/')) {
+        for (const token of tokens(readFileSync(file, 'utf8'))) {
+            assert.ok(token.literal || !rules.has(token.value), `${name} decides Domain rule ${token.value}`);
+        }
+    }
+    for (const retired of ['storage/conversationIngest.ts', 'storage/conversationIndexFromParsed.ts',
+        'storage/conversationDetailStore.ts', 'parsers/legacyStorage/parseConversation.ts']) {
+        assert.equal(sources.has(retired), false, `${retired} leaves an alternate v1 path`);
     }
 });

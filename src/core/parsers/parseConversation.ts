@@ -1,5 +1,4 @@
 import type { Account } from '../domain/accountRegistry.js';
-import { parseLegacyStorageConversation, type LegacyStorageRaw } from './legacyStorage/parseConversation.js';
 import { parseGeminiDomConversation, type GeminiDomRaw, type GeminiDomParseResult } from './gemini/dom/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw, type GeminiTakeoutZipContext } from './gemini/takeout/parseZip.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseContext, type GeminiTakeoutParseResult } from './gemini/takeout/parseConversation.js';
@@ -20,19 +19,17 @@ export interface GeminiTakeoutZipParseInput extends GeminiTakeoutZipContext {
 }
 export interface GeminiDomParseInput { account: Account; format: 'gemini-dom'; providerId: 'gemini'; data: GeminiDomRaw }
 /** Only formats with implemented Domain parsers belong here. */
-export interface LegacyStorageParseInput { account: Account; format: 'legacy-storage'; providerId: string; data: LegacyStorageRaw }
-export type ConversationParseInput = LegacyStorageParseInput | GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiTakeoutZipParseInput | GeminiDomParseInput;
 
-export function parseConversation(input: LegacyStorageParseInput): ResourceConversationParseResult;
+export type ConversationParseInput = GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiTakeoutZipParseInput | GeminiDomParseInput;
+
 export function parseConversation(input: GeminiDomParseInput): GeminiDomParseResult;
 export function parseConversation(input: GeminiRpcParseInput): GeminiRpcParseResult;
 export function parseConversation(input: GeminiTakeoutParseInput): GeminiTakeoutParseResult;
 export function parseConversation(input: GeminiTakeoutZipParseInput): Promise<GeminiTakeoutParseResult>;
 export function parseConversation(input: ConversationParseInput): ResourceConversationParseResult | Promise<ResourceConversationParseResult>;
-/** Unified Domain entry; historical disk records use only the migration format. */
+/** Pure source parsing; L1 submits the result to Domain admission. */
 export function parseConversation(input: ConversationParseInput): ResourceConversationParseResult | Promise<ResourceConversationParseResult> {
     switch (input.format) {
-        case 'legacy-storage': return parseLegacyStorageConversation(input.data, input);
         case 'gemini-dom': return parseGeminiDomConversation(input.data, input);
         case 'gemini-takeout-zip': return parseGeminiTakeoutZip(input.data, input);
         case 'gemini-takeout': return parseGeminiTakeoutConversation(input.data, input);

@@ -11,6 +11,9 @@ test('production scan entry admits one pagination call while another scan is pen
     const oldLocation = (global as any).location;
     const oldChrome = (global as any).chrome;
     const originalList = defaultGeminiProvider.listConversations;
+    const lifecycle = require('../src/core/application/sync/scanLifecycle.js');
+    const begin = test.mock.method(lifecycle, 'beginScanCoverage', async () => ({ runId: 'test-run', previous: null }));
+    const finish = test.mock.method(lifecycle, 'finishScanCoverage', async () => true);
     let release!: () => void;
     let entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -39,6 +42,7 @@ test('production scan entry admits one pagination call while another scan is pen
         await syncConversations();
         assert.strictEqual(calls, 2, 'a completed scan must allow a subsequent fresh pagination request');
     } finally {
+        begin.mock.restore(); finish.mock.restore();
         runtime.restore();
         release();
         defaultGeminiProvider.listConversations = originalList;

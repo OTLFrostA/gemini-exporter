@@ -1,3 +1,4 @@
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { sourceIndex } from './helpers/domainFixture.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
@@ -9,7 +10,6 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
-import { indexFromParsed } from '../src/core/storage/conversationIndexFromParsed.js';
 import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
 import { indexActivityTime, mergeConversationIndex, restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
 
@@ -48,12 +48,12 @@ test('atomic patches preserve title authority, observed count, import and author
     const env = indexStorage();
     try {
         await storage.setConversations('10000000-0000-4000-8000-000000000001', [row()]);
-        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Weaker', titleSource: "provider", updatedAt: 20 });
+        await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Weaker', titleSource: "provider", updatedAt: 20 });
         assert.deepEqual((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0], { ...row(), title: 'Weaker' });
-        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Renamed', titleSource: "provider", updatedAt: 70 });
+        await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Renamed', titleSource: "provider", updatedAt: 70 });
         assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0].title, 'Renamed');
         const writes = env.writes();
-        await assert.rejects(storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', value => { Object.assign(value, { messages: [] }); }), TypeError);
+        await assert.rejects(DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', value => { Object.assign(value, { messages: [] }); }), TypeError);
         assert.equal(env.writes(), writes);
     } finally { env.restore(); }
 });
@@ -63,12 +63,12 @@ test('native detail persists separately and index updates cannot truncate or rep
         const detail = historicalFixture({ id: 'chat', title: 'Research', titleSource: 'rpc', messages: [
             { role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }
         ] });
-        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [detail]);
+        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [detail]);
         const before = await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat');
         const index = (await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0];
         assert.equal(Reflect.get(index ?? {}, 'messageCount'), undefined);
         assert.equal('messages' in index, false);
-        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', {  title: 'Renamed', titleSource: "provider" });
+        await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', {  title: 'Renamed', titleSource: "provider" });
         assert.deepEqual(await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'), before);
         assert.equal((await storage.conversationRepository({ providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001' }).getConversation('chat'))?.index.title, 'Renamed');
         await storage.clearConversations('10000000-0000-4000-8000-000000000001');
@@ -96,7 +96,7 @@ test('partial and concurrent native imports retain unrelated indexes and existin
         const first = historicalFixture({ id: 'chat', title: 'Weaker detail', titleSource: 'sniff', updatedAt: 999999,
             messages: [{ role: 'user', content: 'Question', timestamp: 70 }] });
         const second = historicalFixture({ id: 'added', title: 'Added conversation', messages: [{ role: 'user', content: 'New body', timestamp: 80 }] });
-        await Promise.all([storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [first]), storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [second])]);
+        await Promise.all([DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [first]), DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [second])]);
         const rows = await storage.getConversations('10000000-0000-4000-8000-000000000001');
         assert.deepEqual(rows.map(value => value.key.conversationId).sort(), ['added', 'chat', 'other']);
         assert.deepEqual(rows.find(value => value.key.conversationId === 'other'), other);
@@ -104,7 +104,7 @@ test('partial and concurrent native imports retain unrelated indexes and existin
         assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000002'))[0].title, other.title);
         assert.equal((await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'))?.conversation.detail.messages.length, 1);
         const writes = env.writes();
-        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', []);
+        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', []);
         assert.equal(env.writes(), writes, 'empty partial import cannot clear the list');
     } finally { env.restore(); }
 });
@@ -114,7 +114,7 @@ test('native Detail source versions align with Index without claiming cloud rest
     const detail = historicalFixture({ id: 'chat', title: 'Research', updatedAt: 300,
         messages: [{ role: 'user', content: 'Question', timestamp: 200 }] });
     for (const source of ['detail', 'snapshot', 'takeout'] as const) {
-        const observed = indexFromParsed(detail, source);
+        const observed = restoreConversationIndex(detail.conversation.index);
         assert.equal(observed.updatedAt, 300);
         assert.equal(Reflect.get(observed ?? {}, 'cloudAvailability'), undefined);
         const merged = mergeConversationIndex(old, observed);
@@ -127,7 +127,7 @@ test('native Detail source versions align with Index without claiming cloud rest
         assert.equal(Reflect.get(listed ?? {}, 'cloudAvailability'), undefined);
     }
     const { sourceVersion, ...unversioned } = detail;
-    assert.equal(indexFromParsed(unversioned).updatedAt, 300, 'Index retains source-authored activity independently of the body capture envelope');
+    assert.equal(restoreConversationIndex(unversioned.conversation.index).updatedAt, 300, 'Index retains source-authored activity independently of the body capture envelope');
     assert.equal(Reflect.get(mergeConversationIndex(old, { ...old,  }) ?? {}, 'cloudAvailability'), undefined);
 });
 

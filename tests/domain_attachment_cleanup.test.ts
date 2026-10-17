@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { normalizeLegacyAttachments } from '../src/core/parsers/shared/resources/resolveResources.js';
-import { structuredBodyAttachments } from '../src/core/parsers/legacyStorage/contentAdapter.js';
+import { structuredBodyAttachments } from './helpers/recordFixture/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
 
 const metadata = { id: 'resources', title: 'Resources', timestamp: null };

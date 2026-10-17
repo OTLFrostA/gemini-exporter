@@ -1,3 +1,4 @@
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { parseGeminiTakeoutZipArchive } from '../src/core/parsers/gemini/takeout/parseZip.js';
 import { test } from 'node:test';
@@ -83,13 +84,13 @@ test('missing and ambiguous archive files remain explicit resources with diagnos
     assertDomainClosure((result.conversation).detail);
 });
 
-test('a recorded generation event survives missing files without guessing ZIP ownership', () => {
+test('generation without content or files stays diagnostic without inventing an assistant message', () => {
     const result = native({ htmlText: activity('Draw', '', '', ID, '2 generated images'), archiveFiles: { 'watermarked_img_unrelated.png': {} } });
-    assert.deepEqual(result.conversation.detail.messages[1].generation, { mediaKind: 'image', outputCount: 2 });
+    assert.equal('generation' in (result.conversation.detail.messages[1] ?? {}), false);
     assert.equal(result.conversation.detail.assets.length, 0);
     assert.ok(result.diagnostics.some(d => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
     const restored = JSON.parse(JSON.stringify(result.conversation));
-    assert.deepEqual(restored.detail.messages[1].generation, result.conversation.detail.messages[1].generation);
+    assert.ok(restored.detail.messages.every((m: object) => !('generation' in m)));
     assertDomainClosure((restored).detail);
 });
 
@@ -100,7 +101,7 @@ test('explicit generated output references close body and attachment relationshi
     assert.equal(Reflect.get(asset ?? {}, 'generated'), undefined);
     assert.equal(asset.generation?.imageOrdinal, 0);
     assert.deepEqual(result.conversation.detail.messages[1].attachmentIds, [asset.id]);
-    assert.deepEqual(result.conversation.detail.messages[1].generation, { mediaKind: 'image', outputCount: 1 });
+    assert.equal('generation' in (result.conversation.detail.messages[1] ?? {}), false);
     assertDomainClosure((result.conversation).detail);
 });
 
@@ -163,18 +164,12 @@ test('ZIP parsing rejects malformed inventories, unverifiable HTML sizes and amb
 });
 
 
-test('Domain generation events reject invalid media kinds and output counts', () => {
-    const { conversation } = native({ htmlText: activity('Draw', '', '', ID, '2 generated images') });
-    for (const outputCount of [-1, 1.5, Infinity, NaN]) {
-        const invalid = structuredClone(conversation);
-        invalid.detail.messages[1].generation!.outputCount = outputCount;
-        assert.throws(() => assertDomainClosure((invalid).detail), /generation event/);
-    }
-    const invalid = structuredClone(conversation);
-    invalid.detail.messages[1].generation!.mediaKind = 'unknown' as never;
-    assert.throws(() => assertDomainClosure((invalid).detail), /generation event/);
+test('Domain rejects message generation events outside its frozen schema', () => {
+    const { conversation } = native({ htmlText: activity('Draw', '<p>Answer</p>') });
+    const raw = JSON.parse(JSON.stringify(conversation));
+    raw.detail.messages[1].generation = { mediaKind: 'image', outputCount: 1 };
+    assert.throws(() => restoreDomainSnapshot(raw), /persisted Domain/);
 });
-
 
 test('response-only activity cannot fabricate a user prompt from its first content cell', () => {
     const htmlText = activity().replace('Prompted Question<br>', '');

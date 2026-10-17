@@ -1,4 +1,4 @@
-import { contentQuality } from '../../../domain/quality.js';
+import { contentQuality } from '../../../parsers/qualityEvidence.js';
 import type { DomainAsset, DomainMessage } from '../../../domain/conversationDetail.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { mapContentAssetReferences } from '../../../domain/content/assetReferences.js';

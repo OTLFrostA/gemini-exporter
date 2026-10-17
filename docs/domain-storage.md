@@ -4,6 +4,15 @@ The Domain contract describes accepted local facts. Source interpretation belong
 L1 Provider/Parser, pure admission rules belong to L2 Domain, and transactions belong
 to Storage. Application consumers read the accepted local result.
 
+## Owner map
+
+`domain/accountAdmission.ts` calls `storage/accountRegistryStore.ts` for atomic
+read/decide/write. Matching, profile preservation and UUID allocation are Domain
+decisions. `domain/snapshotAdmission.ts` supplies the snapshot decision callback
+that Storage executes against the latest record within its transaction.
+`domain/coverageAdmission.ts` calls the physical `storage/scanCoverageStore.ts`
+port only after Index commit. No Storage entry duplicates merge/select rules.
+
 ## Identity and contracts
 
 - `domain/accountRegistry.ts`: Account is `{id, providerId, providerAccountId,
@@ -21,7 +30,7 @@ to Storage. Application consumers read the accepted local result.
 - `domain/conversationDetail.ts`: Detail contains `key`, `messages`, `assets`,
   `quality: {status}`, and optional `savedAt`. The latter is the source snapshot
   version, never a local write clock or a message count.
-- `domain/indexCoverage.ts`, `streamCoverage.ts`, `scanCoverage.ts`: trusted list
+- `domain/indexCoverage.ts`, `streamCoverage.ts`, `coverageAdmission.ts`: trusted list
   coverage advances only after all indexes on the observed page commit.
 
 Domain excludes pagination cursors, availability, import markers, parser diagnostics,
@@ -39,12 +48,25 @@ including a shorter complete body or a shorter incomplete body. There is no
 partial-body stitching or message-count preference.
 
 Index metadata merges independently, so an Index-only update cannot advance the
-selected Detail's `savedAt`. Rejected input cannot attach its acquisition hints or
-resource bindings to a retained body.
+selected Detail's `savedAt`. Rejected input cannot change the retained body, asset graph or acquisition hints.
+Separately acquired bytes can fill already selected, reliably matched resource
+bindings; they do not establish new Domain facts.
+
+## Coverage and execution
+
+Storage persists one `{range: CoverageRange | null}` per Account UUID + stream.
+Only a trusted cursor chain from the head through natural exhaustion or an explicit
+Provider history-window terminal establishes a new range. Partial scans preserve
+the previous boundary. `getCoverage` returns a detached committed snapshot;
+`hasTrustedBoundary` checks the current admitted cursor chain against the caller's
+frozen baseline and can extend the old range. Cursor evidence is ephemeral.
+
+Scan IDs, cancellation, terminal UI status and stop decisions belong to
+`application/sync/scanLifecycle.ts` and the caller, never durable Coverage.
 
 ## Ingestion and persistence
 
-`storage/conversationIngest.ts` is the shared admission entry point. It validates
+`domain/ingestion.ts` is the shared admission entry point. It validates
 Account and conversation ownership, saves the selected body, then merges and
 commits the Index under the conversation lock. L1 detail acquisition (Gemini and
 ChatGPT), content observations/live saves and Takeout imports use this boundary

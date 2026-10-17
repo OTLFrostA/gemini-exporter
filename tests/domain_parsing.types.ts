@@ -6,9 +6,9 @@ import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/core/par
 import type { ConversationParser, ConversationParseResult } from '../src/core/parsers/contracts.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseConversationRecord } from '../src/core/parsers/legacyStorage/parseRecord.js';
+import { parseConversationRecord } from './helpers/recordFixture/parseRecord.js';
 import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import type { ConversationRecordInput } from '../src/core/parsers/legacyStorage/conversationRecord.js';
+import type { ConversationRecordInput } from './helpers/recordFixture/conversationRecord.js';
 
 // Raw decoders need no legacy Conversation, export hints, storage schema or Gemini input type.
 const syncRawParser: ConversationParser<{ text: string }> = (raw, context) => ({ account: fixtureAccount(),

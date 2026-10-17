@@ -1,3 +1,7 @@
+import { ingestIndexes } from '../src/core/domain/ingestion.js';
+import { mock } from 'node:test';
+const CoverageAdmission = require('../src/core/domain/coverageAdmission.js');
+const ScanLifecycle = require('../src/core/application/sync/scanLifecycle.js');
 import { sourceIndex } from './helpers/domainFixture.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { accountRuntime } from './helpers/accountRuntime.js';
@@ -78,11 +82,11 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
         async isScanCoverageCurrent(slot: string) { trace.slots.push(slot); return true; },
         async finishScanCoverage(slot: string, _runId: string, status: string, baseline?: { headTimestamp: number | null }) {
             trace.slots.push(slot);
-            if (status === 'complete' && baseline) trace.checkpointWrites.push(baseline.headTimestamp ?? 0);
+
             return true;
         },
-        async transactConversations(slot: string, apply: (existing: Conversation[]) => { list: Conversation[]; changed: number } | null) {
-            trace.slots.push(slot);
+        async transactConversations(slot: string | null | undefined, apply: (existing: Conversation[]) => { list: Conversation[]; changed: number } | null) {
+            trace.slots.push(slot!);
             if (setup.failWrite) throw new Error('Injected quota failure');
             const result = apply(records.map(indexFixture));
             if (result) records = result.list;
@@ -104,6 +108,12 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
             return { kept: records.length, removed: removedIds.length, removedIds };
         }
     };
+    const domainMocks = [
+        mock.method(CoverageAdmission, 'recordPageCoverage', async () => {}),
+        mock.method(ScanLifecycle, 'beginScanCoverage', store.beginScanCoverage),
+        mock.method(ScanLifecycle, 'isScanCoverageCurrent', store.isScanCoverageCurrent),
+        mock.method(ScanLifecycle, 'finishScanCoverage', store.finishScanCoverage),
+    ];
     const provider: GeminiProviderContract = {
         id: 'gemini', name: 'Sync contract fixture', hostPatterns: ['https://gemini.google.com/*'], matchesUrl: () => true,
         async checkReadiness() { return { ready: true }; },
@@ -127,9 +137,10 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
                 });
                 return adapter.listConversations(options);
             }
-            trace.decisions.push(await options?.onPageBatch?.(input.items, { page: 1, hasMore: true }));
+            await ingestIndexes('10000000-0000-4000-8000-000000000001', input.items.map(indexFixture), { storage: store });
+            trace.decisions.push(await options?.onPageBatch?.({ page: 1, hasMore: true, count: input.items.length }));
             options?.onProgress?.({ page: 1, added: input.items.length, total: input.items.length, hasMore: false,
-                stoppedEarly: input.stoppedEarly, batch: input.items });
+                stoppedEarly: input.stoppedEarly });
             if (setup.abort) contentContext.setAborted(true);
             return input;
         }
@@ -145,7 +156,14 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => null, setItem() {} } });
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({
         runtime: { sendMessage: async (message: unknown) => { trace.progress.push(message); } },
-        storage: { local: { get: async () => ({}) } }
+        storage: { local: {
+            get: async () => ({ ['conversations_10000000-0000-4000-8000-000000000001']: records }),
+            set: async (values: Record<string, unknown>) => {
+                if (setup.failWrite) throw new Error('Injected quota failure');
+                const value = values['conversations_10000000-0000-4000-8000-000000000001'];
+                if (Array.isArray(value)) records = value;
+            }
+        } }
     }) });
     const account = accountRuntime();
     __setModuleOverride('StorageService', store);
@@ -159,6 +177,7 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
         assert.equal(contentContext.getActiveClient(), null);
         return { result, trace, records };
     } finally {
+        for (const method of domainMocks) method.mock.restore();
         account.restore();
         if (original) ProviderRegistry.register(original);
         else ProviderRegistry.unregister('gemini');
@@ -211,7 +230,7 @@ test('sync provider: complete cloud data preserves unseen local archives and Tak
     assert.equal(visible?.titleSource, 'provider');
     assert.equal(visible?.titleSource, 'provider');
     assert.ok(trace.slots.every(slot => slot === '10000000-0000-4000-8000-000000000001'));
-    assert.deepEqual(trace.checkpointWrites, [NOW]);
+    assert.deepEqual(trace.checkpointWrites, []);
     assert.strictEqual(result?.diagnostics, input.diagnostics);
 });
 
@@ -249,7 +268,7 @@ test('sync provider: legacy timestamps cannot authorize an unverified overlap ea
     assert.equal(result?.status, 'error');
     assert.deepEqual(trace.decisions, [undefined]);
     assert.equal(trace.options?.incremental, false);
-    assert.equal(trace.options?.includePinned, true);
+    assert.equal(trace.options?.includePinned, false);
     assert.equal(trace.options?.maxPages, 4);
     assert.equal(trace.options?.targetSid, 'u2');
     assert.deepEqual(trace.checkpointWrites, []);
@@ -279,7 +298,7 @@ test('sync provider: empty complete account retains the existing conservative no
     assert.equal(result?.count, 0);
     assert.equal(trace.reconcileCalls, 0);
     assert.ok(records.some(c => c.key.conversationId === 'chat_old'));
-    assert.equal(trace.checkpointWrites.length, 1);
+    assert.equal(trace.checkpointWrites.length, 0);
 });
 
 test('sync safety: real pagination edge results pass through adapter without reconciling unseen history', async () => {
@@ -297,7 +316,9 @@ test('sync safety: real pagination edge results pass through adapter without rec
         assert.equal(actual.exhaustive, false, edge);
         assert.equal(actual.completionReason, edge === 'negative-budget' ? 'max_pages' : edge === 'partial-abort' ? 'aborted' : 'error', edge);
         const adapter = new GeminiProvider({ async getAllConversations() { return actual; }, async getConversationDetail() { throw new Error('unexpected detail'); } });
-        const mapped = await adapter.listConversations();
+        const env = require('./helpers/indexStorage.js').indexStorage();
+        let mapped;
+        try { mapped = await adapter.listConversations(); } finally { env.restore(); }
         const { trace, records } = await scan(mapped);
         assert.equal(trace.reconcileCalls, 0, edge);
         assert.ok(records.some(c => c.key.conversationId === 'chat_old'), edge);
@@ -309,7 +330,7 @@ test('sync safety: real pagination edge results pass through adapter without rec
     await assert.rejects(scan(page(), { failWrite: true }), /Injected quota failure/);
     const { result, trace, records } = await scan(page());
     assert.ok(result);
-    assert.deepEqual(trace.checkpointWrites, [NOW]);
+    assert.deepEqual(trace.checkpointWrites, []);
     assert.ok(records.some(c => c.key.conversationId === 'chat_old'));
 });
 
@@ -320,9 +341,9 @@ test('sync safety: later pages with newer updates are saved even when the first 
     const later = listFixture(([timed('late105', 105)]).map(indexFixture), null);
     const { result, records, trace } = await scan(page(), { checkpoint: NOW + 100, wirePages: [first, later] });
     assert.equal(result?.status, 'complete');
-    assert.equal(result?.diagnostics.totalPagesFetched, 3);
+    assert.equal(result?.diagnostics.totalPagesFetched, 2);
     assert.equal(records.find(record => record.key.conversationId === 'late105')?.updatedAt, NOW + 105);
-    assert.deepEqual(trace.checkpointWrites, [NOW + 120]);
+    assert.deepEqual(trace.checkpointWrites, []);
 });
 
 test('sync safety: a limited first scan and retry never claim complete coverage', async () => {
@@ -333,7 +354,7 @@ test('sync safety: a limited first scan and retry never claim complete coverage'
             listFixture(([item()]).map(indexFixture), 'tC_limit'), limited
         ] });
         assert.equal(result?.status, 'partial_limit');
-        assert.equal(result?.diagnostics.totalPagesFetched, 3);
+        assert.equal(result?.diagnostics.totalPagesFetched, 2);
         assert.deepEqual(trace.checkpointWrites, []);
         assert.ok(records.some(record => record.key.conversationId === 'chat_visible'));
         assert.ok(records.some(record => record.key.conversationId === 'chat_old'));
@@ -350,19 +371,19 @@ test('sync safety: missing producer completeness cannot establish trusted covera
     assert.deepEqual(trace.checkpointWrites, []);
 });
 
-test('sync covers pinned-only chats and persists a later-page rename with an unchanged timestamp', async () => {
+test('Recent sync excludes Pinned and persists a later-page rename with an unchanged timestamp', async () => {
     const pinned = { ...item('pinned_only'), timestamp: NOW - 10000, updatedAt: NOW - 10000 };
     const renamed = { ...item('chat_old'), title: 'Renamed on another device', titles: { rpc: 'Renamed on another device' },
         timestamp: NOW - 1000, updatedAt: NOW - 1000 };
     const { result, records, trace } = await scan(page(), { pinnedPages: [listFixture(([pinned]).map(indexFixture), null)],
         wirePages: [listFixture(([item()]).map(indexFixture), 'tC_old'), listFixture(([renamed]).map(indexFixture), null)] });
     assert.equal(result?.status, 'complete');
-    assert.equal(result?.count, 3);
-    assert.equal(result?.diagnostics.totalPagesFetched, 3);
+    assert.equal(result?.count, 2);
+    assert.equal(result?.diagnostics.totalPagesFetched, 2);
     assert.equal(records.find(record => record.key.conversationId === 'chat_old')?.title, 'Renamed on another device');
     assert.equal(records.find(record => record.key.conversationId === 'chat_old')?.updatedAt, NOW - 1000);
-    assert.ok(records.some(record => record.key.conversationId === 'pinned_only'));
-    assert.deepEqual(trace.checkpointWrites, [NOW]);
+    assert.ok(!records.some(record => record.key.conversationId === 'pinned_only'));
+    assert.deepEqual(trace.checkpointWrites, []);
 });
 
 

@@ -1,10 +1,11 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { requestNativeDetail, requestNativeBatch } from '../src/core/utils/nativeDetailTransport.js';
 import { isResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
 import { callDomainBroker, encodeDomainRecord, decodeDomainRecord } from '../src/core/storage/domain/transport.js';
-import { saveDomainConversation, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
 
 function opaqueCannotBecomeNative(raw: unknown): void {
     // @ts-expect-error Unknown input is not a typed native result.

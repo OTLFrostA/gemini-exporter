@@ -1,3 +1,4 @@
+import { withRegistry } from './helpers/registryMock.js';
 import { bindTabAccounts } from './helpers/tabAccounts.js';
 export {};
 const test = require('node:test');
@@ -205,6 +206,7 @@ test('tabService - getGeminiTab and sendToGeminiTab enforce strict slot matching
 // ---------------------------------------------------------------------------
 test('conversationsStore - loadStore does not hijack empty slot', async () => {
     const origChrome = (global as any).chrome;
+    (global as any).chrome = withRegistry({});
     try {
         const mockStorage = {
             listAccounts: async () => ([{id:'10000000-0000-4000-8000-000000000001',providerId:'gemini',providerAccountId:'main'},{id:'10000000-0000-4000-8000-000000000002',providerId:'gemini',providerAccountId:'empty'}]),

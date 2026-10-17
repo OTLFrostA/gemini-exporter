@@ -15,7 +15,7 @@ async function request(command: string, parameters: Record<string, unknown> = {}
 export async function getOrCreateAccount(providerId: string, providerAccountId: string,
     email?: string, displayName?: string): Promise<Account> {
     const account = readAccount(inBackground()
-        ? await (await import('../storage/accountRegistryStore.js')).getOrCreateAccount(providerId, providerAccountId, email, displayName)
+        ? await (await import('../domain/accountAdmission.js')).getOrCreateAccount(providerId, providerAccountId, email, displayName)
         : await request('getOrCreate', { providerId, providerAccountId, email, displayName }));
     if (account.providerId !== providerId || account.providerAccountId !== providerAccountId) throw new TypeError('Account registry identity mismatch');
     return account;

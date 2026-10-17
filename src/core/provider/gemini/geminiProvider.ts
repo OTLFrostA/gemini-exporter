@@ -1,4 +1,5 @@
-import { ingestConversation } from '../../storage/conversationIngest.js';
+import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
+import { ingestIndexes, ingestConversation } from '../../domain/ingestion.js';
 import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
 import type {
     GeminiProviderClient, GeminiProviderContract, GeminiProviderReadiness,
@@ -81,7 +82,25 @@ export class GeminiProvider implements GeminiProviderContract {
 
     async listConversations(options?: GeminiProviderListOptions): Promise<GeminiProviderPageResult> {
         const client = this.getClient();
-        const result = await client.getAllConversations(options);
+        const accountId = options?.accountId ?? (await getOrCreateAccount(this.id, 'default')).id;
+        const account = await getAccount(accountId);
+        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
+        const result = await client.getAllConversations({ ...options,
+            onProgress: progress => {
+                const { batch: _batch, ...control } = progress;
+                options?.onProgress?.(control);
+            },
+            onPageBatch: async (batch, info) => {
+                if (options?.canCommit?.() === false) throw new Error('List request cancelled or account changed');
+                const indexes = batch.map(item => parseGeminiIndexObservation(item, 'rpc-list', accountId));
+                const observation = info.observation ? { ...info.observation, accountId } : undefined;
+                // Unknown-source default data may be retained, but cannot establish trusted coverage.
+                const page = account.providerAccountId !== 'default' ? observation : undefined;
+                await ingestIndexes(accountId, indexes, { canCommit: options?.canCommit, ...(page ? { page } : {}) });
+                const scanHead = page ? (({ providerId: _providerId, accountId: _accountId, items: _items, ...head }) => head)(page) : undefined;
+                return options?.onPageBatch?.({ page: info.page, hasMore: info.hasMore, count: batch.length, ...(scanHead ? { scanHead } : {}) });
+            },
+        });
         // The companion retains Gemini control evidence; hasMore remains the legacy hint.
         const page: GeminiProviderPageResult = {
             items: result.conversations,

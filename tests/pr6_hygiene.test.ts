@@ -11,7 +11,7 @@ const assert = require('node:assert');
 //    e.g. 'not-a-date' as the authoritative timestamp.)
 // 2. The two previously scattered storage keys live in STORAGE_KEYS.
 
-const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
+const { mergeConversation } = require('../src/core/domain/indexCollection.js');
 const { STORAGE_KEYS } = require('../src/core/utils/constants.js');
 
 function conv(over: any = {}) {

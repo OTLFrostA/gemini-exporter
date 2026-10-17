@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
@@ -42,14 +44,14 @@ test('malformed ChatGPT pages cannot masquerade as empty exhausted history', asy
     assert.equal(progress, 0);
 });
 
-test('provider list results and progress carry the same parsed Domain indexes', async () => {
+test('provider commits indexes before progress and exposes control facts only', async () => {
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
         url.includes('/api/auth/session') ? { accessToken: 'test-token' }
             : { items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }], total: 1 }
     )) });
     let observed: unknown;
-    const page = await provider.listConversations({ onProgress: info => { observed = info.batch?.[0]; } });
-    assert.strictEqual(observed, page.items[0]);
+    const page = await provider.listConversations({ onProgress: info => { observed = Reflect.get(info, 'batch')?.[0]; } });
+    assert.equal(observed, undefined);
     assert.equal(Object.hasOwn(page.items[0], 'key'), false);
     assert.equal(Reflect.get(page.items[0] ?? {}, 'providerId'), undefined);
     assert.equal(page.items[0].updatedAt, 1700000060000);

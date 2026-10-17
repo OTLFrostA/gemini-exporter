@@ -6,7 +6,7 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { ConversationRecordInput } from '../src/core/parsers/legacyStorage/conversationRecord.js';
+import type { ConversationRecordInput } from './helpers/recordFixture/conversationRecord.js';
 import { missingResource, type ResourceResult, type ResourceBytes } from '../src/core/resources/resourceResult.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';

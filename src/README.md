@@ -54,12 +54,11 @@ src/
 
     parsers/                   Raw source decoding and direct Domain construction
       contracts.ts             Source parser context/result contracts (diagnostics beside Domain)
-      parseConversation.ts     Raw format dispatcher; legacy-storage is the migration boundary
+      parseConversation.ts     Native raw format dispatcher; no historical storage inputs
       gemini/rpc/              Wire extraction, source media and raw RPC → Domain
       gemini/takeout/           Activity HTML and cooperative ZIP parsing → Domain
       gemini/dom/               Authored DOM trees → Domain; observed coverage stays partial
       gemini/shared/            Gemini structured content and Markdown interpretation
-      legacyStorage/           Released disk record/index grammar, only migration and recovery
       shared/                  Markdown/HTML, archive validation and resource/citation closure
 
     domain/                    Long-term semantic conversation contract and closure checks
@@ -101,16 +100,19 @@ src/
       pdf/                     PDF preparation and pipeline
       typst/                   Sandbox compiler, protocol and local font acquisition
 
+    application/sync/          Runtime scan lifecycle; no durable Domain state
     storage/                   Storage Abstraction & Persistence Layer
-      storageService.ts        Multi-account metadata index and native Domain persistence coordinator
-      conversationDetailStore.ts Historical string body store; current readers use the Domain repository
+      accountRegistryStore.ts  Atomic Account read/decide/write port
+      conversationCatalogStore.ts Physical Index transactions
+      scanCoverageStore.ts     Account/stream range persistence
+      storageService.ts        Physical metadata, export records and explicit cleanup
       liveStorageManager.ts    Live auto-save configuration and FileSystem Directory Handle proxy
       idbHandleStore.ts        FileSystemDirectoryHandle IndexedDB persistence across sessions
       schemaMigration.ts       Current-schema startup readiness; unsupported schemas fail
       schemaState.ts           Dependency-free future-schema write guard
       domain/                  UUID-scoped selected Domain snapshots and separate resource byte cache
         contracts.ts           Independent storage/Domain versions and durable envelope
-        domainStore.ts         Transactional current snapshots, byte bindings and deletion markers
+        domainStore.ts         Transactional selected snapshots and separate byte bindings
         transport.ts           Content-script routing to the extension-origin repository
       sessionStore.ts          In-memory and chrome.storage.session recovery cache
       formatStore.ts           Export format preferences & template persistence
@@ -118,7 +120,6 @@ src/
     utils/                     Single Source of Truth (SSoT) & Utilities
       utils.ts                 SSoT facade: title arbitration, deduplication, path cleaning
       titleUtils.ts            L1 title normalization; L2 owns user > provider > derived arbitration
-      mergeUtils.ts            SSoT merge & deduplication (preserves highest-rank title & timestamps)
       pathUtils.ts             Strict relative path sanitization & filename builders
       chipUtils.ts             Internal chip URL filtering & code chip extraction
       progressUtils.ts         ETA, bitrate, and byte formatting utilities
@@ -204,7 +205,7 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 
 1. **Zero DOM Dependencies in Core (Zero DOM Baseline & Layered Browser API Policy)**:
    `src/core/` organizes modules by domain responsibility with a strict boundary on browser API usage:
-   - **Strict Zero-DOM / Zero-Browser-API Layer (Pure Logic)**: Response parsers (`parsers/*`), formatters (`chatFormatter.ts`, `renderers/html/htmlTemplate.ts`), pure utilities (`titleUtils.ts`, `mergeUtils.ts`, `pathUtils.ts`, `progressUtils.ts`, `chipUtils.ts`), protocol constants (`protocol/*`), and provider interfaces (`aiProvider.ts`). These modules never touch `document`, `HTMLElement`, or `window`, running identically in Node.js unit tests, Service Workers, and UI pages.
+   - **Strict Zero-DOM / Zero-Browser-API Layer (Pure Logic)**: Response parsers (`parsers/*`), formatters (`chatFormatter.ts`, `renderers/html/htmlTemplate.ts`), pure utilities (`titleUtils.ts`, `pathUtils.ts`, `progressUtils.ts`, `chipUtils.ts`), protocol constants (`protocol/*`), and provider interfaces (`aiProvider.ts`). These modules never touch `document`, `HTMLElement`, or `window`, running identically in Node.js unit tests, Service Workers, and UI pages.
    - **Runtime Infrastructure Layer (Standard Browser APIs Allowed, Zero DOM Rendering)**: API client (`api/client/*`), storage (`storage/*`), writers (`writers/*`), tab routing (`tabService.ts`), and export orchestration (`exportOrchestrator.ts`). These may use standard runtime APIs (`fetch`, `chrome.*`, `IndexedDB`, `FileSystem Access API`, plus read-only `querySelectorAll("script")` in `credentialManager.ts` and legacy `(window as any).__gemExporterAborted` fallback in `geminiClient.ts`/`pagination.ts`), but **never perform DOM rendering or mutation**, which belongs exclusively to `src/ui/` (including `src/ui/utils/domI18n.ts`) and `src/content/`.
 2. **Strict UI Separation of Concerns**:
    - `state/`: Unidirectional data flow and reactive conversation state machine;
@@ -220,7 +221,7 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 6. **MV3 Service Worker Keepalive Resilience**:
    Regular lightweight heartbeat pings keep the MV3 Service Worker alive during lengthy deep scans and multi-megabyte media packaging tasks, preventing unexpected background worker termination by Chromium.
 7. **Two-Tier Storage & Quota Isolation**:
-   `chrome.storage.local` stores the exact UUID-owned Index (`key`, optional `title`/`titleSource`, `createdAt`, `updatedAt`). Availability is separate execution state. Detail (`key`, `messages`, `assets`, `quality.status`, optional source-version `savedAt`) and resource bytes are physically separate in extension-origin IndexedDB. `conversationIngest.ts` commits body selection before metadata; coverage advances only after Index commit. See [Domain storage](../docs/domain-storage.md).
+   `chrome.storage.local` stores the exact UUID-owned Index (`key`, optional `title`/`titleSource`, `createdAt`, `updatedAt`). Availability is separate execution state. Detail (`key`, `messages`, `assets`, `quality.status`, optional source-version `savedAt`) and resource bytes are physically separate in extension-origin IndexedDB. `domain/ingestion.ts` commits body selection before metadata; coverage advances only after Index commit. See [Domain storage](../docs/domain-storage.md).
 8. **Headless FileSystem Permission Resilience**:
    When Service Worker executes in headless background and directory handle permissions drop to `prompt` upon browser restart (where Chromium forbids headless permission prompting), the system safely returns `permission_prompt_needed` and records `dirError` in live config, allowing 1-click reauthorization via user gesture (`reauthorizeDirHandle()`).
 9. **Multi-Account Strict Isolation & Zero Token Stealing**:
@@ -242,6 +243,16 @@ suppression comments are forbidden by review.
 
 ## Semantic dependency boundaries
 
-The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Domain and Document AST do not import parsers or output backends. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. Only legacy-storage migration can invoke historical record decoding; runtime/export consume native Domain results.
+The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Pure Domain rules and Document AST do not import parsers or output backends; L2 admission operations use the existing parser-result/resource contracts and Storage ports. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. Historical record adapters exist only as test fixtures; runtime/export consume native Domain results.
 
 Native conversation inputs publish accepted Domain through the shared ingestion boundary. This refactor adds no historical migration or compatibility path. See [Domain storage](../docs/domain-storage.md) and [parser migration status](../docs/domain-model.md#migration-order-and-acceptance).
+
+## L2 v2 ownership
+
+- `core/domain/accountRegistry.ts` and `accountAdmission.ts`: Account schema, exact matching, UUID get-or-create.
+- `core/domain/conversationIndex.ts`, `titleAuthority.ts`, `ingestion.ts`: authoritative Index merge and admission.
+- `core/domain/conversationDetail.ts`, `snapshotAdmission.ts`, `runtimeValidation.ts`, `closure.ts`: whole snapshot selection, schema and references.
+- `core/domain/streamCoverage.ts`, `indexCoverage.ts`, `coverageAdmission.ts`: range-only durable Coverage and ephemeral cursor proof.
+- `core/parsers/qualityEvidence.ts`: temporary parser evidence, outside persisted Detail.
+
+L1 and Application adapters only connect these owners; their full v2 restructuring and Export lifecycle work remain separate. No production legacy record parser or migration path is retained.

@@ -3,7 +3,7 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
+const attachments = require('./helpers/recordFixture/attachments.js');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
 test('user_file_attachment: itemMatchesFilename correctly identifies valid filenames and rejects URLs', () => {

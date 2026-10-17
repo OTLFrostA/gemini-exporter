@@ -1,5 +1,5 @@
 import type { GeminiStructuredNode } from './structuredContent.js';
-import { contentQuality } from '../../../domain/quality.js';
+import { contentQuality } from '../../../parsers/qualityEvidence.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { normId } from '../../../utils/pathUtils.js';
 import { decodeGeminiDetail } from './detailDecoder.js';

@@ -1,3 +1,4 @@
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
@@ -15,7 +16,7 @@ test('PDF successful empty online response selects Takeout rather than reporting
     const id = 'pdf-takeout-044', slot = '10000000-0000-4000-8000-000000000001';
     const takeout = historicalFixture({ id, completeness: { status: 'complete' }, messages: [message('Recovered Takeout')] });
     let takeoutReads = 0;
-    await catalogStorage.setNativeConversations(slot, [takeout]);
+    await DomainAdmission.ingestDetails(slot, [takeout]);
     try {
         const result = await preparePdfItem({ id }, {
             accountId: slot,
@@ -44,7 +45,7 @@ test('shared acquisition prefers valid online input and uses local cache after u
     const online = historicalFixture({ id, messages: [message('online')] });
     assert.equal((await resolveConversationData(online, id, null, takeout, slot)).result, online);
     assert.equal(calls, 0, 'valid online input must not consult Takeout');
-    await catalogStorage.setNativeConversations(slot, [historicalFixture({ id, messages: [message('cache')] })]);
+    await DomainAdmission.ingestDetails(slot, [historicalFixture({ id, messages: [message('cache')] })]);
     try {
         const recovered = await resolveConversationData({ messages: [] }, id, null, takeout, slot);
         assert.equal(calls, 1, 'unusable source must attempt Takeout before local cache');
@@ -130,7 +131,7 @@ test('acquisition reports provenance beside the result and never mutates parser 
     const takeout = await resolveConversationData(undefined, 'provenance', null, { getTakeoutOfflineChat: () => parsed }, '10000000-0000-4000-8000-000000000001');
     assert.equal(takeout.result, parsed);
     assert.equal(takeout.source, 'takeout');
-    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
+    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed]);
     try {
         const snapshot = await resolveConversationData(undefined, 'provenance', null, null, '10000000-0000-4000-8000-000000000001');
         assert.equal(snapshot.source, 'local_snapshot');

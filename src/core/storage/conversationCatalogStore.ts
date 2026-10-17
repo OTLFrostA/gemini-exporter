@@ -1,5 +1,5 @@
 import { isAccountId } from '../domain/accountRegistry.js';
-import { restoreConversationIndex, compareConversationIndexes, type DomainConversationIndex } from '../domain/conversationIndex.js';
+import { restoreConversationIndex, type DomainConversationIndex } from '../domain/conversationIndex.js';
 import { assertSchemaWritable } from './schemaState.js';
 
 export interface StorageKeys {
@@ -104,7 +104,6 @@ export async function writeConversationIndexes(slot: string | null | undefined, 
     const indexes = list.map(restoreConversationIndex);
     if (indexes.some(index => index.key.accountId !== slot)) throw new TypeError("Index account mismatch");
     if (new Set(indexes.map(c => JSON.stringify([c.key.accountId, c.key.conversationId]))).size !== indexes.length) throw new TypeError('Duplicate conversation index identity');
-    indexes.sort(compareConversationIndexes);
     await chrome.storage.local.set({ [getStorageKeys(slot).convKey]: indexes });
     return indexes;
 }

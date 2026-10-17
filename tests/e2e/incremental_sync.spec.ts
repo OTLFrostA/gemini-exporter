@@ -1,4 +1,4 @@
-import type { ScanCoverage } from '../../src/core/domain/scanCoverage.js';
+import type { StreamCoverage } from '../../src/core/domain/streamCoverage.js';
 import type { DomainConversationIndex as Conversation } from '../../src/core/domain/conversationIndex.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 
@@ -7,210 +7,95 @@ test.beforeEach(async ({context, extensionId}) => {
     await seedRegistryAccounts(context);
 });
 
-test('partial accessible history initializes activity coverage and later sync closes without fetching its older tail', async ({ context, extensionId }) => {
+test('a proven provider history window establishes a range and later scans stop against the frozen boundary', async ({ context, extensionId }) => {
     const gemini = await context.newPage();
-    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Sync (increment@example.com)">Account</button>` }));
+    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke:'10000000001',SNlM0e:'test',cfb2h:'test'}</script>` }));
     let round = 0;
     const requests: string[][] = [[], [], []];
-    const row = (id: string, time: number) => ['c_' + id, id, null, null, null, [1700000000 + time, 0]];
     await gemini.route('**/batchexecute*', async route => {
-        const wire = new URLSearchParams(route.request().postData() || '').get('f.req')!;
-        const args = JSON.parse(JSON.parse(wire)[0][0][1]);
-        const pinned = args[2][0] === 1;
+        const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
         const cursor = args[1];
-        requests[round].push(pinned ? 'pinned' : cursor || 'head');
-        let data: unknown = [];
-        if (!pinned) {
-            if (round === 0) data = cursor === null ? [null, [row('old100', 100), row('old90', 90)], 'tC_middle']
-                : cursor === 'tC_middle' ? [null, [row('old80', 80), row('old70', 70)], 'tC_limit'] : null;
-            else data = [null, round === 1 ? [row('new120', 120), row('new110', 110), row('new95', 95), row('new85', 85)]
-                : [row('old70', 130), row('new120', 120), row('new110', 110), row('new95', 95)], 'tC_middle'];
-        }
-        const packet = data === null ? ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]
-            : ['wrb.fr', 'MaZiqc', JSON.stringify(data)];
-        await route.fulfill({ contentType: 'application/json', body: `)]}'\n\n${JSON.stringify([packet])}` });
+        requests[round].push(cursor || 'head');
+        const values = round === 0 ? cursor === null ? [100, 90] : [80, 70] : round === 1 ? [120, 110, 95, 85] : [130, 120, 110, 95];
+        const next = round === 0 ? cursor === null ? 'tC_middle' : 'tC_limit' : 'tC_unread';
+        const packet = cursor === 'tC_limit' ? ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]
+            : ['wrb.fr', 'MaZiqc', JSON.stringify([null, values.map(t => ['c_chat' + t, 'Chat ' + t, null, null, null, [1700000000 + t, 0]]), next])];
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify([packet]) });
     });
     await gemini.goto('https://gemini.google.com/app');
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await options.evaluate(async () => {
-        await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: ([{ id: 'retained', title: 'Retained archive', timestamp: 1 }]).map(canonicalIndexFixture), ['exported_10000000-0000-4000-8000-000000000001']: { retained: { status: 'ok' } } });
+        await chrome.storage.local.set({
+            ['conversations_10000000-0000-4000-8000-000000000001']: [{ key: { accountId: '10000000-0000-4000-8000-000000000001', conversationId: 'retained' }, title: 'Retained', titleSource: 'user' }],
+            ['exported_10000000-0000-4000-8000-000000000001']: { retained: { status: 'ok' } } });
         await chrome.storage.local.remove('scan_coverage_10000000-0000-4000-8000-000000000001');
     });
-    const read = () => options.evaluate(async () => chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage; ['conversations_10000000-0000-4000-8000-000000000001']: Conversation[]; ['exported_10000000-0000-4000-8000-000000000001']: Record<string, { status: string }> }>(['scan_coverage_10000000-0000-4000-8000-000000000001', 'conversations_10000000-0000-4000-8000-000000000001', 'exported_10000000-0000-4000-8000-000000000001']));
+    const read = () => options.evaluate(async () => chrome.storage.local.get<{
+        ['scan_coverage_10000000-0000-4000-8000-000000000001']: Record<string, StreamCoverage>;
+        ['conversations_10000000-0000-4000-8000-000000000001']: Conversation[];
+        ['exported_10000000-0000-4000-8000-000000000001']: Record<string, { status: string }>;
+    }>(['scan_coverage_10000000-0000-4000-8000-000000000001', 'conversations_10000000-0000-4000-8000-000000000001', 'exported_10000000-0000-4000-8000-000000000001']));
     await options.click('#btnSyncAll');
     await expect(options.locator('#takeoutLimitModal')).toBeVisible({ timeout: 15000 });
-    const first = await read();
-    expect(first['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ initialized: true, historyComplete: false, lastStatus: 'partial_limit' });
-    expect(first['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent.range!.head).toMatchObject({ id: 'old100', time: 1700000100000 });
-    expect(requests[0]).toEqual(['pinned', 'head', 'tC_middle', 'tC_limit']);
+    expect(requests[0]).toEqual(['head', 'tC_middle', 'tC_limit']);
+    await expect.poll(async () => (await read())['scan_coverage_10000000-0000-4000-8000-000000000001'].recent.range?.head.time).toBe(1700000100000);
     await options.click('#btnModalDismissTakeout');
     for (round = 1; round <= 2; round++) {
         await options.click('#btnSyncAll');
-        await expect.poll(async () => (await read())['scan_coverage_10000000-0000-4000-8000-000000000001'].lastStatus).toBe('up_to_date');
+        await expect.poll(async () => (await read())['scan_coverage_10000000-0000-4000-8000-000000000001'].recent.range?.head.time).toBe(round === 1 ? 1700000120000 : 1700000130000);
         await expect(options.locator('#btnSyncAll')).toBeEnabled();
-        const stored = await read();
-        expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ initialized: true, historyComplete: false, activeRunId: null });
-        expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent.range!.head.time).toBe(round === 1 ? 1700000120000 : 1700000130000);
-        expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent.range!.tail.time).toBe(1700000070000);
-        expect(requests[round]).toEqual(['pinned', 'head']);
-        expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.key.conversationId === 'retained')).toBe(true);
-        expect(stored['exported_10000000-0000-4000-8000-000000000001'].retained.status).toBe('ok');
-        expect(JSON.stringify(stored['scan_coverage_10000000-0000-4000-8000-000000000001'])).not.toContain('tC_');
+        const data = await read(), coverage = data['scan_coverage_10000000-0000-4000-8000-000000000001'];
+        expect(requests[round]).toEqual(['head']);
+        expect(coverage.recent.range?.tail.time).toBe(1700000070000);
+        expect(Object.keys(coverage.recent)).toEqual(['range']);
+        expect(JSON.stringify(coverage)).not.toContain('tC_');
+        expect(data['conversations_10000000-0000-4000-8000-000000000001'].some(row => row.key.conversationId === 'retained')).toBe(true);
+        expect(data['exported_10000000-0000-4000-8000-000000000001'].retained.status).toBe('ok');
     }
-    await expect(options.locator('#list .item')).toHaveCount(9);
 });
 
-test('a naturally observed non-head page initializes coverage and later sync connects through the intervening pages', async ({ context, extensionId }) => {
+test('an isolated passive page saves rows but cannot establish a historical boundary', async ({ context, extensionId }) => {
     const gemini = await context.newPage();
-    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Sync (passive@example.com)">Account</button>` }));
-    const requests: string[] = [];
-    await gemini.route('**/batchexecute*', async route => {
-        const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData() || '').get('f.req')!)[0][0][1]);
-        const pinned = args[2][0] === 1;
-        const cursor = args[1];
-        requests.push(pinned ? 'pinned' : cursor || 'head');
-        const values = cursor === 'tC_segment' ? [80, 70] : cursor === 'tC_prefix' ? [100, 90] : [120, 110];
-        const next = cursor === 'tC_segment' ? 'tC_unread' : cursor === 'tC_prefix' ? 'tC_segment' : 'tC_prefix';
-        const inner = pinned ? [] : [null, values.map(value => ['c_passive' + value, 'Passive ' + value, null, null, null, [1700000000 + value, 0]]), next];
-        await route.fulfill({ contentType: 'application/json', body: `)]}'\n\n${JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(inner)]])}` });
-    });
+    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke:'10000000001',SNlM0e:'test',cfb2h:'test'}</script>` }));
+    await gemini.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [['c_passive80', 'Passive 80', null, null, null, [1700000080, 0]]], null])]]) }));
     await gemini.goto('https://gemini.google.com/app');
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await options.evaluate(async () => chrome.storage.local.remove('scan_coverage_10000000-0000-4000-8000-000000000001'));
-    await gemini.evaluate(async () => {
-        const body = new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, 'tC_segment', [0, null, 1]]), null, 'generic']]]) });
-        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body });
-    });
-    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage }>('scan_coverage_10000000-0000-4000-8000-000000000001'))['scan_coverage_10000000-0000-4000-8000-000000000001']);
-    await expect.poll(async () => (await read())?.streams?.recent?.range?.head?.id).toBe('passive80');
-    expect(await read()).toMatchObject({ initialized: true, historyComplete: false });
-    await options.click('#btnSyncAll');
-    await expect.poll(async () => (await read())?.lastStatus).toBe('up_to_date');
-    expect(requests).toEqual(['tC_segment', 'pinned', 'head', 'tC_prefix']);
-    expect((await read()).streams.recent.range).toEqual({ head: { id: 'passive120', time: 1700000120000 }, tail: { id: 'passive70', time: 1700000070000 } });
+    await gemini.evaluate(async () => fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams({
+        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, 'tC_segment', [0, null, 1]]), null, 'generic']]])
+    }) }));
+    await expect(options.locator('[data-chat-id="passive80"]')).toBeVisible();
+    const coverage = await options.evaluate(async () => (await chrome.storage.local.get<Record<string, Record<string, StreamCoverage>>>('scan_coverage_10000000-0000-4000-8000-000000000001'))['scan_coverage_10000000-0000-4000-8000-000000000001']);
+    expect(coverage).toEqual({ recent: { range: null } });
 });
 
-test('a complete current scan replaces a disjoint old interval without stopping against its own writes', async ({ context, extensionId }) => {
+test('a complete disjoint recent scan replaces its boundary and does not request pinned', async ({ context, extensionId }) => {
     const gemini = await context.newPage();
-    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Rebuild (rebuild@example.com)">Account</button>` }));
+    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke:'10000000001',SNlM0e:'test',cfb2h:'test'}</script>` }));
     let round = 0;
     const requests: string[][] = [[], []];
     await gemini.route('**/batchexecute*', async route => {
         const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
-        const pinned = args[2][0] === 1;
-        const cursor = args[1];
-        requests[round].push(pinned ? 'pinned' : cursor || 'head');
+        expect(args[2][0]).toBe(0);
+        const cursor = args[1]; requests[round].push(cursor || 'head');
         const values = round === 0 ? [100, 70] : cursor === null ? [150, 140] : [130, 120];
-        const next = !pinned && round === 1 && cursor === null ? 'tC_fresh' : null;
-        const data = pinned ? [] : [null, values.map(time => ['c_rebuild' + time, 'Rebuild ' + time, null, null, null, [1700000000 + time, 0]]), next];
-        await route.fulfill({ contentType: 'application/json', body: `)]}'\n\n${JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(data)]])}` });
+        const next = round === 1 && cursor === null ? 'tC_fresh' : null;
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null,
+            values.map(t => ['c_rebuild' + t, 'Rebuild ' + t, null, null, null, [1700000000 + t, 0]]), next])]]) });
     });
     await gemini.goto('https://gemini.google.com/app');
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage }>('scan_coverage_10000000-0000-4000-8000-000000000001'))['scan_coverage_10000000-0000-4000-8000-000000000001']);
+    const read = () => options.evaluate(async () => (await chrome.storage.local.get<Record<string, Record<string, StreamCoverage>>>('scan_coverage_10000000-0000-4000-8000-000000000001'))['scan_coverage_10000000-0000-4000-8000-000000000001']);
     await options.click('#btnSyncAll');
-    await expect.poll(async () => (await read())?.lastStatus).toBe('complete');
+    await expect.poll(async () => (await read())?.recent?.range?.tail.time).toBe(1700000070000);
     await expect(options.locator('#btnSyncAll')).toBeEnabled();
-    expect((await read()).streams.recent.range!.tail.time).toBe(1700000070000);
     round = 1;
     await options.click('#btnSyncAll');
-    await expect.poll(async () => (await read())?.streams.recent.range?.head.time).toBe(1700000150000);
-    await expect.poll(read).toMatchObject({ historyComplete: true, lastStatus: 'complete', activeRunId: null });
-    expect((await read()).streams.recent.range!.tail.time).toBe(1700000120000);
-    expect(requests[1]).toEqual(['pinned', 'head', 'tC_fresh']);
+    await expect.poll(async () => (await read())?.recent?.range?.head.time).toBe(1700000150000);
+    await expect(options.locator('#btnSyncAll')).toBeEnabled();
+    expect((await read()).recent.range!.tail.time).toBe(1700000120000);
+    expect(requests[1]).toEqual(['head', 'tC_fresh']);
     await expect(options.locator('#list .item')).toHaveCount(6);
 });
-
-test('passive evidence arriving during the active head request fills the shared chain against the frozen baseline', async ({ context, extensionId }) => {
-    const gemini = await context.newPage();
-    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Shared (shared@example.com)">Account</button>` }));
-    const requests: string[] = [];
-    let releaseHead!: () => void;
-    const headReady = new Promise<void>(resolve => { releaseHead = resolve; });
-    await gemini.route('**/batchexecute*', async route => {
-        const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
-        const pinned = args[2][0] === 1;
-        const cursor = args[1];
-        requests.push(pinned ? 'pinned' : cursor || 'head');
-        if (!pinned && cursor === null) await headReady;
-        const values = cursor === 'tC_middle' ? [105, 95] : [120, 110];
-        const next = cursor === 'tC_middle' ? 'tC_unread' : 'tC_middle';
-        const data = pinned ? [] : [null, values.map(time => ['c_shared' + time, 'Shared ' + time, null, null, null, [1700000000 + time, 0]]), next];
-        await route.fulfill({ contentType: 'application/json', body: `)]}'\n\n${JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(data)]])}` });
-    });
-    await gemini.goto('https://gemini.google.com/app');
-    const options = await context.newPage();
-    await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    const binding = await options.evaluate(async () => {
-        const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-        return chrome.tabs.sendMessage(tabs[0].id!, { action: 'getAccountContext' });
-    });
-    expect(binding.accountContext?.accountId).toMatch(/^[0-9a-f-]{36}$/);
-    // Persisted interval from a prior extension session: no in-memory page chain.
-    await options.evaluate(async (accountId) => {
-        await chrome.storage.local.set({ ['scan_coverage_10000000-0000-4000-8000-000000000001']: { version: 4, providerId: 'gemini', revision: 1, generation: 'shared-generation',
-            resetAt: 0, accountId, initialized: true, historyComplete: false, complete: false,
-            streams: { recent: { initialized: true, historyComplete: false,
-                range: { head: { id: 'old100', time: 1700000100000 }, tail: { id: 'old70', time: 1700000070000 } } } },
-            baseline: null, activeRunId: null, lastStatus: 'partial_limit' } });
-    }, binding.accountContext.accountId);
-    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage }>('scan_coverage_10000000-0000-4000-8000-000000000001'))['scan_coverage_10000000-0000-4000-8000-000000000001']);
-    try {
-        await options.click('#btnSyncAll');
-        await expect.poll(() => requests.includes('head')).toBe(true);
-        await gemini.evaluate(async () => {
-            await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams({
-                'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, 'tC_middle', [0, null, 1]]), null, 'generic']]])
-            }) });
-        });
-        await expect.poll(async () => (await read()).streams.recent.range?.head.time).toBe(1700000105000);
-        expect((await read()).activeRunId).not.toBeNull();
-        releaseHead();
-        await expect.poll(async () => (await read()).lastStatus).toBe('up_to_date');
-        expect(requests).toEqual(['pinned', 'head', 'tC_middle']);
-        expect((await read()).streams.recent.range).toEqual({ head: { id: 'shared120', time: 1700000120000 }, tail: { id: 'old70', time: 1700000070000 } });
-    } finally { releaseHead(); }
-});
-
-for (const inversion of ['within-page', 'cross-page'] as const) {
-    test(`timestamp ${inversion} inversion exhausts history and later ordered pages cannot revive early stop`, async ({ context, extensionId }) => {
-        const gemini = await context.newPage();
-        await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Order (order@example.com)">Account</button>` }));
-        let round = 0;
-        const requests: string[][] = [[], [], []];
-        await gemini.route('**/batchexecute*', async route => {
-            const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
-            const pinned = args[2][0] === 1;
-            const cursor = args[1];
-            requests[round].push(pinned ? 'pinned' : cursor || 'head');
-            const times = round === 0 ? cursor === null ? [100, 90] : [80, 70]
-                : round === 1 ? cursor === null ? inversion === 'within-page' ? [150, 130, 140] : [150, 140]
-                    : inversion === 'within-page' ? [80, 70] : [145, 80]
-                : cursor === null ? [160, 150] : [140, 130];
-            const inner = pinned ? [] : [null, times.map(time => [`c_round${round}_${time}`, `Time ${time}`, null, null, null, [1700000000 + time, 0]]), cursor === null ? `tC_tail${round}` : null];
-            await route.fulfill({ contentType: 'application/json', body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(inner)]]) });
-        });
-        await gemini.goto('https://gemini.google.com/app');
-        const options = await context.newPage();
-        await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-        await options.evaluate(async () => chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: ([{ id: 'retained', title: 'Retained archive', timestamp: 1 }]).map(canonicalIndexFixture), ['exported_10000000-0000-4000-8000-000000000001']: { retained: { status: 'ok' } } }));
-        const read = () => options.evaluate(async () => chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage; ['conversations_10000000-0000-4000-8000-000000000001']: Conversation[]; ['exported_10000000-0000-4000-8000-000000000001']: Record<string, { status: string }> }>(['scan_coverage_10000000-0000-4000-8000-000000000001', 'conversations_10000000-0000-4000-8000-000000000001', 'exported_10000000-0000-4000-8000-000000000001']));
-        for (round = 0; round < 3; round++) {
-            await options.click('#btnSyncAll');
-            await expect.poll(() => requests[round].length).toBe(3);
-            await expect(options.locator('#btnSyncAll')).toBeEnabled();
-            const stored = await read();
-            expect(requests[round]).toEqual(['pinned', 'head', `tC_tail${round}`]);
-            expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ historyComplete: true, complete: true, lastStatus: 'complete', activeRunId: null });
-            if (round > 0) {
-                expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent).toMatchObject({ initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
-                expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.key.conversationId.startsWith(`round${round}_`) && item.updatedAt === 1700000000000 + (round === 1 ? inversion === 'within-page' ? 70 : 80 : 130) * 1000)).toBe(true);
-            }
-            expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.key.conversationId === 'retained')).toBe(true);
-            expect(stored['exported_10000000-0000-4000-8000-000000000001'].retained.status).toBe('ok');
-        }
-    });
-}

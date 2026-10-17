@@ -1,7 +1,7 @@
 import { fixtureKey, fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLegacyStorageConversation } from '../src/core/parsers/legacyStorage/parseConversation.js';
+import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
 import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 
 test('source identity semantics remain separate from nonempty storage identity', () => {

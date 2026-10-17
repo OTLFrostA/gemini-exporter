@@ -1,4 +1,4 @@
-import { mergeConversationIndex, compareConversationIndexes, type DomainConversationIndex } from '../domain/conversationIndex.js';
+import { mergeConversationIndex, compareConversationIndexes, type DomainConversationIndex } from './conversationIndex.js';
 
 export interface MergeConversationResult {
     merged: DomainConversationIndex;

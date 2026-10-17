@@ -31,7 +31,6 @@ import {
     compareConversations,
     checkIsUpdated,
     resolveConversationExportState,
-    isTakeoutConversation,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK,
     normalizeReliableTitleSource,
@@ -53,7 +52,7 @@ import {
     deduplicateConversations,
     type MergeConversationResult,
     type DeduplicateResult
-} from './mergeUtils.js';
+} from '../domain/indexCollection.js';
 import {
     sendTypedMessage,
     isMessageAction,
@@ -95,7 +94,6 @@ export {
     compareConversations,
     checkIsUpdated,
     resolveConversationExportState,
-    isTakeoutConversation,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK,
     normalizeReliableTitleSource,
@@ -152,7 +150,6 @@ export interface GeminiUtilsModule {
     compareConversations: typeof compareConversations;
     checkIsUpdated: (c: any, rec?: any) => boolean;
     resolveConversationExportState: typeof resolveConversationExportState;
-    isTakeoutConversation: typeof isTakeoutConversation;
     formatExportProgress: (progress?: ExportProgressInput | number | null, txt?: string, isEn?: boolean) => ExportProgressFormatted;
     mergeConversation: typeof mergeConversation;
     deduplicateConversations: typeof deduplicateConversations;
@@ -204,7 +201,6 @@ export const GeminiUtils: GeminiUtilsModule = {
     compareConversations,
     checkIsUpdated,
     resolveConversationExportState,
-    isTakeoutConversation,
     formatExportProgress,
     mergeConversation,
     deduplicateConversations,

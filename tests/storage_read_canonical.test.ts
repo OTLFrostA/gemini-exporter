@@ -20,7 +20,6 @@ const assert = require('node:assert');
 const StorageService = require('../src/core/storage/storageService.js');
 const SchemaMigration = require('../src/core/storage/schemaMigration.js');
 const CredentialManager = require('../src/core/api/client/credentialManager.js').default || require('../src/core/api/client/credentialManager.js');
-const DetailStore = require('../src/core/storage/conversationDetailStore.js');
 
 function makeMockStorage() {
     const localStore: Record<string, any> = {};
@@ -82,13 +81,11 @@ function installMock() {
     (global as any).chrome = s.chromeMock;
     SchemaMigration.__setSchemaFrozenForTest(false);
     SchemaMigration.__resetStorageReadyForTest();
-    DetailStore.__clearMemoryStore();
     return {
         ...s,
         restore() {
             if (originalChromeDescriptor) Object.defineProperty(globalThis, 'chrome', originalChromeDescriptor);
             else Reflect.deleteProperty(globalThis, 'chrome');
-            DetailStore.__clearMemoryStore();
             SchemaMigration.__setSchemaFrozenForTest(false);
             SchemaMigration.__resetStorageReadyForTest();
         }

@@ -1,4 +1,4 @@
-import { ingestConversation } from '../src/core/storage/conversationIngest.js';
+import { ingestConversation } from '../src/core/domain/ingestion.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -151,7 +151,6 @@ test('background live save renders only after attachments settle and keeps a par
     const records: Array<{ status: string }> = [];
     mock.method(StorageService, 'getConversations', async () => []);
     mock.method(StorageService, 'saveExportRecord', async (_slot: string, _id: string, record: { status: string }) => { records.push(record); return {}; });
-    mock.method(StorageService, 'updateConversation', async () => []);
     const directory = (prefix: string) => ({
         name: 'resource-test',
         queryPermission: async () => 'granted',

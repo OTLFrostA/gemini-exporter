@@ -3,7 +3,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
-import { isTakeoutConversation } from '../src/core/utils/titleUtils.js';
 import ConversationsStore from '../src/ui/state/conversationsStore.js';
 import { StorageService } from '../src/core/storage/storageService.js';
 
@@ -59,8 +58,8 @@ test('persistent cloud reconciliation preserves local archives regardless of lis
 });
 
 test('Domain Index does not expose transient Takeout import state', () => {
-    assert.equal(isTakeoutConversation(index('mixed', true, 'rpc')), false);
-    assert.equal(isTakeoutConversation(index('takeout', true, 'takeout')), false);
-    assert.equal(isTakeoutConversation(index('active', false, 'rpc')), false);
-    assert.equal(isTakeoutConversation(null), false);
+    for (const row of [index('mixed', true, 'rpc'), index('takeout', true, 'takeout'), index('active', false, 'rpc')]) {
+        assert.equal('hasTakeoutImport' in row, false);
+        assert.equal('isTakeoutOnly' in row, false);
+    }
 });

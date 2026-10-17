@@ -109,15 +109,15 @@ test('provider contract: typed batch/progress options and Gemini slot policy are
     const signal = new AbortController().signal;
     let observedProgress = false;
     const options: GeminiProviderListOptions = { maxPages: 2, incremental: true, targetSid: 'u2', signal,
-        onPageBatch: async (batch, info) => {
-            assert.equal(batch[0].titleSource, 'provider');
-            assert.deepEqual(info, { page: 1, hasMore: true });
+        onPageBatch: async (info) => {
+            assert.deepEqual(info, { page: 1, hasMore: true, count: 1 });
             return { shouldStop: true, reason: 'watermark' };
         },
-        onProgress: info => { observedProgress = true; assert.equal(info.batch?.[0].updatedAt, 2); }
+        onProgress: info => { observedProgress = true; assert.equal('batch' in info, false); }
     };
     const provider = new GeminiProvider({ ...client(upstream), async getAllConversations(received) {
-        assert.strictEqual(received, options);
+        assert.equal(received?.targetSid, options.targetSid);
+        assert.notEqual(received?.onPageBatch, options.onPageBatch);
         assert.deepEqual(await received?.onPageBatch?.(upstream.conversations, { page: 1, hasMore: true }), { shouldStop: true, reason: 'watermark' });
         received?.onProgress?.({ page: 1, added: 1, total: 1, hasMore: false, stoppedEarly: true, reason: 'watermark', batch: upstream.conversations });
         return upstream;

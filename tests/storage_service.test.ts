@@ -5,7 +5,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 const StorageService = require('../src/core/storage/storageService.js');
 const SchemaMigration = require('../src/core/storage/schemaMigration.js');
-const DetailStore = require('../src/core/storage/conversationDetailStore.js');
 
 test('storage_service requires UUIDs and partitions storage without a global fallback', () => {
     const first = '10000000-0000-4000-8000-000000000001';

@@ -1,3 +1,4 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mediaSources, mediaChatId, mediaPrompt, mediaBytes, mediaTime } from './helpers/mediaSourceFixture.js';
@@ -5,7 +6,7 @@ import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
 import { planExportResources } from '../src/core/export/assets/planExportResources.js';
 import { TakeoutEngine } from '../src/core/engine/takeoutEngine.js';
 import { commitTakeoutData, clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
-import { __clearDomainMemory, saveDomainConversation, getDomainResource, getStoredDomain, cacheDomainResource, storageIdentity, removeStoredDomain } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory, getDomainResource, getStoredDomain, cacheDomainResource, storageIdentity, removeStoredDomain } from '../src/core/storage/domain/domainStore.js';
 import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
 
 beforeEach(() => { __clearDomainMemory(); clearTakeoutData(); });
@@ -44,7 +45,7 @@ test('real parsed sources recover renamed exports and refuse insufficient or amb
 });
 
 for (const order of ['online-first', 'takeout-first'] as const) {
-    test(`DomainStore ${order}: retain the full 10-turn body and bind different source IDs/URIs to current`, async () => {
+    test(`DomainStore ${order}: retain the complete body and independently fill proven resource bytes`, async () => {
         const { online, offline, resources } = mediaSources();
         const snapshot = structuredClone(online.conversation);
         if (order === 'online-first') await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
@@ -110,8 +111,8 @@ test('DomainStore refuses ambiguous matches in either direction and deletion era
     }
     __clearDomainMemory();
     const { online, offline, resources } = mediaSources();
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
+    await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
     const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
     assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
     await removeStoredDomain(identity);

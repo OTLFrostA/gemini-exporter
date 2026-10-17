@@ -1,9 +1,10 @@
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const StorageService = require('../src/core/storage/storageService.js');
-const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
+const { mergeConversation } = require('../src/core/domain/indexCollection.js');
 
 function setupMockChromeStorage(options: { beforeSet?: (data: Record<string, any>) => Promise<void> } = {}) {
     const mockStorage: Record<string, any> = {};
@@ -44,7 +45,7 @@ function setupMockChromeStorage(options: { beforeSet?: (data: Record<string, any
     };
 }
 
-test('StorageService.updateConversation patches only the target record and rejects missing IDs', async () => {
+test('DomainAdmission.updateConversation patches only the target record and rejects missing IDs', async () => {
     const env = setupMockChromeStorage();
     try {
         await StorageService.setConversations('10000000-0000-4000-8000-000000000001', ([
@@ -54,7 +55,7 @@ test('StorageService.updateConversation patches only the target record and rejec
         ]).map(indexFixture));
 
         // 1. Update with partial object
-        const updated = await StorageService.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_1', {
+        const updated = await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_1', {
             title: 'New Title 1',
             updatedAt: 10
         });
@@ -68,7 +69,7 @@ test('StorageService.updateConversation patches only the target record and rejec
         assert.strictEqual(listAfter1[2].title, 'Title 3');
 
         // 2. Update with mutator function
-        const updated2 = await StorageService.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_2', (conv: any) => {
+        const updated2 = await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_2', (conv: any) => {
             conv.title = 'Updated Title 2';
             conv.titleSource = 'provider';
         });
@@ -79,7 +80,7 @@ test('StorageService.updateConversation patches only the target record and rejec
         assert.strictEqual(listAfter2[1].titleSource, 'provider');
 
         // 3. Non-existent conversation
-        const updated3 = await StorageService.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_nonexistent', { title: 'X' });
+        const updated3 = await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_nonexistent', { title: 'X' });
         assert.strictEqual(updated3, false);
     } finally {
         env.restore();
@@ -152,9 +153,9 @@ test('overlapping updateConversation writes preserve both independent changes', 
         ].map(indexFixture));
 
         blockNext = true;
-        const writeFirst = StorageService.updateConversation('10000000-0000-4000-8000-000000000001', 'first', { title: 'After' });
+        const writeFirst = DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'first', { title: 'After' });
         await entered; // First read-modify-write is now intentionally in flight.
-        const writeSecond = StorageService.updateConversation('10000000-0000-4000-8000-000000000001', 'second', { updatedAt: 7 });
+        const writeSecond = DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'second', { updatedAt: 7 });
         await new Promise<void>(resolve => setImmediate(resolve)); // Give a broken unlocked implementation a chance to read stale state.
         releaseWrite!();
         const results = await Promise.all([writeFirst, writeSecond]);

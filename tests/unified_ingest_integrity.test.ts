@@ -16,7 +16,7 @@ import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
+const { mergeConversation } = require('../src/core/domain/indexCollection.js');
 const syncEngine = require('../src/content/syncEngine.js');
 const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
 

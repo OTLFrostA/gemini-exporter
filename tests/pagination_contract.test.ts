@@ -1,5 +1,5 @@
 import { sourceIndex } from './helpers/domainFixture.js';
-import { contentQuality } from '../src/core/domain/quality.js';
+import { contentQuality } from '../src/core/parsers/qualityEvidence.js';
 import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';

@@ -1,6 +1,6 @@
 import type { Account } from '../../domain/accountRegistry.js';
 import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
-import { contentQuality } from '../../domain/quality.js';
+import { contentQuality } from '../../parsers/qualityEvidence.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 /**
  * ChatGPT conversation parser: assembled mapping evidence -> branded Domain.

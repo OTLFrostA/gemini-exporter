@@ -231,10 +231,16 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                 console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, getErrorMessage(err));
                 const aborted = isAborted() || (typeof err === 'object' && err !== null && 'name' in err && err.name === 'AbortError');
                 const message = getErrorMessage(err);
-                const isLimit = !aborted && /(?:code\s*=\s*1096|BardErrorInfo:\s*cursor expired)/i.test(message)
+                const isLimit = !aborted && /code\s*=\s*1096/i.test(message)
                     && !/(?:\b429\b|too many requests|resource_exhausted)/i.test(message);
                 if (isLimit) {
                     diagLog.hitGoogleLimit = true;
+                    if (token !== null && opts.onPageBatch) await opts.onPageBatch([], {
+                        page: i + 1, hasMore: false,
+                        observation: { providerId: 'gemini', accountId: null, streamId: listKind, items: [],
+                            requestCursor: token, nextCursor: null, requestedAt, requestKnown: true, valid: true,
+                            ordered: listKind === 'recent', keys: [], terminal: 'provider_limit' },
+                    });
                 }
                 diagLog.stopReason = aborted ? `用户手动终止同步: ${getErrorMessage(err)}` : `网络或服务异常: ${getErrorMessage(err)}`;
                 reachedMax = false;
@@ -265,8 +271,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                     }
                 }
 
-                if (typeof opts?.onPageBatch === 'function' && (res.conversations.length > 0
-                    || (opts.includePinned && !res.failure))) {
+                if (typeof opts?.onPageBatch === 'function' && !res.failure) {
                     const decision = await opts.onPageBatch(res.conversations, {
                         page: i + 1,
                         hasMore: !!res?.nextPageToken || listKind === 'pinned',
@@ -305,6 +310,12 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                 const isGoogleLimit = res.failure === 'hit_google_limit';
                 if (isGoogleLimit) {
                     diagLog.hitGoogleLimit = true;
+                    if (token !== null && opts.onPageBatch) await opts.onPageBatch([], {
+                        page: i + 1, hasMore: false,
+                        observation: { providerId: 'gemini', accountId: null, streamId: listKind, items: [],
+                            requestCursor: token, nextCursor: null, requestedAt, requestKnown: true, valid: true,
+                            ordered: listKind === 'recent', keys: [], terminal: 'provider_limit' },
+                    });
                     diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
                     stoppedEarly = true;
                     completionReason = 'hit_google_limit';

@@ -38,7 +38,7 @@ const {
     extractStructuredContent,
 } = require('../src/core/parsers/gemini/rpc/structuredContent.js');
 const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const { extractImages } = require('../src/core/parsers/legacyStorage/attachments.js');
+const { extractImages } = require('./helpers/recordFixture/attachments.js');
 
 const fixturesDir = path.join(__dirname, 'fixtures', 'provider', 'structured_rpc');
 

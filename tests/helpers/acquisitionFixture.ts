@@ -1,4 +1,4 @@
-import { ingestConversation } from '../../src/core/storage/conversationIngest.js';
+import { ingestConversation } from '../../src/core/domain/ingestion.js';
 import { isResourceConversationParseResult } from '../../src/core/parsers/parsingResult.js';
 /** A fake L1 must publish its successful acquisition before Application consumes it. */
 export async function acquiredReply<T>(reply: T): Promise<T> {

@@ -1,4 +1,4 @@
-import { readAccount, readAccountParameters, readAccountRegistry, findAccount, type Account } from '../domain/accountRegistry.js';
+import { readAccountRegistry, type Account } from '../domain/accountRegistry.js';
 import { ACCOUNT_STORE } from './domain/contracts.js';
 import { openDomainDB } from './domain/domainStore.js';
 import { assertSchemaWritable } from './schemaState.js';
@@ -33,10 +33,8 @@ export function listAccounts(providerId?: string): Promise<Account[]> {
 export async function getAccount(id: string): Promise<Account | null> {
     return (await listAccounts()).find(account => account.id === id) ?? null;
 }
-/** Lookup, UUID allocation and profile update commit in one transaction across all tabs. */
-export async function getOrCreateAccount(providerId: string, providerAccountId: string,
-    email?: string, displayName?: string): Promise<Account> {
-    const parameters = readAccountParameters({ providerId, providerAccountId, email, displayName });
+/** Execute a Domain decision against the freshest Registry under one IDB transaction. */
+export async function transactAccounts(decide: (accounts: readonly Account[]) => Account): Promise<Account> {
     await assertSchemaWritable();
     let changed = false;
     const result = await transaction<Account>('readwrite', (store, done, fail) => {
@@ -44,11 +42,12 @@ export async function getOrCreateAccount(providerId: string, providerAccountId: 
         request.onsuccess = () => {
             try {
                 const accounts = readAccountRegistry(request.result);
-                const existing = findAccount(accounts, parameters.providerId, parameters.providerAccountId,
-                    parameters.email, parameters.displayName);
-                const account = existing ?? readAccount({ id: crypto.randomUUID(), ...parameters });
-                if (!existing) { store.add(account); changed = true; }
-                else if (JSON.stringify(accounts.find(item => item.id === account.id)) !== JSON.stringify(account)) { store.put(account); changed = true; }
+                const account = decide(accounts);
+                const previous = accounts.find(item => item.id === account.id);
+                if (JSON.stringify(previous) !== JSON.stringify(account)) {
+                    if (previous) store.put(account); else store.add(account);
+                    changed = true;
+                }
                 done(account);
             } catch (error) { fail(error); }
         };

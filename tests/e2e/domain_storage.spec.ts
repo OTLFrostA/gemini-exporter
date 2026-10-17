@@ -1,3 +1,4 @@
+import * as DomainAdmission from '../../src/core/domain/ingestion.js';
 import { domainFixtureBrowser } from './domainFixtureBrowser';
 import { test, expect } from '@playwright/test';
 import { build } from 'esbuild';
@@ -9,13 +10,14 @@ test.beforeAll(async () => {
         import { indexFixture } from './tests/helpers/indexFixture.ts';
         import * as store from './src/core/storage/domain/domainStore.ts';
         import { migrate, CURRENT_SCHEMA_VERSION } from './src/core/storage/schemaMigration.ts';
-        import { saveConversationDetail, getConversationDetail } from './src/core/storage/conversationDetailStore.ts';
+        import { saveDomainConversation, saveDomainRequest } from './src/core/domain/snapshotAdmission.ts';
+        import * as DomainAdmission from './src/core/domain/ingestion.ts';
         import * as StorageService from './src/core/storage/storageService.ts';
         import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
         import { preparePdfResources } from './src/core/export/pdf/prepareResources.ts';
         import { formatMarkdownDocument } from './src/core/engine/chatFormatter.ts';
-        globalThis.storageProbe = { indexFixture, ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getConversationDetail, StorageService, getDomainConversationResult, AssetPipeline, formatMarkdownDocument, preparePdfResources };
+        globalThis.storageProbe = { indexFixture, ...store, migrate, CURRENT_SCHEMA_VERSION, saveDomainConversation, saveDomainRequest, DomainAdmission, StorageService, getDomainConversationResult, AssetPipeline, formatMarkdownDocument, preparePdfResources };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;
 });
@@ -54,7 +56,7 @@ test('durable attachment bytes remain outside Domain and are acquired offline af
     expect(JSON.stringify(restored.conversation)).not.toMatch(/bytes|dataBuffer|archivePath|localName/);
 });
 
-test('online byte cache survives restart, deletion erases bytes and a late migration cannot restore the body', async ({ page }) => {
+test('online byte cache survives restart and deletion erases bytes', async ({ page }) => {
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
@@ -69,12 +71,11 @@ test('online byte cache survives restart, deletion erases bytes and a late migra
         const record = await api.getStoredDomain(identity);
         const bytes = await api.getDomainResource(identity, 'asset');
         await api.removeStoredDomain(identity);
-        const late = await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', api.storedParseResult(record, fixtureAccountFor(record.conversation)), [], true);
         const removed = await api.getStoredDomain(identity);
         await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', api.storedParseResult(record, fixtureAccountFor(record.conversation)));
-        return { bytes: [...bytes], late, removed, restoredBytes: await api.getDomainResource(identity, 'asset') };
+        return { bytes: [...bytes], removed, restoredBytes: await api.getDomainResource(identity, 'asset') };
     });
-    expect(result).toEqual({ bytes: [1, 2, 3], late: null, removed: null, restoredBytes: null });
+    expect(result).toEqual({ bytes: [1, 2, 3], removed: null, restoredBytes: null });
 });
 
 for (const method of ['remove', 'clear'] as const) {
@@ -140,7 +141,7 @@ for (const method of ['remove', 'clear'] as const) {
                     : await api.StorageService.clearConversations('10000000-0000-4000-8000-000000000001');
                 const db = await api.openDomainDB();
                 const stores = await new Promise<Record<string, unknown[]>>((resolve, reject) => {
-                    const names = ['conversations', 'resource_bytes', 'removed_conversations'];
+                    const names = ['conversations', 'resource_bytes'];
                     const tx = db.transaction(names, 'readonly');
                     const rows: Record<string, unknown[]> = {};
                     tx.oncomplete = () => resolve(rows);
@@ -171,8 +172,6 @@ for (const method of ['remove', 'clear'] as const) {
             // Only the other account survives in current and cached bytes.
             expect(cleaned.stores.conversations).toHaveLength(1);
             expect(cleaned.stores.resource_bytes).toHaveLength(2); // imported and downloaded bytes both live in the selected account cache
-            expect(cleaned.stores.removed_conversations).toHaveLength(1);
-            expect(cleaned.stores.removed_conversations[0]).toMatchObject({ key: JSON.stringify(['gemini', '10000000-0000-4000-8000-000000000001', 'retry-delete']) });
             expect(cleaned.otherArchive).toEqual([4, 5]);
             expect(cleaned.otherOnline).toEqual([6, 7]);
         });
@@ -228,7 +227,7 @@ test('restart retains report caution and detects missing image bytes without sav
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
         await api.saveDomainRequest(fixtureAccount(), { conversation: { index: { key: fixtureKey(String('report-caution'), 'gemini'),     title: 'Deep Research', titleSource: "provider" }, detail: { key: fixtureKey(String('report-caution'), 'gemini'), quality: { status: 'partial' }, assets: [{ id: 'report', kind: 'file', document: { id: 'source-report', contentMarkdown: '# Report\n\nRetained research body' } },
-                { id: 'image', kind: 'image', sourceUri: 'Takeout/missing.png', generation: { imageOrdinal: 0 } }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'], generation: { mediaKind: 'image', outputCount: 1 } }] } }, acquisitionHints: {} });
+                { id: 'image', kind: 'image', sourceUri: 'Takeout/missing.png', generation: { imageOrdinal: 0 } }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'] }] } }, acquisitionHints: {} });
     });
     await page.reload(); await install(page);
     const result = await page.evaluate(async () => {
@@ -240,7 +239,7 @@ test('restart retains report caution and detects missing image bytes without sav
     });
     expect(result.conversation.detail.assets[0].document).toEqual({ id: 'source-report', contentMarkdown: '# Report\n\nRetained research body' });
     expect(result.conversation.detail.assets[1]).not.toHaveProperty('failureReason');
-    expect(result.conversation.detail.messages[0].generation).toEqual({ mediaKind: 'image', outputCount: 1 });
+    expect(result.conversation.detail.messages[0]).not.toHaveProperty('generation');
     expect(result.quality).toEqual({ status: 'partial' });
     expect(result.bytesMissing).toBe(true);
     expect(result.failure).toBeTruthy();
@@ -260,8 +259,8 @@ test('partial native imports retain indexes and aligned source versions through 
         const parsed = { account: fixtureAccount(), sourceVersion: 999999, conversation: { index: { key: fixtureKey(String('chat'), 'gemini'),     title: 'Weaker body title', titleSource: "derived", updatedAt: 999999 }, detail: { key: fixtureKey(String('chat'), 'gemini'), quality: { status: 'complete' }, assets: [], messages: [{ role: 'user', timestamp: 200,
                 content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body retained on disk' }] }] }] } },
             acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
-        await api.StorageService.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
-        await api.StorageService.setNativeConversations('10000000-0000-4000-8000-000000000001', []);
+        await api.DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed]);
+        await api.DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', []);
     });
     await page.reload(); await install(page);
     const restored = await page.evaluate(async () => {
@@ -317,8 +316,8 @@ test('scoped aggregate survives reload with one metadata authority and the actua
         await chrome.storage.local.set({ gemini_schema_version: 3 });
         const parsed = { account: fixtureAccount(), sourceVersion: 100, conversation: { index: { key: fixtureKey(String('gateway'), 'gemini'),     title: 'Old title', titleSource: "provider", createdAt: 90,  }, detail: { key: fixtureKey(String('gateway'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Saved body' }] }] }] } },
             acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
-        await api.StorageService.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
-        await api.StorageService.updateConversation('10000000-0000-4000-8000-000000000001', 'gateway', { title: 'Renamed', titleSource: 'provider', createdAt: 50,
+        await api.DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed]);
+        await api.DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'gateway', { title: 'Renamed', titleSource: 'provider', createdAt: 50,
             updatedAt: 200 });
         await api.StorageService.setConversations('10000000-0000-4000-8000-000000000002', [{ ...api.indexFixture({ id: 'gateway', title: 'Other account' }), key: { accountId: '10000000-0000-4000-8000-000000000002', conversationId: 'gateway' } }]);
     });
@@ -329,7 +328,7 @@ test('scoped aggregate survives reload with one metadata authority and the actua
         const identity = api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'gateway');
         const before = await api.getStoredDomain(identity);
         const chromeBefore = await chrome.storage.local.get(null);
-        const aggregate = await repository.getConversation('c_gateway');
+        const aggregate = await repository.getConversation('gateway');
         const other = await api.StorageService.conversationRepository({ providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000002' }).getConversation('gateway');
         return { before, after: await api.getStoredDomain(identity), chromeBefore, chromeAfter: await chrome.storage.local.get(null),
             aggregate, other, absent: await repository.getConversation('missing') };
