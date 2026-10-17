@@ -4,8 +4,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { extractGeneratedFiles } from '../src/core/parsers/gemini/rpc/generatedFiles.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_generated_file.json', 'utf8')) as { packet: unknown[]; chip: unknown[] };
 const packet = fixture.packet;
@@ -32,9 +30,9 @@ test('generated file stays on its source turn, retains chip position, and carrie
     assert.deepEqual(earlier.content.map(node => node.type), ['paragraph']);
     const later = conversation.detail.messages.find(message => message.id === 'rc_later')!;
     assert.deepEqual(later.content.map(node => node.type), ['paragraph', 'file', 'paragraph']);
-    const output = renderDocumentMarkdown(composeDomainDocument(conversation, fixtureAccountFor(conversation)).document, { [asset.id]: 'files/plant_hydraulic_models.tex' });
-    assert.equal(output.match(/\[Plant Hydraulic Network Modeling\]/g)?.length, 1);
-    assert.match(output, /Before\n\n\[Plant Hydraulic Network Modeling\].*\n\nAfter/);
+    assert.equal('key' in conversation.detail, false);
+    assert.equal(later.attachmentIds?.[0], asset.id);
+
 });
 test('unknown file packet versions and absent content never fabricate an attachment', () => {
     for (const mutate of ['type', 'content'] as const) {

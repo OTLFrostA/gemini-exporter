@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTakeoutResourceResolver, type TakeoutSourceFile } from '../src/core/parsers/gemini/takeout/archiveResources.js';
 import { parseGeminiTakeoutConversation } from '../src/core/parsers/gemini/takeout/parseConversation.js';
-import { parseGeminiTakeoutZip, parseGeminiTakeoutZipArchive } from '../src/core/parsers/gemini/takeout/parseZip.js';
+import { parseGeminiTakeoutZip, parseGeminiTakeoutZipArchive } from '../src/core/imports/takeout/readArchive.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 
 const directory = 'Takeout/My Activity/Gemini Apps';

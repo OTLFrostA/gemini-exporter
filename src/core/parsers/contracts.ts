@@ -1,7 +1,4 @@
 import type { Account } from '../domain/accountRegistry.js';
-import type { TrustedDomain } from '../domain/runtimeValidation.js';
-import type { QualityEvidence } from './qualityEvidence.js';
-import type { Diagnostic } from '../diagnostics/diagnostic.js';
 
 /** Every raw parser knows its producer. No filename/source-string heuristics at this boundary. */
 export interface ConversationParseContext {
@@ -9,18 +6,7 @@ export interface ConversationParseContext {
     account?: Account;
 }
 
-/** Parsers establish semantic quality in Domain; diagnostics report observations only. */
-export interface ConversationParseResult {
-    account: Account;
-    conversation: TrustedDomain;
-    /** Source activity version captured with this body (epoch ms). Persist as savedAt.
-     * The canonical Index may advance independently; this remains a source fact, not a local write clock. */
-    sourceVersion?: number;
-    evidence?: QualityEvidence;
-    diagnostics: Diagnostic[];
-}
-
-/** Raw decoders construct a closed Domain graph before returning, including after async acquisition. */
+/** Pure source parsers return keyless L2 candidates, never trusted stored Domain. */
 export type ConversationParser<Raw, Result extends import('./parsingResult.js').SourceConversationParseResult = import('./parsingResult.js').SourceConversationParseResult> =
     (raw: Raw, context: ConversationParseContext) => Result | Promise<Result>;
 

@@ -149,7 +149,7 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
-                if (retry429.aborted) throw new Error("用户取消：429 退避等待被中断 (getConversationList)");
+                if (retry429.aborted) throw new DOMException("用户取消：429 退避等待被中断 (getConversationList)", "AbortError");
 
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
             }
@@ -240,7 +240,7 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
-                if (retry429.aborted) throw new Error("用户取消：429 退避等待被中断 (fetchConversationPage)");
+                if (retry429.aborted) throw new DOMException("用户取消：429 退避等待被中断 (fetchConversationPage)", "AbortError");
 
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
                 throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);

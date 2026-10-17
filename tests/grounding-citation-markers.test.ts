@@ -8,10 +8,7 @@ const {
 const {
     decodeGeminiDetail,
 } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const { parseFixture } = require('./helpers/documentFixture.js');
-const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
-const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
+const { sourceConversation } = require('./helpers/l1SourceFixture.js');
 
 test('extractGroundingCitationMarkers extracts declared markers from JSPB candidate metadata', () => {
     // Standard JSPB structure: cand[12] contains grounding array with field 44
@@ -59,7 +56,7 @@ test('metadata-confirmed [cite: 1] transforms to citationRef with label [1]', as
         ],
     };
 
-    const { domain, document, resources, diagnostics } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
     const msg = domain.detail.messages[0];
@@ -94,7 +91,7 @@ test('space variant [cite:2] declared in metadata transforms to citationRef [2]'
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -117,7 +114,7 @@ test('repeated citation marker in the same sentence both convert cleanly', async
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -142,7 +139,7 @@ test('ordinary user handwritten [cite: 1] is preserved as plain text', async () 
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -167,7 +164,7 @@ test('model text with unconfirmed [cite: 1] (no matching metadata) is preserved 
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -193,7 +190,7 @@ test('only metadata-confirmed marker converts; non-matching marker in same messa
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -219,7 +216,7 @@ test('marker inside code block and inline code is preserved untouched', async ()
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
 
     // Para 1: inline code
@@ -258,7 +255,7 @@ test('existing [1] web citations do not regress', async () => {
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -288,7 +285,7 @@ test('orthogonal coexistence: both web [1] and grounding [cite: 1] in same messa
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -307,7 +304,7 @@ test('orthogonal coexistence: both web [1] and grounding [cite: 1] in same messa
     assert.strictEqual(citeRefs[1].label, '[1]');
 });
 
-test('Markdown, HTML, and Typst payload renderers contain 0 metadata-confirmed cite: tokens', async () => {
+test('source AST replaces metadata-confirmed cite tokens with citation references', async () => {
     const rawConv = {
         id: 'c-test-9',
         title: 'Multi-Renderer Zero-Leak Test',
@@ -322,28 +319,15 @@ test('Markdown, HTML, and Typst payload renderers contain 0 metadata-confirmed c
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
 
-    // 1. Markdown
-    const md = renderDocumentMarkdown(document, resources);
-    assert.ok(!md.includes('cite:'), `Markdown should not leak cite:, got: ${md}`);
-    assert.ok(md.includes('[1]'), `Markdown should display citation reference [1], got: ${md}`);
-
-    // 2. HTML
-    const htmlResult = renderDocumentHtml(document, resources);
-    const html = htmlResult.html;
-    assert.ok(!html.includes('cite:'), `HTML should not leak cite:, got: ${html}`);
-    assert.ok(html.includes('gem-citation-ref'), `HTML should contain citation-ref class`);
-    assert.ok(html.includes('[1]'), `HTML should display [1]`);
-
-    // 3. Typst
-    const typstResult = renderTypstFixture(document, resources);
-    const typstJson = JSON.stringify(typstResult.payload);
-    assert.ok(!typstJson.includes('cite:'), `Typst payload should not leak cite:, got: ${typstJson}`);
-    assert.ok(typstJson.includes('[1]'), `Typst payload should contain [1], got: ${typstJson}`);
+    const body = JSON.stringify(domain.detail.messages.map((message: any) => message.content));
+    assert.ok(!body.includes('cite:'));
+    assert.ok(body.includes('citationRef'));
+    assert.ok(body.includes('[1]'));
 });
 
-test('end-to-end: wire batchexecute response -> decodeGeminiDetail -> Domain -> Document AST -> renderers zero leak', async () => {
+test('wire batchexecute decoding and source AST close citation references', async () => {
     // Construct wire JSPB detail structure mimicking Google Gemini server
     const mockDetailInner = [
         [
@@ -407,7 +391,7 @@ test('end-to-end: wire batchexecute response -> decodeGeminiDetail -> Domain -> 
         timestamp: parsed.timestamp,
         messages: parsed.messages,
     };
-    const { domain, document, resources, diagnostics } = await parseFixture(convData);
+    const { conversation: domain, diagnostics } = sourceConversation(convData);
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
     const canMsg = domain.detail.messages.find((m: any) => m.role === 'assistant');
@@ -418,18 +402,10 @@ test('end-to-end: wire batchexecute response -> decodeGeminiDetail -> Domain -> 
     assert.strictEqual(refs.length, 1);
     assert.strictEqual(refs[0].label, '[1]');
 
-    // 3. Renderers stage
-    const md = renderDocumentMarkdown(document, resources);
-    assert.ok(!md.includes('cite:'), `Markdown leaked cite: -> ${md}`);
-    assert.ok(md.includes('[1]'), `Markdown should display [1]`);
-
-    const html = renderDocumentHtml(document, resources).html;
-    assert.ok(!html.includes('cite:'), `HTML leaked cite: -> ${html}`);
-    assert.ok(html.includes('[1]'), `HTML should display [1]`);
-
-    const typst = JSON.stringify(renderTypstFixture(document, resources).payload);
-    assert.ok(!typst.includes('cite:'), `Typst leaked cite: -> ${typst}`);
-    assert.ok(typst.includes('[1]'), `Typst should display [1]`);
+    const body = JSON.stringify(domain.detail.messages.map((message: any) => message.content));
+    assert.ok(!body.includes('cite:'));
+    assert.ok(body.includes('citationRef'));
+    assert.ok(body.includes('[1]'));
 });
 
 test('extractGroundingCitationMarkers accepts combined [cite:1,2] markers', () => {
@@ -471,7 +447,7 @@ test('metadata-confirmed [cite:1,2] transforms to two citationRefs in order', as
         ],
     };
 
-    const { domain } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -501,7 +477,7 @@ test('combined marker with spaces [cite: 1, 2] transforms to two citationRefs', 
         ],
     };
 
-    const { domain } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
@@ -524,7 +500,7 @@ test('duplicate number inside one combined marker [cite:1,1] collapses to one ci
         ],
     };
 
-    const { domain } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
@@ -545,7 +521,7 @@ test('unconfirmed [cite:1,2] (no metadata) is preserved as plain text', async ()
         ],
     };
 
-    const { domain } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 0);
@@ -568,7 +544,7 @@ test('only single marker confirmed: combined marker in same message remains text
         ],
     };
 
-    const { domain } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
@@ -592,7 +568,7 @@ test('combined marker inside inline code is preserved while confirmed prose comb
         ],
     };
 
-    const { domain } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const inlineCode = para.children.find((c: any) => c.type === 'inlineCode');
     assert.ok(inlineCode);
@@ -601,7 +577,7 @@ test('combined marker inside inline code is preserved while confirmed prose comb
     assert.strictEqual(citeRefs.length, 2);
 });
 
-test('combined [cite:1,2] renders without cite: leak in Markdown, HTML, and Typst payload', async () => {
+test('combined [cite:1,2] becomes source citation references without metadata leak', async () => {
     const rawConv = {
         id: 'c-test-combo-7',
         title: 'Combined Citation Renderer Test',
@@ -616,20 +592,10 @@ test('combined [cite:1,2] renders without cite: leak in Markdown, HTML, and Typs
         ],
     };
 
-    const { domain, document, resources } = await parseFixture(rawConv);
+    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
 
-    const md = renderDocumentMarkdown(document, resources);
-    assert.ok(!md.includes('cite:'), `Markdown should not leak cite:, got: ${md}`);
-    assert.ok(md.includes('[1]'), `Markdown should display [1], got: ${md}`);
-    assert.ok(md.includes('[2]'), `Markdown should display [2], got: ${md}`);
-
-    const html = renderDocumentHtml(document, resources).html;
-    assert.ok(!html.includes('cite:'), `HTML should not leak cite:, got: ${html}`);
-    assert.ok(html.includes('[1]'), `HTML should display [1]`);
-    assert.ok(html.includes('[2]'), `HTML should display [2]`);
-
-    const typstJson = JSON.stringify(renderTypstFixture(document, resources).payload);
-    assert.ok(!typstJson.includes('cite:'), `Typst payload should not leak cite:, got: ${typstJson}`);
-    assert.ok(typstJson.includes('[1]'), `Typst payload should contain [1]`);
-    assert.ok(typstJson.includes('[2]'), `Typst payload should contain [2]`);
+    const body = JSON.stringify(domain.detail.messages.map((message: any) => message.content));
+    assert.ok(!body.includes('cite:'));
+    assert.ok(body.includes('citationRef'));
+    assert.ok(body.includes('[1]'));
 });

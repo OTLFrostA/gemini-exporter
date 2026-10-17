@@ -18,7 +18,7 @@ test('historical aliases cannot become current Gemini metadata or cloud evidence
     assert.equal(Reflect.get(legacy ?? {}, 'hasTakeoutImport'), undefined);
     assert.equal(Reflect.get(legacy ?? {}, 'messageCount'), undefined);
 
-    const current = parseGeminiIndexObservation(raw, 'dom', fixtureAccount().id);
+    const current = parseGeminiIndexObservation(raw, 'dom').fields;
     assert.equal(current.title, 'Current title');
     assert.equal(current.titleSource, 'provider');
     assert.equal(current.updatedAt, undefined);
@@ -26,14 +26,14 @@ test('historical aliases cannot become current Gemini metadata or cloud evidence
     assert.equal(Reflect.get(current ?? {}, 'hasTakeoutImport'), undefined);
     assert.equal(Reflect.get(current ?? {}, 'cloudAvailability'), undefined);
     assert.equal(Reflect.get(current ?? {}, 'messageCount'), undefined);
-    assert.equal(Reflect.get(parseGeminiIndexObservation(raw, 'rpc-list', fixtureAccount().id) ?? {}, 'messageCount'), undefined);
+    assert.equal(Reflect.get(parseGeminiIndexObservation(raw, 'rpc-list').fields ?? {}, 'messageCount'), undefined);
 });
 
 test('current metadata treats numeric strings as milliseconds without historical seconds inference', () => {
     const raw = { id: 'time-boundary', title: 'Title', updatedAt: '1700000000', createdAt: '1700000000' };
     assert.equal(parseLegacyConversationIndex(raw, fixtureAccount()).updatedAt, 1700000000000);
-    const current = parseGeminiIndexObservation(raw, 'dom', fixtureAccount().id);
+    const current = parseGeminiIndexObservation(raw, 'dom').fields;
     assert.equal(current.updatedAt, 1700000000);
     assert.equal(current.createdAt, 1700000000);
-    assert.throws(() => parseGeminiIndexObservation({ id: 123 }, 'dom', fixtureAccount().id), TypeError);
+    assert.throws(() => parseGeminiIndexObservation({ id: 123 }, 'dom'), TypeError);
 });

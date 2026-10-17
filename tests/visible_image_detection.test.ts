@@ -1,14 +1,11 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { fixtureAccountFor } from './helpers/domainFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { extractResponseImages } = require('./helpers/recordFixture/attachments.js');
+const { extractResponseImageEvidence: extractResponseImages } = require('../src/core/parsers/gemini/rpc/sourceAttachments.js');
 const { parseGeminiRpcConversation } = require('../src/core/parsers/gemini/rpc/parseConversation.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
 const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 
 // Same media tuple shape as the false detections in the user's diagnostics.
@@ -43,7 +40,7 @@ test('candidate search metadata does not become a phantom image in native Domain
     // Check the actual native parser -> Domain -> Document -> Markdown path.
     const native = parseGeminiRpcConversation(rawWithMetadata(), { providerId: 'gemini', account: fixtureAccount() });
     assert.deepStrictEqual(native.conversation.detail.assets, [], 'search metadata is not an authored image resource');
-    const markdown = renderDocumentMarkdown(composeDomainDocument(native.conversation, fixtureAccountFor(native.conversation)).document, {});
+    const markdown = JSON.stringify(native.conversation.detail.messages.map((message: any) => message.content));
     assert.match(markdown, /Answer without pictures/);
     assert.doesNotMatch(markdown, /assets\/|Reference diagram|licensed-image/);
 });

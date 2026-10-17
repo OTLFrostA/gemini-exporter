@@ -47,7 +47,7 @@ test('list: official timestamp and count slots win while extra fields survive on
     const inner = [null, [row], null, null, 'tC_fallback_cursor', { future: true }];
     const parsed = parseList(rpc(inner, 'MaZiqc'));
     assert.deepEqual(parsed.conversations, [{
-        id: 'boundary12345678', title: 'Boundary title - Gemini', titleSource: 'rpc',
+        id: 'boundary12345678', title: 'Boundary title - Gemini', titleSource: 'provider',
         createdAt: 1680000000000, updatedAt: 1700000000500
     }]);
     assert.equal(parsed.nextPageToken, 'tC_fallback_cursor');
@@ -59,10 +59,10 @@ test('list: null rows, truncated rows and malformed titles retain current defaul
     const rows = [null, [], 'not-a-row', [ids[0]], [ids[1], null], [ids[2], { title: 'wrong shape' }], [ids[3], ' \t ']];
     const parsed = parseList(rpc([null, rows], 'MaZiqc'));
     assert.deepEqual(parsed.conversations.map(c => [c.id, c.title, c.titleSource, c.updatedAt, c.messageCount]), [
-        [ids[0].slice(2), '', 'rpc', undefined, undefined],
-        [ids[1].slice(2), '', 'rpc', undefined, undefined],
-        [ids[2].slice(2), '', 'rpc', undefined, undefined],
-        [ids[3].slice(2), '', 'rpc', undefined, undefined]
+        [ids[0].slice(2), '', 'provider', undefined, undefined],
+        [ids[1].slice(2), '', 'provider', undefined, undefined],
+        [ids[2].slice(2), '', 'provider', undefined, undefined],
+        [ids[3].slice(2), '', 'provider', undefined, undefined]
     ]);
     assert.equal(parseList(rpc([null, null, [[ID, 'Secondary title']]], 'MaZiqc')).conversations[0].title, 'Secondary title');
 });

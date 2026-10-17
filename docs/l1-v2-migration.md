@@ -4,10 +4,11 @@ Source: [L1 module design](https://app.notion.com/p/3fb5d4d759e1812f9962cf24dcf9
 
 ## Implemented boundary
 
-- `AIProvider` exposes ListEnd, committed-page progress, Detail submission completion, Readiness and resource bytes. The selected Account UUID is explicit. Provider cursor, slot and safety budgets stay inside L1.
+- `AIProvider` exposes `ListEnd`, committed-page progress, Detail submission completion, Readiness and `acquireResource(ConversationKey, asset, signal)`. The selected Account UUID is explicit. Provider cursor, slot and safety budgets stay inside L1.
 - Gemini Client and Sniffer share RPC parsers, list evidence normalization and `mergeConversationPages`. Client submits each page before its control callback. Sniffer never requests missing pages, verifies deletion or schedules Scan.
-- Source parsers output `conversationId` and keyless L2 Index/Detail fields. They no longer construct local UUID keys or brand results as TrustedDomain. L2 performs final validation and selection.
-- Takeout ZIP IO and safety checks live in Import; HTML/activity parsing stays in pure Source Parsers. `importTakeout(file, accountId, onProgress)` returns only imported count/status. Resource handles remain transient acquisition context.
+- HTTP 429 backoff cancellation in `GeminiAPIClient` propagates standard `AbortError` (`DOMException(..., 'AbortError')`) across both `getConversationList` and `fetchConversationPage`, whether triggered by a call-level or client-level `AbortSignal`.
+- Source parsers output only `SourceConversationParseResult` (`conversationId` plus keyless L2 Index/Detail fields). Legacy public parser result contracts (`ConversationParseResult`, `ResourceConversationParseResult`, `ConversationAcquisitionFailure`, `NativeConversationInput`, `isResourceConversationParseResult`) have been removed from `src/core/parsers/contracts.ts`, `src/core/parsers/parsingResult.ts`, and `src/core/parsers/index.ts`.
+- Takeout ZIP IO and safety checks live in Import; HTML/activity parsing stays in pure Source Parsers. `importTakeout(file, accountId, onProgress, resources?)` returns only imported count/status and binds lazy ZIP readers without eager attachment decompression.
 - DOM capture submits directly to L2. Storage transactions, title/detail selection, deletion policy, Scan state and UI badge updates are outside L1.
 - ChatGPT uses the same neutral acquisition/submission API. Resource download availability does not determine body coverage quality.
 
@@ -19,22 +20,24 @@ Per the user's clarification, a parsed `BardErrorInfo 1096` on a non-head list r
 
 Application, UI, L2 and Storage implementations were not changed. In particular:
 
-- Sync must call the new list API and consume `onPageCommitted`/ListEnd instead of old batches, aggregate results and cursors.
-- Detail callers must pass `(accountId, conversationId, signal)` and read accepted Domain afterward. Pure parser candidates are not export-ready TrustedDomain.
-- Export must call `provider.acquireResource(key, asset, signal)` with the current full ConversationKey.
-- Each acquisition/export task creates `createSourceResourceContext()`, shares it with its Provider (Gemini third constructor argument; ChatGPT `resources` dependency), Sniffer `init({resources})` and Import fourth argument, and calls `resources.release()` in `finally`. Providers never allocate a ResourceContext. Without explicit injection, including the registered Gemini singleton, they retain no inline resources and only acquire from locators. The task owns the injected context and its release; it must use a task-local Provider rather than attach state to the registry singleton. Inline base64/bytes and bound ZIP readers are transient and keyed by account/conversation/asset; missing current bytes fall back to source locators. Application must wire this task context; no global resource cache or persistent resource schema was added.
-- The legacy Takeout global MediaIndex/Conversation cache and its facade exports are removed. Import only submits facts to L2 and delegates source-bound ZIP readers to the injected task context; old consumers must read L2 and use task resource preparation. No compatibility cache remains. Import never decompresses attachment bytes for availability checks; Export acquires them on demand and reports acquisition failures without changing Detail Quality.
+- Sync must call the new list API and consume `onPageCommitted`/`ListEnd` instead of old batches, aggregate results and cursors.
+- Detail callers must pass `(accountId, conversationId, signal)` and read accepted Domain afterward. Pure parser candidates are not export-ready `TrustedDomain`.
+- Export must call `provider.acquireResource(key, asset, signal)` with the current full `ConversationKey`.
+- Each acquisition/export task creates `createSourceResourceContext()`, shares it with its Provider (Gemini third constructor argument; ChatGPT `resources` dependency), Sniffer `init({resources})` and Import fourth argument, and calls `resources.release()` in `finally`. Providers never allocate a `ResourceContext`. Without explicit injection, including the registered Gemini singleton, they retain no inline resources and only acquire from locators.
+- The legacy Takeout global `MediaIndex`/Conversation cache and its facade exports are removed. Import only submits facts to L2 and delegates source-bound ZIP readers to the injected task context; old consumers must read L2 and use task resource preparation.
 - UI must call `importTakeout` and provide progress wording itself.
 - Browser Runtime consumers must use required capture fields and optional Detail request context. Application receives deletion/stream signals through callbacks, without Sniffer fetching details.
 - The currently available L2 `ingestIndexes` still accepts keyed indexes and an options object. L1 keeps a mechanical account-key binding at its direct call sites to use that existing signature; normalization/selection/Coverage are not duplicated. This can disappear when L2 exposes its documented keyless ingress signature.
-- Old Application compatibility types, old parser-to-export tests and legacy acquisition callers need their owners' migration. No compatibility pipeline was added to preserve those contracts.
+- Adjacent modules still importing removed L1 contracts (`ConversationParseResult`, `ResourceConversationParseResult`, `MediaIndex`, `getAllConversations`) are intentionally left untouched for their module owners to migrate.
 
-## Validation
+## L1 Tier 1 Test & Type-Check Audit
 
-Only L1 Tier 1 tests were run:
+All L1-owned Tier 1 unit tests and compile-time contract checks are cataloged in `tests/l1-tier1.json` and executed via:
 
 ```sh
-node -r ./tests/ts_register.js --test tests/l1_contract.test.ts tests/provider_contract.test.ts tests/page_observation.test.ts tests/pagination_detail_dedupe.test.ts
+node scripts/test-l1.cjs
 ```
 
-49 tests pass. `git diff --check` passes. A scoped TypeScript check found no diagnostics in the changed L1 sources or new contract tests, but cannot pass overall because imported Application/UI dependencies still use removed APIs and some L4 imports are already missing on the base branch. Those files were left untouched. No full repository suite, Tier 2 or Tier 3 was run.
+- **Full L1 test manifest (`tests/l1-tier1.json`)**: 519 unit tests across 50 pure L1 suites and 6 targeted L1 sub-suites pass (0 failures).
+- **Scoped L1 TypeScript check (`scripts/typecheck-l1.cjs`)**: 0 diagnostics in L1 sources (`src/core/api/**`, `src/core/provider/**`, `src/core/parsers/**`, `src/core/imports/takeout/**`, `src/content/{messageBridge,geminiIndexCapture,hookCredentials}.ts`), L1 test suites, and compile-time boundary specs (`tests/domain_parsing.types.ts`, `tests/domain_trust.types.ts`). 31 diagnostics in unmigrated adjacent modules are explicitly excluded.
+- **Cross-layer / adjacent-module tests excluded from L1 manifest**: suites that test L2 Domain normalization/admission (`conversation_order`, `title_merge_characterization`, `domain_conversation_detail`, `domain_provider_parity`, `batch-b-normalization-boundary`, `timestamp_honesty`), L3 Document/Renderer composition, or L4 Export/Storage pipelines (`takeout-resource-lookup`, `takeout_transact`). Pure L1 cases that previously lived inside mixed Export/Application test files (`provider-native-callers`, `content-input-boundary`, `p0_regressions`, `user_file_attachment`, `regression_lock`) have been migrated into `tests/l1-native-acquisition.test.ts` and `tests/l1_extracted_regressions.test.ts`.

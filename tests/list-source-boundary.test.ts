@@ -7,7 +7,11 @@ import { parseChatGPTList } from '../src/core/parsers/chatgpt/parseList.js';
 import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
-import { getAllConversations } from '../src/core/api/client/pagination.js';
+import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
+import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { getOrCreateAccount } from '../src/core/api/accountRegistry.js';
+import { sourceDetail } from './helpers/l1SourceFixture.js';
+import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
 import { parseGeminiDomList, parseGeminiDomIndex } from '../src/core/parsers/gemini/dom/parseIndex.js';
 
 test('ChatGPT lists emit exact Domain indexes with source times and no invented fallback facts', () => {
@@ -36,11 +40,12 @@ test('malformed ChatGPT pages cannot masquerade as empty exhausted history', asy
         { items: [], total: -1 }, { items: [], cursor: 3 }]) {
         assert.throws(() => parseChatGPTList(value), TypeError);
     }
+    const account = await getOrCreateAccount('chatgpt', 'default');
     let progress = 0;
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
         url.includes('/api/auth/session') ? { accessToken: 'test-token' } : { items: 'schema drift' }
     )) });
-    await assert.rejects(provider.listConversations({ onProgress: () => { progress++; } }), TypeError);
+    await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent', onPageCommitted: async () => { progress++; return false; } }), TypeError);
     assert.equal(progress, 0);
 });
 
@@ -49,13 +54,13 @@ test('provider commits indexes before progress and exposes control facts only', 
         url.includes('/api/auth/session') ? { accessToken: 'test-token' }
             : { items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }], total: 1 }
     )) });
+    const account = await getOrCreateAccount('chatgpt', 'default');
     let observed: unknown;
-    const page = await provider.listConversations({ onProgress: info => { observed = Reflect.get(info, 'batch')?.[0]; } });
-    assert.equal(observed, undefined);
-    assert.equal(Object.hasOwn(page.items[0], 'key'), false);
-    assert.equal(Reflect.get(page.items[0] ?? {}, 'providerId'), undefined);
-    assert.equal(page.items[0].updatedAt, 1700000060000);
-    assert.equal(page.exhaustive, true);
+    const result = await provider.listConversations({ accountId: account.id, streamId: 'recent', onPageCommitted: async info => {
+        observed = info; assert.equal((await getConversations(account.id)).length, 1); return false;
+    } });
+    assert.equal(result, 'source_end'); assert.deepEqual(observed, { page: 1, totalObserved: 1 });
+
 });
 
 test('Gemini observations and pagination consume parsed evidence without reading decoded payloads', async () => {
@@ -67,9 +72,9 @@ test('Gemini observations and pagination consume parsed evidence without reading
     assert.equal(observation.valid, true);
     assert.equal(observation.ordered, true);
     assert.deepEqual(observation.keys, [{ id: 'boundary123', time: 1700000060000 }]);
-    const page = await getAllConversations({ async getConversationList() { return parsed; } });
-    assert.equal(page.exhaustive, true);
-    assert.equal(page.conversations[0].updatedAt, 1700000060000);
+    const provider = new GeminiProvider({ getConversationList: async () => parsed, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent' }), 'source_end');
+    assert.equal((await getConversations(ACCOUNT_UUID))[0].updatedAt, 1700000060000);
 });
 
 test('Gemini parser rejects incomplete row coverage and unknown layouts as exhaustion evidence', () => {

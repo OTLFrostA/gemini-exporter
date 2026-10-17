@@ -3,8 +3,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
-const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
 const { withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
+const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
+const { useIndexStorage } = require('./helpers/indexStorage.js');
+useIndexStorage();
 
 // ---------------------------------------------------------------------------
 // 1. handleHttp400 XSRF recovery logic in retryPolicy
@@ -68,7 +70,7 @@ test('geminiClient - getConversationList recovers on HTTP 400 with fresh credent
             };
         }
         // Second call succeeds with valid batchexecute list
-        const mockListInner = JSON.stringify([null, [["c_chat_rec_400", "400 Recovery Chat", [1700000000, 0], [1700000000, 0], 1]], null]);
+        const mockListInner = JSON.stringify([null, null, [["c_chat_rec_400", "400 Recovery Chat", null, null, null, [1700000000, 0]]]]);
         const mockTop = JSON.stringify([["wrb.fr", "MaZiqc", mockListInner]]);
         return {
             ok: true,
@@ -78,7 +80,7 @@ test('geminiClient - getConversationList recovers on HTTP 400 with fresh credent
     };
 
     try {
-        const res = await client.getConversationList(null, 'test_sid_400');
+        const res = await client.getConversationList(null, 'u0');
         assert.strictEqual(callCount, 2, 'Should have retried once on 400');
         assert.strictEqual(res.conversations.length, 1);
         assert.strictEqual(res.conversations[0].id, 'chat_rec_400');
@@ -106,43 +108,6 @@ test('geminiClient - abort signal immediately halts client and flags isAborted',
     assert.strictEqual(clientWithSignal.isAborted(), true);
 });
 
-// ---------------------------------------------------------------------------
-// 4. GeminiAPIClient getAllConversations multi-page pagination
-// ---------------------------------------------------------------------------
-test('geminiClient - getAllConversations traverses pages until completion', async () => {
-    const client = new GeminiAPIClient();
-    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
-    let pageCalls = 0;
-
-    (global as any).fetch = async (_url: string, _opts: any) => {
-        pageCalls++;
-        let inner: string;
-        if (pageCalls === 1) {
-            // Page 1 returns chat_1 and valid next token starting with "tC_"
-            inner = JSON.stringify([null, [["c_chat_p1", "Chat Page 1", [1700000000, 0], [1700000000, 0], 1]], "tC_page_2_token"]);
-        } else {
-            // Page 2 returns chat_2 and null next token (terminates)
-            inner = JSON.stringify([null, [["c_chat_p2", "Chat Page 2", [1700000000, 0], [1700000000, 0], 1]], null]);
-        }
-        const mockTop = JSON.stringify([["wrb.fr", "MaZiqc", inner]]);
-        return {
-            ok: true,
-            status: 200,
-            text: async () => `)]}'\n\n${mockTop}`
-        };
-    };
-
-    try {
-        const res = await client.getAllConversations();
-        assert.strictEqual(pageCalls, 2, 'Should fetch exactly 2 pages');
-        assert.strictEqual(res.conversations.length, 2, 'Should accumulate conversations across pages');
-        assert.strictEqual(res.conversations[0].id, 'chat_p1');
-        assert.strictEqual(res.conversations[1].id, 'chat_p2');
-    } finally {
-        if (originalFetch) Object.defineProperty(globalThis, 'fetch', originalFetch);
-        else delete (global as any).fetch;
-    }
-});
 
 // ---------------------------------------------------------------------------
 // 5. withRateLimitRetry operation
