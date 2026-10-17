@@ -23,7 +23,7 @@ function detail(): GeminiProviderConversationDetail {
         { decodedPayload: { wire: ['evidence'] }, schemaDrift: ['drift'], turnsRejected: 1 });
 }
 
-async function withProvider(run: (set: (acquire: () => Promise<GeminiProviderConversationDetail>) => void) => Promise<void>) {
+async function withProvider(run: (set: (acquire: (id: string, options?: unknown) => Promise<GeminiProviderConversationDetail>) => void) => Promise<void>) {
     const provider = ProviderRegistry.getDefault();
     assert.ok(provider);
     const original = provider.fetchConversationDetail;
@@ -35,17 +35,26 @@ async function route(dom: DomDetail | DetailFailure | (() => Promise<DomDetail |
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     let listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] | undefined;
     let removed = '';
+    const updates: { slot: string | null | undefined; id: string; cloudAvailability: string | undefined }[] = [];
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { ...globalThis.chrome, runtime: {
         onMessage: { addListener(fn: typeof listener) { listener = fn; }, removeListener() {} }, sendMessage() {}
     } } });
     try {
-        initRouter({ scraper: { ...DomScraper, contentFetchChatDetail: typeof dom === 'function' ? dom : async () => dom },
-            storage: { removeConversation: async (_slot, id) => { removed = id; return true; }, getConversations: async () => [] } });
+        initRouter({ syncEngine: null,
+            scraper: { ...DomScraper, contentFetchChatDetail: typeof dom === 'function' ? dom : async () => dom },
+            storage: {
+                updateConversation: async (slot, id, patch) => {
+                    updates.push({ slot, id, cloudAvailability: typeof patch === 'function' ? undefined : patch.cloudAvailability });
+                    return true;
+                },
+                removeConversation: async (_slot, id) => { removed = id; return true; },
+                getConversations: async () => []
+            } });
         assert.ok(listener);
         const result = await new Promise<GetConversationDetailResponse>(resolve => {
-            listener!({ action: 'getConversationDetail', conversationId: 'detail123', targetSid: 'sid' }, {}, resolve);
+            listener!({ action: 'getConversationDetail', conversationId: 'detail123', targetSid: 'sid', accountSlot: 'u2' }, {}, resolve);
         });
-        return { result, removed };
+        return { result, removed, updates };
     } finally {
         if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
         else Reflect.deleteProperty(globalThis, 'chrome');
@@ -55,22 +64,29 @@ const dom: DomDetail = { ...historicalFixture({ id: 'detail123', title: 'DOM tit
 const emptyDom: DomDetail = { ...dom, conversation: { index: { ...dom.conversation.index }, detail: { ...dom.conversation.detail, messages: [] } } };
 
 test('messageRouter: provider success preserves all companion and multimodal evidence', async () => withProvider(async set => {
-    const payload = detail(); set(async () => payload);
-    const { result, removed } = await route(async () => { throw new Error('DOM must not run'); });
+    const payload = detail();
+    set(async (id, options) => {
+        assert.equal(id, 'detail123', 'router must forward the normalized conversation ID');
+        assert.deepEqual(options, { targetSid: 'sid' }, 'provider must receive target session identity');
+        return payload;
+    });
+    const { result, removed, updates } = await route(async () => { throw new Error('DOM must not run'); });
     assert.ok(result.success && result.source === 'batchexecute');
     assert.deepEqual(('conversation' in result.data && result.data.conversation.detail.messages), payload.conversation.detail.messages);
     assert.deepEqual('transport' in result.data && result.data.transport, payload.transport);
     assert.equal(removed, '');
+    assert.deepEqual(updates, [], 'a healthy conversation must not be marked cloud-deleted');
 }));
 
 test('messageRouter: empty RPC retains raw previews and DOM debug without pruning', async () => withProvider(async set => {
     const payload = detail(); payload.conversation.detail.messages = []; set(async () => payload);
-    const { result, removed } = await route(emptyDom);
+    const { result, removed, updates } = await route(emptyDom);
     assert.ok(result.success && result.source === 'dom' && '_empty' in result.data);
     const debug = result.data._debug; assert.ok(debug && 'batchexecuteEmptyDebug' in debug);
     assert.deepEqual(debug.batchexecuteEmptyDebug, { rawKeys: ['wire'], rawPreview: JSON.stringify(payload.transport.decodedPayload),
         topPreview: JSON.stringify(payload).slice(0, 1000), messagesLen: 0, hasRaw: true, titleSeen: 'Research' });
     assert.equal(debug.domHtmlLen, 42); assert.equal(result.data.isEmpty, true); assert.equal(removed, '');
+    assert.deepEqual(updates, []);
 }));
 
 test('messageRouter: provider failure permits valid DOM fallback; 404 only marks confirmed cloud deletion', async () => withProvider(async set => {
@@ -78,31 +94,36 @@ test('messageRouter: provider failure permits valid DOM fallback; 404 only marks
     const success = await route(dom);
     assert.ok(success.result.success && success.result.source === 'dom'); assert.deepEqual('conversation' in success.result.data && success.result.data.conversation.detail.messages, dom.conversation.detail.messages);
     assert.equal(success.removed, '');
+    assert.deepEqual(success.updates, []);
     const deleted = await route({ id: 'detail123', isDeleted: true, error: 'HTTP 404', _debug: { status: 404, isNotFound: true } });
     assert.ok(deleted.result.success && deleted.result.source === 'dom' && '_empty' in deleted.result.data);
     assert.equal(deleted.result.data.isDeleted, true); assert.equal(deleted.result.data.isEmpty, false);
     assert.equal(deleted.removed, '');
+    assert.deepEqual(deleted.updates, [{ slot: 'u2', id: 'detail123', cloudAvailability: 'deleted' }]);
     assert.ok(deleted.result.data._debug && 'batchexecuteEmptyDebug' in deleted.result.data._debug);
     assert.deepEqual(deleted.result.data._debug.batchexecuteEmptyDebug, { error: 'temporary failure' });
 }));
 
 test('messageRouter: confirmed RPC deletion suppresses DOM and preserves deletion evidence', async () => withProvider(async set => {
     set(async () => { throw new Error('rpc error (BardErrorInfo: 1167) inaccessible or deleted'); });
-    const { result, removed } = await route(async () => { throw new Error('DOM must not run'); });
+    const { result, removed, updates } = await route(async () => { throw new Error('DOM must not run'); });
     assert.ok(result.success && result.source === 'batchexecute' && '_empty' in result.data);
     assert.equal(result.data.isDeleted, true); assert.equal(removed, '');
     assert.ok(result.data._debug && 'isDeleted' in result.data._debug);
     assert.equal(result.data._debug.isDeleted, true);
+    assert.deepEqual(updates, [{ slot: 'u2', id: 'detail123', cloudAvailability: 'deleted' }]);
 }));
 
 test('messageRouter: DOM deletion uses the explicit outcome regardless of diagnostic evidence', async () => withProvider(async set => {
     set(async () => { throw new Error('temporary failure'); });
     for (const isDeleted of [false, true]) {
-        const { result } = await route({ id: 'detail123', error: 'source failure', isDeleted,
+        const { result, updates } = await route({ id: 'detail123', error: 'source failure', isDeleted,
             _debug: { isNotFound: !isDeleted, status: isDeleted ? 500 : 404 } });
         assert.ok(result.success && '_empty' in result.data);
         assert.equal(result.data.isDeleted, isDeleted);
         assert.equal(result.data.isEmpty, !isDeleted);
+        assert.deepEqual(updates, isDeleted ? [{ slot: 'u2', id: 'detail123', cloudAvailability: 'deleted' }] : [],
+            'only the explicit deletion result may update durable cloud availability');
     }
 }));
 
