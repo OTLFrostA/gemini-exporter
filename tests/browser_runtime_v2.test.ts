@@ -740,10 +740,11 @@ test('passive Detail change waits for commit and Live Save writes latest Markdow
     let exported: Promise<any> | undefined;
     harness.bridge.init({ onDetailChanged: key => { exported = app.save(key); } });
     const detail = harness.detail();
-    await harness.complete(); // Stream Complete alone never starts Live Save.
+    const completion = harness.complete(); // Completion is only an observation, not a save trigger.
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(exported, undefined);
     assert.equal(app.markdown.length, 1);
-    commit(); await detail;
+    commit(); await detail; await completion;
     assert.ok(exported);
     assert.equal((await exported).exported, 1);
     assert.equal(app.markdown.length, 2);

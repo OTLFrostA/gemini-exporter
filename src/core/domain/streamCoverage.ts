@@ -50,7 +50,8 @@ export class CoverageSession {
     connects(previous: StreamCoverage, head: PageObservation<unknown>): boolean {
         const anchor = this.pages.get(null);
         const chain = this.chain();
-        return !!previous.range && head.requestCursor === null && !!anchor && samePage(anchor, head)
+        return !!previous.range && head.requestCursor === null && !!anchor
+            && samePage(anchor, { ...head, providerId: anchor.providerId })
             && !!chain.range && overlaps(previous.range, chain.range);
     }
     extend(previous: StreamCoverage): StreamCoverage {
