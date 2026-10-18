@@ -1,3 +1,4 @@
+import { restoreDomainDetail } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -6,8 +7,8 @@ import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
 import { ingestIndexes, ingestDetail } from '../src/core/domain/ingestion.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getDetail } from '../src/core/storage/domain/domainStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
+import { getDetail } from '../src/core/storage/storageService.js';
 import { getAccount } from '../src/core/api/accountRegistry.js';
 import { withConversationMetadata } from '../src/core/domain/runtimeValidation.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
@@ -44,7 +45,7 @@ test('L1 → L2 → Composer → Format → Packaging keeps account, resource id
         const index = (await getConversations(account.id)).find(row => row.key.conversationId === id)!;
         const detail = await getDetail(key), committedAccount = await getAccount(account.id);
         assert.ok(detail && committedAccount);
-        const domain = withConversationMetadata(detail, index), before = structuredClone(domain);
+        const domain = withConversationMetadata(restoreDomainDetail(detail), index), before = structuredClone(domain);
         const document = composeDomainDocument(domain, committedAccount), astBefore = structuredClone(document);
         assert.deepEqual([...collectDocumentResources(document).referencedIds], ['diagram']);
         const acquired = await provider.acquireResource(key, detail.assets[0]);

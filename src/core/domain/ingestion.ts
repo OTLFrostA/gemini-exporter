@@ -1,21 +1,24 @@
 import { DEFAULT_ACCOUNT_KEY } from './accountRegistry.js';
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { selectConversationDetail } from './conversationDetail.js';
-import { acceptDetailFacts } from './runtimeValidation.js';
+import { acceptDetailFacts, restoreDomainDetail } from './runtimeValidation.js';
 import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservation } from './pageObservation.js';
 import { getAccount } from '../api/accountRegistry.js';
-import { compareConversationIndexes, restoreConversationIndex, type ConversationIndexPatch, type DomainConversationIndex, mergeConversationIndex } from './conversationIndex.js';
-import { getDetail, putDetail } from '../storage/domain/domainStore.js';
-import { withConversationLock, getConversations, writeConversationIndexes } from '../storage/conversationCatalogStore.js';
+import { restoreConversationIndex, type ConversationIndexPatch, type DomainConversationIndex, mergeConversationIndex } from './conversationIndex.js';
+import { getIndex, getDetail, putDetail, listIndexes, putIndexes } from '../storage/storageService.js';
+import { withAdmissionLock } from './admissionLock.js';
 
-/** The caller holds Storage's serialization lock; only L2 chooses merged facts. */
-async function mergeIndexes(accountId: string, indexes: readonly DomainConversationIndex[]): Promise<void> {
-    const existing = await getConversations(accountId);
-    const map = new Map(existing.map(index => [index.key.conversationId, index]));
-    for (const incoming of indexes) map.set(incoming.key.conversationId, mergeConversationIndex(map.get(incoming.key.conversationId), incoming));
-    const list = [...map.values()].sort(compareConversationIndexes);
-    if (JSON.stringify(list) !== JSON.stringify(existing)) await writeConversationIndexes(accountId, list);
+/** The caller holds L2's serialization lock; only L2 chooses merged facts. */
+async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<void> {
+    const accepted = new Map<string, DomainConversationIndex>();
+    for (const incoming of indexes) {
+        const raw = accepted.get(incoming.key.conversationId) ?? await getIndex(incoming.key);
+        const existing = raw ? restoreConversationIndex(raw) : undefined;
+        const merged = mergeConversationIndex(existing, incoming);
+        if (JSON.stringify(merged) !== JSON.stringify(existing)) accepted.set(incoming.key.conversationId, merged);
+    }
+    await putIndexes([...accepted.values()]);
 }
 
 export async function ingestIndexes(accountId: string,
@@ -24,7 +27,7 @@ export async function ingestIndexes(accountId: string,
     const account = await getAccount(accountId);
     if (!account) throw new TypeError('Index account does not exist');
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
-    await withConversationLock(() => mergeIndexes(accountId, indexes));
+    await withAdmissionLock(`indexes:${accountId}`, () => mergeIndexes(indexes));
     if (page && account.providerAccountId !== DEFAULT_ACCOUNT_KEY) await CoverageAdmission.recordPageCoverage(accountId, {
             ...page, providerId: account.providerId, accountId, items: indexes,
             valid: page.valid && page.keys.length === indexes.length
@@ -40,22 +43,23 @@ export async function ingestDetail(accountId: string, conversationId: string,
     const key = { accountId, conversationId };
     const incoming = acceptDetailFacts(key, detail);
     const index = restoreConversationIndex({ ...indexFields, key });
-    await withConversationLock(async () => {
-        await mergeIndexes(accountId, [index]);
-        const existing = await getDetail(key);
+    await withAdmissionLock(`indexes:${accountId}`, async () => {
+        await mergeIndexes([index]);
+        const raw = await getDetail(key);
+        const existing = raw ? restoreDomainDetail(raw) : null;
         const selected = selectConversationDetail(existing ? { detail: existing } : undefined, { detail: incoming }).detail;
         if (selected !== existing) await putDetail(selected);
     });
 }
 
 export async function updateConversation(
-    slot: string | null | undefined,
+    accountId: string,
     conversationId: string,
     patchOrUpdater: ConversationIndexPatch | ((conv: DomainConversationIndex) => ConversationIndexPatch | null | void)
 ): Promise<boolean> {
-    return withConversationLock(async () => {
+    return withAdmissionLock(`indexes:${accountId}`, async () => {
         const id = conversationId;
-        const list = await getConversations(slot);
+        const list = await listIndexes(accountId);
         const position = list.findIndex(c => c.key.conversationId === id);
         if (position < 0) return false;
         const old = list[position];
@@ -65,8 +69,7 @@ export async function updateConversation(
         const incoming = restoreConversationIndex({ ...current, ...patch });
         const merged = mergeConversationIndex(old, incoming);
         if (JSON.stringify(merged) === JSON.stringify(old)) return false;
-        list[position] = merged;
-        await writeConversationIndexes(slot, list.sort(compareConversationIndexes));
+        await putIndexes([merged]);
         return true;
     });
 }

@@ -4,7 +4,7 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
 import type { CommittedListPage } from '../src/core/provider/aiProvider.js';
 useIndexStorage();
 

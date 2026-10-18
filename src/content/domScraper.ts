@@ -1,12 +1,9 @@
-import { getDomainConversationResult } from '../core/storage/domain/nativePersistence.js';
-import { cacheAcquiredResources } from '../core/storage/domain/resourceContext.js';
-import { storageIdentity } from '../core/storage/domain/domainStore.js';
+import { readConversation } from '../core/domain/readConversation.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import type { Account } from '../core/domain/accountRegistry.js';
 import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
 import type { ContentConversationDetail, DetailClient } from '../types/detailTransport.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
-import type { ApplicationProvider } from './providerCompatibility.js';
 import { ingestDetail } from '../core/domain/ingestion.js';
 import { resolveCurrentAccount, isCurrentAccount } from './accountContext.js';
 import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
@@ -40,10 +37,9 @@ export async function contentFetchChatDetail(id: string, expectedAccountId?: str
     const accept = async (detail: DomDetail) => {
         if (!isCurrentAccount(account)) throw new Error('Account changed during acquisition');
         await ingestDetail(account.accountId, id, detail.conversation.detail, detail.conversation.index);
-        await cacheAcquiredResources(storageIdentity('gemini', account.accountId, id), detail.conversation.detail.assets, detail.acquisitionHints);
-        const accepted = await getDomainConversationResult(account.accountId, id);
+        const accepted = await readConversation({ accountId: account.accountId, conversationId: id });
         if (!accepted) throw new Error('Accepted Detail missing');
-        return { ...detail, ...accepted, diagnostics: detail.diagnostics };
+        return { ...detail, conversation: accepted, diagnostics: detail.diagnostics };
     };
     const url = `https://gemini.google.com/app/${id}`;
     let res: Response;
@@ -95,10 +91,9 @@ export async function acquireCurrentConversation(cid: string, expectedAccountId?
         const fresh = await resolveCurrentAccount();
         if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during acquisition');
         await ingestDetail(account.accountId, id, detail.conversation.detail, detail.conversation.index);
-        await cacheAcquiredResources(storageIdentity('gemini', account.accountId, id), detail.conversation.detail.assets, detail.acquisitionHints);
-        const accepted = await getDomainConversationResult(account.accountId, id);
+        const accepted = await readConversation({ accountId: account.accountId, conversationId: id });
         if (!accepted) throw new Error('Accepted Detail missing');
-        return { ...detail, ...accepted, diagnostics: detail.diagnostics };
+        return { ...detail, conversation: accepted, diagnostics: detail.diagnostics };
     };
     const provider = Object.hasOwn(options, 'clientClass') ? null : resolveProvider();
     if (options.clientClass) {
@@ -108,8 +103,10 @@ export async function acquireCurrentConversation(cid: string, expectedAccountId?
         } catch (error) { if (contentContext.isDevMode()) console.debug('[Gemini Exporter] client fallback', error); }
     } else if (provider?.id === 'gemini') {
         try {
-            const detail = await (provider as ApplicationProvider).fetchConversationDetail(id, { accountId: account.accountId, slot: account.slot });
-            if (detail?.conversation.detail.messages.length) return detail;
+            await provider.fetchConversationDetail(account.accountId, id);
+            const conversation = await readConversation({ accountId: account.accountId, conversationId: id });
+            const registered = await getAccount(account.accountId);
+            if (conversation?.detail.messages.length && registered) return { account: registered, conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
         } catch (error) { if (contentContext.isDevMode()) console.debug('[Gemini Exporter] provider fallback', error); }
     }
     const registered = await getAccount(account.accountId);

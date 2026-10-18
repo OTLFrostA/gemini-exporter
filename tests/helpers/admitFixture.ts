@@ -1,31 +1,27 @@
 import { ingestDetail } from '../../src/core/domain/ingestion.js';
-import { cacheAcquiredResources } from '../../src/core/storage/domain/resourceContext.js';
-import { getDomainConversationResult } from '../../src/core/storage/domain/nativePersistence.js';
-import { storageIdentity, deleteDetail } from '../../src/core/storage/domain/domainStore.js';
-import { clearResourceContext } from '../../src/core/storage/domain/resourceContext.js';
-import type { DomainStorageIdentity, StoredDomainResource } from '../../src/core/storage/domain/contracts.js';
+import { readConversation } from '../../src/core/domain/readConversation.js';
+import { deleteDetail } from '../../src/core/storage/storageService.js';
+import type { ConversationKey } from '../../src/core/domain/conversationKey.js';
 import type { DomainFixture } from './domainFixture.js';
-
-/** Fixture setup uses exactly the production fact admission contract. */
-export async function admitFixture(accountId: string | null | undefined, parsed: DomainFixture,
-    resources: readonly StoredDomainResource[] = [], canCommit?: () => boolean): Promise<DomainFixture> {
+import { fixtureAccountFor } from './domainFixture.js';
+/** Historical fixture identity only; persistence keys contain no provider routing data. */
+export function storageIdentity(_providerId: string, accountId: string, conversationId: string): ConversationKey {
+    return { accountId, conversationId };
+}
+export async function admitFixture(accountId: string | null | undefined, parsed: DomainFixture): Promise<DomainFixture> {
     if (!accountId || parsed.account.id !== accountId) throw new TypeError('Detail account/provider mismatch');
-    if (canCommit?.() === false) throw new Error('Account changed before admission');
     const { index, detail } = parsed.conversation;
     await ingestDetail(accountId, index.key.conversationId,
         { ...detail, ...(parsed.sourceVersion !== undefined ? { savedAt: parsed.sourceVersion } : {}) }, index);
-    const identity = storageIdentity(parsed.account.providerId, accountId, index.key.conversationId);
-    await cacheAcquiredResources(identity, detail.assets, parsed.acquisitionHints, resources);
-    const result = await getDomainConversationResult(accountId, identity.conversationId, identity.providerId);
+    const result = await readFixture(index.key);
     if (!result) throw new Error('Fixture Detail missing');
     return result;
 }
 export async function admitFixtures(accountId: string | null | undefined, parsed: readonly DomainFixture[]): Promise<void> {
     for (const item of parsed) await admitFixture(accountId, item);
 }
-export async function readFixture(identity: DomainStorageIdentity): Promise<DomainFixture | null> {
-    return getDomainConversationResult(identity.accountId, identity.conversationId, identity.providerId);
+export async function readFixture(key: ConversationKey): Promise<DomainFixture | null> {
+    const conversation = await readConversation(key);
+    return conversation ? { account: fixtureAccountFor(conversation), conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} } : null;
 }
-export async function removeFixture(identity: DomainStorageIdentity): Promise<void> {
-    await deleteDetail(identity); await clearResourceContext(identity);
-}
+export async function removeFixture(key: ConversationKey): Promise<void> { await deleteDetail(key); }

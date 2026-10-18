@@ -1,7 +1,7 @@
 import { getOrCreateAccount } from '../src/core/api/accountRegistry.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getDomainResource } from '../src/core/storage/domain/resourceContext.js';
-import { getDetail, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
+import { getDetail } from '../src/core/storage/storageService.js';
+import { storageIdentity } from './helpers/admitFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { fixtureAccount } from './helpers/domainFixture.js';
@@ -272,7 +272,6 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     assert.equal((await getConversations(account.id))[0].createdAt, 1700000000000);
     assert.equal(detail.assets.length, 2);
     assert.equal(detail.assets[0].sourceUri, 'sediment://file_cat');
-    assert.equal(await getDomainResource(storageIdentity('chatgpt', account.id, 'conv-img'), detail.assets[0].id), null);
     const key = { accountId: account.id, conversationId: 'conv-img' };
     assert.deepEqual((await provider.acquireResource(key, detail.assets[0])).bytes, pngBytes);
     await assert.rejects(provider.acquireResource(key, detail.assets[1]), /404/);

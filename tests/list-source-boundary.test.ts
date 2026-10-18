@@ -11,7 +11,7 @@ import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { getOrCreateAccount } from '../src/core/api/accountRegistry.js';
 import { sourceDetail } from './helpers/l1SourceFixture.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
 import { parseGeminiDomList, parseGeminiDomIndex } from '../src/core/parsers/gemini/dom/parseIndex.js';
 
 test('ChatGPT lists emit exact Domain indexes with source times and no invented fallback facts', () => {

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { importTakeout } from '../src/core/imports/takeout/importTakeout.js';
 import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
-import { getDetail } from '../src/core/storage/domain/domainStore.js';
+import { getDetail } from '../src/core/storage/storageService.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 
 const activity = (id: string, date: string, response: string) => `<div class="outer-cell"><a href="https://gemini.google.com/app/${id}">Chat</a>

@@ -22,7 +22,7 @@ const tabServiceMod: any = require('../src/core/utils/tabService.js');
 if (tabServiceMod && !tabServiceMod.TabService) tabServiceMod.TabService = tabServiceMod;
 const batchFetcherMod = require('../src/background/batchFetcher.js');
 const abortMgr = require('../src/background/abortManager.js');
-const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
+// The retired asset pipeline belongs to the unselected runtime cases below.
 
 // ---------------------------------------------------------------------------
 // P1-031: 429 退避 sleep 可中断
@@ -317,6 +317,7 @@ test('p1c - fetchBatch: 接收侧 retryAfterMs 生效（content 侧透传的 ser
 test('p1c - processAsset: 瞬时失败重试后成功（默认最多 3 次重试）', async () => {
     const files: Array<[string, any]> = [];
     let calls = 0;
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
     const pipe = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         useZip: true,
         writer: { writeFile: async (name: string, data: any) => { files.push([name, data]); return name; } },
@@ -341,6 +342,7 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
     let callsA = 0;
     const cA = new AbortController();
     cA.abort();
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
     const pipeA = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         useZip: true,
         writer: { writeFile: async () => 'a.png' },
@@ -365,6 +367,7 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
 
 test('p1c - processAsset: 本地写入异常立即终止，不盲目重试网络拉取', async () => {
     let fetchCalls = 0;
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
     const pipe = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         useZip: true,
         writer: {

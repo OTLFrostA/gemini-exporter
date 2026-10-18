@@ -1,4 +1,4 @@
-import { getConversations } from '../core/storage/conversationCatalogStore.js';
+import { listIndexes as getConversations } from '../core/storage/storageService.js';
 import { ingestIndexes } from '../core/domain/ingestion.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import { parseGeminiIndexObservation, type GeminiIndexObservationSource } from '../core/parsers/gemini/parseIndexObservation.js';

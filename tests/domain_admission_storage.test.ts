@@ -1,3 +1,4 @@
+import { getCoverage } from '../src/core/storage/storageService.js';
 import { admitFixture } from './helpers/admitFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -5,10 +6,9 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { ingestIndexes, ingestDetail } from '../src/core/domain/ingestion.js';
-import { storageIdentity } from '../src/core/storage/domain/domainStore.js';
-import { cacheAcquiredResources, getDomainResource } from '../src/core/storage/domain/resourceContext.js';
+import { storageIdentity } from './helpers/admitFixture.js';
 import { readFixture } from './helpers/admitFixture.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
 import type { DomainFixture } from './helpers/domainFixture.js';
 
 const account = fixtureAccount();
@@ -28,7 +28,6 @@ test('admission replaces complete body and assets together, preserves complete a
     try {
         const original = snapshot('A B C D', 'complete', 10, true);
         await admitFixture(account.id, original);
-        assert.deepEqual(await getDomainResource(identity, 'image'), new Uint8Array([1, 2, 3]));
         assert.ok(!JSON.stringify((await readFixture(identity))!.conversation).includes('dataBase64'));
         await ingestIndexes(account.id, [{ conversationId: original.conversation.index.key.conversationId, fields: { title: 'Renamed', titleSource: 'user', updatedAt: 30 } }]);
         assert.equal((await readFixture(identity))!.conversation.detail.savedAt, 10, 'Index-only observation cannot advance the body version');
@@ -36,11 +35,9 @@ test('admission replaces complete body and assets together, preserves complete a
         const rejected = await admitFixture(account.id, partial);
         assert.deepEqual(rejected.conversation.detail, original.conversation.detail);
         assert.equal(rejected.conversation.index.title, 'Renamed');
-        assert.deepEqual(await getDomainResource(identity, 'image'), new Uint8Array([1, 2, 3]));
         const next = snapshot('A B edited', 'complete', 20);
         await admitFixture(account.id, next);
         assert.deepEqual((await readFixture(identity))!.conversation.detail, next.conversation.detail);
-        assert.equal(await getDomainResource(identity, 'image'), null, 'removed assets cannot remain referenced by the current snapshot');
         await admitFixture(account.id, snapshot('stale longer complete body', 'complete', 15));
         assert.deepEqual((await readFixture(identity))!.conversation.detail, next.conversation.detail);
     } finally { env.restore(); }
@@ -80,17 +77,6 @@ test('canonical detail entry binds Registry UUID and shares Index and body admis
     } finally { env.restore(); }
 });
 
-test('partial source may supply independently matched bytes without changing the complete body or asset graph', async () => {
-    const env = indexStorage(), identity = storageIdentity('gemini', account.id, 'admission-storage');
-    try {
-        const complete = { ...snapshot('complete body', 'complete', 10, true), acquisitionHints: {} };
-        await admitFixture(account.id, complete);
-        assert.equal(await getDomainResource(identity, 'image'), null);
-        await admitFixture(account.id, snapshot('partial body', 'partial', 20, true));
-        assert.deepEqual((await readFixture(identity))!.conversation.detail, complete.conversation.detail);
-        assert.deepEqual(await getDomainResource(identity, 'image'), new Uint8Array([1, 2, 3]));
-    } finally { env.restore(); }
-});
 
 test('default retains source Index facts without establishing trusted account coverage', async () => {
     const env = indexStorage(), accountId = '10000000-0000-4000-8000-000000000003';
@@ -101,32 +87,6 @@ test('default retains source Index facts without establishing trusted account co
             requestedAt: 1, requestKnown: true, valid: true, ordered: true, keys: [{ id: key.conversationId, time: 100 }],
         });
         assert.deepEqual(await getConversations(accountId), [{ key, updatedAt: 100 }]);
-        assert.equal(env.local['scan_coverage_' + accountId], undefined);
+        assert.equal(await getCoverage(accountId, 'recent'), null);
     } finally { env.restore(); }
-});
-
-
-test('inline acquisition bytes cross the background broker outside Domain facts', async () => {
-    const env = indexStorage();
-    const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
-    const previousRuntime = chrome.runtime;
-    let received: unknown;
-    Object.defineProperty(globalThis, 'location', { configurable: true, value: { protocol: 'https:' } });
-    Object.assign(chrome, { runtime: { id: 'fixture-extension', sendMessage: async (message: unknown) => {
-        received = message;
-        return { ok: true, domainEnvelopeVersion: 3 };
-    } } });
-    try {
-        await cacheAcquiredResources(storageIdentity('gemini', account.id, 'inline'), [{ id: 'image', kind: 'image' }],
-            { image: { dataBase64: 'AQID' } });
-        assert.deepEqual(received, { action: 'domainStorage', command: 'acquired', payload: {
-            identity: storageIdentity('gemini', account.id, 'inline'), assets: [{ id: 'image', kind: 'image' }],
-            hints: { image: {} }, resources: [{ assetId: 'image', bytes: 'AQID' }],
-        } });
-    } finally {
-        Object.assign(chrome, { runtime: previousRuntime });
-        if (previousLocation) Object.defineProperty(globalThis, 'location', previousLocation);
-        else Reflect.deleteProperty(globalThis, 'location');
-        env.restore();
-    }
 });

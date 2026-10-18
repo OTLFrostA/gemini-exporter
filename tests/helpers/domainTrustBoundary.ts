@@ -10,8 +10,8 @@ const parserOwners = new Set(['core/parsers/gemini/rpc/parseConversation.ts', 'c
 // Source builders finalize new graphs; only the repository restores disk/write snapshots.
 const entries = new Map<string, Set<string>>([
     ['assertSchema', new Set([validator])], ['assertDomainClosure', new Set([validator])],
-    ['validateParserDomain', new Set([...parserOwners, 'core/domain/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['core/utils/nativeDetailTransport.ts'])],
-    ['restoreDomainDetail', new Set(['core/storage/domain/domainStore.ts', 'background/domainStorageHandler.ts'])],
+    ['validateParserDomain', new Set([...parserOwners, 'core/domain/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['core/utils/nativeDetailTransport.ts', 'core/domain/readConversation.ts'])],
+    ['restoreDomainDetail', new Set(['core/domain/ingestion.ts', 'background/domainStorageHandler.ts'])],
     ['requestNativeDetail', new Set(['background/batchFetcher.ts', 'core/engine/export/batchWorker.ts', 'ui/popup/popup.ts'])],
     ['requestNativeBatch', new Set(['core/engine/export/batchWorker.ts'])],
     ['callDomainBroker', new Set(['core/storage/domain/domainStore.ts', 'core/storage/domain/resourceContext.ts', 'core/storage/schemaMigration.ts'])],
@@ -23,7 +23,7 @@ const trustedTypes = new Set(['TrustedDomain', 'ConversationParseResult', 'Resou
 const castOwners = new Map<string, Set<string>>([
     ['TrustedDomain', new Set([validator])],
     ['DomainConversationDetail', new Set([validator])],
-    ['ResourceConversationParseResult', new Set(['core/utils/nativeDetailTransport.ts'])],
+    ['ResourceConversationParseResult', new Set(['core/utils/nativeDetailTransport.ts', 'core/domain/readConversation.ts'])],
     ['TrustedDomainBody', new Set([validator])],
 ]);
 const castFunctions = new Map([['TrustedDomain', new Set(['validateParserDomain', 'restoreDomainSnapshot'])],

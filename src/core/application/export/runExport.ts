@@ -1,8 +1,9 @@
+import { readConversation } from '../../domain/readConversation.js';
 import { getAccount } from '../../api/accountRegistry.js';
-import { getIndex, getDetail, getExportRecord, putExportRecord, getDirectoryHandle } from '../../storage/storageService.js';
+import { getIndex, getExportRecord, putExportRecord, getDirectoryHandle } from '../../storage/storageService.js';
 import type { ConversationKey } from '../../domain/conversationKey.js';
 import type { Account } from '../../domain/accountRegistry.js';
-import { withConversationMetadata, type ReadonlyDomain } from '../../domain/runtimeValidation.js';
+import { type ReadonlyDomain } from '../../domain/runtimeValidation.js';
 import type { AIProvider } from '../../provider/aiProvider.js';
 import { createTaskProvider } from '../../provider/taskProvider.js';
 import { createSourceResourceContext } from '../../provider/sourceResources.js';
@@ -69,11 +70,7 @@ export async function runExport(request: ExportRequest, options: {
         }
         return provider;
     };
-    const readLocal = async (key: ConversationKey): Promise<ReadonlyDomain | null> => {
-        const index = await getIndex(key);
-        const detail = await getDetail(key);
-        return index && detail ? withConversationMetadata(detail, index) : null;
-    };
+    const readLocal = readConversation;
     const finalize = async (groups: readonly ExportGroup[]): Promise<void> => {
         // Once Delivery returned, cancellation cannot suppress records for that group/ZIP.
         const exportedAt = Date.now();
