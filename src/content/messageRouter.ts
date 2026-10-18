@@ -11,7 +11,7 @@ import { AssetFetcher } from './assetFetcher.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { getErrorMessage } from '../core/utils/utils.js';
-import { normId } from '../core/utils/pathUtils.js';
+import { normId, extractConversationIdFromUrl } from '../core/utils/pathUtils.js';
 import { isRateLimited } from '../core/engine/export/rateLimiter.js';
 import { isConfirmedDeletedError } from '../core/protocol/protocol.js';
 import { getExtensionVersion } from '../core/utils/constants.js';
@@ -76,7 +76,7 @@ export function init({
         };
         try {
         if (msg.action === 'getAccountContext') {
-            void resolveCurrentAccount().then(accountContext => respond({ ok: true, accountContext }))
+            void resolveCurrentAccount().then(accountContext => respond({ ok: true, accountContext, conversationId: extractConversationIdFromUrl(location.href) }))
                 .catch((error: unknown) => respond({ ok: false, accountContext: null, error: getErrorMessage(error) }));
             return true;
         }

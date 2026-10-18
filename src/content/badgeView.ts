@@ -1,7 +1,5 @@
-import type { StoredValue } from '../core/storage/storageCompatibility.js';
 import type { OpenOptionsMessage } from '../types/messages.js';
-import { STORAGE_KEYS } from '../core/utils/constants.js';
-import { setBadgePosition, getBadgePosition } from '../core/storage/storageService.js';
+import { getSettings, updateSettings } from '../core/application/settings/index.js';
 let __lastKnownCount: number | null = null;
 
 export function applyStoredBadgePosition(el: HTMLElement | null): void {
@@ -21,25 +19,7 @@ export function applyStoredBadgePosition(el: HTMLElement | null): void {
         return false;
     };
 
-    try {
-        const raw = localStorage.getItem(STORAGE_KEYS.BADGE_POS);
-        if (raw) {
-            const pos = JSON.parse(raw);
-            if (applyPos(pos)) return;
-        }
-    } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:badgeView]', e);
-    }
-
-    void getBadgePosition().then((pos) => {
-        if (applyPos(pos)) {
-            try {
-                localStorage.setItem(STORAGE_KEYS.BADGE_POS, JSON.stringify(pos));
-            } catch {
-                /* intentional: best-effort caching */
-            }
-        }
-    }).catch(() => {});
+    void getSettings().then(settings => { applyPos(settings.badgePosition); }).catch(() => {});
 }
 
 export function makeBadgeDraggable(div: HTMLElement, onClick?: (e: MouseEvent) => void): void {
@@ -98,17 +78,12 @@ export function makeBadgeDraggable(div: HTMLElement, onClick?: (e: MouseEvent) =
             /* intentional: best-effort cleanup */
         }
 
-        if (hasMoved) {
+        if (hasMoved && e.type === 'pointerup') {
             justDragged = true;
             setTimeout(() => { justDragged = false; }, 150);
             const rect = div.getBoundingClientRect();
             const pos = { left: Math.round(rect.left), top: Math.round(rect.top) };
-            try {
-                localStorage.setItem(STORAGE_KEYS.BADGE_POS, JSON.stringify(pos));
-                void setBadgePosition(pos);
-            } catch (e) {
-                console.warn('[GemExporter:storage] Storage operation failed:', e);
-            }
+            void updateSettings({ badgePosition: pos }).catch(error => console.warn('[BadgeView] Position save failed', error));
         }
     };
 
@@ -153,7 +128,6 @@ export function ensureBadge(opts: { isZh?: () => boolean; onClick?: (e: MouseEve
         } else if (document.body && existing.parentElement !== document.body) {
             document.body.appendChild(existing);
         }
-        applyStoredBadgePosition(existing);
         return existing;
     }
     const zh = opts.isZh ? opts.isZh() : true;
@@ -176,7 +150,7 @@ export function ensureBadgeAndText(opts: { isZh?: () => boolean; onClick?: (e: M
 }
 
 export function updateBadge(
-    mergedLen?: StoredValue,
+    mergedLen?: unknown,
     visible?: number,
     overrideText?: string,
     isSyncing = false,
@@ -200,7 +174,7 @@ export function updateBadge(
         if (overrideText) {
             targetText = overrideText;
         } else {
-            targetText = zh ? `正在追踪 ${mergedLen} 条对话` : `Tracking ${mergedLen} conversations`;
+            targetText = zh ? `正在追踪 ${__lastKnownCount ?? 0} 条对话` : `Tracking ${__lastKnownCount ?? 0} conversations`;
         }
         if (txt.textContent !== targetText) {
             txt.textContent = targetText;

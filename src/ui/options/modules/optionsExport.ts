@@ -1,4 +1,5 @@
-import type { ExportProgress, ExportRecord, FailedChat, UIExportOptions } from '../../../types/ui.js';
+import { getSettings, updateSettings, type ExportFormat } from '../../../core/application/index.js';
+import type { ExportProgress, FailedChat, UIExportOptions } from '../../../types/ui.js';
 import type { OptionsExportOptions } from '../../../types/ui.js';
 import {
     t,
@@ -6,20 +7,16 @@ import {
     getStore,
     getList,
     getExportCtrl as getController,
-    getFormats,
-    getTakeoutEngine,
     getConstants,
     getDialogs,
     getDirHandle,
-    getLiveStorage,
     getStorage,
     getUtils
 } from '../optionsContext.js';
 import { DialogView } from '../../views/dialogView.js';
 import { ProgressView } from '../../views/progressView.js';
 import { getErrorMessage, isRealTitle } from '../../../core/utils/utils.js';
-import { normId } from '../../../core/utils/pathUtils.js';
-import { STORAGE_KEYS } from '../../../core/utils/constants.js';
+import { normId } from '../../state/conversationsStore.js';
 import { warmLocalFontCache } from '../../../core/export/typst/fonts/localFontProvider.js';
 import { $, setExportSessionBusy } from '../../uiCommon.js';
 
@@ -63,9 +60,6 @@ export async function retryFailedExport(): Promise<void> {
     const failedIds = new Set<string>();
     for (const c of failedList) {
         if (c.id) {
-            // Single add is enough: List.selectByIds() normalizes every id with
-            // normId() before matching, so 'c_<id>' / raw variants collapse to
-            // the same key. No need to pre-expand aliases here.
             failedIds.add(c.id);
         }
     }
@@ -111,7 +105,7 @@ export function updateZipUi(): void {
 export async function refreshConversationIndex(chatId: string, exportSlot?: string): Promise<void> {
     const Store = getStore();
     const slot = exportSlot || Store?.getCurrentAccountId?.() || '';
-    const index = await getStorage()?.conversationRepository({ providerId: 'gemini', accountId: slot }).getConversationIndex(normId(chatId));
+    const index = await getStorage().getIndex({ accountId: slot, conversationId: chatId });
     if (Store?.getCurrentAccountId?.() !== slot || !index) return;
     const item = Store.getConversations().find(c => normId(c.key.conversationId) === index.key.conversationId);
     if (item) Object.assign(item, index);
@@ -131,6 +125,7 @@ export async function startExportPipeline(
     const DirHandle = getDirHandle();
     const List = getList();
     const accountId = Store?.getCurrentAccountId?.() || '';
+    if (selected.some(item => item.key && item.key.accountId !== accountId)) return;
 
     const convs = Store ? Store.getConversations() : [];
 
@@ -152,10 +147,6 @@ export async function startExportPipeline(
                 dirHandle = await DirHandle.requestDirHandle();
                 const dirLabel = $('dirLabel');
                 if (dirLabel && dirHandle) dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', dirHandle.name) : `已选目录: ${dirHandle.name}`;
-                const liveStorage = getLiveStorage();
-                if (liveStorage && typeof liveStorage.setLiveConfig === 'function' && dirHandle) {
-                    await liveStorage.setLiveConfig({ dirName: dirHandle.name });
-                }
             }
         } catch (err: unknown) {
             const errMsg = getErrorMessage(err);
@@ -164,6 +155,7 @@ export async function startExportPipeline(
         }
     }
 
+    if (Store?.getCurrentAccountId() !== accountId) return;
     hideExportFailureBanner();
     ProgressView.show(2, typeof t === 'function' ? t('startExport') : 'Preparing export...');
 
@@ -178,9 +170,6 @@ export async function startExportPipeline(
 
     let remainingSelected: Set<string> | null = null;
     try {
-        const exportedIds = Store ? Store.getExportedIds() : {};
-        const takeoutEngine = getTakeoutEngine();
-
         const result = await Controller.runExport({
             selected,
             format,
@@ -190,19 +179,7 @@ export async function startExportPipeline(
             useZip: includeZip,
             dirHandle: dirHandle || (DirHandle ? DirHandle.getDirHandle() : null),
             accountId,
-            conversations: convs,
-            exportedIds,
-            takeoutEngine,
-            downloadHandler: async (blob: Blob, filename: string) => {
-                const blobUrl = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
-            }
+
         }, {
             onProgress: (progress: ExportProgress, txt?: string) => {
                 const isEn = typeof getLang === 'function' && getLang() === 'en';
@@ -218,37 +195,7 @@ export async function startExportPipeline(
             onLog: (msg: string, lvl?: 'info' | 'warn' | 'error') => {
                 if (Store?.getCurrentAccountId?.() === accountId) log(msg, lvl);
             },
-            onTitleUpdated: (chatId: string) => {
-                void refreshConversationIndex(chatId, accountId).catch(err => log(getErrorMessage(err), 'warn'));
-            },
-            onItemPendingAssets: (chatId: string) => {
-                if (Store?.getCurrentAccountId?.() !== accountId) return;
-                if (List && typeof List.updateItemExportStatus === 'function') {
-                    List.updateItemExportStatus(chatId, { status: 'pending_assets' });
-                }
-            },
-            onItemExported: async (chatId: string, titleOrRecord: ExportRecord | string, maybeRecord?: ExportRecord) => {
-                if (Store?.getCurrentAccountId?.() !== accountId) return;
-                const exportRecord = (maybeRecord && typeof maybeRecord === 'object')
-                    ? maybeRecord
-                    : ((titleOrRecord && typeof titleOrRecord === 'object') ? titleOrRecord : null);
-                if (Store && exportRecord) {
-                    const cur = Store.getExportedIds();
-                    const ck = normId(chatId);
-                    if (ck) cur[ck] = exportRecord;
-                    Store.setExportedIds(cur);
-                    const currentConvs = Store.getConversations();
-                    if (List) {
-                        if (typeof List.updateItemExportStatus === 'function') {
-                            List.updateItemExportStatus(chatId, exportRecord);
-                        } else {
-                            const currentSelected = List.getSelectedIds() || new Set<string>();
-                            List.render(currentConvs, cur, currentSelected, __getSearchFilter());
-                        }
-                        List.updateStat(currentConvs);
-                    }
-                }
-            }
+
         });
 
         if (Store?.getCurrentAccountId?.() !== accountId) return;
@@ -264,9 +211,9 @@ export async function startExportPipeline(
                 : (typeof result?.exportedCount === 'number' ? result.exportedCount : Math.max(0, selected.length - failedCount));
 
             let finishMsg = '';
-            if (failedCount > 0 || failedAttachmentCount > 0) {
+            if (failedCount > 0 || failedAttachmentCount > 0 || (result.partial || 0) > 0) {
                 if (typeof t === 'function') {
-                    const translated = t('exportCompletedPartial', successCount, failedCount);
+                    const translated = t('exportCompletedPartial', Math.max(0, successCount - (result.partial || 0)), failedCount);
                     if (translated && translated !== 'exportCompletedPartial') {
                         finishMsg = translated;
                     }
@@ -277,6 +224,7 @@ export async function startExportPipeline(
                         ? `Export finished: ${successCount} succeeded, ${failedCount} failed.`
                         : `导出完成：成功 ${successCount} 篇，失败 ${failedCount} 篇。`;
                 }
+                if (result.partial) finishMsg += ` ${t('exportPartialCount', result.partial)}`;
                 if (failedAttachmentCount > 0) finishMsg += ` ${t('exportAttachmentsFailed', failedAttachmentCount)}`;
                 log(finishMsg, 'warn');
                 renderExportFailureBanner(failedList);
@@ -329,14 +277,15 @@ export async function startExportPipeline(
             ProgressView.complete(finishMsg);
 
             // Compute updated selection: deselect ONLY successfully exported conversations
+            const currentRecords = await getStorage().listExportRecords(accountId);
+            if (Store.getCurrentAccountId() !== accountId) return;
             const failedSet = new Set(failedList.map((f: any) => normId(typeof f === 'string' ? f : (f?.id || f?.chatId))));
             remainingSelected = List ? List.getSelectedIds() : new Set<string>();
             for (const chat of selected) {
                 const nid = normId(chat.id);
-                if (!failedSet.has(nid) && !failedSet.has(chat.id)) {
+                if (!failedSet.has(nid) && currentRecords[nid]?.status !== 'partial') {
                     remainingSelected.delete(chat.id);
                     remainingSelected.delete(nid);
-                    remainingSelected.delete('c_' + nid);
                 }
             }
             if (List && typeof List.setSelectedIds === 'function') {
@@ -364,10 +313,10 @@ export async function exportSelected(overrideFormat: string | null = null, force
         setExportSessionBusy(true);
         const Store = getStore();
         const List = getList();
-        const Formats = getFormats();
         const Dialogs = getDialogs();
         const DirHandle = getDirHandle();
 
+    const capturedAccountId = Store?.getCurrentAccountId() || '';
     const convs = Store ? Store.getConversations() : [];
     const selected = List ? List.getSelected(convs) : [];
     if (!selected.length) {
@@ -379,7 +328,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
 
 
     const formatSelect = $('format') as HTMLSelectElement | null;
-    const format = overrideFormat || (Formats ? Formats.getCurrentFormat(formatSelect?.value) : (formatSelect?.value || 'markdown'));
+    const format = overrideFormat || formatSelect?.value || (await getSettings()).defaultFormat;
     const skipCheck = $('skipExported') as HTMLInputElement | null;
     const skip = forceLocalCopies ? false : (skipCheck ? skipCheck.checked : false);
     const includeIndex = false;
@@ -393,24 +342,9 @@ export async function exportSelected(overrideFormat: string | null = null, force
     const threshold = (constants && constants.DIRECT_WRITE_THRESHOLD) ? constants.DIRECT_WRITE_THRESHOLD : 20;
     if (includeZip && !dirHandle && selected.length > threshold && Dialogs && Dialogs.showDirectWritePrompt) {
         const Storage = getStorage();
-        const isSuppressed = typeof Storage?.isDirectWritePromptSuppressed === 'function'
-            ? await Storage.isDirectWritePromptSuppressed()
-            : await (async () => {
-                const suppressKey = (constants && constants.STORAGE_KEYS?.SUPPRESS_DIRECT_WRITE_PROMPT) || 'gemini_suppress_direct_write_prompt';
-                try {
-                    const d = await chrome.storage.local.get([suppressKey]);
-                    return !!d[suppressKey];
-                } catch (e) {
-                    console.warn('[GemExporter:storage] Storage operation failed:', e);
-                    return false;
-                }
-            })();
+        const isSuppressed = (await getSettings()).directWritePromptShown;
 
-        if (!isSuppressed) {
-            if (typeof Storage?.setDirectWritePromptSuppressed === 'function') {
-                await Storage.setDirectWritePromptSuppressed(true);
-            }
-
+        if (!isSuppressed && Store.getCurrentAccountId() === capturedAccountId) {
             // Hold the export mutex until the user actually decides.
             // showDirectWritePrompt is fire-and-forget (returns void) and its
             // Escape / X-close paths invoke NEITHER callback, so wrap both
@@ -449,24 +383,13 @@ export async function exportSelected(overrideFormat: string | null = null, force
                     async () => {
                         decisionMade = true;
                         try {
+                            if (Store.getCurrentAccountId() !== capturedAccountId) return;
                             let newHandle: UIExportOptions['dirHandle'] = null;
                             if (DirHandle) {
                                 newHandle = await DirHandle.requestDirHandle();
                                 const dirLabel = $('dirLabel');
                                 if (dirLabel) dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', newHandle.name) : `已选目录: ${newHandle.name}`;
                                 log(typeof t === 'function' ? t('logFolderSelected', newHandle.name) : `已选择保存目录: ${newHandle.name}`);
-                                const liveStorage = getLiveStorage();
-                                if (liveStorage && typeof liveStorage.setLiveConfig === 'function') {
-                                    await liveStorage.setLiveConfig({ dirName: newHandle.name });
-                                }
-                            }
-                            const zipCh = $('includeZip') as HTMLInputElement | null;
-                            if (zipCh) {
-                                zipCh.checked = false;
-                                updateZipUi();
-                                if (typeof Storage?.setZipPreference === 'function') {
-                                    await Storage.setZipPreference(false);
-                                }
                             }
                             await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, false, newHandle);
                         } catch (err: unknown) {
@@ -479,6 +402,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
                     async () => {
                         decisionMade = true;
                         try {
+                            if (Store.getCurrentAccountId() !== capturedAccountId) return;
                             await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, true, null);
                         } catch (err: unknown) {
                             const errMsg = getErrorMessage(err);
@@ -492,18 +416,21 @@ export async function exportSelected(overrideFormat: string | null = null, force
                 settleDecision();
                 throw promptErr;
             }
+            const shown = !!modalEl && modalEl.style.display === 'flex';
+            if (shown) await updateSettings({ directWritePromptShown: true });
             // If the prompt never actually showed (missing modal / early
             // return), don't wait forever.
-            if (!modalEl || modalEl.style.display === 'none') settleDecision();
+            if (!shown) settleDecision();
             try {
                 await decisionPromise;
             } finally {
                 if (modalObserver) modalObserver.disconnect();
             }
-            return;
+            if (shown) return;
         }
     }
 
+    if (Store.getCurrentAccountId() !== capturedAccountId) return;
     await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, includeZip, dirHandle);
     } finally {
         _isExporting = false;
@@ -516,36 +443,29 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
     __log = logFn || null;
     if (getSearchFilter) __getSearchFilter = getSearchFilter;
 
-    const Formats = getFormats();
     const DirHandle = getDirHandle();
     const Controller = getController();
     const Dialogs = getDialogs();
     const Store = getStore();
     const List = getList();
-    const zipCheck = $('includeZip') as HTMLInputElement | null;
-    if (Formats && Formats.loadFormat) {
-        const { format } = await Formats.loadFormat();
-        const fmtSelect = $('format') as HTMLSelectElement | null;
-        if (fmtSelect) fmtSelect.value = format;
-        fmtSelect?.addEventListener('change', (e: Event) => Formats.saveFormat((e.target as HTMLSelectElement).value));
-    }
-
-    if (zipCheck) {
-        const Storage = getStorage();
-        const d = await chrome.storage.local.get([STORAGE_KEYS.ZIP]);
-        if (typeof (d as any)[STORAGE_KEYS.ZIP] !== 'undefined') {
-            zipCheck.checked = (d as any)[STORAGE_KEYS.ZIP] as boolean;
-        } else {
-            zipCheck.checked = true;
-        }
-        updateZipUi();
-        zipCheck.addEventListener('change', () => {
-            updateZipUi();
-            if (typeof Storage?.setZipPreference === 'function') {
-                void Storage.setZipPreference(zipCheck.checked);
-            }
+    const settings = await getSettings();
+    const formatSelect = $('format') as HTMLSelectElement | null;
+    if (formatSelect) {
+        formatSelect.value = settings.defaultFormat;
+        formatSelect.addEventListener('change', () => {
+            void updateSettings({ defaultFormat: formatSelect.value as ExportFormat });
         });
     }
+    for (const [id, field] of [['includeZip', 'useZip'], ['includeAssets', 'includeAssets'], ['skipExported', 'skipExported']] as const) {
+        const control = $(id) as HTMLInputElement | null;
+        if (!control) continue;
+        control.checked = settings[field];
+        control.addEventListener('change', () => {
+            void updateSettings({ [field]: control.checked });
+            updateZipUi();
+        });
+    }
+    updateZipUi();
 
     $('btnSetDir')?.addEventListener('click', async () => {
         try {
@@ -554,10 +474,6 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
                 const dirLabel = $('dirLabel');
                 if (dirLabel) dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
                 log(typeof t === 'function' ? t('logFolderSelected', handle.name) : `已选择保存目录: ${handle.name}`);
-                const liveStorage = getLiveStorage();
-                if (liveStorage && typeof liveStorage.setLiveConfig === 'function') {
-                    await liveStorage.setLiveConfig({ dirName: handle.name });
-                }
             }
         } catch (err: unknown) {
             const errMsg = getErrorMessage(err);

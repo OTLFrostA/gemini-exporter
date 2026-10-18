@@ -1,7 +1,6 @@
 
 import type { I18nModule, LocaleDictionary } from '../../types/utils.js';
-import { STORAGE_KEYS } from './constants.js';
-import { setLanguagePreference } from '../storage/storageService.js';
+import { getSettings, updateSettings } from '../application/settings/index.js';
 
 import zhDict from './locales/zh.js';
 import enDict from './locales/en.js';
@@ -23,8 +22,7 @@ async function initLanguage(): Promise<string> {
     ensureLocales();
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            const data = await chrome.storage.local.get<Record<string, unknown>>(STORAGE_KEYS.LANG);
-            const storedLang = data?.[STORAGE_KEYS.LANG];
+            const storedLang = (await getSettings()).language;
             const savedLang = typeof storedLang === 'string' ? storedLang : null;
             if (savedLang && LOCALES[savedLang]) {
                 currentLang = savedLang;
@@ -49,8 +47,9 @@ function getLang(): string {
 async function setLang(lang: string): Promise<void> {
     ensureLocales();
     if (!LOCALES[lang]) return;
+    if (lang !== 'zh' && lang !== 'en') return;
+    await updateSettings({ language: lang });
     currentLang = lang;
-    await setLanguagePreference(lang);
     for (const listener of langChangeListeners) {
         try { listener(currentLang); } catch (e) { console.error('langChangeListener err', e); }
     }

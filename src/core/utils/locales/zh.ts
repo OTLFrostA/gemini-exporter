@@ -3,6 +3,9 @@ import type { LocaleDictionary } from '../../../types/utils.js';
 
 const __zhFactory = (): LocaleDictionary => {
     return {
+        takeoutImportResult: '已导入 {0} 条会话（新增 {1} 条）。',
+        takeoutImportPartialResult: '部分导入：{0} 条会话（新增 {1} 条），部分内容或资源不完整。',
+        exportPartialCount: '部分导出：{0} 篇（资源未完整交付）。',
 
             extName: "Gemini Exporter",
             syncedBadge: "已同步 {0} 条",

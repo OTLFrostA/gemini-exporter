@@ -75,11 +75,11 @@ test('explainStateDerivation: produces human-actionable diagnosis reasons', () =
     assert.ok(rPartial.includes('partial'));
 
     // Exported clean
-    const rClean = explainStateDerivation(chat, { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0 });
+    const rClean = explainStateDerivation(chat, { exportedAt: t0 + 5000, chatTime: t0 });
     assert.ok(rClean.includes('clean and up to date'));
 
     // Updated
-    const rUpdated = explainStateDerivation({ ...chat, updatedAt: t0 + 60000 }, { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0 });
+    const rUpdated = explainStateDerivation({ ...chat, updatedAt: t0 + 60000 }, { exportedAt: t0 + 5000, chatTime: t0 });
     assert.ok(rUpdated.includes('advanced past the saved export version'));
 });
 
@@ -90,8 +90,8 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
         { id: 'chat_002', title: 'Physics Research', timestamp: t0, updatedAt: t0 + 50000, messageCount: 3 }
     ];
     const mockExportedIds = {
-        'chat_001': { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, messageCount: 5, status: 'ok' },
-        'chat_002': { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, messageCount: 2, status: 'ok' }
+        'chat_001': { exportedAt: t0 + 5000, chatTime: t0, format: 'markdown', status: 'ok' },
+        'chat_002': { exportedAt: t0 + 5000, chatTime: t0, format: 'markdown', status: 'ok' }
     };
 
     const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
@@ -103,7 +103,7 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
                         gemini_account_slots: { u0: { name: 'Account 1' } },
                         gemini_last_sync_diagnostics: { hitGoogleLimit: false, pagesScanned: 3 },
                         gemini_last_export_session: { status: 'completed', total: 2 },
-                        gemini_dev_mode: true
+                        gemini_exporter_v2_settings: { developerMode: true }
                     })
                 }
             }
@@ -140,8 +140,8 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
         assert.ok(item2.derivedState.explanation.includes('advanced past the saved export version'));
 
         // Verify sync & flight recorder
-        assert.ok(snapshot.syncDiagnostics);
-        assert.strictEqual(snapshot.syncDiagnostics.pagesScanned, 3);
+        assert.equal(snapshot.syncDiagnostics, null);
+        assert.equal(snapshot.lastExportSession, null);
         assert.ok(Array.isArray(snapshot.flightRecorder));
         assert.ok(Array.isArray(snapshot.workbenchLogs));
         assert.strictEqual(snapshot.workbenchLogs!.length, 1);

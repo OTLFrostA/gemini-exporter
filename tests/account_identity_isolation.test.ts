@@ -210,11 +210,11 @@ test('conversationsStore - loadStore does not hijack empty slot', async () => {
     try {
         const mockStorage = {
             listAccounts: async () => ([{id:'10000000-0000-4000-8000-000000000001',providerId:'gemini',providerAccountId:'main'},{id:'10000000-0000-4000-8000-000000000002',providerId:'gemini',providerAccountId:'empty'}]),
-            getConversations: async (slot: string) => {
+            listIndexes: async (slot: string) => {
                 if (slot === '10000000-0000-4000-8000-000000000001') return [{ id: 'c1', title: 'Chat 1' }];
                 return [];
             },
-            getExportedIds: async () => ({})
+            listExportRecords: async () => ({})
         };
 
         const origStorage = __getModuleOverride('StorageService');

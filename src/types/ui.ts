@@ -1,6 +1,4 @@
 import type { Account } from '../core/domain/accountRegistry.js';
-import type { TakeoutResourceLookup } from '../core/engine/takeoutEngine.js';
-import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import type { Attachment, DomainConversationIndex, GeneratedMediaIdentity } from './conversation.js';
 import type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
 export type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
@@ -11,7 +9,6 @@ import type { ExportRecord } from '../core/application/export/types.js';
 export type { ExportRecord } from '../core/application/export/types.js';
 
 
-export interface ReconcileOptions { keepTakeout?: boolean; }
 
 export interface ExportSession {
     status?: string;
@@ -39,18 +36,6 @@ export interface ExportProgress {
     assetsDownloaded?: number;
     assetsTotal?: number;
 }
-/** Only the Takeout capabilities used by export, independent of ZIP decoding/index internals. */
-export interface TakeoutExportSource {
-    getTakeoutOfflineChat(chatId: string, slot?: string | null): ResourceConversationParseResult | null;
-    getTakeoutMediaForChat(chatId: string, slot?: string | null): Array<{
-        filename: string;
-        isGenerated?: boolean;
-        providerRequestId?: string;
-        imageOrdinal?: number;
-        generation?: GeneratedMediaIdentity;
-    }>;
-    getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLookup, slot?: string | null): Promise<Uint8Array | null>;
-}
 export interface UIExportOptions {
     selected: Array<string | { id: string; url?: string } & Partial<DomainConversationIndex>>;
     format?: string;
@@ -60,20 +45,14 @@ export interface UIExportOptions {
     skip?: boolean;
     includeIndex?: boolean;
     includeAssets?: boolean;
-    conversations?: DomainConversationIndex[];
-    exportedIds?: Record<string, ExportRecord>;
-    takeoutEngine?: TakeoutExportSource | null;
-    downloadHandler?: (blob: Blob, filename: string) => Promise<void> | void;
 }
 export interface UIExportCallbacks {
     onProgress?: (progress: ExportProgress) => void;
     onLog?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
-    onTitleUpdated?: (id: string, title: string, source?: string) => void;
-    onItemExported?: (id: string, record: ExportRecord) => void;
-    onItemPendingAssets?: (id: string, count: number) => void;
 }
-/** Common UI summary. PDF omits attachment counters and skipped count. */
+/** Invocation result projected for existing progress and failure views. */
 export interface UIExportResult {
+    partial?: number;
     landedChats?: number;
     exportedCount?: number;
     failedChats?: FailedChat[];
@@ -84,10 +63,8 @@ export interface UIExportResult {
     aborted?: boolean;
 }
 export interface ActiveExportEngine { abort(): void; dispose?(): void; }
-export interface TakeoutImportResult {
-    conversations: DomainConversationIndex[];
-    totalMediaCount: number;
-}
+export type { TakeoutParseResult as TakeoutImportResult } from '../core/imports/takeout/importTakeout.js';
+import type { TakeoutParseResult as TakeoutImportResult } from '../core/imports/takeout/importTakeout.js';
 /** Background/content scan reply projected to the fields consumed by the UI. */
 import type { ScanStatus } from '../core/application/sync/scanController.js';
 export type { ScanStatus } from '../core/application/sync/scanController.js';
@@ -146,13 +123,11 @@ export interface IConversationsStore {
         accounts: Account[];
     }>;
     getLastSync: (slot?: string) => Promise<{ timestamp: number | null; count: number }>;
-    saveConversations: (slot: string, list: DomainConversationIndex[]) => Promise<void>;
     clearExported: (slot: string) => Promise<void>;
     clearAll: (slot: string) => Promise<void>;
     getDevMode: () => Promise<boolean>;
     setDevMode: (devOn: boolean) => Promise<void>;
     removeConversation: (id: string) => Promise<DomainConversationIndex[]>;
-    reconcileWithCloud: (activeCloudList: { id: string }[], options?: ReconcileOptions) => Promise<{ kept: number; removed: number; removedIds: string[] }>;
     normId: (id: string | null | undefined) => string;
 }
 
@@ -206,7 +181,7 @@ export interface ILogView {
 }
 
 export interface DirHandleControllerContract {
-    saveStoredDirHandle: (handle: DirectoryHandle | null) => Promise<boolean>;
+    saveStoredDirHandle: (handle: DirectoryHandle | null) => Promise<void>;
     getStoredDirHandle: () => Promise<DirectoryHandle | null>;
     verifyDirPermission: (handle: DirectoryHandle | null, options?: { allowRequest?: boolean }) => Promise<boolean>;
     restoreSavedDirHandle: () => Promise<DirectoryHandle | null>;
@@ -221,7 +196,7 @@ export interface TakeoutControllerContract {
     handleTakeoutImport: (file: File, callbacks?: {
         onProgress?: (pct: number, txt: string) => void;
         onLog?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
-        onFinished?: (result: { res: TakeoutImportResult; addedCount: number; totalMediaCount: number; message: string }) => void;
+        onFinished?: (result: { res: TakeoutImportResult; addedCount: number; message: string }) => void;
         onError?: (err: Error, errMsg?: string) => void;
     }) => Promise<void>;
 }

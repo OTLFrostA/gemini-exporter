@@ -1,3 +1,5 @@
+import { indexStorage } from './helpers/indexStorage.js';
+import { putIndexes, getIndex } from '../src/core/storage/storageService.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
@@ -25,7 +27,7 @@ test.afterEach(() => {
 });
 
 test('conversationsStore - normId', () => {
-    assert.strictEqual(ConversationsStore.normId('c_12345678'), '12345678');
+    assert.strictEqual(ConversationsStore.normId('c_12345678'), 'c_12345678');
     assert.strictEqual(ConversationsStore.normId('12345678'), '12345678');
     assert.strictEqual(ConversationsStore.normId(''), '');
     assert.strictEqual(ConversationsStore.normId(null), '');
@@ -45,22 +47,12 @@ test('conversationsStore - in-memory get and set', () => {
     assert.strictEqual(ConversationsStore.getCurrentAccountId(), '10000000-0000-4000-8000-000000000002');
 });
 
-test('conversationsStore - getExportedRecord normalization', () => {
-    ConversationsStore.setExportedIds({
-        'c_123': { exportedAt: 5000 },
-        '456': { exportedAt: 6000 }
-    });
-
-    assert.ok(ConversationsStore.getExportedRecord('123'));
-    assert.strictEqual(ConversationsStore.getExportedRecord('123').exportedAt, 5000);
-    assert.ok(ConversationsStore.getExportedRecord('c_123'));
-
-    assert.ok(ConversationsStore.getExportedRecord('456'));
-    assert.strictEqual(ConversationsStore.getExportedRecord('456').exportedAt, 6000);
-    assert.ok(ConversationsStore.getExportedRecord('c_456'));
-
-    assert.strictEqual(ConversationsStore.getExportedRecord('non_existent'), null);
-    assert.strictEqual(ConversationsStore.getExportedRecord(null), null);
+test('conversationsStore - export record IDs are opaque and never alias another conversation', () => {
+    ConversationsStore.setExportedIds({ c_123: { exportedAt: 5000 }, '123': { exportedAt: 6000 } });
+    assert.equal(ConversationsStore.getExportedRecord('c_123').exportedAt, 5000);
+    assert.equal(ConversationsStore.getExportedRecord('123').exportedAt, 6000);
+    assert.equal(ConversationsStore.getExportedRecord('c_456'), null);
+    assert.equal(ConversationsStore.getExportedRecord(null), null);
 });
 
 test('conversationsStore - getSignature', () => {
@@ -109,8 +101,8 @@ for (const switchAccount of [false, true]) test(`a delayed account load cannot r
     let reads = 0;
     __setModuleOverride('StorageService', {
         listAccounts: async () => [firstId, '10000000-0000-4000-8000-000000000002'].map((id, i) => ({ id, providerId: 'gemini', providerAccountId: 'gaia-' + i })),
-        getConversations: async () => { if (reads++ === 0) { arrived(); return held; } return [indexFixture({ id: 'newer', title: 'Newer snapshot' })]; },
-        getExportedIds: async () => ({}),
+        listIndexes: async () => { if (reads++ === 0) { arrived(); return held; } return [indexFixture({ id: 'newer', title: 'Newer snapshot' })]; },
+        listExportRecords: async () => ({}),
     });
     try {
         ConversationsStore.setCurrentAccountId(firstId);
@@ -125,26 +117,22 @@ for (const switchAccount of [false, true]) test(`a delayed account load cannot r
     } finally { release([]); __clearModuleOverrides(); }
 });
 
-for (const operation of ['remove']) test(`completion of ${operation} in A cannot remove the same conversation from the visible B account`, async () => {
-    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+test('completion of local cleanup in A cannot remove the same ID from visible B', async () => {
+    const environment = indexStorage();
     const firstId = '10000000-0000-4000-8000-000000000001';
     const nextId = '10000000-0000-4000-8000-000000000002';
-    let release!: () => void;
-    const held = new Promise<void>(resolve => { release = resolve; });
-    let arrived!: () => void;
-    const pendingWrite = new Promise<void>(resolve => { arrived = resolve; });
-    __setModuleOverride('StorageService', {
-        removeConversation: async (id: string) => { assert.strictEqual(id, firstId); arrived(); await held; return true; },
-        reconcileConversations: async (id: string) => { assert.strictEqual(id, firstId); arrived(); await held; return { kept: 0, removed: 1, removedIds: ['shared'] }; },
-    });
+    const keyA = { accountId: firstId, conversationId: 'shared' };
+    const keyB = { accountId: nextId, conversationId: 'shared' };
     try {
+        await putIndexes([{ key: keyA }, { key: keyB }]);
         ConversationsStore.setCurrentAccountId(firstId);
-        const pending = operation === 'remove' ? ConversationsStore.removeConversation('shared') : ConversationsStore.reconcileWithCloud([]);
-        await pendingWrite;
+        const pending = ConversationsStore.removeConversation('shared');
         ConversationsStore.setCurrentAccountId(nextId);
-        ConversationsStore.setConversations([indexFixture({ id: 'shared', title: 'B keeps this conversation' })]);
-        release(); await pending;
-        assert.strictEqual(ConversationsStore.getCurrentAccountId(), nextId);
-        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { key: { conversationId: string } }) => row.key.conversationId), ['shared']);
-    } finally { release(); __clearModuleOverrides(); }
+        ConversationsStore.setConversations([{ key: keyB }]);
+        await pending;
+        assert.equal(ConversationsStore.getCurrentAccountId(), nextId);
+        assert.deepEqual(ConversationsStore.getConversations(), [{ key: keyB }]);
+        assert.equal(await getIndex(keyA), null);
+        assert.deepEqual(await getIndex(keyB), { key: keyB });
+    } finally { environment.restore(); }
 });

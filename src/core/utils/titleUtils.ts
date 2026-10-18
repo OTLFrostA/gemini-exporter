@@ -10,12 +10,9 @@ export { TITLE_SOURCE_PRIORITY, TITLE_TIER_RANK, normalizeReliableTitleSource, r
 /** Only the fields title arbitration reads or mutates. */
 export interface TitleResolutionInput { id?: string | number; title?: string; titleSource?: string; titles?: import('../../types/conversation.js').TitleSources; }
 
-/** Export freshness also recognizes historical truncation flags. */
-export type ExportActivityRecord = Readonly<Partial<Pick<ExportRecord,
-    'exportedAt' | 'chatTime' | 'messageCount' | 'status' | 'hasFailedAssets'
->> & {
-    isTruncated?: boolean;
-    truncated?: boolean;
+/** Read-only projection used by the conversation list, plus invocation-local UI state. */
+export type ExportActivityRecord = Readonly<Partial<Omit<ExportRecord, 'status'>> & {
+    status?: ExportRecord['status'] | 'pending_assets' | 'failed';
 }>;
 
 export interface TitleResolution {
@@ -177,7 +174,7 @@ export function resolveConversationExportState(
     const hasRecord = !!rec;
     const recStatus = rec ? rec.status : undefined;
     const isPendingAssets = !!(rec && recStatus === 'pending_assets');
-    const isPartial = !isPendingAssets && !!(rec && (recStatus === 'partial' || !!rec.hasFailedAssets));
+    const isPartial = !isPendingAssets && !!(rec && (recStatus === 'partial'));
     const isRecordFailed = !!(rec && recStatus === 'failed');
     const isFailedInSession = !!options?.isFailedInSession;
 
@@ -214,7 +211,7 @@ export function resolveConversationExportState(
     const versionUnknown = hasRecord && (c?.updatedAt === undefined || toTimestampMs(rec?.chatTime) === null);
     const needsIncrementalExport = !hasRecord || isPartial || isRecordFailed || hasNewerActivity || versionUnknown;
     const shouldAutoSelect = !isPendingAssets && (
-        !hasRecord || isRecordFailed || recStatus === 'empty' || hasNewerActivity || versionUnknown || (isFailedInSession && !isPartial)
+        !hasRecord || isRecordFailed || hasNewerActivity || versionUnknown || (isFailedInSession && !isPartial)
     );
 
     return {

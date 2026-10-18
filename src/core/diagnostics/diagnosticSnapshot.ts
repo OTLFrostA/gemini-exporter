@@ -1,7 +1,9 @@
+import { getSettings } from '../application/settings/index.js';
+import { listIndexes, listExportRecords } from '../storage/storageService.js';
 import { listAccounts } from '../api/accountRegistry.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../domain/conversationIndex.js';
-import { getExtensionVersion, STORAGE_KEYS } from '../utils/constants.js';
-import { normId } from '../utils/pathUtils.js';
+import { getExtensionVersion } from '../utils/constants.js';
+const normId = (id: string): string => id;
 import { resolveConversationExportState, type ExportActivityRecord } from '../utils/titleUtils.js';
 import { FlightRecorder, type FlightEvent } from './flightRecorder.js';
 
@@ -46,7 +48,7 @@ export interface DiagnosticSnapshot {
         totalConversations: number;
         totalExportedRecords: number;
         accountIds: string[];
-        hasTakeoutData: boolean;
+        hasTakeoutData?: boolean;
         preferences: {
             format?: string;
             useZip?: boolean;
@@ -89,7 +91,7 @@ export function explainStateDerivation(c: Readonly<Partial<DomainConversationInd
     if (st === 'pending_assets') {
         return 'Export record has status=pending_assets';
     }
-    if (st === 'partial' || rec.hasFailedAssets) {
+    if (st === 'partial') {
         return 'Export record marked partial / failed assets; requires incremental retry';
     }
     const derived = resolveConversationExportState(c, rec);
@@ -116,15 +118,13 @@ function object(value: unknown): value is Record<string, unknown> {
 /** Raw recovery data is interpreted once, before calling typed state consumers. */
 function readExportActivity(value: unknown): ExportActivityRecord | undefined {
     if (!object(value)) return undefined;
-    const { exportedAt, chatTime, messageCount, status, hasFailedAssets, isTruncated, truncated } = value;
-    const timestamp = (v: unknown): v is string | number | undefined => v === undefined || typeof v === 'string' || typeof v === 'number' && Number.isFinite(v);
-    if (!timestamp(exportedAt) || !timestamp(chatTime)
-        || messageCount !== undefined && (typeof messageCount !== 'number' || !Number.isSafeInteger(messageCount) || messageCount < 0)
-        || status !== undefined && typeof status !== 'string'
-        || hasFailedAssets !== undefined && typeof hasFailedAssets !== 'boolean'
-        || isTruncated !== undefined && typeof isTruncated !== 'boolean'
-        || truncated !== undefined && typeof truncated !== 'boolean') return undefined;
-    return { exportedAt, chatTime, messageCount, status, hasFailedAssets, isTruncated, truncated };
+    const { exportedAt, chatTime, status, format } = value;
+    const timestamp = (v: unknown): v is number | undefined => v === undefined || typeof v === 'number' && Number.isFinite(v);
+    if (Object.keys(value).some(key => !['exportedAt', 'chatTime', 'status', 'format'].includes(key))
+        || typeof exportedAt !== 'number' || !timestamp(exportedAt) || !timestamp(chatTime)
+        || status !== 'ok' && status !== 'partial'
+        || format !== 'markdown' && format !== 'html' && format !== 'pdf' && format !== 'json') return undefined;
+    return { exportedAt, chatTime, status, format };
 }
 
 function readExportActivities(value: unknown, issues: string[]): ReadonlyMap<string, ExportActivityRecord> {
@@ -140,19 +140,9 @@ function readExportActivities(value: unknown, issues: string[]): ReadonlyMap<str
 
 export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}): Promise<DiagnosticSnapshot> {
     const slot = options.accountId || '';
-    let rawStorage: Record<string, unknown> = {};
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        try {
-            rawStorage = await chrome.storage.local.get<Record<string, unknown>>(null);
-        } catch {}
-    }
-
-    const convKey = `conversations_${slot}`;
-    const expKey = `exported_${slot}`;
-
-    // Diagnostic recovery visibility: diagnostics may inspect unmigrated / corrupted raw storage to aid recovery from migration failures.
+    const settings = await getSettings();
     const recoveryIssues: string[] = [];
-    const rawIndexes: unknown = options.conversations ?? rawStorage[convKey] ?? [];
+    const rawIndexes: unknown = options.conversations ?? (slot ? await listIndexes(slot) : []);
     const convs: DomainConversationIndex[] = [];
     if (!Array.isArray(rawIndexes)) recoveryIssues.push('Invalid index container');
     else for (const [position, row] of rawIndexes.entries()) {
@@ -161,7 +151,7 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
         } catch { recoveryIssues.push(`Rejected index at position ${position}`); }
     }
     const exportRecoveryIssues: string[] = [];
-    const expMap = readExportActivities(options.exportedIds ?? rawStorage[expKey] ?? {}, exportRecoveryIssues);
+    const expMap = readExportActivities(options.exportedIds ?? (slot ? await listExportRecords(slot) : {}), exportRecoveryIssues);
 
     const accountIds = (await listAccounts()).map(account => account.id);
 
@@ -182,9 +172,7 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             exportRecord: rec ? {
                 exportedAt: rec.exportedAt,
                 chatTime: rec.chatTime,
-                messageCount: rec.messageCount,
                 status: rec.status,
-                hasFailedAssets: rec.hasFailedAssets
             } : null,
             derivedState: {
                 state: derived.state,
@@ -209,25 +197,24 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
             platform: typeof navigator !== 'undefined' ? ('userAgentData' in navigator && object(navigator.userAgentData) && typeof navigator.userAgentData.platform === 'string' ? navigator.userAgentData.platform : navigator.platform) : undefined,
             accountId: slot,
-            isDevMode: !!rawStorage[STORAGE_KEYS.DEV_MODE]
+            isDevMode: settings.developerMode
         },
         storageOverview: {
             totalConversations: convs.length,
             totalExportedRecords: expMap.size,
             accountIds,
-            hasTakeoutData: !!rawStorage[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT],
             preferences: {
-                format: stringOr(rawStorage[STORAGE_KEYS.FORMAT], 'md'),
-                useZip: typeof rawStorage[STORAGE_KEYS.ZIP] !== 'undefined' ? !!rawStorage[STORAGE_KEYS.ZIP] : true,
-                lang: stringOr(rawStorage[STORAGE_KEYS.LANG], 'zh'),
-                suppressDirectWritePrompt: !!rawStorage[STORAGE_KEYS.SUPPRESS_DIRECT_WRITE_PROMPT],
-                hasCompletedTour: !!rawStorage[STORAGE_KEYS.HAS_COMPLETED_TOUR],
-                lastSeenFeatureVersion: stringOr(rawStorage[STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION], '0.0.0')
+                format: settings.defaultFormat,
+                useZip: settings.useZip,
+                lang: settings.language,
+                suppressDirectWritePrompt: !!settings.directWritePromptShown,
+                hasCompletedTour: !!settings.tourAutoHandled,
+                lastSeenFeatureVersion: settings.lastSeenFeatureVersion
             }
         },
         conversationsStateMirror: stateMirror,
-        syncDiagnostics: rawStorage[STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS] || null,
-        lastExportSession: rawStorage[STORAGE_KEYS.LAST_EXPORT_SESSION] || null,
+        syncDiagnostics: null,
+        lastExportSession: null,
         flightRecorder: FlightRecorder.getEntries(),
         workbenchLogs: options.workbenchLogs
     };

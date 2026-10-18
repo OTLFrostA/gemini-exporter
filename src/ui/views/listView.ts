@@ -1,4 +1,3 @@
-import { cachedConversationAvailability } from '../../core/storage/conversationAvailability.js';
 import { getAccounts } from '../state/conversationsStore.js';
 import { conversationSourceUrl } from '../../core/utils/conversationSourceUrl.js';
 import { indexActivityTime } from '../../core/domain/conversationIndex.js';
@@ -16,7 +15,7 @@ import {
     resolveConversationExportState as utilsResolveConversationExportState
 } from '../../core/utils/utils.js';
 import { $, t } from '../uiCommon.js';
-import { normId } from '../../core/utils/pathUtils.js';
+import { normId } from '../state/conversationsStore.js';
 
 type ListUtilities = Partial<{
     isRealTitle: typeof utilsIsRealTitle;
@@ -48,7 +47,7 @@ export const resolveConversationExportState: typeof utilsResolveConversationExpo
     return utilsResolveConversationExportState(conversation, record, {
         ...options,
         customHasNewerActivity: customCheck
-            ? (conv, rec) => customCheck(conv, { ...rec, status: 'ok', hasFailedAssets: false })
+            ? (conv, rec) => customCheck(conv, { ...rec, status: 'ok' })
             : undefined
     });
 };
@@ -112,7 +111,6 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
                 } else {
                     canonicalSelectedIds.delete(chatId);
                     canonicalSelectedIds.delete(nid);
-                    canonicalSelectedIds.delete('c_' + nid);
                 }
             }
             updateStat(currentConversationsRef);
@@ -150,7 +148,7 @@ export function render(
             const nid = normId(c.key.conversationId);
             const rec = expMap[nid] || null;
             const isFailedInSession = !!(
-                failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
+                failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid))
             );
             const st = resolveConversationExportState(c, rec, { isFailedInSession });
             if (st.shouldAutoSelect) {
@@ -170,7 +168,7 @@ export function render(
         const nid = normId(c.key.conversationId);
         const rec = expMap[nid] || null;
         const isFailedInSession = !!(
-            failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
+            failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid))
         );
         const st = resolveConversationExportState(c, rec, { isFailedInSession });
 
@@ -203,14 +201,14 @@ export function render(
         const nid = normId(c.key.conversationId);
         const rec = expMap[nid] || null;
         const isFailedInSession = !!(
-            failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
+            failedChatIds && (failedChatIds.has(c.key.conversationId) || failedChatIds.has(nid))
         );
         const st = resolveConversationExportState(c, rec, { isFailedInSession });
         let isChecked = false;
         if (canonicalSelectedIds) {
-            isChecked = canonicalSelectedIds.has(c.key.conversationId) || canonicalSelectedIds.has(nid) || canonicalSelectedIds.has('c_' + nid);
+            isChecked = canonicalSelectedIds.has(c.key.conversationId) || canonicalSelectedIds.has(nid);
         } else if (prevSelectedSet instanceof Set) {
-            isChecked = prevSelectedSet.has(c.key.conversationId) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
+            isChecked = prevSelectedSet.has(c.key.conversationId) || prevSelectedSet.has(nid);
         } else {
             isChecked = st.shouldAutoSelect;
         }
@@ -239,9 +237,7 @@ export function render(
             badgeHtml = `<span class="${b.className}" style="font-size:10px; padding:2px 6px; border-radius:4px; background:${b.bg}; color:${b.color}; margin-left:8px; border:1px solid ${b.border};">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
         }
 
-        const availability = cachedConversationAvailability(c.key.accountId)[c.key.conversationId];
-        const cloudLabel = availability === 'deleted' ? t('archiveCloudDeleted') : availability === 'unlisted' ? t('archiveUnlisted') : '';
-        const cloudBadge = cloudLabel ? `<span class="cloud-status" style="font-size:10px; color:var(--muted); margin-left:8px;">${escapeHtml(cloudLabel)}</span>` : '';
+        const cloudBadge = '';
         const rawUrl = conversationSourceUrl(getAccounts().find(account => account.id === c.key.accountId)?.providerId ?? "gemini", c.key.conversationId);
         const url = (typeof rawUrl === 'string' && /^https?:\/\//i.test(rawUrl.trim()))
             ? rawUrl.trim()
@@ -272,7 +268,7 @@ export function updateItemExportStatus(chatId: string, exportRecord?: Partial<Ex
         ? ((typeof document.getElementById === 'function' ? document.getElementById('list') : null) || document)
         : null;
     if (!list || !list.querySelector) return;
-    const item = list.querySelector(`[data-chat-id="${esc(nid)}"], [data-chat-id="${esc(chatId)}"], [data-chat-id="${esc('c_' + nid)}"]`);
+    const item = list.querySelector(`[data-chat-id="${esc(nid)}"], [data-chat-id="${esc(chatId)}"]`);
     if (!item) return;
 
     const st = resolveConversationExportState({}, exportRecord || { status: 'ok' });
@@ -313,7 +309,7 @@ export function updateStat(conversations?: readonly Readonly<DomainConversationI
     if (canonicalSelectedIds && canonicalSelectedIds.size > 0 && convs.length > 0) {
         checked = convs.filter(c => {
             const nid = normId(c.key.conversationId);
-            return canonicalSelectedIds!.has(c.key.conversationId) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
+            return canonicalSelectedIds!.has(c.key.conversationId) || canonicalSelectedIds!.has(nid);
         }).length;
     } else {
         checked = document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]:checked').length;
@@ -329,7 +325,7 @@ export function getSelected(conversations?: readonly Readonly<DomainConversation
     if (canonicalSelectedIds && canonicalSelectedIds.size > 0) {
         const selected = convs.filter(c => {
             const nid = normId(c.key.conversationId);
-            return canonicalSelectedIds!.has(c.key.conversationId) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
+            return canonicalSelectedIds!.has(c.key.conversationId) || canonicalSelectedIds!.has(nid);
         });
         if (selected.length > 0) return selected;
     }
@@ -396,7 +392,6 @@ export function deselectAll(conversations?: readonly Readonly<DomainConversation
             const nid = normId(chatId);
             canonicalSelectedIds!.delete(chatId);
             canonicalSelectedIds!.delete(nid);
-            canonicalSelectedIds!.delete('c_' + nid);
         } else {
             const idx = parseInt(cb.dataset?.idx || '-1', 10);
             const convs = conversations || currentConversationsRef || [];
@@ -404,8 +399,7 @@ export function deselectAll(conversations?: readonly Readonly<DomainConversation
                 const nid = normId(convs[idx].key.conversationId);
                 canonicalSelectedIds!.delete(convs[idx].key.conversationId);
                 canonicalSelectedIds!.delete(nid);
-                canonicalSelectedIds!.delete('c_' + nid);
-            }
+                }
         }
     });
     updateStat(conversations);
@@ -432,7 +426,6 @@ export function selectUnexported(conversations?: readonly Readonly<DomainConvers
         } else {
             canonicalSelectedIds!.delete(c.key.conversationId);
             canonicalSelectedIds!.delete(nid);
-            canonicalSelectedIds!.delete('c_' + nid);
         }
     });
     updateStat(conversations);

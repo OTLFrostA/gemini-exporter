@@ -1,7 +1,9 @@
 
 import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
 import type { PingMessage, OpenGeminiPageMessage, ReloadGeminiTabMessage } from '../../types/messages.js';
-import { isObjectRecord } from './messageResponses.js';
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 import { isMessageAction } from './messaging.js';
 import { isAccountId } from '../domain/accountRegistry.js';
 

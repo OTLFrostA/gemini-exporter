@@ -10,7 +10,7 @@ export interface GlobalSettings {
     developerMode: boolean;
     language?: 'zh' | 'en';
     badgePosition?: { left: number; top: number };
-    tourShown?: true;
+    tourAutoHandled?: true;
     lastSeenFeatureVersion?: string;
     takeoutPromptCompleted?: true;
     directWritePromptShown?: true;

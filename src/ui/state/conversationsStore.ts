@@ -1,16 +1,12 @@
 import { listAccounts } from '../../core/api/accountRegistry.js';
-import { ingestIndexes } from '../../core/domain/ingestion.js';
-import { getConversationAvailability } from '../../core/storage/conversationAvailability.js';
+import { compareConversationIndexes } from '../../core/domain/conversationIndex.js';
+import { getSettings, updateSettings, clearLocalExportRecords, clearLocalAccountData, deleteLocalConversations } from '../../core/application/index.js';
 import { isAccountId, type Account } from '../../core/domain/accountRegistry.js';
 import type { DomainConversationIndex } from '../../types/conversation.js';
-import type { ReconcileOptions, ExportRecord, IConversationsStore } from '../../types/ui.js';
+import type { ExportRecord, IConversationsStore } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 
-import StorageService from '../../core/storage/storageService.js';
-import GeminiUtils, {
-    normId as utilsNormId
-} from '../../core/utils/utils.js';
-import { STORAGE_KEYS } from '../../core/utils/constants.js';
+import * as Storage from '../../core/storage/storageService.js';
 
 let conversations: DomainConversationIndex[] = [];
 let exportedIds: Record<string, ExportRecord> = {};
@@ -18,39 +14,20 @@ let accountId: string = '';
 let accounts: Account[] = [];
 let loadGeneration = 0;
 
-const getStorage = (): any => __resolveModule('StorageService', StorageService);
-const getUtils = (): any => __resolveModule('GeminiUtils', GeminiUtils);
+const getStorage = () => __resolveModule('StorageService', Storage);
 
-export const normId = (id?: string | null): string => {
-    const utils = getUtils();
-    if (utils && typeof utils.normId === 'function') return utils.normId(id);
-    return utilsNormId(id);
-};
+// Conversation IDs are opaque; the UI must not strip provider-looking prefixes.
+export const normId = (id?: string | null): string => id || '';
 
 export function getConversations(): DomainConversationIndex[] { return conversations; }
 export function setConversations(list: DomainConversationIndex[]): void { conversations = list || []; }
 export function getExportedIds(): Record<string, ExportRecord> { return exportedIds; }
 
-// Fold legacy alias keys ('c_<id>' / raw id) into canonical normId keys for consistent in-memory lookups
-function collapseExportAliases(map: Record<string, ExportRecord>): void {
-    for (const k of Object.keys(map)) {
-        const ck = normId(k);
-        if (!ck || ck === k) continue;
-        if (!(ck in map)) {
-            map[ck] = map[k];
-        }
-        delete map[k];
-    }
-}
-
-export function setExportedIds(map: Record<string, ExportRecord>): void {
-    const next = map || {};
-    collapseExportAliases(next);
-    exportedIds = next;
- }
+export function setExportedIds(map: Record<string, ExportRecord>): void { exportedIds = map || {}; }
 export function getCurrentAccountId(): string { return accountId; }
 export function setCurrentAccountId(id: string): void {
     if (id !== '' && !isAccountId(id)) throw new TypeError('Invalid account UUID');
+    if (id !== accountId) { conversations = []; exportedIds = {}; }
     accountId = id;
     loadGeneration++;
 }
@@ -87,93 +64,46 @@ export async function loadStore(accountOverride?: string): Promise<{
     setAccounts(available);
     const target = accountOverride || accountId || available[0].id;
     if (!available.some(account => account.id === target)) throw new Error('Selected account does not exist');
-    const [incoming, expIds] = await Promise.all([storage.getConversations(target), storage.getExportedIds(target)]);
-    if (ticket !== loadGeneration) return snapshot();
-    await storage.getConversationAvailability?.(target);
+    const [incoming, expIds] = await Promise.all([storage.listIndexes(target), storage.listExportRecords(target)]);
     if (ticket !== loadGeneration) return snapshot();
     accountId = target;
+    incoming.sort(compareConversationIndexes);
     setExportedIds(expIds); setConversations(incoming);
     return { conversations: incoming, exportedIds: expIds, accountId: target, accounts: available };
 }
 
 export async function getLastSync(slot?: string): Promise<{ timestamp: number | null; count: number }> {
-    const s = slot || accountId || '';
-    const storage = getStorage();
-    if (!s) return { timestamp: null, count: 0 };
-    if (storage?.getLastSync) return await storage.getLastSync(s);
-    return { timestamp: null, count: 0 };
-}
-
-export async function saveConversations(slot: string, list: DomainConversationIndex[]): Promise<void> {
-    const s = slot || accountId;
-    const storage = getStorage();
-    await ingestIndexes(s, list.map(({ key, ...fields }) => ({ conversationId: key.conversationId, fields })));
-    if (s === accountId) setConversations(await storage.getConversations(s));
+    const target = slot || accountId;
+    return { timestamp: null, count: target ? (await Storage.listIndexes(target)).length : 0 };
 }
 
 export async function clearExported(slot: string): Promise<void> {
-    const s = slot || accountId;
-    const storage = getStorage();
-    if (storage?.removeExportRecords) {
-        // P1-3: clear via the transactional delete path instead of a bare
-        // whole-map overwrite. removeExportRecords re-reads the map inside the
-        // storage write chain and deletes only the listed ids, so records
-        // written concurrently by saveExportRecord can neither be clobbered
-        // (overwrite race) nor resurrected (delete-then-write race).
-        const cur = (storage?.getExportedIds ? await storage.getExportedIds(s) : null) || {};
-        await storage.removeExportRecords(s, Object.keys(cur));
-    }
-    if (s === accountId) setExportedIds({});
+    const target = slot || accountId;
+    await clearLocalExportRecords(target);
+    if (target === accountId) setExportedIds({});
 }
-
 export async function clearAll(slot: string): Promise<void> {
-    const s = slot || accountId;
-    const storage = getStorage();
-    if (storage?.clearConversations) {
-        await storage.clearConversations(s);
-
-    }
-    if (s === accountId) {
-        setConversations([]);
-        setExportedIds({});
-    }
+    const target = slot || accountId;
+    await clearLocalAccountData(target);
+    if (target === accountId) { setConversations([]); setExportedIds({}); }
 }
-
-export async function getDevMode(): Promise<boolean> {
-    const storage = getStorage();
-    if (storage?.getDevMode) return await storage.getDevMode();
-    return false;
-}
-
-export async function setDevMode(devOn: boolean): Promise<void> {
-    const storage = getStorage();
-    if (storage?.setDevMode) await storage.setDevMode(devOn);
-}
-
+export async function getDevMode(): Promise<boolean> { return (await getSettings()).developerMode; }
+export async function setDevMode(developerMode: boolean): Promise<void> { await updateSettings({ developerMode }); }
 export async function removeConversation(id: string): Promise<DomainConversationIndex[]> {
+    const target = accountId;
     if (!id) return conversations;
-    const nid = normId(id);
-    const capturedAccountId = accountId;
-    const storage = getStorage();
-    // Write-through: persist to storage first so a storage failure does not
-    // leave the in-memory cache out of sync (item gone from cache but still
-    // in chrome.storage). If the await throws, memory stays untouched.
-    if (storage?.removeConversation) {
-        await storage.removeConversation(capturedAccountId, nid);
+    await deleteLocalConversations([{ accountId: target, conversationId: id }]);
+    if (accountId === target) {
+        conversations = conversations.filter(c => c.key.conversationId !== id);
+        delete exportedIds[id];
     }
-    if (accountId === capturedAccountId) conversations = (conversations || []).filter(c => c.key.conversationId !== nid);
     return conversations;
-}
-
-export async function reconcileWithCloud(_activeCloudList: {id: string}[], _options: ReconcileOptions = {}): Promise<{kept: number; removed: number; removedIds: string[]}> {
-    return { kept: conversations.length, removed: 0, removedIds: [] };
 }
 
 export const ConversationsStore: IConversationsStore = {
     getConversations,
     setConversations,
     removeConversation,
-    reconcileWithCloud,
     getExportedIds,
     setExportedIds,
     getCurrentAccountId,
@@ -184,7 +114,6 @@ export const ConversationsStore: IConversationsStore = {
     getSignature,
     loadStore,
     getLastSync,
-    saveConversations,
     clearExported,
     clearAll,
     getDevMode,

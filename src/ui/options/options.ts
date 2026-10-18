@@ -1,15 +1,3 @@
-// NOTE (re-audit 2026-09-17, main=d601f83): all 33 former bare side-effect imports
-// were verified removable. A static-import-graph BFS from this entrypoint reaches all
-// 33 modules (82 files total), and no reader uses a `(globalThis as any).ModuleName`
-// mount for them anymore — #437 migrated the AssetPipeline reader to the
-// moduleOverrides seam with a static default import
-// (exportOrchestrator.ts:46 `import { AssetPipeline as AssetPipelineStatic }`, used via
-// `__resolveModule('AssetPipeline', AssetPipelineStatic)`), so the module stays in the
-// esbuild bundle through that chain: options.ts -> optionsContext.ts ->
-// controllers/exportController.ts -> exportEngine.js -> export/exportOrchestrator.js ->
-// assetPipeline.js.
-import { FsWriterModule as FsWriter } from '../../core/engine/writers/fsWriter.js';
-import { ensureStorageReady } from '../../core/storage/schemaMigration.js';
 import { OptionsInit } from './modules/optionsInit.js';
 import { OptionsExport } from './modules/optionsExport.js';
 import { OptionsSync } from './modules/optionsSync.js';
@@ -56,7 +44,6 @@ export async function isTakeoutPromptCompleted(): Promise<boolean> {
 }
 
 export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<void> {
-    await ensureStorageReady();
     if (OptionsInit && OptionsInit.loadStore) {
         return await OptionsInit.loadStore(force, customSelected);
     }
@@ -71,7 +58,6 @@ export async function initWorkbench(): Promise<void> {
         window.__workbenchLoadStore = loadStore;
     }
 
-    await ensureStorageReady();
 
     if (OptionsTakeout && OptionsTakeout.init) {
         OptionsTakeout.init({ loadStore, log });
@@ -181,14 +167,13 @@ const OptionsModule = {
 };
 
 // E2E / Live test hooks (read by Playwright specs & live harness actions.py):
-// __workbenchLoadStore, DialogView, ConversationsStore, TourGuide, FsWriter,
+// __workbenchLoadStore, DialogView, ConversationsStore, TourGuide,
 // TakeoutController, SyncController. Other module mounts removed — use static imports.
 if (typeof window !== 'undefined') {
     window.__workbenchLoadStore = loadStore;
     window.ConversationsStore = ConversationsStore;
     window.DialogView = DialogView;
     window.TourGuide = TourGuide;
-    window.FsWriter = FsWriter;
     window.TakeoutController = TakeoutController;
     window.SyncController = SyncController;
     window.ExportController = ExportController;

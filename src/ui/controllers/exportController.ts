@@ -1,28 +1,14 @@
 import type { ExportControllerContract, UIExportOptions, UIExportCallbacks, UIExportResult, ActiveExportEngine } from '../../types/ui.js';
-import ExportEngine from '../../core/engine/exportEngine.js';
-import { PdfExporter } from "../../core/export/pdf/pdfExporter.js";
-import { ProgressView } from '../views/progressView.js';
+import { runExport as executeExport, type ExportFormat } from '../../core/application/index.js';
 import { $, setWorkbenchControlsDisabled } from '../uiCommon.js';
-import { normId } from '../../core/utils/pathUtils.js';
+import { conversationKey } from '../../core/domain/conversationKey.js';
 
-let activeEngine: any = null;
+let activeEngine: AbortController | null = null;
 let exportRunning = false;
 
-export function estimateMemoryUsage(selected: any[], conversations: any[]): number {
-    if (!Array.isArray(selected) || !selected.length) return 0;
-    const convMap = new Map<string, any>((conversations || []).map((c: any) => [normId(c?.id), c]));
-    let totalAttachments = 0;
-    let totalMessages = 0;
-    for (const item of selected) {
-        const rawId = typeof item === 'string' ? item : item?.id;
-        const norm = normId(rawId);
-        const conv = (norm ? convMap.get(norm) : null) || (typeof item === 'object' ? item : null);
-        if (conv) {
-
-            totalMessages += (conv.messageCount ?? 0);
-        }
-    }
-    return Math.round((totalAttachments * 1.8) + (totalMessages * 0.02) + (selected.length * 0.05));
+export function estimateMemoryUsage(selected: unknown[], _conversations: unknown[]): number {
+    // Index no longer contains attachment/message counts. Avoid inventing a resource estimate.
+    return Math.round(selected.length * 0.05);
 }
 
 export function setRunning(running: boolean): void {
@@ -41,48 +27,46 @@ export function isRunning(): boolean {
 }
 
 export function getActiveEngine(): ActiveExportEngine | null {
-    return activeEngine;
+    const controller = activeEngine;
+    return controller ? { abort: () => controller.abort() } : null;
 }
 
 export function abort(): void {
-    if (activeEngine) {
-        try {
-            activeEngine.abort();
-        } catch {}
-    }
-    try {
-        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-            chrome.runtime.sendMessage({ action: 'cancelExport' }, () => {
-                if (chrome.runtime.lastError) {}
-            });
-        }
-    } catch (e) {
-        if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportController.ts]", e);
-    }
-    setRunning(false);
-    ProgressView.hide();
+    activeEngine?.abort();
+    // Keep the controls locked until Application has finished cancellation and cleanup.
 }
-
 
 export async function runExport(
     options: UIExportOptions,
     callbacks: UIExportCallbacks
 ): Promise<UIExportResult> {
+    if (exportRunning) throw new Error('Export already running');
+    const format = options.format || 'markdown';
+    if (!['markdown', 'html', 'json', 'pdf'].includes(format)) throw new Error('Unsupported export format');
+    if (!options.accountId) throw new Error('Select an account before exporting');
+    const accountId = options.accountId;
+    const keys = options.selected.map(item => {
+        if (typeof item !== 'string' && item.key && item.key.accountId !== accountId) throw new Error('Selected conversation belongs to another account');
+        return conversationKey(accountId, typeof item === 'string' ? item : item.key?.conversationId || item.id);
+    });
+    activeEngine = new AbortController();
     setRunning(true);
     try {
-        activeEngine = new ExportEngine();
-        if (options && options.format === 'pdf') {
-            activeEngine = new PdfExporter();
-        }
-        const result = await activeEngine.run(options, callbacks);
-        return result;
+        const result = await executeExport({ keys, format: format as ExportFormat,
+            delivery: options.useZip === false ? 'folderWriter' : 'browserDownload',
+            useZip: options.useZip !== false, includeAssets: options.includeAssets !== false,
+            skipUnchanged: options.skip === true }, {
+            signal: activeEngine.signal,
+            onProgress: progress => callbacks.onProgress?.({ ...progress,
+                pct: progress.total ? progress.current / progress.total * 100 : 0,
+                title: progress.key.conversationId })
+        });
+        return { exportedCount: result.exported, landedChats: result.exported,
+            skipped: result.skipped, partial: result.partial, aborted: result.aborted,
+            failedChats: result.failed.map(key => ({ id: key.conversationId, error: 'Export failed' })) };
     } finally {
-        try {
-            activeEngine?.dispose?.();
-        } finally {
-            activeEngine = null;
-            setRunning(false);
-        }
+        activeEngine = null;
+        setRunning(false);
     }
 }
 

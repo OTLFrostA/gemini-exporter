@@ -15,7 +15,8 @@
     "test:tier2": "python3 scripts/test_live_chat_and_export.py",
     "test:upgrade": "node scripts/test_upgrade_profile.mjs",
     "release": "gh workflow run release.yml --ref main",
-    "test:v2-modules": "node scripts/test-v2-modules.cjs"
+    "test:v2-modules": "node scripts/test-v2-modules.cjs",
+    "test:ui-v2": "node scripts/check-ui-v2.cjs"
   },
   "keywords": [
     "gemini",

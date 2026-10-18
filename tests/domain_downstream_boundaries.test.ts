@@ -14,7 +14,7 @@ test('diagnostic acquisition rejects bad records individually before typed state
     for (const record of [null, [], 1, { chatTime: { toString: null } }, { messageCount: 'many' }, { status: {} }, { hasFailedAssets: 'yes' }, { chatTime: Infinity }]) {
         const snapshot = await buildDiagnosticSnapshot({
             conversations: [index, { ...index, key: { ...index.key, conversationId: 'valid' } }],
-            exportedIds: { review123: record, valid: { status: 'ok', chatTime: index.updatedAt, messageCount: 2 } },
+            exportedIds: { review123: record, valid: { exportedAt: 1700000000000, format: 'markdown', status: 'ok', chatTime: index.updatedAt } },
         });
         assert.deepEqual(snapshot.exportRecoveryIssues, ['Rejected export record: review123']);
         assert.equal(snapshot.conversationsStateMirror[0].derivedState.state, 'unexported');

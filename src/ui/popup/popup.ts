@@ -1,32 +1,26 @@
-import { missingResource, resourceDiagnostics } from '../../core/resources/resourceResult.js';
-import { isStoredObject, type StoredValue } from '../../core/storage/storageCompatibility.js';
-import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
-import { StorageService } from '../../core/storage/storageService.js';
-import { ensureStorageReady } from '../../core/storage/schemaMigration.js';
-import { __resolveModule } from '../../core/utils/moduleOverrides.js';
-import { FormatStore } from '../../core/storage/formatStore.js';
-import { ChatFormatter } from '../../core/engine/chatFormatter.js';
-import {
-    isGeminiUrl,
-    extractConversationIdFromUrl,
-    buildExportFileName
-} from '../../core/utils/pathUtils.js';
+import { getSettings, updateSettings, runExport, type ExportFormat } from '../../core/application/index.js';
+import { listIndexes } from '../../core/storage/storageService.js';
+import { readConversation } from '../../core/domain/readConversation.js';
+import { isAccountId } from '../../core/domain/accountRegistry.js';
+import { SETTINGS_KEY } from '../../core/storage/settingsStore.js';
+import { cleanTitle } from '../../core/utils/utils.js';
+import { isGeminiUrl } from '../../core/utils/pathUtils.js';
 import { $, getI18n } from '../uiCommon.js';
-import { requestNativeDetail } from '../../core/utils/nativeDetailTransport.js';
-import { readPopupFetchResult } from '../../core/utils/messageResponses.js';
-import { sendTypedMessage, getErrorMessage } from '../../core/utils/messaging.js';
+import { getErrorMessage } from '../../core/utils/messaging.js';
 import { ProgressView } from '../views/progressView.js';
-import { STORAGE_KEYS } from '../../core/utils/constants.js';
 
-const getStorage = () => __resolveModule('StorageService', StorageService);
-
+const formats = ['markdown', 'html', 'json', 'pdf'] as const;
+const normalizeFormat = (value: string): ExportFormat => formats.includes(value as ExportFormat) ? value as ExportFormat : 'markdown';
+let exporting = false;
+let exportCancellation: AbortController | null = null;
+let contextGeneration = 0;
 let _activeConvId: string | null = null;
 let _activeAccountId = '';
 let _activeChatTitle: string = '';
 let _activeFormat = 'markdown';
 
 function updateFormatTabsUI(targetFormat: string): void {
-    _activeFormat = FormatStore.normalizeFormat(targetFormat);
+    _activeFormat = normalizeFormat(targetFormat);
     const tabBtns = document.querySelectorAll('#formatTabs .tab-btn') as NodeListOf<HTMLButtonElement>;
     tabBtns.forEach(btn => {
         const val = btn.getAttribute('data-value');
@@ -88,81 +82,37 @@ function updateUiForTabState(isGemini: boolean): void {
     }
 }
 
-async function updateCount(): Promise<void> {
+export async function updateCount(): Promise<void> {
+    const ticket = ++contextGeneration;
+    // Clear the previous binding before awaiting; a failed lookup cannot reuse another tab's account.
+    _activeAccountId = '';
+    _activeConvId = null;
+    updateUiForTabState(false);
     try {
-        let slot = '';
-        let isGemini = false;
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-        if (tab?.url && isGeminiUrl(tab.url)) {
-            isGemini = true;
-            if (tab.id == null) throw new Error('Active tab is unavailable');
-            const binding: unknown = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
-            if (!binding || typeof binding !== 'object' || !('accountContext' in binding) || !isStoredObject(binding.accountContext)
-                || typeof binding.accountContext.accountId !== 'string') throw new Error('Active tab account is unavailable');
-            slot = binding.accountContext.accountId;
-            _activeAccountId = slot;
-            _activeConvId = extractConversationIdFromUrl(tab.url);
-        } else {
-            _activeAccountId = '';
-            _activeConvId = null;
-        }
-        updateUiForTabState(isGemini);
-
-        const currentChatTitleEl = $('currentChatTitle');
-        const chatTurnBadgeEl = $('chatTurnBadge');
-        const i18n = getI18n();
-
-        if (isGemini && _activeConvId) {
-            const list = getStorage() ? await getStorage().getConversations(slot) : [];
-            const rawFound = list.find((c: any) => c.key.conversationId === _activeConvId);
-            const found = isStoredObject(rawFound) && !Array.isArray(rawFound) ? rawFound : null;
-            if (found && found.title) {
-                _activeChatTitle = cleanTitle(typeof found.title === 'string' ? found.title : undefined);
-            } else if (tab?.title) {
-                _activeChatTitle = cleanTitle(tab.title.replace(/ - Gemini$/, ''));
-            } else {
-                _activeChatTitle = _activeConvId;
-            }
-
-            if (currentChatTitleEl) {
-                currentChatTitleEl.textContent = _activeChatTitle;
-                currentChatTitleEl.title = _activeChatTitle;
-            }
-
-            const detail = await getStorage().conversationRepository({ providerId: 'gemini', accountId: slot }).getConversation(_activeConvId);
-            const msgCount = detail?.detail?.messages.length ?? 0;
-            if (chatTurnBadgeEl) {
-                chatTurnBadgeEl.textContent = Number(msgCount) > 0
-                    ? (i18n.t('chatMessagesCount', msgCount))
-                    : (i18n.t('chatNoMessages'));
-            }
-        } else if (isGemini) {
-            if (currentChatTitleEl) {
-                currentChatTitleEl.textContent = i18n.t('chatNoMessages');
-            }
-            if (chatTurnBadgeEl) {
-                chatTurnBadgeEl.textContent = i18n.t('chatNoMessages');
-            }
-        }
-
-        let count: StoredValue = 0;
-        const convs = slot ? await getStorage().getConversations(slot) : [];
-        count = convs.length;
-        if (!count && slot) {
-            const syncInfo = await getStorage().getLastSync(slot);
-            count = syncInfo?.count || 0;
-        }
+        if (!tab?.url || !isGeminiUrl(tab.url) || tab.id == null) return;
+        const binding: unknown = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
+        if (!binding || typeof binding !== 'object' || !('accountContext' in binding)) throw new Error('Account unavailable');
+        const context = binding.accountContext;
+        if (!context || typeof context !== 'object' || !('accountId' in context) || !isAccountId(context.accountId)) throw new Error('Account unavailable');
+        const accountId = context.accountId;
+        const conversationId = 'conversationId' in binding && typeof binding.conversationId === 'string' && binding.conversationId.trim() ? binding.conversationId : null;
+        const [indexes, conversation] = await Promise.all([listIndexes(accountId),
+            conversationId ? readConversation({ accountId, conversationId }) : null]);
+        if (ticket !== contextGeneration) return;
+        _activeAccountId = accountId;
+        _activeConvId = conversationId;
+        updateUiForTabState(true);
+        const button = $('btnCurrent') as HTMLButtonElement | null;
+        if (button) button.disabled = exporting || !conversationId;
+        _activeChatTitle = cleanTitle(indexes.find(row => row.key.conversationId === conversationId)?.title || tab.title || conversationId || '');
+        const title = $('currentChatTitle');
+        if (title) title.textContent = _activeChatTitle;
+        const turns = $('chatTurnBadge');
+        if (turns) turns.textContent = getI18n().t('chatMessagesCount', conversation?.detail.messages.length || 0);
         const badge = $('countBadge');
-        if (badge) {
-            const text = i18n.t('syncedBadge', count);
-            const label = text;
-            const offlineLabel = i18n.t('badgeOffline');
-            badge.textContent = isGemini ? label : `${label} (${offlineLabel})`;
-        }
-    } catch (e) {
-        console.warn('[popup] updateCount err', e);
-    }
+        if (badge) badge.textContent = getI18n().t('syncedBadge', indexes.length);
+    } catch (error) { log(getErrorMessage(error)); }
 }
 
 const handleLangChange = async (targetLang: string): Promise<void> => {
@@ -209,24 +159,18 @@ function initPopupEvents(): void {
         void handleLangChange(nextLang);
     });
 
-    const formatStore = __resolveModule('FormatStore', FormatStore);
     const formatSelect = $('format') as HTMLSelectElement | null;
-    if (formatStore && formatStore.loadFormat) {
-        void formatStore.loadFormat(formatSelect).then(({ format, isDev }: { format: string; isDev: boolean }) => {
-            if (isDev) document.body.classList.add('dev-mode');
-            updateFormatTabsUI(format);
-        });
-    }
+    void getSettings().then(settings => {
+        updateFormatTabsUI(settings.defaultFormat);
+        document.body.classList.toggle('dev-mode', settings.developerMode);
+    });
 
     const tabBtns = document.querySelectorAll('#formatTabs .tab-btn') as NodeListOf<HTMLButtonElement>;
     tabBtns.forEach(btn => {
         btn.addEventListener('click', async () => {
             const val = btn.getAttribute('data-value');
             if (val) {
-                const fStore = __resolveModule('FormatStore', FormatStore);
-                if (fStore && typeof fStore.saveFormat === 'function') {
-                    await fStore.saveFormat(val);
-                }
+                await updateSettings({ defaultFormat: normalizeFormat(val) });
                 updateFormatTabsUI(val);
             }
         });
@@ -234,105 +178,16 @@ function initPopupEvents(): void {
 
     formatSelect?.addEventListener('change', (e: Event) => {
         const val = (e.target as HTMLSelectElement).value;
-        const fStore = __resolveModule('FormatStore', FormatStore);
-        if (fStore && typeof fStore.saveFormat === 'function') {
-            void fStore.saveFormat(val);
-        }
+        void updateSettings({ defaultFormat: normalizeFormat(val) });
         updateFormatTabsUI(val);
     });
 
     $('btnOptions')?.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
-    let __exportingCurrentPage = false;
-    $('btnCurrent')?.addEventListener('click', async () => {
-        const btnCurrentEl = $('btnCurrent') as HTMLButtonElement | null;
-        const i18n = getI18n();
-        if (__exportingCurrentPage) {
-            log(i18n && typeof i18n.t === 'function' ? i18n.t('popupExportBusy') : '正在导出当前页，请稍候…');
-            return;
-        }
-        __exportingCurrentPage = true;
-        if (btnCurrentEl) btnCurrentEl.disabled = true;
-
-        const __releaseExportGuard = (): void => {
-            __exportingCurrentPage = false;
-            if (btnCurrentEl) btnCurrentEl.disabled = false;
-        };
-
-        const currentFormatSelect = $('format') as HTMLSelectElement | null;
-        let format: string = _activeFormat || currentFormatSelect?.value || 'markdown';
-        ProgressView.show(10);
-
-        try {
-            if (!_activeConvId) {
-                log(i18n.t('popupNoChatId'));
-                __releaseExportGuard();
-                return;
-            }
-            if (format === 'pdf') {
-                log(i18n.t('popupPdfUseOptions'));
-                __releaseExportGuard();
-                return;
-            }
-            requestNativeDetail(() => sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountId: _activeAccountId }, 40000)).then(async (raw) => {
-                const res = readPopupFetchResult(raw);
-                try {
-                    if (!res || !res.success) {
-                        log(i18n.t('popupFetchFailed', res?.error || '未知错误'));
-                        return;
-                    }
-
-                    ProgressView.update(80);
-                    const chat = res.chat;
-
-                    // This action delivers one body file. It has no companion-file writer.
-                    const missing = chat.conversation.detail.assets.filter(() => format === 'html' || format === 'markdown')
-                        .map(asset => missingResource(asset.id, i18n.t('popupAttachmentsNotDelivered')));
-                    const diagnostics = resourceDiagnostics(missing);
-                    let formatted;
-                    if (format === 'html') {
-                        formatted = await ChatFormatter.formatHtmlDocument(chat, { resourceResults: missing });
-                    } else if (format === 'markdown') {
-                        formatted = await ChatFormatter.formatMarkdownDocument(chat, { resourceResults: missing });
-                    } else {
-                        formatted = ChatFormatter.formatContent(chat, format, missing);
-                    }
-                    const fileName = buildExportFileName(chat.conversation.index.title || chat.conversation.index.key.conversationId, _activeConvId, formatted.ext);
-                    const blob = new Blob([formatted.content], { type: formatted.mime });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    a.click();
-                    setTimeout(() => URL.revokeObjectURL(url), 3000);
-
-                    ProgressView.complete();
-                    log(i18n.t('popupExported', fileName, chat.conversation.detail.messages.length || 0));
-                    if (diagnostics.length) log(i18n.t('popupAttachmentsNotDelivered'));
-                } finally {
-                    __releaseExportGuard();
-                }
-            }).catch((err: unknown) => {
-                __releaseExportGuard();
-                log(i18n.t('popupFetchFailed', getErrorMessage(err)));
-            });
-        } catch (e: unknown) {
-            __releaseExportGuard();
-            log(i18n.t('popupExportError', getErrorMessage(e)));
-        }
-    });
-
-    chrome.runtime.onMessage.addListener((msg: any) => {
-        const i18n = getI18n();
-        if (msg.action === 'syncUpdate') {
-            const badge = $('countBadge');
-            if (badge) badge.textContent = i18n.t('syncedBadge', msg.count);
-        }
-        if (msg.action === 'exportProgress' || msg.action === 'scanProgress') {
-            let pct = typeof msg.percent === 'number' ? msg.percent : (msg.total ? Math.floor((msg.done / msg.total) * 100) : 50);
-            ProgressView.update(Math.min(Math.max(pct, 5), 100));
-            if (msg.title) log(msg.title);
-        }
+    $('btnCurrent')?.addEventListener('click', () => { void exportCurrent(); });
+    window.addEventListener('pagehide', () => exportCancellation?.abort());
+    chrome.runtime.onMessage.addListener((message: { action?: string; accountId?: string }) => {
+        if (message.action === 'syncUpdate' && (!message.accountId || message.accountId === _activeAccountId)) void updateCount();
     });
 
     const i18n = getI18n();
@@ -341,44 +196,58 @@ function initPopupEvents(): void {
         i18n.applyLangToggleUI();
         i18n.onLanguageChange(() => i18n.applyLangToggleUI());
         try {
-            await ensureStorageReady();
             void updateCount();
         } catch (e) {
             console.warn('[popup] storage not ready', e);
         }
     });
 
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
-        chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === 'local') {
-                if (changes[STORAGE_KEYS.LANG]) {
-                    const newLang = String(changes[STORAGE_KEYS.LANG].newValue || 'zh');
-                    const i18nInst = getI18n();
-                    if (i18nInst && typeof i18nInst.getLang === 'function' && i18nInst.getLang() !== newLang) {
-                        void handleLangChange(newLang);
-                    }
-                }
-                if (changes[STORAGE_KEYS.FORMAT]) {
-                    const newFmt = String(changes[STORAGE_KEYS.FORMAT].newValue || 'markdown');
-                    updateFormatTabsUI(newFmt);
-                }
-                if (changes[STORAGE_KEYS.DEV_MODE]) {
-                    const isDev = !!changes[STORAGE_KEYS.DEV_MODE].newValue;
-                    if (isDev) document.body.classList.add('dev-mode');
-                    else document.body.classList.remove('dev-mode');
-                    updateFormatTabsUI(_activeFormat);
-                }
-                if (Object.keys(changes).some(key => /^(conversations|last_count|last_sync)_/.test(key))) {
-                    void updateCount();
-                }
+    chrome.storage?.onChanged?.addListener((changes, area) => {
+        if (area !== 'local' || !changes[SETTINGS_KEY]) return;
+        void getSettings().then(settings => {
+            updateFormatTabsUI(settings.defaultFormat);
+            document.body.classList.toggle('dev-mode', settings.developerMode);
+            if (settings.language && settings.language !== getI18n().getLang()) {
+                const i18n = getI18n();
+                void i18n.initLanguage().then(() => { i18n.applyI18n(); i18n.applyLangToggleUI(); });
             }
         });
-    }
+    });
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.onUpdated) {
         chrome.tabs.onUpdated.addListener(() => updateCount());
     }
 }
 
-initPopupEvents();
+export async function exportCurrent(): Promise<void> {
+    if (exporting) return;
+    exporting = true;
+    exportCancellation = new AbortController();
+    try {
+        await updateCount();
+        const key = { accountId: _activeAccountId, conversationId: _activeConvId || '' };
+        if (!key.accountId || !key.conversationId) throw new Error(getI18n().t('popupNoChatId'));
+        const settings = await getSettings();
+        const format = normalizeFormat(_activeFormat);
+        if (format === 'pdf') { log(getI18n().t('popupPdfUseOptions')); return; }
+        ProgressView.show(0);
+        const result = await runExport({ keys: [key], format, delivery: 'browserDownload',
+            useZip: settings.useZip, includeAssets: settings.includeAssets, skipUnchanged: false }, {
+            signal: exportCancellation.signal,
+            onProgress: progress => ProgressView.update(progress.total ? progress.current / progress.total * 100 : 0)
+        });
+        const message = result.aborted ? getI18n().t('exportAborted')
+            : result.failed.length ? getI18n().t('exportFailed', key.conversationId)
+            : result.partial ? getI18n().t('exportPartialCount', result.partial)
+            : getI18n().t('exportSuccess', result.exported);
+        ProgressView.complete(message);
+        log(message);
+    } catch (error) { log(getErrorMessage(error)); }
+    finally {
+        exportCancellation = null;
+        exporting = false;
+        const button = $('btnCurrent') as HTMLButtonElement | null;
+        if (button) button.disabled = !_activeAccountId || !_activeConvId;
+    }
+}
 
-export {};
+if (typeof document !== 'undefined') initPopupEvents();

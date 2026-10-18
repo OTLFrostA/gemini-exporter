@@ -12,14 +12,13 @@ import {
     getStorage
 } from '../optionsContext.js';
 import { $ } from '../../uiCommon.js';
-import { normId } from '../../../core/utils/pathUtils.js';
+import { normId } from '../../state/conversationsStore.js';
 import {
     cleanTitle,
     isRealTitle,
     getEffectiveTimestamp,
     compareConversations
 } from '../../../core/utils/utils.js';
-import { STORAGE_KEYS } from '../../../core/utils/constants.js';
 
 export { normId, cleanTitle, isRealTitle, compareConversations };
 export const getEffectiveTime = getEffectiveTimestamp;
@@ -90,24 +89,9 @@ export function updateAccountSelector(): void {
 }
 
 export async function checkExportSession(): Promise<void> {
-    try {
-        const Dialogs = getDialogs();
-        const Controller = getController();
-        const Store = getStore();
-        if (!Dialogs || !Dialogs.renderExportBanner) return;
-        const isRunning = Controller ? Controller.isRunning() : false;
-        const data = await chrome.storage.local.get([STORAGE_KEYS.LAST_EXPORT_SESSION]);
-        const session = data[STORAGE_KEYS.LAST_EXPORT_SESSION] as any;
-        if (session && Array.isArray(session.failedChats) && session.failedChats.length > 0) {
-            if (typeof (Dialogs as any)?.setLastFailedChats === 'function') {
-                (Dialogs as any).setLastFailedChats(session.failedChats);
-            }
-        }
-        const slot = Store ? Store.getCurrentAccountId() : '';
-        Dialogs.renderExportBanner(session, slot, isRunning);
-    } catch (e) {
-        console.debug('[workbench:init] checkExportSession error', e);
-    }
+    // Export is invocation-scoped. Only the current page's failure list may be retried.
+    const banner = $('exportSessionBanner');
+    if (banner) banner.style.display = 'none';
 }
 
 export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<void> {
@@ -241,7 +225,9 @@ function bindSearchAndSelection(): void {
         const Store = getStore();
         if (Store) {
             Store.setCurrentAccountId(newSlot);
-            await loadStore();
+            getList()?.setSelectedIds?.(null);
+            getDialogs()?.hideExportFailureBanner();
+            await loadStore(true, new Set());
         }
     });
 

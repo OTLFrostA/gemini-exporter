@@ -2,13 +2,20 @@ import type { DirHandleControllerContract, DirectoryHandle } from '../../types/u
 import { t } from '../uiCommon.js';
 import { getErrorMessage } from '../../core/utils/messaging.js';
 
-import {
-    getStoredDirHandle,
-    saveStoredDirHandle,
-    getMemoryDirHandle,
-    setMemoryDirHandle
-} from '../../core/storage/idbHandleStore.js';
-export { getStoredDirHandle, saveStoredDirHandle };
+import { getDirectoryHandle, setDirectoryHandle, clearDirectoryHandle } from '../../core/storage/storageService.js';
+export async function getStoredDirHandle(): Promise<DirectoryHandle | null> {
+    const handle = await getDirectoryHandle();
+    if (!handle) return null;
+    if (!('queryPermission' in handle) || typeof handle.queryPermission !== 'function'
+        || !('requestPermission' in handle) || typeof handle.requestPermission !== 'function') {
+        throw new Error('Stored directory does not support permission checks');
+    }
+    return handle as DirectoryHandle;
+}
+export async function saveStoredDirHandle(handle: DirectoryHandle | null): Promise<void> {
+    if (handle) await setDirectoryHandle(handle);
+    else await clearDirectoryHandle();
+}
 
 let currentDirHandle: DirectoryHandle | null = null;
 let pendingPermissionHandle: DirectoryHandle | null = null;
@@ -57,7 +64,6 @@ export async function restoreSavedDirHandle(): Promise<DirectoryHandle | null> {
             const r = await verifyDirPermissionDetailed(handle);
             if (!r.ok) {
                 currentDirHandle = null;
-                setMemoryDirHandle(null);
                 if (r.notFound) {
                     // Delete stale handle from storage when directory no longer exists on disk
                     await saveStoredDirHandle(null);
@@ -72,7 +78,6 @@ export async function restoreSavedDirHandle(): Promise<DirectoryHandle | null> {
             }
             currentDirHandle = handle;
             pendingPermissionHandle = null;
-            setMemoryDirHandle(handle);
             return handle;
         }
     } catch (e) {
@@ -95,7 +100,6 @@ export async function reauthorizeDirHandle(): Promise<boolean> {
             if (perm === 'granted') {
                 currentDirHandle = handle;
                 pendingPermissionHandle = null;
-                setMemoryDirHandle(handle);
                 await saveStoredDirHandle(handle);
                 return true;
             }
@@ -113,19 +117,17 @@ export async function requestDirHandle(): Promise<DirectoryHandle> {
     const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
     currentDirHandle = handle;
     pendingPermissionHandle = null;
-    setMemoryDirHandle(handle);
     await saveStoredDirHandle(handle);
     return handle;
 }
 
 export function getDirHandle(): DirectoryHandle | null {
-    return currentDirHandle || getMemoryDirHandle();
+    return currentDirHandle;
 }
 
 export function setDirHandle(handle: DirectoryHandle | null): void {
     currentDirHandle = handle;
     if (handle) pendingPermissionHandle = null;
-    setMemoryDirHandle(handle);
 }
 
 export const DirHandleController: DirHandleControllerContract = {

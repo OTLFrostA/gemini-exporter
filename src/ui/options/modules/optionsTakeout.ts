@@ -1,3 +1,4 @@
+import { getSettings, updateSettings } from '../../../core/application/index.js';
 import type { OptionsTakeoutOptions } from '../../../types/ui.js';
 import {
     getStore,
@@ -6,7 +7,6 @@ import {
     getTakeoutCtrl
 } from '../optionsContext.js';
 import { $ } from '../../uiCommon.js';
-import { STORAGE_KEYS } from '../../../core/utils/constants.js';
 
 let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
@@ -22,53 +22,16 @@ export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): voi
 }
 
 export async function isTakeoutPromptCompleted(): Promise<boolean> {
-    try {
-        const Storage = getStorage();
-        return (Storage && Storage.isTakeoutPromptCompleted)
-            ? await Storage.isTakeoutPromptCompleted()
-            : false;
-    } catch {
-        return false;
-    }
+    return (await getSettings()).takeoutPromptCompleted === true;
 }
-
-export async function maybePromptTakeout(count: number = 600, hitGoogleLimit: boolean = false): Promise<void> {
-    try {
-        const isCompleted = await isTakeoutPromptCompleted();
-        const Store = getStore();
-        const Storage = getStorage();
-        const Dialogs = getDialogs();
-        const hasTakeout = Storage?.hasTakeoutData && await Storage.hasTakeoutData();
-        if (!isCompleted && !hasTakeout && Dialogs && Dialogs.showTakeoutLimitPrompt) {
-            void Dialogs.showTakeoutLimitPrompt({
-                count: count || 600,
-                hitGoogleLimit: !!hitGoogleLimit,
-                onImportTakeout: () => ($('takeoutFileInput') as HTMLInputElement | null)?.click(),
-                onDismiss: () => {
-                    if (Storage && Storage.setTakeoutPromptCompleted) {
-                        void Storage.setTakeoutPromptCompleted(true);
-                    }
-                }
-            });
-        }
-    } catch (e) {
-        console.debug('[workbench:takeout] maybePromptTakeout error', e);
-    }
+export async function maybePromptTakeout(count = 0, hitGoogleLimit = false): Promise<void> {
+    if (!hitGoogleLimit || await isTakeoutPromptCompleted()) return;
+    await getDialogs().showTakeoutLimitPrompt({ count, hitGoogleLimit,
+        onImportTakeout: () => ($('takeoutFileInput') as HTMLInputElement | null)?.click(),
+        onDismiss: () => { void updateSettings({ takeoutPromptCompleted: true }); } });
 }
-
 export async function checkPendingTakeoutPrompt(): Promise<void> {
-    try {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            const data = await chrome.storage.local.get([STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]);
-            if (data && data[STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]) {
-                const info = data[STORAGE_KEYS.PENDING_TAKEOUT_PROMPT];
-                await chrome.storage.local.remove(STORAGE_KEYS.PENDING_TAKEOUT_PROMPT);
-                await maybePromptTakeout((info as any).count || 600, !!(info as any).hitGoogleLimit);
-            }
-        }
-    } catch (e) {
-        console.debug('[workbench:takeout] checkPendingTakeoutPrompt error', e);
-    }
+    // No persistent prompt queue in v2. The active scan owns its result and prompt.
 }
 
 export function processTakeoutImport(f: File, input?: HTMLInputElement | null): void {

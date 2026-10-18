@@ -41,8 +41,10 @@ function bindSyncButtons(): void {
                 onStart: () => {
                     ProgressView.show(5, typeof t === 'function' ? t('syncingConversations') : '正在同步会话...');
                 },
+                onProgress: (pct, text) => { if (Store.getCurrentAccountId() === slot) ProgressView.update(pct, text); },
                 onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onFinished: async ({ message, res, count, hitGoogleLimit }: any) => {
+                    if (Store.getCurrentAccountId() !== slot) return;
                     ProgressView.complete(message);
                     ProgressView.hide(2500);
                     if (__loadStore) void __loadStore();
@@ -50,6 +52,7 @@ function bindSyncButtons(): void {
                     await checkAndPromptTakeoutLimit(currentCount, hitGoogleLimit);
                 },
                 onError: async (err: any, errMsg?: string, details?: any) => {
+                    if (Store.getCurrentAccountId() !== slot) return;
                     ProgressView.update(0, errMsg);
                     if (__loadStore) await __loadStore();
                     const currentCount = (Store && typeof (Store as any).getConversations === 'function') ? (Store as any).getConversations().length : 0;
@@ -74,28 +77,11 @@ function bindSyncButtons(): void {
 
 export function bindBroadcastListeners(): void {
     if (typeof chrome === 'undefined') return;
-    chrome.storage?.onChanged?.addListener((changes, area) => {
-        const slot = getStore()?.getCurrentAccountId() || '';
-        const key = slot ? getStorage().getStorageKeys(slot).convKey : '';
-        if (area === 'local' && changes[key] && __loadStore) void __loadStore(true);
-    });
     if (!chrome.runtime?.onMessage) return;
 
     chrome.runtime.onMessage.addListener((msg: any) => {
         if (msg.action === 'accountsChanged') { if (__loadStore) void __loadStore(true); return; }
         if (msg.accountId && msg.accountId !== getStore()?.getCurrentAccountId()) return;
-        if (msg.action === 'scanProgress') {
-            let pct = typeof msg.percent === 'number' ? msg.percent : 50;
-            const incomplete = msg.status && msg.status !== 'complete' && msg.status !== 'up_to_date';
-            const clamped = incomplete ? 0 : Math.min(Math.max(pct, 5), 100);
-            ProgressView.update(clamped, msg.title || '');
-            if (msg.title) log(msg.title);
-
-            if (msg.percent === 100 || msg.done === 1) {
-                void checkAndPromptTakeoutLimit(msg.count, msg.hitGoogleLimit);
-            }
-        }
-
         if (msg.action === 'syncUpdate') {
             if (__loadStore) void __loadStore(true);
         }

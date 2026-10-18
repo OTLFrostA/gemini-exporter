@@ -3,6 +3,9 @@ import type { LocaleDictionary } from '../../../types/utils.js';
 
 const __enFactory = (): LocaleDictionary => {
     return {
+        takeoutImportResult: 'Imported {0} conversations ({1} new).',
+        takeoutImportPartialResult: 'Partial import: {0} conversations ({1} new); some content or resources are incomplete.',
+        exportPartialCount: 'Partial exports: {0} (some resources were not delivered).',
 
             extName: "Gemini Exporter",
             syncedBadge: "{0} synced",

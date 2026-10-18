@@ -1,11 +1,10 @@
 import type { TourGuideContract, TourStep } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
-import StorageService from '../../core/storage/storageService.js';
+import { updateSettings } from '../../core/application/index.js';
 import TabService from '../../core/utils/tabService.js';
 import { t } from '../uiCommon.js';
 import { STEPS } from './tourSteps.js';
 import { positionElements as positionTourElements } from './tourPosition.js';
-import { getExtensionVersion } from '../../core/utils/constants.js';
 import { getErrorMessage } from '../../core/utils/utils.js';
 export { STEPS } from './tourSteps.js';
 
@@ -21,7 +20,6 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let lastTabStatus: string | null = null;
 let activeActionCleanup: (() => void) | null | undefined = null;
 
-const getStorage = () => __resolveModule('StorageService', StorageService);
 const getTabService = () => __resolveModule('TabService', TabService);
 
 export function clearActionListeners(): void {
@@ -395,6 +393,7 @@ export async function goToStep(stepIndex: number): Promise<void> {
     }
 
     await updateStepContent(step);
+    if (overlayEl?.isConnected && currentStep === 0) await updateSettings({ tourAutoHandled: true });
     bindStepAction(step);
 }
 
@@ -413,16 +412,6 @@ export async function prevStep(): Promise<void> {
 }
 
 export async function finishTour(): Promise<void> {
-    const storage = getStorage();
-    if (storage) {
-        if (storage.setTourCompleted) {
-            await storage.setTourCompleted(true);
-        }
-        if (storage.setLastSeenFeatureVersion) {
-            const currentVer = getExtensionVersion();
-            await storage.setLastSeenFeatureVersion(currentVer);
-        }
-    }
     spotlightMode = false;
     removeElements();
 }
@@ -435,6 +424,8 @@ export async function startFeatureSpotlight(
     version: string,
     options?: { onAction?: () => void | Promise<void>; actionLabelKey?: string }
 ): Promise<void> {
+    if (!STEPS.some(step => step.id === stepId) || isActive) return;
+    if (['directWriteModal', 'takeoutLimitModal', 'takeoutImportModal'].some(id => document.getElementById(id)?.style.display === 'flex')) return;
     spotlightMode = true;
     activeSpotlightVersion = version;
     activeSpotlightOptions = options || null;
@@ -453,10 +444,7 @@ export async function startFeatureSpotlight(
 }
 
 export async function dismissFeatureSpotlight(): Promise<void> {
-    const storage = getStorage();
-    if (storage && storage.setLastSeenFeatureVersion && activeSpotlightVersion) {
-        await storage.setLastSeenFeatureVersion(activeSpotlightVersion);
-    }
+    if (overlayEl?.isConnected && activeSpotlightVersion) await updateSettings({ lastSeenFeatureVersion: activeSpotlightVersion });
     spotlightMode = false;
     activeSpotlightVersion = '';
     activeSpotlightOptions = null;

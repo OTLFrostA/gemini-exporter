@@ -1,88 +1,21 @@
 import type { ExportSession, FailedChat, IDialogView } from '../../types/ui.js';
-import StorageService from '../../core/storage/storageService.js';
+import { getSettings, updateSettings } from '../../core/application/index.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import ConversationsStore from '../state/conversationsStore.js';
-import { SessionStore } from '../../core/storage/sessionStore.js';
 
 import { $, t } from '../uiCommon.js';
 
-const getStorage = () => __resolveModule('StorageService', StorageService);
 const getStore = () => __resolveModule('ConversationsStore', ConversationsStore);
 
-export function renderExportBanner(session: ExportSession | null | undefined, accountId: string, isRunning: boolean): void {
+export function renderExportBanner(_session: ExportSession | null | undefined, _accountId: string, _running: boolean): void {
     const banner = $('exportSessionBanner');
-    const bannerText = $('exportSessionText');
-    const btnResume = $('btnResumeExport');
-    if (!banner || !bannerText) return;
-
-    if (isRunning || !session || !session.total) {
-        banner.style.display = 'none';
-        return;
-    }
-
-    const slot = accountId || '';
-    if (session.accountId && session.accountId !== slot) {
-        banner.style.display = 'none';
-        return;
-    }
-
-    const remaining = Math.max(0, session.total - (session.current || 0));
-
-    if (session.status === 'running' || session.status === 'interrupted' || session.status === 'aborted') {
-        if (remaining <= 0) {
-            banner.style.display = 'none';
-            return;
-        }
-        banner.style.display = 'flex';
-        banner.style.borderColor = '#f59e0b';
-        banner.style.background = '#221c12';
-        let msg = typeof t === 'function'
-            ? t('exportSessionInterrupted', session.total, session.current || 0, remaining)
-            : `⚠️ <b>发现未完成的导出任务</b>：共 ${session.total} 条，已处理 ${session.current || 0} 条，剩余 ${remaining} 条未导出。`;
-        bannerText.innerHTML = msg;
-        // lastChatTitle is remote-controlled conversation metadata persisted from a
-        // Gemini response — append it as a text node so a crafted title such as
-        // "<svg onload=...>" can never execute inside the options page.
-        const lastChatTitle = typeof session.lastChatTitle === 'string' ? session.lastChatTitle.slice(0, 20) : '';
-        if (lastChatTitle) {
-            const suffix = typeof t === 'function'
-                ? t('exportSessionLastChat', lastChatTitle)
-                : ` (上次停在: 「${lastChatTitle}」)`;
-            bannerText.appendChild(document.createTextNode(suffix));
-        }
-        if (btnResume) btnResume.style.display = remaining > 0 ? '' : 'none';
-    } else if (session.status === 'completed' || session.status === 'completed_with_errors') {
-        const timeDiff = Date.now() - (session.updatedAt || 0);
-        if (timeDiff < 300000) {
-            banner.style.display = 'flex';
-            banner.style.borderColor = (session.failedCount ?? 0) > 0 ? '#f59e0b' : '#10b981';
-            banner.style.background = (session.failedCount ?? 0) > 0 ? '#221c12' : '#0e231b';
-            let baseDone = typeof t === 'function'
-                ? t('exportSessionCompleted', session.current || session.total)
-                : `✅ <b>上次导出已完成</b>：共导出 ${session.current || session.total} 条会话`;
-            if ((session.failedCount ?? 0) > 0) {
-                baseDone += typeof t === 'function'
-                    ? t('exportSessionCompletedWithErrors', session.failedCount)
-                    : ` (其中 ${session.failedCount} 条失败)`;
-            }
-            bannerText.innerHTML = baseDone;
-            if (btnResume) btnResume.style.display = 'none';
-        } else {
-            banner.style.display = 'none';
-        }
-    } else {
-        banner.style.display = 'none';
-    }
+    if (banner) banner.style.display = 'none';
 }
+export async function dismissExportBanner(): Promise<void> { renderExportBanner(null, '', false); }
 
-export async function dismissExportBanner(): Promise<void> {
-    try {
-        await SessionStore.clearSession();
-        const banner = $('exportSessionBanner');
-        if (banner) banner.style.display = 'none';
-    } catch (e) {
-        console.warn("[GemExporter:storage] Storage operation failed:", e);
-    }
+function guidanceBusy(): boolean {
+    return !!document.querySelector('.tour-overlay-container') || ['directWriteModal', 'takeoutLimitModal', 'takeoutImportModal']
+        .some(id => { const element = $(id); return element && element.style.display === 'flex'; });
 }
 
 export function showDirectWritePrompt(count: number, onConfirmFolder: () => void, onContinueZip: () => void): void {
@@ -91,7 +24,7 @@ export function showDirectWritePrompt(count: number, onConfirmFolder: () => void
     const btnFolder = $('btnModalSwitchFolder');
     const btnZip = $('btnModalContinueZip');
     const btnClose = $('btnDirectWriteClose');
-    if (!modal) return;
+    if (!modal || guidanceBusy()) return;
 
     if (textEl && typeof t === 'function') {
         textEl.textContent = t('directWritePromptDesc', count);
@@ -148,25 +81,10 @@ export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogl
     const btnOpenWeb = $('btnModalOpenTakeoutWeb');
     const btnDismiss = $('btnModalDismissTakeout');
     const btnClose = $('btnTakeoutLimitClose');
-    if (!modal) return;
+    if (!modal || guidanceBusy()) return;
 
-    const storage = getStorage();
-    const store = getStore();
-
-    if (!options.force) {
-        if (storage?.isTakeoutPromptCompleted) {
-            try {
-                if (await storage.isTakeoutPromptCompleted()) return;
-            } catch (e) {
-                console.warn("[GemExporter:storage] Storage operation failed:", e);
-            }
-        }
-        try {
-            if (storage?.hasTakeoutData && await storage.hasTakeoutData()) return;
-        } catch (e) {
-            console.warn("[GemExporter:dialogView.ts]", e);
-        }
-    }
+    if (!options.force && (await getSettings()).takeoutPromptCompleted) return;
+    if (guidanceBusy()) return;
 
     const count = options.count ?? 600;
     const hitGoogleLimit = !!options.hitGoogleLimit;
@@ -196,9 +114,7 @@ export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogl
             try { options.onDismiss(); } catch {}
             return;
         }
-        if (storage && storage.setTakeoutPromptCompleted) {
-            void storage.setTakeoutPromptCompleted(true);
-        }
+        void updateSettings({ takeoutPromptCompleted: true });
     };
 
     const cleanup = () => {

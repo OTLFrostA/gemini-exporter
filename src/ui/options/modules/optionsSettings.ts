@@ -1,3 +1,5 @@
+import { getSettings, updateSettings, type ExportFormat } from '../../../core/application/index.js';
+import { SETTINGS_KEY } from '../../../core/storage/settingsStore.js';
 import type { OptionsSettingsOptions } from '../../../types/ui.js';
 import {
     getI18n,
@@ -7,16 +9,15 @@ import {
     getStorage,
     getTour,
     getDirHandle as getDirHandleController,
-    getLiveStorage,
     getProgressView,
     getExportCtrl,
     getLogView
 } from '../optionsContext.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
-import { normId } from '../../../core/utils/pathUtils.js';
+import { normId } from '../../state/conversationsStore.js';
 import { cleanTitle, resolveTitle, getErrorMessage } from '../../../core/utils/utils.js';
-import { getExtensionVersion, STORAGE_KEYS } from '../../../core/utils/constants.js';
+import { getExtensionVersion } from '../../../core/utils/constants.js';
 import { isLocalDevelopment } from '../../../core/utils/environment.js';
 import { buildDiagnosticSnapshot } from '../../../core/diagnostics/diagnosticSnapshot.js';
 
@@ -256,10 +257,6 @@ async function initDevMode(): Promise<void> {
                 devWrapper.style.setProperty('display', 'none', 'important');
             }
             document.body.classList.remove('dev-mode');
-            const Store = getStore();
-            if (Store && Store.setDevMode) {
-                await Store.setDevMode(false);
-            }
             return;
         }
 
@@ -292,9 +289,8 @@ export function checkWalkthroughOnOpen(): void {
             const Tour = getTour();
             if (!Tour) return;
 
-            const tourDone = (Storage && Storage.isTourCompleted)
-                ? await Storage.isTourCompleted()
-                : false;
+            const settings = await getSettings();
+            const tourDone = settings.tourAutoHandled === true;
 
             if (isExplicitTour || !tourDone) {
                 if (Tour.startTour) void Tour.startTour(0);
@@ -302,9 +298,7 @@ export function checkWalkthroughOnOpen(): void {
             }
 
             const currentAppVersion = getExtensionVersion();
-            const lastSeenVersion = (Storage && Storage.getLastSeenFeatureVersion)
-                ? await Storage.getLastSeenFeatureVersion()
-                : '';
+            const lastSeenVersion = settings.lastSeenFeatureVersion || '';
 
             const eligibleFeature = getLatestEligibleFeature(lastSeenVersion, currentAppVersion);
             if (eligibleFeature && Tour.startFeatureSpotlight) {
@@ -353,7 +347,6 @@ export function updateLiveSaveFormatAvailability(): void {
     if (!toggle) return;
     const disabled = format !== 'markdown';
     toggle.disabled = disabled;
-    if (disabled) toggle.checked = false;
     const label = toggle.closest?.('label');
     if (label) {
         label.style.opacity = disabled ? '0.45' : '';
@@ -365,171 +358,54 @@ export function updateLiveSaveFormatAvailability(): void {
 }
 
 export async function initLiveSaveSettings(): Promise<void> {
-    const liveStorage = getLiveStorage();
-    if (!liveStorage) return;
-
-    const diskToggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
-    const dirLabel = $('dirLabel');
-    const DirHandle = getDirHandleController();
-
-    try {
-        const cfg = await liveStorage.getLiveConfig();
-        if (diskToggle) diskToggle.checked = !!cfg.enabledDisk;
-
-        let savedHandle = DirHandle ? DirHandle.getDirHandle() : null;
-        if (!savedHandle && DirHandle && typeof DirHandle.restoreSavedDirHandle === 'function') {
-            savedHandle = await DirHandle.restoreSavedDirHandle();
-        }
-        if (savedHandle && dirLabel) {
-            dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', savedHandle.name || cfg.dirName || 'Folder') : `已选目录: ${savedHandle.name || cfg.dirName || 'Folder'}`;
-            if (dirLabel.style) dirLabel.style.color = '';
-        } else if (cfg.dirError === 'permission_prompt_needed' || (DirHandle && typeof DirHandle.getPendingPermissionHandle === 'function' && DirHandle.getPendingPermissionHandle())) {
-            if (dirLabel) {
-                const folderName = cfg.dirName || 'Folder';
-                dirLabel.textContent = typeof t === 'function' ? t('dirPromptNeeded', folderName) : `目录权限待续期: ${folderName}（点击恢复授权）`;
-                if (dirLabel.style) {
-                    dirLabel.style.color = '#f59e0b';
-                    dirLabel.style.cursor = 'pointer';
+    const toggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
+    const label = $('dirLabel');
+    const directory = getDirHandleController();
+    const settings = await getSettings();
+    if (toggle) toggle.checked = settings.enabledDisk;
+    const handle = await directory.restoreSavedDirHandle();
+    if (label) {
+        label.textContent = handle ? t('dirCurrent', handle.name) : t('dirNotFound');
+        if (directory.getPendingPermissionHandle?.()) {
+            label.textContent = t('dirPromptNeeded', directory.getPendingPermissionHandle?.()!.name);
+            label.onclick = async () => {
+                if (await directory.reauthorizeDirHandle?.()) {
+                    label.textContent = t('dirCurrent', directory.getDirHandle()!.name);
+                    label.onclick = null;
                 }
-                dirLabel.onclick = async () => {
-                    if (DirHandle && typeof DirHandle.reauthorizeDirHandle === 'function') {
-                        const ok = await DirHandle.reauthorizeDirHandle();
-                        if (ok) {
-                            const h = DirHandle.getDirHandle();
-                            if (h && dirLabel) {
-                                dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', h.name) : `已选目录: ${h.name}`;
-                                dirLabel.style.color = '';
-                                dirLabel.style.cursor = 'default';
-                                dirLabel.onclick = null;
-                                await liveStorage.setLiveConfig({ enabledDisk: true, dirName: h.name, dirError: null });
-                                log(typeof t === 'function' ? t('logFolderSelected', h.name) : `已恢复目录权限: ${h.name}`);
-                            }
-                        }
-                    }
-                };
-            }
-        } else if (cfg.dirError === 'not_found' || (!savedHandle && cfg.dirName)) {
-            if (diskToggle) diskToggle.checked = false;
-            if (dirLabel) {
-                dirLabel.textContent = typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，请重新选择';
-                if (dirLabel.style) dirLabel.style.color = '#f59e0b';
-            }
+            };
         }
-    } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) console.debug('[OptionsSettings] initLiveSaveSettings error:', e);
     }
-
     updateLiveSaveFormatAvailability();
-    if (diskToggle?.disabled) await liveStorage.setLiveConfig({ enabledDisk: false });
-    const formatSelect = $('format') as HTMLSelectElement | null;
-    if (formatSelect && !formatSelect.dataset.liveSaveBound) {
-        formatSelect.dataset.liveSaveBound = 'true';
-        formatSelect.addEventListener('change', updateLiveSaveFormatAvailability);
-    }
-
-    if (diskToggle && !diskToggle.dataset.bound) {
-        diskToggle.dataset.bound = 'true';
-        diskToggle.addEventListener('change', async () => {
+    $('format')?.addEventListener('change', updateLiveSaveFormatAvailability);
+    toggle?.addEventListener('change', async () => {
+        // This preference records user intent, even when format/permission pauses execution.
+        await updateSettings({ enabledDisk: toggle.checked });
+        if (toggle.checked && !directory.getDirHandle()) {
+            try {
+                const chosen = await directory.requestDirHandle();
+                if (label) label.textContent = t('dirCurrent', chosen.name);
+            } catch (error) { log(getErrorMessage(error), 'warn'); }
+        }
+        if (__updateZipUi) __updateZipUi();
+    });
+    chrome.storage?.onChanged?.addListener((changes, area) => {
+        if (area !== 'local' || !changes[SETTINGS_KEY]) return;
+        void getSettings().then(next => {
+            if (toggle) toggle.checked = next.enabledDisk;
+            const format = $('format') as HTMLSelectElement | null;
+            if (format) format.value = next.defaultFormat;
+            for (const [id, field] of [['includeZip', 'useZip'], ['includeAssets', 'includeAssets'], ['skipExported', 'skipExported']] as const) {
+                const control = $(id) as HTMLInputElement | null;
+                if (control) control.checked = next[field];
+            }
+            const i18n = getI18n();
+            if (next.language && i18n.getLang() !== next.language) {
+                void i18n.initLanguage().then(() => { i18n.applyI18n?.(); i18n.applyLangToggleUI?.(); });
+            }
             updateLiveSaveFormatAvailability();
-            if (diskToggle.disabled) return;
-            if (diskToggle.checked) {
-                let handle = DirHandle ? DirHandle.getDirHandle() : null;
-                if (!handle && DirHandle && typeof DirHandle.restoreSavedDirHandle === 'function') {
-                    handle = await DirHandle.restoreSavedDirHandle();
-                }
-
-                if (!handle) {
-                    try {
-                        if (DirHandle && typeof DirHandle.requestDirHandle === 'function') {
-                            handle = await DirHandle.requestDirHandle();
-                        }
-                    } catch (err: unknown) {
-                        diskToggle.checked = false;
-                        const isAbort = err instanceof Error && err.name === 'AbortError';
-                        const errMessage = getErrorMessage(err);
-                        if (isAbort) {
-                            log(typeof t === 'function' ? t('dirCancelled', '用户取消选择') : '未选择导出目录: 用户取消选择', 'warn');
-                        } else {
-                            log(typeof t === 'function' ? t('dirCancelled', errMessage) : `选择目录失败: ${errMessage}`, 'warn');
-                        }
-                        if (__updateZipUi) __updateZipUi();
-                        return;
-                    }
-                }
-
-                if (handle) {
-                    if (dirLabel) {
-                        dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
-                        if (dirLabel.style) dirLabel.style.color = '';
-                    }
-                    await liveStorage.setLiveConfig({ enabledDisk: true, dirName: handle.name, dirError: null });
-                    log(typeof t === 'function' ? t('logFolderSelected', handle.name) : `已开启实时落盘: ${handle.name}`);
-                } else {
-                    diskToggle.checked = false;
-                    await liveStorage.setLiveConfig({ enabledDisk: false });
-                }
-            } else {
-                await liveStorage.setLiveConfig({ enabledDisk: false });
-                log(typeof t === 'function' ? t('logLiveSaveDisabled') : '[LiveSave] Live disk sync disabled');
-            }
-            if (__updateZipUi) __updateZipUi();
         });
-    }
-
-    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged && !(globalThis as any).__liveSaveStorageWatcherBound) {
-        (globalThis as any).__liveSaveStorageWatcherBound = true;
-        chrome.storage.onChanged.addListener((changes: any, area: string) => {
-            if (area === 'local' && changes[STORAGE_KEYS.LIVE_SAVE_CONFIG]?.newValue) {
-                if (diskToggle) diskToggle.checked = !!changes[STORAGE_KEYS.LIVE_SAVE_CONFIG].newValue.enabledDisk;
-                updateLiveSaveFormatAvailability();
-                const val = changes[STORAGE_KEYS.LIVE_SAVE_CONFIG].newValue;
-                if (val.dirError === 'permission_prompt_needed') {
-                    if (dirLabel) {
-                        const folderName = val.dirName || 'Folder';
-                        dirLabel.textContent = typeof t === 'function' ? t('dirPromptNeeded', folderName) : `目录权限待续期: ${folderName}（点击恢复授权）`;
-                        if (dirLabel.style) {
-                            dirLabel.style.color = '#f59e0b';
-                            dirLabel.style.cursor = 'pointer';
-                        }
-                    }
-                    log(typeof t === 'function' ? t('dirPromptNeeded', val.dirName || 'Folder') : `目录权限待续期: ${val.dirName || 'Folder'}，已暂存至下载目录`, 'warn');
-                } else if (val.dirError === 'not_found') {
-                    if (diskToggle) diskToggle.checked = false;
-                    if (dirLabel) {
-                        dirLabel.textContent = typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，请重新选择';
-                        if (dirLabel.style) dirLabel.style.color = '#f59e0b';
-                    }
-                    log(typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，实时落盘已暂停', 'warn');
-                } else if (val.lastSavedAt && val.lastSavedTitle) {
-                    log(typeof t === 'function' ? t('logLiveSaveSuccess', val.lastSavedTitle) : `[实时落盘] 自动保存成功: ${val.lastSavedTitle}`);
-                }
-            }
-            if (area === 'local' && changes[STORAGE_KEYS.LANG]) {
-                const newLang = changes[STORAGE_KEYS.LANG].newValue;
-                const i18n = getI18n();
-                if (newLang && i18n && typeof i18n.getLang === 'function' && i18n.getLang() !== newLang) {
-                    void handleLangChange(newLang as 'zh' | 'en');
-                }
-            }
-            if (area === 'local' && changes[STORAGE_KEYS.FORMAT]) {
-                const newFmt = String(changes[STORAGE_KEYS.FORMAT].newValue || 'markdown');
-                const fmtSelect = $('format') as HTMLSelectElement | null;
-                if (fmtSelect && fmtSelect.value !== newFmt) {
-                    fmtSelect.value = newFmt;
-                }
-                updateLiveSaveFormatAvailability();
-            }
-            if (area === 'local' && (Object.keys(changes).some(k => k.startsWith('exported_') || k.startsWith('conversations_')))) {
-                const exportCtrl = getExportCtrl();
-                if (exportCtrl && typeof exportCtrl.isRunning === 'function' && exportCtrl.isRunning()) {
-                    return;
-                }
-                if (typeof (window as any).__workbenchLoadStore === 'function') {
-                    (window as any).__workbenchLoadStore();
-                }
-            }
-        });
-    }
+    });
 }
 
 export const OptionsSettings = {

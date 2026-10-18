@@ -8,11 +8,11 @@ test.beforeEach(reset);
 test('Settings defaults are applied only on read; explicit false is preserved', async () => {
     assert.deepEqual(await getSettings(), { defaultFormat: 'markdown', useZip: true, skipExported: true, includeAssets: true, enabledDisk: false, developerMode: false });
     assert.deepEqual(events, []);
-    await updateSettings({ useZip: false, includeAssets: false, language: 'en', tourShown: true });
+    await updateSettings({ useZip: false, includeAssets: false, language: 'en', tourAutoHandled: true });
     await updateSettings({ enabledDisk: true });
     const settings = await getSettings();
     assert.equal(settings.useZip, false); assert.equal(settings.includeAssets, false);
-    assert.equal(settings.language, 'en'); assert.equal(settings.tourShown, true); assert.equal(settings.enabledDisk, true);
+    assert.equal(settings.language, 'en'); assert.equal(settings.tourAutoHandled, true); assert.equal(settings.enabledDisk, true);
 });
 test('Live Save format and directory changes pause effectiveness without mutating user intent', async () => {
     await updateSettings({ enabledDisk: true });
