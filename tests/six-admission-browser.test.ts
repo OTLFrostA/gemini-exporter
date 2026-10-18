@@ -13,7 +13,7 @@ const bundle = buildSync({ stdin: { contents: `
 `, resolveDir: process.cwd() }, bundle: true, format: 'iife', globalName: 'admission', write: false }).outputFiles[0].text;
 declare global { interface Window { admission: typeof Storage & typeof AccountAdmission & typeof Ingestion } }
 
-test('Chromium contexts share real IDB and Web Locks for L2 identity/profile and fact admission', async () => {
+test('Chromium contexts serialize L2 fact admission using native IDB readwrite transactions', async () => {
     const browser = await chromium.launch({ headless: true });
     try {
         const context = await browser.newContext();
@@ -28,7 +28,6 @@ test('Chromium contexts share real IDB and Web Locks for L2 identity/profile and
             } } }));
         }
         const accounts = await Promise.all(pages.flatMap((page, i) => Array.from({ length: 6 }, (_, j) => page.evaluate(async ({ i, j }) => {
-            if (!navigator.locks) throw new Error('Web Locks unavailable');
             return window.admission.getOrCreateAccount('gemini', 'subject', `${i}-${j}@example.test`);
         }, { i, j }))));
         assert.equal(new Set(accounts.map(account => account.id)).size, 1);

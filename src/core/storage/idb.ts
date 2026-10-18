@@ -26,20 +26,28 @@ export function openStorageDB(): Promise<IDBDatabase> {
     });
 }
 
-/** Resolve only after commit, including for reads. Request errors abort the transaction. */
-export async function inStore<T = void>(name: string, mode: IDBTransactionMode,
-    run: (store: IDBObjectStore, result: (value: T) => void) => void): Promise<T> {
+/** Run synchronous IDB requests in one store-scoped transaction, resolving only after commit. */
+export async function inStores<T = void>(names: readonly string[], mode: IDBTransactionMode,
+    run: (tx: IDBTransaction, result: (value: T) => void, fail: (error: unknown) => void) => void): Promise<T> {
     const db = await openStorageDB();
     try {
         return await new Promise<T>((resolve, reject) => {
-            const tx = db.transaction(name, mode);
-            let value: T;
+            const tx = db.transaction([...names], mode);
+            let value: T, failure: unknown;
+            const fail = (error: unknown) => {
+                failure = error;
+                try { tx.abort(); } catch { reject(error); }
+            };
             tx.oncomplete = () => resolve(value);
-            tx.onabort = () => reject(tx.error ?? new Error('Storage transaction aborted'));
-            try { run(tx.objectStore(name), result => { value = result; }); }
-            catch (error) { tx.abort(); reject(error); }
+            tx.onabort = () => reject(failure ?? tx.error ?? new Error('Storage transaction aborted'));
+            try { run(tx, result => { value = result; }, fail); }
+            catch (error) { fail(error); }
         });
     } finally { db.close(); }
+}
+export function inStore<T = void>(name: string, mode: IDBTransactionMode,
+    run: (store: IDBObjectStore, result: (value: T) => void) => void): Promise<T> {
+    return inStores([name], mode, (tx, done) => run(tx.objectStore(name), done));
 }
 
 export function readOne<T>(store: string, key: IDBValidKey): Promise<T | null> {

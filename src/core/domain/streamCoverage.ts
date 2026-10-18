@@ -14,7 +14,9 @@ export function readStreamCoverage(value: unknown): StreamCoverage | null {
 }
 const overlaps = (a: CoverageRange, b: CoverageRange) => a.tail.time <= b.head.time && b.tail.time <= a.head.time;
 const samePage = (a: PageObservation<unknown>, b: PageObservation<unknown>) =>
-    a.requestedAt === b.requestedAt && a.nextCursor === b.nextCursor && JSON.stringify(a.keys) === JSON.stringify(b.keys);
+    a.providerId === b.providerId && a.accountId === b.accountId && a.streamId === b.streamId
+    && a.requestedAt === b.requestedAt && a.nextCursor === b.nextCursor && a.ordered === b.ordered
+    && JSON.stringify(a.keys) === JSON.stringify(b.keys);
 
 /** Ephemeral cursor evidence. Only a verified terminal chain establishes a new durable range. */
 export class CoverageSession {
@@ -31,7 +33,8 @@ export class CoverageSession {
             if (prior && page.requestedAt < prior.requestedAt) return previous;
             this.pages.clear(); this.conflicts.clear();
         }
-        if (!page.requestKnown || !page.valid || page.nextCursor !== null && page.nextCursor === page.requestCursor) {
+        if (!page.requestKnown || !page.valid || !page.ordered
+            || page.nextCursor !== null && page.nextCursor === page.requestCursor) {
             this.conflicts.add(page.requestCursor); this.pages.delete(page.requestCursor); return previous;
         }
         if (prior && page.requestCursor !== null && !samePage(prior, page)) {
@@ -58,14 +61,20 @@ export class CoverageSession {
     }
     private chain(): { range: CoverageRange | null; terminal: boolean } {
         let page = this.pages.get(null);
+        const anchor = page;
         const visited = new Set<string | null>(), ids = new Set<string>();
         const keys: CoverageKey[] = [];
-        while (page) {
-            if (visited.has(page.requestCursor) || this.conflicts.has(page.requestCursor) || !page.requestKnown || !page.valid
-                || page.keys.some(k => !k.id || !Number.isFinite(k.time) || ids.has(k.id))
+        let lastTime = Infinity, lastRequestedAt = -Infinity;
+        while (page && anchor) {
+            if (visited.has(page.requestCursor) || this.conflicts.has(page.requestCursor) || !page.requestKnown || !page.valid || !page.ordered
+                || page.providerId !== anchor.providerId || page.accountId !== anchor.accountId || page.streamId !== anchor.streamId
+                || page.requestedAt < lastRequestedAt
+                || page.keys.some(k => !k.id || !Number.isFinite(k.time) || ids.has(k.id) || k.time > lastTime)
                 || new Set(page.keys.map(k => k.id)).size !== page.keys.length) break;
             visited.add(page.requestCursor);
             for (const key of page.keys) { ids.add(key.id); keys.push(key); }
+            if (page.keys.length) lastTime = page.keys[page.keys.length - 1].time;
+            lastRequestedAt = page.requestedAt;
             if (page.nextCursor === null) return { range: keys.length ? { head: keys[0], tail: keys[keys.length - 1] } : null, terminal: true };
             page = this.pages.get(page.nextCursor);
         }
