@@ -6,7 +6,8 @@ import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservation } from './pageObservation.js';
 import { getAccount } from '../api/accountRegistry.js';
 import { restoreConversationIndex, type DomainConversationIndex, mergeConversationIndex } from './conversationIndex.js';
-import { updateIndexesAtomically, updateConversationAtomically } from '../storage/storageService.js';
+import { updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../storage/storageService.js';
+import { conversationKey } from './conversationKey.js';
 
 /** Duplicate source rows merge in input order; Storage reads their current values under one transaction. */
 async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<void> {
@@ -62,4 +63,12 @@ export async function ingestDetail(accountId: string, conversationId: string,
             result: changed,
         };
     });
+}
+
+/** Invoked only after L1 verifies a specific remotely deleted/nonexistent conversation. */
+export async function ingestDeletedConversation(accountId: string, conversationId: string): Promise<void> {
+    const key = conversationKey(accountId, conversationId);
+    const account = await getAccount(accountId);
+    if (!account) throw new TypeError('Deletion account does not exist');
+    await deleteStoredConversation(key);
 }

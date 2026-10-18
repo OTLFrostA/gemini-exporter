@@ -5,6 +5,17 @@ import type { DomainConversationDetail } from '../domain/conversationDetail.js';
 import { inStore, inStores, readOne, putOne, deleteOne } from './idb.js';
 
 export const conversationAddress = (key: ConversationKey): [string, string] => [key.accountId, key.conversationId];
+
+/** L2 has already verified the source event; Storage atomically removes only this key. */
+export function deleteStoredConversation(key: ConversationKey): Promise<void> {
+    return inStores<void>(['indexes', 'details', 'exportRecords'], 'readwrite', (tx, done) => {
+        const address = conversationAddress(key);
+        tx.objectStore('indexes').delete(address);
+        tx.objectStore('details').delete(address);
+        tx.objectStore('exportRecords').delete(address);
+        done(undefined);
+    });
+}
 export function getIndex(key: ConversationKey): Promise<DomainConversationIndex | null> {
     return readOne('indexes', conversationAddress(key));
 }
