@@ -135,14 +135,13 @@ function extractErrorText(errOrText: unknown): string {
 /**
  * Canonical decider for whether an RPC response / error text proves that a
  * conversation was deleted on the server.
- * Requires either HTTP 404 or a word-boundary BardErrorInfo 1167 marker (never bare '1167' or '11167').
+ * Gemini's shared batchexecute HTTP 404 can mean a bad route or auth, so it is not proof.
+ * Only the characterized target-Detail BardErrorInfo 1167 may be promoted by L1.
  */
 export function isConfirmedDeletedError(errOrText: unknown, status?: number): boolean {
-    if (status === 404) return true;
+    if (status !== undefined && status !== 200) return false;
     const text = extractErrorText(errOrText);
-    if (!text) return false;
-    if (text.includes('HTTP 404') || text.includes('BardErrorInfo: 1167')) return true;
-    return /(?:\[\s*["']BardErrorInfo["']\s*,\s*1167\b|BardErrorInfo\b[^\d]*?\b1167\b|\b1167\b[^\d]*?BardErrorInfo)/i.test(text);
+    return /(?:\[\s*["']BardErrorInfo["']\s*,\s*1167\b|BardErrorInfo\b[^\d]{0,30}\b1167\b)/i.test(text);
 }
 
 export function classifyDetailError(rawTextOrErr: unknown, status?: number): DetailErrorCategory {

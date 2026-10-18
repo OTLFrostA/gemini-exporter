@@ -25,6 +25,14 @@ import GeminiClientPagination, {
 import type { ListParseResult } from "../parsers/gemini/rpc/parseList.js";
 import type { DetailParseResult } from "./client/detailTypes.js";
 
+/** Raised only for a characterized Detail RPC not-found business response. */
+export class ConfirmedGeminiConversationNotFound extends Error {
+    constructor(readonly sourceConversationId: string) {
+        super('Confirmed Gemini Detail not found');
+        this.name = 'ConfirmedGeminiConversationNotFound';
+    }
+}
+
 export interface GeminiAPIClientOptions {
     signal?: AbortSignal | null;
     [key: string]: unknown;
@@ -261,7 +269,7 @@ const pagination = GeminiClientPagination;
                     if (isDev) {
                         console.info(`[Gemini Exporter Client] Conversation ${id} is confirmed deleted on server (BardErrorInfo: 1167). Skipping.`);
                     }
-                    throw new Error(`会话已在服务端删除 (${id}) [BardErrorInfo: 1167]`);
+                    throw new ConfirmedGeminiConversationNotFound(id);
                 }
                 if (errCategory === 'rate_limited') {
                     throw new Error(`Google 服务端限流或到达上限 (${id}) [BardErrorInfo: 1096]`);

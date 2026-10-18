@@ -1,10 +1,10 @@
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
-import { ingestIndexes, ingestDetail } from '../../domain/ingestion.js';
+import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../domain/ingestion.js';
 import { getAccount } from '../../api/accountRegistry.js';
 import type { GeminiProviderClient, GeminiProviderContract } from './geminiContracts.js';
 import type { ProviderListOptions, ListEnd, ProviderReadiness } from '../aiProvider.js';
 import { ProviderRegistry } from '../providerRegistry.js';
-import { GeminiAPIClient } from '../../api/geminiClient.js';
+import { GeminiAPIClient, ConfirmedGeminiConversationNotFound } from '../../api/geminiClient.js';
 import credentials from '../../api/client/credentialManager.js';
 import { geminiListObservation } from './listObservation.js';
 import { resolveCurrentAccount } from '../../../content/accountContext.js';
@@ -93,7 +93,16 @@ export class GeminiProvider implements GeminiProviderContract {
     async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void> {
         signal?.throwIfAborted();
         const { account, slot } = await this.context(accountId);
-        const parsed = await this.getClient().getConversationDetail(conversationId, slot, account, signal);
+        let parsed: Awaited<ReturnType<GeminiProviderClient['getConversationDetail']>>;
+        try {
+            parsed = await this.getClient().getConversationDetail(conversationId, slot, account, signal);
+        } catch (error) {
+            if (!(error instanceof ConfirmedGeminiConversationNotFound)) throw error;
+            signal?.throwIfAborted();
+            if (error.sourceConversationId !== `c_${conversationId.replace(/^c_/, '')}`) throw error;
+            await ingestDeletedConversation(accountId, conversationId.replace(/^c_/, ''));
+            throw new Error('conversation_not_found');
+        }
         signal?.throwIfAborted();
         if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new TypeError('Detail identity mismatch');
         const index = parsed.conversation.index;
