@@ -1,0 +1,25 @@
+name: L1 L2 Deletion Contract Verification
+on:
+  push:
+    branches: [fix/v2-atomic-detail-live-save-coverage]
+  workflow_dispatch:
+
+jobs:
+  targeted-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Source evidence and atomic deletion tests
+        run: node -r ./tests/ts_register.js --test tests/l1_l2_verified_deletion.test.ts tests/domain_admission_storage.test.ts tests/stream_coverage.test.ts tests/six-admission-browser.test.ts
+      - name: Changed-based passive Live Save tests
+        run: node -r ./tests/ts_register.js --test --test-name-pattern='Background returns Detail changed|Content ingestion preserves committed changed|passive Detail change waits|Live Save does not consult old ExportRecord|failed, unchanged and superseded Detail admissions|Live Save returns the exact unified result' tests/browser_runtime_v2.test.ts
+      - name: TypeScript diagnostic report (pre-existing dev/v2 errors allowed)
+        continue-on-error: true
+        run: node scripts/typecheck-v2-modules.cjs
