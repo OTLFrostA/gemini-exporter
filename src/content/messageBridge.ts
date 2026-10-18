@@ -2,7 +2,7 @@ import type { SourceResourceContext } from '../core/provider/sourceResources.js'
 import { getAccount } from '../core/api/accountRegistry.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { resolveRequestAccount, resolveCurrentAccount } from './accountContext.js';
-import { ingestIndexes, ingestDetail } from '../core/domain/ingestion.js';
+import { ingestIndexes, ingestDetail } from '../core/api/domainIngestion.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../core/parsers/gemini/rpc/mergePages.js';
 import type { GeminiRpcParseResult } from '../core/parsers/gemini/rpc/parseConversation.js';
@@ -36,7 +36,7 @@ export function init(dependencies: MessageBridgeDeps = {}) {
 }
 export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     if (!deps || !event || (typeof location !== 'undefined' && event.origin !== location.origin)) return;
-    if (event.source && (typeof window === 'undefined' || event.source !== window)) return;
+    if (typeof window === 'undefined' || event.source !== window) return;
     const raw: unknown = event.data;
     if (!raw || typeof raw !== 'object' || !('type' in raw) || !('payload' in raw)) return;
     const payload = raw.payload;

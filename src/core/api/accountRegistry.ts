@@ -1,3 +1,4 @@
+import { ensureV2Ready } from './runtimeReady.js';
 import * as accountStore from '../storage/storageService.js';
 import * as accountAdmission from '../domain/accountAdmission.js';
 import { readAccount, readAccountRegistry, type Account } from '../domain/accountRegistry.js';
@@ -16,6 +17,7 @@ async function request(command: string, parameters: Record<string, unknown> = {}
 }
 export async function getOrCreateAccount(providerId: string, providerAccountId: string,
     email?: string, displayName?: string): Promise<Account> {
+    await ensureV2Ready();
     const account = readAccount(inExtensionContext()
         ? await accountAdmission.getOrCreateAccount(providerId, providerAccountId, email, displayName)
         : await request('getOrCreate', { providerId, providerAccountId, email, displayName }));
@@ -23,11 +25,13 @@ export async function getOrCreateAccount(providerId: string, providerAccountId: 
     return account;
 }
 export async function listAccounts(providerId?: string): Promise<Account[]> {
+    await ensureV2Ready();
     return readAccountRegistry(inExtensionContext()
         ? await accountStore.listAccounts()
         : await request('list', { providerId })).filter(account => !providerId || account.providerId === providerId);
 }
 export async function getAccount(accountId: string): Promise<Account | null> {
+    await ensureV2Ready();
     const result = inExtensionContext()
         ? await accountStore.getAccount(accountId)
         : await request('get', { accountId });

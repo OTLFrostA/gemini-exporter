@@ -21,6 +21,7 @@ declare global {
         __geminiActiveStreamConvId?: string;
         __geminiLastStreamComplete?: number;
         __geminiExporterSyncOnce?: () => void;
+        __gemExporterHookInstalled?: boolean;
     }
     interface XMLHttpRequest {
         __hookUrl?: string | URL;
@@ -28,7 +29,7 @@ declare global {
 }
 
 (() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || window.__gemExporterHookInstalled) return;
 
     const rawProto: GeminiProtocolModule | undefined =
         (typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : undefined) ||
@@ -37,6 +38,7 @@ declare global {
         console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
         return;
     }
+    window.__gemExporterHookInstalled = true;
     const Proto: GeminiProtocolModule = rawProto;
     const Events = Proto.EVENTS || CrossWorldEvents;
 

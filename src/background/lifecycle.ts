@@ -1,3 +1,5 @@
+import { ensureV2Ready } from './readiness.js';
+import { getSettings, updateSettings } from '../core/application/settings/index.js';
 import { FEEDBACK_URL } from '../core/utils/constants.js';
 
 export { FEEDBACK_URL };
@@ -35,10 +37,20 @@ export function initLifecycleListeners(): void {
 
     chrome.runtime.onInstalled.addListener((details) => {
         initUninstallUrl();
-        if (details.reason === 'install') {
-            void chrome.tabs.create({
-                url: chrome.runtime.getURL('src/ui/options/options.html')
-            });
-        }
+        void (async () => {
+            await ensureV2Ready();
+            const currentVersion = chrome.runtime.getManifest().version;
+            if (details.reason === 'install') {
+                await updateSettings({ lastSeenFeatureVersion: currentVersion });
+                await chrome.runtime.openOptionsPage();
+            } else if (details.reason === 'update') {
+                const settings = await getSettings();
+                const patch = { tourAutoHandled: true as const,
+                    ...(!settings.lastSeenFeatureVersion && details.previousVersion
+                        && /^\d+\.\d+\.\d+(?:\.\d+)?$/.test(details.previousVersion)
+                        ? { lastSeenFeatureVersion: details.previousVersion } : {}) };
+                await updateSettings(patch);
+            }
+        })().catch(error => console.error('[Runtime] Installation initialization failed', error));
     });
 }

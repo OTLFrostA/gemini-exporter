@@ -1,212 +1,45 @@
-import { handleDomainStorageMessage } from './domainStorageHandler.js';
+import { handleDomainIngestionMessage } from './domainStorageHandler.js';
 import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
-import type { BackgroundMessage } from '../types/entrypoints.js';
-import type { AbortSyncMessage, DeepScanMessage, StopDeepScanMessage } from '../types/messages.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
-import {
-    __bgAborts,
-    restoreAbortFlags,
-    isSlotAborted,
-    getSlotCancelEpoch,
-    setSlotAborted,
-    clearAllAborts
-} from './abortManager.js';
-import { startKeepAlive } from './keepAlive.js';
-import {
-    initTabActionListeners,
-    updateTabActionState,
-    isGeminiTabUrl,
-    ACTION_COLOR_ICONS,
-    ACTION_GRAY_ICONS
-} from './tabAction.js';
-import { handleLiveSaveViaHandle, markDirDeletedInConfig } from './liveSaveHandler.js';
-import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
-import { ensureStorageReady } from '../core/storage/schemaMigration.js';
-import { getErrorMessage } from '../core/utils/messaging.js';
-
-const fetchBatchChains = new Map<string, Promise<void>>();
-import { getExtensionVersion } from '../core/utils/constants.js';
+import { initTabActionListeners } from './tabAction.js';
+import { ensureV2Ready } from './readiness.js';
+import { assertExtensionSender, object, requireContentAccount } from './contentSender.js';
+import { listIndexes } from '../core/storage/storageService.js';
+import { readConversationKey } from '../core/domain/conversationKey.js';
+import { runLiveSave } from './liveSaveHandler.js';
 
 initSessionAccessLevel();
 initLifecycleListeners();
 initUninstallUrl();
-restoreAbortFlags().catch(() => {});
 initTabActionListeners();
 
-// Establish storage readiness boundary at background startup.
-void ensureStorageReady().catch((err) => {
-    console.error('[Background] Storage readiness initialization failed:', err);
-});
-
-chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: unknown) => void) => {
-    if (handleDomainStorageMessage(msg, sender, sendResponse)) return true;
-    if (handleAccountRegistryMessage(msg, sender, sendResponse)) return true;
-    if (msg.action === 'openOptions') {
-        void chrome.runtime.openOptionsPage();
-        sendResponse({ ok: true });
-        return;
-    }
-
-    if (msg.action === 'openGeminiPage') {
-        chrome.tabs.create({ url: 'https://gemini.google.com/app' }, (tab) => {
-            sendResponse({ ok: true, tabId: tab?.id });
-        });
-        return true;
-    }
-
-    if (msg.action === 'reloadGeminiTab') {
-        if (msg.tabId) {
-            chrome.tabs.get(msg.tabId, (tab) => {
-                if (chrome.runtime.lastError || !tab) {
-                    sendResponse({ ok: false, error: 'no such tab' });
-                    return;
-                }
-                const url = tab.url || '';
-                if (url.startsWith('https://gemini.google.com/')) {
-                    chrome.tabs.reload(msg.tabId, () => sendResponse({ ok: true }));
-                } else {
-                    sendResponse({ ok: false, error: 'not a gemini tab' });
-                }
-            });
-        } else {
-            chrome.tabs.query({ url: 'https://gemini.google.com/*' }, (tabs) => {
-                if (tabs && tabs.length > 0 && tabs[0].id != null) {
-                    chrome.tabs.reload(tabs[0].id, () => sendResponse({ ok: true }));
-                } else {
-                    sendResponse({ ok: false, error: 'no tab' });
-                }
-            });
-        }
-        return true;
-    }
-
-    if (msg.action === 'fetchChat') {
-        sendToGeminiTab({
-            action: 'getConversationDetail',
-            conversationId: msg.id || msg.conversationId
-        }, msg.accountId)
-            .then(r => sendResponse(r == null
-                ? { ok: false, success: false, error: 'empty response from gemini tab' }
-                : r))
-            .catch(e => sendResponse({ success: false, error: e?.message }));
-        return true;
-    }
-
-    if (msg.action === 'fetchBatch') {
-        const slot = msg.accountId || '';
-        const ids = msg.ids;
-        const format = msg.format;
-        const skipExported = msg.skipExported;
-        const globalOffset = msg.globalOffset;
-        const globalTotal = msg.globalTotal;
-        const prev = fetchBatchChains.get(slot) || Promise.resolve();
-        const queuedCancelEpoch = getSlotCancelEpoch(slot);
-        const run = prev.then(async () => {
-            let responded = false;
-            const guardedResponse = (response: unknown) => {
-                if (responded) return;
-                responded = true;
-                try { sendResponse(response); } catch (_) { /* port may be gone */ }
-            };
-            // A batch queued before cancellation belongs to the cancelled
-            // generation. Only a fresh request submitted afterward may reset it.
-            if (getSlotCancelEpoch(slot) !== queuedCancelEpoch) {
-                guardedResponse({ success: false, aborted: true, error: 'aborted' });
-                return;
+chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
+    if (handleDomainIngestionMessage(message, sender, respond)) return true;
+    if (handleAccountRegistryMessage(message, sender, respond)) return true;
+    if (!message || typeof message !== 'object' || !('action' in message)
+        || !['ensureV2Ready', 'getLocalIndexCount', 'runLiveSave', 'openOptions', 'openGeminiPage', 'reloadGeminiTab'].includes(String(message.action))) return false;
+    void (async () => {
+        try {
+            assertExtensionSender(sender);
+            const request = object(message);
+            if (request.action === 'openOptions') { await chrome.runtime.openOptionsPage(); respond({ ok: true }); return; }
+            if (request.action === 'openGeminiPage') {
+                const tab = await chrome.tabs.create({ url: 'https://gemini.google.com/app' });
+                respond({ ok: true, tabId: tab.id }); return;
             }
-            await setSlotAborted(slot, false);
-            if (getSlotCancelEpoch(slot) !== queuedCancelEpoch) {
-                guardedResponse({ success: false, aborted: true, error: 'aborted' });
-                return;
+            if (request.action === 'reloadGeminiTab') {
+                if (typeof request.tabId !== 'number') throw new TypeError('Expected target Tab ID');
+                const tab = await chrome.tabs.get(request.tabId);
+                if (!tab.url || new URL(tab.url).origin !== 'https://gemini.google.com') throw new Error('Not a Gemini Tab');
+                await chrome.tabs.reload(request.tabId); respond({ ok: true }); return;
             }
-            try {
-                await ensureStorageReady();
-                await fetchBatch(ids, format, skipExported, guardedResponse, globalOffset, globalTotal, slot);
-                if (!responded) {
-                    // Fail closed: a batch that produced no response is a
-                    // failure, never a silent success.
-                    guardedResponse({ success: false, error: 'fetchBatch completed without a response' });
-                }
-            } catch (e: unknown) {
-                guardedResponse({ success: false, error: getErrorMessage(e) || String(e) });
-            }
-        });
-        // Keep the chain alive for later batches regardless of outcome.
-        fetchBatchChains.set(slot, run.then(() => undefined, () => undefined));
-        return true;
-    }
-
-    if (msg.action === 'cancelExport') {
-        const slot = msg.accountId || '';
-        void setSlotAborted(slot, true);
-        sendResponse({ ok: true, aborted: true });
-        return true;
-    }
-
-    if (msg.action === 'abortSync') {
-        const slot = msg.accountId || '';
-        void setSlotAborted(slot, true);
-        const abortMsg: AbortSyncMessage = { action: 'abortSync' };
-        sendToGeminiTab(abortMsg, slot).catch(() => {});
-        sendResponse({ ok: true, aborted: true });
-        return true;
-    }
-
-    if (msg.action === 'ping') {
-        const ver = getExtensionVersion();
-        sendResponse({
-            ok: true,
-            version: ver,
-            ver: ver
-        });
-        return;
-    }
-
-    if (msg.action === 'deepScan') {
-        void (async () => {
-            const stopKeepAlive = startKeepAlive();
-            try {
-                const timeoutMs = 300000;
-                const deepScanMsg: DeepScanMessage = {
-                    action: 'deepScan',
-                    maxIter: msg.maxIter || 150
-                };
-                const res = await sendToGeminiTab(deepScanMsg, msg.accountId, timeoutMs);
-                sendResponse(res);
-            } catch (e: unknown) {
-                sendResponse({ success: false, status: 'error', error: getErrorMessage(e) });
-            } finally {
-                stopKeepAlive();
-            }
-        })();
-        return true;
-    }
-
-    if (msg.action === 'stopDeepScan') {
-        const slot = msg.accountId || '';
-        void setSlotAborted(slot, true);
-        const stopMsg: StopDeepScanMessage = { action: 'stopDeepScan' };
-        sendToGeminiTab(stopMsg, slot)
-            .then(r => sendResponse(r || { ok: true, aborted: true }))
-            .catch(() => sendResponse({ ok: true, aborted: true }));
-        return true;
-    }
-
-    if (msg.action === 'scanProgress' || msg.action === 'syncUpdate') {
-        // In MV3, chrome.runtime.sendMessage from content script is already delivered directly to all extension pages.
-        // Re-broadcasting here causes duplicate message delivery and duplicate log entries.
-        return;
-    }
-
-    if (msg.action === 'liveSaveViaHandle' && msg.payload) {
-        (async () => {
-            await ensureStorageReady();
-            return handleLiveSaveViaHandle(msg.payload, msg.accountId || '');
-        })()
-            .then(res => sendResponse(res))
-            .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
-        return true;
-    }
-
-    return false;
+            await ensureV2Ready();
+            if (request.action === 'ensureV2Ready') { respond({ ok: true }); return; }
+            const key = request.action === 'runLiveSave' ? readConversationKey(request.key) : null;
+            const account = await requireContentAccount(sender, key ? key.accountId : request.accountId);
+            if (key) respond({ ok: true, result: await runLiveSave(key) });
+            else respond({ ok: true, count: (await listIndexes(account.id)).length });
+        } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : String(error) }); }
+    })();
+    return true;
 });

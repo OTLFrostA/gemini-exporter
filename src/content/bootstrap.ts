@@ -8,7 +8,7 @@ import {
 } from '../core/api/client/credStorage.js';
 import { resolveCurrentAccount, matchesCurrentAccount } from './accountContext.js';
 import { readAccountParameters } from '../core/domain/accountRegistry.js';
-import { StorageService } from '../core/storage/storageService.js';
+import { registerCleanup } from './cleanupRegistry.js';
 import { getErrorMessage } from '../core/utils/messaging.js';
 
 export function getCredStorage(): chrome.storage.StorageArea | null {
@@ -269,20 +269,23 @@ export function ensureCreds(): Promise<any> {
     return runSerializedCredOp(ensureCredsOnce);
 }
 
-if (typeof window !== 'undefined') {
+export function initBootstrap(): void {
+    if (typeof window === 'undefined') return;
     window.__gemExporterExtractAt = extractAtFromPage;
     window.__gemExporterExtractBl = extractBlFromPage;
     window.__gemExporterEnsureCreds = ensureCreds;
 
     void ensureCreds();
-    document.addEventListener('DOMContentLoaded', () => ensureCreds(), { once: true });
-    window.addEventListener('load', () => ensureCreds(), { once: true });
+    const refresh = () => { void ensureCreds(); };
+    document.addEventListener('DOMContentLoaded', refresh, { once: true });
+    window.addEventListener('load', refresh, { once: true });
+    registerCleanup(() => { document.removeEventListener('DOMContentLoaded', refresh); window.removeEventListener('load', refresh); });
 
     // Listen to GEMINI_CREDENTIALS from the MAIN-world hook. NOTE (threat model):
     // same-window page scripts can forge this message indistinguishably
     // (event.source === window is true for them too), so treat the payload as
     // untrusted: an empty `at` must never clobber the stored credential.
-    window.addEventListener('message', (e: MessageEvent) => {
+    const receive = (e: MessageEvent) => {
         if (e.source !== window) return;
         if (typeof location !== 'undefined' && e.origin !== location.origin) return;
         if (e.data?.type === CrossWorldEvents.ACCOUNT_OBSERVED) {
@@ -340,5 +343,7 @@ if (typeof window !== 'undefined') {
                 }
             });
         }
-    });
+    };
+    window.addEventListener('message', receive);
+    registerCleanup(() => window.removeEventListener('message', receive));
 }
