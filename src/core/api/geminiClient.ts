@@ -310,6 +310,7 @@ export {
 
 export const GeminiClientExports = {
     GeminiAPIClient,
+    ConfirmedGeminiConversationNotFound,
     getApiUrl,
     detectSlot,
     resolveCred,
