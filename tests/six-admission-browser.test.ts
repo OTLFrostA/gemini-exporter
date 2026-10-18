@@ -24,7 +24,9 @@ test('Chromium contexts serialize L2 fact admission using native IDB readwrite t
             await page.addScriptTag({ content: bundle });
             // Browser Runtime broker boundary only: each read reaches the actual same-origin DB.
             await page.evaluate(() => Object.defineProperty(window, 'chrome', { configurable: true, value: { runtime: {
-                sendMessage: async (request: { accountId: string }) => ({ ok: true, value: await window.admission.getAccount(request.accountId) })
+                sendMessage: async (request: { action: string; accountId?: string }) =>
+                    request.action === 'ensureV2Ready' ? { ok: true }
+                        : { ok: true, value: await window.admission.getAccount(request.accountId!) }
             } } }));
         }
         const accounts = await Promise.all(pages.flatMap((page, i) => Array.from({ length: 6 }, (_, j) => page.evaluate(async ({ i, j }) => {

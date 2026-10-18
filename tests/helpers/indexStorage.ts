@@ -26,6 +26,7 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
     ]);
     for (const provider of ['chatgpt', 'custom', 'future', 'future-provider', 'other', 'example', 'neutral', 'openai', 'independent']) { const account = fixtureAccount(provider); accounts.set(account.id, account); }
     globalThis.chrome = { runtime: { async sendMessage(message: Record<string, unknown>) {
+        if (message.action === 'ensureV2Ready') return { ok: true };
         if (message.action !== 'accountRegistry') return undefined;
         if (message.command === 'get') return { ok: true, value: accounts.get(String(message.accountId)) ?? null };
         if (message.command === 'list') return { ok: true, value: [...accounts.values()].filter(account => !message.providerId || account.providerId === message.providerId) };
