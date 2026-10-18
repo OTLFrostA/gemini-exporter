@@ -68,6 +68,23 @@ test('ingestion preserves Detail and Index facts; reports L2 errors', async () =
     assert.equal(handle({ action: 'domainStorage' }, sender, () => assert.fail()), false);
 });
 
+test('Background returns Detail changed only after L2 admission commits', async () => {
+    global.chrome = chromeBase() as any;
+    let finish!: () => void;
+    const gate = new Promise<void>(resolve => { finish = resolve; });
+    const handle = load('src/background/domainStorageHandler.ts', {
+        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
+        'src/core/domain/ingestion.js': { ingestDetail: async () => { await gate; return false; } },
+    }).handleDomainIngestionMessage;
+    let returned = false;
+    const response = invoke(handle, { action: 'domainIngest', operation: 'detail',
+        accountId: uuid, conversationId: 'abc', detail: {} }).then((value: unknown) => { returned = true; return value; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(returned, false);
+    finish();
+    assert.deepEqual(await response, { ok: true, changed: false });
+});
+
 test('ingestion rejects foreign, unsupported, subframe and malformed requests', async () => {
     global.chrome = chromeBase() as any;
     let calls = 0;
@@ -100,11 +117,21 @@ test('Content ingestion sends only JSON facts and propagates worker failure', as
     assert.deepEqual(JSON.parse(JSON.stringify(sent)), { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [] });
 });
 
+test('Content ingestion preserves committed changed results from the worker', async () => {
+    global.location = { protocol: 'https:' } as any;
+    global.chrome = { runtime: { sendMessage: async () => ({ ok: true, changed: true }) } } as any;
+    const api = load('src/core/api/domainIngestion.ts', { 'src/core/domain/ingestion.js': {},
+        'src/core/api/runtimeReady.js': ready });
+    assert.equal(await api.ingestDetail(uuid, 'abc', {}), true);
+    global.chrome = { runtime: { sendMessage: async () => ({ ok: true }) } } as any;
+    await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /changed/);
+});
+
 test('Extension ingestion calls the same L2 function after readiness', async () => {
     global.location = { protocol: 'chrome-extension:' } as any;
     const order: string[] = [];
     const api = load('src/core/api/domainIngestion.ts', {
-        'src/core/domain/ingestion.js': { ingestDetail: async () => { order.push('L2'); } },
+        'src/core/domain/ingestion.js': { ingestDetail: async () => { order.push('L2'); return true; } },
         'src/core/api/runtimeReady.js': { ensureV2Ready: async () => { order.push('ready'); } },
     });
     await api.ingestDetail(uuid, 'abc', {});
@@ -134,7 +161,7 @@ test('Live Save returns the exact unified result and request, including skip/par
     const key = { accountId: uuid, conversationId: 'abc' };
     const result = { exported: 0, skipped: 1, partial: 1, failed: [key], aborted: true };
     const save = live({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: false }, 'granted', true, async (request: unknown) => {
-        assert.deepEqual(request, { keys: [key], format: 'markdown', delivery: 'folderWriter', useZip: false, includeAssets: false, skipUnchanged: true });
+        assert.deepEqual(request, { keys: [key], format: 'markdown', delivery: 'folderWriter', useZip: false, includeAssets: false, skipUnchanged: false });
         return result;
     });
     assert.equal(await save(key), result);
@@ -233,7 +260,6 @@ test('Live Save Content sends only key, ignores navigation flush, and suppresses
     let feedback = 0;
     const badge = { showLiveSaveFeedback: () => { feedback++; } };
     coordinator.init({ badge });
-    assert.equal(await coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' }, 'unload'), null);
     const pending = coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' });
     await Promise.resolve();
     assert.deepEqual(sent, { action: 'runLiveSave', key: { accountId: uuid, conversationId: 'abc' } });
@@ -648,7 +674,7 @@ test('XHR: 200 without completion markers, oversized body and synchronous send f
     assert.equal(harness.complete().length, 0);
 });
 
-function completionBridge(commitDetail: () => Promise<void>) {
+function completionBridge(commitDetail: () => Promise<boolean>) {
     global.window = contentWindow() as any;
     global.location = { origin: 'https://gemini.google.com', pathname: '/app/abcdef123456' } as any;
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
@@ -704,63 +730,65 @@ function markdownApplication() {
     } };
 }
 
-test('previously exported conversation: completion waits for received Detail commit and Live Save writes latest Markdown', async () => {
+test('passive Detail change waits for commit and Live Save writes latest Markdown', async () => {
     const app = markdownApplication();
     assert.equal((await app.save(app.key)).exported, 1);
     assert.match(app.markdown[0], /original reply/);
     let commit!: () => void;
     const gate = new Promise<void>(resolve => { commit = resolve; });
-    const harness = completionBridge(async () => { await gate; app.append(); });
-    const observer = load('src/content/liveSaveObserver.ts', {});
-    let exported!: Promise<any>;
-    observer.init({ debounceMs: 1, onTurnComplete: (key: unknown) => { exported = app.save(key); } });
-    harness.bridge.init({ onStreamComplete: observer.notifyStreamComplete });
+    const harness = completionBridge(async () => { await gate; app.append(); return true; });
+    let exported: Promise<any> | undefined;
+    harness.bridge.init({ onDetailChanged: key => { exported = app.save(key); } });
     const detail = harness.detail();
-    const completion = harness.complete();
-    await new Promise(resolve => setImmediate(resolve));
+    await harness.complete(); // Stream Complete alone never starts Live Save.
     assert.equal(exported, undefined);
     assert.equal(app.markdown.length, 1);
-    commit(); await detail; await completion;
-    await new Promise(resolve => setTimeout(resolve, 5));
+    commit(); await detail;
+    assert.ok(exported);
     assert.equal((await exported).exported, 1);
     assert.equal(app.markdown.length, 2);
     assert.match(app.markdown[1], /original reply/);
     assert.match(app.markdown[1], /latest generated reply/);
-    observer.cleanup();
 });
 
-test('external Application/L1 characterization: stale Index skips even newly committed Detail', async () => {
+test('Live Save does not consult old ExportRecord even when Index time is unchanged', async () => {
     const app = markdownApplication();
     assert.equal((await app.save(app.key)).exported, 1);
     app.append(false);
     const result = await app.save(app.key);
-    assert.equal(result.skipped, 1);
-    assert.equal(app.markdown.length, 1);
-    assert.doesNotMatch(app.markdown[0], /latest generated reply/);
+    assert.equal(result.skipped, 0);
+    assert.equal(result.exported, 1);
+    assert.equal(app.markdown.length, 2);
+    assert.match(app.markdown[1], /latest generated reply/);
 });
 
-test('failed in-flight admission suppresses completion; reinjection cannot deliver an old completion to a new listener', async () => {
+test('failed, unchanged and superseded Detail admissions never trigger Live Save', async () => {
     let fail!: (error: Error) => void;
-    const gate = new Promise<void>((_, reject) => { fail = reject; });
+    const gate = new Promise<boolean>((_, reject) => { fail = reject; });
     const harness = completionBridge(() => gate);
     let saves = 0;
-    harness.bridge.init({ onStreamComplete: () => { saves++; } });
-    const detail = harness.detail();
-    const completion = harness.complete();
-    const rejectedDetail = assert.rejects(detail, /commit failed/);
-    const rejectedCompletion = assert.rejects(completion, /commit failed/);
-    fail(new Error('commit failed')); await rejectedDetail; await rejectedCompletion;
+    harness.bridge.init({ onDetailChanged: () => { saves++; } });
+    const rejectedDetail = assert.rejects(harness.detail(), /commit failed/);
+    fail(new Error('commit failed'));
+    await rejectedDetail;
+    assert.equal(saves, 0);
+    await harness.complete();
+    assert.equal(saves, 0);
+
+    const unchanged = completionBridge(async () => false);
+    unchanged.bridge.init({ onDetailChanged: () => { saves++; } });
+    await unchanged.detail(); await unchanged.complete();
     assert.equal(saves, 0);
 
     let commit!: () => void;
     const pending = new Promise<void>(resolve => { commit = resolve; });
-    const second = completionBridge(() => pending);
-    second.bridge.init({ onStreamComplete: () => { saves++; } });
-    const d = second.detail(), c = second.complete();
-    second.bridge.init({ onStreamComplete: () => { saves++; } });
-    commit(); await d; await c;
-    assert.equal(saves, 0);
-    await second.complete();
+    const replaced = completionBridge(async () => { await pending; return true; });
+    replaced.bridge.init({ onDetailChanged: () => { saves++; } });
+    const d = replaced.detail();
+    replaced.bridge.init({ onDetailChanged: () => { saves++; } });
+    commit(); await d;
+    assert.equal(saves, 0, 'a disposed listener cannot trigger an export');
+    await replaced.detail();
     assert.equal(saves, 1);
 });
 
