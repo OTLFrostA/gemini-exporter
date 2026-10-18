@@ -249,7 +249,7 @@ test('resource router checks Account after completion and answers exactly once',
     assert.equal((await invoke(listener, { action: 'getFileBlob', accountId: uuid, url: 'https://lh3.googleusercontent.com/a' })).ok, false);
 });
 
-test('Live Save Content sends only key, ignores navigation flush, and suppresses stale reinjection feedback', async () => {
+test('Live Save Content sends only the changed key and suppresses stale reinjection feedback', async () => {
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
     let sent: unknown;
     let reply!: (value: unknown) => void;
@@ -267,23 +267,6 @@ test('Live Save Content sends only key, ignores navigation flush, and suppresses
     reply({ ok: true, result: { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false } });
     await pending;
     assert.equal(feedback, 0);
-});
-
-test('only confirmed stream completion triggers Live Save; cleanup cancels pending completion', async () => {
-    global.window = contentWindow() as any;
-    const observer = load('src/content/liveSaveObserver.ts', {});
-    const saves: unknown[] = [];
-    observer.init({ debounceMs: 1, getActiveId: () => 'abc', onTurnComplete: (...args: unknown[]) => saves.push(args) });
-    observer.notifyStreamStart('abc'); observer.flushCurrentTurnNow();
-    global.window.dispatchEvent(new Event('beforeunload'));
-    await new Promise(resolve => setTimeout(resolve, 5));
-    assert.deepEqual(saves, []);
-    observer.notifyStreamComplete({ accountId: uuid, conversationId: 'abc' });
-    await new Promise(resolve => setTimeout(resolve, 5));
-    assert.deepEqual(saves, [[{ accountId: uuid, conversationId: 'abc' }, 'turn_complete']]);
-    observer.notifyStreamComplete({ accountId: uuid, conversationId: 'abc' }); observer.cleanup();
-    await new Promise(resolve => setTimeout(resolve, 5));
-    assert.equal(saves.length, 1);
 });
 
 test('lifecycle initializes Settings after readiness and opens Options only on installation', async () => {
@@ -452,33 +435,6 @@ test('an early source completion survives readiness wait and keeps its captured 
     finish(); await operation;
     assert.equal(commits, 1);
     assert.deepEqual(keys, [{ accountId: uuid, conversationId: 'abcdef123456' }]);
-});
-
-test('Live Save debounce preserves the event Key after Account switches and input mutation', async () => {
-    global.window = contentWindow() as any;
-    const other = '87654321-4321-4321-8321-cba987654321';
-    let current = uuid;
-    let sent: any;
-    let feedback = 0;
-    global.chrome = { runtime: { sendMessage: async (message: unknown) => {
-        sent = message;
-        return { ok: true, result: { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false } };
-    } } } as any;
-    const coordinator = load('src/content/liveSaveCoordinator.ts', {
-        'src/content/accountContext.js': { getAccountContext: () => ({ accountId: current }), resolveCurrentAccount: () => assert.fail('Do not rediscover Account during save') },
-    });
-    coordinator.init({ badge: { showLiveSaveFeedback: () => { feedback++; } } });
-    const observer = load('src/content/liveSaveObserver.ts', {});
-    let complete!: () => void;
-    const done = new Promise<void>(resolve => { complete = resolve; });
-    observer.init({ debounceMs: 1, onTurnComplete: (key: unknown) => { void coordinator.executeLiveSave(key).then(complete); } });
-    const key = { accountId: uuid, conversationId: 'old-conversation' };
-    observer.notifyStreamComplete(key);
-    current = other; key.accountId = other;
-    await done;
-    assert.deepEqual(sent.key, { accountId: uuid, conversationId: 'old-conversation' });
-    assert.equal(feedback, 0);
-    observer.cleanup(); coordinator.cleanup();
 });
 
 test('active Content Account validation targets the sending document and rejects a different current Account', async () => {

@@ -1,4 +1,4 @@
-import { getCoverage } from '../src/core/storage/storageService.js';
+import { getCoverage, getIndex, getDetail } from '../src/core/storage/storageService.js';
 import { admitFixture } from './helpers/admitFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -104,5 +104,29 @@ test('ingestDetail changed reports only committed messages/assets/quality differ
             { title: 'New index', titleSource: 'provider' }), false);
         assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 12,
             messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'edited' }] }] }] }), true);
+    } finally { env.restore(); }
+});
+
+test('one failed Detail write rolls back its freshly created Index', async () => {
+    const env = indexStorage(), key = fixtureKey('atomic-rollback');
+    try {
+        env.fail('details');
+        const { key: _unused, ...facts } = snapshot('new body', 'complete', 10).conversation.detail;
+        await assert.rejects(ingestDetail(account.id, key.conversationId, facts), /write failed/);
+        env.fail();
+        assert.equal(await getIndex(key), null);
+        assert.equal(await getDetail(key), null);
+        assert.equal(await ingestDetail(account.id, key.conversationId, facts), true);
+        assert.ok(await getIndex(key));
+        assert.ok(await getDetail(key));
+    } finally { env.restore(); }
+});
+
+test('concurrent Index admissions preserve the highest trusted updatedAt', async () => {
+    const env = indexStorage(), key = fixtureKey('atomic-index');
+    try {
+        await Promise.all(Array.from({ length: 20 }, (_, updatedAt) =>
+            ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { updatedAt } }])));
+        assert.equal((await getIndex(key))?.updatedAt, 19);
     } finally { env.restore(); }
 });
