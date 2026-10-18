@@ -1,0 +1,19 @@
+name: V2 Scoped Contract Verification
+on:
+  push:
+    branches: [fix/v2-atomic-detail-live-save-coverage]
+  workflow_dispatch:
+
+jobs:
+  v2-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:v2-modules
