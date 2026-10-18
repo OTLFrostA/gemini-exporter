@@ -8,7 +8,7 @@ import { getDetail, getIndex, getExportRecord, putExportRecord, getCoverage, put
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
 import { ConfirmedGeminiConversationNotFound } from '../src/core/api/geminiClient.js';
-import { parseConfirmedGeminiDeletion } from '../src/core/parsers/gemini/rpc/parseDeletion.js';
+import { parseConfirmedGeminiDeletion, isConfirmedGeminiDetailNotFound } from '../src/core/parsers/gemini/rpc/parseDeletion.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
 import { GeminiProtocol } from '../src/core/protocol/protocol.js';
@@ -89,6 +89,14 @@ test('Detail not-found classifier refuses HTTP status alone and unrelated error 
     assert.equal(GeminiProtocol.isConfirmedDeletedError('["BardErrorInfo",11167]', 200), false);
     assert.equal(GeminiProtocol.isConfirmedDeletedError('["BardErrorInfo",1167]', 200), true);
     assert.equal(GeminiProtocol.isConfirmedDeletedError('["BardErrorInfo",1167]', 429), false);
+});
+
+test('Detail 1167 must belong to target hNvQHb RPC, not a simultaneous list or arbitrary HTTP response', () => {
+    const frame = (rpc: string, error: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', rpc, null, null, null, error]])}`;
+    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.DETAIL, ['BardErrorInfo', 1167])), true);
+    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 1167])), false);
+    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.DETAIL, ['BardErrorInfo', 1096])), false);
+    assert.equal(isConfirmedGeminiDetailNotFound('HTTP 404'), false);
 });
 
 test('L1 delete parsing needs a matching acknowledged DELETE RPC, not the outgoing request alone', () => {

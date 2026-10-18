@@ -1,6 +1,15 @@
 import { robustFirstPayload } from './extractors.js';
 import { GeminiProtocol } from '../../../protocol/protocol.js';
 
+/** The Detail RPC itself must contain the Gemini 1167 business error; a LIST error in the
+ * same batchexecute envelope is not evidence that the target conversation disappeared. */
+export function isConfirmedGeminiDetailNotFound(responseText: string): boolean {
+    const top: unknown = robustFirstPayload(responseText);
+    return Array.isArray(top) && top.some(row => Array.isArray(row)
+        && row[0] === GeminiProtocol.WRB && row[1] === GeminiProtocol.RPCS.DETAIL
+        && GeminiProtocol.isConfirmedDeletedError(JSON.stringify(row[5] ?? null), 200));
+}
+
 /** Only a request-bound DELETE RPC with a matching positive response may delete local facts. */
 export function parseConfirmedGeminiDeletion(requestBody: string, responseText: string): string | null {
     try {

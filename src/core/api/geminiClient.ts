@@ -1,5 +1,6 @@
 import type { Account } from '../domain/accountRegistry.js';
 import { parseGeminiRpcConversation } from '../parsers/gemini/rpc/parseConversation.js';
+import { isConfirmedGeminiDetailNotFound } from '../parsers/gemini/rpc/parseDeletion.js';
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
 import { isDevMode, getErrorMessage } from "../utils/utils.js";
 import { extractConversationIdFromUrl } from "../utils/pathUtils.js";
@@ -265,11 +266,14 @@ const pagination = GeminiClientPagination;
             } catch (err: unknown) {
                 const errMsg = getErrorMessage(err);
                 const errCategory = getProtocol().classifyDetailError(text, resp?.status);
-                if (errCategory === 'confirmed_deleted') {
+                if (isConfirmedGeminiDetailNotFound(text)) {
                     if (isDev) {
                         console.info(`[Gemini Exporter Client] Conversation ${id} is confirmed deleted on server (BardErrorInfo: 1167). Skipping.`);
                     }
                     throw new ConfirmedGeminiConversationNotFound(id);
+                }
+                if (errCategory === 'confirmed_deleted') {
+                    throw new Error(`Unverified Gemini Detail not found (${id})`);
                 }
                 if (errCategory === 'rate_limited') {
                     throw new Error(`Google 服务端限流或到达上限 (${id}) [BardErrorInfo: 1096]`);
