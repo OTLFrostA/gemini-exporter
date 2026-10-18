@@ -20,7 +20,6 @@ declare global {
         __geminiLastStreamStart?: number;
         __geminiActiveStreamConvId?: string;
         __geminiLastStreamComplete?: number;
-        __geminiExporterSyncOnce?: () => void;
         __gemExporterHookInstalled?: boolean;
     }
     interface XMLHttpRequest {
@@ -63,9 +62,11 @@ declare global {
     // Publish only changed stable identity/profile evidence, including loss of Gaia.
     window.setInterval(() => publishAccount(), 1000);
     window.addEventListener('message', (event: MessageEvent) => {
-        if (event.source !== window || event.origin !== location.origin
-            || event.data?.type !== Events.ACCOUNT_REQUESTED) return;
-        const requestId: unknown = event.data.payload?.requestId;
+        const raw: unknown = event.data;
+        if (event.source !== window || event.origin !== location.origin || !raw || typeof raw !== 'object'
+            || !('type' in raw) || raw.type !== Events.ACCOUNT_REQUESTED || !('payload' in raw)
+            || !raw.payload || typeof raw.payload !== 'object' || !('requestId' in raw.payload)) return;
+        const requestId: unknown = raw.payload.requestId;
         if (typeof requestId === 'string' && requestId.length > 0 && requestId.length <= 128) publishAccount(requestId);
     });
 
@@ -186,9 +187,57 @@ declare global {
     }
 
     function isStreamUrl(url: string | URL | Request | null | undefined): boolean {
-        const u = toUrlString(url);
-        return u.includes('StreamGenerate') || u.includes('BardFrontendService');
+        try {
+            const parsed = new URL(toUrlString(url), location.href);
+            return parsed.protocol === 'https:' && parsed.hostname === 'gemini.google.com'
+                && parsed.pathname.endsWith('/StreamGenerate');
+        } catch { return false; }
     }
+
+    // Observed Gemini wire signals: candidate[8][0] == 2 means answered;
+    // inner[25] is the history-save marker. Require both, complete JSON frames and EOF.
+    // No marker/unknown protocol/transport-only trailer is evidence of success.
+    function completedTurn(text: string): { conversationId: string; responseId: string } | null {
+        let identity: { conversationId: string; responseId: string } | null = null;
+        let answered = false, saved = false;
+        try {
+            let expectedLength: number | undefined;
+            for (const line of text.split('\n').map(value => value.trim()).filter(Boolean)) {
+                if (line === ")]}'") continue;
+                if (/^\d+$/.test(line)) {
+                    if (expectedLength !== undefined) return null;
+                    expectedLength = Number(line); continue;
+                }
+                if (expectedLength !== undefined && new TextEncoder().encode(line).length !== expectedLength) return null;
+                expectedLength = undefined;
+                const rows: unknown = JSON.parse(line);
+                if (!Array.isArray(rows)) return null;
+                for (const row of rows) {
+                    if (!Array.isArray(row)) return null;
+                    if (row[0] === 'er' || row[5] != null) return null;
+                    if (row[0] !== 'wrb.fr') continue;
+                    if (typeof row[2] !== 'string') return null;
+                    const inner: unknown = JSON.parse(row[2]);
+                    if (!Array.isArray(inner)) return null;
+                    const metadata: unknown = inner[1];
+                    if (Array.isArray(metadata) && typeof metadata[0] === 'string' && /^c_[a-f0-9]{8,64}$/i.test(metadata[0])
+                        && typeof metadata[1] === 'string' && /^r_[a-f0-9]+$/i.test(metadata[1])) {
+                        const next = { conversationId: metadata[0].slice(2), responseId: metadata[1] };
+                        if (identity && (identity.conversationId !== next.conversationId || identity.responseId !== next.responseId)) return null;
+                        identity = next;
+                    }
+                    if (Array.isArray(inner[4]) && inner[4].length) {
+                        answered = inner[4].every((candidate: unknown) => Array.isArray(candidate)
+                            && typeof candidate[0] === 'string' && candidate[0].startsWith('rc_')
+                            && Array.isArray(candidate[8]) && candidate[8][0] === 2);
+                    }
+                    if (typeof inner[25] === 'string' && inner[25]) saved = true;
+                }
+            }
+            return expectedLength === undefined && answered && saved ? identity : null;
+        } catch { return null; }
+    }
+    let lastCompletedTurn: string | undefined;
 
     function extractConversationId(
         _url: string | URL | Request | null | undefined,
@@ -240,31 +289,19 @@ declare global {
 
     function broadcastStreamComplete(
         url: string | URL | Request | null | undefined,
-        body?: unknown,
-        responseText?: unknown,
-        requestAccountObservation: Omit<Account, 'id'> | null = null
+        text: string,
+        requestAccountObservation: Omit<Account, 'id'> | null,
+        slot: string
     ): void {
-        try {
-            const convId = extractConversationId(url, body, responseText);
-            const slot = getSlotFromUrl(url);
-            try {
-                window.__geminiIsStreaming = false;
-                window.__geminiLastStreamComplete = Date.now();
-                if (convId) window.__geminiActiveStreamConvId = convId;
-            } catch {}
-            const payload: GeminiStreamCompletePayload = {
-                id: convId,
-                requestAccountObservation,
-                slot,
-                url: toUrlString(url)
-            };
-            window.postMessage({
-                type: Events.STREAM_COMPLETE,
-                payload
-            }, location.origin);
-        } catch (e) {
-            if (isDev()) console.debug('[GemExporter:hook]', e);
-        }
+        const turn = completedTurn(text);
+        if (!turn) return;
+        const identity = JSON.stringify([slot, requestAccountObservation?.providerAccountId, turn.conversationId, turn.responseId]);
+        if (identity === lastCompletedTurn) return;
+        lastCompletedTurn = identity;
+        window.__geminiLastStreamComplete = Date.now();
+        window.__geminiActiveStreamConvId = turn.conversationId;
+        const payload: GeminiStreamCompletePayload = { id: turn.conversationId, requestAccountObservation, slot, url: toUrlString(url) };
+        window.postMessage({ type: Events.STREAM_COMPLETE, payload }, location.origin);
     }
 
     // Capture before native send. A request for another slot has no verified current-page identity.
@@ -306,46 +343,42 @@ declare global {
     const BATCHEXECUTE_SNIFF_CAP = 3 * 1024 * 1024;
 
     async function readCappedText(response: Response, cap: number = BATCHEXECUTE_SNIFF_CAP): Promise<{ text: string; truncated: boolean }> {
-        try {
-            const body = response.body;
-            if (body && typeof body.getReader === 'function') {
-                const reader = body.getReader();
-                const chunks: Uint8Array[] = [];
-                let received = 0;
-                let truncated = false;
-                try {
-                    for (;;) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        if (value && value.length) {
-                            const room = cap - received;
-                            if (room <= 0) { truncated = true; break; }
-                            if (value.length > room) {
-                                chunks.push(value.slice(0, room));
-                                received += room;
-                                truncated = true;
-                                break;
-                            }
-                            chunks.push(value);
-                            received += value.length;
+        const body = response.body;
+        if (body && typeof body.getReader === 'function') {
+            const reader = body.getReader();
+            const chunks: Uint8Array[] = [];
+            let received = 0;
+            let truncated = false;
+            try {
+                for (;;) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    if (value && value.length) {
+                        const room = cap - received;
+                        if (room <= 0) { truncated = true; break; }
+                        if (value.length > room) {
+                            chunks.push(value.slice(0, room));
+                            received += room;
+                            truncated = true;
+                            break;
                         }
+                        chunks.push(value);
+                        received += value.length;
                     }
-                } finally {
-                    try {
-                        if (truncated && typeof reader.cancel === 'function') await reader.cancel();
-                    } catch { /* best effort */ }
-                    try { reader.releaseLock(); } catch { /* best effort */ }
                 }
-                const merged = new Uint8Array(received);
-                let off = 0;
-                for (const c of chunks) { merged.set(c, off); off += c.length; }
-                const decoded = (typeof TextDecoder !== 'undefined')
-                    ? new TextDecoder().decode(merged)
-                    : String.fromCharCode.apply(null, Array.from(merged.slice(0, 65536)));
-                return { text: decoded, truncated };
+            } finally {
+                try {
+                    if (truncated && typeof reader.cancel === 'function') void reader.cancel().catch(() => {});
+                } catch { /* best effort */ }
+                try { reader.releaseLock(); } catch { /* best effort */ }
             }
-        } catch (e) {
-            if (isDev()) console.debug('[GemExporter:hook]', e);
+            const merged = new Uint8Array(received);
+            let off = 0;
+            for (const c of chunks) { merged.set(c, off); off += c.length; }
+            const decoded = (typeof TextDecoder !== 'undefined')
+                ? new TextDecoder().decode(merged)
+                : String.fromCharCode.apply(null, Array.from(merged.slice(0, 65536)));
+            return { text: decoded, truncated };
         }
         const txt = await response.text();
         return txt.length > cap ? { text: txt.slice(0, cap), truncated: true } : { text: txt, truncated: false };
@@ -384,7 +417,12 @@ declare global {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
 
-            const response = await nativeFetch.call(this, input, init);
+            let response: Response;
+            try { response = await nativeFetch.call(this, input, init); }
+            catch (error) {
+                if (isStreamUrl(input)) window.__geminiIsStreaming = false;
+                throw error;
+            }
 
             try {
                 const u = toUrlString(input);
@@ -401,20 +439,17 @@ declare global {
                         if (isDev()) console.debug('[GemExporter:hook]', e);
                     });
                 } else if (isStreamUrl(input)) {
+                    if (!response.ok) { window.__geminiIsStreaming = false; return response; }
                     try {
-                        const cloned = response.clone();
-                        readCappedText(cloned).then(({ text: txt }) => {
-                            try {
-                                broadcastStreamComplete(input, body, txt, requestAccountObservation);
-                            } catch (e) {
-                                if (isDev()) console.debug('[GemExporter:hook]', e);
+                        void readCappedText(response.clone()).then(({ text, truncated }) => {
+                            if (!truncated && !(init?.signal?.aborted)
+                                && !(typeof Request !== 'undefined' && input instanceof Request && input.signal.aborted)) {
+                                broadcastStreamComplete(input, text, requestAccountObservation, requestSlot);
                             }
-                        }).catch(() => {
-                            broadcastStreamComplete(input, body, undefined, requestAccountObservation);
-                        });
-                    } catch {
-                        broadcastStreamComplete(input, body, undefined, requestAccountObservation);
-                    }
+                        }).catch((error: unknown) => {
+                            if (isDev()) console.debug('[GemExporter:hook]', error);
+                        }).finally(() => { window.__geminiIsStreaming = false; });
+                    } catch { window.__geminiIsStreaming = false; }
                 }
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -442,6 +477,7 @@ declare global {
         XMLHttpRequest.prototype.open = hookedOpen;
 
         XMLHttpRequest.prototype.send = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>): void {
+            let cancelStream = () => {};
             try {
                 const url = this.__hookUrl;
                 const body = args[0];
@@ -463,43 +499,34 @@ declare global {
                 } else if (isStreamUrl(url)) {
                     broadcastStreamStart(url, body, requestAccountObservation);
                     let ended = false;
-                    const handleStreamEnd = () => {
+                    const cleanup = () => {
+                        for (const event of ['load', 'loadend', 'abort', 'error', 'timeout']) this.removeEventListener(event, handleStreamEnd);
+                    };
+                    const handleStreamEnd = (event: Event) => {
                         if (ended) return;
                         ended = true;
+                        cleanup();
+                        window.__geminiIsStreaming = false;
+                        if (event.type !== 'load' || this.status < 200 || this.status >= 300) return;
                         try {
-                            broadcastStreamComplete(url, body, this.responseText, requestAccountObservation);
-                        } catch (e) {
-                            if (isDev()) console.debug('[GemExporter:hook]', e);
-                        }
+                            if (this.responseText.length <= BATCHEXECUTE_SNIFF_CAP) {
+                                broadcastStreamComplete(url, this.responseText, requestAccountObservation, requestSlot);
+                            }
+                        } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }
                     };
-                    this.addEventListener('load', handleStreamEnd);
-                    this.addEventListener('loadend', handleStreamEnd);
-                    this.addEventListener('abort', handleStreamEnd);
+                    for (const event of ['load', 'loadend', 'abort', 'error', 'timeout']) this.addEventListener(event, handleStreamEnd);
+                    cancelStream = () => handleStreamEnd(new Event('error'));
                 }
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
-            nativeSend.apply(this, args);
+            try { nativeSend.apply(this, args); }
+            catch (error) { cancelStream(); throw error; }
         };
     }
 
     if (isDev()) console.log('[Gemini Exporter] MAIN world credentials hook initialized');
 
-    // Playwright/e2e test hook (test-only, NOT for production use):
-    // exposes a syncOnce trigger on window so specs can drive a real DOM-tier
-    // sync against the live page. This script runs in the MAIN world, so the
-    // hook is callable from page.evaluate; it only dispatches a DOM event, and
-    // the ISOLATED-world content script listens for it and runs the real
-    // Sync.syncOnce(). Precedent: window.TakeoutController /
-    // window.SyncController in options.ts (documented Playwright/live-harness
-    // hooks, kept by user decision).
-    try {
-        window.__geminiExporterSyncOnce = () => {
-            document.dispatchEvent(new CustomEvent('gemini-exporter:test-sync-once'));
-        };
-    } catch (e) {
-        if (isDev()) console.debug('[GemExporter:hook]', e);
-    }
 })();
 
 export {};

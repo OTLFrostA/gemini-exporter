@@ -4,6 +4,26 @@ import { AssetFetcher } from './assetFetcher.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import { getExtensionVersion } from '../core/utils/constants.js';
 
+// Bound the existing flat L1 DTO before Chrome constructs its JSON message.
+// Count conservatively without allocating another encoded/serialized copy.
+function assertResourceIpcSize(result: unknown): void {
+    if (!result || typeof result !== 'object') throw new Error('Invalid resource response');
+    if ('size' in result && typeof result.size === 'number' && result.size > 50 * 1024 * 1024) throw new Error('Resource exceeds IPC size limit');
+    let bytes = 2;
+    for (const [key, value] of Object.entries(result)) {
+        bytes += key.length * 6 + 16;
+        if (typeof value === 'string') {
+            for (let i = 0; i < value.length; i++) {
+                const code = value.charCodeAt(i);
+                bytes += code < 32 || code > 126 ? 6 : code === 34 || code === 92 ? 2 : 1;
+                if (bytes > 60 * 1024 * 1024) throw new Error('Resource exceeds IPC size limit');
+            }
+        } else if (value !== null && value !== undefined && typeof value !== 'boolean' && typeof value !== 'number') {
+            throw new Error('Resource response is not a flat JSON payload');
+        }
+    }
+    if (bytes > 60 * 1024 * 1024) throw new Error('Resource exceeds IPC size limit');
+}
 function allowedAssetUrl(value: unknown): value is string {
     if (typeof value !== 'string') return false;
     try {
@@ -36,11 +56,7 @@ export function init(): void {
                 if (!received) throw new Error('Resource operation returned no result');
                 const fresh = await resolveCurrentAccount();
                 if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during resource acquisition');
-                if (result && typeof result === 'object') {
-                    const payload = result as { size?: unknown; dataUrl?: unknown };
-                    if (typeof payload.size === 'number' && payload.size > 50 * 1024 * 1024
-                        || typeof payload.dataUrl === 'string' && payload.dataUrl.length > 70 * 1024 * 1024) throw new Error('Resource exceeds IPC size limit');
-                }
+                assertResourceIpcSize(result);
                 respond(result);
             } catch (error) { respond({ ok: false, success: false, error: error instanceof Error ? error.message : String(error) }); }
         })();

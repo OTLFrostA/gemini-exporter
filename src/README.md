@@ -29,8 +29,6 @@ src/
     messageBridge.ts           Cross-world window.postMessage bridge (MAIN -> ISOLATED)
     liveSaveObserver.ts        Gemini generation completion & DOM mutation debounced observer
     liveSaveCoordinator.ts     Real-time live auto-save coordinator (RPC/DOM -> IndexedDB & Disk)
-    syncEngine.ts              Incremental & deep history scan coordinator
-    domScraper.ts              DOM acquisition adapter; native parsing lives in core/parsers/gemini/dom
     badgeView.ts               Floating sync & live save feedback badge in Gemini web UI
     assetFetcher.ts            Media, images, and blob streaming fetcher
     bootstrap.ts               Page token & initial credential bootstrap

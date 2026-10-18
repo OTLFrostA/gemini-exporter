@@ -45,7 +45,7 @@ export function initLifecycleListeners(): void {
                 await chrome.runtime.openOptionsPage();
             } else if (details.reason === 'update') {
                 const settings = await getSettings();
-                const patch = { tourAutoHandled: true as const,
+                const patch = { tourShown: true as const,
                     ...(!settings.lastSeenFeatureVersion && details.previousVersion
                         && /^\d+\.\d+\.\d+(?:\.\d+)?$/.test(details.previousVersion)
                         ? { lastSeenFeatureVersion: details.previousVersion } : {}) };

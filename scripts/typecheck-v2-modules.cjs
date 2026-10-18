@@ -11,9 +11,8 @@ const prefixes = ['src/core/api/', 'src/core/provider/', 'src/core/parsers/', 's
     'src/core/engine/writers/', 'tests/helpers/recordFixture/'];
 const helpers = new Set(['domainFixture', 'nativeFixture', 'admitFixture', 'indexFixture', 'acquisitionFixture', 'documentFixture', 'l1SourceFixture', 'indexStorage', 'applicationHarness'].map(f => `tests/helpers/${f}.ts`));
 const owned = file => prefixes.some(prefix => file.startsWith(prefix)) || suites.has(file) || helpers.has(file)
-    || ['src/content/messageBridge.ts', 'src/content/geminiIndexCapture.ts', 'src/content/hookCredentials.ts',
-        'src/core/utils/titleText.ts', 'src/core/utils/devMode.ts', 'src/core/utils/errorText.ts',
-        'src/content/domScraper.ts'].includes(file);
+    || ['src/content/messageBridge.ts', 'src/content/hookCredentials.ts',
+        'src/core/utils/titleText.ts', 'src/core/utils/devMode.ts', 'src/core/utils/errorText.ts'].includes(file);
 const result = spawnSync(path.join(process.cwd(), 'node_modules/.bin/tsc'), ['--noEmit', '--pretty', 'false'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
 if (result.error) throw result.error;
     if (result.signal) throw new Error(`TypeScript terminated by ${result.signal}`);

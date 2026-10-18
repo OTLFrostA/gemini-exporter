@@ -8,7 +8,6 @@ const manifest = JSON.parse(readFileSync('tests/l1-tier1.json', 'utf8'));
 const prefixes = ['src/core/api/', 'src/core/provider/', 'src/core/parsers/', 'src/core/imports/takeout/'];
 const files = [
     'src/content/messageBridge.ts',
-    'src/content/geminiIndexCapture.ts',
     'src/content/hookCredentials.ts',
     'src/core/provider/sourceResources.ts',
     ...manifest.suites,

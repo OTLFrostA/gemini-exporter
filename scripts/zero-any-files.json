@@ -128,7 +128,6 @@
   "src/core/domain/coverageAdmission.ts",
   "src/core/storage/scanCoverageStore.ts",
   "src/core/parsers/qualityEvidence.ts",
-  "src/content/geminiIndexCapture.ts",
   "src/core/utils/titleText.ts",
   "src/core/utils/devMode.ts",
   "src/core/utils/errorText.ts",

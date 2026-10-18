@@ -45,8 +45,10 @@ modules. On base commit `25d72799`:
   absent. Runtime intentionally imports that contract and does not replace it
   with a no-op or a legacy database reader. Production compilation/readiness needs
   the Migration module implementation.
-- Settings still declares `tourShown`. Lifecycle now writes the specified
-  `tourAutoHandled` field; Settings/Guidance must adopt their frozen schema.
+- Lifecycle uses the existing Settings `tourShown?: true` field. Install leaves it
+  unset and opens Options; UI sets it after first displaying Tour. Update sets it
+  true without opening Options. `lastSeenFeatureVersion` independently controls
+  Feature Spotlight, preserving any existing version. No schema/compatibility change.
 - Legacy UI/other callers and v1 regression tests still refer to removed
   `fetchBatch`, persistent Slot cancellation, direct `domainStorage`, full-chat
   Live Save, or Content detail/scan orchestration. Those owners must use the v2
@@ -61,7 +63,7 @@ modules. On base commit `25d72799`:
 node -r ./tests/ts_register.js --test tests/browser_runtime_v2.test.ts
 ```
 
-The 29-case suite exercises commit waiting and failure, empty pages, sender/Provider/UUID
+The 55-case suite exercises commit waiting and failure, empty pages, sender/Provider/UUID
 validation, strict Tab routing, Live Save request/results and permission loss,
 readiness sharing/retry, paired Popup context, resource response checking,
 installation Settings, directory gestures, confirmed completion and reinjection
@@ -72,3 +74,68 @@ the missing Migration entry point.
 Only this module's Tier 1 was run. Whole-repository tests, other modules' suites,
 real Chrome and Tier 2/3 were excluded as requested. The tests do not establish
 real browser permission persistence, service-worker survival or production E2E.
+
+## Completion evidence and commit ordering
+
+Fetch and XHR share the same conservative success predicate: a successful HTTP
+response, fully read within the capture cap, complete JSON frames with a consistent
+conversation/response identity, answered candidates (`candidate[8][0] === 2`) and
+a history-save marker (`inner[25]`). HTTP 200, EOF, loadend, DOM idleness, navigation
+and unload alone prove nothing. Abort, reader/clone errors, protocol errors and
+truncation do not emit completion. XHR terminal listeners are removed together;
+MAIN reinjection and repeated response identity cannot duplicate a completion.
+Truncated Fetch clone cancellation is not awaited, since a tee may wait for the
+page's other branch to finish.
+
+Protocol evidence is documented by the independent Gemini client at
+[commit 1ad0d4a, client.py lines 1661–1666 and 1723–1725](https://github.com/HanaokaYuzu/Gemini-API/blob/1ad0d4a93e505e77c79769d78ef2997641f973c8/src/gemini_webapi/client.py#L1661).
+The tests use explicitly synthetic protocol frames, not a captured Chrome corpus.
+Unknown protocol endings conservatively suppress Live Save. The Hook only observes
+completion signals; it does not compose Domain facts or decide Export Skip.
+
+MessageBridge waits for the commits of source captures already received before a
+completion notification. This is a barrier over existing admission Promises, not
+a queue or another execution pipeline. A failed commit suppresses that notification;
+old-instance completion cannot invoke a newly injected listener. Captured passive
+requests retain their original Account attribution.
+
+## Cross-module investigation / handoff
+
+- **L1 + Application stale Skip (reproduced):** DOM `parseIndex.ts` does not return
+  `updatedAt`. Application `export/runExport.ts` checks the ExportRecord against
+  Index.updatedAt before reading or refreshing Detail. A newly committed Detail
+  with an unchanged Index can therefore be skipped. Runtime must not invent a
+  timestamp, override `skipUnchanged`, or implement its own Skip policy. L1 owns
+  authoritative update facts; Application owns Skip ordering/policy. The regression
+  runs real Application/composition/Markdown/Packaging: with an authoritative new
+  Index timestamp and a delayed observed Detail commit, Live Save writes the latest
+  reply after an earlier successful export. A separate characterization reproduces
+  the stale-Index defect. Captures arriving only *after* completion are outside the
+  already-received commit barrier; freshness still depends on those owner contracts.
+- **Dead Content writers removed:** `geminiIndexCapture.ts`, `domScraper.ts` and
+  `syncEngine.ts` had no v2 production callers and formed an obsolete Content scan /
+  direct-ingestion path. Their script references and unused MAIN test-sync hook are
+  removed. Active Content Domain writes now use only `domainIngestion`. Badge's
+  legacy position Storage calls remain a UI migration dependency, not a Domain
+  admission port or a reason to restore old Runtime actions.
+- **L1 file resource limit (confirmed defect):** `assetFetcher.handleGetFileBlob`
+  reads a Blob and calls `toDataUrl` without a pre-conversion cap. L1 must bound
+  reading/conversion before allocating Base64. Runtime cannot repair that earlier
+  allocation by checking a completed DTO. `handleGetImageBlob` does cap the normal
+  Base64 path before conversion; its `preferBuffer` branch is not requested by the
+  Runtime JSON route. Image DTOs repeat Base64 in three fields: Runtime now checks
+  the aggregate flat JSON upper bound (60 MiB, including escaping), before handing
+  it to Chrome serialization, and rejects unsupported binary/nested responses.
+  This uses no JSON.stringify copy and adds no large-file transfer framework.
+- **External compilation dependencies:** Migration's missing `upgradeV1` import,
+  Badge/UI's removed Storage APIs, legacy L1 transport/parser types and UI export
+  controllers still prevent integrated compilation. Scoped checking reports no
+  new owned Runtime type errors beyond the missing Migration contract. No owner
+  code, missing implementation stubs or old UI compatibility routes were added.
+
+The Runtime Tier 1 suite retains the original 29 tests and adds protocol failure,
+read/abort/truncation, XHR completion, admission ordering, latest Markdown,
+stale Skip and aggregate resource-boundary regressions. These are module tests,
+not proof of real Chrome wire compatibility, Folder Handle persistence or worker
+survival. Production E2E acceptance remains pending the owner migrations and Chrome
+validation; the reproduced external stale Skip and file-conversion defects remain.
