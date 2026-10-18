@@ -1,8 +1,9 @@
+import type { ConversationKey } from '../core/domain/conversationKey.js';
 import type { SourceResourceContext } from '../core/provider/sourceResources.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { resolveRequestAccount, resolveCurrentAccount } from './accountContext.js';
-import { ingestIndexes, ingestDetail } from '../core/domain/ingestion.js';
+import { ingestIndexes, ingestDetail } from '../core/api/domainIngestion.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../core/parsers/gemini/rpc/mergePages.js';
 import type { GeminiRpcParseResult } from '../core/parsers/gemini/rpc/parseConversation.js';
@@ -18,25 +19,41 @@ export type MessageBridgeConversationInput = GeminiIndexObservationInput;
 export interface MessageBridgeDeps {
     resources?: SourceResourceContext;
     onStreamStart?: (cid?: string | null, slot?: string) => void;
-    onStreamComplete?: (cid?: string | null, slot?: string) => void;
+    onStreamComplete?: (key: ConversationKey, slot?: string) => void;
     onConversationDeleted?: (cid: string, accountId: string) => void;
 }
 let deps: MessageBridgeDeps | null = null;
 let listening = false;
+// A commit barrier for already received captures, not a second task executor.
+const pendingAdmissions = new Set<Promise<void>>();
 // Only source pages from this short-lived capture chain; never read old Domain to fill gaps.
 const chains = new Map<string, { pages: GeminiRpcParseResult[]; next: string; requestedAt: number }>();
 export function init(dependencies: MessageBridgeDeps = {}) {
     deps = dependencies;
     if (typeof window !== 'undefined' && !listening) {
-        window.addEventListener('message', handleWindowMessage);
+        window.addEventListener('message', receiveWindowMessage);
         listening = true;
-        registerCleanup(() => { window.removeEventListener('message', handleWindowMessage); listening = false; chains.clear(); });
+        registerCleanup(() => { window.removeEventListener('message', receiveWindowMessage); listening = false; deps = null; chains.clear(); pendingAdmissions.clear(); });
     }
     return { handleWindowMessage };
 }
-export async function handleWindowMessage(event: MessageEvent): Promise<void> {
-    if (!deps || !event || (typeof location !== 'undefined' && event.origin !== location.origin)) return;
-    if (event.source && (typeof window === 'undefined' || event.source !== window)) return;
+function receiveWindowMessage(event: MessageEvent): void { void handleWindowMessage(event).catch(() => {}); }
+export function handleWindowMessage(event: MessageEvent): Promise<void> {
+    const earlier = [...pendingAdmissions];
+    const operation = processWindowMessage(event, earlier);
+    const raw: unknown = event?.data;
+    if (typeof window !== 'undefined' && typeof location !== 'undefined' && event?.source === window
+        && event.origin === location.origin && raw && typeof raw === 'object' && 'type' in raw
+        && raw.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
+        pendingAdmissions.add(operation);
+        void operation.finally(() => pendingAdmissions.delete(operation)).catch(() => {});
+    }
+    return operation;
+}
+async function processWindowMessage(event: MessageEvent, earlier: readonly Promise<void>[]): Promise<void> {
+    const capturedDeps = deps;
+    if (!capturedDeps || !event || (typeof location !== 'undefined' && event.origin !== location.origin)) return;
+    if (typeof window === 'undefined' || event.source !== window) return;
     const raw: unknown = event.data;
     if (!raw || typeof raw !== 'object' || !('type' in raw) || !('payload' in raw)) return;
     const payload = raw.payload;
@@ -100,14 +117,14 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 const merged = mergeConversationPages(pages, truncated ? 'capture_truncated' : undefined, complete);
                 const index = merged.conversation.index;
                 await ingestDetail(account.id, cid, merged.conversation.detail, index);
-                deps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
+                capturedDeps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
             }
             return;
         }
         const id = field('id');
         if (id !== null && id !== undefined && (typeof id !== 'string' || !/^[\w-]{1,128}$/.test(id))) return;
         if (raw.type === CrossWorldEvents.CONVERSATION_DELETED) {
-            if (typeof id === 'string') deps.onConversationDeleted?.(id, account.id);
+            if (typeof id === 'string') capturedDeps.onConversationDeleted?.(id, account.id);
             return;
         }
         if (raw.type !== CrossWorldEvents.STREAM_START && raw.type !== CrossWorldEvents.STREAM_COMPLETE) return;
@@ -120,14 +137,14 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             await ingestIndexes(account.id, [{ conversationId, fields }]);
         }
         if (raw.type === CrossWorldEvents.STREAM_START) {
-            if (deps.onStreamStart) deps.onStreamStart(typeof id === 'string' ? id : null, slot);
-
+            if (deps === capturedDeps && capturedDeps.onStreamStart) capturedDeps.onStreamStart(typeof id === 'string' ? id : null, slot);
         } else {
-            if (deps.onStreamComplete) deps.onStreamComplete(typeof id === 'string' ? id : null, slot);
-
+            await Promise.all(earlier);
+            if (cid && deps === capturedDeps) capturedDeps.onStreamComplete?.({ accountId: account.id, conversationId: cid }, slot);
         }
     } catch (error) {
         if (isDevMode()) console.debug('[MessageBridge] source capture failed', error);
+        throw error;
     }
 }
 export const MessageBridge = { init, handleWindowMessage };

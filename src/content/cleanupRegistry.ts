@@ -4,10 +4,15 @@
  * Register a cleanup to run before the next bundle (re-)initializes.
  * The cleanup typically removes a listener/timer/observer this bundle added.
  */
-export function registerCleanup(fn: () => void): void {
-    if (typeof window === 'undefined') return;
+export function registerCleanup(fn: () => void): () => void {
+    if (typeof window === 'undefined') return () => {};
     if (!Array.isArray(window.__gemExporterCleanups)) window.__gemExporterCleanups = [];
     window.__gemExporterCleanups.push(fn);
+    return () => {
+        const list = window.__gemExporterCleanups;
+        const index = list?.indexOf(fn) ?? -1;
+        if (list && index >= 0) list.splice(index, 1);
+    };
 }
 
 /**

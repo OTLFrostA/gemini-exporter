@@ -1,3 +1,4 @@
+import { registerCleanup } from './cleanupRegistry.js';
 import { getOrCreateAccount } from '../core/api/accountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../core/domain/accountRegistry.js';
 import { CrossWorldEvents } from '../core/protocol/protocol.js';
@@ -33,9 +34,11 @@ function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
     if (typeof window === 'undefined') return Promise.resolve(null);
     return new Promise((resolve, reject) => {
         const requestId = crypto.randomUUID();
+        let unregister = () => {};
         const finish = (observation: Omit<Account, 'id'> | null, error?: unknown): void => {
             clearTimeout(timer);
             window.removeEventListener('message', receive);
+            unregister();
             if (error) reject(error); else resolve(observation);
         };
         const receive = (event: MessageEvent): void => {
@@ -48,6 +51,7 @@ function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
         };
         const timer = setTimeout(() => finish(null), 2000);
         window.addEventListener('message', receive);
+        unregister = registerCleanup(() => finish(null));
         window.postMessage({ type: CrossWorldEvents.ACCOUNT_REQUESTED, payload: { requestId } }, location.origin);
     });
 }
