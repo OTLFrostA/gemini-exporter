@@ -86,7 +86,7 @@ test('migrates exactly five categories, isolates accounts, and retains old sourc
     assert.deepEqual(await storage.getExportRecord(index(b).key), { exportedAt: Date.parse(at), format: 'json', status: 'partial', chatTime: Date.parse(at) });
     assert.deepEqual(data[settingsKey], { defaultFormat: 'pdf', useZip: false, developerMode: false,
         language: 'zh', badgePosition: { left: 0, top: 15 }, enabledDisk: true,
-        tourAutoHandled: true, takeoutPromptCompleted: true, lastSeenFeatureVersion: '1.7.0' });
+        tourShown: true, takeoutPromptCompleted: true, lastSeenFeatureVersion: '1.7.0' });
     assert.deepEqual(await storage.getDirectoryHandle(), handle);
     for (const [key, value] of Object.entries(old)) assert.deepEqual(data[key], value);
     assert.deepEqual(writes.at(-1), { [marker]: true });
@@ -98,7 +98,7 @@ test('preferences alone identify an upgrade; invalid preferences keep defaults s
     data = { gemini_export_format: 'invalid', gemini_exporter_lang: 'fr', gemini_export_zip: false,
         gemini_export_badge_pos: { left: NaN, top: 2 }, has_completed_takeout_prompt: true };
     await ensureUpgraded();
-    assert.deepEqual(data[settingsKey], { useZip: false, tourAutoHandled: true, takeoutPromptCompleted: true });
+    assert.deepEqual(data[settingsKey], { useZip: false, tourShown: true, takeoutPromptCompleted: true });
     assert.deepEqual(await indexedDB.databases(), []);
 });
 
