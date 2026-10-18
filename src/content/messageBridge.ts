@@ -1,3 +1,4 @@
+import type { ConversationKey } from '../core/domain/conversationKey.js';
 import type { SourceResourceContext } from '../core/provider/sourceResources.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
@@ -18,7 +19,7 @@ export type MessageBridgeConversationInput = GeminiIndexObservationInput;
 export interface MessageBridgeDeps {
     resources?: SourceResourceContext;
     onStreamStart?: (cid?: string | null, slot?: string) => void;
-    onStreamComplete?: (cid?: string | null, slot?: string) => void;
+    onStreamComplete?: (key: ConversationKey, slot?: string) => void;
     onConversationDeleted?: (cid: string, accountId: string) => void;
 }
 let deps: MessageBridgeDeps | null = null;
@@ -123,7 +124,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             if (deps.onStreamStart) deps.onStreamStart(typeof id === 'string' ? id : null, slot);
 
         } else {
-            if (deps.onStreamComplete) deps.onStreamComplete(typeof id === 'string' ? id : null, slot);
+            if (cid) deps.onStreamComplete?.({ accountId: account.id, conversationId: cid }, slot);
 
         }
     } catch (error) {

@@ -21,7 +21,7 @@ function load(file: string, stubs: Record<string, unknown>) {
         return require(filename);
     } finally { Module._load = original; }
 }
-const chromeBase = () => ({ runtime: { id: 'ext' } });
+const chromeBase = () => ({ runtime: { id: 'ext' }, tabs: { sendMessage: (_id: unknown, _message: unknown, _options: unknown, callback: Function) => callback({ ok: true, accountContext: { accountId: uuid, providerId: 'gemini' } }) } });
 const ready = { ensureV2Ready: async () => {} };
 const storage = { getAccount: async () => account };
 const security = () => load('src/background/contentSender.ts', { 'src/core/storage/storageService.js': storage });
@@ -228,13 +228,13 @@ test('Live Save Content sends only key, ignores navigation flush, and suppresses
     let reply!: (value: unknown) => void;
     global.chrome = { runtime: { sendMessage: (message: unknown) => { sent = message; return new Promise(resolve => { reply = resolve; }); } } } as any;
     const coordinator = load('src/content/liveSaveCoordinator.ts', {
-        'src/content/accountContext.js': { resolveCurrentAccount: async () => context, isCurrentAccount: () => true },
+        'src/content/accountContext.js': { getAccountContext: () => context },
     });
     let feedback = 0;
     const badge = { showLiveSaveFeedback: () => { feedback++; } };
     coordinator.init({ badge });
-    assert.equal(await coordinator.executeLiveSave('abc', 'unload'), null);
-    const pending = coordinator.executeLiveSave('abc');
+    assert.equal(await coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' }, 'unload'), null);
+    const pending = coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' });
     await Promise.resolve();
     assert.deepEqual(sent, { action: 'runLiveSave', key: { accountId: uuid, conversationId: 'abc' } });
     coordinator.cleanup(); coordinator.init({ badge });
@@ -252,10 +252,10 @@ test('only confirmed stream completion triggers Live Save; cleanup cancels pendi
     global.window.dispatchEvent(new Event('beforeunload'));
     await new Promise(resolve => setTimeout(resolve, 5));
     assert.deepEqual(saves, []);
-    observer.notifyStreamComplete('abc');
+    observer.notifyStreamComplete({ accountId: uuid, conversationId: 'abc' });
     await new Promise(resolve => setTimeout(resolve, 5));
-    assert.deepEqual(saves, [['abc', 'turn_complete']]);
-    observer.notifyStreamComplete('abc'); observer.cleanup();
+    assert.deepEqual(saves, [[{ accountId: uuid, conversationId: 'abc' }, 'turn_complete']]);
+    observer.notifyStreamComplete({ accountId: uuid, conversationId: 'abc' }); observer.cleanup();
     await new Promise(resolve => setTimeout(resolve, 5));
     assert.equal(saves.length, 1);
 });
@@ -282,7 +282,7 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
 
 test('Background count uses Index query, propagates Live Save result, and declines retired actions', async () => {
     let listener!: Function;
-    global.chrome = { runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; } } } } as any;
+    global.chrome = { ...chromeBase(), runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; } } } } as any;
     load('src/background/background.ts', {
         'src/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
         'src/background/accountRegistryHandler.js': { handleAccountRegistryMessage: () => false },
@@ -340,4 +340,172 @@ test('Content cleanup unregisters individual completed requests and drains liste
     cleanup.runCleanups(); cleanup.runCleanups();
     assert.equal(calls, 1);
     assert.equal(cleanup.pendingCleanupCount(), 0);
+});
+
+test('Worker API readiness shares the background upgrade promise and never messages itself', async () => {
+    delete (global as any).window;
+    global.location = { protocol: 'chrome-extension:' } as any;
+    global.chrome = { runtime: { sendMessage: () => assert.fail('Worker must not message itself') } } as any;
+    let upgrades = 0;
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    const worker = load('src/background/readiness.ts', {
+        'src/core/migration/upgradeV1.js': { ensureUpgraded: () => { upgrades++; return pending; } },
+    });
+    const api = load('src/core/api/runtimeReady.ts', { 'src/background/readiness.js': worker });
+    let done = false;
+    const calls = Promise.all([worker.ensureV2Ready(), api.ensureV2Ready(), api.ensureV2Ready()]).then(() => { done = true; });
+    await Promise.resolve();
+    assert.equal(upgrades, 1);
+    assert.equal(done, false);
+    finish(); await calls;
+    assert.equal(done, true);
+});
+
+test('Content readiness uses IPC and propagates Background upgrade failure', async () => {
+    global.window = contentWindow() as any;
+    global.location = { protocol: 'https:' } as any;
+    let messages = 0;
+    global.chrome = { runtime: { sendMessage: async (message: unknown) => {
+        messages++; assert.deepEqual(message, { action: 'ensureV2Ready' });
+        return { ok: false, error: 'upgrade failed' };
+    } } } as any;
+    const api = load('src/core/api/runtimeReady.ts', { 'src/background/readiness.js': { ensureV2Ready: () => assert.fail('Content must not execute upgrade') } });
+    await assert.rejects(api.ensureV2Ready(), /upgrade failed/);
+    assert.equal(messages, 1);
+});
+
+test('Content registers capture, account and message listeners while readiness is pending', async () => {
+    global.window = contentWindow() as any;
+    global.document = { readyState: 'complete' } as any;
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    const initialized: string[] = [];
+    load('src/content/content.ts', {
+        'src/core/api/runtimeReady.js': { ensureV2Ready: () => pending },
+        'src/content/bootstrap.js': { initBootstrap: () => initialized.push('credentials') },
+        'src/content/messageRouter.js': { MessageRouter: { init: () => initialized.push('router') } },
+        'src/content/messageBridge.js': { MessageBridge: { init: () => initialized.push('bridge') } },
+        'src/content/badgeView.js': { BadgeView: { ensureBadge: () => initialized.push('badge') } },
+        'src/content/liveSaveObserver.js': { LiveSaveObserver: { init: () => initialized.push('completion'), cleanup: () => {} } },
+        'src/content/liveSaveCoordinator.js': { LiveSaveCoordinator: { init: () => {}, cleanup: () => {} } },
+        'src/content/accountContext.js': { invalidateAccountContext: () => {} },
+        'src/content/cleanupRegistry.js': { runCleanups: () => {}, registerCleanup: () => {} },
+    });
+    assert.deepEqual(initialized, ['credentials', 'router', 'completion', 'bridge']);
+    finish(); await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(initialized, ['credentials', 'router', 'completion', 'bridge', 'badge']);
+});
+
+test('an early source completion survives readiness wait and keeps its captured Account after a switch', async () => {
+    global.window = contentWindow() as any;
+    global.location = { origin: 'https://gemini.google.com', pathname: '/app/abcdef123456' } as any;
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    let commits = 0;
+    const keys: unknown[] = [];
+    const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
+    let current = context;
+    const bridge = load('src/content/messageBridge.ts', {
+        'src/core/api/accountRegistry.js': { getAccount: async () => account },
+        'src/content/accountContext.js': { resolveRequestAccount: async () => { await pending; return context; }, resolveCurrentAccount: async () => current },
+        'src/core/api/domainIngestion.js': { ingestIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; } },
+        'src/core/provider/gemini/listObservation.js': {},
+        'src/core/parsers/gemini/rpc/parseConversation.js': {},
+        'src/core/parsers/gemini/rpc/mergePages.js': {},
+        'src/core/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
+        'src/core/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
+        'src/core/utils/utils.js': { isDevMode: () => false },
+        'src/core/parsers/gemini/rpc/parseList.js': {},
+    });
+    bridge.init({ onStreamComplete: (key: unknown) => keys.push(key) });
+    const event = { source: global.window, origin: global.location.origin, data: { type: 'GEMINI_STREAM_GENERATE_COMPLETE', payload: { slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: 'gaia' }, id: 'abcdef123456' } } };
+    const operation = bridge.handleWindowMessage(event);
+    await Promise.resolve(); assert.equal(commits, 0);
+    finish(); await operation;
+    assert.equal(commits, 1);
+    assert.deepEqual(keys, [{ accountId: uuid, conversationId: 'abcdef123456' }]);
+});
+
+test('Live Save debounce preserves the event Key after Account switches and input mutation', async () => {
+    global.window = contentWindow() as any;
+    const other = '87654321-4321-4321-8321-cba987654321';
+    let current = uuid;
+    let sent: any;
+    let feedback = 0;
+    global.chrome = { runtime: { sendMessage: async (message: unknown) => {
+        sent = message;
+        return { ok: true, result: { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false } };
+    } } } as any;
+    const coordinator = load('src/content/liveSaveCoordinator.ts', {
+        'src/content/accountContext.js': { getAccountContext: () => ({ accountId: current }), resolveCurrentAccount: () => assert.fail('Do not rediscover Account during save') },
+    });
+    coordinator.init({ badge: { showLiveSaveFeedback: () => { feedback++; } } });
+    const observer = load('src/content/liveSaveObserver.ts', {});
+    let complete!: () => void;
+    const done = new Promise<void>(resolve => { complete = resolve; });
+    observer.init({ debounceMs: 1, onTurnComplete: (key: unknown) => { void coordinator.executeLiveSave(key).then(complete); } });
+    const key = { accountId: uuid, conversationId: 'old-conversation' };
+    observer.notifyStreamComplete(key);
+    current = other; key.accountId = other;
+    await done;
+    assert.deepEqual(sent.key, { accountId: uuid, conversationId: 'old-conversation' });
+    assert.equal(feedback, 0);
+    observer.cleanup(); coordinator.cleanup();
+});
+
+test('active Content Account validation targets the sending document and rejects a different current Account', async () => {
+    const guard = security();
+    global.chrome = chromeBase() as any;
+    let checks = 0;
+    global.chrome.tabs.sendMessage = ((id: number, message: unknown, options: unknown, callback: Function) => {
+        checks++; assert.equal(id, 7);
+        assert.deepEqual(message, { action: 'getAccountContext' });
+        assert.deepEqual(options, { frameId: 0, documentId: 'source-document' });
+        callback({ ok: true, accountContext: { accountId: '87654321-4321-4321-8321-cba987654321', providerId: 'gemini' } });
+    }) as any;
+    // Historical passive evidence keeps request-time ownership and does not consult the current Tab.
+    assert.equal((await guard.requireContentAccount(sender, uuid)).id, uuid);
+    assert.equal(checks, 0);
+    await assert.rejects(guard.requireCurrentContentAccount({ ...sender, documentId: 'source-document' }, uuid), /sending Tab/);
+    assert.equal(checks, 1);
+    global.chrome.tabs.sendMessage = ((_id: unknown, _message: unknown, _options: unknown, callback: Function) => {
+        global.chrome.runtime.lastError = { message: 'Document closed' }; callback(); delete global.chrome.runtime.lastError;
+    }) as any;
+    await assert.rejects(guard.requireCurrentContentAccount(sender, uuid), /Document closed/);
+});
+
+test('both active Background ports reject a different current Account before Export or Index query', async () => {
+    let listener!: Function;
+    global.chrome = { ...chromeBase(), runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; } } } } as any;
+    global.chrome.tabs.sendMessage = ((_id: unknown, _message: unknown, _options: unknown, callback: Function) => callback({ ok: true, accountContext: { accountId: 'other', providerId: 'gemini' } })) as any;
+    load('src/background/background.ts', {
+        'src/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
+        'src/background/accountRegistryHandler.js': { handleAccountRegistryMessage: () => false },
+        'src/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
+        'src/background/tabAction.js': { initTabActionListeners: () => {} },
+        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
+        'src/core/storage/storageService.js': { listIndexes: () => assert.fail('Must reject before reading Index') },
+        'src/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('Must reject before writing files') },
+    });
+    for (const request of [{ action: 'getLocalIndexCount', accountId: uuid }, { action: 'runLiveSave', key: { accountId: uuid, conversationId: 'abc' } }]) {
+        const result = await invoke(listener, request);
+        assert.equal(result.ok, false); assert.match(result.error, /sending Tab/);
+    }
+});
+
+test('CI scripts no longer reference Runtime modules removed by this PR', () => {
+    const fs = require('node:fs');
+    const files = JSON.parse(fs.readFileSync(path.join(root, 'scripts/zero-any-files.json'), 'utf8'));
+    for (const deleted of ['src/background/batchFetcher.ts', 'src/background/abortManager.ts']) {
+        assert.equal(files.includes(deleted), false);
+        assert.equal(fs.existsSync(path.join(root, deleted)), false);
+    }
+    const entries = fs.readdirSync(path.join(root, 'scripts'), { recursive: true });
+    for (const entry of entries) {
+        const file = path.join(root, 'scripts', entry);
+        if (fs.statSync(file).isFile() && /\.(?:cjs|mjs|js|ts|json|py|sh)$/.test(entry)) {
+            assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /(?:background\/)?(?:batchFetcher|abortManager)\.(?:js|ts)/, entry);
+        }
+    }
 });

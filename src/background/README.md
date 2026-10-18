@@ -13,17 +13,26 @@ folder writes and export records remain with their existing owners.
   existing L2 registry. UUIDs are never replaced by account slots.
 - `getAccountContext`: Content returns the Account and current conversation from
   the same page read. Account changes during the read fail the request.
-- `getLocalIndexCount`: Content receives `(await listIndexes(accountId)).length`.
+- `getLocalIndexCount`: Content receives `(await listIndexes(accountId)).length`
+  only after its sending document confirms the requested current Account.
 - `runLiveSave`: Content sends only a ConversationKey. The worker checks Settings
-  and directory permission and calls Application `runExport`. Disabled/non-Markdown
+  and directory permission, verifies the sending document's current Account, and
+  calls Application `runExport`. Disabled/non-Markdown
   returns `result: null`; actual Export results and failures are preserved.
-- `ensureV2Ready`: all contexts await the worker-owned migration promise.
+  The completion event supplies a frozen ConversationKey before any debounce;
+  neither the Observer nor Coordinator rediscovers its Account.
+- `ensureV2Ready`: the worker directly awaits its shared migration promise; other
+  contexts use IPC. Content registers passive listeners immediately, and the
+  Registry/L2 ports wait for readiness when an event accesses data.
 - `openOptions`, `openGeminiPage`, `reloadGeminiTab`: bounded navigation only.
 - Content resource ports: `getFileBlob` / `getImageBlob`, with Account rechecking
   and a bounded JSON response. L1 still owns resource acquisition.
 
 `resolveAccountTab(accountId)` only considers Gemini, the Provider with production
 Content injection. The target is fixed before dispatch; Content rechecks the UUID.
+Active worker operations also check the sender Tab/document using
+`getAccountContext`. Passive ingestion retains the captured request identity and
+does not require that historical request to match the current Tab Account.
 No first-Tab fallback, persistent cancellation flags, batch queue or export proxy
 remains. Scan callbacks and cancellation stay in the calling Application context.
 
@@ -52,11 +61,12 @@ modules. On base commit `25d72799`:
 node -r ./tests/ts_register.js --test tests/browser_runtime_v2.test.ts
 ```
 
-The suite exercises commit waiting and failure, empty pages, sender/Provider/UUID
+The 29-case suite exercises commit waiting and failure, empty pages, sender/Provider/UUID
 validation, strict Tab routing, Live Save request/results and permission loss,
 readiness sharing/retry, paired Popup context, resource response checking,
 installation Settings, directory gestures, confirmed completion and reinjection
-cleanup. External owner contracts are stubbed at the module boundary, including
+cleanup, immediate capture during readiness, frozen completion identities and
+CI script references. External owner contracts are stubbed at the module boundary, including
 the missing Migration entry point.
 
 Only this module's Tier 1 was run. Whole-repository tests, other modules' suites,

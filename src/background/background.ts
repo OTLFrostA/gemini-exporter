@@ -3,7 +3,7 @@ import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
 import { initTabActionListeners } from './tabAction.js';
 import { ensureV2Ready } from './readiness.js';
-import { assertExtensionSender, object, requireContentAccount } from './contentSender.js';
+import { assertExtensionSender, object, requireCurrentContentAccount } from './contentSender.js';
 import { listIndexes } from '../core/storage/storageService.js';
 import { readConversationKey } from '../core/domain/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
@@ -36,7 +36,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
             await ensureV2Ready();
             if (request.action === 'ensureV2Ready') { respond({ ok: true }); return; }
             const key = request.action === 'runLiveSave' ? readConversationKey(request.key) : null;
-            const account = await requireContentAccount(sender, key ? key.accountId : request.accountId);
+            const account = await requireCurrentContentAccount(sender, key ? key.accountId : request.accountId);
             if (key) respond({ ok: true, result: await runLiveSave(key) });
             else respond({ ok: true, count: (await listIndexes(account.id)).length });
         } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : String(error) }); }

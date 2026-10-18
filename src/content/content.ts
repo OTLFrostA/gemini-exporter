@@ -13,18 +13,19 @@ if (typeof window !== 'undefined') {
     invalidateAccountContext();
     let active = true;
     registerCleanup(() => { active = false; invalidateAccountContext(); });
+    initBootstrap();
+    MessageRouter.init();
+    LiveSaveCoordinator.init({ badge: BadgeView });
+    registerCleanup(LiveSaveCoordinator.cleanup);
+    LiveSaveObserver.init({ onTurnComplete: (key, reason) => {
+        void LiveSaveCoordinator.executeLiveSave(key, reason).catch(error => console.warn('[Runtime] Live Save failed', error));
+    } });
+    registerCleanup(LiveSaveObserver.cleanup);
+    MessageBridge.init({ onStreamStart: LiveSaveObserver.notifyStreamStart,
+        onStreamComplete: LiveSaveObserver.notifyStreamComplete });
+    // Capture source events at document_start; their L2/Registry ports await readiness.
     void ensureV2Ready().then(() => {
         if (!active) return;
-        initBootstrap();
-        MessageRouter.init();
-        LiveSaveCoordinator.init({ badge: BadgeView });
-        registerCleanup(LiveSaveCoordinator.cleanup);
-        LiveSaveObserver.init({ onTurnComplete: (id, reason) => {
-            void LiveSaveCoordinator.executeLiveSave(id, reason).catch(error => console.warn('[Runtime] Live Save failed', error));
-        } });
-        registerCleanup(LiveSaveObserver.cleanup);
-        MessageBridge.init({ onStreamStart: LiveSaveObserver.notifyStreamStart,
-            onStreamComplete: LiveSaveObserver.notifyStreamComplete });
         const mountBadge = () => {
             if (active) BadgeView.ensureBadge({ onClick: () => { void chrome.runtime.sendMessage({ action: 'openOptions' }); } });
         };

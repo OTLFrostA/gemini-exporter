@@ -1,6 +1,7 @@
+import { readConversationKey, type ConversationKey } from '../core/domain/conversationKey.js';
 import { extractConversationIdFromUrl } from '../core/utils/pathUtils.js';
 
-export type LiveTurnCallback = (conversationId: string, reason: 'turn_complete' | 'location_change' | 'unload') => void;
+export type LiveTurnCallback = (key: ConversationKey, reason: 'turn_complete' | 'location_change' | 'unload') => void;
 export interface LiveSaveObserverOptions {
     debounceMs?: number;
     onTurnComplete?: LiveTurnCallback;
@@ -8,12 +9,10 @@ export interface LiveSaveObserverOptions {
 }
 let options: LiveSaveObserverOptions = {};
 let active = false;
-let pendingId: string | null = null;
 let completion: ReturnType<typeof setTimeout> | undefined;
 function discard(): void {
     clearTimeout(completion);
     completion = undefined;
-    pendingId = null;
 }
 export function checkIsGeneratingDOM(): boolean {
     if (typeof document === 'undefined') return false;
@@ -73,19 +72,18 @@ export function init(value: LiveSaveObserverOptions = {}): void {
     window.addEventListener('beforeunload', discard);
 }
 export function isObserverActive(): boolean { return active; }
-export function notifyStreamStart(cid?: string | null): void {
+export function notifyStreamStart(_cid?: string | null): void {
     discard();
-    pendingId = cid || options.getActiveId?.() || getActiveConversationId();
 }
 /** Only L1's confirmed stream completion authorizes a save; DOM idleness never does. */
-export function notifyStreamComplete(cid?: string | null): void {
+export function notifyStreamComplete(value: ConversationKey): void {
     if (!active) return;
-    const id = cid || pendingId || options.getActiveId?.() || getActiveConversationId();
+    // Copy validated event-time identity before the debounce; never resolve a new Account here.
+    const key = readConversationKey(value);
     discard();
-    if (!id) return;
     completion = setTimeout(() => {
         completion = undefined;
-        if (active) options.onTurnComplete?.(id, 'turn_complete');
+        if (active) options.onTurnComplete?.(key, 'turn_complete');
     }, options.debounceMs ?? 50);
 }
 export function flushCurrentTurnNow(): void {
