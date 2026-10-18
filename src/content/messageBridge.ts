@@ -20,6 +20,7 @@ export interface MessageBridgeDeps {
     resources?: SourceResourceContext;
     onStreamStart?: (cid?: string | null, slot?: string) => void;
     onStreamComplete?: (key: ConversationKey, slot?: string) => void;
+    onDetailChanged?: (key: ConversationKey) => void;
     onConversationDeleted?: (cid: string, accountId: string) => void;
 }
 let deps: MessageBridgeDeps | null = null;
@@ -116,8 +117,9 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
                 } else chains.delete(key);
                 const merged = mergeConversationPages(pages, truncated ? 'capture_truncated' : undefined, complete);
                 const index = merged.conversation.index;
-                await ingestDetail(account.id, cid, merged.conversation.detail, index);
+                const changed = await ingestDetail(account.id, cid, merged.conversation.detail, index);
                 capturedDeps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
+                if (changed && deps === capturedDeps) capturedDeps.onDetailChanged?.({ accountId: account.id, conversationId: cid });
             }
             return;
         }

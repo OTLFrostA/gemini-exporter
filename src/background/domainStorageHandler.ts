@@ -24,7 +24,9 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                 if (typeof request.conversationId !== 'string' || !request.conversationId) throw new TypeError('Expected conversation ID');
                 object(request.detail);
                 if (request.indexFields !== undefined) object(request.indexFields);
-                await ingestDetail(account.id, request.conversationId, request.detail as Parameters<typeof ingestDetail>[2], request.indexFields as Parameters<typeof ingestDetail>[3]);
+                const changed = await ingestDetail(account.id, request.conversationId, request.detail as Parameters<typeof ingestDetail>[2], request.indexFields as Parameters<typeof ingestDetail>[3]);
+                respond({ ok: true, changed });
+                return;
             } else throw new TypeError('Unknown ingestion operation');
             respond({ ok: true });
         } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : String(error) }); }

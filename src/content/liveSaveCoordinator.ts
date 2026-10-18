@@ -10,9 +10,9 @@ let badge: Feedback | undefined;
 let instance: object | null = null;
 export function init(options: { badge?: Feedback } = {}): void { badge = options.badge; instance = {}; }
 export function cleanup(): void { instance = null; badge = undefined; }
-/** Only a confirmed completion may request the worker's unified Export. */
-export async function executeLiveSave(value: ConversationKey, reason = 'turn_complete'): Promise<ExportResult | null> {
-    if (!instance || reason !== 'turn_complete') return null;
+/** Only an accepted passive Detail change may request the worker's unified Export. */
+export async function executeLiveSave(value: ConversationKey): Promise<ExportResult | null> {
+    if (!instance) return null;
     const current = instance;
     const feedback = badge;
     const key = readConversationKey(value);
