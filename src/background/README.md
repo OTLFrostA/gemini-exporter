@@ -39,12 +39,13 @@ remains. Scan callbacks and cancellation stay in the calling Application context
 ## Integration dependencies
 
 This module implements the frozen Notion contracts independently of other v2
-modules. On base commit `25d72799`:
+modules. Migration integration is verified against `dev/v2` commit `46a38c9c` (#1054):
 
-- Migration's `core/migration/upgradeV1.ts` / `ensureUpgraded(): Promise<void>` is
-  absent. Runtime intentionally imports that contract and does not replace it
-  with a no-op or a legacy database reader. Production compilation/readiness needs
-  the Migration module implementation.
+- Migration now supplies `core/migration/upgradeV1.ts` /
+  `ensureUpgraded(): Promise<void>`. The existing worker readiness import directly
+  executes it; other contexts wait through IPC. No adapter or fallback is needed.
+  Real Migration/Storage integration tests verify the initialized marker gates
+  business access, lifecycle runs afterward, and failures remain retryable.
 - Lifecycle uses the existing Settings `tourShown?: true` field. Install leaves it
   unset and opens Options; UI sets it after first displaying Tour. Update sets it
   true without opening Options. `lastSeenFeatureVersion` independently controls
@@ -63,13 +64,14 @@ modules. On base commit `25d72799`:
 node -r ./tests/ts_register.js --test tests/browser_runtime_v2.test.ts
 ```
 
-The 55-case suite exercises commit waiting and failure, empty pages, sender/Provider/UUID
+The 59-case suite exercises commit waiting and failure, empty pages, sender/Provider/UUID
 validation, strict Tab routing, Live Save request/results and permission loss,
 readiness sharing/retry, paired Popup context, resource response checking,
 installation Settings, directory gestures, confirmed completion and reinjection
 cleanup, immediate capture during readiness, frozen completion identities and
-CI script references. External owner contracts are stubbed at the module boundary, including
-the missing Migration entry point.
+CI script references. Existing isolated tests stub owner contracts; the four
+Migration integration cases execute the real Migration, Settings, Registry and
+Storage functions with fake IndexedDB/Chrome surfaces.
 
 Only this module's Tier 1 was run. Whole-repository tests, other modules' suites,
 real Chrome and Tier 2/3 were excluded as requested. The tests do not establish
@@ -127,11 +129,12 @@ requests retain their original Account attribution.
   the aggregate flat JSON upper bound (60 MiB, including escaping), before handing
   it to Chrome serialization, and rejects unsupported binary/nested responses.
   This uses no JSON.stringify copy and adds no large-file transfer framework.
-- **External compilation dependencies:** Migration's missing `upgradeV1` import,
-  Badge/UI's removed Storage APIs, legacy L1 transport/parser types and UI export
-  controllers still prevent integrated compilation. Scoped checking reports no
-  new owned Runtime type errors beyond the missing Migration contract. No owner
-  code, missing implementation stubs or old UI compatibility routes were added.
+- **External compilation dependencies:** Badge/UI's removed Storage APIs, legacy
+  L1 transport/parser types and UI export controllers still prevent integrated
+  compilation. The former missing Migration import is resolved; standalone strict
+  checking of Migration + worker readiness passes. Runtime-scoped compilation
+  reports no owned errors and still exposes the external UI/L1 diagnostics.
+  No missing implementation stubs or old UI compatibility routes were added.
 
 The Runtime Tier 1 suite retains the original 29 tests and adds protocol failure,
 read/abort/truncation, XHR completion, admission ordering, latest Markdown,
@@ -139,3 +142,20 @@ stale Skip and aggregate resource-boundary regressions. These are module tests,
 not proof of real Chrome wire compatibility, Folder Handle persistence or worker
 survival. Production E2E acceptance remains pending the owner migrations and Chrome
 validation; the reproduced external stale Skip and file-conversion defects remain.
+
+## Merged Migration integration
+
+The Runtime suite now executes the real `ensureUpgraded()` implementation behind
+worker readiness and the production readiness/Account/count message handlers.
+A delayed final initialized-marker write blocks concurrent IPC, Account queries,
+Badge counts and lifecycle settings initialization. Fresh install leaves Tour
+unset and opens Options after migration. Upgrade preserves migrated preferences
+and feature baselines, filling only a missing feature baseline from previousVersion.
+A failed marker write fails the operation; retry completes before Account access,
+and successful readiness does not reopen the legacy DBs.
+
+Migration now writes the existing `tourShown?: true` contract for upgrades, matching
+Settings and lifecycle. Its old extra Tour field was corrected with explicit task
+authorization; no schema or compatibility conversion was introduced. The associated
+Migration test expectations and design paragraph were synchronized. Only the Runtime
+Tier 1 suite ran; the separate Migration suite and real Chrome upgrades were not run.

@@ -44,10 +44,9 @@ function exportRecord(value: unknown): ExportRecord | undefined {
         ...(chatTime === undefined ? {} : { chatTime }) };
 }
 
-// tourAutoHandled is the frozen Settings contract. Keep the migration correct while
-// the adjacent Settings module still exposes the old tourShown field.
-function settings(raw: Record<string, unknown>): Partial<GlobalSettings> & { tourAutoHandled: true } {
-    const result: Partial<GlobalSettings> & { tourAutoHandled: true } = { tourAutoHandled: true };
+// Existing users must not see the first-install Tour again.
+function settings(raw: Record<string, unknown>): Partial<GlobalSettings> {
+    const result: Partial<GlobalSettings> = { tourShown: true };
     if (format(raw.gemini_export_format)) result.defaultFormat = raw.gemini_export_format;
     if (typeof raw.gemini_export_zip === 'boolean') result.useZip = raw.gemini_export_zip;
     if (typeof raw.gemini_dev_mode === 'boolean') result.developerMode = raw.gemini_dev_mode;

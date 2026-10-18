@@ -15,9 +15,9 @@ Settings lifecycle rules after readiness: fill a missing feature baseline from
 eligible for Tour. This module cannot obtain `previousVersion` from its no-argument
 entry point.
 
-The frozen Settings field is `tourAutoHandled`, even while the adjacent Settings
-implementation still names `tourShown`. Migration writes the frozen field without
-changing that module. It does not implement Runtime readiness or lifecycle events.
+Migration uses the existing Settings `tourShown?: true` field: legacy users receive
+`tourShown=true`, while fresh installs leave it unset. No additional Tour field or
+compatibility conversion is used. Runtime owns readiness and lifecycle events.
 
 Module Tier 1:
 
