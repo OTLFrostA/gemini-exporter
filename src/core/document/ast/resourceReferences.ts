@@ -10,7 +10,6 @@ export function collectDocumentResources(document: DocumentAst): { referencedIds
     const inlines = (nodes: DisplayInline[] = []): void => {
         for (const node of nodes) {
             if (node.type === 'image') reference(node.resourceId, true);
-            if (node.type === 'placeholder' && node.resourceId) reference(node.resourceId, false);
             if ('children' in node) inlines(node.children);
         }
     };
@@ -20,7 +19,6 @@ export function collectDocumentResources(document: DocumentAst): { referencedIds
             if ('children' in node) inlines(node.children);
             if ('caption' in node) inlines(node.caption);
             if ('description' in node) inlines(node.description);
-            if ('details' in node) inlines(node.details);
             if ('blocks' in node && node.blocks) blocks(node.blocks);
             if (node.type === 'list') for (const item of node.items) blocks(item.blocks);
             if (node.type === 'table') for (const row of [...node.headerRows, ...node.rows]) for (const cell of row) inlines(cell.children);
