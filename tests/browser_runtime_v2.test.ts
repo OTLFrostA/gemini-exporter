@@ -85,6 +85,31 @@ test('Background returns Detail changed only after L2 admission commits', async 
     assert.deepEqual(await response, { ok: true, changed: false });
 });
 
+test('Background deletion awaits L2 commit, rejects default identity and propagates failure', async () => {
+    global.chrome = chromeBase() as any;
+    let finish!: () => void;
+    const gate = new Promise<void>(resolve => { finish = resolve; });
+    let calls = 0;
+    const handle = load('src/background/domainStorageHandler.ts', {
+        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
+        'src/core/domain/ingestion.js': { ingestDeletedConversation: async (accountId: string, id: string) => {
+            calls++; assert.equal(accountId, uuid); assert.equal(id, 'abcdef123456'); await gate;
+        } },
+    }).handleDomainIngestionMessage;
+    let responded = false;
+    const result = invoke(handle, { action: 'domainIngest', operation: 'deleted', accountId: uuid, conversationId: 'abcdef123456' })
+        .then(value => { responded = true; return value; });
+    await new Promise(resolve => setImmediate(resolve)); assert.equal(responded, false);
+    finish(); assert.deepEqual(await result, { ok: true }); assert.equal(calls, 1);
+    const denied = load('src/background/domainStorageHandler.ts', {
+        'src/background/readiness.js': ready,
+        'src/background/contentSender.js': { assertContentSender() {}, object: (value: unknown) => value,
+            requireContentAccount: async () => ({ ...account, providerAccountId: 'default' }) },
+        'src/core/domain/ingestion.js': { ingestDeletedConversation: () => assert.fail('default cannot delete') },
+    }).handleDomainIngestionMessage;
+    assert.equal((await invoke(denied, { action: 'domainIngest', operation: 'deleted', accountId: uuid, conversationId: 'abcdef123456' })).ok, false);
+});
+
 test('ingestion rejects foreign, unsupported, subframe and malformed requests', async () => {
     global.chrome = chromeBase() as any;
     let calls = 0;
@@ -781,7 +806,19 @@ test('Fetch: relative StreamGenerate URL completes; unrelated BardFrontend RPC n
 // Real Migration + Settings + Storage behind the production Runtime handlers.
 // Only the Chrome/IndexedDB browser surfaces are replaced, not ensureUpgraded().
 function migratedRuntime(initial: Record<string, unknown>, beforeWrite: (patch: Record<string, unknown>) => Promise<void> = async () => {}) {
-    const { IDBFactory } = require('fake-indexeddb');
+    const { IDBFactory, IDBKeyRange } = require('fake-indexeddb');
+    global.IDBKeyRange = IDBKeyRange;
+    const pendingLocks = new Map<string, Promise<void>>();
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: {
+        async request<T>(name: string, callback: () => Promise<T>): Promise<T> {
+            const previous = pendingLocks.get(name) ?? Promise.resolve();
+            let release!: () => void;
+            const next = new Promise<void>(resolve => { release = resolve; });
+            pendingLocks.set(name, next); await previous;
+            try { return await callback(); }
+            finally { release(); if (pendingLocks.get(name) === next) pendingLocks.delete(name); }
+        }
+    } });
     global.indexedDB = new IDBFactory();
     delete (global as any).window;
     global.location = { protocol: 'chrome-extension:' } as any;

@@ -144,7 +144,8 @@ declare global {
         const conversationId = parseConfirmedGeminiDeletion(body, responseText);
         if (!conversationId) return;
         const payload: GeminiConversationDeletedPayload = {
-            id: conversationId, slot: getSlotFromUrl(url), requestAccountObservation
+            id: conversationId, slot: getSlotFromUrl(url), requestAccountObservation,
+            url: toUrlString(url), requestBody: body, responseText
         };
         window.postMessage({ type: Events.CONVERSATION_DELETED, payload }, location.origin);
     }

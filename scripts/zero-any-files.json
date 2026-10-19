@@ -136,5 +136,6 @@
   "src/core/application/sync/scanController.ts",
   "src/core/application/export/runExport.ts",
   "src/core/application/export/prepareExportResources.ts",
-  "src/core/application/export/types.ts"
+  "src/core/application/export/types.ts",
+  "src/core/domain/sourceUri.ts"
 ]

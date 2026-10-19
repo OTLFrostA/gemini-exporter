@@ -15,6 +15,9 @@ export interface GeminiCredentialsPayload {
 }
 
 export interface GeminiConversationDeletedPayload {
+    url: string;
+    requestBody: string;
+    responseText: string;
     requestAccountObservation: Omit<Account, 'id'> | null;
     id: string;
     slot: string;

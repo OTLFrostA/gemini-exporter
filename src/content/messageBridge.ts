@@ -1,9 +1,10 @@
+import { parseConfirmedGeminiDeletion } from '../core/parsers/gemini/rpc/parseDeletion.js';
 import type { ConversationKey } from '../core/domain/conversationKey.js';
 import type { SourceResourceContext } from '../core/provider/sourceResources.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { resolveRequestAccount, resolveCurrentAccount } from './accountContext.js';
-import { ingestIndexes, ingestDetail } from '../core/api/domainIngestion.js';
+import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../core/api/domainIngestion.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../core/parsers/gemini/rpc/mergePages.js';
 import type { GeminiRpcParseResult } from '../core/parsers/gemini/rpc/parseConversation.js';
@@ -129,7 +130,19 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
         const id = field('id');
         if (id !== null && id !== undefined && (typeof id !== 'string' || !/^[\w-]{1,128}$/.test(id))) return;
         if (raw.type === CrossWorldEvents.CONVERSATION_DELETED) {
-            if (typeof id === 'string') capturedDeps.onConversationDeleted?.(id, account.id);
+            const requestBody = field('requestBody'), responseText = field('responseText'), url = field('url');
+            if (typeof id !== 'string' || account.providerAccountId === 'default'
+                || typeof requestBody !== 'string' || typeof responseText !== 'string' || typeof url !== 'string') return;
+            const source = new URL(url);
+            if (source.protocol !== 'https:' || !['gemini.google.com', 'bard.google.com'].includes(source.hostname)
+                || !source.pathname.endsWith('/batchexecute')
+                || parseConfirmedGeminiDeletion(requestBody, responseText) !== id) return;
+            await Promise.allSettled(earlier);
+            await ingestDeletedConversation(account.id, id);
+            if (deps === capturedDeps) {
+                capturedDeps.onConversationDeleted?.(id, account.id);
+                capturedDeps.onIndexesCommitted?.(account.id);
+            }
             return;
         }
         if (raw.type !== CrossWorldEvents.STREAM_START && raw.type !== CrossWorldEvents.STREAM_COMPLETE) return;

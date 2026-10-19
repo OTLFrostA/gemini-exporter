@@ -4,18 +4,13 @@ import assert from 'node:assert/strict';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { validateZipFile } from '../src/core/imports/takeout/zipBombGuard.js';
 
-test('batch A asset no-response keeps the historical default failure reason', async () => {
-    const { default: AssetPipeline } = await import('../src/core/engine/assetPipeline.js');
-    const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
-        fetchAssetDelegate: async () => undefined
-    }) });
-    const result = await pipeline.processAsset(
-        { assetId: 'test-asset', url: 'https://example.test/image.png', localName: 'image.png' },
-        { id: 'chat-no-response' },
-        { isImage: true, maxRetries: 0 }
-    );
-    assert.equal(result.ok, false);
-    assert.equal(result.reason, 'image direct download failed');
+test('batch A acquisition rejects empty provider bytes instead of claiming success', async () => {
+    const { acquireSourceResource } = require('../src/core/provider/sourceResources.js');
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => new Response(new Uint8Array());
+    try {
+        await assert.rejects(acquireSourceResource({ id: 'test-asset', kind: 'image', sourceUri: 'https://example.test/image.png' }), /Empty source resource/);
+    } finally { globalThis.fetch = original; }
 });
 
 const takeoutHtml = `<div class="outer-cell"><a href="https://gemini.google.com/app/histimg01">Chat</a>

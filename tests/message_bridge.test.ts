@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { useAccountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import { init, handleWindowMessage } from '../src/content/messageBridge.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getDetail } from '../src/core/storage/domain/domainStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
+import { getDetail } from '../src/core/storage/storageService.js';
 import { getCoverage } from '../src/core/domain/coverageAdmission.js';
 import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
 useIndexStorage(); useAccountRuntime(); beforeEach(() => { init(); });
@@ -18,13 +18,13 @@ function sourceCapture(text = list, extra: Record<string, unknown> = {}): Messag
     return event(CrossWorldEvents.NETWORK_BATCHEXECUTE, { text, url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute', requestedAt: Date.now(), truncated: false, ...extra });
 }
 
-test('deletion only emits the observed account-bound callback and never fetches verification', async () => {
+test('unverified deletion emits no callback and never fetches verification', async () => {
     const emitted: unknown[] = [];
     init({ onConversationDeleted: (id, accountId) => emitted.push([id, accountId]) });
     const original = globalThis.fetch; globalThis.fetch = async () => { assert.fail('Sniffer must not acquire'); };
     try { await handleWindowMessage(event(CrossWorldEvents.CONVERSATION_DELETED, { id: 'bridge_chat_123' })); }
     finally { globalThis.fetch = original; }
-    assert.deepEqual(emitted, [['bridge_chat_123', ACCOUNT_UUID]]);
+    assert.deepEqual(emitted, []);
 });
 test('foreign window and foreign origin cannot submit captured facts', async () => {
     await handleWindowMessage({ ...sourceCapture(), source: {} } as MessageEvent);

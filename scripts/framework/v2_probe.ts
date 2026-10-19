@@ -19,6 +19,14 @@ export async function snapshot() {
     if (!account || account.providerId !== 'gemini') throw new Error('Selected account is not Gemini');
     return { accountId: id, account, rows, coverage, exportIds: Object.keys(records).sort(), records };
 }
+export async function storedConversation(conversationId: string) {
+    await ensureV2Ready();
+    const key = { accountId: accountId(), conversationId };
+    const [index, detail, exportRecord] = await Promise.all([
+        storage.getIndex(key), storage.getDetail(key), storage.getExportRecord(key),
+    ]);
+    return { index, detail, exportRecord };
+}
 export async function conversations(ids: string[]) {
     const state = await snapshot();
     return Promise.all(ids.map(async id => {
@@ -59,7 +67,7 @@ export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
     }
     return {ids:parsed.map(result => result.conversationId), resources, mediaDigests};
 }
-Object.assign(globalThis, { __tier2V2: { accountId, snapshot, conversations, resetCoverage, inspectTakeout,
+Object.assign(globalThis, { __tier2V2: { accountId, snapshot, conversations, storedConversation, resetCoverage, inspectTakeout,
     getAccount: storage.getAccount, listAccounts: storage.listAccounts,
     getSettings, updateSettings,
     setDirectoryHandle: storage.setDirectoryHandle } });

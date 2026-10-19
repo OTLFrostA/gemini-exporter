@@ -6,13 +6,14 @@ let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
         import * as admission from './src/core/domain/ingestion.ts';
-        import * as storage from './src/core/storage/domain/domainStore.ts';
-        import * as resources from './src/core/storage/domain/resourceContext.ts';
-        import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
+        import * as storage from './src/core/storage/storageService.ts';
+        import { openStorageDB as openDomainDB } from './src/core/storage/idb.ts';
+        import { readConversation } from './src/core/domain/readConversation.ts';
+        import { createSourceResourceContext } from './src/core/provider/sourceResources.ts';
         import { historicalFixture } from './tests/helpers/nativeFixture.ts';
         import { bindFixture } from './tests/helpers/domainFixture.ts';
         import { admitFixture } from './tests/helpers/admitFixture.ts';
-        globalThis.storageProbe = { ...admission, ...storage, ...resources, getDomainConversationResult, historicalFixture, bindFixture, admitFixture };
+        globalThis.storageProbe = { ...admission, ...storage, openDomainDB, readConversation, createSourceResourceContext, historicalFixture, bindFixture, admitFixture };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;
 });
@@ -40,10 +41,10 @@ test('Index and Detail have independent physical authorities and restore a compo
     expect(saved.disk).toEqual([saved.detail]);
     expect(saved.names).not.toContain('resource_bytes');
     await page.reload(); await page.evaluate(bundle);
-    const restored = await page.evaluate(async accountId => Reflect.get(globalThis, 'storageProbe').getDomainConversationResult(accountId, 'physical'), saved.accountId);
-    expect(restored.conversation.detail).toEqual(saved.detail);
-    expect(restored.conversation.index.title).toBe('User title');
-    expect(restored.conversation.index.updatedAt).toBe(999);
+    const restored = await page.evaluate(async accountId => Reflect.get(globalThis, 'storageProbe').readConversation({ accountId, conversationId: 'physical' }), saved.accountId);
+    expect(restored.detail).toEqual(saved.detail);
+    expect(restored.index.title).toBe('User title');
+    expect(restored.index.updatedAt).toBe(999);
 });
 
 test('Index-only stays body-free; shorter complete snapshots replace while partial snapshots cannot truncate', async ({ context, extensionId }) => {
@@ -64,7 +65,7 @@ test('Index-only stays body-free; shorter complete snapshots replace while parti
     expect(result.selected.messages).toHaveLength(1);
 });
 
-test('Detail failure propagates after Index commit; Index failure never writes Detail', async ({ context, extensionId }) => {
+test('Detail and Index failures roll back the same atomic conversation admission', async ({ context, extensionId }) => {
     const page = await context.newPage(); await install(page, extensionId);
     const result = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
@@ -74,18 +75,17 @@ test('Detail failure propagates after Index commit; Index failure never writes D
         let detailError = '';
         try { await api.ingestDetail(parsed.account.id, 'failed-detail', parsed.conversation.detail, parsed.conversation.index); } catch (error) { detailError = String(error); }
         finally { IDBObjectStore.prototype.put = put; }
-        const index = (await chrome.storage.local.get<Record<string, Array<{ key: { conversationId: string } }>> >('conversations_' + parsed.account.id))['conversations_' + parsed.account.id];
+        const index = await api.getIndex(parsed.conversation.index.key);
         const absent = await api.getDetail(parsed.conversation.index.key);
-        const set = chrome.storage.local.set;
-        chrome.storage.local.set = async () => { throw new Error('injected Index failure'); };
+        IDBObjectStore.prototype.put = function (...args) { if (this.name === 'indexes') throw new Error('injected Index failure'); return put.apply(this, args); };
         let indexError = '';
         try { const { key: _, ...body } = parsed.conversation.detail; await api.ingestDetail(parsed.account.id, 'failed-index', body); } catch (error) { indexError = String(error); }
-        finally { chrome.storage.local.set = set; }
+        finally { IDBObjectStore.prototype.put = put; }
         return { detailError, indexError, index, absent, other: await api.getDetail({ accountId: parsed.account.id, conversationId: 'failed-index' }) };
     });
     expect(result.detailError).toContain('injected Detail failure');
     expect(result.indexError).toContain('injected Index failure');
-    expect(result.index[0].key.conversationId).toBe('failed-detail');
+    expect(result.index).toBeNull();
     expect(result.absent).toBeNull(); expect(result.other).toBeNull();
 });
 
@@ -99,15 +99,15 @@ test('untrusted admission and IPC reject invalid AST and dangling assets before 
         let rejected = false;
         try { await api.ingestDetail(parsed.account.id, 'invalid', detail); } catch { rejected = true; }
         const reply = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'put', payload: { detail } });
-        return { rejected, reply, stored: await api.getDetail(detail.key), indexes: await chrome.storage.local.get('conversations_' + parsed.account.id) };
+        return { rejected, reply, stored: await api.getDetail(detail.key), indexes: await api.listIndexes(parsed.account.id) };
     });
-    expect(result.rejected).toBe(true); expect(result.reply.ok).toBe(false);
+    expect(result.rejected).toBe(true); expect(result.reply).toBeUndefined(); // Removed privileged Storage IPC is not handled.
     expect(result.stored).toBeNull();
     expect(Object.values(result.indexes).flat()).toEqual([]);
 });
 
 
-test('inline bytes remain outside persisted Detail and are available through the background broker', async ({ context, extensionId }) => {
+test('inline bytes remain outside persisted Detail and belong to one acquisition task', async ({ context, extensionId }) => {
     const page = await context.newPage(); await install(page, extensionId);
     const result = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
@@ -115,8 +115,10 @@ test('inline bytes remain outside persisted Detail and are available through the
             messages: [{ role: 'user', content: '![image](data:image/png;base64,AQID)' }] });
         await api.admitFixture(parsed.account.id, parsed);
         const asset = parsed.conversation.detail.assets[0];
-        const identity = api.storageIdentity(parsed.account.providerId, parsed.account.id, 'inline-bytes');
-        const bytes = await api.getDomainResource(identity, asset.id);
+        const resources = api.createSourceResourceContext();
+        resources.retainParsed(parsed.conversation.index.key, { ...parsed, conversationId: 'inline-bytes' });
+        const bytes = (await resources.acquire(parsed.conversation.index.key, asset)).bytes;
+        resources.release();
         return { bytes: bytes && Array.from(bytes), detail: await api.getDetail(parsed.conversation.detail.key) };
     });
     expect(result.bytes).toEqual([1, 2, 3]);

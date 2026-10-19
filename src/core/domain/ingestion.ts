@@ -40,7 +40,7 @@ export async function ingestIndexes(accountId: string,
     if (page && account.providerAccountId !== DEFAULT_ACCOUNT_KEY) await CoverageAdmission.recordPageCoverage(accountId, {
         ...page, providerId: account.providerId, accountId, items: indexes,
         valid: page.valid && page.keys.length === indexes.length
-            && page.keys.every(key => indexes.some(index => index.key.conversationId === key.id && index.updatedAt === key.time)),
+            && page.keys.every(key => indexes.some(index => index.key.conversationId === key.id)),
     });
 }
 

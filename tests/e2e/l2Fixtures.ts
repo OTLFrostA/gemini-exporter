@@ -19,9 +19,15 @@ export const test = base.extend<{ context: BrowserContext; extensionId: string }
             }));
             await build({ stdin: { resolveDir: resolve(__dirname, '../..'), loader: 'ts', contents: `
                 import { handleAccountRegistryMessage } from './src/background/accountRegistryHandler.ts';
-                import { handleDomainStorageMessage } from './src/background/domainStorageHandler.ts';
-                chrome.runtime.onMessage.addListener((message, sender, respond) =>
-                    handleAccountRegistryMessage(message, sender, respond) || handleDomainStorageMessage(message, sender, respond));
+                import { handleDomainIngestionMessage } from './src/background/domainStorageHandler.ts';
+                import { ensureV2Ready } from './src/background/readiness.ts';
+                chrome.runtime.onMessage.addListener((message, sender, respond) => {
+                    if (message?.action === 'ensureV2Ready') {
+                        void ensureV2Ready().then(() => respond({ ok: true }), error => respond({ ok: false, error: String(error) }));
+                        return true;
+                    }
+                    return handleAccountRegistryMessage(message, sender, respond) || handleDomainIngestionMessage(message, sender, respond);
+                });
             ` }, bundle: true, platform: 'browser', format: 'iife', outfile: join(extension, 'background.js') });
             context = await chromium.launchPersistentContext('', {
                 channel: 'chromium', headless: true,
