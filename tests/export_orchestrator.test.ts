@@ -1,0 +1,1138 @@
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import { withRegistry } from './helpers/registryMock.js';
+import { sourceIndex } from './helpers/domainFixture.js';
+import { acquiredReply } from './helpers/acquisitionFixture.js';
+import { fixtureKey } from './helpers/domainFixture.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
+import { indexFixture } from './helpers/indexFixture.js';
+import { historicalFixture } from './helpers/nativeFixture.js';
+import type { FetchAssetParams } from '../src/core/engine/assetPipeline.js';
+import { makeTestWorker } from './helpers/makeTestWorker.js';
+const test = require('node:test');
+const assert = require('node:assert');
+
+const { ExportOrchestrator, AsyncQueue } = require('../src/core/engine/export/exportOrchestrator.js');
+const { BatchWorker, formatDebugInfo } = require('../src/core/engine/export/batchWorker.js');
+const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+
+// ---------------------------------------------------------------------------
+// AsyncQueue
+// ---------------------------------------------------------------------------
+test('AsyncQueue - push, pop, length, FIFO order, and close', async () => {
+    const queue = new AsyncQueue();
+    assert.strictEqual(queue.length, 0);
+
+    queue.push('task-1');
+    queue.push('task-2');
+    assert.strictEqual(queue.length, 2);
+
+    const item1 = await queue.pop();
+    assert.strictEqual(item1, 'task-1');
+    assert.strictEqual(queue.length, 1);
+
+    const item2 = await queue.pop();
+    assert.strictEqual(item2, 'task-2');
+    assert.strictEqual(queue.length, 0);
+
+    // Test waiting on empty queue
+    let popResolved = false;
+    const popPromise = queue.pop().then((val: any) => {
+        popResolved = true;
+        return val;
+    });
+    assert.strictEqual(popResolved, false);
+
+    queue.push('task-3');
+    const item3 = await popPromise;
+    assert.strictEqual(item3, 'task-3');
+
+    // Test close
+    const closeWaitPromise = queue.pop();
+    queue.close();
+    const itemAfterClose = await closeWaitPromise;
+    assert.strictEqual(itemAfterClose, null);
+    assert.strictEqual(await queue.pop(), null);
+
+    // Test pushing to closed queue returns false
+    assert.strictEqual(queue.push('task-after-close'), false, 'pushing to closed queue must return false');
+});
+
+// ---------------------------------------------------------------------------
+// ExportOrchestrator: Mock JSZip
+// ---------------------------------------------------------------------------
+function setupMockJSZip() {
+    const instances: any[] = [];
+    __setModuleOverride('JSZip', class MockJSZip {
+        files: Record<string, any> = {};
+        constructor() {
+            this.files = {};
+            instances.push(this);
+        }
+        folder(_name: string) {
+            return {
+                file: (path: string, content: any) => { this.files[path] = content; }
+            };
+        }
+        async generateAsync(_options?: any, cb?: (p: { percent: number }) => void) {
+            if (cb) cb({ percent: 100 });
+            return new Blob(['mock-zip'], { type: 'application/zip' });
+        }
+    });
+    return instances;
+}
+
+
+// ---------------------------------------------------------------------------
+// ExportOrchestrator: Mock StorageService
+// Phase A (P1-4): orchestrator 不再接受 Storage=null（静态 fallback 保证生产环境
+// 永远有真 StorageService）；无 chrome 的 node 测试必须显式注册 mock adapter，
+// 且它必须实现 saveExportRecord（finalizeChatExport fail-closed）。
+// ---------------------------------------------------------------------------
+function setupMockStorage() {
+    const mem: Record<string, any> = {};
+    __setModuleOverride('StorageService', {
+        getConversationAvailability: catalogStorage.getConversationAvailability,
+        getExportedIds: async (_slot: string) => ({ ...mem }),
+        saveExportRecord: async (_slot: string, id: string, rec: any) => {
+            mem[id] = rec;
+            return { ...mem };
+        },
+    });
+    return { savedRecords: mem };
+}
+
+// ---------------------------------------------------------------------------
+// ExportOrchestrator: Batch export success and failure accounting (S-2)
+// ---------------------------------------------------------------------------
+test('ExportOrchestrator - accurate accounting for successful and failed chats (S-2)', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+
+    const selected = [
+        { id: 'chat-1', title: 'Conversation 1' },
+        { id: 'chat-2', title: 'Conversation 2' },
+        { id: 'chat-3', title: 'Conversation 3' }
+    ];
+
+    const mockWorker = makeTestWorker({
+        fetchChatDetail: async (requestedItem: any) => {
+            if (requestedItem.id === 'chat-2') {
+                return await {
+                    success: false,
+                    error: '429 Rate Limit Exceeded'
+                };
+            }
+            return await {
+                success: true,
+                chat: historicalFixture({
+                    id: requestedItem.id,
+                    title: requestedItem.title,
+                    messages: [
+                        { role: 'user', content: 'Hello' },
+                        { role: 'model', content: 'Hi there!' }
+                    ]
+                }),
+            };
+        }
+    });
+
+    const logs: string[] = [];
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected,
+        format: 'markdown',
+        useZip: true, downloadHandler: async () => {},
+        includeAssets: false,
+        worker: mockWorker
+    }) }, {
+        onLog: (msg: string) => logs.push(msg)
+    });
+
+    assert.strictEqual(result.landedChats, 2, '2 chats should have succeeded');
+    assert.strictEqual(result.exportedCount, 2, 'exportedCount should equal landedChats');
+    assert.strictEqual(result.failedChats.length, 1, '1 chat should have failed');
+    assert.strictEqual(result.failedChats[0].id, 'chat-2');
+    assert.ok(result.failedChats[0].error.includes('429'), 'Error reason should be captured');
+    assert.strictEqual(result.aborted, false);
+});
+
+// ---------------------------------------------------------------------------
+// ExportOrchestrator: Permission revocation immediate abort (S-5)
+// ---------------------------------------------------------------------------
+test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)', async () => {
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+
+    const selected = [
+        { id: 'chat-p1', title: 'Permission 1' },
+        { id: 'chat-p2', title: 'Permission 2' },
+        { id: 'chat-p3', title: 'Permission 3' }
+    ];
+
+    let fetchCount = 0;
+    const mockWorker = makeTestWorker({
+        fetchChatDetail: async (requestedItem: any) => {
+            fetchCount++;
+            return await {
+                success: true,
+                chat: historicalFixture({
+                    id: requestedItem.id,
+                    title: requestedItem.title,
+                    messages: [{ role: 'user', content: 'test' }]
+                }),
+            };
+        }
+    });
+
+    // Mock dirHandle where getFileHandle throws NotAllowedError
+    const mockDirHandle: any = {
+        name: 'test_folder',
+        getDirectoryHandle: async () => mockDirHandle,
+        getFileHandle: async () => {
+            const err = new Error('The user revoked directory permission');
+            err.name = 'NotAllowedError';
+            throw err;
+        }
+    };
+
+    const logs: string[] = [];
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected,
+        format: 'markdown',
+        useZip: false,
+        includeAssets: false,
+        dirHandle: mockDirHandle,
+        worker: mockWorker,
+        concurrency: 1
+    }) }, {
+        onLog: (msg: string) => logs.push(msg)
+    });
+
+    // Verify pipeline aborted
+    assert.strictEqual(orchestrator.aborted, true, 'Orchestrator should be aborted');
+    assert.strictEqual(result.aborted, true, 'Result should flag aborted');
+    assert.strictEqual(result.landedChats, 0, 'No chats should have landed');
+    assert.strictEqual(fetchCount, 1, 'Only one chat should have been fetched before abort');
+    assert.strictEqual(result.failedChats.length, 1, 'Pipeline should record exactly one failed chat on immediate abort');
+    assert.ok(
+        logs.some(l => l.includes('权限') || l.includes('permission')),
+        'Logs should contain permission revocation warning'
+    );
+});
+
+// ---------------------------------------------------------------------------
+// ExportOrchestrator: Fast Upfront Skip Filter
+// ---------------------------------------------------------------------------
+test('ExportOrchestrator - skip: true skips already exported up-to-date chats upfront and only fetches unexported/updated chats', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+
+    const tExported = 1700000000000;
+    const conversations = ([
+        { id: 'chat-new', title: 'New Conversation', timestamp: tExported },
+        { id: 'chat-partial', title: 'Partially Exported', timestamp: tExported, updatedAt: tExported },
+        { id: 'chat-updated', title: 'Updated Conversation', timestamp: tExported, updatedAt: tExported + 30000 },
+        { id: 'chat-synced', title: 'Synced Conversation', timestamp: tExported, updatedAt: tExported },
+        { id: 'chat-old', title: 'Old Synced Conversation', timestamp: tExported - 10000 }
+    ]).map(indexFixture);
+
+    const exportedIds = {
+        'chat-updated': { exportedAt: new Date(tExported).toISOString(), chatTime: tExported, title: 'Updated Conversation' },
+        'chat-partial': { status: 'partial', exportedAt: new Date(tExported + 5000).toISOString(), chatTime: tExported, title: 'Partially Exported' },
+        'chat-synced': { exportedAt: new Date(tExported + 5000).toISOString(), chatTime: tExported, title: 'Synced Conversation' },
+        'chat-old': { exportedAt: new Date(tExported).toISOString(), chatTime: tExported - 10000, title: 'Old Synced Conversation' }
+    };
+
+    const fetchedIds: string[] = [];
+    const mockWorker = makeTestWorker({
+        fetchChatDetail: async (requestedItem: any) => {
+            fetchedIds.push(requestedItem.id);
+            return await {
+                success: true,
+                chat: historicalFixture({
+                    id: requestedItem.id,
+                    title: requestedItem.title,
+                    messages: [{ role: 'user', content: 'test' }]
+                }),
+            };
+        }
+    });
+
+    const logs: string[] = [];
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
+        format: 'markdown',
+        useZip: true, downloadHandler: async () => {},
+        skip: true,
+        conversations,
+        exportedIds,
+        includeAssets: false,
+        worker: mockWorker
+    }) }, {
+        onLog: (msg: string) => logs.push(msg)
+    });
+
+    assert.strictEqual(result.landedChats, 3, 'new, updated, and partial chats must be re-exported');
+    assert.strictEqual(result.skipped, 2, '2 chats (synced and old) should be skipped upfront');
+    assert.deepStrictEqual(fetchedIds.sort(), ['chat-new', 'chat-updated', 'chat-partial'].sort(),
+        'an incomplete export must be fetched again even without a newer server timestamp');
+    assert.ok(logs.some(l => (l.includes('Synced Conversation') || l.includes('chat-synced')) && (l.includes('跳过') || l.includes('skipped'))), 'Logs should report chat-synced skipped');
+    assert.ok(logs.some(l => (l.includes('Old Synced Conversation') || l.includes('chat-old')) && (l.includes('跳过') || l.includes('skipped'))), 'Logs should report chat-old skipped');
+});
+
+test('ExportOrchestrator - skip: true when all selected chats are up-to-date completes instantly without network calls or empty zip', async () => {
+    setupMockStorage();
+    let zipGenerated = false;
+    __setModuleOverride('JSZip', class MockJSZipAllSkip {
+        files: Record<string, any> = {};
+        folder() { return { file: () => {} }; }
+        async generateAsync() {
+            zipGenerated = true;
+            return new Blob(['mock-zip'], { type: 'application/zip' });
+        }
+    });
+
+    const orchestrator = new ExportOrchestrator();
+
+    const tExported = 1700000000000;
+    const conversations = ([
+        { id: 'chat-1', title: 'Conversation 1', timestamp: tExported, updatedAt: tExported },
+        { id: 'chat-2', title: 'Conversation 2', timestamp: tExported, updatedAt: tExported }
+    ]).map(indexFixture);
+
+    const exportedIds = {
+        'chat-1': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 1' },
+        'chat-2': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 2' }
+    };
+
+    let fetchCalls = 0;
+    const mockWorker = makeTestWorker({
+        fetchChatDetail: async () => {
+            fetchCalls++;
+            return await { success: true, results: [] };
+        }
+    });
+
+    const logs: string[] = [];
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
+        format: 'markdown',
+        useZip: true,
+        skip: true,
+        conversations,
+        exportedIds,
+        includeAssets: false,
+        worker: mockWorker
+    }) }, {
+        onLog: (msg: string) => logs.push(msg)
+    });
+
+    assert.strictEqual(fetchCalls, 0, 'Zero network calls should be made when all chats are skipped upfront');
+    assert.strictEqual(result.landedChats, 0, 'Zero chats landed');
+    assert.strictEqual(result.skipped, 2, 'All 2 chats should be skipped');
+    assert.strictEqual(result.failedChats.length, 0, 'Zero failures');
+    assert.strictEqual(zipGenerated, false, 'No empty zip should be generated when all chats are skipped');
+    assert.ok(logs.some(l => l.includes('无需生成 ZIP') || l.includes('No ZIP generated')), 'Logs should confirm no zip generated');
+});
+
+test('ExportOrchestrator - skip: false exports all selected chats regardless of export records', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+
+    const tExported = 1700000000000;
+    const conversations = ([
+        { id: 'chat-1', title: 'Conversation 1', timestamp: tExported, updatedAt: tExported },
+        { id: 'chat-2', title: 'Conversation 2', timestamp: tExported, updatedAt: tExported }
+    ]).map(indexFixture);
+
+    const exportedIds = {
+        'chat-1': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 1' },
+        'chat-2': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 2' }
+    };
+
+    let fetchCalls = 0;
+    const mockWorker = makeTestWorker({
+        fetchChatDetail: async (item: any) => {
+            fetchCalls++;
+            return await {
+                success: true,
+                chat: historicalFixture({ id: item.id, title: item.title, messages: [{ role: 'user', content: 'Body' }] }),
+            };
+        }
+    });
+
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
+        format: 'markdown',
+        useZip: true, downloadHandler: async () => {},
+        skip: false,
+        conversations,
+        exportedIds,
+        includeAssets: false,
+        worker: mockWorker
+    }) });
+
+    assert.strictEqual(fetchCalls, 2, 'All chats should be fetched when skip is false');
+    assert.strictEqual(result.landedChats, 2, 'All chats should land');
+    assert.strictEqual(result.skipped, 0, 'Zero chats skipped');
+});
+
+// ---------------------------------------------------------------------------
+// formatDebugInfo tests
+// ---------------------------------------------------------------------------
+test('formatDebugInfo - formats debug info cleanly without [object Object]', () => {
+    assert.strictEqual(formatDebugInfo(null), '');
+    assert.strictEqual(formatDebugInfo(undefined), '');
+    assert.strictEqual(formatDebugInfo('plain error message'), ' plain error message');
+
+    const rpcDebug = { batchexecuteEmptyDebug: { error: 'BardErrorInfo: 1167' } };
+    assert.strictEqual(formatDebugInfo(rpcDebug), ' (RPC: BardErrorInfo: 1167)');
+
+    const domDebug = { domDebug: { error: 'DOM not ready' } };
+    assert.strictEqual(formatDebugInfo(domDebug), ' (DOM: DOM not ready)');
+
+    const errDebug = { error: 'Explicit error' };
+    assert.strictEqual(formatDebugInfo(errDebug), ' (Explicit error)');
+
+    const objDebug = { isNotFound: true, statusCode: 404, rawPreview: 'huge string to ignore' };
+    const formatted = formatDebugInfo(objDebug);
+    assert.ok(!formatted.includes('[object Object]'), 'Must never format to [object Object]');
+    assert.ok(formatted.includes('"isNotFound":true'), 'Must serialize key fields');
+    assert.ok(!formatted.includes('huge string to ignore'), 'Must strip out rawPreview bloat');
+});
+
+// ---------------------------------------------------------------------------
+// BatchWorker.resolveChat - Empty Chat and Deleted Chat handling
+// ---------------------------------------------------------------------------
+test('BatchWorker.resolveChat - reports unavailable bodies without fabricating an empty conversation', async () => {
+    const logs: string[] = [];
+    const chat = {
+        id: 'empty-chat-123',
+        title: 'Used an Assistant feature',
+        messages: [],
+        error: 'DOM 返回内容为空',
+        _empty: true,
+        _debug: { domHtmlLen: 0 }
+    };
+    const reqItem = { id: 'empty-chat-123', title: 'Used an Assistant feature' };
+
+    const res = await BatchWorker.resolveChat(
+        chat,
+        reqItem,
+        null,
+        null,
+        '10000000-0000-4000-8000-000000000001',
+        () => {},
+        (msg: string) => logs.push(msg)
+    );
+
+    assert.strictEqual(res.isError, true);
+    assert.strictEqual(res.isConfirmedDeleted, false);
+    assert.equal(res.errMsg, chat.error);
+    assert.equal('chat' in res, false);
+});
+
+test('BatchWorker.resolveChat - detects cloud-deleted chat with BardErrorInfo: 1167', async () => {
+    const logs: string[] = [];
+    const chat = {
+        id: 'del-chat-456',
+        title: 'Deleted Chat',
+        messages: [],
+        error: '会话已在服务端删除或不可访问 (BardErrorInfo: 1167)',
+        _empty: true
+    };
+    const reqItem = { id: 'del-chat-456', title: 'Deleted Chat' };
+
+    const res = await BatchWorker.resolveChat(
+        chat,
+        reqItem,
+        null,
+        null,
+        '10000000-0000-4000-8000-000000000001',
+        () => {},
+        (msg: string) => logs.push(msg)
+    );
+
+    assert.strictEqual(res.isError, true, 'Deleted chat should be marked as error/pruned');
+    assert.strictEqual(res.isConfirmedDeleted, true, 'Must identify as confirmed deleted');
+});
+
+// ---------------------------------------------------------------------------
+// ChatFormatter - Empty Chat Markdown Notice
+// ---------------------------------------------------------------------------
+test('Canonical Markdown preserves the header for empty chats', async () => {
+    const emptyChat = {
+        id: 'cca63136d0630930',
+        title: 'Used an Assistant feature',
+        messages: [],
+        isEmpty: true
+    };
+
+    const { content: mdZh } = await ChatFormatter.formatMarkdownDocument(historicalFixture(emptyChat), { lang: 'zh' });
+    assert.ok(mdZh.includes('title: "Used an Assistant feature"'), 'Frontmatter title');
+    assert.ok(!mdZh.includes('## 👤'), 'empty chat has no fabricated messages');
+
+    const { content: mdEn } = await ChatFormatter.formatMarkdownDocument(historicalFixture(emptyChat), { lang: 'en' });
+    assert.ok(mdEn.includes('# Used an Assistant feature'), 'empty chat retains title');
+});
+
+// ---------------------------------------------------------------------------
+// ExportOrchestrator - Empty Chat end-to-end export without deadlock
+// ---------------------------------------------------------------------------
+test('ExportOrchestrator - unavailable body remains retryable and is not marked exported', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+
+    const conversations = ([
+        { id: 'cca63136d0630930', title: 'Used an Assistant feature', timestamp: 1710000000000 }
+    ]).map(indexFixture);
+
+    const mockWorker = makeTestWorker({
+        fetchChatDetail: async () => await ({
+            success: true,
+            chat: historicalFixture({
+                id: 'cca63136d0630930',
+                title: 'Used an Assistant feature',
+                messages: [],
+            })
+        }),
+        resolveChat: BatchWorker.resolveChat
+    });
+
+    const exportedIds: Record<string, any> = {};
+    const logs: string[] = [];
+
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
+        format: 'markdown',
+        useZip: true, downloadHandler: async () => {},
+        skip: true,
+        conversations,
+        exportedIds,
+        includeAssets: false,
+        worker: mockWorker,
+        onExportFinalized: async (id: string) => {
+            exportedIds[id] = { exportedAt: new Date().toISOString(), status: 'empty' };
+        }
+    }) }, {
+        onLog: (msg: string) => logs.push(msg)
+    });
+
+    assert.strictEqual(result.landedChats, 0);
+    assert.strictEqual(result.failedChats.length, 1);
+    assert.equal(exportedIds['cca63136d0630930'], undefined);
+});
+
+test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime and fires onItemPendingAssets for queued assets', async () => {
+    setupMockJSZip();
+    const { savedRecords } = setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+
+    const tCreate = 1700000000000;
+    const tUpdate = 1700086400000; // 24h newer than creation timestamp
+    const conversations = ([
+        { id: 'chat_with_img', title: 'Image Chat', timestamp: tCreate, updatedAt: tUpdate }
+    ]).map(indexFixture);
+
+    const mockWorker = makeTestWorker({
+        fetchChatDetail: async () => await ({
+            success: true,
+            chat: historicalFixture({
+                id: 'chat_with_img',
+                title: 'Image Chat',
+                timestamp: tCreate,
+                updatedAt: tUpdate,
+                messages: [
+                    {
+                        role: 'model',
+                        content: 'Here is an image',
+                        images: [{ url: 'https://lh3.googleusercontent.com/fake_img', localName: 'assets/img.png', fileName: 'img.png' }]
+                    }
+                ]
+            })
+        }),
+        resolveChat: BatchWorker.resolveChat
+    });
+
+    const origPipeline = __getModuleOverride('AssetPipeline');
+    __setModuleOverride('AssetPipeline', class {
+        async processAsset(item: any) {
+            return { ok: true as const, resourceId: item.assetId, value: { path: item.localName || 'assets/img.png' } };
+        }
+    });
+
+    const pendingEvents: Array<{ id: string; count: number }> = [];
+    const finalizedEvents: Array<{ id: string; rec: any }> = [];
+
+    try {
+        const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+            selected: conversations.map(sourceIndex),
+            format: 'markdown',
+            useZip: true, downloadHandler: async () => {},
+            skip: false,
+            conversations,
+            exportedIds: {},
+            includeAssets: true,
+            worker: mockWorker
+        }) }, {
+            onItemPendingAssets: (id: string, count: number) => pendingEvents.push({ id, count }),
+            onItemExported: (id: string, rec: any) => finalizedEvents.push({ id, rec })
+        });
+
+        assert.strictEqual(result.landedChats, 1);
+        assert.strictEqual(pendingEvents.length, 1, 'onItemPendingAssets must fire when chat has queued assets');
+        assert.strictEqual(pendingEvents[0].id, 'chat_with_img');
+        assert.strictEqual(pendingEvents[0].count, 1);
+        assert.strictEqual(finalizedEvents.length, 1, 'onItemExported must fire after asset queue completes');
+        assert.strictEqual(finalizedEvents[0].rec.chatTime, tUpdate, 'record.chatTime must use effective timestamp (updatedAt), not stale creation timestamp');
+        assert.strictEqual(savedRecords['chat_with_img']?.chatTime, tUpdate);
+
+        const { checkIsUpdated } = require('../src/core/utils/titleUtils.js');
+        assert.strictEqual(
+            checkIsUpdated(conversations[0], finalizedEvents[0].rec),
+            false,
+            'Freshly exported conversation with updatedAt > timestamp must not be flagged as updated'
+        );
+    } finally {
+        __setModuleOverride('AssetPipeline', origPipeline);
+    }
+});
+
+test('ExportOrchestrator - resolves the original first candidate without changing its source identity without skipping later results', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+    const malformedFirst = { id: 42, title: 'Malformed first result', messages: [] };
+    const validSecond = { id: 'candidate_second', title: 'Must not be selected', messages: [] };
+    const selected = [{ id: 'candidate_first', title: 'First candidate' }];
+    let receivedChat: unknown;
+
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected,
+        useZip: true, downloadHandler: async () => {},
+        includeAssets: false,
+        worker: makeTestWorker({
+            fetchChatDetail: async () => await ({ success: true, results: [malformedFirst, historicalFixture(validSecond)], chat: historicalFixture(validSecond) } as never),
+            resolveChat: async (chat: any) => {
+                receivedChat = chat;
+                return {
+                    isError: true,
+                    chat,
+                    displayTitle: 'First candidate',
+                    isConfirmedDeleted: false,
+                    errMsg: 'Expected regression path',
+                    convsNeedSave: false
+                };
+            }
+        })
+    }) });
+
+    assert.strictEqual(receivedChat, malformedFirst, 'The original first candidate object must be passed to resolveChat');
+    assert.strictEqual(malformedFirst.id, 42, 'Source data must remain unchanged');
+    assert.notStrictEqual(receivedChat, validSecond, 'A later valid candidate must not be selected');
+    assert.strictEqual(result.landedChats, 0, 'The mocked resolver reports the first candidate as a failure');
+    assert.strictEqual(result.failedChats.length, 1, 'The first candidate must follow the existing per-chat failure path');
+});
+
+test('ExportOrchestrator - rejects a primitive first candidate without choosing a later result', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+    const validSecond = { id: 'candidate_second', title: 'Must not be selected', messages: [] };
+    let resolveCalls = 0;
+
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: [{ id: 'candidate_primitive', title: 'Primitive candidate' }],
+        useZip: true, downloadHandler: async () => {},
+        includeAssets: false,
+        worker: makeTestWorker({
+            fetchChatDetail: async () => await ({ success: true, results: [42, historicalFixture(validSecond)] } as never),
+            resolveChat: async (value, ...args) => {
+                resolveCalls++;
+                return BatchWorker.resolveChat(value, ...args);
+            }
+        })
+    }) });
+
+    assert.strictEqual(resolveCalls, 1, 'The native boundary validates the selected source');
+    assert.strictEqual(result.landedChats, 0, 'A truthy primitive first candidate must fail');
+    assert.strictEqual(result.failedChats.length, 1, 'The primitive failure must be isolated to its chat');
+    assert.match(result.failedChats[0].error || '', /body is unavailable/);
+});
+
+test('ExportOrchestrator - prepares asset destinations while retaining Domain asset identity', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+    const attachment = { url: 'https://example.com/image.png', localName: 'assets/original.png', fileName: 'original.png' };
+    const fetchedChat = {
+        id: 'asset_identity',
+        title: 'Fetched chat',
+        messages: [{ role: 'model', content: 'Image', images: [attachment] }]
+    };
+    const resolvedChat = {
+        id: 'asset_identity',
+        title: 'Resolved chat',
+        messages: fetchedChat.messages
+    };
+    let receivedItem: unknown;
+    let receivedChat: unknown;
+    const origPipeline = __getModuleOverride('AssetPipeline');
+    __setModuleOverride('AssetPipeline', class {
+        async processAsset(item: { assetId: string }, chat: unknown) {
+            receivedItem = item;
+            receivedChat = chat;
+            return { ok: true as const, resourceId: item.assetId, value: { path: attachment.localName } };
+        }
+    });
+
+    try {
+        const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+            selected: [{ id: 'asset_identity', title: 'Resolved chat' }],
+            useZip: true, downloadHandler: async () => {},
+            includeAssets: true,
+            worker: makeTestWorker({
+                fetchChatDetail: async () => await ({ success: true, chat: historicalFixture(fetchedChat) }),
+                resolveChat: async () => ({
+                    chat: historicalFixture(resolvedChat),
+                    displayTitle: 'Resolved chat',
+                    isConfirmedDeleted: false,
+                    isError: false,
+                source: 'online',
+                    errMsg: null,
+                    convsNeedSave: false
+                })
+            })
+        }) });
+
+        assert.strictEqual(result.landedChats, 1);
+        assert.equal((receivedItem as any).url, attachment.url);
+        assert.equal((receivedItem as any).localName, 'assets/entity_original.png');
+        assert.ok((receivedItem as any).assetId);
+        assert.equal((receivedChat as any).id, resolvedChat.id);
+        assert.equal((receivedChat as any).title, resolvedChat.title);
+    } finally {
+        __setModuleOverride('AssetPipeline', origPipeline);
+    }
+});
+
+test('ExportOrchestrator - writes native document content without reinterpreting it at runtime', async () => {
+    const mockZips = setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+
+    const conversations = ([
+        { id: 'chat_doc_1', title: 'Doc Analysis', timestamp: 1700000000000 }
+    ]).map(indexFixture);
+
+    const mockWorker = makeTestWorker({
+        fetchChatDetail: async () => await ({
+            success: true,
+            chat: historicalFixture({
+                id: 'chat_doc_1',
+                title: 'Doc Analysis',
+                timestamp: 1700000000000,
+                messages: [
+                    {
+                        role: 'user',
+                        content: 'Please analyze this system.'
+                    },
+                    {
+                        role: 'model',
+                        content: 'Analysis generated: [供水管网报告](files/chat_doc_1_pipe_analysis.md)',
+                        attachments: [
+                            {
+                                type: 'file',
+                                title: '供水管网报告',
+                                localName: 'files/chat_doc_1_pipe_analysis.md',
+                                contentMarkdown: 'http://googleusercontent.com/immersive_entry_chip/0\n# 城市供水管网水力建模分析\n\n## 1. 建模方程\n连续性方程与水头损失计算。'
+                            },
+                            {
+                                type: 'file',
+                                title: '仅包含Chip的无用文档',
+                                localName: 'files/chat_doc_1_empty_chip.md',
+                                contentMarkdown: 'http://googleusercontent.com/immersive_entry_chip/0\n'
+                            }
+                        ]
+                    }
+                ]
+            })
+        }),
+        resolveChat: BatchWorker.resolveChat
+    });
+
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        selected: conversations.map(sourceIndex),
+        format: 'markdown',
+        useZip: true, downloadHandler: async () => {},
+        skip: false,
+        conversations,
+        exportedIds: {},
+        includeAssets: true,
+        worker: mockWorker
+    }) });
+
+    assert.strictEqual(result.landedChats, 1);
+    assert.strictEqual(result.failedChats.length, 0);
+
+    // Verify mock zip files
+    const zipInstance = mockZips[0];
+    assert.ok(zipInstance, 'Mock JSZip instance must be created');
+
+    // 1. Cleaned document must be written
+    assert.ok(Object.entries(zipInstance.files).find(([path, content]) => path.startsWith('files/') && String(content).includes('# 城市供水管网水力建模分析'))?.[1], 'Document file must be written to archive');
+    const writtenContent = String(Object.entries(zipInstance.files).find(([path, content]) => path.startsWith('files/') && String(content).includes('# 城市供水管网水力建模分析'))?.[1]);
+    assert.strictEqual(writtenContent.includes('immersive_entry_chip'), true, 'Export preparation preserves the supplied native document content');
+    assert.ok(writtenContent.includes('# 城市供水管网水力建模分析'), 'Written document must contain document title and content');
+    assert.ok(writtenContent.includes('连续性方程与水头损失计算'), 'Written document must contain document body');
+
+    // 2. Pure chip telemetry document (empty after cleaning) must NOT be written
+    assert.ok(Object.entries(zipInstance.files).find(([path, content]) => path.startsWith('files/') && String(content).includes('immersive_entry_chip') && !String(content).includes('# 城市供水管网水力建模分析'))?.[1], 'Every supplied native document is written');
+});
+
+test('BatchWorker - accepts typed native results; storage rejects a mutated graph', async () => {
+    const { isWorkerChat } = require('../src/core/engine/export/batchWorker.js');
+    const record = { id: 'boundary', title: 'Boundary', messages: [{ role: 'user', content: 'Question' }] };
+    const native = historicalFixture(record);
+    assert.equal(isWorkerChat(record), false);
+    assert.equal((await BatchWorker.resolveChat(record, { id: 'boundary' }, null, null, '10000000-0000-4000-8000-000000000001')).isError, true);
+    await admitFixture('10000000-0000-4000-8000-000000000001', native);
+    assert.equal((await BatchWorker.resolveChat(native, { id: 'boundary' }, null, null, '10000000-0000-4000-8000-000000000001')).isError, false);
+    const invalid = structuredClone(native);
+    invalid.conversation.detail.messages[0].attachmentIds = ['missing'];
+    await assert.rejects(admitFixture('10000000-0000-4000-8000-000000000001', invalid), /asset|missing|reference/i);
+});
+
+test('ExportOrchestrator - uses native envelope bodies and reports missing bodies', async () => {
+    for (const mode of ['envelope', 'missing', 'falsy-first']) {
+        require('../src/core/storage/domain/domainStore.js').__clearDomainMemory();
+        const useEnvelopeChat = mode === 'envelope';
+        setupMockJSZip();
+        setupMockStorage();
+        const candidate = historicalFixture({ id: 'fallback', title: 'Envelope chat', messages: [{ role: 'user', content: 'Question' }] });
+        let received: unknown;
+        const worker = makeTestWorker({
+            fetchChatDetail: async () => await ({ success: true, results: mode === 'falsy-first' ? [null] : [], ...(mode !== 'missing' ? { chat: candidate } : {}) }),
+            resolveChat: async (chat, ...args) => {
+                received = chat;
+                assert.ok(chat == null || typeof chat === 'object');
+
+                return BatchWorker.resolveChat(chat, ...args);
+            }
+        });
+        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+            selected: [{ id: 'fallback', title: 'Requested title' }], useZip: true, downloadHandler: async () => {}, includeAssets: false, worker
+        }) });
+        if (useEnvelopeChat) assert.strictEqual(received, candidate);
+        assert.strictEqual(result.landedChats, useEnvelopeChat ? 1 : 0);
+        assert.strictEqual(result.failedChats.length, useEnvelopeChat ? 0 : 1);
+    }
+});
+
+test('AssetPipeline - preserves URL priorities and filename fallbacks for typed items', async () => {
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
+    const cases = [
+        { item: { url: 'https://example.com/url', sourceUrl: 'https://example.com/source', resolvedUrl: 'https://example.com/resolved', src: 'https://example.com/src', localName: 'local.png', fileName: 'file.png' }, isImage: true, url: 'https://example.com/resolved', localName: 'local.png' },
+        { item: { url: 'https://example.com/url', sourceUrl: 'https://example.com/source', src: 'https://example.com/src', fileName: 'file.png' }, isImage: true, url: 'https://example.com/source', localName: 'file.png' },
+        { item: { url: 'https://example.com/url', src: 'https://example.com/src' }, isImage: true, url: 'https://example.com/url', localName: 'image.jpg' },
+        { item: { src: 'https://example.com/src' }, isImage: true, url: 'https://example.com/src', localName: 'image.jpg' },
+        { item: { url: 'https://example.com/viewer/thumb', sourceUrl: 'https://example.com/source', src: 'https://example.com/src', title: 'report.pdf' }, isImage: false, url: 'https://example.com/source', localName: 'report.pdf' },
+        { item: { url: 'https://example.com/url', sourceUrl: 'https://example.com/source' }, isImage: false, url: 'https://example.com/url', localName: 'file.bin' },
+    ];
+    const chat = { id: 'asset_priority', title: 'Asset priority' };
+    for (const scenario of cases) {
+        const requests: FetchAssetParams[] = [];
+        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({ fetchAssetDelegate: async (params: FetchAssetParams) => {
+            requests.push(params);
+            return { success: true, dataBuffer: new Uint8Array([1, 2, 3]) };
+        } }) });
+        const item = { ...scenario.item, assetId: 'test-asset' };
+        const result = await pipeline.acquireAssetBytes(item, chat, { isImage: scenario.isImage, maxRetries: 0 });
+        assert.strictEqual(result.ok, true);
+        assert.strictEqual(requests[0].url, scenario.url);
+        assert.strictEqual(requests[0].item, item);
+        assert.strictEqual(requests[0].chat, chat);
+        assert.strictEqual(result.value.name, scenario.localName);
+    }
+});
+
+test('AssetPipeline - passes the original generation identity to Takeout fallback', async () => {
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
+    const generation = { chatId: 'generated_boundary', generationOrdinal: 2, imageOrdinal: 1, providerRequestId: 'request' };
+    let received: unknown[] = [];
+    const pipeline = new AssetPipeline({
+        accountId: '10000000-0000-4000-8000-000000000002',
+        takeoutEngine: { getTakeoutFallbackMedia: async (...args: unknown[]) => {
+            received = args;
+            return new Uint8Array([4, 5, 6]);
+        } }
+    });
+    const result = await pipeline.acquireAssetBytes({ assetId: 'online-image', sourceUrl: 'Takeout/original.png', fileName: 'generated.png', generation }, { id: 'generated_boundary' }, { isImage: true });
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(received, ['generated_boundary', { assetId: 'online-image', sourceUri: 'Takeout/original.png', generation }, '10000000-0000-4000-8000-000000000002']);
+    assert.strictEqual((received[1] as { generation: unknown }).generation, generation);
+});
+
+test('ExportOrchestrator - queues image and file attachments while preserving image deduplication', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const image = { type: 'image', localName: 'assets/image.png', fileName: 'image.png', url: 'https://example.com/image.png' };
+    const file = { type: 'file', localName: 'assets/file.pdf', fileName: 'file.pdf', url: 'https://example.com/file.pdf' };
+    const chat = {
+        id: 'mixed_assets', title: 'Mixed assets', messages: [{
+            role: 'model', content: 'Assets', images: [image], attachments: [
+                image, file
+            ]
+        }]
+    };
+    const received: { item: unknown; isImage: boolean }[] = [];
+    const origPipeline = __getModuleOverride('AssetPipeline');
+    __setModuleOverride('AssetPipeline', class {
+        async processAsset(item: { assetId: string; localName?: string }, receivedChat: unknown, options: { isImage: boolean }) {
+            assert.equal((receivedChat as any).id, chat.id);
+            received.push({ item, isImage: options.isImage });
+            return { ok: true as const, resourceId: item.assetId, value: { path: item.localName } };
+        }
+    });
+    try {
+        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+            selected: [{ id: 'mixed_assets', title: 'Mixed assets' }], useZip: true, downloadHandler: async () => {}, includeAssets: true,
+            worker: makeTestWorker({ fetchChatDetail: async () => await ({ success: true, chat: historicalFixture(chat) }) })
+        }) });
+        assert.strictEqual(result.failedChats.length, 0);
+        assert.strictEqual(result.totalAssets, 2);
+        assert.strictEqual(received.length, 2);
+        assert.strictEqual(received.find(entry => (entry.item as any).url === image.url)?.isImage, true);
+        assert.strictEqual(received.find(entry => (entry.item as any).url === file.url)?.isImage, false);
+    } finally {
+        __setModuleOverride('AssetPipeline', origPipeline);
+    }
+});
+
+test('all ordinary formats use completion for both records and meta, including fallback sources', async () => {
+    const { rpcFixture } = require('./helpers/nativeFixture.js');
+    const store = require('../src/core/storage/domain/domainStore.js');
+    for (const format of ['markdown', 'html', 'json']) {
+        for (const scenario of ['clean', 'partial', 'rejected', 'truncated', 'warning', 'heuristic', 'assets-disabled', 'takeout', 'snapshot', 'deleted', 'empty', 'fetch-failed', 'write-failed']) {
+            const id = `integrity-${scenario}`;
+            const parsed = rpcFixture({ id, title: 'Integrity contract',
+                messages: scenario === 'empty' ? [] : [{ role: 'user', content: 'Q', attachments: scenario === 'assets-disabled' ? [{ type: 'image', url: 'https://example.test/missing.png' }] : [] }, { role: 'model', content: 'A' }],
+                completeness: { status: scenario === 'partial' ? 'partial' : 'unknown' },
+                isTruncated: scenario === 'truncated',
+            }, { turnsRejected: scenario === 'rejected' ? 1 : 0, schemaDrift: scenario === 'warning' ? ['benign'] : [] });
+            if (scenario === 'heuristic') {
+                const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
+                parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { key: fixtureKey(), ...parsed.conversation.detail,
+                    quality: { status: 'partial' },
+                    assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated' } }],
+                } });
+            }
+            const zips = setupMockJSZip();
+            if (scenario === 'write-failed') {
+                const BaseZip = __getModuleOverride('JSZip');
+                __setModuleOverride('JSZip', class extends BaseZip {
+                    folder(name: string) {
+                        const folder = super.folder(name);
+                        return { file: (path: string, content: unknown) => {
+                            if (path.startsWith('Integrity')) throw new Error('Injected body write failure');
+                            folder.file(path, content);
+                        } };
+                    }
+                });
+            }
+            const { savedRecords } = setupMockStorage();
+            const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
+            if (fallback) await admitFixtures('10000000-0000-4000-8000-000000000001', [parsed]);
+            if (scenario === 'deleted') await catalogStorage.setConversationAvailability('10000000-0000-4000-8000-000000000001', id, 'deleted');
+            try {
+                const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+                    selected: [{ id, title: 'Integrity contract' }], format, useZip: true, downloadHandler: async () => {}, includeAssets: false, includeIndex: true,
+                    conversations: ([{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }]).map(indexFixture),
+                    takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
+                    worker: makeTestWorker({ fetchChatDetail: async () => await fallback || scenario === 'fetch-failed'
+                        ? { success: false, error: 'offline' } : { success: true, chat: parsed } }),
+                }) });
+                if (scenario === 'empty' || scenario === 'fetch-failed' || scenario === 'write-failed') {
+                    assert.equal(result.landedChats, 0);
+                    assert.equal(result.failedChats.length, 1);
+                    assert.equal(savedRecords[id], undefined, 'unavailable body cannot be recorded as success');
+                    if (scenario === 'write-failed') assert.equal(JSON.parse(zips[0].files['meta.json']).conversations[0].status, 'failed');
+                } else {
+                    const expected = ['partial', 'rejected', 'truncated', 'heuristic', 'snapshot'].includes(scenario) ? 'partial' : 'ok';
+                    assert.equal(result.landedChats, 1, `${format}/${scenario}`);
+                    assert.equal(savedRecords[id].status, expected, `${format}/${scenario}`);
+                    const meta = JSON.parse(zips[0].files['meta.json']).conversations[0];
+                    assert.equal(meta.status, expected === 'ok' ? 'success' : expected);
+                    if (scenario === 'warning') { assert.equal(meta.quality.status, 'unknown'); assert.ok(meta.diagnostics.length > 0); }
+                    if (scenario === 'rejected') assert.equal(meta.quality.status, 'partial');
+                }
+            } finally { store.__clearDomainMemory(); }
+        }
+    }
+});
+
+test('ZIP delivery with stub generator preserves real Storage, UI, counts and retry across failure stages', async () => {
+    const Storage = require('../src/core/storage/storageService.js');
+    const { SessionStore } = require('../src/core/storage/sessionStore.js');
+    const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const previousChrome = Reflect.get(globalThis, 'chrome');
+    for (const format of ['markdown', 'html', 'json']) {
+        for (const failure of ['none', 'generate', 'download-throw', 'download-reject', 'missing-handler', 'cancel-generate', 'cancel-download', 'index', 'meta', 'storage', 'item']) {
+            const slot = '10000000-0000-4000-8000-000000000002', { expKey } = Storage.getStorageKeys(slot);
+            const old = { n2: { status: 'ok', exportedAt: new Date(1000).toISOString(), chatTime: 1, title: 'Old export' },
+                history: { status: 'ok', exportedAt: new Date(1000).toISOString(), title: 'Unrelated history' } };
+            let injecting = true;
+            const memory: Record<string, unknown> = { [expKey]: structuredClone(old) };
+            const persisted: string[] = [], notified: string[] = [], ui: Record<string, unknown> = structuredClone(old);
+            Reflect.set(globalThis, 'chrome', withRegistry({ storage: { local: {
+                get: async (keys: string | string[] | null) => structuredClone(Object.fromEntries(Object.entries(memory)
+                    .filter(([key]) => keys === null || (Array.isArray(keys) ? keys.includes(key) : keys === key)))),
+                set: async (patch: Record<string, unknown>) => {
+                    const records = patch[expKey], before = await Storage.getExportedIds(slot);
+                    if (records && typeof records === 'object') {
+                        if (injecting && failure === 'storage' && JSON.stringify(Reflect.get(records, 'n2')) !== JSON.stringify(old.n2)) throw new Error('Injected record persistence failure');
+                        for (const [id, record] of Object.entries(records)) {
+                            if (JSON.stringify(record) !== JSON.stringify(before[id])) persisted.push(id);
+                        }
+                    }
+                    Object.assign(memory, structuredClone(patch));
+                },
+                remove: async (keys: string | string[]) => { for (const key of Array.isArray(keys) ? keys : [keys]) delete memory[key]; },
+            } } }));
+            const zips = setupMockJSZip(), BaseZip = __getModuleOverride('JSZip');
+            __setModuleOverride('StorageService', Storage);
+            const orchestrator = new ExportOrchestrator();
+            let downloads = 0;
+            const fetchedIds: string[] = [];
+            __setModuleOverride('JSZip', class extends BaseZip {
+                folder(name: string) {
+                    const folder = super.folder(name);
+                    return { file: (path: string, content: unknown) => {
+                        if (injecting && ((failure === 'index' && path === '00_INDEX.md') || (failure === 'meta' && path === 'meta.json'))) throw new Error('Injected metadata write failure');
+                        folder.file(path, content);
+                    } };
+                }
+                async generateAsync() {
+                    if (injecting) {
+                        assert.deepEqual(await Storage.getExportedIds(slot), old, 'no records at packaging');
+                        assert.equal(notified.length, 0);
+                    }
+                    if (injecting && failure === 'generate') throw new Error('Injected generation failure');
+                    if (injecting && failure === 'cancel-generate') orchestrator.abort();
+                    return super.generateAsync();
+                }
+            });
+            const selected = ['n1', 'n2', 'n3', ...(failure === 'storage' ? [] : ['c_n1']), ...(failure === 'item' ? ['broken'] : [])].map(id => ({ id, title: id }));
+            const worker = makeTestWorker({ fetchChatDetail: async (item: { id: string }) => {
+                fetchedIds.push(item.id);
+                if (item.id === 'broken') return await { success: false, error: 'Injected detail failure' };
+                await new Promise(resolve => setTimeout(resolve, item.id === 'n1' ? 2 : 0));
+                return await { success: true, chat: historicalFixture({ id: item.id.replace(/^c_/, ''), title: item.id,
+                    timestamp: 1720000000000, completeness: { status: item.id === 'n2' ? 'partial' : 'unknown' },
+                    messages: [{ role: 'user', content: 'Q' }, { role: 'model', content: 'A' }],
+                }) };
+            } });
+            const options = { selected, format, useZip: true, accountId: slot, includeAssets: false, includeIndex: true, concurrency: failure === 'storage' ? 1 : 4,
+                conversations: selected.map(item => indexFixture({ ...item, updatedAt: 1720000000000 })), exportedIds: ui, worker,
+                downloadHandler: failure === 'missing-handler' ? undefined : () => {
+                    downloads++;
+                    assert.deepEqual(memory[expKey], old, 'physical Storage unchanged inside downloadHandler');
+                    assert.deepEqual(ui, old, 'UI unchanged before delivery');
+                    assert.deepEqual(notified, []);
+                    if (failure === 'download-throw') throw new Error('Injected download throw');
+                    if (failure === 'download-reject') return Promise.reject(new Error('Injected download rejection'));
+                    if (failure === 'cancel-download') orchestrator.abort();
+                },
+            };
+            const callbacks = { onItemExported: (id: string, record: unknown) => {
+                assert.ok(downloads > 0, 'record callback requires confirmed delivery');
+                notified.push(id); ui[id] = record;
+            } };
+            try {
+                const undelivered = ['generate', 'download-throw', 'download-reject', 'missing-handler', 'index', 'meta'].includes(failure);
+                if (undelivered) {
+                    await assert.rejects(orchestrator.run(options, callbacks), /Injected|requires downloadHandler/);
+                    assert.equal((await SessionStore.getSession()).status, 'error');
+                } else {
+                    const result = await orchestrator.run(options, callbacks);
+                    const cancelled = failure.startsWith('cancel');
+                    assert.equal(result.landedChats, cancelled ? 0 : failure === 'storage' ? 2 : 3, `${format}/${failure}`);
+                    assert.equal(result.exportedCount, result.landedChats);
+                    assert.equal(result.aborted, cancelled);
+                    assert.equal(result.failedChats.length, failure === 'storage' || failure === 'item' ? 1 : 0);
+                    assert.equal((await SessionStore.getSession()).status, cancelled ? 'aborted' : failure === 'storage' || failure === 'item' ? 'completed_with_errors' : 'completed');
+                    if (!cancelled) {
+                        assert.equal(downloads, 1);
+                        const expected = failure === 'storage' ? ['n1', 'n3'] : ['n1', 'n2', 'n3'];
+                        assert.deepEqual(notified.slice().sort(), expected);
+                        assert.deepEqual(persisted.slice().sort(), expected, 'duplicates must finalize once');
+                        const records = await Storage.getExportedIds(slot);
+                        assert.equal(records.history.title, old.history.title);
+                        const meta = JSON.parse(zips[0].files['meta.json']).conversations;
+                        for (const id of expected) {
+                            assert.equal(records[id].status, id === 'n2' ? 'partial' : 'ok');
+                            assert.equal(meta.find((item: { id: string }) => item.id === id).status, records[id].status === 'ok' ? 'success' : records[id].status);
+                        }
+                        if (failure === 'storage') {
+                            assert.deepEqual(records.n2, old.n2);
+                            assert.equal(meta.length, 3, 'delivered ZIP keeps all three distinct conversations');
+                            assert.equal(Object.keys(zips[0].files).filter(path => path.endsWith(format === 'markdown' ? '.md' : format === 'html' ? '.html' : '.json') && !['00_INDEX.md', 'meta.json', '_export_errors.json'].includes(path)).length, 3);
+                            assert.match(result.failedChats[0].error, /persistence failed after ZIP delivery/);
+                            injecting = false;
+                            const retry = await new ExportOrchestrator().run({ ...options, selected: [{ id: 'n2', title: 'n2' }], skip: true, downloadHandler: () => {} });
+                            assert.equal(retry.landedChats, 1);
+                            assert.equal((await Storage.getExportedIds(slot)).n2.status, 'partial');
+                        }
+                    }
+                }
+                if (undelivered || failure.startsWith('cancel')) {
+                    assert.deepEqual(memory[expKey], old, `${format}/${failure}: physical old records preserved`);
+                    assert.deepEqual(await Storage.getExportedIds(slot), old);
+                    assert.deepEqual(ui, old); assert.deepEqual(notified, []); assert.deepEqual(persisted, []);
+                    if (failure === 'missing-handler' || failure === 'cancel-generate' || failure === 'generate' || failure === 'index' || failure === 'meta') assert.equal(downloads, 0);
+                    // Existing Skip rules must retry the old/stale and never-delivered conversations.
+                    const beforeRetry = fetchedIds.length;
+                    injecting = false;
+                    const retry = await new ExportOrchestrator().run({ ...options, skip: true, downloadHandler: () => {} });
+                    assert.equal(retry.landedChats, 3);
+                    const retriedIds = fetchedIds.slice(beforeRetry).map(id => id.replace(/^c_/, ''));
+                    assert.deepEqual([...new Set(retriedIds)].sort(), ['n1', 'n2', 'n3'],
+                        'failed delivery must retry every conversation, not just perform an exact count of fetch calls');
+                }
+            } finally {
+                __clearModuleOverrides();
+                if (previousChrome === undefined) Reflect.deleteProperty(globalThis, 'chrome');
+                else Reflect.set(globalThis, 'chrome', previousChrome);
+            }
+        }
+    }
+});
+
+test('ZIP finalize returning false does not count a newly completed record', async () => {
+    const recovery = require('../src/core/engine/export/sessionRecovery.js').default;
+    const finalize = recovery.finalizeChatExport;
+    const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    setupMockJSZip();
+    const { savedRecords } = setupMockStorage();
+    recovery.finalizeChatExport = async () => false;
+    let notified = 0;
+    try {
+        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+            selected: [{ id: 'n1', title: 'n1' }], useZip: true, includeAssets: false,
+            downloadHandler: () => {}, worker: makeTestWorker({ fetchChatDetail: async () => await ({ success: true,
+                chat: historicalFixture({ id: 'n1', messages: [{ role: 'user', content: 'Q' }] }),
+            }) }),
+        }) }, { onItemExported: () => { notified++; } });
+        assert.equal(result.landedChats, 0);
+        assert.equal(result.exportedCount, 0);
+        assert.equal(notified, 0);
+        assert.deepEqual(savedRecords, {});
+    } finally { recovery.finalizeChatExport = finalize; __clearModuleOverrides(); }
+});

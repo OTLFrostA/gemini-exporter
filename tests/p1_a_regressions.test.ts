@@ -1,4 +1,11 @@
-
+/**
+ * P1-A: credential and browser-message safety.
+ *
+ * Only retain source assertions where the security rule is not yet reachable
+ * through a focused runtime harness. These are narrow guards, NOT proof of
+ * full end-to-end credential confidentiality.
+ */
+import { accountRuntime } from './helpers/accountRuntime.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -33,6 +40,78 @@ test('P1-003: bootstrap avoids the previously leaked token logging patterns', ()
 test('P1-005: empty postMessage token must not replace the stored token (source guard)', () => {
     const src = readSrc('content/bootstrap.ts');
     assert.ok(src.includes('at: p.at || old.at'), 'empty token must not overwrite stored at');
+});
+
+test('P1-006: asset messages reject untrusted hosts before invoking cookie-authenticated fetchers', async () => {
+    const calls: string[] = [];
+    const handlers = new Set<(message: any, sender: any, response: (value: any) => void) => unknown>();
+    const restoreWindow = replaceGlobal('window', {
+        __gemExporterCleanups: [],
+        addEventListener: () => {} // BadgeView registers a resize listener at module evaluation.
+    });
+    const restoreChrome = replaceGlobal('chrome', { runtime: {
+        onMessage: {
+            addListener: (fn: any) => handlers.add(fn),
+            removeListener: (fn: any) => handlers.delete(fn)
+        }
+    } });
+    const runtime = accountRuntime();
+    try {
+        const { MessageRouter } = require('../src/content/messageRouter.js');
+        const { runCleanups } = require('../src/content/cleanupRegistry.js');
+        const assets = {
+            handleGetFileBlob: (_msg: any, cb: (value: unknown) => void) => {
+                calls.push('getFileBlob');
+                cb({ success: true });
+            },
+            handleGetImageBlob: (_msg: any, cb: (value: unknown) => void) => {
+                calls.push('getImageBlob');
+                cb({ success: true });
+            },
+            downloadAssetDirect: (_msg: any, cb: (value: unknown) => void) => {
+                calls.push('downloadAssetDirect');
+                cb({ success: true });
+            }
+        };
+        MessageRouter.init({ assets: assets as any });
+        assert.equal(handlers.size, 1);
+        const listener = [...handlers][0];
+
+        for (const action of ['getFileBlob', 'getImageBlob', 'downloadAssetDirect']) {
+            for (const url of [
+                'http://lh3.googleusercontent.com/photo.png',
+                'https://googleusercontent.com.evil.example/photo.png',
+                'https://evil.example/photo.png',
+                'javascript:alert(1)'
+            ]) {
+                let reply: any;
+                listener({ action, url }, {}, (value) => { reply = value; });
+                assert.equal(reply?.success, false, `${action} must reject ${url}`);
+                assert.match(reply?.error || '', /not allowlisted/i);
+            }
+            assert.ok(!calls.includes(action), `${action} must not fetch a blocked URL`);
+
+            let validReply: any;
+            validReply = await new Promise(resolve => {
+                listener({ action, url: 'https://lh3.googleusercontent.com/photo.png', accountId: '10000000-0000-4000-8000-000000000001' }, {}, resolve);
+            });
+            assert.equal(validReply?.success, true, `${action} should accept an allowlisted URL`);
+            assert.equal(calls.filter(a => a === action).length, 1);
+        }
+
+        runCleanups();
+        assert.equal(handlers.size, 0, 'the injected runtime listener should be removed');
+    } finally {
+        runtime.restore();
+        restoreChrome();
+        restoreWindow();
+    }
+});
+
+test('P1-009: background reload remains scoped to Gemini tabs (source guard)', () => {
+    const src = readSrc('background/background.ts');
+    assert.ok(src.includes('not a gemini tab'));
+    assert.ok(src.includes("startsWith('https://gemini.google.com/')"));
 });
 
 // P1-010: this is a genuine storage behavior test; preserve it.

@@ -1,0 +1,142 @@
+import { test, expect, seedRegistryAccounts } from './fixtures';
+import * as fs from 'fs';
+import * as path from 'path';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
+
+const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+
+test.describe('Deep E2E: Standard JSON export', () => {
+  const format = 'json';
+  test(`downloads ${format} with its declared structure and message roles`, async ({ context, extensionId }) => {
+    // 1. Open mock Gemini page in the background with valid credentials and network routing
+    const geminiPage = await context.newPage();
+
+    await geminiPage.route('https://gemini.google.com/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: `<!DOCTYPE html>
+        <html>
+        <head>
+          <script>
+            window._WIZ_global_data = {
+              qDCSke: '10000000001', SNlM0e: 'mock_at_token_json_123',
+              cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
+            };
+          </script>
+        </head>
+        <body>Gemini Mock Session Active</body>
+        </html>`
+      });
+    });
+
+    // Mock Gemini conversation detail response (hNvQHb)
+    const turns = [
+      [
+        ["c_json_exp_001"],
+        "turn_id_json_1",
+        [["请解释一下分布式系统中的一致性哈希算法。"]],
+        [
+          [
+            ["rc_cand_json_1", ["一致性哈希（Consistent Hashing）是一种特殊的哈希算法，能够在节点增删时最小化数据迁移。"]]
+          ]
+        ]
+      ]
+    ];
+    const mockDetailInner = JSON.stringify([
+      turns,
+      null, // This fixture is a terminal detail page.
+      "分布式一致性哈希算法详解"
+    ]);
+    const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;
+
+    await geminiPage.route('**/batchexecute*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: mockRpcResponse
+      });
+    });
+
+    await geminiPage.goto('https://gemini.google.com/app');
+    await geminiPage.waitForLoadState('domcontentloaded');
+
+    // 2. Open Workbench Options page
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    await optionsPage.waitForLoadState('domcontentloaded');
+
+    // Seed conversation
+    await optionsPage.evaluate(async () => {
+      const convs = [
+        { id: 'json_exp_001', title: '分布式一致性哈希算法详解', timestamp: 1700000000000 }
+      ];
+      await chrome.storage.local.set({
+        ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
+        has_completed_tour: true,
+        last_seen_feature_version: '999.0.0'
+      });
+      if (typeof window.__workbenchLoadStore === 'function') {
+        await window.__workbenchLoadStore(true);
+      }
+    });
+
+    await expect(optionsPage.locator('#list .item')).toHaveCount(1);
+
+    // 3. Select Standard JSON format
+    await optionsPage.selectOption('#format', format);
+    await optionsPage.click('#btnSelectAll');
+    expect(await optionsPage.locator('#list input[type=checkbox]:checked').count()).toBe(1);
+
+    // 4. Trigger download
+    const downloadPromise = optionsPage.waitForEvent('download', { timeout: 30000 });
+    await optionsPage.click('#btnExport');
+
+    const download = await downloadPromise;
+    const downloadPath = await download.path();
+    expect(downloadPath).toBeTruthy();
+
+    // 5. Inspect and Unzip the real downloaded ZIP file
+    const zipData = fs.readFileSync(downloadPath);
+    const zip = await JSZip.loadAsync(zipData);
+
+    const zipFiles = Object.keys(zip.files);
+    expect(zipFiles.length).toBeGreaterThan(0);
+
+    const jsonFileName = zipFiles.find(f => f.endsWith('.json') && !f.includes('metadata'));
+    expect(jsonFileName).toBeTruthy();
+
+    const jsonContentRaw = await zip.files[jsonFileName!].async('text');
+    const parsed = JSON.parse(jsonContentRaw);
+
+    // The standard archive retains native blocks.
+    expect(parsed).toBeTruthy();
+    expect(parsed.format).toBe('gemini-exporter-domain');
+    expect(parsed.version).toBe(3);
+    expect(parsed.account.providerId).toBe('gemini');
+    expect(parsed.conversation.index.key).toEqual({ accountId: parsed.account.id, conversationId: 'json_exp_001' });
+    expect(parsed.conversation.detail.key).toEqual(parsed.conversation.index.key);
+    expect(parsed.conversation.detail.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant']);
+    expect(JSON.stringify(parsed.conversation.detail.messages[0].content))
+      .toContain('请解释一下分布式系统中的一致性哈希算法');
+    expect(JSON.stringify(parsed.conversation.detail.messages[1].content))
+      .toContain('能够在节点增删时最小化数据迁移');
+    expect(Array.isArray(parsed.conversation.detail.messages[0].content)).toBe(true);
+    expect(Array.isArray(parsed.conversation.detail.messages[1].content)).toBe(true);
+    expect(parsed.transport).toBeUndefined();
+
+    // 6. Verify Workbench UI updated
+    await expect(optionsPage.locator('[data-chat-id="json_exp_001"] .badge')).toContainText(/已导出|Exported/);
+
+    const storageData = await optionsPage.evaluate(async () => {
+      return await chrome.storage.local.get(['exported_10000000-0000-4000-8000-000000000001']);
+    }) as Record<string, any>;
+    expect(storageData['exported_10000000-0000-4000-8000-000000000001']['json_exp_001']).toBeTruthy();
+    expect(storageData['exported_10000000-0000-4000-8000-000000000001']['json_exp_001'].format).toBe(format);
+  });
+});

@@ -2,6 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizeArchiveResourceName: normalizeLocalName } = require('../src/core/export/assets/archivePath.js');
+const { extractAttachmentInlineBytes } = require('../src/core/utils/attachmentBytes.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
@@ -46,5 +47,16 @@ test('archive resource names allow legitimate literal percent characters in file
     ]) {
         assert.equal(normalizeLocalName(input), expected);
     }
+});
+
+test('extractAttachmentInlineBytes decodes contentMarkdown as UTF-8 bytes', () => {
+    const markdown = '# Hello 世界 🧪\nSome content';
+    const bytes = extractAttachmentInlineBytes({ contentMarkdown: markdown });
+    assert.ok(bytes instanceof Uint8Array);
+    assert.equal(new TextDecoder().decode(bytes), markdown);
+    assert.deepEqual(bytes, new TextEncoder().encode(markdown), 'multibyte Unicode must be encoded as UTF-8');
+
+    const attEmpty = { contentMarkdown: '   ' };
+    assert.equal(extractAttachmentInlineBytes(attEmpty), null);
 });
 

@@ -1,0 +1,170 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
+/**
+ * Historical P0 regression contracts, all expected to pass under the normal
+ * unit-test gate. P0-3 is deferred until the ChatGPT provider ships.
+ * P0-5 is an explicitly limited source guard for popup-local logging;
+ * the other cases exercise real storage/parser/formatter behavior.
+ */
+export {};
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+const StorageService = require('../src/core/storage/storageService.js');
+const CredManager = require('../src/core/api/client/credentialManager.js').default;
+const ChatFormatter = require('../src/core/engine/chatFormatter.js');
+
+function readSrc(rel: string): string {
+    return fs.readFileSync(path.join(__dirname, rel), 'utf8');
+}
+
+// ---------------------------------------------------------------- P0-1（已撤回：误报）
+// 2026-09-15 勘误：原报告称保存链一次失败后永久中毒，实际推演 + 本测试证实
+// `.catch(reject)` 让链条每次调用后自愈。本用例保留为通过性回归测试，
+// 锁定"单次失败后链条恢复"的正确行为。
+test('P0-1: export-record save chain recovers after a single failed batch (no poisoning)', async () => {
+    const store: Record<string, any> = {};
+    let failNextSet = false;
+    const prevChrome = (global as any).chrome;
+    (global as any).chrome = {
+        storage: {
+            local: {
+                get: async (keys: any) => {
+                    if (keys == null) return { ...store };
+                    const arr = Array.isArray(keys) ? keys : [keys];
+                    const r: Record<string, any> = {};
+                    for (const k of arr) if (k in store) r[k] = store[k];
+                    return r;
+                },
+                set: async (obj: any) => {
+                    if (failNextSet) {
+                        failNextSet = false;
+                        throw new Error('simulated-quota-failure');
+                    }
+                    Object.assign(store, obj);
+                },
+            },
+        },
+    };
+    try {
+        // 第一次保存失败（模拟配额超限）：应当 reject
+        failNextSet = true;
+        await assert.rejects(
+            StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'c_p0_1_probe_a', { probe: 1 }),
+            /simulated-quota-failure/
+        );
+
+        // 存储已恢复：第二次保存必须成功。
+        // （原报告误称此处会以陈旧错误 reject 即"链中毒"；实际 .catch(reject)
+        //  已将链重置为 resolved，见 P0-1 勘误。）
+        // Let the second write fail the test directly if the chain is still poisoned.
+        await StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'c_p0_1_probe_b', { probe: 1 });
+        const got: any = await (global as any).chrome.storage.local.get(['exported_10000000-0000-4000-8000-000000000001']);
+        // P1-045 (2026-09-15): export records are now stored under a single canonical
+        // key normId(id); readers look up all historical alias forms, so the record
+        // saved here as 'c_p0_1_probe_b' persists under 'p0_1_probe_b'.
+        assert.ok(
+            got['exported_10000000-0000-4000-8000-000000000001'] && got['exported_10000000-0000-4000-8000-000000000001']['p0_1_probe_b'],
+            'second export record must be persisted after storage recovered'
+        );
+    } finally {
+        (global as any).chrome = prevChrome;
+    }
+});
+
+// ---------------------------------------------------------------- P0-2
+test('P0-2: resolveCred backfill must not drop other accounts from the credential map', async () => {
+    const sessionStore: Record<string, any> = {};
+    const prevChrome = (global as any).chrome;
+    const prevDocument = (global as any).document;
+    const prevHook = (globalThis as any).__gemExporterExtractAt;
+    (global as any).chrome = {
+        storage: {
+            session: {
+                get: async (keys: string[]) => {
+                    const r: Record<string, any> = {};
+                    for (const k of keys) if (k in sessionStore) r[k] = sessionStore[k];
+                    return r;
+                },
+                set: async (obj: any) => { Object.assign(sessionStore, obj); },
+                remove: async (keys: string[]) => { for (const k of keys) delete sessionStore[k]; },
+            },
+        },
+    };
+    // 伪造"页面能抓到 at"的信号（node 下没有真实页面）
+    (global as any).document = { documentElement: { innerHTML: '' }, querySelectorAll: () => [] };
+    (globalThis as any).__gemExporterExtractAt = () => 'PAGE_AT_FRESH';
+    try {
+        // map 里已有两个账号：首条目是缺 at 的半成品，第二条是好的
+        await (global as any).chrome.storage.session.set({
+            gemini_credentials_map: {
+                bad: { sid: 'bad', at: '', bl: 'BL_X', accountSlot: '10000000-0000-4000-8000-000000000001', lastUsed: 1 },
+                good: { sid: 'good', at: 'AT_GOOD', bl: 'BL_X', accountSlot: '10000000-0000-4000-8000-000000000002', lastUsed: 2 },
+            },
+        });
+        const resolved = await CredManager.resolveCred();
+        const after: Record<string, any> = sessionStore.gemini_credentials_map || {};
+        assert.deepStrictEqual(
+            Object.keys(after).sort(), ['bad', 'good'],
+            `credential map was overwritten during backfill, keys now: ${JSON.stringify(Object.keys(after))}`
+        );
+        assert.strictEqual(after.good.at, 'AT_GOOD', 'the other account credential must be preserved');
+        assert.strictEqual(after.bad.at, 'PAGE_AT_FRESH', 'this fixture must actually exercise AT backfill');
+        assert.strictEqual(resolved.at, 'PAGE_AT_FRESH', 'resolved credentials should use the new page token');
+    } finally {
+        (global as any).chrome = prevChrome;
+        if (prevDocument === undefined) delete (global as any).document;
+        else (global as any).document = prevDocument;
+        if (prevHook === undefined) delete (globalThis as any).__gemExporterExtractAt;
+        else (globalThis as any).__gemExporterExtractAt = prevHook;
+    }
+});
+
+// ---------------------------------------------------------------- P0-4
+test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () => {
+    const { DOC_TITLE_FALLBACK_RE } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
+    assert.ok(DOC_TITLE_FALLBACK_RE instanceof RegExp, 'DOC_TITLE_FALLBACK_RE must be exported as RegExp');
+    assert.strictEqual(
+        DOC_TITLE_FALLBACK_RE.test('# 真实标题'), true,
+        'title-fallback regex does not match a real H1 heading'
+    );
+    assert.strictEqual(DOC_TITLE_FALLBACK_RE.test('# Title with words'), true);
+    assert.strictEqual(DOC_TITLE_FALLBACK_RE.test('No heading here'), false);
+});
+
+// ---------------------------------------------------------------- P0-5
+test('P0-5: popup log() must not be a no-op (errors must surface)', () => {
+    const src = readSrc('../src/ui/popup/popup.ts');
+    // log 是模块内部函数，node 下无法行为测试；用源码断言守住回归。
+    // 修复前: const log = (_msg: string): void => {}; —— 所有导出失败被静默吞掉。
+    const isNoop = /const log\s*=\s*\([^)]*\)\s*:\s*void\s*=>\s*\{\s*\};/.test(src);
+    assert.strictEqual(
+        isNoop, false,
+        'popup.ts defines log as a no-op: every export failure is silently swallowed'
+    );
+    // 修复后的 log 必须真的把信息送到用户可见的地方（popup 的 #log 面板 / console）
+    assert.ok(
+        /getElementById\(['"]log['"]\)/.test(src) && /console\.(log|error|warn)/.test(src),
+        'popup log() should surface messages to the #log panel and the console'
+    );
+});
+
+// Runtime export no longer supplements images using detached Takeout evidence.
+// Native Takeout/RPC ownership tests cover source-derived generated assets.
+
+// ---------------------------------------------------------------- P0-7
+test('P0-7: Canonical Markdown must not throw on invalid date values', async () => {
+    let threw: any = null;
+    let md = '';
+    try {
+        md = (await ChatFormatter.formatMarkdownDocument(
+            historicalFixture({ id: 'c_p0_7', title: 'T', createdAt: 'not-a-date', messages: [] }), {}
+        )).content;
+    } catch (e) {
+        threw = e;
+    }
+    // 带 bug 时: RangeError: Invalid time value（new Date('not-a-date').toISOString()）
+    assert.strictEqual(threw, null, `Canonical Markdown threw on invalid date: ${threw && threw.message}`);
+    assert.ok(md.includes('id: "p0_7"'), 'output should still contain the conversation id');
+});

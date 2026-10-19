@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
+const { withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
 const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
 const { useIndexStorage } = require('./helpers/indexStorage.js');
 useIndexStorage();
@@ -105,5 +106,51 @@ test('geminiClient - abort signal immediately halts client and flags isAborted',
 
     controller.abort();
     assert.strictEqual(clientWithSignal.isAborted(), true);
+});
+
+
+// ---------------------------------------------------------------------------
+// 5. withRateLimitRetry operation
+// ---------------------------------------------------------------------------
+test('rateLimiter - withRateLimitRetry retries on rate limit and succeeds', async () => {
+    let attempts = 0;
+    const retryLogs: number[] = [];
+
+    const result = await withRateLimitRetry(
+        async () => {
+            attempts++;
+            if (attempts < 3) {
+                return { success: false, status: 429, error: 'rate limit' };
+            }
+            return { success: true, data: 'ok' };
+        },
+        {
+            maxRetries: 3,
+            initialDelayMs: 5,
+            jitterMs: 0,
+            onRetry: (retryCount: number) => {
+                retryLogs.push(retryCount);
+            }
+        }
+    );
+
+    assert.strictEqual(attempts, 3);
+    assert.deepStrictEqual(retryLogs, [0, 1]);
+    assert.deepStrictEqual(result, { success: true, data: 'ok' });
+});
+
+test('rateLimiter - withRateLimitRetry respects abort signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await assert.rejects(
+        async () => {
+            await withRateLimitRetry(
+                async () => ({ success: true }),
+                { signal: controller.signal }
+            );
+        },
+        /Operation aborted/
+    );
 });
 

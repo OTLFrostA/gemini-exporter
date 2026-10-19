@@ -1,4 +1,4 @@
-
+import { bindTabAccounts } from './helpers/tabAccounts.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
@@ -14,11 +14,14 @@ const assert = require('node:assert');
 const { handleHttp429, interruptibleSleep, parseRetryAfterMs } = require('../src/core/api/client/retryPolicy.js');
 const rpcClientMod = require('../src/core/api/client/rpcClient.js');
 const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
+const paginationMod = require('../src/core/api/client/pagination.js');
 // tabService.ts 以 `module.exports = TabService` 结尾覆盖了 esbuild 的具名导出，
 // ts_register 的 CJS 转译下 `import { TabService }` 会拿到 undefined（生产 bundle
 // 走 ESM 静态链接不受影响）。测试内给 require 缓存打补丁，仅用于测试。
 const tabServiceMod: any = require('../src/core/utils/tabService.js');
 if (tabServiceMod && !tabServiceMod.TabService) tabServiceMod.TabService = tabServiceMod;
+const batchFetcherMod = require('../src/background/batchFetcher.js');
+const abortMgr = require('../src/background/abortManager.js');
 // The retired asset pipeline belongs to the unselected runtime cases below.
 
 // ---------------------------------------------------------------------------
@@ -205,4 +208,195 @@ test('p1c - listConversations: pre-start cancellation propagates AbortError with
     const controller = new AbortController(); controller.abort();
     const provider = new GeminiProvider({ getConversationList: async () => { throw new Error('request after cancellation'); }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     await assert.rejects(provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', signal: controller.signal }), { name: 'AbortError' });
+});
+
+// ---------------------------------------------------------------------------
+// P1-038 / P1-039: background batchFetcher（chrome stub）
+// ---------------------------------------------------------------------------
+
+function installChromeStub(tabResponder: (msg: any) => any) {
+    (global as any).__p1c_tabResponder = tabResponder;
+    (global as any).chrome = {
+        runtime: {
+            sendMessage: async (_msg: any) => ({}),
+            lastError: undefined
+        },
+        tabs: {
+            query: async (_q: any) => [{ id: 7, url: 'https://gemini.google.com/app', active: true }],
+            sendMessage: (_tabId: number, msg: any, cb: (r: any) => void) => {
+                Promise.resolve()
+                    .then(() => (global as any).__p1c_tabResponder(msg))
+                    .then(
+                        (r) => cb(r),
+                        (e) => cb({ success: false, error: String((e as any)?.message || e) })
+                    );
+            }
+        },
+        storage: { session: { get: async () => ({}), set: async () => {}, remove: async () => {} } }
+    };
+    bindTabAccounts({7:'10000000-0000-4000-8000-000000000001'});
+}
+
+test('p1c - fetchBatch: 429 退避睡眠可被取消中断（不再睡满整个 backoff）', async () => {
+    installChromeStub(() => ({ success: false, error: '429 Too Many Requests' }));
+    let portRes: any = null;
+    try {
+        const t0 = Date.now();
+        const p = batchFetcherMod.fetchBatch(
+            [{ id: 'c_1', title: 't1' }], 'md', false,
+            (r: any) => { portRes = r; }, 0, 1, '10000000-0000-4000-8000-000000000001'
+        );
+        setTimeout(() => { abortMgr.setSlotAborted('10000000-0000-4000-8000-000000000001', true); }, 300);
+        await p;
+        const elapsed = Date.now() - t0;
+        // 修复前：裸 sleep 2-3s（首轮）且循环继续，最长可达 ~56s；修复后 300ms 左右即退出
+        assert.ok(elapsed < 1500, `cancel during 429 backoff should be fast (took ${elapsed}ms)`);
+        // P1-019 统一语义：取消绝不能报 success:true（与 B组 batchFetcher 合并）
+        assert.ok(portRes && portRes.success === false, 'aborted batch must not report success');
+        assert.strictEqual(portRes.aborted, true, 'abort flag must be propagated');
+        assert.strictEqual((portRes.results || []).length, 0, 'no bogus error entries after cancel');
+    } finally {
+        abortMgr.clearAllAborts();
+    }
+});
+
+test('p1c - fetchBatch: 在途 tab 消息期间取消也生效（不等 25s tab 超时）', async () => {
+    // tab 600ms 后才回包；200ms 时取消 → 应在 ~200ms 退出，而不是等 tab 超时
+    installChromeStub(() => new Promise((res) => setTimeout(() => res({ success: true, data: {} }), 600)));
+    let portRes: any = null;
+    try {
+        const t0 = Date.now();
+        const p = batchFetcherMod.fetchBatch(
+            [{ id: 'c_2', title: 't2' }], 'md', false,
+            (r: any) => { portRes = r; }, 0, 1, '10000000-0000-4000-8000-000000000001'
+        );
+        setTimeout(() => { abortMgr.setSlotAborted('10000000-0000-4000-8000-000000000001', true); }, 200);
+        await p;
+        const elapsed = Date.now() - t0;
+        assert.ok(elapsed < 2000, `cancel during in-flight tab message should be fast (took ${elapsed}ms)`);
+        // P1-019 统一语义：取消报 success:false + aborted:true
+        assert.ok(portRes && portRes.success === false, 'aborted batch must not report success');
+        assert.strictEqual(portRes.aborted, true, 'abort flag must be propagated');
+    } finally {
+        abortMgr.clearAllAborts();
+    }
+});
+
+test('p1c - fetchBatch: 接收侧 retryAfterMs 生效（content 侧透传的 server hint）', async () => {
+    let calls = 0;
+    installChromeStub(() => {
+        calls++;
+        if (calls === 1) {
+            // header 无法跨 sendMessage，content 侧把解析出的 hint 放在 retryAfterMs
+            return { success: false, error: '429 Too Many Requests', retryAfterMs: 4000 };
+        }
+        return { success: true, data: { ok: 1 } };
+    });
+    let portRes: any = null;
+    try {
+        const t0 = Date.now();
+        await batchFetcherMod.fetchBatch(
+            [{ id: 'c_3', title: 't3' }], 'md', false,
+            (r: any) => { portRes = r; }, 0, 1, '10000000-0000-4000-8000-000000000001'
+        );
+        const elapsed = Date.now() - t0;
+        // 无 hint 时首轮 backoff ∈ [2000,3000)；hint=4000 被采用 → delay 恒为 4000
+        assert.ok(elapsed >= 3500, `receiver retryAfterMs should be honored (took ${elapsed}ms)`);
+        assert.ok(elapsed < 12000, `but still bounded (took ${elapsed}ms)`);
+        assert.strictEqual(calls, 2, 'should retry once then succeed');
+        assert.strictEqual((portRes.results || []).length, 1);
+    } finally {
+        abortMgr.clearAllAborts();
+    }
+});
+
+// ---------------------------------------------------------------------------
+// P1-041 / P1-042: assetPipeline 附件下载可取消 + 有界重试
+// ---------------------------------------------------------------------------
+
+test('p1c - processAsset: 瞬时失败重试后成功（默认最多 3 次重试）', async () => {
+    const files: Array<[string, any]> = [];
+    let calls = 0;
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
+    const pipe = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        useZip: true,
+        writer: { writeFile: async (name: string, data: any) => { files.push([name, data]); return name; } },
+        fetchAssetDelegate: async () => {
+            calls++;
+            if (calls < 3) return { success: false, error: 'timeout' };
+            return { success: true, dataBase64: 'aGk=' };
+        }
+    }) });
+    const res = await pipe.processAsset(
+        { assetId: 'test-asset', url: 'https://example.com/a.png', localName: 'a.png' },
+        { id: 'c_1', title: 'chat' },
+        { isImage: true }
+    );
+    assert.strictEqual(res.ok, true, 'should succeed after transient failures');
+    assert.strictEqual(calls, 3, 'initial attempt + 2 retries');
+    assert.strictEqual(files.length, 1);
+});
+
+test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间取消）', async () => {
+    // 情形 A：调用前已取消 → delegate 一次也不调
+    let callsA = 0;
+    const cA = new AbortController();
+    cA.abort();
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
+    const pipeA = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        useZip: true,
+        writer: { writeFile: async () => 'a.png' },
+        fetchAssetDelegate: async () => { callsA++; return { success: false, error: 'x' }; }
+    }) });
+    await assert.rejects(pipeA.processAsset({ assetId: 'test-asset', url: 'https://example.com/a.png' }, { id: 'c_1' }, { signal: cA.signal, maxRetries: 3 }), { name: 'AbortError' });
+    assert.strictEqual(callsA, 0, 'no download attempt after pre-abort');
+
+    // 情形 B：退避期间取消 → 停止重试，不再打满 3 次
+    let callsB = 0;
+    const cB = new AbortController();
+    const pipeB = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        useZip: true,
+        writer: { writeFile: async () => 'b.png' },
+        fetchAssetDelegate: async () => { callsB++; return { success: false, error: 'timeout' }; }
+    }) });
+    const pB = pipeB.processAsset({ assetId: 'test-asset', url: 'https://example.com/b.png' }, { id: 'c_2' }, { signal: cB.signal, maxRetries: 3 });
+    setTimeout(() => cB.abort(), 300); // 首轮 backoff 约 1000-1500ms，300ms 时中断
+    await assert.rejects(pB, { name: 'AbortError' });
+    assert.strictEqual(callsB, 1, `should stop retrying after abort (calls: ${callsB})`);
+});
+
+test('p1c - processAsset: 本地写入异常立即终止，不盲目重试网络拉取', async () => {
+    let fetchCalls = 0;
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
+    const pipe = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
+        useZip: true,
+        writer: {
+            writeFile: async () => {
+                throw new Error('NotAllowedError: Directory permission revoked');
+            }
+        },
+        fetchAssetDelegate: async () => {
+            fetchCalls++;
+            return { success: true, dataBase64: 'aGk=' };
+        }
+    }) });
+    const res = await pipe.processAsset(
+        { assetId: 'test-asset', url: 'https://example.com/asset.png', localName: 'asset.png' },
+        { id: 'c_write_err', title: 'chat' },
+        { isImage: true, maxRetries: 3 }
+    );
+    assert.strictEqual(res.ok, false);
+    assert.ok(res.reason.includes('NotAllowedError'));
+    assert.strictEqual(fetchCalls, 1, 'must not re-fetch from network if local write fails');
+});
+
+const fs = require('node:fs');
+const path = require('node:path');
+function readTs(rel: string): string {
+    return fs.readFileSync(path.join(__dirname, '..', 'src', rel), 'utf8');
+}
+test('P1-039: batchFetcher honors server retryAfterMs hint', () => {
+    const src = readTs('background/batchFetcher.ts');
+    assert.ok(src.includes('res.retryAfterMs'), 'backoff must read res.retryAfterMs');
+    assert.ok(src.includes('30000'), 'retryAfterMs must be clamped');
 });

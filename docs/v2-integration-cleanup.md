@@ -16,24 +16,33 @@ contracts, fixes integration and restores one complete Tier 1 gate.
 | Old detail IPC/native transport and default/first-tab fallback | L1 acquisition, Runtime UUID routing and production ambiguity/default-account checks |
 | Destructive account cleanup buttons | Application cleanup tests and production retention across reload |
 
-The [machine-readable retirement audit](v2-test-retirement.json) lists retired
-suite dependencies, removed cases in mixed suites and the complete deleted-file
-inventory. Retirement means that the v1 implementation/API no longer exists; it
-does not claim a one-to-one replacement for every old assertion. Mixed suites
-retain active parser, Domain, renderer and retry regressions. Type-only contracts
-remain checked by whole-project tsc where they refer to current APIs.
+## Test migration correction — in progress
+
+The initial cleanup wrongly deleted tests when their imported v1 modules no longer
+existed. Those deleted files and cropped mixed-suite scenarios have been restored.
+They remain in normal test discovery. The [migration inventory](v2-test-migration.json)
+tracks restoration separately from verified migration; restoration alone is not completion.
+
+Migrate each scenario to the current public owner APIs, retaining its behavioral
+assertions. Where the frozen v2 design changes behavior, update the assertions and
+identify that change explicitly. Do not restore a v1 production compatibility layer,
+skip failing tests or replace old regression coverage with a few generic smoke tests.
+
+PR #1059 is a draft. Earlier green CI applied to the reduced suite and does not
+establish completion of this migration. Restored tests currently include unresolved
+imports and failed assertions; the branch is intentionally not merge-ready.
 
 Production fixes include strict Scan account resolution, automatic Browser ZIP,
 per-conversation Folder delivery finalization, nondestructive record cleanup,
 URL-driven Tour lifecycle, event-driven Badge refresh and relative request URL
 normalization in MAIN capture. No compatibility pipeline is reintroduced.
 
-Unit runners discover all active suites and run complete files. Module manifests
+The Node runner discovers suites and runs complete files. Module manifests
 no longer select test-name patterns. Type gates check the whole project without
 excluding external diagnostics. The Python entry point runs offline harness unit
 tests in separate processes to avoid module-name shadowing.
 
-Validation: `npm test` (zero-any, whole-project tsc, all active Node and offline
+Previous reduced-suite validation: `npm test` (zero-any, whole-project tsc, Node and offline
 Python suites, production build, fixture-based Playwright). The production browser
 suite loads the built extension and real business modules; network responses are
 fixtures. It inspects actual download/folder bytes, extension-origin persistence,
