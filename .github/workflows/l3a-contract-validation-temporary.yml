@@ -1,0 +1,30 @@
+name: L3a scoped validation (temporary)
+on:
+  push:
+    branches:
+      - codex/l3a-storage-contract-devv2-20261019
+
+permissions:
+  contents: read
+
+jobs:
+  l3a-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Focused Storage / cleanup / domain-admission regressions
+        run: >
+          node scripts/test-unit.cjs
+          tests/storage_v2.test.ts
+          tests/coverage_atomic_admission.test.ts
+          tests/application_settings_cleanup.test.ts
+          tests/crosstab_write_queue.test.ts
+          tests/l1_l2_verified_deletion.test.ts
+          tests/six-module-integration.test.ts
