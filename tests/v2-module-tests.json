@@ -3,6 +3,7 @@
     "tests/domain_admission_rules.test.ts",
     "tests/domain_runtime_validation.test.ts",
     "tests/stream_coverage.test.ts",
+    "tests/coverage_atomic_admission.test.ts",
     "tests/domain_admission_storage.test.ts",
     "tests/l1_l2_verified_deletion.test.ts",
     "tests/domain-storage.test.ts",

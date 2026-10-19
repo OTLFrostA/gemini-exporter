@@ -8,6 +8,8 @@ import { getDetail, getIndex, getExportRecord, putExportRecord, getCoverage, put
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
 import { ConfirmedGeminiConversationNotFound } from '../src/core/api/geminiClient.js';
+import { getConversationDetail } from '../src/core/api/client/pagination.js';
+import { sourceDetail } from './helpers/l1SourceFixture.js';
 import { parseConfirmedGeminiDeletion, isConfirmedGeminiDetailNotFound } from '../src/core/parsers/gemini/rpc/parseDeletion.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
@@ -131,4 +133,32 @@ test('Gemini list limit requires LIST-specific 1096 plus a bound Recent continua
         raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 429]),
         raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', '1096'])
     ]) assert.equal(parseList(error).failure, 'invalid_response');
+});
+
+test('Metadata-only Detail retry propagates confirmed NotFound instead of accepting stale metadata', async () => {
+    const first = sourceDetail({ messages: [] });
+    first.transport.decodedPayload = [null, null, [['c_source_chat_123', 'Source title']]];
+    let calls = 0;
+    await assert.rejects(getConversationDetail({
+        async fetchConversationPage() {
+            if (++calls === 1) return first;
+            throw new ConfirmedGeminiConversationNotFound('c_source_chat_123');
+        },
+    }, 'source_chat_123'), error => error instanceof ConfirmedGeminiConversationNotFound);
+    assert.equal(calls, 2);
+});
+
+test('Metadata-only Detail still tolerates non-NotFound retry failures', async () => {
+    const first = sourceDetail({ messages: [] });
+    first.transport.decodedPayload = [null, null, [['c_source_chat_123', 'Source title']]];
+    let calls = 0;
+    const result = await getConversationDetail({
+        async fetchConversationPage() {
+            if (++calls === 1) return first;
+            throw new Error('transient metadata retry failure');
+        },
+    }, 'source_chat_123');
+    assert.equal(calls, 2);
+    assert.equal(result.conversationId, 'source_chat_123');
+    assert.equal(result.conversation.detail.messages.length, 0);
 });

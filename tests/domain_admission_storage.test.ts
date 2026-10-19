@@ -1,4 +1,4 @@
-import { getCoverage, getIndex, getDetail } from '../src/core/storage/storageService.js';
+import { getCoverage, getIndex, getDetail, updateIndexesAtomically } from '../src/core/storage/storageService.js';
 import { admitFixture } from './helpers/admitFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -128,5 +128,49 @@ test('concurrent Index admissions preserve the highest trusted updatedAt', async
         await Promise.all(Array.from({ length: 20 }, (_, updatedAt) =>
             ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { updatedAt } }])));
         assert.equal((await getIndex(key))?.updatedAt, 19);
+    } finally { env.restore(); }
+});
+
+test('Index atomic update accepts only changed subset and zero-write no-op admissions', async () => {
+    const env = indexStorage(), one = fixtureKey('subset-one'), two = fixtureKey('subset-two');
+    try {
+        await ingestIndexes(account.id, [
+            { conversationId: one.conversationId, fields: { updatedAt: 10 } },
+            { conversationId: two.conversationId, fields: { updatedAt: 20 } },
+        ]);
+        const beforeNoop = env.writes();
+        await ingestIndexes(account.id, [
+            { conversationId: one.conversationId, fields: { updatedAt: 10 } },
+            { conversationId: two.conversationId, fields: { updatedAt: 20 } },
+        ]);
+        assert.equal(env.writes(), beforeNoop, 'L2 chooses an empty write subset');
+        await updateIndexesAtomically([one, two], rows => {
+            assert.equal(rows[0]?.updatedAt, 10);
+            assert.equal(rows[1]?.updatedAt, 20);
+            return [{ ...rows[1]!, updatedAt: 30 }];
+        });
+        assert.equal((await getIndex(one))?.updatedAt, 10);
+        assert.equal((await getIndex(two))?.updatedAt, 30);
+    } finally { env.restore(); }
+});
+
+test('Index atomic update rejects duplicate/foreign decision keys and rolls back partial writes', async () => {
+    const env = indexStorage(), one = fixtureKey('subset-first'), two = fixtureKey('subset-second');
+    try {
+        await ingestIndexes(account.id, [
+            { conversationId: one.conversationId, fields: { updatedAt: 10 } },
+            { conversationId: two.conversationId, fields: { updatedAt: 20 } },
+        ]);
+        await assert.rejects(updateIndexesAtomically([one, one], () => []), /Duplicate Index admission key/);
+        await assert.rejects(updateIndexesAtomically([one, two], old => [
+            { ...old[0]!, updatedAt: 999 },
+            { key: fixtureKey('foreign'), updatedAt: 300 },
+        ]), /Index decision key mismatch/);
+        assert.equal((await getIndex(one))?.updatedAt, 10);
+        await assert.rejects(updateIndexesAtomically([one, two], old => [
+            { ...old[0]!, updatedAt: 999 }, { ...old[0]!, updatedAt: 888 },
+        ]), /Duplicate Index decision key/);
+        assert.equal((await getIndex(one))?.updatedAt, 10);
+        assert.equal((await getIndex(two))?.updatedAt, 20);
     } finally { env.restore(); }
 });
