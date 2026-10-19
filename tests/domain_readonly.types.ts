@@ -44,6 +44,6 @@ function producerContract(builder: DomainConversationWithDetail, trusted: Truste
     builder.detail.messages.push({ role: 'assistant', content: [] });
     const view: ReadonlyDomain = trusted;
     composeDomainDocument(view, fixtureAccountFor(view));
-    void exportDomainHtml(view, fixtureAccountFor(view)); void exportDomainMarkdown(view, fixtureAccountFor(view));
+    void serializeDomainJson(view, fixtureAccountFor(view), {}); void composeDomainDocument(view, fixtureAccountFor(view));
 }
 void [consumerContract, contentContract, producerContract];

@@ -3,7 +3,7 @@ import { isAccountId } from '../domain/accountRegistry.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
 import type { TabStatusResult } from '../../types/utils.js';
 
-async function send(tabId: number, message: unknown, timeout = 25000): Promise<unknown> {
+export async function sendTabMessage(tabId: number, message: unknown, timeout = 25000): Promise<unknown> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('Provider Tab communication timed out')), timeout);
         chrome.tabs.sendMessage(tabId, message, response => {
@@ -29,7 +29,7 @@ export async function resolveAccountTab(accountId: string): Promise<chrome.tabs.
     for (const tab of tabs) {
         if (tab.id === undefined) continue;
         try {
-            if (matches(await send(tab.id, { action: 'getAccountContext' }, 3000), accountId, account.providerId)) return tab;
+            if (matches(await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000), accountId, account.providerId)) return tab;
         } catch { /* Closed, navigating or uninjected tabs cannot be execution targets. */ }
     }
     throw new Error('No open Provider Tab matches this Account');
@@ -42,7 +42,7 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     for (const tab of tabs) {
         if (tab.id === undefined) continue;
         try {
-            const response = await send(tab.id, { action: 'getAccountContext' }, 3000);
+            const response = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
             if (!response || typeof response !== 'object' || !('accountContext' in response)) continue;
             const context = response.accountContext;
             if (!context || typeof context !== 'object' || !('accountId' in context) || !isAccountId(context.accountId)) continue;
@@ -65,7 +65,7 @@ export async function sendToGeminiTab(message: unknown, accountId?: string, time
     const tab = await resolveAccountTab(accountId);
     if (!message || typeof message !== 'object' || Array.isArray(message)) throw new TypeError('Expected Provider message');
     // The selected Content handler checks this UUID again immediately before execution.
-    return send(tab.id!, { ...message, accountId }, timeoutMs);
+    return sendTabMessage(tab.id!, { ...message, accountId }, timeoutMs);
 }
 export async function checkGeminiStatus(accountId?: string): Promise<TabStatusResult> {
     try { return { status: 'CONNECTED', tab: await getGeminiTab(accountId) }; }

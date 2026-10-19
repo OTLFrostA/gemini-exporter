@@ -1,0 +1,68 @@
+import { type Page } from '@playwright/test';
+import { build } from 'esbuild';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Only the UI is under test. Domain/Application/Runtime ports are deliberate mocks.
+const mock = `
+const h = globalThis.harness;
+export const getSettings = async () => ({...h.settings});
+export const updateSettings = async patch => { h.patches.push(patch); Object.assign(h.settings,patch); };
+export const isLiveSaveEffective = (s,d) => s.enabledDisk && s.defaultFormat==='markdown' && d;
+export const ensureV2Ready = async () => {if(h.failReady)throw new Error('Injected readiness failure');};
+export const warmLocalFontCache = () => {h.events.push('fonts');return Promise.resolve();};
+export const listAccounts = async () => h.accounts;
+export const listIndexes = async id => {if(h.holdRefresh && h.exports.length) await new Promise(resolve=>h.finishRefresh=resolve); if(h.failRefresh && h.exports.length)throw new Error('Refresh rejected');if(h.failRead)throw new Error('Injected load failure');return h.indexes.filter(x=>x.key.accountId===id);};
+export const listExportRecords = async id => h.records[id]||{};
+export const getIndex = async key => h.indexes.find(x=>x.key.accountId===key.accountId&&x.key.conversationId===key.conversationId)||null;
+export const getAccount = async id => h.accounts.find(a=>a.id===id)||null;
+export const getOrCreateAccount = async () => {h.events.push('create');return h.accounts[0];};
+export const isAccountId = id => typeof id==='string' && id.length===36;
+export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
+ if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
+ return {exported:options.signal?.aborted?0:1,partial:h.partial?1:0,skipped:0,failed:h.failExport?request.keys:[],aborted:!!options.signal?.aborted};};
+export const resolveScanTarget = async () => h.source;
+export const sendTabMessage = (tabId,message) => chrome.tabs.sendMessage(tabId,message);
+export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
+export const clearLocalExportRecords = async id => {h.clears.push(['exports',id]);};
+export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);};
+export const importTakeout = async (file,id,progress) => {h.imports.push(id);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);return {imported:2,status:'partial'};};
+export const getDirectoryHandle = async () => h.directory;
+export const setDirectoryHandle = async handle => {h.directory=handle;};
+export const clearDirectoryHandle = async () => {};
+export const isVersionGreater = (a,b) => a.localeCompare(b,undefined,{numeric:true})>0;
+`;
+export const A = '11111111-1111-4111-8111-111111111111';
+export const B = '22222222-2222-4222-8222-222222222222';
+export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', patch: Record<string, unknown> = {}, query = '') {
+    page.setDefaultTimeout(5000);
+    const root = process.cwd();
+    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/content/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/tour/tourGuide.ts'; import * as settings from './src/ui/utils/settings.ts'; globalThis.testUi = {tour,settings};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
+        build.onResolve({ filter: /accountContext\.js$/ }, args => ({path:args.path,namespace:'account-mock'}));
+        build.onLoad({filter:/.*/,namespace:'account-mock'},()=>({contents:`export const getAccountContext=()=>({accountId:globalThis.harness.source,providerId:'gemini'});export const resolveCurrentAccount=async()=>getAccountContext();`,loader:'js'}));
+        build.onResolve({ filter: /core\// }, args => ({ path: args.path, namespace: 'ui-mock' }));
+        build.onLoad({ filter: /.*/, namespace: 'ui-mock' }, () => ({ contents: mock, loader: 'js' }));
+    } }] });
+    await page.route('https://ui.test/**', route => route.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.join(root, `src/ui/${kind === 'badge' ? 'options' : kind}/${kind === 'badge' ? 'options' : kind}.html`), 'utf8').replace(/<script[^>]*><\/script>/g, '').replace(/<link[^>]*>/g, '') }));
+    await page.addInitScript(({ A, B, patch }) => {
+        const w = window as any;
+        w.harness = { settings: {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1'},
+            accounts:[{id:A,providerId:'gemini',providerAccountId:'A'},{id:B,providerId:'gemini',providerAccountId:'B'}],
+            indexes:[{key:{accountId:A,conversationId:'a'},title:'<img src=x onerror=alert(1)>',updatedAt:5},{key:{accountId:B,conversationId:'b'},title:'B chat',updatedAt:5}],records:{},source:A,scanCount:150,
+            patches:[],events:[],exports:[],scans:[],clears:[],imports:[],directory:null,...patch };
+        w.harness.settings = {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1',...(patch.settings as object ?? {})};
+        const directory = () => ({ name: w.harness.directoryName || 'Chosen folder', queryPermission: async () => w.harness.permission || 'granted', requestPermission: async () => w.harness.permission || 'granted' });
+        if (w.harness.directoryName) w.harness.directory = directory();
+        w.showDirectoryPicker = async () => { w.harness.events.push('picker'); if (w.harness.cancelPicker) throw new DOMException('Picker cancelled', 'AbortError'); return directory(); };
+        const listeners = new Set<(...args: unknown[]) => void>();
+        w.harness.fireSettingsChange = (area = 'local') => { for (const listener of listeners) listener({}, area); };
+        w.chrome = { runtime:{getManifest:()=>({version:'1.8.1'}),openOptionsPage:async()=>w.harness.events.push('options'),sendMessage:async(message:any)=>{if(message.action==='getLocalIndexCount'){w.harness.countRequests=(w.harness.countRequests||0)+1;if(w.harness.holdCount)return new Promise(resolve=>w.harness.finishCount=resolve);return {ok:true,count:message.accountId===A?9:0};}w.harness.events.push(message.action);return {ok:true};}},
+            tabs:{query:async()=>w.harness.tabs??[{id:1,active:true}],sendMessage:async()=>{w.harness.events.push('context');if ('contextReply' in w.harness) return w.harness.contextReply;return w.harness.noContext?{ok:false}:{ok:true,accountContext:{accountId:A,providerId:'gemini'},conversationId:'a'};},create:async()=>{w.harness.events.push('open');},reload:async()=>{w.harness.events.push('reload');}},
+            storage:{onChanged:{addListener:(listener: (...args: unknown[]) => void)=>listeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>listeners.delete(listener)}}};
+    }, { A, B, patch });
+    await page.goto('https://ui.test/' + query);
+    await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/tour/tourGuide.css'), 'utf8') });
+    await page.addScriptTag({ content: bundle.outputFiles[0].text });
+}
+export const read = (page: Page, key: string) => page.evaluate(key => (window as any).harness[key], key);
+

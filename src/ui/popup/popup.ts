@@ -1,3 +1,4 @@
+import { sendTabMessage } from '../../core/utils/tabService.js';
 import { isAccountId } from '../../core/domain/accountRegistry.js';
 import type { ConversationKey } from '../../core/domain/conversationKey.js';
 import { getIndex } from '../../core/storage/storageService.js';
@@ -10,7 +11,9 @@ import { readSettings, observeSettings, text, errorText, labelPage } from '../ut
 export async function readActiveKey(): Promise<ConversationKey | null> {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id === undefined) return null;
-    const response = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
+    const raw = await sendTabMessage(tab.id, { action: 'getAccountContext' });
+    if (!raw || typeof raw !== 'object') return null;
+    const response = raw as { ok?: unknown; accountContext?: { accountId?: unknown; providerId?: unknown }; conversationId?: unknown };
     if (response?.ok !== true || !isAccountId(response.accountContext?.accountId)
         || response.accountContext.providerId !== 'gemini' || typeof response.conversationId !== 'string' || !response.conversationId) return null;
     return { accountId: response.accountContext.accountId, conversationId: response.conversationId };

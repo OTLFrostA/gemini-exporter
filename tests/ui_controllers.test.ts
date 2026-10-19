@@ -50,7 +50,7 @@ test('takeoutController - typed File input reaches the current importer with its
     const result = await handleTakeoutImport(file, id, { onTarget: async target => { seen.push(target); }, onProgress: p => seen.push(p) }, {
         listAccounts: async () => [account], getAccount: async () => account, getOrCreateAccount: async () => { throw Error('unexpected'); },
         updateSettings: async patch => { seen.push(patch); }, importTakeout: async (actual, target, progress) => {
-            assert.strictEqual(actual, file); assert.equal(target, id); progress?.(100); return { imported: 1, status: 'complete' as const };
+            assert.strictEqual(actual, file); assert.equal(target, id); progress?.(100); return { imported: 1, status: 'ok' as const };
         }
     });
     assert.deepEqual(seen, [id, { takeoutPromptCompleted: true }, 100]); assert.equal(result.imported, 1);

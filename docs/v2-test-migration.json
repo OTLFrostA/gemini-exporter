@@ -1,15 +1,15 @@
 {
   "baseline": "2f78e71c9551c4eec863cdbc21965e8f92bcf8b1",
-  "status": "in_progress",
+  "status": "scoped_repairs_complete_remaining_unchanged",
   "policy": "Preserve original behavioral scenarios. Move tests to current owner APIs; explicit design changes require updated assertions, not deletion or skip. Restored tests remain in normal discovery even when failing.",
   "files": [
     {
       "file": "tests/account_identity_isolation.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/active_client_contract.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/active_title_fetch.test.ts",
@@ -61,11 +61,11 @@
     },
     {
       "file": "tests/clear_exported_race.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/concurrency_consistency.test.ts",
-      "status": "migrated"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/content-domain-boundary.test.ts",
@@ -105,7 +105,7 @@
     },
     {
       "file": "tests/conversations_store.test.ts",
-      "status": "migrated"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/core_host_decoupling.test.ts",
@@ -113,7 +113,7 @@
     },
     {
       "file": "tests/crosstab_write_queue.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/data_safety_batch1.test.ts",
@@ -157,7 +157,7 @@
     },
     {
       "file": "tests/domain_downstream_contract.types.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_typechecked"
     },
     {
       "file": "tests/domain_readonly.types.ts",
@@ -169,11 +169,11 @@
     },
     {
       "file": "tests/e2e/archive_notice.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/archive_retention.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/cloud_deletion_isolation.spec.ts",
@@ -181,7 +181,7 @@
     },
     {
       "file": "tests/e2e/direct_write_prompt.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/domain_storage.spec.ts",
@@ -197,11 +197,11 @@
     },
     {
       "file": "tests/e2e/export_flow.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/export_session_recovery.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/export_zip.spec.ts",
@@ -225,7 +225,7 @@
     },
     {
       "file": "tests/e2e/live_save.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/media_identity_persistence.spec.ts",
@@ -245,7 +245,7 @@
     },
     {
       "file": "tests/e2e/popup_ui.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/realtime_delete.spec.ts",
@@ -253,11 +253,11 @@
     },
     {
       "file": "tests/e2e/scan_flow.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/takeout_limit_prompt.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/uuid_request_attribution.spec.ts",
@@ -269,7 +269,7 @@
     },
     {
       "file": "tests/e2e/workbench_ui.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/export_cancel_semantics.test.ts",
@@ -285,11 +285,11 @@
     },
     {
       "file": "tests/exportedids_readpath_normalization.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/feature_walkthrough.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/finalize_conversation_export.test.ts",
@@ -297,7 +297,7 @@
     },
     {
       "file": "tests/format_store.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/gemini_client_retry.test.ts",
@@ -321,7 +321,7 @@
     },
     {
       "file": "tests/i18n.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/idb_handle_store.test.ts",
@@ -333,7 +333,7 @@
     },
     {
       "file": "tests/istakeout_unify.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/live_save_assets.test.ts",
@@ -353,7 +353,7 @@
     },
     {
       "file": "tests/live_save_permission_deadlock.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/live_storage_manager.test.ts",
@@ -377,7 +377,7 @@
     },
     {
       "file": "tests/message_transport_contract.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/native_detail_transport.test.ts",
@@ -389,15 +389,15 @@
     },
     {
       "file": "tests/options_index_notification.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/options_live_save.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/options_title_persist.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/p0_regressions.test.ts",
@@ -437,7 +437,7 @@
     },
     {
       "file": "tests/p1_h3_ui.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/partial_retry.test.ts",
@@ -501,7 +501,7 @@
     },
     {
       "file": "tests/progress_view.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/provider-native-callers.test.ts",
@@ -537,7 +537,7 @@
     },
     {
       "file": "tests/run_tests.py",
-      "status": "restored_pending_review"
+      "status": "three_ui_guards_migrated_other_checks_unchanged"
     },
     {
       "file": "tests/schema_badge.test.ts",
@@ -557,7 +557,7 @@
     },
     {
       "file": "tests/seam_s3_ui_timeout.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/search_image_export.test.ts",
@@ -569,7 +569,7 @@
     },
     {
       "file": "tests/shared_type_foundations_contract.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/sniff_watermark_isolation.test.ts",
@@ -577,7 +577,7 @@
     },
     {
       "file": "tests/storage_alias_migration_race.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/storage_export_surface.test.ts",
@@ -585,7 +585,7 @@
     },
     {
       "file": "tests/storage_read_canonical.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/storage_readiness_boundary.test.ts",
@@ -621,7 +621,7 @@
     },
     {
       "file": "tests/takeout_transact.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/test_batch_worker_c1.test.ts",
@@ -629,11 +629,11 @@
     },
     {
       "file": "tests/touch_timestamp_authority.test.ts",
-      "status": "migrated"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/tour_guide.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/trusted_domain_export.test.ts",
@@ -649,11 +649,11 @@
     },
     {
       "file": "tests/ui_controllers.test.ts",
-      "status": "migrated"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/ui_views.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/unified_ingest_integrity.test.ts",
@@ -661,7 +661,7 @@
     },
     {
       "file": "tests/upsert_lastseen_max.test.ts",
-      "status": "migrated"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/user_file_attachment.test.ts",
@@ -669,7 +669,7 @@
     },
     {
       "file": "tests/user_preferences.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/verifiable_export_batch2.test.ts",
@@ -687,5 +687,63 @@
       "file": "tests/write_failure_semantics.test.ts",
       "status": "restored_pending_review"
     }
+  ],
+  "verification": {
+    "migrated_unit_files": 29,
+    "migrated_unit_cases": 150,
+    "migrated_browser_files": 10,
+    "migrated_browser_cases": 27,
+    "additional_ui_regressions": 8,
+    "python_ui_guards": 3,
+    "unchanged_ui_v2_browser_cases": 11,
+    "build": "passed",
+    "whole_project_typecheck": "fails: 328 diagnostics in unrepaired legacy tests; no diagnostics in this round changed files",
+    "tier2_and_tier3": "not run"
+  },
+  "new_verified_regressions": {
+    "file": "tests/ui_legacy_safety.test.ts",
+    "cases": 8,
+    "original_mixed_suites": "Retained unchanged at baseline; UI scenarios additionally ported here."
+  },
+  "verified_migrated_files": [
+    "tests/conversations_store.test.ts",
+    "tests/ui_controllers.test.ts",
+    "tests/concurrency_consistency.test.ts",
+    "tests/touch_timestamp_authority.test.ts",
+    "tests/upsert_lastseen_max.test.ts",
+    "tests/account_identity_isolation.test.ts",
+    "tests/active_client_contract.test.ts",
+    "tests/ui_views.test.ts",
+    "tests/user_preferences.test.ts",
+    "tests/feature_walkthrough.test.ts",
+    "tests/i18n.test.ts",
+    "tests/tour_guide.test.ts",
+    "tests/storage_alias_migration_race.test.ts",
+    "tests/crosstab_write_queue.test.ts",
+    "tests/storage_read_canonical.test.ts",
+    "tests/format_store.test.ts",
+    "tests/options_index_notification.test.ts",
+    "tests/options_title_persist.test.ts",
+    "tests/progress_view.test.ts",
+    "tests/options_live_save.test.ts",
+    "tests/seam_s3_ui_timeout.test.ts",
+    "tests/shared_type_foundations_contract.test.ts",
+    "tests/istakeout_unify.test.ts",
+    "tests/message_transport_contract.test.ts",
+    "tests/p1_h3_ui.test.ts",
+    "tests/live_save_permission_deadlock.test.ts",
+    "tests/takeout_transact.test.ts",
+    "tests/clear_exported_race.test.ts",
+    "tests/exportedids_readpath_normalization.test.ts",
+    "tests/e2e/workbench_ui.spec.ts",
+    "tests/e2e/popup_ui.spec.ts",
+    "tests/e2e/export_flow.spec.ts",
+    "tests/e2e/direct_write_prompt.spec.ts",
+    "tests/e2e/export_session_recovery.spec.ts",
+    "tests/e2e/takeout_limit_prompt.spec.ts",
+    "tests/e2e/scan_flow.spec.ts",
+    "tests/e2e/live_save.spec.ts",
+    "tests/e2e/archive_notice.spec.ts",
+    "tests/e2e/archive_retention.spec.ts"
   ]
 }

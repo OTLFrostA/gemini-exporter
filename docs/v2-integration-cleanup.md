@@ -4,7 +4,7 @@ Base: `dev/v2` after UI PR #1058 (`2f78e71c9551c4eec863cdbc21965e8f92bcf8b1`).
 
 The module migrations had removed v1 entry points while old tests and several
 production callers still expected those contracts. This cleanup retires those
-contracts, fixes integration and restores one complete Tier 1 gate.
+contracts and fixes integration. The complete Tier 1 gate still fails on unrepaired legacy tests.
 
 | Retired contract | Current coverage / implementation |
 | --- | --- |
@@ -16,7 +16,7 @@ contracts, fixes integration and restores one complete Tier 1 gate.
 | Old detail IPC/native transport and default/first-tab fallback | L1 acquisition, Runtime UUID routing and production ambiguity/default-account checks |
 | Destructive account cleanup buttons | Application cleanup tests and production retention across reload |
 
-## Test migration correction — in progress
+## Test migration correction — scoped completion
 
 The initial cleanup wrongly deleted tests when their imported v1 modules no longer
 existed. Those deleted files and cropped mixed-suite scenarios have been restored.
@@ -28,9 +28,10 @@ assertions. Where the frozen v2 design changes behavior, update the assertions a
 identify that change explicitly. Do not restore a v1 production compatibility layer,
 skip failing tests or replace old regression coverage with a few generic smoke tests.
 
-PR #1059 is a draft. Earlier green CI applied to the reduced suite and does not
-establish completion of this migration. Restored tests currently include unresolved
-imports and failed assertions; the branch is intentionally not merge-ready.
+The user requested stopping further migration and merging the completed scope into
+`dev/v2`. Earlier green CI applied to the reduced suite and does not establish full
+migration. Unrepaired tests remain unchanged and in normal discovery; unresolved
+imports and failed assertions remain visible. No auto-merge is enabled.
 
 Production fixes include strict Scan account resolution, automatic Browser ZIP,
 per-conversation Folder delivery finalization, nondestructive record cleanup,
@@ -83,11 +84,33 @@ reported as a successful complete resource import.
 
 UI checks now use explicit selection and displayed ExportRecord history. They do
 not require removed badge classes, automatic selection or a durable Tour flag.
-Deletion checks assert actual webpage deletion followed by local archive retention;
-there is no invented v2 cloud-availability field. Rows expose their actual
+Deletion probes currently expect webpage deletion followed by local archive retention;
+this expectation has not been live-validated against the current Domain deletion contract.
+There is no invented v2 cloud-availability field. Rows expose their actual
 conversation ID for stable test targeting.
 
 The fixture-based `tier2_v2_probes.spec.ts` runs as Tier 1 and exercises the actual
 injected probes against the built extension. Live Google, profile restart and
 Tier 2/3 execution remain unvalidated here. CI's unit job now installs Chromium
 because the active native Storage unit contracts require it.
+
+## Verified scope retained for merge
+
+- 29 migrated unit suites: 150 passing cases.
+- 10 migrated fixture-based browser suites: 27 passing cases.
+- Eight additional migrated UI regressions in `ui_legacy_safety.test.ts`; the six
+  original mixed suites remain unchanged at the baseline.
+- Three Python UI source guards pass; the existing `ui_v2.spec.ts` adds 11 passing
+  regression checks after shared harness extraction.
+- Production build passes. Whole-project TypeScript reports 328 diagnostics in
+  unrepaired tests; no diagnostics reference files changed in this repair round.
+- No test files are deleted relative to the pre-cleanup baseline. No discovery
+  exclusions or skips were added to hide remaining failures.
+
+The final repair also bounds Popup account-context messages using the existing
+Tab transport timeout, preventing a missing response from leaving Popup blocked.
+
+`realtime_delete.spec.ts` remains unchanged. A trial migration exposed missing
+`onConversationDeleted` wiring in Content's MessageBridge initialization; that
+Runtime issue is outside UI scope and is not fixed or claimed passing here.
+Tier 2 and Tier 3 were not run.

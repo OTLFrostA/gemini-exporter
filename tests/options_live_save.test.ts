@@ -1,242 +1,36 @@
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-const OptionsSettings = require('../src/ui/options/modules/optionsSettings.js');
-const LiveStorageManager = require('../src/core/storage/liveStorageManager.js');
-const DirHandleController = require('../src/ui/controllers/dirHandleController.js');
+import test, { before, after, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { chromium, type Browser, type Page } from 'playwright';
+import { mount, read } from './helpers/uiPortHarness.js';
+let browser: Browser, page: Page;
+before(async () => { browser = await chromium.launch({ headless: true }); });
+afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });
+async function open(patch: Record<string, unknown>) { page = await browser.newPage(); await mount(page, 'options', patch); await page.locator('#list .item').waitFor(); }
 
-test('optionsSettings - initLiveSaveSettings with existing handle enables live save', async () => {
-    let savedConfig: any = null;
-
-    const mockElements: Record<string, any> = {
-        liveSaveDiskToggle: { checked: false, dataset: {}, addEventListener: function(e: string, fn: Function) { this.onChange = fn; } },
-        dirLabel: { textContent: '' }
-    };
-
-    const originalDocDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    (global as any).document = {
-        getElementById: (id: string) => mockElements[id] || null
-    };
-
-    const origGetLiveConfig = LiveStorageManager.getLiveConfig;
-    const origSetLiveConfig = LiveStorageManager.setLiveConfig;
-    const origGetDirHandle = DirHandleController.getDirHandle;
-    const origRestoreSavedDirHandle = DirHandleController.restoreSavedDirHandle;
-
-    LiveStorageManager.getLiveConfig = async () => ({
-        enabledDisk: false,
-        format: 'markdown',
-        includeAssets: true,
-        dirName: 'MyVault',
-        lastSavedAt: 1710000000000
-    });
-
-    LiveStorageManager.setLiveConfig = async (patch: any) => {
-        savedConfig = patch;
-        return { ...LiveStorageManager.DEFAULT_LIVE_CONFIG, ...patch };
-    };
-
-    DirHandleController.getDirHandle = () => ({
-        name: 'MyVault'
-    });
-    DirHandleController.restoreSavedDirHandle = async () => ({
-        name: 'MyVault'
-    });
-
-    try {
-        await OptionsSettings.initLiveSaveSettings();
-
-        // Check initial restored state
-        assert.strictEqual(mockElements.liveSaveDiskToggle.checked, false);
-        assert.ok(mockElements.dirLabel.textContent.includes('MyVault'));
-
-        // Toggle Disk Save on
-        mockElements.liveSaveDiskToggle.checked = true;
-        await mockElements.liveSaveDiskToggle.onChange();
-        assert.strictEqual(mockElements.liveSaveDiskToggle.checked, true);
-        assert.strictEqual(savedConfig.enabledDisk, true);
-        assert.strictEqual(savedConfig.dirName, 'MyVault');
-
-        // Toggle Disk Save off
-        mockElements.liveSaveDiskToggle.checked = false;
-        await mockElements.liveSaveDiskToggle.onChange();
-        assert.strictEqual(savedConfig.enabledDisk, false);
-    } finally {
-        if (originalDocDescriptor) Object.defineProperty(globalThis, 'document', originalDocDescriptor);
-        else Reflect.deleteProperty(globalThis, 'document');
-        LiveStorageManager.getLiveConfig = origGetLiveConfig;
-        LiveStorageManager.setLiveConfig = origSetLiveConfig;
-        DirHandleController.getDirHandle = origGetDirHandle;
-        DirHandleController.restoreSavedDirHandle = origRestoreSavedDirHandle;
-    }
+test('Options restores directory capability and toggles only the Settings enabledDisk intention', async () => {
+    await open({ directoryName: 'MyVault', settings: { enabledDisk: false } });
+    assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), false); assert.match(await page.locator('#dirLabel').textContent() ?? '', /MyVault/);
+    await page.locator('#liveSaveDiskToggle').check(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    assert.equal((await read(page, 'settings')).enabledDisk, true); assert.deepEqual((await read(page, 'patches')).at(-1), { enabledDisk: true });
+    await page.locator('#liveSaveDiskToggle').uncheck(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    assert.equal((await read(page, 'settings')).enabledDisk, false); assert.deepEqual((await read(page, 'patches')).at(-1), { enabledDisk: false });
 });
-
-test('optionsSettings - toggling live save without handle triggers requestDirHandle and updates dir', async () => {
-    let savedConfig: any = null;
-    let requestDirCalled = false;
-
-    const mockElements: Record<string, any> = {
-        liveSaveDiskToggle: { checked: false, dataset: {}, addEventListener: function(e: string, fn: Function) { this.onChange = fn; } },
-        dirLabel: { textContent: '' }
-    };
-
-    const originalDocDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    (global as any).document = {
-        getElementById: (id: string) => mockElements[id] || null
-    };
-
-    const origGetLiveConfig = LiveStorageManager.getLiveConfig;
-    const origSetLiveConfig = LiveStorageManager.setLiveConfig;
-    const origGetDirHandle = DirHandleController.getDirHandle;
-    const origRestoreSavedDirHandle = DirHandleController.restoreSavedDirHandle;
-    const origGetStoredDirHandle = DirHandleController.getStoredDirHandle;
-    const origRequestDirHandle = DirHandleController.requestDirHandle;
-
-    LiveStorageManager.getLiveConfig = async () => ({
-        enabledDisk: false,
-        format: 'markdown',
-        includeAssets: true
-    });
-
-    LiveStorageManager.setLiveConfig = async (patch: any) => {
-        savedConfig = patch;
-        return { ...LiveStorageManager.DEFAULT_LIVE_CONFIG, ...patch };
-    };
-
-    DirHandleController.getDirHandle = () => null;
-    DirHandleController.restoreSavedDirHandle = async () => null;
-    DirHandleController.getStoredDirHandle = async () => null;
-    DirHandleController.requestDirHandle = async () => {
-        requestDirCalled = true;
-        return { name: 'ChosenDirectory' };
-    };
-
-    try {
-        await OptionsSettings.initLiveSaveSettings();
-
-        assert.strictEqual(mockElements.liveSaveDiskToggle.checked, false);
-
-        // Turn on toggle without prior directory -> should prompt requestDirHandle
-        mockElements.liveSaveDiskToggle.checked = true;
-        await mockElements.liveSaveDiskToggle.onChange();
-
-        assert.strictEqual(requestDirCalled, true);
-        assert.strictEqual(mockElements.liveSaveDiskToggle.checked, true);
-        assert.ok(mockElements.dirLabel.textContent.includes('ChosenDirectory'));
-        assert.strictEqual(savedConfig.enabledDisk, true);
-        assert.strictEqual(savedConfig.dirName, 'ChosenDirectory');
-    } finally {
-        if (originalDocDescriptor) Object.defineProperty(globalThis, 'document', originalDocDescriptor);
-        else Reflect.deleteProperty(globalThis, 'document');
-        LiveStorageManager.getLiveConfig = origGetLiveConfig;
-        LiveStorageManager.setLiveConfig = origSetLiveConfig;
-        DirHandleController.getDirHandle = origGetDirHandle;
-        DirHandleController.restoreSavedDirHandle = origRestoreSavedDirHandle;
-        DirHandleController.getStoredDirHandle = origGetStoredDirHandle;
-        DirHandleController.requestDirHandle = origRequestDirHandle;
-    }
+test('Options explicit folder authorization persists the handle and resumes effective Live Save', async () => {
+    await open({ settings: { enabledDisk: true } });
+    await page.locator('#btnSetDir').click(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    assert.ok((await read(page, 'events')).includes('picker')); assert.match(await page.locator('#dirLabel').textContent() ?? '', /Chosen folder/);
+    assert.equal((await read(page, 'settings')).enabledDisk, true);
+    assert.match(await page.locator('#liveSaveStatus').textContent() ?? '', /active/i);
 });
-
-test('optionsSettings - cancelling dir picker rolls back liveSaveDiskToggle to false', async () => {
-    let savedConfig: any = null;
-
-    const mockElements: Record<string, any> = {
-        liveSaveDiskToggle: { checked: false, dataset: {}, addEventListener: function(e: string, fn: Function) { this.onChange = fn; } },
-        dirLabel: { textContent: '' }
-    };
-
-    const originalDocDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    (global as any).document = {
-        getElementById: (id: string) => mockElements[id] || null
-    };
-
-    const origGetLiveConfig = LiveStorageManager.getLiveConfig;
-    const origSetLiveConfig = LiveStorageManager.setLiveConfig;
-    const origGetDirHandle = DirHandleController.getDirHandle;
-    const origRestoreSavedDirHandle = DirHandleController.restoreSavedDirHandle;
-    const origGetStoredDirHandle = DirHandleController.getStoredDirHandle;
-    const origRequestDirHandle = DirHandleController.requestDirHandle;
-
-    LiveStorageManager.getLiveConfig = async () => ({
-        enabledDisk: false,
-        format: 'markdown',
-        includeAssets: true
-    });
-
-    LiveStorageManager.setLiveConfig = async (patch: any) => {
-        savedConfig = patch;
-        return { ...LiveStorageManager.DEFAULT_LIVE_CONFIG, ...patch };
-    };
-
-    DirHandleController.getDirHandle = () => null;
-    DirHandleController.restoreSavedDirHandle = async () => null;
-    DirHandleController.getStoredDirHandle = async () => null;
-    DirHandleController.requestDirHandle = async () => {
-        const err = new Error('The user aborted a request.');
-        err.name = 'AbortError';
-        throw err;
-    };
-
-    try {
-        await OptionsSettings.initLiveSaveSettings();
-
-        // User toggles on, but cancels directory picker
-        mockElements.liveSaveDiskToggle.checked = true;
-        await mockElements.liveSaveDiskToggle.onChange();
-
-        // Toggle must roll back to false, and enabledDisk must not be true
-        assert.strictEqual(mockElements.liveSaveDiskToggle.checked, false);
-        assert.strictEqual(savedConfig, null);
-    } finally {
-        if (originalDocDescriptor) Object.defineProperty(globalThis, 'document', originalDocDescriptor);
-        else Reflect.deleteProperty(globalThis, 'document');
-        LiveStorageManager.getLiveConfig = origGetLiveConfig;
-        LiveStorageManager.setLiveConfig = origSetLiveConfig;
-        DirHandleController.getDirHandle = origGetDirHandle;
-        DirHandleController.restoreSavedDirHandle = origRestoreSavedDirHandle;
-        DirHandleController.getStoredDirHandle = origGetStoredDirHandle;
-        DirHandleController.requestDirHandle = origRequestDirHandle;
-    }
+test('cancelling the folder picker preserves the existing enabled intention and does not invent a handle', async () => {
+    await open({ cancelPicker: true, settings: { enabledDisk: false } });
+    await page.locator('#btnSetDir').click(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    assert.equal(await read(page, 'directory'), null); assert.equal((await read(page, 'settings')).enabledDisk, false);
+    assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), false);
 });
-
-test('optionsSettings - initLiveSaveSettings with dirError not_found marks toggle false and warns in dirLabel', async () => {
-    const mockElements: Record<string, any> = {
-        liveSaveDiskToggle: { checked: true, dataset: {}, addEventListener: function() {} },
-        dirLabel: { textContent: '', style: {} }
-    };
-
-    const originalDocDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    (global as any).document = {
-        getElementById: (id: string) => mockElements[id] || null
-    };
-
-    const origGetLiveConfig = LiveStorageManager.getLiveConfig;
-    const origGetDirHandle = DirHandleController.getDirHandle;
-    const origRestoreSavedDirHandle = DirHandleController.restoreSavedDirHandle;
-
-    LiveStorageManager.getLiveConfig = async () => ({
-        enabledDisk: false,
-        format: 'markdown',
-        includeAssets: true,
-        dirName: 'DeletedVault',
-        dirError: 'not_found'
-    });
-
-    DirHandleController.getDirHandle = () => null;
-    DirHandleController.restoreSavedDirHandle = async () => null;
-
-    try {
-        await OptionsSettings.initLiveSaveSettings();
-
-        // Check that toggle is disabled and label warns the user
-        assert.strictEqual(mockElements.liveSaveDiskToggle.checked, false);
-        assert.ok(mockElements.dirLabel.textContent.includes('删除') || mockElements.dirLabel.textContent.includes('re-select'));
-    } finally {
-        if (originalDocDescriptor) Object.defineProperty(globalThis, 'document', originalDocDescriptor);
-        else Reflect.deleteProperty(globalThis, 'document');
-        LiveStorageManager.getLiveConfig = origGetLiveConfig;
-        DirHandleController.getDirHandle = origGetDirHandle;
-        DirHandleController.restoreSavedDirHandle = origRestoreSavedDirHandle;
-    }
+test('an unavailable directory pauses Live Save without clearing the persisted enabled intention', async () => {
+    await open({ directoryName: 'MissingVault', permission: 'denied', settings: { enabledDisk: true } });
+    assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), true); assert.equal((await read(page, 'settings')).enabledDisk, true);
+    assert.match(await page.locator('#liveSaveStatus').textContent() ?? '', /authorize|Paused/i);
+    assert.equal((await read(page, 'patches')).length, 0);
 });
-

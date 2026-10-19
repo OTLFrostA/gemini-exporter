@@ -67,6 +67,8 @@ const storage = {
     async deleteIndex(key: ConversationKey) { events.push(`delete-index:${key.conversationId}`); indexes.delete(address(key)); },
     async clearStoredAccountCoverage(accountId: string) { events.push(`clear-coverage:${accountId}`); if (state.failDelete === 'coverage') throw new Error('coverage failed'); },
     async getDirectoryHandle() { return state.directory; },
+    async setDirectoryHandle(handle: FileSystemDirectoryHandle) { events.push('save-directory'); state.directory = handle; },
+    async clearDirectoryHandle() { events.push('clear-directory'); state.directory = null; },
     async getStoredSettings() { if (state.failRead) throw new Error('read failed'); return structuredClone(settings); },
     async patchStoredSettings(patch: Partial<GlobalSettings>) {
         if (state.failSettingsWrite) throw new Error('write failed');
