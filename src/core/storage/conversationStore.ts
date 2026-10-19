@@ -46,6 +46,9 @@ export function deleteDetail(key: ConversationKey): Promise<void> {
 export function updateIndexesAtomically(keys: readonly ConversationKey[],
     decide: (old: readonly (DomainConversationIndex | null)[]) => readonly DomainConversationIndex[]): Promise<void> {
     if (!keys.length) return Promise.resolve();
+    const addresses = keys.map(key => JSON.stringify(conversationAddress(key)));
+    const allowed = new Set(addresses);
+    if (allowed.size !== keys.length) return Promise.reject(new TypeError('Duplicate Index admission key'));
     return inStores<void>(['indexes'], 'readwrite', (tx, done, fail) => {
         const store = tx.objectStore('indexes');
         const previous: (DomainConversationIndex | null)[] = new Array(keys.length);
@@ -57,12 +60,13 @@ export function updateIndexesAtomically(keys: readonly ConversationKey[],
                 if (--remaining !== 0) return;
                 try {
                     const accepted = decide(previous);
-                    if (accepted.length !== keys.length) throw new TypeError('Index decision length mismatch');
-                    for (let j = 0; j < accepted.length; j++) {
-                        const row = accepted[j];
-                        if (row.key.accountId !== keys[j].accountId || row.key.conversationId !== keys[j].conversationId)
-                            throw new TypeError('Index decision key mismatch');
-                        if (JSON.stringify(row) !== JSON.stringify(previous[j])) store.put(row);
+                    const written = new Set<string>();
+                    for (const row of accepted) {
+                        const address = JSON.stringify(conversationAddress(row.key));
+                        if (!allowed.has(address)) throw new TypeError('Index decision key mismatch');
+                        if (written.has(address)) throw new TypeError('Duplicate Index decision key');
+                        written.add(address);
+                        store.put(row);
                     }
                     done(undefined);
                 } catch (error) { fail(error); }

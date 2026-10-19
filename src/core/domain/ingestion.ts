@@ -19,11 +19,15 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
         else groups.set(key, [index]);
     }
     const entries = [...groups.values()];
-    await updateIndexesAtomically(entries.map(group => group[0].key), previous => entries.map((group, i) => {
-        let merged = previous[i] ? restoreConversationIndex(previous[i]) : undefined;
-        for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
-        return merged!;
-    }));
+    await updateIndexesAtomically(entries.map(group => group[0].key), previous => {
+        const changed: DomainConversationIndex[] = [];
+        entries.forEach((group, i) => {
+            let merged = previous[i] ? restoreConversationIndex(previous[i]) : undefined;
+            for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
+            if (merged && JSON.stringify(merged) !== JSON.stringify(previous[i])) changed.push(merged);
+        });
+        return changed;
+    });
 }
 
 export async function ingestIndexes(accountId: string,

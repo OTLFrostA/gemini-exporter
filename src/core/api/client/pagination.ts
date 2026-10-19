@@ -74,7 +74,8 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
             }
         } catch (error: unknown) {
             signal?.throwIfAborted();
-            if (pages.some(page => page.conversation.detail.messages.length)) throw error;
+            if (error instanceof Error && error.name === 'ConfirmedGeminiConversationNotFound'
+                || pages.some(page => page.conversation.detail.messages.length)) throw error;
             if (isDevMode()) console.warn('[Gemini Exporter Client] metadata-only retry failed:', getErrorMessage(error));
         }
     }
