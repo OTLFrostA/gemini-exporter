@@ -9,12 +9,10 @@ export function openStorageDB(): Promise<IDBDatabase> {
             const db = request.result;
             db.createObjectStore('accounts', { keyPath: 'id' })
                 .createIndex('providerIdentity', ['providerId', 'providerAccountId'], { unique: true });
-            db.createObjectStore('indexes', { keyPath: ['key.accountId', 'key.conversationId'] })
-                .createIndex('byAccount', 'key.accountId');
+            db.createObjectStore('indexes', { keyPath: ['key.accountId', 'key.conversationId'] });
             db.createObjectStore('details', { keyPath: ['key.accountId', 'key.conversationId'] });
             db.createObjectStore('coverage', { keyPath: ['accountId', 'streamId'] });
-            db.createObjectStore('exportRecords', { keyPath: ['accountId', 'conversationId'] })
-                .createIndex('byAccount', 'accountId');
+            db.createObjectStore('exportRecords', { keyPath: ['accountId', 'conversationId'] });
             db.createObjectStore('directoryHandles');
         };
         request.onsuccess = () => {
@@ -58,7 +56,4 @@ export function readOne<T>(store: string, key: IDBValidKey): Promise<T | null> {
 }
 export function putOne(store: string, value: unknown, key?: IDBValidKey): Promise<void> {
     return inStore(store, 'readwrite', table => { table.put(value, key); });
-}
-export function deleteOne(store: string, key: IDBValidKey): Promise<void> {
-    return inStore(store, 'readwrite', table => { table.delete(key); });
 }

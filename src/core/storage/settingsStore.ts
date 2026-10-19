@@ -6,5 +6,8 @@ export async function getStoredSettings(): Promise<Partial<GlobalSettings>> {
     return data[SETTINGS_KEY] ?? {};
 }
 export async function patchStoredSettings(patch: Partial<GlobalSettings>): Promise<void> {
-    await chrome.storage.local.set({ [SETTINGS_KEY]: { ...await getStoredSettings(), ...patch } });
+    await navigator.locks.request(SETTINGS_KEY, async () => {
+        const current = await getStoredSettings();
+        await chrome.storage.local.set({ [SETTINGS_KEY]: { ...current, ...patch } });
+    });
 }

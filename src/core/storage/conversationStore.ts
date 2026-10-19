@@ -2,7 +2,7 @@ import type { Account } from '../domain/accountRegistry.js';
 import type { ConversationKey } from '../domain/conversationKey.js';
 import type { DomainConversationIndex } from '../domain/conversationIndex.js';
 import type { DomainConversationDetail } from '../domain/conversationDetail.js';
-import { inStore, inStores, readOne, putOne, deleteOne } from './idb.js';
+import { inStore, inStores, readOne } from './idb.js';
 
 export const conversationAddress = (key: ConversationKey): [string, string] => [key.accountId, key.conversationId];
 
@@ -21,7 +21,7 @@ export function getIndex(key: ConversationKey): Promise<DomainConversationIndex 
 }
 export function listIndexes(accountId: Account['id']): Promise<DomainConversationIndex[]> {
     return inStore<DomainConversationIndex[]>('indexes', 'readonly', (store, done) => {
-        const request = store.index('byAccount').getAll(accountId);
+        const request = store.getAll(IDBKeyRange.bound([accountId], [accountId, []]));
         request.onsuccess = () => done(request.result);
     });
 }
@@ -29,28 +29,25 @@ export async function putIndexes(accepted: readonly DomainConversationIndex[]): 
     if (!accepted.length) return;
     await inStore('indexes', 'readwrite', store => { for (const index of accepted) store.put(index); });
 }
-export function deleteIndex(key: ConversationKey): Promise<void> {
-    return deleteOne('indexes', conversationAddress(key));
-}
 export function getDetail(key: ConversationKey): Promise<DomainConversationDetail | null> {
     return readOne('details', conversationAddress(key));
-}
-export function putDetail(accepted: DomainConversationDetail): Promise<void> {
-    return putOne('details', accepted);
-}
-export function deleteDetail(key: ConversationKey): Promise<void> {
-    return deleteOne('details', conversationAddress(key));
 }
 
 /** L2 supplies all decisions; both reads and writes stay inside one native IDB transaction. */
 export function updateIndexesAtomically(keys: readonly ConversationKey[],
     decide: (old: readonly (DomainConversationIndex | null)[]) => readonly DomainConversationIndex[]): Promise<void> {
-    if (!keys.length) return Promise.resolve();
     const addresses = keys.map(key => JSON.stringify(conversationAddress(key)));
     const allowed = new Set(addresses);
     if (allowed.size !== keys.length) return Promise.reject(new TypeError('Duplicate Index admission key'));
     return inStores<void>(['indexes'], 'readwrite', (tx, done, fail) => {
         const store = tx.objectStore('indexes');
+        if (keys.length === 0) {
+            try {
+                if (decide([]).length !== 0) throw new TypeError('Index decision key mismatch');
+                done(undefined);
+            } catch (error) { fail(error); }
+            return;
+        }
         const previous: (DomainConversationIndex | null)[] = new Array(keys.length);
         let remaining = keys.length;
         keys.forEach((key, i) => {

@@ -4,12 +4,15 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import type { PageObservation } from '../src/core/domain/pageObservation.js';
 import CoverageAdmission from '../src/core/domain/coverageAdmission.js';
-import { clearStoredAccountCoverage, getCoverage, putCoverage, updateCoverageAtomically, getIndex,
+import { clearStoredAccountScanRecords, getCoverage, updateCoverageAtomically, getIndex,
     putIndexes, getExportRecord, putExportRecord } from '../src/core/storage/storageService.js';
 
 const accountId = fixtureAccount().id;
 const otherId = fixtureAccount('chatgpt').id;
 const baseline = { range: { head: { id: 'old100', time: 100 }, tail: { id: 'old70', time: 70 } } };
+function seedCoverage(accountId: string, stream: string, value: typeof baseline): Promise<void> {
+    return updateCoverageAtomically(accountId, stream, () => ({ next: value, result: undefined }));
+}
 function page(times: number[], requestCursor: string | null, nextCursor: string | null): PageObservation<unknown> {
     return { providerId: 'gemini', accountId, streamId: 'recent', items: [],
         requestCursor, nextCursor, requestedAt: 1, requestKnown: true, valid: true, ordered: true,
@@ -37,21 +40,21 @@ test('Coverage atomic callback reads the latest row and writes only an explicit 
     } finally { env.restore(); }
 });
 
-test('Coverage clear deletes all Account streams without touching another Account or Index/ExportRecord', async () => {
+test('Scan cleanup deletes all Account streams and ExportRecords without touching Index or other accounts', async () => {
     const env = indexStorage();
     try {
         const key = { accountId, conversationId: 'unchanged' };
         await putIndexes([{ key, updatedAt: 10 }]);
         await putExportRecord(key, { status: 'ok', format: 'markdown', exportedAt: 10, chatTime: 10 });
-        await putCoverage(accountId, 'recent', baseline);
-        await putCoverage(accountId, 'pinned', baseline);
-        await putCoverage(otherId, 'recent', baseline);
-        await clearStoredAccountCoverage(accountId);
+        await seedCoverage(accountId, 'recent', baseline);
+        await seedCoverage(accountId, 'pinned', baseline);
+        await seedCoverage(otherId, 'recent', baseline);
+        await clearStoredAccountScanRecords(accountId);
         assert.equal(await getCoverage(accountId, 'recent'), null);
         assert.equal(await getCoverage(accountId, 'pinned'), null);
         assert.deepEqual(await getCoverage(otherId, 'recent'), baseline);
         assert.ok(await getIndex(key));
-        assert.ok(await getExportRecord(key));
+        assert.equal(await getExportRecord(key), null);
     } finally { env.restore(); }
 });
 
@@ -60,7 +63,7 @@ test('Clearing Coverage invalidates previous in-memory page chain; a late termin
     try {
         await CoverageAdmission.recordPageCoverage(accountId, page([120, 110], null, 'tail'));
         assert.equal((await getCoverage(accountId, 'recent'))?.range, null);
-        await clearStoredAccountCoverage(accountId);
+        await clearStoredAccountScanRecords(accountId);
         assert.equal(await getCoverage(accountId, 'recent'), null);
         await CoverageAdmission.recordPageCoverage(accountId, page([90], 'tail', null));
         assert.equal((await getCoverage(accountId, 'recent'))?.range, null,
@@ -71,13 +74,13 @@ test('Clearing Coverage invalidates previous in-memory page chain; a late termin
 test('Cleared frozen Coverage cannot authorize early stop or resurrect a deleted range', async () => {
     const env = indexStorage();
     try {
-        await putCoverage(accountId, 'recent', baseline);
+        await seedCoverage(accountId, 'recent', baseline);
         const head = page([130, 110], null, 'tail');
         await CoverageAdmission.recordPageCoverage(accountId, head);
         await CoverageAdmission.recordPageCoverage(accountId, page([95], 'tail', 'more'));
         const { providerId: _provider, accountId: _account, items: _items, ...scanHead } = head;
         assert.equal(await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead), true);
-        await clearStoredAccountCoverage(accountId);
+        await clearStoredAccountScanRecords(accountId);
         assert.equal(await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead), false);
         assert.equal(await getCoverage(accountId, 'recent'), null);
     } finally { env.restore(); }

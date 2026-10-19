@@ -76,8 +76,8 @@ test('storage v2 initializes exactly six stores and only the specified indexes',
         { name: 'coverage', keyPath: ['accountId', 'streamId'], indexes: [] },
         { name: 'details', keyPath: ['key.accountId', 'key.conversationId'], indexes: [] },
         { name: 'directoryHandles', keyPath: null, indexes: [] },
-        { name: 'exportRecords', keyPath: ['accountId', 'conversationId'], indexes: ['byAccount'] },
-        { name: 'indexes', keyPath: ['key.accountId', 'key.conversationId'], indexes: ['byAccount'] }
+        { name: 'exportRecords', keyPath: ['accountId', 'conversationId'], indexes: [] },
+        { name: 'indexes', keyPath: ['key.accountId', 'key.conversationId'], indexes: [] }
     ] });
 });
 
@@ -138,45 +138,62 @@ test('storage v2 failed batch aborts all writes and propagates I/O errors', asyn
     }), { failed: true, indexes: [], readFailed: true });
 });
 
-test('storage v2 details are exact snapshots; single deletes do not cascade', async () => {
+test('storage v2 keeps Index and Detail atomic, rejects an orphan and deletes verified remote conversations', async () => {
     const result = await page.evaluate(async () => {
         const s = window.storage, key = { accountId: 'a', conversationId: 'same' };
-        const detail = { key, messages: [], assets: [{ id: 'image', kind: 'image' as const, sourceUri: 'https://source.test/image' }], quality: { status: 'unknown' as const }, savedAt: 100 };
-        await s.putIndexes([{ key }]); await s.putDetail(detail);
-        await s.putCoverage('a', 'recent', { range: null });
+        const detail = { key, messages: [], assets: [{ id: 'image', kind: 'image' as const,
+            sourceUri: 'https://source.test/image' }], quality: { status: 'unknown' as const }, savedAt: 100 };
+        let orphanRejected = false, mismatchRejected = false;
+        try { await s.updateConversationAtomically(key, () => ({ detail, result: undefined })); }
+        catch { orphanRejected = true; }
+        try { await s.updateConversationAtomically(key, () => ({
+            index: { key: { ...key, accountId: 'wrong' } }, detail, result: undefined
+        })); } catch { mismatchRejected = true; }
+        await s.updateConversationAtomically(key, () => ({ index: { key }, detail, result: undefined }));
+        await s.updateCoverageAtomically('a', 'recent', () => ({ next: { range: null }, result: undefined }));
         await s.putExportRecord(key, { exportedAt: 1, format: 'markdown', status: 'ok' });
-        await s.deleteIndex(key);
-        const preserved = await s.getDetail(key);
-        await s.putDetail({ ...detail, savedAt: 1, assets: [] });
+        const original = await s.getDetail(key);
+        await s.updateConversationAtomically(key, () => ({
+            detail: { ...detail, savedAt: 1, assets: [] }, result: undefined
+        }));
         const replaced = await s.getDetail(key);
-        await s.deleteDetail(key);
-        return { preserved, replaced, removed: await s.getDetail(key), index: await s.getIndex(key),
+        await s.deleteStoredConversation(key);
+        return { orphanRejected, mismatchRejected, original, replaced,
+            removed: await s.getDetail(key), index: await s.getIndex(key),
             record: await s.getExportRecord(key), coverage: await s.getCoverage('a', 'recent') };
     });
-    assert.equal(result.preserved?.assets.length, 1);
+    assert.equal(result.orphanRejected, true); assert.equal(result.mismatchRejected, true);
+    assert.equal(result.original?.assets.length, 1);
     assert.equal(result.replaced?.savedAt, 1); assert.deepEqual(result.replaced?.assets, []);
     assert.equal(result.removed, null); assert.equal(result.index, null);
-    assert.equal(result.record?.status, 'ok'); assert.deepEqual(result.coverage, { range: null });
+    assert.equal(result.record, null); assert.deepEqual(result.coverage, { range: null });
 });
 
-test('storage v2 coverage and export records are keyed, isolated, replaced, and explicitly deleted', async () => {
+test('storage v2 clears ExportRecords alone or with Coverage while preserving other accounts', async () => {
     const result = await page.evaluate(async () => {
         const s = window.storage, key = { accountId: 'a', conversationId: '__proto__' };
         await s.putIndexes([{ key }]);
-        await s.putCoverage('a', 'recent', { range: { head: { id: 'h', time: 10 }, tail: { id: 't', time: 1 } } });
-        await s.putCoverage('a', 'recent', { range: null });
-        await s.putCoverage('a', 'archive', { range: null }); await s.putCoverage('b', 'recent', { range: null });
+        await s.updateCoverageAtomically('a', 'recent', () => ({ next: { range: null }, result: undefined }));
+        await s.updateCoverageAtomically('a', 'archive', () => ({ next: { range: null }, result: undefined }));
+        await s.updateCoverageAtomically('b', 'recent', () => ({ next: { range: null }, result: undefined }));
         await s.putExportRecord(key, { exportedAt: 1, format: 'markdown', status: 'ok', chatTime: 5 });
         await s.putExportRecord(key, { exportedAt: 2, format: 'html', status: 'partial' });
         await s.putExportRecord({ ...key, accountId: 'b' }, { exportedAt: 3, format: 'json', status: 'ok' });
-        const records = await s.listExportRecords('a'), coverage = await s.getCoverage('a', 'recent');
-        await s.deleteCoverage('a', 'recent'); await s.deleteExportRecord(key);
-        return { records: Object.entries(records), coverage, deleted: await s.getCoverage('a', 'recent'), record: await s.getExportRecord(key),
-            archive: await s.getCoverage('a', 'archive'), other: await s.getExportRecord({ ...key, accountId: 'b' }), index: await s.getIndex(key) };
+        const records = Object.entries(await s.listExportRecords('a'));
+        await s.clearStoredAccountExportRecords('a');
+        const coverageAfterExportClear = await s.getCoverage('a', 'recent');
+        await s.putExportRecord(key, { exportedAt: 4, format: 'markdown', status: 'ok' });
+        await s.clearStoredAccountScanRecords('a');
+        return { records, coverageAfterExportClear, coverage: await s.getCoverage('a', 'recent'),
+            archive: await s.getCoverage('a', 'archive'), record: await s.getExportRecord(key),
+            other: await s.getExportRecord({ ...key, accountId: 'b' }),
+            otherCoverage: await s.getCoverage('b', 'recent'), index: await s.getIndex(key) };
     });
     assert.deepEqual(result.records, [['__proto__', { exportedAt: 2, format: 'html', status: 'partial' }]]);
-    assert.deepEqual(result.coverage, { range: null }); assert.equal(result.deleted, null); assert.equal(result.record, null);
-    assert.deepEqual(result.archive, { range: null }); assert.equal(result.other?.format, 'json'); assert.ok(result.index);
+    assert.deepEqual(result.coverageAfterExportClear, { range: null });
+    assert.equal(result.coverage, null); assert.equal(result.archive, null); assert.equal(result.record, null);
+    assert.equal(result.other?.format, 'json'); assert.deepEqual(result.otherCoverage, { range: null });
+    assert.ok(result.index);
 });
 
 test('storage v2 settings patch preserves false, omitted fields, and native change notification', async () => {
@@ -205,32 +222,89 @@ test('storage v2 real directory handles survive a context reload without permiss
     await page.reload(); await page.addScriptTag({ content: bundle });
     assert.deepEqual(await page.evaluate(async () => {
         const handle = await window.storage.getDirectoryHandle();
-        await window.storage.clearDirectoryHandle();
-        return { kind: handle?.kind, name: handle?.name, cleared: await window.storage.getDirectoryHandle() };
-    }), { kind: 'directory', name: 'selected', cleared: null });
+        return { kind: handle?.kind, name: handle?.name };
+    }), { kind: 'directory', name: 'selected' });
 });
 
-test('storage v2 account clear removes orphans and all streams while preserving identity, settings, handle, other accounts', async () => {
+test('storage v2 scan cleanup leaves Account/Index/Detail/Settings/Handle intact', async () => {
     const result = await page.evaluate(async () => {
         const s = window.storage;
         await s.putAccount({ id: 'a', providerId: 'gemini', providerAccountId: 'subject' });
         await s.patchStoredSettings({ includeAssets: false });
         await s.setDirectoryHandle(await navigator.storage.getDirectory());
         for (const accountId of ['a', 'b']) {
-            const key = { accountId, conversationId: 'orphan' };
-            await s.putIndexes([{ key: { accountId, conversationId: 'index-only' } }]);
-            await s.putDetail({ key, messages: [], assets: [], quality: { status: 'unknown' } });
+            const key = { accountId, conversationId: 'same' };
+            await s.updateConversationAtomically(key, () => ({
+                index: { key }, detail: { key, messages: [], assets: [], quality: { status: 'unknown' } },
+                result: undefined
+            }));
             await s.putExportRecord(key, { exportedAt: 1, format: 'markdown', status: 'ok' });
-            for (const stream of ['recent', 'archive']) await s.putCoverage(accountId, stream, { range: null });
+            for (const stream of ['recent', 'archive']) {
+                await s.updateCoverageAtomically(accountId, stream, () => ({ next: { range: null }, result: undefined }));
+            }
         }
-        await s.clearStoredAccountData('a');
-        const a = { accountId: 'a', conversationId: 'orphan' }, b = { ...a, accountId: 'b' };
-        return { cleared: await Promise.all([s.listIndexes('a'), s.getDetail(a), s.listExportRecords('a'),
-            s.getCoverage('a', 'recent'), s.getCoverage('a', 'archive')]),
-            retained: [!!await s.getAccount('a'), !!await s.getDirectoryHandle(), (await s.getStoredSettings()).includeAssets,
-                (await s.listIndexes('b')).length, !!await s.getDetail(b), !!await s.getExportRecord(b),
+        await s.clearStoredAccountScanRecords('a');
+        const a = { accountId: 'a', conversationId: 'same' }, b = { ...a, accountId: 'b' };
+        return { local: [ (await s.listIndexes('a')).length, !!await s.getDetail(a), await s.listExportRecords('a'),
+            await s.getCoverage('a', 'recent'), await s.getCoverage('a', 'archive') ],
+            retained: [!!await s.getAccount('a'), !!await s.getDirectoryHandle(),
+                (await s.getStoredSettings()).includeAssets, (await s.listIndexes('b')).length,
+                !!await s.getDetail(b), !!await s.getExportRecord(b),
                 !!await s.getCoverage('b', 'recent'), !!await s.getCoverage('b', 'archive')] };
     });
-    assert.deepEqual(result.cleared, [[], null, {}, null, null]);
+    assert.deepEqual(result.local, [1, true, {}, null, null]);
     assert.deepEqual(result.retained, [true, true, false, 1, true, true, true, true]);
+});
+
+
+test('storage v2 protects existing Account provider identity and permits migration UUID insertion', async () => {
+    const result = await page.evaluate(async () => {
+        const s = window.storage;
+        const base = { id: 'migration-uuid', providerId: 'gemini', providerAccountId: 'subject' };
+        await s.putAccount(base);
+        await s.putAccount({ ...base, email: 'known@example.com' });
+        let rejected = false;
+        try { await s.putAccount({ ...base, providerAccountId: 'different' }); }
+        catch { rejected = true; }
+        return { rejected, value: await s.getAccount(base.id) };
+    });
+    assert.deepEqual(result, { rejected: true,
+        value: { id: 'migration-uuid', providerId: 'gemini', providerAccountId: 'subject', email: 'known@example.com' } });
+});
+
+test('storage v2 atomic Index admission validates all output keys and handles an empty trusted page', async () => {
+    const result = await page.evaluate(async () => {
+        const s = window.storage;
+        const key = { accountId: 'a', conversationId: 'atomic' };
+        await s.updateIndexesAtomically([key], old => {
+            if (old.length !== 1 || old[0] !== null) throw new Error('old mismatch');
+            return [{ key, updatedAt: 1 }];
+        });
+        await s.updateIndexesAtomically([key], old => [{ ...old[0]!, updatedAt: 2 }]);
+        let duplicateRejected = false, invalidRejected = false, emptyRejected = false, called = false;
+        try { await s.updateIndexesAtomically([key, key], () => []); } catch { duplicateRejected = true; }
+        try { await s.updateIndexesAtomically([key], () => [{ key: { ...key, conversationId: 'wrong' } }]); }
+        catch { invalidRejected = true; }
+        await s.updateIndexesAtomically([], old => { called = old.length === 0; return []; });
+        try { await s.updateIndexesAtomically([], () => [{ key }]); } catch { emptyRejected = true; }
+        return { duplicateRejected, invalidRejected, emptyRejected, called, index: await s.getIndex(key) };
+    });
+    assert.deepEqual(result, { duplicateRejected: true, invalidRejected: true,
+        emptyRejected: true, called: true, index: { key: { accountId: 'a', conversationId: 'atomic' }, updatedAt: 2 } });
+});
+
+test('storage v2 concurrent Settings patches preserve distinct fields via the single Web Lock', async () => {
+    const result = await page.evaluate(async () => {
+        const s = window.storage;
+        await Promise.all([
+            s.patchStoredSettings({ language: 'en' }),
+            s.patchStoredSettings({ enabledDisk: true }),
+            s.patchStoredSettings({ includeAssets: false })
+        ]);
+        return { data: await s.getStoredSettings(), keys: Object.keys(window.settingsData) };
+    });
+    assert.deepEqual(result, {
+        data: { language: 'en', enabledDisk: true, includeAssets: false },
+        keys: ['gemini_exporter_v2_settings']
+    });
 });

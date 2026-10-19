@@ -1,7 +1,7 @@
 import type { Account } from '../domain/accountRegistry.js';
 import type { ConversationKey } from '../domain/conversationKey.js';
 import type { ExportRecord } from '../application/export/types.js';
-import { inStore, readOne, putOne, deleteOne } from './idb.js';
+import { inStore, readOne, putOne } from './idb.js';
 import { conversationAddress } from './conversationStore.js';
 
 interface ExportRow { accountId: string; conversationId: string; value: ExportRecord }
@@ -10,7 +10,7 @@ export async function getExportRecord(key: ConversationKey): Promise<ExportRecor
 }
 export function listExportRecords(accountId: Account['id']): Promise<Record<string, ExportRecord>> {
     return inStore<Record<string, ExportRecord>>('exportRecords', 'readonly', (store, done) => {
-        const request = store.index('byAccount').getAll(accountId);
+        const request = store.getAll(IDBKeyRange.bound([accountId], [accountId, []]));
         request.onsuccess = () => {
             const rows: ExportRow[] = request.result;
             done(Object.fromEntries(rows.map(row => [row.conversationId, row.value])));
@@ -20,6 +20,9 @@ export function listExportRecords(accountId: Account['id']): Promise<Record<stri
 export function putExportRecord(key: ConversationKey, record: ExportRecord): Promise<void> {
     return putOne('exportRecords', { ...key, value: record });
 }
-export function deleteExportRecord(key: ConversationKey): Promise<void> {
-    return deleteOne('exportRecords', conversationAddress(key));
+/** Remove only this account's export history in one transaction. */
+export function clearStoredAccountExportRecords(accountId: Account['id']): Promise<void> {
+    return inStore('exportRecords', 'readwrite', store => {
+        store.delete(IDBKeyRange.bound([accountId], [accountId, []]));
+    });
 }

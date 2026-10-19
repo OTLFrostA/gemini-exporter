@@ -1,6 +1,6 @@
 import type { DirectoryHandle } from '../../core/engine/writers/directoryHandle.js';
 import { ensureV2Ready } from '../../core/api/runtimeReady.js';
-import { getDirectoryHandle, setDirectoryHandle, clearDirectoryHandle } from '../../core/storage/storageService.js';
+import { getDirectoryHandle, setDirectoryHandle } from '../../core/storage/storageService.js';
 
 let current: DirectoryHandle | null = null;
 let pending: DirectoryHandle | null = null;
@@ -8,9 +8,9 @@ export async function getStoredDirHandle(): Promise<DirectoryHandle | null> {
     await ensureV2Ready();
     return await getDirectoryHandle() as DirectoryHandle | null;
 }
-export async function saveStoredDirHandle(handle: DirectoryHandle | null): Promise<boolean> {
+export async function saveStoredDirHandle(handle: DirectoryHandle): Promise<boolean> {
     await ensureV2Ready();
-    if (handle) await setDirectoryHandle(handle); else await clearDirectoryHandle();
+    await setDirectoryHandle(handle);
     return true;
 }
 export async function verifyDirPermission(handle: DirectoryHandle | null, options?: { allowRequest?: boolean }): Promise<boolean> {
