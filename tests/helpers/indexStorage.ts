@@ -8,6 +8,23 @@ import { beforeEach, afterEach } from 'node:test';
 /** Production Storage over a fresh IndexedDB test backend; Chrome Settings/IPC are boundary doubles. */
 export function indexStorage(seed: Record<string, unknown> = {}) {
     const previous = globalThis.chrome, previousDB = globalThis.indexedDB, previousRange = globalThis.IDBKeyRange;
+    const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    // Node's fake browser environment needs the extension-origin Web Locks contract.
+    const pendingLocks = new Map<string, Promise<void>>();
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: {
+        async request<T>(name: string, callback: () => Promise<T>): Promise<T> {
+            const previous = pendingLocks.get(name) ?? Promise.resolve();
+            let unlock!: () => void;
+            const next = new Promise<void>(resolve => { unlock = resolve; });
+            pendingLocks.set(name, next);
+            await previous;
+            try { return await callback(); }
+            finally {
+                unlock();
+                if (pendingLocks.get(name) === next) pendingLocks.delete(name);
+            }
+        }
+    } } });
     globalThis.indexedDB = new IDBFactory();
     globalThis.IDBKeyRange = IDBKeyRange;
     const originalPut = IDBObjectStore.prototype.put;
@@ -54,6 +71,8 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
 
     return { local, writes: () => writes, fail: (key?: string) => { failKey = key; },
         restore() { globalThis.chrome = previous; globalThis.indexedDB = previousDB; globalThis.IDBKeyRange = previousRange;
+            if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
+            else Reflect.deleteProperty(globalThis, 'navigator');
             IDBObjectStore.prototype.put = originalPut; } };
 }
 
