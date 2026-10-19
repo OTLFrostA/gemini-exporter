@@ -124,8 +124,8 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
 test('engine - RateLimiter detects 429 status and calculates backoff with jitter', () => {
     const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
     assert.strictEqual(isRateLimited({ status: 429 }), true);
-    assert.strictEqual(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), true);
-    assert.strictEqual(isRateLimited({ error: 'Too many requests, quota exceeded' }), true);
+    assert.strictEqual(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), false);
+    assert.strictEqual(isRateLimited({ error: 'Too many requests, quota exceeded' }), false);
     assert.strictEqual(isRateLimited({ success: true } as any), false);
     assert.strictEqual(isRateLimited({ status: 200 }), false);
     assert.strictEqual(isRateLimited(null), false);

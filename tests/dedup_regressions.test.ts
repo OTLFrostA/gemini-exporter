@@ -7,36 +7,22 @@ const { isRateLimited, calculateBackoff } = require('../src/core/engine/export/r
 const { formatLiveSaveMarkdown, writeLiveSaveMarkdown } = require('../src/core/engine/liveSaveWriter.js');
 
 // ---------------------------------------------------------------------------
-// 429 predicate unification: all previously inlined variants must be caught
-// by the single canonical isRateLimited.
-// ---------------------------------------------------------------------------
-
-test('dedup - isRateLimited catches every previously inlined 429 variant', () => {
-    const positives: Array<[string, any]> = [
-        ['http 429 status', { success: false, status: 429, error: '' }],
-        ['429 in message', { success: false, error: 'request failed: 429' }],
-        ['rate limit words', { success: false, error: 'Rate limit exceeded, retry later' }],
-        ['quota', { success: false, error: 'quota exceeded for model' }],
-        ['too many requests', { success: false, error: 'Too Many Requests' }],
-        // legacy variants previously inlined only in content/messageRouter.ts
-        ['BardErrorInfo', { success: false, error: 'BardErrorInfo: something broke' }],
-        ['1096 code', { success: false, error: 'error 1096 occurred' }],
-        ['resource_exhausted', { success: false, error: 'RESOURCE_EXHAUSTED grpc status' }],
+// Ordinary request rate limiting is based on HTTP 429 only.
+test('dedup - isRateLimited requires HTTP 429', () => {
+    const positives = [
+        { success: false, status: 429, error: '' },
+        new Error('HTTP 429 Too Many Requests :: response body'),
     ];
-    for (const [label, res] of positives) {
-        assert.strictEqual(isRateLimited(res), true, `should detect: ${label}`);
-    }
-
-    const negatives: Array<[string, any]> = [
-        ['success result', { success: true, status: 429 }],
-        ['null', null],
-        ['undefined', undefined],
-        ['unrelated error', { success: false, error: 'network timeout' }],
-        ['empty', { success: false, error: '' }],
+    for (const res of positives) assert.strictEqual(isRateLimited(res), true);
+    const negatives = [
+        { success: true, status: 429 }, null, undefined,
+        ...['request failed: 429', 'Rate limit exceeded, retry later',
+            'quota exceeded for model', 'Too Many Requests',
+            'BardErrorInfo: something broke', 'error 1096 occurred',
+            'RESOURCE_EXHAUSTED grpc status', 'network timeout', '']
+            .map(error => ({ success: false, error })),
     ];
-    for (const [label, res] of negatives) {
-        assert.strictEqual(isRateLimited(res), false, `should not flag: ${label}`);
-    }
+    for (const res of negatives) assert.strictEqual(isRateLimited(res), false);
 });
 
 test('dedup - calculateBackoff keeps formula, cap and honors Retry-After', () => {

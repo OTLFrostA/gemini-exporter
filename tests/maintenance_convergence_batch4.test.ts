@@ -25,9 +25,9 @@ test('Batch 4 - Canonical classifyDetailError and isConfirmedDeletedError in Gem
     assert.strictEqual(isConfirmedDeletedError('["BardErrorInfo", 500]'), false);
     assert.strictEqual(classifyDetailError('["BardErrorInfo", 500]'), 'inaccessible');
 
-    // Rate limited 1096
+    // Detail 1096 is inaccessible; only HTTP 429 is rate limited
     assert.strictEqual(isConfirmedDeletedError('["BardErrorInfo", 1096]'), false);
-    assert.strictEqual(classifyDetailError('["BardErrorInfo", 1096]'), 'rate_limited');
+    assert.strictEqual(classifyDetailError('["BardErrorInfo", 1096]'), 'inaccessible');
     assert.strictEqual(classifyDetailError('Quota exceeded', 429), 'rate_limited');
 
     // Parse error vs unknown

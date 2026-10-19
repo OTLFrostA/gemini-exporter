@@ -149,7 +149,7 @@ export function classifyDetailError(rawTextOrErr: unknown, status?: number): Det
         return 'confirmed_deleted';
     }
     const text = extractErrorText(rawTextOrErr);
-    if (status === 429 || /(?:\[\s*["']BardErrorInfo["']\s*,\s*1096\b|BardErrorInfo\b[^\d]*?\b1096\b|\b1096\b[^\d]*?BardErrorInfo)/i.test(text)) {
+    if (status === 429) {
         return 'rate_limited';
     }
     if (status === 401 || status === 403 || text.includes('BardErrorInfo')) {
