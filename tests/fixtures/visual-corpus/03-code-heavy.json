@@ -27,19 +27,8 @@
     ]
   },
   "document": {
-    "schemaVersion": 2,
-    "header": {
-      "title": "代码 review",
-      "providerLabel": "gemini",
-      "date": "2026-09-26",
-      "messageCount": 3
-    },
     "messages": [
       {
-        "type": "message",
-        "id": "m1",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -50,13 +39,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "m2",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -209,13 +195,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "m3",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -241,13 +224,16 @@
             "code": "hello world",
             "language": "text"
           }
-        ]
+        ],
+        "role": "assistant"
       }
     ],
     "metadata": {
       "id": "03-code-heavy",
-      "provider": "gemini"
-    }
+      "provider": "gemini",
+      "updatedAt": 1790380800000
+    },
+    "title": "代码 review"
   },
   "resourceIds": []
 }
