@@ -308,3 +308,23 @@ test('storage v2 concurrent Settings patches preserve distinct fields via the si
         keys: ['gemini_exporter_v2_settings']
     });
 });
+
+test('storage v2 scan cleanup rolls back Coverage and ExportRecords together on failure', async () => {
+    const result = await page.evaluate(async () => {
+        const s = window.storage, key = { accountId: 'a', conversationId: 'same' };
+        await s.putExportRecord(key, { exportedAt: 1, format: 'markdown', status: 'ok' });
+        await s.updateCoverageAtomically('a', 'recent', () => ({ next: { range: null }, result: undefined }));
+        const nativeDelete = IDBObjectStore.prototype.delete;
+        let rejected = false;
+        IDBObjectStore.prototype.delete = function(query: IDBValidKey | IDBKeyRange) {
+            if (this.name === 'exportRecords') throw new Error('injected cleanup failure');
+            return nativeDelete.call(this, query);
+        };
+        try { await s.clearStoredAccountScanRecords('a'); } catch { rejected = true; }
+        finally { IDBObjectStore.prototype.delete = nativeDelete; }
+        return { rejected, coverage: await s.getCoverage('a', 'recent'),
+            record: await s.getExportRecord(key) };
+    });
+    assert.deepEqual(result, { rejected: true, coverage: { range: null },
+        record: { exportedAt: 1, format: 'markdown', status: 'ok' } });
+});
