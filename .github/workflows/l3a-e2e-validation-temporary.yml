@@ -1,0 +1,28 @@
+name: L3a E2E scoped validation (temporary)
+on:
+  push:
+    branches:
+      - codex/l3a-storage-contract-devv2-20261019
+permissions:
+  contents: read
+jobs:
+  l3a-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: node build.js
+      - run: npx playwright install --with-deps chromium
+      - name: L3a adjacent UI and probe E2E
+        run: >
+          xvfb-run --auto-servernum npx playwright test
+          tests/e2e/live_save.spec.ts
+          tests/e2e/popup_ui.spec.ts
+          tests/e2e/production_v2.spec.ts
+          tests/e2e/tier2_v2_probes.spec.ts
+          --workers=2
