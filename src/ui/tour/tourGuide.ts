@@ -1,490 +1,145 @@
-import type { TourGuideContract, TourStep } from '../../types/ui.js';
-import { __resolveModule } from '../../core/utils/moduleOverrides.js';
-import StorageService from '../../core/storage/storageService.js';
-import TabService from '../../core/utils/tabService.js';
-import { t } from '../uiCommon.js';
 import { STEPS } from './tourSteps.js';
-import { positionElements as positionTourElements } from './tourPosition.js';
-import { getExtensionVersion } from '../../core/utils/constants.js';
-import { getErrorMessage } from '../../core/utils/utils.js';
+import { text } from '../utils/settings.js';
 export { STEPS } from './tourSteps.js';
+let root: HTMLElement | null = null;
+let stepIndex = 0;
+let mode: 'tour' | 'spotlight' | 'takeout' | null = null;
+let cleanupStep: (() => void) | undefined;
+let cleanupOverlay: (() => void) | undefined;
+let onDismiss: (() => void) | undefined;
 
-let currentStep = 0;
-let isActive = false;
-let spotlightMode = false;
-let activeSpotlightVersion = '';
-let activeSpotlightOptions: Parameters<TourGuideContract['startFeatureSpotlight']>[2] | null = null;
-let overlayEl: HTMLElement | null = null;
-let spotlightEl: HTMLElement | null = null;
-let popoverEl: HTMLElement | null = null;
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-let lastTabStatus: string | null = null;
-let activeActionCleanup: (() => void) | null | undefined = null;
-
-const getStorage = () => __resolveModule('StorageService', StorageService);
-const getTabService = () => __resolveModule('TabService', TabService);
-
-export function clearActionListeners(): void {
-    if (typeof activeActionCleanup === 'function') {
-        try {
-            activeActionCleanup();
-        } catch (e) {
-            console.warn('[TourGuide] cleanup error:', e);
-        }
-        activeActionCleanup = null;
-    }
+export function consumeTourIntent(): boolean {
+    const url = new URL(location.href);
+    const start = url.searchParams.get('startTour') === '1';
+    if (url.searchParams.has('startTour')) { url.searchParams.delete('startTour'); history.replaceState(history.state, '', url); }
+    return start;
 }
-
-export function bindStepAction(step: TourStep | null | undefined): void {
-    clearActionListeners();
-    if (!step || typeof step.setupAction !== 'function') return;
-
-    let triggered = false;
-    const advance = () => {
-        if (!isActive || triggered) return;
-        triggered = true;
-        clearActionListeners();
-        if (step.isFinal) {
-            void finishTour();
-        } else {
-            void nextStep();
-        }
-    };
-
-    try {
-        activeActionCleanup = step.setupAction(advance);
-    } catch (e) {
-        console.warn('[TourGuide] setupAction error:', e);
-    }
+export function destroy(): void {
+    cleanupStep?.(); cleanupStep = undefined;
+    cleanupOverlay?.(); cleanupOverlay = undefined;
+    root?.remove(); root = null; mode = null; onDismiss = undefined;
 }
-
-
-function createElements(): void {
-    if (typeof document === 'undefined') return;
-    if (overlayEl && overlayEl.parentNode) return;
-
-    if (typeof document.querySelectorAll === 'function') {
-        document.querySelectorAll('.tour-overlay-container').forEach(el => {
-            try { el.parentNode && el.parentNode.removeChild(el); } catch {}
-        });
-    }
-
-    overlayEl = document.createElement('div');
-    overlayEl.className = 'tour-overlay-container';
-    overlayEl.setAttribute('role', 'dialog');
-    overlayEl.setAttribute('aria-modal', 'true');
-
-    spotlightEl = document.createElement('div');
-    spotlightEl.className = 'tour-spotlight';
-
-    popoverEl = document.createElement('div');
-    popoverEl.className = 'tour-popover';
-    popoverEl.addEventListener('click', (e: MouseEvent) => {
-        e.stopPropagation();
-    });
-
-    overlayEl.appendChild(spotlightEl);
-    overlayEl.appendChild(popoverEl);
-
-    overlayEl.addEventListener('click', (e: MouseEvent) => {
-        if (popoverEl && popoverEl.contains(e.target as Node)) {
-            return;
-        }
-        e.preventDefault();
-        e.stopPropagation();
-        if (spotlightMode) {
-            void dismissFeatureSpotlight();
-        } else {
-            void finishTour();
-        }
-    });
-
-    document.body.appendChild(overlayEl);
-
-    document.removeEventListener('keydown', handleKeydown);
-    window.removeEventListener('resize', handleResize);
-    document.addEventListener('keydown', handleKeydown);
-    window.addEventListener('resize', handleResize);
-}
-
-function removeElements(): void {
-    stopPolling();
-    clearActionListeners();
-    if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
-        document.querySelectorAll('.tour-overlay-container').forEach(el => {
-            try { el.parentNode && el.parentNode.removeChild(el); } catch {}
-        });
-    }
-    overlayEl = null;
-    spotlightEl = null;
-    popoverEl = null;
-    isActive = false;
-    spotlightMode = false;
-    activeSpotlightVersion = '';
-    activeSpotlightOptions = null;
-
-    if (typeof document !== 'undefined') {
-        document.removeEventListener('keydown', handleKeydown);
-    }
-    if (typeof window !== 'undefined') {
-        window.removeEventListener('resize', handleResize);
-    }
-}
-
-function handleKeydown(e: KeyboardEvent): void {
-    if (!isActive) return;
-    if (e.key === 'Escape') {
-        if (spotlightMode) {
-            void dismissFeatureSpotlight();
-        } else {
-            void skipTour();
-        }
-    } else if (!spotlightMode && e.key === 'ArrowRight' && currentStep < STEPS.length - 1) {
-        void nextStep();
-    } else if (!spotlightMode && e.key === 'ArrowLeft' && currentStep > 0) {
-        void prevStep();
-    }
-}
-
-function handleResize(): void {
-    if (!isActive) return;
-    positionElements(STEPS[currentStep]);
-}
-
-function positionElements(step: any): void {
-    const targetStep = spotlightMode && step.spotlightTarget
-        ? { ...step, getTarget: step.spotlightTarget }
-        : step;
-    return positionTourElements(spotlightEl, popoverEl, targetStep);
-}
-
-async function checkCurrentTabStatus(): Promise<{ status: string; error?: string }> {
-    const tabService = getTabService();
-    if (!tabService || !tabService.checkGeminiStatus) {
-        return { status: 'CONNECTED' };
-    }
-    try {
-        return await tabService.checkGeminiStatus();
-    } catch (e: unknown) {
-        return { status: 'ERROR', error: getErrorMessage(e) };
-    }
-}
-
-function startPollingTabStatus(): void {
-    stopPolling();
-    pollTimer = setInterval(async () => {
-        if (!isActive || currentStep !== 0) {
-            stopPolling();
-            return;
-        }
-        const status = await checkCurrentTabStatus();
-        if (!isActive || currentStep !== 0) {
-            return;
-        }
-        const prevStatus = lastTabStatus;
-        if (status.status !== lastTabStatus) {
-            lastTabStatus = status.status;
-            void updateStepContent(STEPS[0]);
-
-            if ((prevStatus === 'NO_TAB' || prevStatus === 'NEED_REFRESH') && status.status === 'CONNECTED') {
-                setTimeout(() => {
-                    if (isActive && currentStep === 0) {
-                        void nextStep();
-                    }
-                }, 800);
-            }
-        }
-    }, 1500);
-}
-
-function stopPolling(): void {
-    if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-    }
-}
-
-async function updateStepContent(step: any): Promise<void> {
-    if (!popoverEl) return;
-
-    if (spotlightMode) {
-        const badgeLabel = t('tourFeatureBadge') || 'NEW FEATURE';
-        const rawTitle = t(step.spotlightTitleKey || step.titleKey);
-        const titleHtml = rawTitle.replace(/^(步骤|Step)\s*\d+\/\d+:\s*/i, '');
-        const bodyHtml = `<div class="tour-content">${t(step.spotlightDescKey || step.descKey)}</div>`;
-        const hintKey = step.spotlightHintKey || step.hintKey;
-        const hintHtml = hintKey ? `<div class="tour-action-hint">${t(hintKey)}</div>` : '';
-
-        const actionBtnLabel = activeSpotlightOptions?.actionLabelKey
-            ? t(activeSpotlightOptions.actionLabelKey)
-            : t(step.spotlightActionLabelKey || 'tourBtnEnableNow');
-
-        popoverEl.innerHTML = `
-            <div class="tour-header">
-                <span class="tour-step-badge tour-feature-badge">✨ ${badgeLabel} v${activeSpotlightVersion}</span>
-                <button class="tour-close-btn" id="tourCloseBtn" title="${t('tourCloseTip') || 'Close (ESC)'}">✕</button>
-            </div>
-            <div class="tour-title">${titleHtml}</div>
-            ${bodyHtml}
-            ${hintHtml}
-            <div class="tour-footer">
-                <button class="tour-skip-btn" id="tourSpotlightDismissBtn">${t('tourBtnDismiss')}</button>
-                <div class="tour-nav-btns">
-                    <button class="tour-nav-btn primary" id="tourSpotlightActionBtn">
-                        ${actionBtnLabel}
-                    </button>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('tourCloseBtn')?.addEventListener('click', () => dismissFeatureSpotlight());
-        document.getElementById('tourSpotlightDismissBtn')?.addEventListener('click', () => dismissFeatureSpotlight());
-        document.getElementById('tourSpotlightActionBtn')?.addEventListener('click', async () => {
-            if (activeSpotlightOptions && typeof activeSpotlightOptions.onAction === 'function') {
-                try {
-                    await activeSpotlightOptions.onAction();
-                } catch (e) {
-                    console.warn('[TourGuide] spotlight onAction error:', e);
-                }
-            } else if (step.id === 'export') {
-                await dismissFeatureSpotlight();
-                const format = document.getElementById('format');
-                format?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                format?.focus();
-                return;
-            } else if (step.id === 'live_save') {
-                const diskToggle = document.getElementById('liveSaveDiskToggle') as HTMLInputElement | null;
-                if (diskToggle && !diskToggle.checked) {
-                    diskToggle.click();
-                }
-                const dirBox = document.getElementById('dirBox');
-                if (dirBox) {
-                    dirBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-            }
-            await dismissFeatureSpotlight();
-        });
-
-        positionElements(step);
-        return;
-    }
-
-    const isFinal = !!step.isFinal;
-    const stepNum = currentStep + 1;
-    const totalSteps = STEPS.length;
-
-    let titleHtml = t(step.titleKey);
-    let bodyHtml = '';
-
-    if (step.isDynamicConnect) {
-        const status = await checkCurrentTabStatus();
-        lastTabStatus = status.status;
-
-        if (status.status === 'NO_TAB') {
-            bodyHtml = `
-                <div class="tour-content">${t('tourStep1NoTab')}</div>
-                <div class="tour-action-box">
-                    <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1NoTabStatus') || t('notSynced')}</div>
-                    <button id="tourBtnOpenGemini" class="tour-action-btn">
-                        ${t('tourStep1BtnOpen')}
-                    </button>
-                </div>
-            `;
-        } else if (status.status === 'NEED_REFRESH') {
-            bodyHtml = `
-                <div class="tour-content">${t('tourStep1NeedRefresh')}</div>
-                <div class="tour-action-box">
-                    <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1NeedRefreshStatus') || t('tourStep1NeedRefresh')}</div>
-                    <button id="tourBtnReloadGemini" class="tour-action-btn secondary">
-                        ${t('tourStep1BtnRefresh')}
-                    </button>
-                </div>
-            `;
-        } else if (status.status === 'CONNECTED') {
-            bodyHtml = `
-                <div class="tour-content">${t('tourStep1ConnectedDesc') || t('tourStep1Connected')}</div>
-                <div class="tour-action-box">
-                    <div class="tour-status-indicator tour-status-ok ok">✅ ${t('tourStep1Connected')}</div>
-                </div>
-            `;
-        } else {
-            bodyHtml = `
-                <div class="tour-content">${t('tourStep1ErrorDesc') || status.error || t('tourStep1NeedRefresh')}</div>
-                <div class="tour-action-box">
-                    <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1ErrorStatus') || 'Connection error'}</div>
-                    <button id="tourBtnReloadGemini" class="tour-action-btn secondary">
-                        ${t('tourStep1BtnRefresh')}
-                    </button>
-                </div>
-            `;
-        }
-    } else {
-        bodyHtml = `<div class="tour-content">${t(step.descKey)}</div>`;
-    }
-
-    let hintHtml = '';
-    if (step.hintKey) {
-        hintHtml = `<div class="tour-action-hint">${t(step.hintKey)}</div>`;
-    }
-
-    if (!popoverEl || !isActive) return;
-
-    popoverEl.innerHTML = `
-        <div class="tour-header">
-            <span class="tour-step-badge">${stepNum} / ${totalSteps}</span>
-            <button class="tour-close-btn" id="tourCloseBtn" title="${t('tourCloseTip') || 'Close (ESC)'}">✕</button>
-        </div>
-        <div class="tour-title">${titleHtml}</div>
-        ${bodyHtml}
-        ${hintHtml}
-        <div class="tour-footer">
-            <button class="tour-skip-btn" id="tourSkipBtn">${t('tourBtnSkip')}</button>
-            <div class="tour-nav-btns">
-                ${currentStep > 0 ? `<button class="tour-nav-btn" id="tourPrevBtn">${t('tourBtnPrev')}</button>` : ''}
-                <button class="tour-nav-btn primary" id="tourNextBtn">
-                    ${isFinal ? t('tourBtnDone') : t('tourBtnNext')}
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('tourCloseBtn')?.addEventListener('click', skipTour);
-    document.getElementById('tourSkipBtn')?.addEventListener('click', skipTour);
-    document.getElementById('tourPrevBtn')?.addEventListener('click', prevStep);
-    document.getElementById('tourNextBtn')?.addEventListener('click', () => {
-        if (isFinal) {
-            void finishTour();
-        } else {
-            void nextStep();
-        }
-    });
-
-    document.getElementById('tourBtnOpenGemini')?.addEventListener('click', async () => {
-        const tabService = getTabService();
-        if (tabService && tabService.openGeminiPage) {
-            await tabService.openGeminiPage();
-        } else if (typeof window !== 'undefined') {
-            window.open('https://gemini.google.com/app', '_blank');
-        }
-        startPollingTabStatus();
-    });
-
-    document.getElementById('tourBtnReloadGemini')?.addEventListener('click', async () => {
-        const tabService = getTabService();
-        if (tabService && tabService.reloadGeminiTab) {
-            await tabService.reloadGeminiTab();
-        }
-        startPollingTabStatus();
-    });
-
-    positionElements(step);
-}
-
-export async function goToStep(stepIndex: number): Promise<void> {
-    if (stepIndex < 0 || stepIndex >= STEPS.length) return;
-    currentStep = stepIndex;
-
-    createElements();
-    isActive = true;
-
-    const step = STEPS[currentStep];
-    if (step.isDynamicConnect) {
-        startPollingTabStatus();
-    } else {
-        stopPolling();
-    }
-
-    await updateStepContent(step);
-    bindStepAction(step);
-}
-
-export async function nextStep(): Promise<void> {
-    if (currentStep < STEPS.length - 1) {
-        return await goToStep(currentStep + 1);
-    } else {
-        return await finishTour();
-    }
-}
-
-export async function prevStep(): Promise<void> {
-    if (currentStep > 0) {
-        return await goToStep(currentStep - 1);
-    }
-}
-
-export async function finishTour(): Promise<void> {
-    const storage = getStorage();
-    if (storage) {
-        if (storage.setTourCompleted) {
-            await storage.setTourCompleted(true);
-        }
-        if (storage.setLastSeenFeatureVersion) {
-            const currentVer = getExtensionVersion();
-            await storage.setLastSeenFeatureVersion(currentVer);
-        }
-    }
-    spotlightMode = false;
-    removeElements();
-}
-
+function close(): void { const callback = onDismiss; destroy(); callback?.(); }
+export const finishTour = async (): Promise<void> => { destroy(); };
 export const skipTour = finishTour;
+export const dismissFeatureSpotlight = async (): Promise<void> => { close(); };
+export const isActive = (): boolean => root !== null;
+function modalOpen(): boolean { return isActive() || !!document.querySelector('dialog[open], [aria-modal="true"]'); }
 
-
-export async function startFeatureSpotlight(
-    stepId: string,
-    version: string,
-    options?: { onAction?: () => void | Promise<void>; actionLabelKey?: string }
-): Promise<void> {
-    spotlightMode = true;
-    activeSpotlightVersion = version;
-    activeSpotlightOptions = options || null;
-
-    createElements();
-    isActive = true;
-
-    const stepIndex = STEPS.findIndex((s) => s.id === stepId);
-    currentStep = stepIndex >= 0 ? stepIndex : 0;
-    const step = STEPS[currentStep];
-
-    stopPolling();
-    clearActionListeners();
-    await updateStepContent(step);
-    if (step.id !== 'export') bindStepAction(step);
+function overlay(target: HTMLElement | null, title: string, description: string, interactive: boolean): HTMLElement {
+    cleanupStep?.(); cleanupOverlay?.(); root?.remove();
+    const previousFocus = document.activeElement as HTMLElement | null;
+    target?.scrollIntoView({ block: 'center', inline: 'nearest' });
+    root = document.createElement('div'); root.className = 'tour-overlay-container';
+    const popover = document.createElement('div'); popover.className = 'tour-popover'; popover.setAttribute('role', 'dialog'); popover.setAttribute('aria-modal', 'true'); popover.tabIndex = -1;
+    const heading = document.createElement('h2'); heading.textContent = title;
+    const body = document.createElement('p'); body.textContent = description;
+    popover.append(heading, body); root.append(popover); document.body.append(root);
+    const backdrop: HTMLElement[] = [];
+    const layout = () => {
+        backdrop.forEach(el => el.remove()); backdrop.length = 0;
+        const rect = target?.getBoundingClientRect();
+        const hole = interactive && rect ? rect : null;
+        const w = innerWidth, h = innerHeight;
+        const boxes = hole ? [[0, 0, w, Math.max(0, hole.top)], [0, hole.top, Math.max(0, hole.left), hole.height],
+            [hole.right, hole.top, Math.max(0, w - hole.right), hole.height], [0, hole.bottom, w, Math.max(0, h - hole.bottom)]] : [[0, 0, w, h]];
+        for (const [left, top, width, height] of boxes) {
+            const panel = document.createElement('div'); panel.className = 'tour-backdrop';
+            Object.assign(panel.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+            panel.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); close(); });
+            root!.prepend(panel); backdrop.push(panel);
+        }
+        const width = popover.offsetWidth, height = popover.offsetHeight;
+        const beside = rect && rect.right + width + 28 <= w;
+        const x = beside ? rect!.right + 16 : rect?.left ?? (w - width) / 2;
+        const y = !rect ? (h - height) / 2 : beside ? rect.top
+            : rect.bottom + height + 28 <= h ? rect.bottom + 16 : rect.top - height - 16;
+        popover.style.left = `${Math.max(12, Math.min(w - width - 12, x))}px`;
+        popover.style.top = `${Math.max(12, Math.min(h - height - 12, y))}px`;
+    };
+    // Consume non-target interactions even when scrolling changes the cutout between frames.
+    const guard = (event: MouseEvent) => {
+        const node = event.target as Node;
+        if (popover.contains(node) || interactive && target?.contains(node)) return;
+        event.preventDefault(); event.stopImmediatePropagation(); close();
+    };
+    const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); } };
+    document.addEventListener('click', guard, true); document.addEventListener('keydown', keydown, true);
+    window.addEventListener('resize', layout); window.addEventListener('scroll', layout, true);
+    const frame = requestAnimationFrame(layout);
+    cleanupOverlay = () => {
+        cancelAnimationFrame(frame);
+        document.removeEventListener('click', guard, true); document.removeEventListener('keydown', keydown, true);
+        window.removeEventListener('resize', layout); window.removeEventListener('scroll', layout, true);
+        previousFocus?.focus?.();
+    };
+    layout(); popover.focus(); return popover;
 }
-
-export async function dismissFeatureSpotlight(): Promise<void> {
-    const storage = getStorage();
-    if (storage && storage.setLastSeenFeatureVersion && activeSpotlightVersion) {
-        await storage.setLastSeenFeatureVersion(activeSpotlightVersion);
+function button(parent: HTMLElement, label: string, action: () => void): void {
+    const btn = document.createElement('button'); btn.textContent = label; btn.addEventListener('click', action); parent.append(btn);
+}
+export async function goToStep(index: number): Promise<void> {
+    if (mode !== 'tour') return;
+    if (index >= STEPS.length) { destroy(); return; }
+    stepIndex = Math.max(0, index);
+    const step = STEPS[stepIndex];
+    const popover = overlay(step.target(), step.title(), step.description(), true);
+    button(popover, '×', () => { destroy(); });
+    if (stepIndex) button(popover, text('Back', '上一步'), () => { void prevStep(); });
+    button(popover, text('Skip', '跳过'), () => { destroy(); });
+    button(popover, stepIndex === STEPS.length - 1 ? text('Start using', '开始使用') : text('Next', '下一步'), () => { void nextStep(); });
+    let advanced = false;
+    const advance = () => { if (advanced || mode !== 'tour' || STEPS[stepIndex] !== step) return; advanced = true; void nextStep(); };
+    cleanupStep = step.setupAction?.(advance);
+    if (step.id === 'connect') {
+        let active = true;
+        const message = document.createElement('p'); popover.append(message);
+        const action = document.createElement('button'); action.hidden = true; popover.append(action);
+        let tabId: number | undefined;
+        action.addEventListener('click', () => {
+            const operation = tabId === undefined ? chrome.tabs.create({ url: 'https://gemini.google.com/app' }) : chrome.tabs.reload(tabId);
+            void Promise.resolve(operation).catch(() => { message.textContent = text('Unable to open or refresh Gemini', '无法打开或刷新 Gemini'); });
+        });
+        const check = async () => {
+            try {
+                const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+                if (!active) return;
+                const tab = tabs.find(tab => tab.active) ?? tabs[0]; tabId = tab?.id;
+                if (tabId === undefined) { message.textContent = text('Open Gemini to connect', '打开 Gemini 以连接'); action.textContent = text('Open Gemini', '打开 Gemini'); action.hidden = false; return; }
+                try {
+                    const response = await chrome.tabs.sendMessage(tabId, { action: 'getAccountContext' });
+                    if (!active) return;
+                    if (response?.ok && response.accountContext) { advance(); return; }
+                    message.textContent = text('Sign in to Gemini and retry', '请登录 Gemini 后重试'); action.hidden = true;
+                } catch {
+                    if (!active) return;
+                    message.textContent = text('Refresh Gemini to connect', '刷新 Gemini 以连接'); action.textContent = text('Refresh Gemini', '刷新 Gemini'); action.hidden = false;
+                }
+            } catch { if (active) message.textContent = text('Connection unavailable', '无法检查连接'); }
+        };
+        void check(); const timer = setInterval(() => { void check(); }, 1500);
+        cleanupStep = () => { active = false; clearInterval(timer); };
     }
-    spotlightMode = false;
-    activeSpotlightVersion = '';
-    activeSpotlightOptions = null;
-    removeElements();
 }
-
-export async function startTour(stepIndex: number = 0): Promise<void> {
-    spotlightMode = false;
-    return await goToStep(stepIndex);
+export async function nextStep(): Promise<void> { await goToStep(stepIndex + 1); }
+export async function prevStep(): Promise<void> { await goToStep(stepIndex - 1); }
+export async function startTour(): Promise<void> { destroy(); mode = 'tour'; await goToStep(0); }
+export function startFeatureSpotlight(_version: string, stepId: string, dismissed: () => void): boolean {
+    if (modalOpen()) return false;
+    const step = STEPS.find(step => step.id === stepId); const target = step?.target();
+    if (!step || !target || !target.getClientRects().length) return false;
+    mode = 'spotlight'; const popover = overlay(target, step.title(), step.description(), false);
+    onDismiss = dismissed;
+    button(popover, '×', close); button(popover, text('Got it', '知道了'), close); return true;
 }
-
-export const TourGuide: TourGuideContract = {
-    startTour,
-    startFeatureSpotlight,
-    dismissFeatureSpotlight,
-    goToStep,
-    nextStep,
-    prevStep,
-    finishTour,
-    skipTour,
-    isActive: () => isActive,
-    getCurrentStep: () => currentStep,
-    destroy: removeElements,
-    clearActionListeners,
-    bindStepAction,
-    STEPS
-};
-
-
-
+export function showTakeoutPrompt(dismissed: () => void, importFile: () => void): boolean {
+    if (modalOpen()) return false;
+    mode = 'takeout';
+    const popover = overlay(null, text('More complete history', '更全面的历史'), text('Online history may have access limits. Import a Google Takeout export to obtain more complete history.', '网页在线历史可能受到访问范围限制。建议导入 Google Takeout，取得更全面的历史。'), false);
+    onDismiss = dismissed;
+    button(popover, '×', close); button(popover, text('Got it', '知道了'), close);
+    button(popover, text('Import Takeout', '导入 Takeout'), () => { close(); importFile(); }); return true;
+}
+export const TourGuide = { startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
+    startFeatureSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };
 export default TourGuide;

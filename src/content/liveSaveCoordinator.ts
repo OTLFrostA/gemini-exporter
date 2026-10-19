@@ -3,8 +3,8 @@ import { readConversationKey, type ConversationKey } from '../core/domain/conver
 import type { ExportResult } from '../core/application/export/types.js';
 
 interface Feedback {
-    showLiveSaveWarning?: (message?: string, isZh?: boolean) => void;
-    showLiveSaveFeedback?: (title?: string, isZh?: boolean) => void;
+    showLiveSaveResult?: (result: ExportResult | null, accountId: string) => void;
+    showLiveSaveError?: (accountId: string) => void;
 }
 let badge: Feedback | undefined;
 let instance: object | null = null;
@@ -22,12 +22,11 @@ export async function executeLiveSave(value: ConversationKey): Promise<ExportRes
         if (!response || response.ok !== true) throw new Error(response?.error || 'Live Save unavailable');
         const result: ExportResult | null = response.result;
         if (current === instance && feedback === badge && stillCurrent() && result) {
-            if (result.failed.length || result.partial || result.aborted) feedback?.showLiveSaveWarning?.('Live Save incomplete');
-            else if (result.exported) feedback?.showLiveSaveFeedback?.();
+            feedback?.showLiveSaveResult?.(result, key.accountId);
         }
         return result;
     } catch (error) {
-        if (current === instance && feedback === badge && stillCurrent()) feedback?.showLiveSaveWarning?.(error instanceof Error ? error.message : String(error));
+        if (current === instance && feedback === badge && stillCurrent()) feedback?.showLiveSaveError?.(key.accountId);
         throw error;
     }
 }

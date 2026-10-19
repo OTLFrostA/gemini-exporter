@@ -1,84 +1,15 @@
-import { listAccounts, getAccount, getOrCreateAccount } from '../../core/api/accountRegistry.js';
-import type { TakeoutControllerContract } from '../../types/ui.js';
-import TakeoutEngine from '../../core/engine/takeoutEngine.js';
-import { __resolveModule } from '../../core/utils/moduleOverrides.js';
-import ConversationsStore from '../state/conversationsStore.js';
-import StorageService from '../../core/storage/storageService.js';
-import { t } from '../uiCommon.js';
-import { getErrorMessage } from '../../core/utils/messaging.js';
+import { getAccount, listAccounts, getOrCreateAccount } from '../../core/api/accountRegistry.js';
+import { importTakeout } from '../../core/imports/takeout/importTakeout.js';
+import { updateSettings } from '../../core/application/settings/index.js';
 
-const getTakeoutEngine = () => __resolveModule('TakeoutEngine', TakeoutEngine);
-const getStore = () => __resolveModule('ConversationsStore', ConversationsStore);
-const getStorage = () => __resolveModule('StorageService', StorageService);
-
-export async function handleTakeoutImport(
-    file: File,
-    { onProgress, onLog, onFinished, onError }: {
-        onProgress?: (pct: number, txt: string) => void;
-        onLog?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
-        onFinished?: (result: { res: any; addedCount: number; totalMediaCount: number; message: string }) => void;
-        onError?: (err: Error, errMsg?: string) => void;
-    } = {}
-): Promise<void> {
-    if (!file) return;
-    const Takeout = getTakeoutEngine();
-    if (!Takeout || !Takeout.parseTakeoutZip) {
-        const err = new Error('TakeoutEngine module not loaded');
-        if (onError) onError(err);
-        else throw err;
-        return;
-    }
-
-    try {
-        const Store = getStore();
-        const Storage = getStorage();
-        const selected = Store?.getCurrentAccountId();
-        const available = await listAccounts('gemini');
-        const account = !available.length ? await getOrCreateAccount('gemini', 'default')
-            : selected ? await getAccount(selected) : null;
-        if (!account || account.providerId !== 'gemini') throw new Error('Select a Gemini account before importing Takeout');
-        const slot = account.id;
-        if (selected !== slot) Store?.setCurrentAccountId(slot);
-        const previous = await Storage.getConversations(slot);
-        const previousIds = new Set(previous.map(row => JSON.stringify([row.key.accountId, row.key.conversationId])));
-        const res = await Takeout.parseTakeoutZip(file, (pct: number, txt: string) => {
-            if (onProgress) onProgress(pct, txt);
-            if (onLog) onLog(txt, 'info');
-        }, slot);
-
-        for (const diagnostic of res.diagnostics ?? []) {
-            if (diagnostic.severity !== 'info') onLog?.(`${diagnostic.code}: ${diagnostic.message}`, 'warn');
-        }
-        const incoming = Array.isArray(res.conversations) ? res.conversations : [];
-
-        const addedCount = incoming.filter(row => !previousIds.has(JSON.stringify([row.key.accountId, row.key.conversationId]))).length;
-        const accepted = await Storage.getConversations(slot);
-        if (Store?.getCurrentAccountId() === slot) Store.setConversations(accepted);
-
-        if (Storage) {
-            if (Storage.setTakeoutPromptCompleted) await Storage.setTakeoutPromptCompleted(true);
-            if (Storage.setHasImportedTakeout) await Storage.setHasImportedTakeout(true);
-        }
-
-        const successMsg = typeof t === 'function'
-            ? t('takeoutSuccessDetail', incoming.length, addedCount, res.totalMediaCount)
-            : `Takeout 解析成功！发现 ${incoming.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;
-
-        if (onLog) onLog(successMsg, 'info');
-        if (onFinished) onFinished({ res, addedCount, totalMediaCount: res.totalMediaCount, message: successMsg });
-    } catch (err: unknown) {
-        const errorDetail = getErrorMessage(err);
-        const errMsg = typeof t === 'function' ? t('takeoutError', errorDetail) : `Takeout 导入失败: ${errorDetail}`;
-        if (onLog) onLog(errMsg, 'error');
-        if (onError) {
-            const normalizedErr = err instanceof Error ? err : new Error(errorDetail);
-            onError(normalizedErr, errMsg);
-        }
-    }
+export async function handleTakeoutImport(file: File, selectedAccountId: string | null, options: {
+    onTarget: (id: string) => Promise<void>; onProgress?: (percent: number) => void;
+}, ports = { getAccount, listAccounts, getOrCreateAccount, importTakeout, updateSettings }) {
+    const accounts = await ports.listAccounts();
+    const account = !accounts.length ? await ports.getOrCreateAccount('gemini', 'default')
+        : selectedAccountId ? await ports.getAccount(selectedAccountId) : null;
+    if (!account || account.providerId !== 'gemini') throw new Error('Select a Gemini account before importing Takeout');
+    await options.onTarget(account.id);
+    await ports.updateSettings({ takeoutPromptCompleted: true });
+    return ports.importTakeout(file, account.id, options.onProgress);
 }
-
-export const TakeoutController: TakeoutControllerContract = {
-    handleTakeoutImport
-};
-
-export default TakeoutController;

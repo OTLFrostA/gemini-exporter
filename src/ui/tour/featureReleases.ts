@@ -1,36 +1,10 @@
 import { isVersionGreater } from '../../core/utils/pathUtils.js';
-
-export interface FeatureReleaseConfig {
-    version: string;
-    featureId: string;
-    stepId: string;
-    badgeKey?: string;
-}
-
-// Feature releases eligible for one-time spotlight announcement on extension upgrade
+export interface FeatureReleaseConfig { version: string; stepId: string }
+// Existing product announcements, newest first. Do not infer announcements from releases.
 export const FEATURE_RELEASES: FeatureReleaseConfig[] = [
-    {
-        version: '1.7.0',
-        featureId: 'pdf_html_export',
-        stepId: 'export',
-        badgeKey: 'tourFeatureBadge'
-    },
-    {
-        version: '1.5.0',
-        featureId: 'live_save',
-        stepId: 'live_save',
-        badgeKey: 'tourFeatureBadge'
-    }
+    { version: '1.7.0', stepId: 'export' }, { version: '1.5.0', stepId: 'live_save' }
 ];
-
-export function getLatestEligibleFeature(lastSeenVersion: string, currentAppVersion: string): FeatureReleaseConfig | null {
-    const effectiveLastSeen = lastSeenVersion || '1.0.0';
-
-    for (const rel of FEATURE_RELEASES) {
-        if (!isVersionGreater(rel.version, currentAppVersion) && isVersionGreater(rel.version, effectiveLastSeen)) {
-            return rel;
-        }
-    }
-    return null;
+export function getLatestEligibleFeature(lastSeen: string, current: string): FeatureReleaseConfig | null {
+    const baseline = /^\d+\.\d+\.\d+(?:\.\d+)?$/.test(lastSeen) ? lastSeen : current;
+    return FEATURE_RELEASES.find(feature => !isVersionGreater(feature.version, current) && isVersionGreater(feature.version, baseline)) ?? null;
 }
-
