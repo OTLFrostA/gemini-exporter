@@ -4,7 +4,7 @@ import { IDBObjectStore } from 'fake-indexeddb';
 import { indexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { ingestDetail, ingestDeletedConversation } from '../src/core/domain/ingestion.js';
-import { getDetail, getIndex, getExportRecord, putExportRecord, getCoverage, putCoverage } from '../src/core/storage/storageService.js';
+import { getDetail, getIndex, getExportRecord, putExportRecord, getCoverage, updateCoverageAtomically } from '../src/core/storage/storageService.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
 import { ConfirmedGeminiConversationNotFound } from '../src/core/api/geminiClient.js';
@@ -33,8 +33,9 @@ test('L2 confirmed remote deletion atomically removes one key but preserves Cove
     const env = indexStorage();
     try {
         const key = await seed(), other = await seed(otherAccount.id);
-        await putCoverage(account.id, 'recent', { range: { head: { id: conversationId, time: 100 },
-            tail: { id: conversationId, time: 100 } } });
+        await updateCoverageAtomically(account.id, 'recent', () => ({ next: { range: {
+            head: { id: conversationId, time: 100 }, tail: { id: conversationId, time: 100 }
+        } }, result: undefined }));
         await ingestDeletedConversation(account.id, conversationId);
         assert.equal(await getIndex(key), null);
         assert.equal(await getDetail(key), null);

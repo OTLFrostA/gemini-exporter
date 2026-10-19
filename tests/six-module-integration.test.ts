@@ -8,6 +8,7 @@ import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
 import type { SourceResourceContext } from '../src/core/provider/sourceResources.js';
 import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
 import * as storage from '../src/core/storage/storageService.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { getOrCreateAccount } from '../src/core/domain/accountAdmission.js';
 import { readConversation } from '../src/core/domain/readConversation.js';
 import { ingestDetail, ingestIndexes } from '../src/core/domain/ingestion.js';
@@ -139,7 +140,10 @@ test('failed IDB commits never advance coverage or replace accepted Detail; raw 
         await ingestIndexes(account.id, [{ conversationId: 'page', fields: { updatedAt: 30 } }], page);
         assert.ok((await storage.getCoverage(account.id, 'recent'))?.range);
         const corrupted = { ...facts, key, messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'missing' }] }] };
-        await storage.putDetail(corrupted as Parameters<typeof storage.putDetail>[0]);
+        // Simulate an invalid persisted snapshot through the physical transaction port.
+        await storage.updateConversationAtomically(key, () => ({
+            detail: corrupted as unknown as DomainConversationDetail, result: undefined
+        }));
         await assert.rejects(readConversation(key), /asset|closure|reference/i);
         await assert.rejects(ingestDetail(account.id, key.conversationId, facts), /asset|closure|reference/i);
     } finally { env.restore(); }

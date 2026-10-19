@@ -40,7 +40,10 @@ test('T6: verified deletion atomically drops Index, Detail and ExportRecord only
     const record = { format: 'markdown' as const, status: 'ok' as const, exportedAt: 1 };
     for (const accountId of [A, B]) {
         const target = key('same', accountId); await a.putIndexes([{ key: target }]);
-        await a.putDetail({ key: target, quality: { status: 'complete' }, messages: [], assets: [] }); await a.putExportRecord(target, record);
+        await a.updateConversationAtomically(target, () => ({
+            detail: { key: target, quality: { status: 'complete' }, messages: [], assets: [] }, result: undefined
+        }));
+        await a.putExportRecord(target, record);
     }
     await a.deleteStoredConversation(key('same'));
     assert.equal(await b.getIndex(key('same')), null); assert.equal(await b.getDetail(key('same')), null); assert.equal(await b.getExportRecord(key('same')), null);

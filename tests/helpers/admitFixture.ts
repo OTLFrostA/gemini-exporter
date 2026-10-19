@@ -1,6 +1,6 @@
 import { ingestDetail } from '../../src/core/domain/ingestion.js';
 import { readConversation } from '../../src/core/domain/readConversation.js';
-import { deleteDetail } from '../../src/core/storage/storageService.js';
+import { deleteStoredConversation } from '../../src/core/storage/storageService.js';
 import type { ConversationKey } from '../../src/core/domain/conversationKey.js';
 import type { DomainFixture } from './domainFixture.js';
 import { fixtureAccountFor } from './domainFixture.js';
@@ -24,4 +24,4 @@ export async function readFixture(key: ConversationKey): Promise<DomainFixture |
     const conversation = await readConversation(key);
     return conversation ? { account: fixtureAccountFor(conversation), conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} } : null;
 }
-export async function removeFixture(key: ConversationKey): Promise<void> { await deleteDetail(key); }
+export async function removeFixture(key: ConversationKey): Promise<void> { await deleteStoredConversation(key); }
