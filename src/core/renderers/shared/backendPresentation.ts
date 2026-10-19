@@ -1,11 +1,11 @@
-import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceGroup } from '../../document/ast/ast.js';
+import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../document/ast/ast.js';
 import type { RenderOptions } from './renderOptions.js';
 import { getRendererStrings } from './renderStrings.js';
 
 export function inlineText(node: DisplayInline): string {
     if ('children' in node) return node.children.map(inlineText).join('');
     switch (node.type) {
-        case 'text': case 'placeholder': return node.text;
+        case 'text': return node.text;
         case 'inlineCode': return node.code;
         case 'citation': return node.label;
         case 'image': return node.alt;
@@ -23,7 +23,7 @@ export function blockText(node: DisplayBlock): string {
         case 'table': return [...node.headerRows, ...node.rows].map(row => row.map(cell => cell.children.map(inlineText).join('')).join(' | ')).join('\n');
         case 'image': return node.alt;
         case 'file': return node.label;
-        case 'placeholder': case 'unsupported': return node.text;
+        case 'unsupported': return node.text;
         case 'thematicBreak': return '';
     }
 }
@@ -85,19 +85,22 @@ export function disclosureTitle(node: Extract<DisplayBlock, { type: 'disclosure'
 }
 export function headerMetadata(document: DocumentAst, locale: 'zh' | 'en', pdf = false): string {
     const strings = getRendererStrings(locale);
-    return `${document.header.providerLabel}${document.header.date ? ' · ' + document.header.date : pdf ? ' · ' + strings.dateUnknown : ''} · ${document.header.messageCount} ${pdf || locale === 'en' ? 'messages' : '条消息'}`;
+    const time = document.metadata.updatedAt ?? document.metadata.createdAt;
+    const date = time === undefined ? undefined : new Date(time).toISOString().slice(0, 10);
+    return document.metadata.provider + (date ? ' · ' + date : pdf ? ' · ' + strings.dateUnknown : '')
+        + ' · ' + document.messages.length + ' ' + (pdf || locale === 'en' ? 'messages' : '条消息');
 }
 export function messageLabel(message: DisplayMessage, locale: 'zh' | 'en'): string {
-    return getRendererStrings(locale).roles[message.label];
+    return getRendererStrings(locale).roles[message.role];
 }
 
 /** Preserve Composer numbering, including the numeric label used for untitled sources. */
-export function sourceLabel(item: SourceGroup['items'][number]): string {
+export function sourceLabel(item: SourceItem): string {
     return sourceNumberPrefix(item) + item.label;
 }
 
-export function sourceNumberPrefix(item: SourceGroup['items'][number]): string {
-    return item.label === `[${item.number}]` ? '' : `[${item.number}]${item.label ? ' ' : ''}`;
+export function sourceNumberPrefix(item: SourceItem): string {
+    return item.label === '[' + item.number + ']' ? '' : '[' + item.number + ']' + (item.label ? ' ' : '');
 }
 
 export function unavailableResourceText(kind: 'image' | 'file', label: string, locale: 'zh' | 'en'): string {

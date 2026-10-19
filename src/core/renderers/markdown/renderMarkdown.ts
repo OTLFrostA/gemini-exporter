@@ -67,7 +67,6 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return inlineMathMarkdown(source);
             }
             case 'citation': return citation(node);
-            case 'placeholder': return placeholder(node);
             case 'lineBreak': return node.kind === 'hard' ? '  \n' : '\n';
         }
     };
@@ -102,7 +101,6 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             }
             case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
             case 'disclosure': return `<details${options.thoughtInitiallyCollapsed ?? true ? '' : ' open'}>\n<summary>${node.title ? escapeText(node.title) : '🧠 ' + escapeText(disclosureTitle(node, { ...options, locale }))}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
-            case 'placeholder': return [placeholder(node), node.details && inlines(node.details)].filter(Boolean).join('\n\n');
             case 'thematicBreak': return '---';
             case 'unsupported': return `${escapeText(`${strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;
         }
@@ -110,10 +108,10 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
     const metadata = document.metadata;
     if (options.includeFrontMatter && !metadata) throw new TypeError('Markdown document metadata is required');
     const entries: Array<{ key: string; value: string | string[] }> | undefined = options.includeFrontMatter ? [
-        { key: 'title', value: document.header.title }, { key: 'id', value: metadata.id }, { key: 'provider', value: metadata.provider },
-        ...(metadata.createdAt ? [{ key: 'date', value: metadata.createdAt }] : []),
-        ...(metadata.updatedAt ? [{ key: 'updated', value: metadata.updatedAt }] : []),
-        ...(options.exportedAt ? [{ key: 'exported', value: options.exportedAt }] : []),
+        { key: 'title', value: document.title }, { key: 'id', value: metadata.id }, { key: 'provider', value: metadata.provider },
+        ...(metadata.createdAt !== undefined ? [{ key: 'date', value: new Date(metadata.createdAt).toISOString() }] : []),
+        ...(metadata.updatedAt !== undefined ? [{ key: 'updated', value: new Date(metadata.updatedAt).toISOString() }] : []),
+        ...(options.exportedAt !== undefined ? [{ key: 'exported', value: new Date(options.exportedAt).toISOString() }] : []),
         { key: 'tags', value: [`${metadata.provider}-export`] },
     ] : undefined;
     const yaml = entries?.map(entry => {
@@ -122,11 +120,11 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         ? `${entry.key}:\n${entry.value.map(value => `  - ${/^[a-z][a-z\d_-]*$/i.test(value) && !/^(?:null|true|false|yes|no|on|off)$/i.test(value) ? value : JSON.stringify(value)}`).join('\n')}`
         : `${entry.key}: ${JSON.stringify(entry.value)}`;
     }).join('\n');
-    const header = [yaml !== undefined ? `---\n${yaml}\n---\n` : undefined, `# ${escapeText(document.header.title)}`].filter(value => value !== undefined).join('\n');
+    const header = [yaml !== undefined ? `---\n${yaml}\n---\n` : undefined, `# ${escapeText(document.title)}`].filter(value => value !== undefined).join('\n');
     const messages = document.messages.map(message => {
-        const icons = { you: '👤', assistant: '🤖', system: '⚙️', developer: '🛠', unknown: '' };
-        const heading = `## ${icons[message.label] ? icons[message.label] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
-        const sources = message.sources && [`> 🌐 **${strings.sources}:**`, ...message.sources.items.map(item => {
+        const icons = { user: '👤', assistant: '🤖', system: '⚙️', developer: '🛠', unknown: '' };
+        const heading = `## ${icons[message.role] ? icons[message.role] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
+        const sources = message.sources && [`> 🌐 **${strings.sources}:**`, ...message.sources.map(item => {
             const prefix = sourceNumberPrefix(item);
             return `> ${!item.label && !item.href ? prefix.trimEnd() : !prefix && !item.href ? item.label : prefix + citation(item)}`;
         })].filter(Boolean).join('\n');
@@ -138,7 +136,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
 /** GFM supports one header row and no spans; project without changing the shared tree. */
 function projectedTable(node: Extract<DisplayBlock, { type: 'table' }>): DisplayCell[][] {
     const width = node.columnAlignments.length;
-    const blank = (column: number): DisplayCell => ({ column, colSpan: 1, rowSpan: 1, align: node.columnAlignments[column], children: [] });
+    const blank = (column: number): DisplayCell => ({ column, colSpan: 1, rowSpan: 1, children: [] });
     const rows = [...node.headerRows, ...node.rows].map(row => {
         const cells = Array.from({ length: width }, (_, column) => blank(column));
         for (const cell of row) cells[cell.column] = { ...cell, colSpan: 1, rowSpan: 1 };
