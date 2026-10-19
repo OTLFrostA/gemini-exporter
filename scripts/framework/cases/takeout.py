@@ -11,6 +11,8 @@ from typing import Tuple, Optional, Dict, Any
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
+from scripts.framework.v2_probe import install_probe, snapshot
+from scripts.framework.cases.sync import reset_only_coverage
 from scripts.framework.assertions import CDPAssertions, assert_scan_result, assert_full_scan_coverage, assert_followup_scan_result
 from scripts.framework.archive_resources import resource_references, resolve_archive_reference
 
@@ -68,7 +70,7 @@ class TakeoutZipImportCase(FeatureTestCase):
             feature_id="feat_takeout_zip_import",
             domain=FeatureDomain.TAKEOUT,
             name="离线 Takeout ZIP 导入",
-            description="导入预置纯净 Takeout ZIP，离线附件池建立，初始提问前缀临时标题生效",
+            description="通过文件输入导入预置 Takeout ZIP，验证本地 Domain 与源归档资源字节",
             critical=True,
             prerequisites=[]
         )
@@ -84,11 +86,11 @@ class TakeoutZipImportCase(FeatureTestCase):
                 if not html_files:
                     return False, "Takeout 样本缺少 MyActivity.html", None
                 html_text = '\n'.join(zf.read(n).decode('utf-8') for n in html_files)
-                expected_ids = sorted(set(re.findall(r'https://gemini\.google\.com/(?:u/\d+/)?app/([a-zA-Z0-9_-]+)', html_text)))
+                expected_ids = sorted({cid.removeprefix('c_') for cid in re.findall(r'https://gemini\.google\.com/(?:u/\d+/)?app/([a-zA-Z0-9_-]+)', html_text)})
                 generation_ids = set()
                 for block in html_text.split('<div class="outer-cell')[1:]:
                     if re.search(r'\d+\s*generated images?|\d+\s*张生成的图片', block, re.IGNORECASE):
-                        generation_ids.update(re.findall(r'https://gemini\.google\.com/(?:u/\d+/)?app/([a-zA-Z0-9_-]+)', block))
+                        generation_ids.update(cid.removeprefix('c_') for cid in re.findall(r'https://gemini\.google\.com/(?:u/\d+/)?app/([a-zA-Z0-9_-]+)', block))
                 expected_media = {}
                 for name in html_files:
                     for ref in resource_references(zf.read(name).decode('utf-8'), html=True):
@@ -109,28 +111,10 @@ class TakeoutZipImportCase(FeatureTestCase):
                 return False, "导入完成回调缺少预期会话或包含部分资源失败", import_res
             if import_res.get('mediaDigests', {}) != catalog_media:
                 return False, "Takeout 资源索引读取字节与原始 ZIP 不一致", import_res
-            stored = cdp_opt.eval(f"""
-            (async () => {{
-                const slot = window.ConversationsStore.getCurrentAccountId();
-                const key = 'conversations_' + slot;
-                const accountReply = await chrome.runtime.sendMessage({{ action: 'accountRegistry', command: 'get', accountId: slot }});
-                const summaries = (await chrome.storage.local.get(key))[key] || [];
-                const result = [];
-                for (const id of {json.dumps(expected_ids)}) {{
-                    const identity = {{ providerId: 'gemini', accountId: slot, conversationId: id }};
-                    const record = await chrome.runtime.sendMessage({{ action: 'domainStorage', command: 'get', payload: {{ identity }} }});
-                    const domain = record?.value?.conversation;
-                    const resources = [];
-                    for (const resource of record?.value?.resources || []) {{
-                        const read = await chrome.runtime.sendMessage({{ action: 'domainStorage', command: 'resource', payload: {{ identity, assetId: resource.assetId }} }});
-                        resources.push({{ sourcePath: resource.sourcePath, bytes: read?.ok ? read.value : null }});
-                    }}
-                    result.push({{ id, ok: record?.ok, account: accountReply?.value, domain,
-                        summary: summaries.find(c => c.key.conversationId === id || c.key.conversationId === 'c_' + id), resources }});
-                }}
-                return result;
-            }})()
-            """, await_promise=True) or []
+            install_probe(cdp_opt)
+            stored = cdp_opt.eval(f'globalThis.__tier2V2.conversations({json.dumps(expected_ids)})', await_promise=True) or []
+            for record in stored:
+                record['resources'] = import_res.get('sourceResources', {}).get(record['id'], [])
             ok, msg = validate_takeout_records(expected_ids, expected_media, stored, generation_ids)
             if not ok:
                 return False, msg, {'import': import_res}
@@ -163,7 +147,7 @@ class DeepScanPaginationCase(FeatureTestCase):
             # Initialize ONLY sync coverage for the first-scan fixture. Archives,
             # imported bodies, assets and export records remain intact. This keeps
             # the original full-pagination/title-upgrade assertions mandatory.
-            cdp_opt.eval("(async () => { await chrome.storage.local.remove('scan_coverage_' + window.ConversationsStore.getCurrentAccountId()); })()", await_promise=True)
+            reset_only_coverage(cdp_opt)
             evidence = CDPActions.trigger_deep_scan(cdp_opt, max_wait=330)
             scan_ok, message = assert_scan_result(evidence)
             if not scan_ok:
@@ -171,15 +155,12 @@ class DeepScanPaginationCase(FeatureTestCase):
             # Verify results include the known freshly generated online sessions.
             ids = [r['chat_id'] for r in ctx.chat_records if r.get('chat_id')]
             if ids:
-                known = cdp_opt.eval("""(async () => {
-                    const key = 'conversations_' + window.ConversationsStore.getCurrentAccountId();
-                    const data = await chrome.storage.local.get(key);
-                    return (data[key] || []).filter(c => c.titleSource === 'provider' && c.title).map(c => c.key.conversationId.replace(/^c_/, ''));
-                })()""", await_promise=True) or []
+                known = [row['key']['conversationId'].removeprefix('c_') for row in snapshot(cdp_opt)['rows']
+                         if row.get('titleSource') == 'provider' and row.get('title')]
                 missing = [cid for cid in ids if cid.removeprefix('c_') not in known]
                 if missing:
                     return False, f"全量扫描结果缺少已知在线会话: {missing}", evidence
-            read_coverage = "(async () => (await chrome.storage.local.get('scan_coverage_' + window.ConversationsStore.getCurrentAccountId()))['scan_coverage_' + window.ConversationsStore.getCurrentAccountId()])()"
+            read_coverage = 'globalThis.__tier2V2.snapshot().then(state => state.coverage)'
             before = cdp_opt.eval(read_coverage, await_promise=True) or {}
             complete_ok, message = assert_full_scan_coverage(evidence, before)
             if not complete_ok:

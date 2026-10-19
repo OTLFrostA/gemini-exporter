@@ -41,9 +41,44 @@ ExportRecords, account routing and Badge. Unit tests separately establish duplic
 admission suppression. Native handle coverage uses OPFS, not a user-selected OS
 folder. No live Google account, Tier 2 or Tier 3 validation is claimed.
 
-Live-test harness boundary: the Tier 2 helpers under `scripts/framework` still
-contain v1-only probes (`getConversationDetail` capture, `deepScan` interception
-and `domainStorage` inspection). They are not production callers or part of the
-fixture-based extension acceptance above. Their offline helper unit tests still
-pass, which does not prove the live probes work with v2. Migrating that live
-harness remains separate work; no Tier 2/3 run or readiness is claimed here.
+## Tier 2 probe alignment
+
+The live harness now uses a test-only bundle built from public v2 owner APIs.
+It is injected into Options by CDP and is not shipped with the extension. Reads
+use Registry UUIDs, account-scoped Index/Detail, ExportRecords and the single
+Recent `StreamCoverage { range }`. Coverage reset clears only Coverage. Settings
+and native handle setup call their current owners. No old Storage keys, UI globals
+or `domainStorage`/`deepScan`/detail IPC routes are restored.
+
+Scan still clicks the actual Scan All button. A temporary MutationObserver captures
+busy transitions (including synchronous completion) and the UI's own final status
+and counters. Idle clicks, account switches, cancellation, unknown results and
+partial limits fail completeness checks. Recent Coverage has no v4 generation,
+historyComplete or pinned-stream certification fields. A persisted null range
+remains valid but does not certify a trusted interval.
+
+Native differential capture wraps Options fetch without changing arguments,
+Promise identity or Response consumption. It clones successful real DETAIL
+responses, drains pending reads and retains exact raw text plus each request's
+third-argument cursor. The audit rejects broken/missing cursor chains, wrong
+conversation identities and rejected turns, and merges pages oldest to newest.
+Restoration runs on capture/read failure as well as success. This is source
+observation, not a second fetch.
+
+Takeout uses the real file-input UI and validates committed Domain via the normal
+read path. Resource bytes and SHA256 are checked against the source-bound archive
+parser, within that inspection task. v2 does not persist archive bytes in Domain;
+this probe does not claim otherwise. The existing cleaned Takeout fixture retains
+unresolved-media diagnostics; a partial result remains visible rather than being
+reported as a successful complete resource import.
+
+UI checks now use explicit selection and displayed ExportRecord history. They do
+not require removed badge classes, automatic selection or a durable Tour flag.
+Deletion checks assert actual webpage deletion followed by local archive retention;
+there is no invented v2 cloud-availability field. Rows expose their actual
+conversation ID for stable test targeting.
+
+The fixture-based `tier2_v2_probes.spec.ts` runs as Tier 1 and exercises the actual
+injected probes against the built extension. Live Google, profile restart and
+Tier 2/3 execution remain unvalidated here. CI's unit job now installs Chromium
+because the active native Storage unit contracts require it.

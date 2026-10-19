@@ -12,6 +12,8 @@ import time
 import hashlib
 import html
 import unicodedata
+import math
+from scripts.framework.v2_probe import install_probe, snapshot
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -120,141 +122,103 @@ def assert_archive_targets(names: List[str], target_ids: List[str], extension: s
     return True, f"ZIP 指定目标 {len(target_ids)} 个均存在"
 
 
-def assert_scan_result(evidence: Dict[str, Any], allow_incremental_attempt=False) -> Tuple[bool, str]:
+def assert_scan_result(evidence: Dict[str, Any]) -> Tuple[bool, str]:
     response = evidence.get('response') or {}
-    diag = response.get('diagnostics') or {}
-    if not evidence.get('started') or not evidence.get('finished') or evidence.get('error'):
-        return False, f"扫描未启动/未完成/失败: {evidence}"
-    if response.get('success') is not True or response.get('error'):
-        return False, f"扫描返回失败: {response}"
-    reason = diag.get('stopReason', '')
-    # Existing producer explicitly distinguishes natural exhaustion from limits,
-    # token loops, cancellation, parse errors, and network errors in diagnostics.
-    natural = 'Google 服务端已无更早历史' in reason or 'Google 服务端游标已到底' in reason
-    history = diag.get('pageHistory') or []
-    if (not natural or not (diag.get('incremental') is False or allow_incremental_attempt and diag.get('incremental') is True) or not diag.get('endTime')
-            or not history or diag.get('totalPagesFetched', 0) < 1
-            or diag.get('hitGoogleLimit') or response.get('hitGoogleLimit')):
-        return False, f"全量扫描缺少完整耗尽证据（可能部分完成/限流）: {diag}"
-    return True, f"全量扫描自然耗尽: {diag.get('totalPagesFetched')} 页, {diag.get('totalConversations')} 会话"
+    if (evidence.get('started') is not True or evidence.get('finished') is not True or evidence.get('error')
+            or response.get('status') != 'complete' or not isinstance(response.get('pagesFetched'), int)
+            or response['pagesFetched'] < 1 or not isinstance(response.get('conversationsFetched'), int)
+            or response['conversationsFetched'] < 0):
+        return False, f"Scan lacks a complete v2 result: {evidence}"
+    return True, f"Recent source exhausted: {response['pagesFetched']} pages, {response['conversationsFetched']} entries"
 
 
 def is_account_uuid(value):
     return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', value) is not None
 
 
-def assert_full_scan_coverage(evidence, coverage, allow_incremental_attempt=False):
-    ok, message = assert_scan_result(evidence, allow_incremental_attempt)
+def valid_coverage(value):
+    if not isinstance(value, dict) or set(value) != {'range'}:
+        return False
+    span = value['range']
+    if span is None:
+        return True
+    if not isinstance(span, dict) or set(span) != {'head', 'tail'}:
+        return False
+    for end in ('head', 'tail'):
+        key = span[end]
+        if (not isinstance(key, dict) or set(key) != {'id', 'time'} or not isinstance(key['id'], str)
+                or not key['id'] or type(key['time']) not in (int, float)
+                or not math.isfinite(key['time'])):
+            return False
+    return span['head']['time'] >= span['tail']['time']
+
+
+def assert_full_scan_coverage(evidence, coverage):
+    ok, message = assert_scan_result(evidence)
     if not ok:
         return False, message
-    if (coverage.get('version') != 4 or coverage.get('providerId') != 'gemini'
-            or not is_account_uuid(coverage.get('accountId')) or not coverage.get('generation')
-            or coverage.get('initialized') is not True or coverage.get('historyComplete') is not True
-            or coverage.get('complete') is not True or coverage.get('activeRunId') is not None
-            or coverage.get('lastStatus') != 'complete'
-            or any(coverage.get('streams', {}).get(stream, {}).get('initialized') is not True
-                   or coverage.get('streams', {}).get(stream, {}).get('historyComplete') is not True
-                   for stream in ('pinned', 'recent'))):
-        return False, 'Natural traversal ended without durable complete coverage: ' + str(coverage)
-    return True, message + '; pinned/recent Coverage fully certified'
+    if not valid_coverage(coverage):
+        return False, 'Missing persisted v2 Recent Coverage: ' + str(coverage)
+    # range=null is valid for empty/unordered sources. It is not proof of a trusted range.
+    return True, message + '; Recent Coverage read after completion'
 
 
 def assert_incremental_scan_result(evidence, before, after):
-    """Require real runtime completion plus durable account-scoped closure evidence."""
     response = evidence.get('response') or {}
-    diag = response.get('diagnostics') or {}
-    if (not evidence.get('started') or not evidence.get('finished') or evidence.get('error')
-            or response.get('success') is not True or response.get('error')
-            or response.get('status') != 'up_to_date' or diag.get('incremental') is not True
-            or diag.get('stopReason') != 'Connected to verified activity coverage'
-            or not diag.get('endTime') or not diag.get('pageHistory')
-            or diag.get('totalPagesFetched', 0) < 2
-            or diag.get('hitGoogleLimit') or response.get('hitGoogleLimit')):
-        return False, f"Incremental scan lacks real successful closure: {evidence}"
-    for record in (before, after):
-        recent = record.get('streams', {}).get('recent', {})
-        if (record.get('version') != 4 or not is_account_uuid(record.get('accountId'))
-                or record.get('providerId') != 'gemini' or record.get('initialized') is not True
-                or recent.get('initialized') is not True or not recent.get('range')
-                or recent.get('orderingInvalidated') is True):
-            return False, f"Missing durable activity coverage: {record}"
-    if (any(before.get(key) != after.get(key) for key in ('accountId', 'providerId', 'generation'))
-            or not before.get('generation') or after.get('activeRunId') is not None
-            or after.get('lastStatus') != 'up_to_date'
-            or before.get('historyComplete') != after.get('historyComplete')):
-        return False, 'Account/generation/history changed during incremental closure'
-    old = before['streams']['recent']['range']
-    new = after['streams']['recent']['range']
-    if new.get('tail') != old.get('tail') or new.get('head', {}).get('time', 0) < old.get('head', {}).get('time', 0):
-        return False, 'Incremental scan lost previously persisted activity coverage'
-    return True, f"Incremental closure verified: {diag.get('totalPagesFetched')} pages"
+    if (evidence.get('started') is not True or evidence.get('finished') is not True or evidence.get('error')
+            or response.get('status') != 'up_to_date' or not isinstance(response.get('pagesFetched'), int)
+            or response['pagesFetched'] < 1 or not valid_coverage(before) or not valid_coverage(after)
+            or not before['range'] or not after['range']):
+        return False, 'Incremental scan lacks a v2 trusted-boundary result'
+    if (after['range']['tail'] != before['range']['tail']
+            or after['range']['head']['time'] < before['range']['head']['time']):
+        return False, 'Incremental scan lost persisted Recent coverage'
+    return True, f"Trusted Recent boundary reached: {response['pagesFetched']} pages"
 
 
 def assert_followup_scan_result(evidence, before, after):
-    """Keep incremental checks strict; accept exhaustion only with durable order invalidation."""
-    recent = after.get('streams', {}).get('recent', {})
-    if recent.get('orderingInvalidated') is not True:
+    if (evidence.get('response') or {}).get('status') == 'up_to_date':
         return assert_incremental_scan_result(evidence, before, after)
-    # diagnostics.incremental describes the attempted acquisition mode. A run
-    # that discovers an inversion must still exhaust the entire cursor chain.
-    ok, message = assert_full_scan_coverage(evidence, after, allow_incremental_attempt=True)
-    if not ok:
-        return False, message
-    response = evidence.get('response') or {}
-    if (response.get('status') != 'complete' or recent.get('range') is not None
-            or not before.get('generation')
-            or any(before.get(k) != after.get(k) for k in ('accountId', 'providerId', 'generation'))):
-        return False, 'Exhaustive fallback lacks same-account order invalidation evidence'
-    return True, 'Timestamp ordering invalidated; exhaustive fallback verified; ' + message
+    # v2 can exhaust instead of connecting; no v4 generation/order flags exist.
+    return assert_full_scan_coverage(evidence, after)
 
 
 def assert_passive_coverage(before, after, observations):
-    coverage = after.get('coverage') or {}
-    recent = coverage.get('streams', {}).get('recent', {})
-    span = recent.get('range') or {}
-    rows = {row.get('id') for row in after.get('rows', [])}
-    if (before.get('coverage') is not None or coverage.get('version') != 4
-            or coverage.get('providerId') != 'gemini' or not is_account_uuid(coverage.get('accountId'))
-            or coverage.get('initialized') is not True or recent.get('initialized') is not True
-            or coverage.get('activeRunId') is not None or coverage.get('lastStatus') is not None
-            or not span or span.get('head', {}).get('time', 0) < span.get('tail', {}).get('time', 0)
-            or span.get('tail', {}).get('time', 0) <= 0
-            or any(span.get(end, {}).get('id') not in rows for end in ('head', 'tail'))
-            or not any(p.get('streamId') == 'recent' and p.get('accountId') == coverage['accountId']
+    coverage = after.get('coverage')
+    account = after.get('accountId')
+    rows = {row.get('id') or row.get('key', {}).get('conversationId') for row in after.get('rows', [])}
+    if (before.get('coverage') is not None or not is_account_uuid(account) or before.get('accountId') != account
+            or not valid_coverage(coverage) or not rows
+            or coverage['range'] and any(coverage['range'][end]['id'] not in rows for end in ('head', 'tail'))
+            or not any(p.get('streamId') == 'recent' and p.get('accountId') == account
                        and not p.get('truncated') and p.get('requestedAt', 0) > 0 for p in observations)):
-        return False, 'Natural passive RPC did not establish persisted same-account coverage'
-    return True, 'Natural passive coverage verified without active scan'
+        return False, 'Passive RPC did not establish persisted same-account Recent coverage'
+    return True, 'Natural passive Recent coverage verified without active Scan'
 
 
 def assert_activity_sync_result(baseline, before, scan, after, target_ids):
-    ok, message = assert_followup_scan_result(scan, before.get('coverage') or {}, after.get('coverage') or {})
+    initial = baseline.get('state') or {}
+    account = after.get('accountId')
+    if not is_account_uuid(account) or any(state.get('accountId') != account for state in (initial, before)):
+        return False, 'Activity scan changed selected Registry account'
+    ok, message = assert_followup_scan_result(scan, before.get('coverage'), after.get('coverage'))
     if not ok:
         return False, message
-    initial = baseline.get('state') or {}
-    original = initial.get('coverage') or {}
-    current = after['coverage']
-    if not target_ids or any(original.get(k) != current.get(k) for k in ('accountId', 'providerId', 'generation')):
-        return False, 'Activity check lacks targets or changed account/coverage generation'
-    old_rows = {r['id']: r for r in initial.get('rows', [])}
-    new_rows = {r['id']: r for r in after.get('rows', [])}
-    frozen_head = (original.get('streams', {}).get('recent', {}).get('range') or {}).get('head', {}).get('time', 0)
-    frozen_head = frozen_head or (original.get('baseline') or {}).get('headTimestamp', 0) or 0
-    span = current['streams']['recent'].get('range')
+    def rows(state):
+        return {row.get('id') or row.get('key', {}).get('conversationId'): row for row in state.get('rows', [])}
+    old_rows, new_rows = rows(initial), rows(after)
+    span = (after.get('coverage') or {}).get('range')
+    if not target_ids:
+        return False, 'Activity check has no targets'
     for cid in target_ids:
-        old_time = old_rows.get(cid, {}).get('updatedAt', frozen_head)
         row = new_rows.get(cid) or {}
-        if (row.get('titleSource') != 'provider' or row.get('updatedAt', 0) <= old_time
+        if (row.get('titleSource') != 'provider' or row.get('updatedAt', 0) <= old_rows.get(cid, {}).get('updatedAt', 0)
                 or span and span['head']['time'] < row.get('updatedAt', 0)):
-            return False, f'Real activity was not saved or coverage did not advance: {cid}'
+            return False, f'Real activity was not committed: {cid}'
     for state in (initial, before):
-        if (not {r['id'] for r in state.get('rows', [])}.issubset(new_rows)
-                or not set(state.get('exportIds', [])).issubset(after.get('exportIds', []))):
-            return False, 'Incremental scan removed archived conversations or export records'
-    pages = scan['response']['diagnostics']['totalPagesFetched']
-    full_pages = baseline.get('scan', {}).get('response', {}).get('diagnostics', {}).get('totalPagesFetched', 0)
-    if scan['response'].get('status') == 'up_to_date' and full_pages <= pages:
-        return False, f'Incremental scan did not avoid the older tail: incremental={pages}, full={full_pages}'
-    return True, message + f'; real activity saved for {len(target_ids)} targets; archives retained'
+        if not set(rows(state)).issubset(new_rows) or not set(state.get('exportIds', [])).issubset(after.get('exportIds', [])):
+            return False, 'Scan removed archives or export records'
+    return True, message
 
 
 class CDPAssertions:
@@ -314,32 +278,16 @@ class CDPAssertions:
     @staticmethod
     def assert_realtime_order(cdp_opt, promoted_chat_id: str, older_chat_id: str) -> Tuple[bool, str, Dict[str, Any]]:
         """断言老会话追加提问后在 Options 列表中已实时置顶于对比会话之前"""
-        order_info = cdp_opt.eval(f"""
-        (() => {{
-            return new Promise((resolve) => {{
-                chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
-                    const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
-                    const c1 = convs.find(c => c.key.conversationId === '{promoted_chat_id}' || c.key.conversationId === 'c_{promoted_chat_id}');
-                    const c2 = convs.find(c => c.key.conversationId === '{older_chat_id}' || c.key.conversationId === 'c_{older_chat_id}');
-                    const domItems = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM}'));
-                    const el1 = domItems.find(el => el.dataset.chatId === '{promoted_chat_id}' || el.dataset.chatId === 'c_{promoted_chat_id}');
-                    const el2 = domItems.find(el => el.dataset.chatId === '{older_chat_id}' || el.dataset.chatId === 'c_{older_chat_id}');
-                    const idx1 = domItems.indexOf(el1);
-                    const idx2 = domItems.indexOf(el2);
-
-                    resolve({{
-                        ts1: c1 ? (c1.updatedAt ?? 0) : 0,
-                        ts2: c2 ? (c2.updatedAt ?? 0) : 0,
-                        idx1: idx1,
-                        idx2: idx2,
-                        totalDom: domItems.length,
-                        el1Found: !!el1,
-                        el2Found: !!el2
-                    }});
-                }});
-            }});
-        }})()
-        """, await_promise=True) or {}
+        install_probe(cdp_opt)
+        order_info = cdp_opt.eval(f"""(async () => {{
+            const state = await globalThis.__tier2V2.snapshot();
+            const find = id => state.rows.find(row => row.key.conversationId.replace(/^c_/, '') === id.replace(/^c_/, ''));
+            const items = [...document.querySelectorAll('#list .item')];
+            const one = items.find(el => el.dataset.chatId?.replace(/^c_/, '') === {json.dumps(promoted_chat_id.removeprefix('c_'))});
+            const two = items.find(el => el.dataset.chatId?.replace(/^c_/, '') === {json.dumps(older_chat_id.removeprefix('c_'))});
+            return {{ts1:find({json.dumps(promoted_chat_id)})?.updatedAt ?? 0, ts2:find({json.dumps(older_chat_id)})?.updatedAt ?? 0,
+                idx1:items.indexOf(one), idx2:items.indexOf(two), el1Found:!!one, el2Found:!!two, totalDom:items.length}};
+        }})()""", await_promise=True) or {}
 
         idx1 = order_info.get("idx1", -1)
         idx2 = order_info.get("idx2", -1)
@@ -359,138 +307,53 @@ class CDPAssertions:
 
     @staticmethod
     def assert_badge_status(cdp_opt, chat_id: str, expected_type: str = "updated", timeout: float = 6.0) -> Tuple[bool, str, Dict[str, Any]]:
-        """断言指定会话卡片的徽章类型 (updated / exported) 及自动勾选状态 (带确定性异步轮询)"""
-        item_sel = WorkbenchSelectors.item_by_chat_id(chat_id)
-        start_time = time.time()
-        badge_info: Dict[str, Any] = {}
-
-        while time.time() - start_time < timeout:
-            badge_info = cdp_opt.eval(f"""
-            (() => {{
-                const el = document.querySelector('{item_sel}');
-                if (!el) return {{ found: false }};
-                const bUpdated = el.querySelector('{WorkbenchSelectors.BADGE_UPDATED}');
-                const bExported = el.querySelector('{WorkbenchSelectors.BADGE_EXPORTED}');
-                const cb = el.querySelector('{WorkbenchSelectors.CHECKBOX}');
-                return {{
-                    found: true,
-                    hasUpdated: !!bUpdated,
-                    updatedText: bUpdated ? bUpdated.textContent.trim() : '',
-                    hasExported: !!bExported,
-                    exportedText: bExported ? bExported.textContent.trim() : '',
-                    checked: cb ? cb.checked : false
-                }};
-            }})()
-            """) or {}
-
-            if badge_info.get("found"):
-                if expected_type == "updated" and badge_info.get("hasUpdated") and badge_info.get("checked"):
-                    return True, f"「已更新」徽章渲染正常且已被自动勾选 ({badge_info.get('updatedText')})", badge_info
-                elif expected_type == "exported" and badge_info.get("hasExported"):
-                    return True, f"「已导出」徽章渲染正常 ({badge_info.get('exportedText')})", badge_info
-
-            time.sleep(0.5)
-            # 若尚未就绪，尝试触发一次 Options 列表视图同步重载
-            try:
-                cdp_opt.eval("if (window.__workbenchLoadStore) window.__workbenchLoadStore(null, true);")
-            except Exception:
-                pass
-
-        if not badge_info.get("found"):
-            return False, f"未找到会话 ID 为 {chat_id} 的 DOM 节点", badge_info
-
-        if expected_type == "updated":
-            if not badge_info.get("hasUpdated"):
-                return False, f"缺少「已更新」徽章 (.badge-updated)", badge_info
-            if not badge_info.get("checked"):
-                return False, f"「已更新」会话未被智能自动勾选", badge_info
-            return True, f"「已更新」徽章渲染正常且已被自动勾选 ({badge_info.get('updatedText')})", badge_info
-        elif expected_type == "exported":
-            if not badge_info.get("hasExported"):
-                return False, f"缺少「已导出」徽章 (.badge-exported)", badge_info
-            return True, f"「已导出」徽章渲染正常 ({badge_info.get('exportedText')})", badge_info
-        else:
-            return True, "徽章状态检查通过", badge_info
-
-    @staticmethod
-    def assert_dom_pruned(cdp_opt, deleted_chat_id: str, timeout: float = 5.0) -> Tuple[bool, str, Dict[str, Any]]:
-        """断言已删除的会话在 Storage 与 DOM 列表中均已被彻底剥离 (动态轮询等待保证异步确定性)"""
-        t_start = time.time()
-        last_check: Dict[str, Any] = {}
-        clean_id = str(deleted_chat_id).replace('c_', '')
-        pruned_sel = WorkbenchSelectors.item_by_chat_id(deleted_chat_id)
-
-        while time.time() - t_start < timeout:
-            check = cdp_opt.eval(f"""
-            (() => {{
-                return new Promise((resolve) => {{
-                    chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
-                        const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
-                        const inStorage = convs.some(c => c.key.conversationId === '{deleted_chat_id}' || c.key.conversationId === 'c_{clean_id}' || c.key.conversationId === '{clean_id}');
-                        const inDom = !!document.querySelector('{pruned_sel}');
-                        resolve({{
-                            inStorage: inStorage,
-                            inDom: inDom,
-                            totalConvs: convs.length
-                        }});
-                    }});
-                }});
-            }})()
-            """, await_promise=True) or {}
-            last_check = check
-
-            if not check.get("inStorage", True) and not check.get("inDom", True):
-                return True, f"会话已成功剥离 DOM 与本地 Storage (剩余有效会话数: {check.get('totalConvs')})", check
-
-            time.sleep(0.3)
-
-        in_storage = last_check.get("inStorage", True)
-        in_dom = last_check.get("inDom", True)
-        return False, f"会话在 {timeout}s 内未完全剥离: Storage残留={in_storage}, DOM残留={in_dom}", last_check
+        """v2 shows export history; freshness is asserted from source and Record, never auto-selection."""
+        install_probe(cdp_opt)
+        deadline = time.monotonic() + timeout
+        last = {}
+        while time.monotonic() < deadline:
+            last = cdp_opt.eval(f"""(async () => {{
+                const state = await globalThis.__tier2V2.snapshot();
+                const index = state.rows.find(row => row.key.conversationId.replace(/^c_/, '') === {json.dumps(chat_id.removeprefix('c_'))});
+                const record = index && state.records[index.key.conversationId];
+                const row = [...document.querySelectorAll('#list .item')].find(el => el.dataset.chatId === index?.key.conversationId);
+                return {{found:!!row, index, record, text:row?.querySelector('small')?.textContent || ''}};
+            }})()""", await_promise=True) or {}
+            record, index = last.get('record') or {}, last.get('index') or {}
+            shown = bool(re.search(r'Last export|Partial export|上次导出|部分导出', last.get('text', '')))
+            if last.get('found') and shown and record.get('status') in ('ok', 'partial'):
+                if expected_type == 'exported':
+                    return True, 'ExportRecord is present and displayed', last
+                if (isinstance(index.get('updatedAt'), (int, float)) and isinstance(record.get('chatTime'), (int, float))
+                        and index['updatedAt'] > record['chatTime']):
+                    return True, 'Source update is newer than the displayed ExportRecord', last
+            time.sleep(0.25)
+        return False, f'v2 export history/freshness evidence missing: {last}', last
 
     @staticmethod
     def assert_cloud_deleted_retained(cdp_opt, deleted_chat_id: str, timeout: float = 10.0) -> Tuple[bool, str, Dict[str, Any]]:
-        """Cloud deletion updates state; the local archive remains visible and exportable."""
-        clean_id = str(deleted_chat_id).removeprefix('c_')
-        start = time.time()
+        """After actual webpage deletion, v2 retains its local Index/Detail and UI row."""
+        install_probe(cdp_opt)
+        deadline = time.monotonic() + timeout
         last = {}
-        while time.time() - start < timeout:
+        while time.monotonic() < deadline:
             last = cdp_opt.eval(f"""(async () => {{
-                const store = window.ConversationsStore;
-                const conversations = store ? store.getConversations() : [];
-                const slot = store.getCurrentAccountId();
-                const availability = (await chrome.storage.local.get('conversation_availability_' + slot))['conversation_availability_' + slot] || {{}};
-                const item = conversations.find(c => String(c.key.conversationId).replace(/^c_/, '') === {json.dumps(clean_id)});
-                const row = Array.from(document.querySelectorAll('#list .item')).find(el => String(el.dataset.chatId).replace(/^c_/, '') === {json.dumps(clean_id)});
-                return {{ retained: !!item, deleted: availability[{json.dumps(clean_id)}] === 'deleted', inDom: !!row, marked: !!row?.querySelector('.cloud-status') }};
+                const id = {json.dumps(deleted_chat_id.removeprefix('c_'))};
+                const [record] = await globalThis.__tier2V2.conversations([id]);
+                return {{retained:!!record?.domain, inDom:[...document.querySelectorAll('#list .item')].some(el => el.dataset.chatId?.replace(/^c_/, '') === id)}};
             }})()""", await_promise=True) or {}
-            if all(last.get(key) for key in ['retained', 'deleted', 'inDom', 'marked']):
-                return True, '云端删除已确认，本地归档与列表保留', last
+            if last.get('retained') and last.get('inDom'):
+                return True, 'Local Index/Detail and UI row retained after webpage deletion', last
             time.sleep(0.3)
-        return False, f'云端删除保留校验失败: {last}', last
+        return False, f'Local archive retention failed: {last}', last
 
     @staticmethod
     def assert_title_upgraded(cdp_opt, check_ids: List[str]) -> Tuple[bool, str, Dict[str, Any]]:
         """断言 Takeout 导入的会话标题在全量拉取历史后被在线 RPC 权威晋级"""
-        status = cdp_opt.eval(f"""
-        (() => {{
-            return new Promise((resolve) => {{
-                chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
-                    const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
-                    const checkList = {json.dumps(check_ids)};
-                    const matched = convs.filter(c => checkList.some(cid => c.key.conversationId === cid || c.key.conversationId === 'c_' + cid));
-                    resolve({{
-                        total: convs.length,
-                        matched: matched.map(c => ({{
-                            id: c.key.conversationId,
-                            title: c.title,
-                            source: c.titleSource
-                        }}))
-                    }});
-                }});
-            }});
-        }})()
-        """, await_promise=True) or {}
+        state = snapshot(cdp_opt)
+        status = {'total': len(state['rows']), 'matched': [
+            {'id': row['key']['conversationId'], 'title': row.get('title'), 'source': row.get('titleSource')}
+            for row in state['rows'] if row['key']['conversationId'].removeprefix('c_') in {cid.removeprefix('c_') for cid in check_ids}]}
 
         matched = status.get("matched", [])
         missing = [cid for cid in check_ids if not any(m.get('id', '').removeprefix('c_') == cid.removeprefix('c_') for m in matched)]

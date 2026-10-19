@@ -52,7 +52,8 @@ IMPORT_PATTERN = re.compile(
 
 # 组件与 E2E Spec 映射表
 COMPONENT_E2E_MAP = {
-    "src/ui": ["tests/e2e/ui_v2.spec.ts", "tests/e2e/production_v2.spec.ts"],
+    "src/ui": ["tests/e2e/ui_v2.spec.ts", "tests/e2e/production_v2.spec.ts", "tests/e2e/tier2_v2_probes.spec.ts"],
+    "scripts/framework": ["tests/e2e/tier2_v2_probes.spec.ts"],
     "src/content": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts", "tests/e2e/ui_v2.spec.ts"],
     "src/background": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts"],
 }

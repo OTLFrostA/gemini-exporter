@@ -29,6 +29,50 @@ from scripts.framework.pipeline import (
 )
 from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
 from scripts.framework.gateway import get_gateway
+from scripts.framework.v2_probe import install_probe, snapshot
+
+SCAN_OBSERVER = r"""(() => {
+    const btn = document.getElementById('btnSyncAll');
+    if (!btn || btn.disabled || document.body.dataset.busy !== 'false') return {error:'Scan button missing/disabled'};
+    window.__tier2ScanObserver?.disconnect();
+    const evidence = {started:false, finished:false};
+    window.__tier2ScanEvidence = evidence;
+    const inspect = (records = []) => {
+        if (records.some(record => record.type === 'attributes' && record.attributeName === 'data-busy' && record.oldValue === 'true')) evidence.started = true;
+        const busy = document.body.dataset.busy === 'true';
+        if (busy) evidence.started = true;
+        const account = document.getElementById('accountIdSelect')?.value;
+        const currentText = document.getElementById('status')?.textContent || '';
+        if (busy && /^(Committed \d+ pages|已接纳 \d+ 页)/.test(currentText)) {
+            if (evidence.accountId && evidence.accountId !== account) evidence.error = 'Scan account changed';
+            evidence.accountId = account;
+        }
+        if (!evidence.started || busy || evidence.finished) return;
+        const text = document.getElementById('status')?.textContent || '';
+        evidence.uiStatus = text;
+        if (evidence.accountId && account !== evidence.accountId) { evidence.error = 'Scan account changed'; evidence.finished = true; return; }
+        evidence.accountId = account;
+        const matched = text.match(/^(.*?) · (\d+) \/ (\d+)$/);
+        const statuses = {
+            'Connected to trusted history coverage':'up_to_date', '已衔接可信历史范围':'up_to_date',
+            'Reached the end of this Recent source':'complete', '已达到本次 Recent 来源尽头':'complete',
+            'Source online access limit':'partial_limit', '来源在线访问范围限制':'partial_limit',
+            'Local page budget reached':'partial_limit', '已达到本地页数预算':'partial_limit',
+            'Scan cancelled':'aborted', '扫描已取消':'aborted', 'Scan failed':'error', '扫描失败':'error'
+        };
+        if (matched && statuses[matched[1]]) evidence.response = {
+            status:statuses[matched[1]], pagesFetched:Number(matched[2]), conversationsFetched:Number(matched[3])
+        };
+        else evidence.error = text || 'No v2 Scan result';
+        evidence.finished = true;
+    };
+    const observer = new MutationObserver(inspect);
+    observer.observe(document.body, {attributes:true,attributeOldValue:true,attributeFilter:['data-busy'],subtree:true,childList:true,characterData:true});
+    window.__tier2ScanObserver = observer;
+    btn.click(); inspect();
+    return {clicked:true};
+})()"""
+
 
 _SHARED_PIPELINE_EXECUTOR = SerialActionExecutor()
 
@@ -78,135 +122,32 @@ class ExtensionActions:
 
     @staticmethod
     def verify_onboarding_tour(port: int = 9222, ext_id: Optional[str] = None, timeout: int = 15) -> bool:
-        """全自动验证 options.html 新手向导交互流程与状态持久化"""
-        print("   🧭 正在定位 options.html 标签页...")
-        start_time = time.time()
+        """Drive the real installation Tour and verify URL consumption, without stored flags."""
+        base = f"chrome-extension://{ext_id}/src/ui/options/options.html"
+        deadline = time.monotonic() + timeout
         options_tab = None
-        base_options_part = f"chrome-extension://{ext_id}/src/ui/options/options.html"
-
-        while time.time() - start_time < timeout:
-            tabs = get_tabs(port)
-            options_tab = next((t for t in tabs if base_options_part in t.get("url", "")), None)
-            if options_tab:
-                break
-            time.sleep(0.5)
-
+        while time.monotonic() < deadline:
+            options_tab = next((t for t in get_tabs(port) if base in t.get('url', '')), None)
+            if options_tab: break
+            time.sleep(0.25)
         if not options_tab:
-            new_url = f"http://127.0.0.1:{port}/json/new?{base_options_part}"
-            req = urllib.request.Request(new_url, method="PUT")
-            with urllib.request.urlopen(req, timeout=5) as r:
-                options_tab = json.loads(r.read().decode("utf-8"))
-
-        cdp = CDPConnection(options_tab["webSocketDebuggerUrl"])
+            return False
+        cdp = CDPConnection(options_tab['webSocketDebuggerUrl'])
         try:
-            tour_ready = False
-            for _ in range(20):
-                is_active = cdp.eval(f"""
-                (() => {{
-                    const popover = document.querySelector('{WorkbenchSelectors.TOUR_POPOVER}');
-                    const active = window.TourGuide ? window.TourGuide.isActive() : false;
-                    return active && !!popover;
-                }})()
-                """)
-                if is_active:
-                    tour_ready = True
-                    break
-                time.sleep(0.4)
-
-            if not tour_ready:
-                cdp.eval("if (window.TourGuide) window.TourGuide.startTour(0);")
-                time.sleep(0.5)
-
-            # Step 1
-            step1_info = cdp.eval(f"""
-            (() => {{
-                const badge = document.querySelector('{WorkbenchSelectors.TOUR_BADGE}')?.textContent || '';
-                const step = window.TourGuide ? window.TourGuide.getCurrentStep() : -1;
-                return {{ badge, step }};
-            }})()
-            """) or {}
-            current_step_num = step1_info.get("step", 0)
-            if current_step_num == 0:
-                cdp.eval("""
-                (() => {
-                    const nextBtn = document.getElementById('tourNextBtn');
-                    if (nextBtn) nextBtn.click();
-                    else if (window.TourGuide) window.TourGuide.nextStep();
-                })()
-                """)
-                time.sleep(0.5)
-
-            # Step 2: 触发 #btnSyncAll
-            cdp.eval("""
-            (() => {
-                const btn = document.getElementById('btnSyncAll');
-                if (btn) btn.click();
-            })()
-            """)
-            time.sleep(0.8)
-
-            # Step 3: 会话勾选推进
-            cdp.eval(f"""
-            (() => {{
-                const firstCb = document.querySelector('{WorkbenchSelectors.ITEM} {WorkbenchSelectors.CHECKBOX}');
-                if (firstCb) {{
-                    firstCb.checked = true;
-                    firstCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }} else {{
-                    const btnAll = document.getElementById('btnSelectAll');
-                    if (btnAll) btnAll.click();
-                }}
-            }})()
-            """)
-            time.sleep(0.8)
-
-            # Step 4: 导出步骤 -> 推进至完成
-            for _ in range(15):
-                time.sleep(0.3)
-                is_active = cdp.eval("window.TourGuide ? window.TourGuide.isActive() : false")
-                if not is_active:
-                    break
-                cur_step = cdp.eval("window.TourGuide ? window.TourGuide.getCurrentStep() : -1")
-                total_steps = cdp.eval("window.TourGuide && window.TourGuide.STEPS ? window.TourGuide.STEPS.length : 6")
-                if cur_step >= total_steps - 1:
-                    cdp.eval("""
-                    (() => {
-                        const nextBtn = document.getElementById('tourNextBtn');
-                        if (nextBtn) nextBtn.click();
-                        else if (window.TourGuide) window.TourGuide.finishTour();
-                    })()
-                    """)
-                    time.sleep(0.5)
-                    break
-                else:
-                    cdp.eval("""
-                    (() => {
-                        const nextBtn = document.getElementById('tourNextBtn');
-                        if (nextBtn) nextBtn.click();
-                        else if (window.TourGuide) window.TourGuide.nextStep();
-                    })()
-                    """)
-
-            completed_state = cdp.eval(f"""
-            (async () => {{
-                const popover = document.querySelector('{WorkbenchSelectors.TOUR_POPOVER}');
-                const isActive = window.TourGuide ? window.TourGuide.isActive() : false;
-                const storage = await chrome.storage.local.get('has_completed_tour');
-                return {{
-                    hasPopover: !!popover,
-                    isActive,
-                    storageCompleted: !!storage.has_completed_tour
-                }};
-            }})()
-            """, await_promise=True) or {}
-
-            if completed_state.get("isActive") or completed_state.get("hasPopover"):
-                return False
-            if not completed_state.get("storageCompleted"):
-                return False
-
-            cdp.eval("history.replaceState(null, '', 'options.html');")
-            return True
+            shown = False
+            for _ in range(60):
+                state = cdp.eval("""(() => {
+                    const popover = document.querySelector('.tour-popover');
+                    if (!popover) return {active:false, url:location.href};
+                    const button = [...popover.querySelectorAll('button')].find(btn => /^(Next|下一步|Start using|开始使用)$/.test(btn.textContent));
+                    if (button) button.click();
+                    return {active:true};
+                })()""") or {}
+                if state.get('active'): shown = True
+                elif shown:
+                    return 'startTour' not in state.get('url', '')
+                time.sleep(0.25)
+            return False
         finally:
             cdp.close()
 
@@ -226,12 +167,7 @@ class ExtensionActions:
         """)
         # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
         start = time.time()
-        total_items = cdp_opt.eval(f"""
-        (() => {{
-            const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
-            return s ? s.getConversations().length : document.querySelectorAll('{WorkbenchSelectors.ITEM}').length;
-        }})()
-        """) or 0
+        total_items = len((snapshot(cdp_opt) or {}).get('rows', []))
 
         while time.time() - start < timeout:
             visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
@@ -261,12 +197,7 @@ class ExtensionActions:
         """)
         # 轮询等待搜索防抖及全量列表恢复
         start = time.time()
-        target_total = cdp_opt.eval("""
-        (() => {
-            const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
-            return s ? s.getConversations().length : 0;
-        })()
-        """) or 0
+        target_total = len((snapshot(cdp_opt) or {}).get('rows', []))
 
         while time.time() - start < timeout:
             visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
@@ -319,12 +250,12 @@ class ExtensionActions:
     @staticmethod
     def switch_workbench_language(cdp_opt, lang: str = "en") -> str:
         """切换 Options 工作台语言 (en / zh)，等待异步本地化就绪并返回全选按钮文案"""
-        btn_id = 'labelLangEn' if lang == 'en' else 'labelLangZh'
+        btn_id = 'language'
         expected_part = 'all' if lang == 'en' else '全选'
         return cdp_opt.eval(f"""
         (async () => {{
             const label = document.getElementById('{btn_id}');
-            if (label) label.click();
+            if (label) {{ label.value = {json.dumps(lang)}; label.dispatchEvent(new Event('change', {{ bubbles: true }})); }}
             for (let i = 0; i < 20; i++) {{
                 const btnAll = document.getElementById('btnSelectAll');
                 const txt = btnAll ? btnAll.textContent.trim() : '';
@@ -347,114 +278,54 @@ class ExtensionActions:
         with open(zip_path, "rb") as tf:
             zip_b64 = base64.b64encode(tf.read()).decode("ascii")
 
-        return cdp_opt.eval(f"""
-        (async () => {{
-            try {{
-                const b64 = {json.dumps(zip_b64)};
-                const bin = atob(b64);
-                const arr = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-                const file = new File([arr], "{os.path.basename(zip_path)}", {{ type: "application/zip" }});
-                
-                const TC = typeof TakeoutController !== 'undefined' ? TakeoutController : window.TakeoutController;
-                if (!TC) return {{ error: "TakeoutController not loaded" }};
-
-                return await new Promise((resolve) => {{
-                    TC.handleTakeoutImport(file, {{
-                        onFinished: async (result) => {{
-                            const mediaDigests = {{}};
-                            try {{
-                                // This is the resource index returned by the real
-                                // import and committed by MediaIndex. Read bytes,
-                                // rather than accepting the reported count.
-                                for (const path of {json.dumps(media_paths or [])}) {{
-                                    const entry = result.res?.globalMedia?.[path];
-                                    if (!entry || typeof entry.async !== 'function') throw new Error('Imported media missing: ' + path);
-                                    const bytes = await entry.async('uint8array');
-                                    if (!bytes.byteLength) throw new Error('Imported media empty: ' + path);
-                                    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-                                    mediaDigests[path] = Array.from(digest, b => b.toString(16).padStart(2, '0')).join('');
-                                }}
-                            }} catch (error) {{
-                                resolve({{ success: false, error: String(error) }}); return;
-                            }}
-                            if (typeof window.__workbenchLoadStore === 'function') {{
-                                window.__workbenchLoadStore(true);
-                            }}
-                            resolve({{
-                                success: true,
-                                addedCount: result.addedCount,
-                                totalMediaCount: result.totalMediaCount,
-                                importedIds: (result.res?.conversations || []).map(c => c.key.conversationId),
-                                status: result.res?.status,
-                                mediaDigests,
-                                diagnostics: result.res?.diagnostics || []
-                            }});
-                        }},
-                        onError: (err, msg) => resolve({{ error: msg || (err && err.message) || String(err) }})
-                    }});
-                }});
-            }} catch (e) {{
-                return {{ error: e.message }};
-            }}
-        }})()
-        """, await_promise=True) or {}
+        install_probe(cdp_opt)
+        started = cdp_opt.eval(f"""(() => {{
+            const input = document.getElementById('takeoutFileInput');
+            if (!input || document.body.dataset.busy !== 'false') return false;
+            const bytes = Uint8Array.from(atob({json.dumps(zip_b64)}), c => c.charCodeAt(0));
+            const transfer = new DataTransfer();
+            transfer.items.add(new File([bytes], {json.dumps(os.path.basename(zip_path))}, {{type:'application/zip'}}));
+            input.files = transfer.files;
+            input.dispatchEvent(new Event('change', {{bubbles:true}}));
+            return true;
+        }})()""")
+        if started is not True:
+            return {'success': False, 'error': 'Takeout file input missing or workbench busy'}
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            result = cdp_opt.eval("""(() => ({ busy:document.body.dataset.busy !== 'false',
+                status:document.getElementById('status')?.textContent || '' }))()""") or {}
+            if result.get('busy') is False:
+                match = re.fullmatch(r'(?:Imported (\d+) conversations|已提交 (\d+) 条对话)（?\s*\((ok|partial)\)）?', result.get('status', ''))
+                # Chinese and English use different parentheses.
+                match = match or re.fullmatch(r'已提交 (\d+) 条对话（(ok|partial)）', result.get('status', ''))
+                if not match:
+                    return {'success': False, 'error': result.get('status') or 'No import result'}
+                source = cdp_opt.eval(f'globalThis.__tier2V2.inspectTakeout({json.dumps(zip_b64)}, {json.dumps(media_paths or [])})', await_promise=True)
+                return {'success': True, 'status': 'partial' if 'partial' in result['status'] else 'ok',
+                        'imported': int(next(v for v in match.groups() if v and v.isdigit())),
+                        'importedIds': source['ids'], 'mediaDigests': source['mediaDigests'], 'sourceResources': source['resources'],
+                        'uiStatus': result['status']}
+            time.sleep(0.1)
+        return {'success': False, 'error': 'Takeout import timed out'}
 
     @staticmethod
     def trigger_deep_scan(cdp_opt, max_wait: int = 330) -> Dict[str, Any]:
-        """Observe the real UI-triggered sync request and its original response.
-
-        The temporary observer forwards arguments/results unchanged. It never
-        synthesizes sync state and does not depend on a transient disabled button.
-        """
-        prep = cdp_opt.eval(f"""
-        (() => {{
-            const btn = document.querySelector('{WorkbenchSelectors.BTN_SYNC_ALL}');
-            if (!btn || btn.disabled) return {{ error: 'Deep scan button missing/disabled' }};
-            const original = chrome.runtime.sendMessage;
-            const evidence = {{ started: false, finished: false }};
-            window.__tier2ScanEvidence = evidence;
-            window.__tier2ScanOriginal = original;
-            chrome.runtime.sendMessage = function(...args) {{
-                const msg = args[0];
-                if (msg?.action !== 'deepScan') return original.apply(this, args);
-                evidence.started = true;
-                const capture = response => {{
-                    evidence.response = response;
-                    evidence.error = chrome.runtime.lastError?.message || null;
-                    evidence.finished = true;
-                }};
-                const last = args.length - 1;
-                if (typeof args[last] === 'function') {{
-                    const callback = args[last];
-                    args[last] = function(response) {{ capture(response); return callback(response); }};
-                    return original.apply(this, args);
-                }}
-                const promise = original.apply(this, args);
-                promise.then(capture, error => {{ evidence.error = String(error); evidence.finished = true; }});
-                return promise;
-            }};
-            btn.click();
-            return {{ clicked: true }};
-        }})()
-        """) or {}
+        """Observe the real v2 UI result, including a scan completing in one turn."""
+        prep = cdp_opt.eval(SCAN_OBSERVER) or {}
         if not prep.get('clicked'):
             return {'started': False, 'finished': False, 'error': prep.get('error', 'Button not clicked')}
         start = time.monotonic()
+        evidence = {}
         try:
             while time.monotonic() - start < max_wait:
                 evidence = cdp_opt.eval('window.__tier2ScanEvidence') or {}
                 if evidence.get('finished'):
                     return evidence
-                if not evidence.get('started') and time.monotonic() - start >= 3:
-                    return {**evidence, 'error': 'Click did not start a sync request'}
                 time.sleep(0.25)
             return {**evidence, 'error': 'Full scan response timed out'}
         finally:
-            cdp_opt.eval("""(() => {
-                if (window.__tier2ScanOriginal) chrome.runtime.sendMessage = window.__tier2ScanOriginal;
-                delete window.__tier2ScanOriginal;
-            })()""")
+            cdp_opt.eval('window.__tier2ScanObserver?.disconnect(); delete window.__tier2ScanObserver;')
 
     @staticmethod
     def wait_for_export_idle(cdp_opt, max_wait: float = 30) -> bool:
@@ -463,7 +334,7 @@ class ExtensionActions:
         while time.monotonic() < deadline:
             ready = cdp_opt.eval("""(() => {
                 const btn = document.getElementById('btnExport');
-                return !!btn && !btn.disabled && btn.getAttribute('aria-busy') !== 'true';
+                return !!btn && document.body.dataset.busy === 'false';
             })()""")
             if ready is True:
                 return True
@@ -478,7 +349,7 @@ class ExtensionActions:
         skip_exported: Optional[bool] = False,
         format_type: Optional[str] = None
     ) -> Optional[str]:
-        """确保设置 format_type、启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
+        """Configure v2 browser delivery, click Export and inspect the newly downloaded ZIP."""
         # Another CDP client can reset Chrome's download behavior after setup.
         # Bind it again on the connection kept alive until this ZIP is on disk.
         os.makedirs(output_dir, exist_ok=True)
@@ -503,7 +374,7 @@ class ExtensionActions:
         for check_d in [output_dir]:
             if os.path.isdir(check_d):
                 for f in os.listdir(check_d):
-                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
+                    if f.lower().endswith('.zip'):
                         fp = os.path.abspath(os.path.join(check_d, f))
                         try:
                             baseline_files[fp] = os.path.getmtime(fp)
@@ -511,13 +382,21 @@ class ExtensionActions:
                             pass
 
         trigger = cdp_opt.eval(f"""
-        (() => {{
+        (async () => {{
+            const settle = async () => {{
+                for (let i=0;i<100;i++) {{
+                    if (document.body.dataset.busy === 'false') return;
+                    await new Promise(resolve => setTimeout(resolve,50));
+                }}
+                throw new Error('Settings did not settle');
+            }};
             const formatType = {json.dumps(format_type)};
             if (formatType) {{
                 const fmtSelect = document.getElementById('format');
                 if (fmtSelect && fmtSelect.value !== formatType) {{
                     fmtSelect.value = formatType;
                     fmtSelect.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    await settle();
                 }}
             }}
             const skipCb = document.getElementById('skipExported');
@@ -526,26 +405,18 @@ class ExtensionActions:
                 if (shouldSkip !== null && skipCb.checked !== shouldSkip) {{
                     skipCb.checked = shouldSkip;
                     skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    await settle();
                 }}
             }}
-            const zipCb = document.getElementById('includeZip');
-            if (zipCb && !zipCb.checked) {{
-                zipCb.checked = true;
-                zipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            }}
+            const delivery = document.getElementById('delivery');
+            if (delivery) delivery.value = 'browserDownload';
             const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
             if (!btn || btn.disabled || btn.getAttribute('aria-busy') === 'true') return {{ clicked: false }};
             btn.click();
 
-            setTimeout(() => {{
-                const continueZip = document.getElementById('btnModalContinueZip');
-                if (continueZip && continueZip.offsetParent !== null) {{
-                    continueZip.click();
-                }}
-            }}, 300);
             return {{ clicked: true }};
         }})()
-        """, user_gesture=True)
+        """, user_gesture=True, await_promise=True)
         if not isinstance(trigger, dict) or not trigger.get('clicked'):
             print("❌ ZIP export not started: export button was unavailable at click time")
             return None
@@ -554,19 +425,10 @@ class ExtensionActions:
 
         while time.time() - start_time < max_wait:
             time.sleep(1.5)
-            # 若弹出直写文件夹建议弹窗，自动点击继续使用 ZIP 导出
-            cdp_opt.eval("""
-            (() => {
-                const continueZip = document.getElementById('btnModalContinueZip');
-                if (continueZip && continueZip.offsetParent !== null) {
-                    continueZip.click();
-                }
-            })()
-            """)
             if os.path.isdir(output_dir):
                 candidates = []
                 for f in os.listdir(output_dir):
-                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
+                    if f.lower().endswith('.zip'):
                         fp = os.path.abspath(os.path.join(output_dir, f))
                         try:
                             mtime = os.path.getmtime(fp)
@@ -817,84 +679,20 @@ class CDPActions(ExtensionActions):
 
     @staticmethod
     def setup_live_save(cdp_opt, enabled: bool = True) -> bool:
-        """
-        在 Options 工作台环境中配置或开关实时本地落盘 (Live Auto-Save)。
-        当 enabled=True 时：
-        1. 确保导出格式为 markdown；
-        2. 获取 native OPFS handle，并持久化写入 gemini_exporter_idb 的 handles 库；
-        3. 模拟 showDirectoryPicker 适配返回 OPFS handle；
-        4. 点击开启 liveSaveDiskToggle 并确保 live_save_config.enabledDisk 为 True；
-        当 enabled=False 时：
-        1. 点击关闭 liveSaveDiskToggle 并将 live_save_config.enabledDisk 置为 False。
-        """
-        res = cdp_opt.eval(f"""
-        (async () => {{
-            try {{
-                const enabled = {json.dumps(enabled)};
-                const diskToggle = document.getElementById('liveSaveDiskToggle');
-                const formatSelect = document.getElementById('format');
-
-                if (enabled) {{
-                    if (formatSelect && formatSelect.value !== 'markdown') {{
-                        formatSelect.value = 'markdown';
-                        formatSelect.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    }}
-
-                    const root = await navigator.storage.getDirectory();
-                    await root.getDirectoryHandle('gemini_export', {{ create: true }});
-
-                    await new Promise((resolve, reject) => {{
-                        const req = indexedDB.open('gemini_exporter_idb', 1);
-                        req.onsuccess = () => {{
-                            const db = req.result;
-                            const tx = db.transaction('handles', 'readwrite');
-                            const store = tx.objectStore('handles');
-                            store.put(root, 'export_dir_handle');
-                            tx.oncomplete = () => {{ db.close(); resolve(true); }};
-                            tx.onerror = () => {{ db.close(); reject(tx.error); }};
-                        }};
-                        req.onerror = () => reject(req.error);
-                    }});
-
-                    window.showDirectoryPicker = async () => root;
-
-                    if (diskToggle && !diskToggle.checked) {{
-                        diskToggle.checked = true;
-                        diskToggle.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    }}
-
-                    await chrome.storage.local.set({{
-                        live_save_config: {{
-                            enabledDisk: true,
-                            dirName: 'gemini_export',
-                            format: 'markdown',
-                            includeAssets: true,
-                            dirError: null
-                        }}
-                    }});
-                    return {{ ok: true, enabled: true }};
-                }} else {{
-                    if (diskToggle && diskToggle.checked) {{
-                        diskToggle.checked = false;
-                        diskToggle.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    }}
-                    const data = await chrome.storage.local.get(['live_save_config']);
-                    const cur = data.live_save_config || {{}};
-                    await chrome.storage.local.set({{
-                        live_save_config: {{
-                            ...cur,
-                            enabledDisk: false
-                        }}
-                    }});
-                    return {{ ok: true, enabled: false }};
-                }}
-            }} catch (e) {{
-                return {{ ok: false, error: e.message }};
-            }}
-        }})()
-        """, await_promise=True) or {}
-        time.sleep(0.5)
-        return bool(res.get("ok"))
+        """Configure a real OPFS handle through public v2 Storage/Settings owners."""
+        install_probe(cdp_opt)
+        res = cdp_opt.eval(f"""(async () => {{
+            const api = globalThis.__tier2V2;
+            if ({json.dumps(enabled)}) {{
+                const root = await navigator.storage.getDirectory();
+                const dir = await root.getDirectoryHandle('gemini_export', {{create:true}});
+                await api.setDirectoryHandle(dir);
+                await api.updateSettings({{enabledDisk:true, defaultFormat:'markdown',includeAssets:true}});
+            }} else await api.updateSettings({{enabledDisk:false}});
+            const settings = await api.getSettings();
+            return settings.enabledDisk === {json.dumps(enabled)};
+        }})()""", await_promise=True)
+        return res is True
 
     @staticmethod
     def flush_live_save_to_disk(cdp_opt, target_disk_dir: str) -> Dict[str, Any]:
@@ -915,24 +713,20 @@ class CDPActions(ExtensionActions):
                 }
 
                 const files = [];
-                for await (const [name, handle] of exportDir.entries()) {
-                    if (handle.kind === 'file') {
-                        const f = await handle.getFile();
-                        const text = await f.text();
-                        files.push({ path: name, text, isBinary: false, mtime: f.lastModified });
-                    } else if (handle.kind === 'directory' && name === 'assets') {
-                        for await (const [assetName, assetHandle] of handle.entries()) {
-                            if (assetHandle.kind === 'file') {
-                                const af = await assetHandle.getFile();
-                                const buf = await af.arrayBuffer();
-                                const bytes = new Uint8Array(buf);
-                                let binary = '';
-                                for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-                                files.push({ path: 'assets/' + assetName, base64: btoa(binary), isBinary: true, mtime: af.lastModified });
-                            }
+                const visit = async (directory, prefix = '') => {
+                    for await (const [name, handle] of directory.entries()) {
+                        const path = prefix + name;
+                        if (handle.kind === 'directory') { await visit(handle, path + '/'); continue; }
+                        const file = await handle.getFile();
+                        if (name.endsWith('.md')) files.push({path,text:await file.text(),isBinary:false,mtime:file.lastModified});
+                        else {
+                            const bytes = new Uint8Array(await file.arrayBuffer());
+                            let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte);
+                            files.push({path,base64:btoa(binary),isBinary:true,mtime:file.lastModified});
                         }
                     }
-                }
+                };
+                await visit(exportDir);
                 return { ok: true, files };
             } catch (e) {
                 return { ok: false, error: e.message };

@@ -17,6 +17,7 @@ from scripts.framework.assertions import CDPAssertions, assert_archive_targets, 
 from scripts.framework.pdf_evidence import assert_pdf_turn_content
 from scripts.framework.html_evidence import assert_html_turn_content
 from scripts.framework.selectors import WorkbenchSelectors
+from scripts.framework.v2_probe import install_probe
 from scripts.framework.cases.sync import wait_for_prior_scan, reset_only_coverage, select_source_account
 
 DESIGNATED_HISTORICAL_CHATS = [
@@ -67,15 +68,20 @@ def select_format_targets(cdp_opt, ctx, format_type):
     required = [r['chat_id'] for r in ctx.chat_records if r.get('chat_id')]
     required += [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if not h.get('optional')]
     optional = [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if h.get('optional')]
+    install_probe(cdp_opt)
     result = cdp_opt.eval(f"""
-    (() => {{
+    (async () => {{
+        await globalThis.__tier2V2.updateSettings({{skipExported:false,defaultFormat:{json.dumps(format_type)}}});
+        for (let i=0;i<100;i++) {{
+            if (document.body.dataset.busy === 'false' && document.getElementById('format')?.value === {json.dumps(format_type)} && !document.getElementById('skipExported')?.checked) break;
+            await new Promise(resolve => setTimeout(resolve,50));
+        }}
         const required = {json.dumps(required)}, optional = {json.dumps(optional)};
         const normalize = id => (id || '').replace(/^c_/, '');
         const items = Array.from(document.querySelectorAll('#list .item'));
         const skip = document.getElementById('skipExported'), format = document.getElementById('format');
         if (!skip || !format) return {{ error: 'Missing format/skip controls' }};
-        skip.checked = false; skip.dispatchEvent(new Event('change', {{ bubbles: true }}));
-        format.value = {json.dumps(format_type)}; format.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        if (format.value !== {json.dumps(format_type)} || skip.checked || document.body.dataset.busy !== 'false') return {{error:'Settings did not settle'}};
         const matched = [];
         for (const item of items) {{
             const cid = normalize(item.dataset.chatId), cb = item.querySelector('input[type=checkbox]');
@@ -87,7 +93,7 @@ def select_format_targets(cdp_opt, ctx, format_type):
         return {{ matched, missing: required.filter(cid => !matched.includes(cid)),
                   optionalMissing: optional.filter(cid => !matched.includes(cid)) }};
     }})()
-    """) or {}
+    """, await_promise=True) or {}
     if result.get('error') or result.get('missing') or not result.get('matched'):
         raise RuntimeError(f"指定 {format_type} 目标未完整勾选: {result}")
     return result
@@ -131,7 +137,7 @@ class LiveSaveNewChatCase(FeatureTestCase):
             if not disk_ok:
                 return False, f"场景一物理磁盘落盘断言失败: {disk_msg}", disk_data
 
-            # 3. Options 工作台状态标签断言：会话 2 刚生成且已落盘，直接呈现「已导出」(.badge-exported) 且未被勾选
+            # 3. Options 展示实际完成后的 ExportRecord；选择保持显式
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.5)
             badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s2_id, "exported")
@@ -227,7 +233,7 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
             if not disk_ok:
                 return False, f"场景二物理磁盘落盘断言失败: {disk_msg}", disk_data
 
-            # 5. Options 工作台状态标签断言：会话 1 状态必须由之前的「已更新」跃迁回「已导出」(.badge-exported) 且取消自动勾选
+            # 5. Options 展示追加内容导出后的实际 ExportRecord
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.5)
             badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s1_id, "exported")
@@ -258,15 +264,6 @@ class ZipExportDownloadCase(FeatureTestCase):
         try:
             # 确保搜索框已彻底清空并恢复全量工作台项目
             CDPActions.clear_search_workbench(cdp_opt)
-            cdp_opt.eval("""
-            (() => {
-                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    chrome.storage.local.set({ gemini_suppress_direct_write_prompt: true });
-                }
-            })()
-            """)
-            time.sleep(0.5)
-
             # 与 FastSkip 用例解耦：若残留【跳过已导出】开启状态，显式关闭，
             # 保证手动勾选导出不受其他用例的开关状态影响。
             cdp_opt.eval("""
@@ -544,23 +541,32 @@ class FastSkipExportedCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             CDPActions.clear_search_workbench(cdp_opt)
+            install_probe(cdp_opt)
             prep = cdp_opt.eval("""
-            (() => {
+            (async () => {
+                await globalThis.__tier2V2.updateSettings({defaultFormat:'markdown',skipExported:true});
+                for (let i=0;i<100;i++) {
+                    if (document.body.dataset.busy === 'false' && document.getElementById('format')?.value === 'markdown' && document.getElementById('skipExported')?.checked) break;
+                    await new Promise(resolve => setTimeout(resolve,50));
+                }
                 const items = Array.from(document.querySelectorAll('#list .item'));
-                const exported = items.filter(it => it.querySelector('.badge-exported'));
+                const state = await globalThis.__tier2V2.snapshot();
+                const exported = items.filter(it => {
+                    const record = state.records[it.dataset.chatId];
+                    const index = state.rows.find(row => row.key.conversationId === it.dataset.chatId);
+                    return record?.status === 'ok' && record.format === 'markdown' && Number.isFinite(record.chatTime)
+                        && Number.isFinite(index?.updatedAt) && record.chatTime >= index.updatedAt;
+                });
                 const skip = document.getElementById('skipExported');
-                const zip = document.getElementById('includeZip');
                 const btn = document.getElementById('btnExport');
-                if (!skip || !zip || !btn || btn.disabled) return { error: 'Export controls unavailable' };
+                if (!skip || !btn) return { error: 'Export controls unavailable' };
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');
                     if (cb) { cb.checked = exported.includes(it); cb.dispatchEvent(new Event('change', { bubbles: true })); }
                 }
-                skip.checked = true; skip.dispatchEvent(new Event('change', { bubbles: true }));
-                zip.checked = true; zip.dispatchEvent(new Event('change', { bubbles: true }));
-                return { count: exported.length, log: document.getElementById('log')?.textContent || '' };
+                return { count: exported.length, log: document.getElementById('status')?.textContent || '' };
             })()
-            """) or {}
+            """, await_promise=True) or {}
             if prep.get('error') or prep.get('count', 0) < 6:
                 return False, f"全量跳过准备不足: {prep}", prep
             start = time.monotonic()
@@ -577,13 +583,15 @@ class FastSkipExportedCase(FeatureTestCase):
             while time.monotonic() - start < 6:
                 status = cdp_opt.eval("""(() => ({
                     busy: !!document.getElementById('btnExport')?.disabled,
-                    log: document.getElementById('log')?.textContent || ''
+                    log: document.getElementById('status')?.textContent || ''
                 }))()""") or {}
                 previous = prep.get('log', '')
                 current = status.get('log', '')
                 fresh = current[len(previous):] if current.startswith(previous) else current if current != previous else ''
-                if not status.get('busy') and re.search(r'跳过|skipped|无需生成 ZIP', fresh, re.IGNORECASE):
-                    completed = True
+                result = re.fullmatch(r'Delivery initiated: (\d+); partial: (\d+); skipped: (\d+); failed: (\d+)', fresh)
+                result = result or re.fullmatch(r'已发起交付 (\d+)；部分缺失 (\d+)；跳过 (\d+)；失败 (\d+)', fresh)
+                if not status.get('busy') and result:
+                    completed = tuple(map(int, result.groups())) == (0, 0, prep['count'], 0)
                     break
                 time.sleep(0.25)
             duration = time.monotonic() - start
@@ -596,24 +604,19 @@ class FastSkipExportedCase(FeatureTestCase):
             partial = cdp_opt.eval("""
             (async () => {
                 const items = Array.from(document.querySelectorAll('#list .item'));
-                const store = window.ConversationsStore;
-                if (!store || typeof store.getConversations !== 'function') return { error: 'Missing canonical index store' };
-                const normalize = id => (id || '').replace(/^c_/, '');
-                const key = 'conversation_availability_' + store.getCurrentAccountId();
-                const availability = (await chrome.storage.local.get(key))[key] || {};
-                const available = new Set(store.getConversations()
-                    .filter(index => availability[index.key.conversationId] === 'available').map(index => normalize(index.key.conversationId)));
-                const exported = items.find(it => it.querySelector('.badge-exported'));
-                const unexported = items.find(it => !it.querySelector('.badge-exported') && available.has(normalize(it.dataset.chatId)));
+                const state = await globalThis.__tier2V2.snapshot();
+                const available = new Set(state.rows.filter(row => row.updatedAt !== undefined && row.titleSource === 'provider').map(row => row.key.conversationId));
+                const exported = items.find(it => state.records[it.dataset.chatId]);
+                const unexported = items.find(it => !state.records[it.dataset.chatId] && available.has(it.dataset.chatId));
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');
                     if (cb) { cb.checked = it === exported || it === unexported; cb.dispatchEvent(new Event('change', { bubbles: true })); }
                 }
                 return { exportedId: exported?.dataset.chatId, unexportedId: unexported?.dataset.chatId,
-                         unexportedCloudAvailability: unexported ? 'available' : null };
+                         unexportedSourceVerified: !!unexported };
             })()
             """, await_promise=True) or {}
-            if not partial.get('exportedId') or not partial.get('unexportedId') or partial.get('unexportedCloudAvailability') != 'available':
+            if not partial.get('exportedId') or not partial.get('unexportedId') or partial.get('unexportedSourceVerified') is not True:
                 return False, "部分跳过需要真实已导出会话与云端可用的未导出会话，准备不足", partial
             partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True)
             if not partial_zip or not os.path.isfile(partial_zip):

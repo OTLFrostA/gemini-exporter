@@ -5,7 +5,7 @@ export function renderList(state: ConversationViewState, disabled: boolean): voi
     const list = document.getElementById('list')!;
     list.replaceChildren();
     for (const index of state.visible()) {
-        const row = document.createElement('label'); row.className = 'item';
+        const row = document.createElement('label'); row.className = 'item'; row.dataset.chatId = index.key.conversationId;
         const checkbox = document.createElement('input'); checkbox.type = 'checkbox';
         checkbox.checked = state.selected.has(index.key.conversationId); checkbox.disabled = disabled;
         checkbox.addEventListener('change', () => {

@@ -73,15 +73,13 @@ class WorkbenchSelectors:
     ITEM: str = '#list .item'
     CHECKBOX: str = 'input[type=checkbox]'
     CHECKED_CHECKBOX: str = '#list input[type=checkbox]:checked'
-    BADGE_UPDATED: str = '.badge-updated'
-    BADGE_EXPORTED: str = '.badge-exported'
-    ITEM_TITLE: str = '.chat-title, .title'
+    ITEM_TITLE: str = 'span'
 
     BTN_SELECT_ALL: str = '#btnSelectAll'
     BTN_SELECT_NONE: str = '#btnSelectNone'
     BTN_SYNC_ALL: str = '#btnSyncAll'
     BTN_EXPORT: str = '#btnExport'
-    LOG: str = '#log'
+    LOG: str = '#status'
 
     TOUR_POPOVER: str = '.tour-popover'
     TOUR_BADGE: str = '.tour-step-badge'

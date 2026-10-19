@@ -73,8 +73,8 @@ class UpdatedBadgeDisplayCase(FeatureTestCase):
         super().__init__(
             feature_id="feat_updated_badge_display",
             domain=FeatureDomain.LIFECYCLE,
-            name="「已更新」徽章与智能勾选",
-            description="已导出过的会话检测到新提问后，渲染琥珀色「已更新」徽章并被默认自动勾选",
+            name="来源更新时间与导出记录",
+            description="追加提问后验证来源更新时间晚于已有导出记录；v2 保持显式选择",
             critical=True,
             prerequisites=["feat_continued_chat_promotion"]
         )
@@ -111,8 +111,8 @@ class EphemeralChatPruningCase(FeatureTestCase):
         super().__init__(
             feature_id="feat_ephemeral_chat_pruning",
             domain=FeatureDomain.LIFECYCLE,
-            name="云端删除状态更新与本地归档保留",
-            description="网页端删除会话后，无需刷新确认云端删除状态，并保留本地归档与 Options 列表",
+            name="网页删除与本地归档保留",
+            description="实际网页删除会话后，本地 Index/Detail 与 Options 列表仍保留",
             critical=True,
             prerequisites=[]
         )

@@ -400,7 +400,8 @@ class TestSearchClearIsolation(unittest.TestCase):
                 state["selected"] = False
             return 12
 
-        with patch("scripts.framework.cases.workbench.CDPActions.search_workbench", side_effect=search), \
+        with patch("scripts.framework.cases.workbench.snapshot", return_value={"rows":[{} for _ in range(store_total)]} if store_total is not None else None), \
+             patch("scripts.framework.cases.workbench.CDPActions.search_workbench", side_effect=search), \
              patch("scripts.framework.cases.workbench.CDPActions.select_workbench_item", side_effect=select), \
              patch("scripts.framework.cases.workbench.CDPActions.clear_search_workbench", side_effect=clear):
             result = SearchClearCase().execute(ctx)
