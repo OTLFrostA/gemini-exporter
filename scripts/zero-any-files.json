@@ -129,7 +129,6 @@
   "src/core/storage/storageService.ts",
   "src/core/storage/idbHandleStore.ts",
   "src/core/storage/idb.ts",
-  "src/core/storage/accountDataStore.ts",
   "src/core/storage/conversationStore.ts",
   "src/core/application/index.ts",
   "src/core/application/localCleanup.ts",
