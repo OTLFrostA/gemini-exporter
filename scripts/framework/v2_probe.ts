@@ -27,9 +27,10 @@ export async function conversations(ids: string[]) {
             summary: state.rows.find(row => row.key.conversationId === id) };
     }));
 }
+/** Scan reset clears both trusted Coverage and export records (frozen L3a contract). */
 export async function resetCoverage() {
     await ensureV2Ready();
-    await storage.clearStoredAccountCoverage(accountId());
+    await storage.clearStoredAccountScanRecords(accountId());
 }
 export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
     const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));

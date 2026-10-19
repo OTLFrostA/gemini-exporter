@@ -160,7 +160,13 @@ export async function initWorkbench(): Promise<void> {
     for (const [id, field] of Object.entries(settingControls)) el<HTMLInputElement>(id).addEventListener('change', () => {
         const input = el<HTMLInputElement>(id);
         const value = input.type === 'checkbox' ? input.checked : input.value;
-        void perform(async () => { await updateSettings({ [field]: value }); settings = await readSettings(); });
+        // Preserve the user's immediate choice while Web-Locked Settings writes finish.
+        const prior = settings;
+        settings = { ...settings, [field]: value };
+        void perform(async () => {
+            try { await updateSettings({ [field]: value }); settings = await readSettings(); }
+            catch (error) { settings = prior; throw error; }
+        });
     });
     el('btnTourGuide').addEventListener('click', () => { void TourGuide.startTour(); });
     const stopSettings = observeSettings(() => { void readSettings().then(next => { settings = next; render(); }).catch(e => status(errorText(e))); });
