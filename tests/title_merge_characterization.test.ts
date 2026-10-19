@@ -25,10 +25,10 @@ test('index title authority survives weaker observations and adopts same-tier re
 test('placeholder and malformed provenance are handled before index merging', () => {
     const old = indexFixture({ id: 'empty-title', title: 'Stored RPC title', titleSource: 'rpc' });
     for (const title of ['', '   ', '\t\n', 'Google Gemini']) {
-        const incoming = parseGeminiIndexObservation({ id: old.key.conversationId, title, titleSource: 'rpc' }, 'detail', fixtureAccount().id);
-        assert.equal(incoming.title, undefined);
-        assert.equal(incoming.titleSource, undefined);
-        assert.equal(mergeConversation(old, incoming).merged.title, old.title);
+        const incoming = parseGeminiIndexObservation({ id: old.key.conversationId, title, titleSource: 'rpc' }, 'detail');
+        assert.equal(incoming.fields.title, undefined);
+        assert.equal(incoming.fields.titleSource, undefined);
+        assert.equal(mergeConversation(old, { key: old.key, ...incoming.fields }).merged.title, old.title);
     }
     const dirty = parseLegacyConversationIndex({ id: old.key.conversationId, title: 'Candidate', titleSource: 'export', titles: { made_up: 'Injected title' } }, fixtureAccount());
     assert.equal(dirty.titleSource, 'derived');

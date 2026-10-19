@@ -59,7 +59,7 @@ test('L1 → L2 → Composer → Format → Packaging keeps account, resource id
                 : serializeDomainJson(domain, committedAccount, plan.resources);
             assert.ok(content.includes(plan.resources.diagram));
             const files = buildExportFiles(format, plan, content, prepared);
-            const [artifact] = await packageExportFiles([files], 'browserDownload', false);
+            const [artifact] = await packageExportFiles([files], 'browserDownload');
             const zip = await JSZip.loadAsync(await (artifact.content as Blob).arrayBuffer());
             assert.equal(await zip.file(plan.fileName).async('string'), content);
             assert.deepEqual(await zip.file(plan.resources.diagram).async('uint8array'), acquired.bytes);

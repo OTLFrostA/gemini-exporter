@@ -742,62 +742,6 @@
       ]
     },
     {
-      "file": "tests/html-document-migration.test.ts",
-      "domain": "document_ast",
-      "classification": "P2",
-      "provenanceSource": "Format-neutral Document AST and actual HTML, Markdown and PDF backend contracts",
-      "policy": "PRESERVE_PROJECT_CONTRACT",
-      "notes": "Fixtures use Domain composition or frozen Document AST plus independent resource bindings; there is no conversation compatibility converter.",
-      "testCount": 9,
-      "tests": [
-        {
-          "name": "migration setup: production entry returns a valid HTML FormattedResult",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "migration: message count and order are correct",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "migration: body text not dropped",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "migration: attachments and images not dropped",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "migration: thought not dropped",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "migration: code block not dropped",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "migration: table not dropped",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "migration: citation not dropped",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "migration: duplicate message IDs fail closed at the production export boundary",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        }
-      ]
-    },
-    {
       "file": "tests/typst-headerless-table.test.ts",
       "domain": "typst_payload",
       "classification": "P2",
@@ -1499,27 +1443,12 @@
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "tests": [
         {
-          "name": "one immutable JSON document serves all three backends without losing rich structure",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "UI locale, theme and page policy change independently of document language and content",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
           "name": "neutral contract carries no units, output formats, UI controls or source-model dependencies",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "prepared resource absence is reported by each backend without deleting the display reference",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ],
-      "testCount": 4,
+      "testCount": 1,
       "domain": "document_ast",
       "provenanceSource": "Format-neutral Document AST and actual HTML, Markdown and PDF backend contracts",
       "notes": "Fixtures use Domain composition or frozen Document AST plus independent resource bindings; there is no conversation compatibility converter."
@@ -1545,17 +1474,12 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "parser removes math delimiters; HTML renders source verbatim and preserves malformed source",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
           "name": "PDF acquires every AST image; one frozen rich JSON AST serves all backends",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ],
-      "testCount": 5,
+      "testCount": 4,
       "domain": "document_ast",
       "provenanceSource": "Format-neutral Document AST and actual HTML, Markdown and PDF backend contracts",
       "notes": "Fixtures use Domain composition or frozen Document AST plus independent resource bindings; there is no conversation compatibility converter."
@@ -1628,42 +1552,6 @@
       "tests": [
         {
           "name": "file badge maps office/media types to short labels and safely falls back",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        }
-      ]
-    },
-    {
-      "file": "tests/document-model.test.ts",
-      "domain": "document_ast",
-      "classification": "P2",
-      "policy": "PRESERVE_PROJECT_CONTRACT",
-      "provenanceSource": "Provider model and exact Document AST contracts; explicit backend badges and real-WASM image rendering",
-      "notes": "Project semantic regressions; synthetic fixtures are not evidence of provider wire compatibility.",
-      "testCount": 5,
-      "tests": [
-        {
-          "name": "provider model survives Domain, JSON AST and all renderers: {\"role\":\"model\",\"model\":\"  Gemini 2.5 Pro  \",\"content\":\"Answer\"}",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "provider model survives Domain, JSON AST and all renderers: {\"role\":\"assistant\",\"author\":{\"model\":\"  Gemini 2.5 Pro  \"},\"content\":\"Answer\"}",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "turn models, absent/invalid models and escaped model names",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "compiled PDF visibly retains the model name",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "production export entrypoints preserve provider model names",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1996,96 +1884,6 @@
       ]
     },
     {
-      "file": "tests/provider-native-callers.test.ts",
-      "domain": "provider",
-      "classification": "P2",
-      "provenanceSource": "Synthetic production caller, native pagination/export and ZIP acquisition contracts; not evidence of live provider compatibility",
-      "policy": "PRESERVE_PROJECT_CONTRACT",
-      "testCount": 16,
-      "tests": [
-        {
-          "name": "production pagination merges native pages chronologically and closes renamed resources",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "page merge dedupes stable messages and shared source images without collapsing anonymous assets",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "native token loops retain diagnostics and explicitly mark incomplete coverage",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "native exports use Domain despite a deliberately corrupted compatibility body",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "final serializers preserve native JSON and isolate the external record projection",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "production Takeout binds extension variations once and carries native Domain to PDF acquisition",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "ambiguous Takeout resources cannot be recovered later by permissive legacy guessing",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "production RPC client parses raw responses without invoking the legacy detail facade",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "live image renaming updates export hints without modifying native source facts",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "native pagination rejects mixed legacy message pages instead of dropping their bodies",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "cooperative ZIP decoding yields to the event loop and preserves synchronous HTML semantics",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "Takeout prompt-cell attachments and audio stay user-owned while response references remain assistant-owned",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "compatibility table projection preserves pipe and backslash content without adding columns",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "malformed native results fail rather than silently using the legacy parser",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "metadata-only detail retry follows native pagination to its terminal page",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "metadata-only retry cannot hide a subsequent detail-page fetch failure",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        }
-      ]
-    },
-    {
       "file": "tests/domain-storage.test.ts",
       "domain": "storage",
       "classification": "P2",
@@ -2368,12 +2166,12 @@
     }
   ],
   "summary": {
-    "totalSuites": 45,
-    "totalTests": 367,
+    "totalSuites": 42,
+    "totalTests": 333,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 347,
+      "P2": 313,
       "P3": 2,
       "P4": 0
     }

@@ -119,7 +119,7 @@ void generationEvent;
 import type { ResourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
 import type { ResourceEvidence } from '../src/core/parsers/shared/resources/resourceEvidence.js';
 import type { ResourceAcquisitionHint } from '../src/core/resources/resourceAcquisition.js';
-import type { TakeoutResourceLookup } from '../src/core/resources/takeout/mediaIndex.js';
+import type { DomainAsset as TakeoutResourceLookup } from '../src/core/domain/conversationDetail.js';
 // @ts-expect-error Core resource identity never accepts legacy null times.
 const nullResourceIdentity: ResourceIdentity = { assetId: 'x', sourceUris: [], generation: { time: null } };
 // @ts-expect-error Resolved evidence has already crossed the source normalization boundary.
@@ -127,7 +127,7 @@ const nullResourceEvidence: ResourceEvidence = { type: 'file', createdAt: null }
 // @ts-expect-error Acquisition hints carry normalized identity rather than legacy media metadata.
 const nullAcquisitionHint: ResourceAcquisitionHint = { generation: { generationOrdinal: 0, time: null } };
 // @ts-expect-error Domain resource lookups cannot inherit nullable times from the old media map.
-const nullTakeoutLookup: TakeoutResourceLookup = { assetId: 'x', generation: { time: null } };
+const nullTakeoutLookup: TakeoutResourceLookup = { id: 'x', kind: 'image', generation: { time: null } };
 void nullResourceIdentity;
 void nullResourceEvidence;
 void nullAcquisitionHint;

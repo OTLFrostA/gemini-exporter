@@ -4,4 +4,4 @@ export { runExport } from './export/runExport.js';
 export type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportFormat, ExportDelivery } from './export/types.js';
 export { getSettings, updateSettings, isLiveSaveEffective } from './settings/index.js';
 export type { GlobalSettings } from './settings/index.js';
-export { deleteLocalConversations, clearLocalExportRecords, clearLocalAccountData } from './localCleanup.js';
+export { clearLocalExportRecords, clearLocalScanRecords } from './localCleanup.js';

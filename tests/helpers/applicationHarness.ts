@@ -65,8 +65,10 @@ const storage = {
         details.delete(address(key));
     },
     async deleteIndex(key: ConversationKey) { events.push(`delete-index:${key.conversationId}`); indexes.delete(address(key)); },
-    async clearStoredAccountData(accountId: string) { events.push(`clear-account:${accountId}`); },
+    async clearStoredAccountCoverage(accountId: string) { events.push(`clear-coverage:${accountId}`); if (state.failDelete === 'coverage') throw new Error('coverage failed'); },
     async getDirectoryHandle() { return state.directory; },
+    async setDirectoryHandle(handle: FileSystemDirectoryHandle) { events.push('save-directory'); state.directory = handle; },
+    async clearDirectoryHandle() { events.push('clear-directory'); state.directory = null; },
     async getStoredSettings() { if (state.failRead) throw new Error('read failed'); return structuredClone(settings); },
     async patchStoredSettings(patch: Partial<GlobalSettings>) {
         if (state.failSettingsWrite) throw new Error('write failed');
@@ -75,7 +77,7 @@ const storage = {
 };
 stubModule('../../src/core/storage/storageService.js', storage);
 stubModule('../../src/core/api/accountRegistry.js', { async getAccount(id: string) { return { ...account, id }; } });
-stubModule('../../src/core/provider/providerRegistry.js', { ProviderRegistry: { get() { return provider; } } });
+stubModule('../../src/core/provider/providerRegistry.js', { ProviderRegistry: { get() { return provider; }, register() {}, setDefaultProviderId() {} } });
 stubModule('../../src/core/provider/taskProvider.js', {
     createTaskProvider(_providerId: string, resources: SourceResourceContext): AIProvider {
         contexts.push(resources);
@@ -111,7 +113,7 @@ export function seed(id = 'first', options: { updatedAt?: number; savedAt?: numb
     return { index, detail };
 }
 export function request(patch: Partial<ExportRequest> = {}): ExportRequest {
-    return { keys: [key()], format: 'markdown', delivery: 'browserDownload', useZip: false, includeAssets: true, skipUnchanged: false, ...patch };
+    return { keys: [key()], format: 'markdown', delivery: 'browserDownload', includeAssets: true, skipUnchanged: false, ...patch };
 }
 export function reset(): void {
     indexes.clear(); details.clear(); records.clear(); events.length = 0; deliveries.length = 0; contexts.length = 0; settings = {};

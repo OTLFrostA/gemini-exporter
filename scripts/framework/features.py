@@ -100,7 +100,7 @@ class FeatureRegistry:
         self.register(Feature(
             id="feat_updated_badge_display",
             domain=FeatureDomain.LIFECYCLE,
-            name="「已更新」徽章与智能勾选",
+            name="来源更新时间与导出记录",
             description="已导出过的会话检测到新提问后，渲染琥珀色「已更新」徽章并被默认自动勾选",
             critical=True,
             prerequisites=["feat_continued_chat_promotion"]
@@ -142,7 +142,7 @@ class FeatureRegistry:
             id="feat_deep_scan_pagination",
             domain=FeatureDomain.TAKEOUT,
             name="全量拉取历史分页同步",
-            description="点击【全量拉取历史】按钮，分页拉取所有云端会话，进度条正常推进至 100%",
+            description="点击 Scan All，验证实际 Recent 扫描结果和持久化 Coverage",
             critical=True
         ))
         self.register(Feature(

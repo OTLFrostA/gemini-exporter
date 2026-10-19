@@ -12,7 +12,7 @@ import { getOrCreateAccount } from '../src/core/domain/accountAdmission.js';
 import { readConversation } from '../src/core/domain/readConversation.js';
 import { ingestDetail, ingestIndexes } from '../src/core/domain/ingestion.js';
 import { scanAll } from '../src/core/application/sync/scanController.js';
-import { deleteLocalConversations, clearLocalAccountData } from '../src/core/application/localCleanup.js';
+import { clearLocalExportRecords, clearLocalScanRecords } from '../src/core/application/localCleanup.js';
 import { getSettings, updateSettings } from '../src/core/application/settings/index.js';
 import { getAccount, listAccounts } from '../src/core/api/accountRegistry.js';
 import { __setModuleOverride } from '../src/core/utils/moduleOverrides.js';
@@ -66,7 +66,7 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
         assert.equal((await scanAll({ accountId: account.id })).status, 'complete');
         assert.equal(await storage.getDetail(key), null);
         assert.ok((await storage.getCoverage(account.id, 'recent'))?.range);
-        const result = await runExport({ keys: [key], format: 'markdown', delivery: 'browserDownload', useZip: false, includeAssets: true, skipUnchanged: false });
+        const result = await runExport({ keys: [key], format: 'markdown', delivery: 'browserDownload', includeAssets: true, skipUnchanged: false });
         assert.equal(result.exported, 1); assert.deepEqual(result.failed, []);
         assert.equal(await recordsAtClick[0], null, 'delivery precedes Record commit');
         const blob = await deliveries[0];
@@ -80,10 +80,11 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
         assert.ok(!JSON.stringify(detail).includes(png));
         await assert.rejects(contexts[0].acquire(key, detail!.assets[0]), /released/);
         assert.equal((await readConversation(key))?.index.key.accountId, account.id);
-        await deleteLocalConversations([key]);
-        assert.equal(await storage.getDetail(key), null); assert.equal(await storage.getExportRecord(key), null);
-        assert.ok((await storage.getCoverage(account.id, 'recent'))?.range, 'selected cleanup retains coverage');
-        await clearLocalAccountData(account.id);
+        await clearLocalExportRecords(account.id);
+        assert.ok(await storage.getDetail(key)); assert.equal(await storage.getExportRecord(key), null);
+        assert.ok((await storage.getCoverage(account.id, 'recent'))?.range);
+        await clearLocalScanRecords(account.id);
+        assert.ok(await storage.getDetail(key)); assert.ok(await storage.getIndex(key));
         assert.equal(await storage.getCoverage(account.id, 'recent'), null);
         assert.deepEqual(await storage.getAccount(account.id), account);
     } finally {
@@ -125,7 +126,7 @@ test('failed IDB commits never advance coverage or replace accepted Detail; raw 
         env.fail('details');
         await assert.rejects(ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 20 }, { updatedAt: 20 }), /write failed/);
         env.fail();
-        assert.equal((await storage.getIndex(key))?.updatedAt, 20);
+        assert.equal((await storage.getIndex(key))?.updatedAt, undefined);
         assert.equal((await storage.getDetail(key))?.savedAt, 10);
         env.fail('coverage');
         const page = { streamId: 'recent', requestCursor: null, nextCursor: null, requestedAt: 1,

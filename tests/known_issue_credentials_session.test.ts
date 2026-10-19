@@ -8,7 +8,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const code = fs.readFileSync(path.join(__dirname, '..', 'src', 'content', 'bootstrap.js'), 'utf8');
+const code = require('esbuild').buildSync({ entryPoints: [path.join(__dirname, '..', 'src', 'content', 'bootstrap.ts')], bundle: true, write: false, format: 'iife', globalName: 'TestBootstrap', logLevel: 'silent' }).outputFiles[0].text;
 const protocolCode = fs.readFileSync(path.join(__dirname, '..', 'src', 'core', 'protocol', 'protocol.js'), 'utf8');
 
 function makeContext() {
@@ -18,7 +18,7 @@ function makeContext() {
         setTimeout, clearTimeout, queueMicrotask,
         URL,
         chrome: {
-            runtime: { id: 'test-extension', sendMessage: async (message: any) => ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}) },
+            runtime: { id: 'test-extension', sendMessage: async (message: any) => message.action === 'ensureV2Ready' ? {ok:true} : ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}) },
             storage: {
                 local: {
                     get: async (keys: any) => {
@@ -106,6 +106,7 @@ test('p1-lock: session tokens live in chrome.storage.session, never in chrome.st
     // Mirror the browser load order: protocol.js loads before bootstrap.js.
     vm.runInContext(protocolCode, ctx, { filename: 'protocol.js' });
     vm.runInContext(code, ctx, { filename: 'bootstrap.js' });
+    ctx.TestBootstrap.initBootstrap();
     // bootstrap runs ensureCreds() at load; let its async chain settle.
     await new Promise(r => setImmediate(r));
     await new Promise(r => setImmediate(r));

@@ -5,9 +5,10 @@ let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
         import * as registry from './src/core/storage/accountRegistryStore.ts';
+        import { readAccountRegistry } from './src/core/domain/accountRegistry.ts';
         import { getOrCreateAccount } from './src/core/domain/accountAdmission.ts';
-        import { openDomainDB } from './src/core/storage/domain/domainStore.ts';
-        globalThis.registryProbe = { ...registry, getOrCreateAccount, openDomainDB };
+        import { openStorageDB as openDomainDB } from './src/core/storage/idb.ts';
+        globalThis.registryProbe = { ...registry, listAccounts: async () => readAccountRegistry(await registry.listAccounts()), getOrCreateAccount, openDomainDB };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;
 });
@@ -53,7 +54,7 @@ test('malformed disk accounts fail closed without read repair or replacement', a
         db.close();
         let readRejected = false, writeRejected = false;
         try { await api.listAccounts(); } catch { readRejected = true; }
-        try { await api.getOrCreateAccount('gemini', 'new-subject'); } catch { writeRejected = true; }
+        try { await api.getOrCreateAccount('gemini', 'bad-record'); } catch { writeRejected = true; }
         const readDB = await api.openDomainDB();
         const raw = await new Promise(resolve => {
             const tx = readDB.transaction('accounts', 'readonly');

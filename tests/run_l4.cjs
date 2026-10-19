@@ -3,10 +3,8 @@ const path = require('node:path');
 const manifest = require('./l4-tests.json');
 const root = path.resolve(__dirname, '..');
 let passed = 0;
-for (const group of [
-    manifest.suites,
-    ...manifest.selected.map(({ file, pattern }) => [`--test-name-pattern=${pattern}`, file]),
-]) {
+{
+    const group = manifest.suites;
     const result = spawnSync(process.execPath, ['-r', './tests/ts_register.js', '--test', ...group], {
         cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
     });
@@ -18,4 +16,4 @@ for (const group of [
     if (!count) throw new Error('Missing L4 test completion summary');
     passed += Number(count[1]);
 }
-process.stdout.write(`L4: ${passed} selected tests passed; no failures.\n`);
+process.stdout.write(`L4: ${passed} tests passed; no failures.\n`);

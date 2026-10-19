@@ -2,7 +2,7 @@ import { fixtureAccountFor } from './helpers/domainFixture.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import type { ReadonlyDomain, TrustedDomain } from '../src/core/domain/runtimeValidation.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/exportDomainDocument.js';
+import { serializeDomainJson } from '../src/core/renderers/json/serializeDomainJson.js';
 import { contentComposer } from '../src/core/document/compose/composeContent.js';
 
 // These checks exercise the actual consumer signatures, including their nested fields.
@@ -21,8 +21,8 @@ function consumerContract(input: Parameters<typeof composeDomainDocument>[0]) {
     input.detail.messages[0].content[0].type = 'math';
     // @ts-expect-error Consumers cannot recover a mutable builder by assignment.
     const builder: DomainConversationWithDetail = input;
-    const html: Parameters<typeof exportDomainHtml>[0] = input;
-    const markdown: Parameters<typeof exportDomainMarkdown>[0] = input;
+    const html: Parameters<typeof serializeDomainJson>[0] = input;
+    const markdown: Parameters<typeof composeDomainDocument>[0] = input;
     // @ts-expect-error Export entry points also expose only read-only views.
     html.detail.assets[0].id = 'changed';
     // @ts-expect-error Export entry points also expose only read-only arrays.
@@ -44,6 +44,6 @@ function producerContract(builder: DomainConversationWithDetail, trusted: Truste
     builder.detail.messages.push({ role: 'assistant', content: [] });
     const view: ReadonlyDomain = trusted;
     composeDomainDocument(view, fixtureAccountFor(view));
-    void exportDomainHtml(view, fixtureAccountFor(view)); void exportDomainMarkdown(view, fixtureAccountFor(view));
+    void serializeDomainJson(view, fixtureAccountFor(view), {}); void composeDomainDocument(view, fixtureAccountFor(view));
 }
 void [consumerContract, contentContract, producerContract];

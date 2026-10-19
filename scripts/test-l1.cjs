@@ -3,7 +3,8 @@
 const { spawnSync } = require('node:child_process');
 const { readFileSync } = require('node:fs');
 const manifest = JSON.parse(readFileSync('tests/l1-tier1.json', 'utf8'));
-for (const args of [manifest.suites, ...manifest.selected.map(({ file, pattern }) => [`--test-name-pattern=${pattern}`, file])]) {
+{
+    const args = manifest.suites;
     const run = spawnSync(process.execPath, ['-r', './tests/ts_register.js', '--test', ...args], { stdio: 'inherit' });
     if (run.status !== 0) process.exit(run.status ?? 1);
 }

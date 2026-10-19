@@ -171,7 +171,6 @@ test('list acquisition consumes parser facts instead of reinterpreting wire fiel
         ['provider/chatgpt/chatgptProvider.ts', new Set(['create_time', 'update_time', 'toProviderItem'])],
         ['provider/gemini/listObservation.ts', new Set(['_raw', 'GEMINI_JSPB_SCHEMA', 'payloadToMs'])],
         ['api/client/pagination.ts', new Set(['_raw', 'GEMINI_JSPB_SCHEMA', 'payloadToMs'])],
-        ['../content/domScraper.ts', new Set(['cleanTitle', 'isRealTitle'])],
     ]);
     for (const [owner, forbiddenReads] of retiredReads) {
         for (const token of tokens(readFileSync(resolve(core, owner), 'utf8'))) {

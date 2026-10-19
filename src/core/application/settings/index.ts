@@ -3,22 +3,18 @@ import type { ExportFormat } from '../export/types.js';
 
 export interface GlobalSettings {
     defaultFormat: ExportFormat;
-    useZip: boolean;
     skipExported: boolean;
     includeAssets: boolean;
     enabledDisk: boolean;
     developerMode: boolean;
     language?: 'zh' | 'en';
     badgePosition?: { left: number; top: number };
-    tourShown?: true;
     lastSeenFeatureVersion?: string;
     takeoutPromptCompleted?: true;
-    directWritePromptShown?: true;
-    ratingPromptShown?: true;
 }
 
 export async function getSettings(): Promise<GlobalSettings> {
-    return { defaultFormat: 'markdown', useZip: true, skipExported: true,
+    return { defaultFormat: 'markdown', skipExported: true,
         includeAssets: true, enabledDisk: false, developerMode: false,
         ...await getStoredSettings() };
 }

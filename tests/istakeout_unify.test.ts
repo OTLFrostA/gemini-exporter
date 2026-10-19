@@ -1,65 +1,30 @@
-import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { indexStorage } from './helpers/indexStorage.js';
-import { restoreConversationIndex, type DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
-import ConversationsStore from '../src/ui/state/conversationsStore.js';
-import { StorageService } from '../src/core/storage/storageService.js';
-
-// The current Domain contract records import history independently of title provenance.
-// A later RPC title must not erase a prior Takeout import.
-function index(id: string, hasTakeoutImport: boolean, titleSource: 'rpc' | 'takeout' = 'rpc'): DomainConversationIndex {
-    return indexFixture({
-        providerId: 'gemini', id, title: `Conversation ${id}`, titleSource,
-        cloudAvailability: 'available', hasTakeoutImport,
-    });
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { ingestIndexes } from '../src/core/domain/ingestion.js';
+import { listIndexes, putAccount } from '../src/core/storage/storageService.js';
+import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
+useIndexStorage();
+const accountId = '10000000-0000-4000-8000-000000000001';
+async function seed() {
+    await putAccount({id:accountId, providerId:'gemini', providerAccountId:'fixture'});
+    for (const conversationId of ['mixed', 'takeout', 'active', 'stale']) await ingestIndexes(accountId, [{conversationId,fields:{title:conversationId,titleSource:conversationId === 'active' ? 'provider' : 'derived'}}]);
+    await ingestIndexes(accountId,[{conversationId:'mixed',fields:{title:'Authoritative title',titleSource:'provider'}}]);
 }
-
-const cases = () => [
-    index('mixed', true, 'rpc'),       // Takeout history, title superseded by RPC.
-    index('takeout', true, 'takeout'), // Takeout title and import history.
-    index('active', false, 'rpc'),
-    index('stale', false, 'rpc'),
-];
-
-test('UI/cloud reconciliation retains imported conversations after an RPC title update', async () => {
-    const env = indexStorage();
-    const previousSlot = ConversationsStore.getCurrentAccountId();
-    const previousList = ConversationsStore.getConversations();
-    try {
-        const originals = cases();
-        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', originals);
-        ConversationsStore.setCurrentAccountId('10000000-0000-4000-8000-000000000001');
-        ConversationsStore.setConversations(originals);
-
-        const result = await ConversationsStore.reconcileWithCloud([{ id: 'active' }], { keepTakeout: true });
-        assert.deepEqual(new Set(ConversationsStore.getConversations().map(c => c.key.conversationId)),
-            new Set(['mixed', 'takeout', 'active', 'stale']));
-        assert.deepEqual(new Set((await StorageService.getConversations('10000000-0000-4000-8000-000000000001')).map(c => c.key.conversationId)),
-            new Set(['mixed', 'takeout', 'active', 'stale']), 'UI and persisted reconciliation must agree');
-        assert.deepEqual(result.removedIds, []);
-        assert.equal(result.kept, 4);
-    } finally {
-        ConversationsStore.setConversations(previousList);
-        ConversationsStore.setCurrentAccountId(previousSlot);
-        env.restore();
-    }
+test('UI retains imported conversations after a provider title update and a list page omits them', async () => {
+    await seed(); const view = new ConversationViewState(); view.selectAccount(accountId); await view.refresh();
+    await ingestIndexes(accountId,[{conversationId:'active',fields:{title:'Online active',titleSource:'provider'}}]);
+    await view.refresh();
+    assert.deepEqual(new Set(view.indexes.map(x=>x.key.conversationId)),new Set(['mixed','takeout','active','stale']));
+    assert.equal(view.indexes.find(x=>x.key.conversationId==='mixed')?.title,'Authoritative title');
+    assert.equal(view.indexes.find(x=>x.key.conversationId==='takeout')?.titleSource,'derived');
 });
-
-test('persistent cloud reconciliation preserves local archives regardless of list absence', async () => {
-    const env = indexStorage();
-    try {
-        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', cases());
-        const result = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', [{ id: 'active' }], { keepTakeout: false });
-        assert.deepEqual(new Set(result.removedIds), new Set([]));
-        assert.equal(result.kept, 4);
-        assert.deepEqual((await StorageService.getConversations('10000000-0000-4000-8000-000000000001')).map(c => c.key.conversationId), ['mixed', 'takeout', 'active', 'stale']);
-    } finally { env.restore(); }
+test('persistent admission never treats absence from a provider page as verified deletion', async () => {
+    await seed(); await ingestIndexes(accountId,[{conversationId:'active',fields:{title:'Online active',titleSource:'provider'}}]);
+    assert.deepEqual(new Set((await listIndexes(accountId)).map(x=>x.key.conversationId)),new Set(['mixed','takeout','active','stale']));
 });
-
-test('Domain Index does not expose transient Takeout import state', () => {
-    for (const row of [index('mixed', true, 'rpc'), index('takeout', true, 'takeout'), index('active', false, 'rpc')]) {
-        assert.equal('hasTakeoutImport' in row, false);
-        assert.equal('isTakeoutOnly' in row, false);
+test('Domain Index exposes title provenance without transient import flags', async () => {
+    await seed(); for (const row of await listIndexes(accountId)) {
+        assert.equal('hasTakeoutImport' in row,false); assert.equal('isTakeoutOnly' in row,false);
     }
 });

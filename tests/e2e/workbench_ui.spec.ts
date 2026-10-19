@@ -1,219 +1,27 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
-
-test.beforeEach(async ({context, extensionId}) => {
-    void extensionId;
-    await seedRegistryAccounts(context);
+import { openOptions, seedConversations } from './uiFixture';
+test.beforeEach(async({context,extensionId})=>{void extensionId;await seedRegistryAccounts(context);});
+test('workbench list preserves explicit selection across row clicks, search and language changes',async({context,extensionId})=>{
+    const page=await openOptions(context,extensionId);
+    await seedConversations(page,[{id:'chat_001',title:'量子计算的基本原理'},{id:'chat_002',title:'AI 架构与设计模式'},{id:'chat_003',title:'Python 性能优化指南'}],{chat_001:{exportedAt:200,format:'markdown',status:'ok',chatTime:100}});
+    await expect(page.locator('#list input:checked')).toHaveCount(0);
+    await page.locator('#btnSelectAll').click();await expect(page.locator('#list input:checked')).toHaveCount(3);await expect(page.locator('#selectedStat')).toHaveText('3 selected');
+    await page.locator('#btnSelectNone').click();await expect(page.locator('#list input:checked')).toHaveCount(0);
+    const row=page.locator('[data-chat-id="chat_002"]');await row.locator('span').click();await expect(row.locator('input')).toBeChecked();await row.locator('span').click();await expect(row.locator('input')).not.toBeChecked();
+    await page.locator('#chatSearchInput').fill('量子');await expect(page.locator('#list .item')).toHaveCount(1);await page.locator('#btnSelectAll').click();await expect(page.locator('#selectedStat')).toHaveText('1 selected');
+    await page.locator('#chatSearchInput').fill('');await expect(page.locator('#list .item')).toHaveCount(3);
+    for(const language of ['zh','en']) {await page.locator('#language').selectOption(language);await expect(page.locator('#btnSelectAll')).toHaveText(language==='zh'?'全选可见项':'Select visible');await expect(page.locator('[data-chat-id="chat_001"] input')).toBeChecked();}
+    await expect(page.locator('#feedbackBox')).toHaveAttribute('href','https://tally.so/r/Y56ZBB');await expect(page.locator('#feedbackBox')).toHaveAttribute('target','_blank');await expect(page.locator('#feedbackBox')).toHaveText('Feedback');
+    await expect(page.locator('#btnSelectUpdated,#btnSelectUnexported,#btnFeedback')).toHaveCount(0);
 });
-
-test.describe('Workbench UI & Selection Controls', () => {
-  test('should render workbench list, handle selection controls, search, and language switch', async ({ context, extensionId }) => {
-    const page = await context.newPage();
-
-    // 1. Navigate to options page
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await page.waitForLoadState('domcontentloaded');
-
-    // 2. Seed mock conversations into chrome.storage.local via page execution
-    await page.evaluate(async () => {
-      const mockConvs = [
-        { id: 'chat_001', title: '量子计算的基本原理', timestamp: 1700000000000 },
-        { id: 'chat_002', title: 'AI 架构与设计模式', timestamp: 1700000100000 },
-        { id: 'chat_003', title: 'Python 性能优化指南', timestamp: 1700000200000 }
-      ];
-      const mockExported = {
-        'chat_001': { exportedAt: '2026-08-30T00:00:00Z', title: '量子计算的基本原理' }
-      };
-      await chrome.storage.local.set({
-        ['conversations_10000000-0000-4000-8000-000000000001']: (mockConvs).map(canonicalIndexFixture),
-        ['exported_10000000-0000-4000-8000-000000000001']: mockExported,
-        has_completed_tour: true,
-        last_seen_feature_version: '999.0.0'
-      });
-      if (typeof window.__workbenchLoadStore === 'function') {
-        await window.__workbenchLoadStore(true);
-      }
+test('new activity and partial export records display facts without automatic selection or UI skip authority',async({context,extensionId})=>{
+    const page=await openOptions(context,extensionId);
+    await seedConversations(page,[{id:'fresh'},{id:'exported'},{id:'updated',updatedAt:300},{id:'partial'},{id:'partial_updated',updatedAt:300},{id:'failed'},{id:'empty'}],{
+        exported:{exportedAt:200,format:'markdown',status:'ok',chatTime:100},updated:{exportedAt:200,format:'html',status:'ok',chatTime:100},partial:{exportedAt:200,format:'markdown',status:'partial',chatTime:100},partial_updated:{exportedAt:200,format:'json',status:'partial',chatTime:100}
     });
-
-    // Wait for the 3 list items to be rendered
-    const listItems = page.locator('#list .item');
-    await expect(listItems).toHaveCount(3);
-
-    // 3. Test Select All
-    await page.click('#btnSelectAll');
-    const checkedAfterSelectAll = await page.locator('#list input[type=checkbox]:checked').count();
-    expect(checkedAfterSelectAll).toBe(3);
-    await expect(page.locator('#selectedStat')).toContainText('3');
-
-    // 4. Test Select None / Deselect All
-    await page.click('#btnSelectNone');
-    const checkedAfterSelectNone = await page.locator('#list input[type=checkbox]:checked').count();
-    expect(checkedAfterSelectNone).toBe(0);
-    await expect(page.locator('#selectedStat')).toContainText('0');
-
-    // 4b. Test Row Click Toggle (clicking anywhere on the row toggles selection)
-    const firstRow = page.locator('#list .item').first();
-    const firstCheckbox = firstRow.locator('input[type=checkbox]');
-    const firstTitle = firstRow.locator('.chat-title');
-
-    // Click on title -> should select first item
-    await firstTitle.click();
-    expect(await firstCheckbox.isChecked()).toBe(true);
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
-    await expect(page.locator('#selectedStat')).toContainText('1');
-
-    // Click on row again -> should deselect first item
-    await firstRow.click();
-    expect(await firstCheckbox.isChecked()).toBe(false);
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(0);
-    await expect(page.locator('#selectedStat')).toContainText('0');
-
-    // 5. Test Select All & Select None, and verify removed filter buttons
-    await page.click('#btnSelectAll');
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(3);
-    await page.click('#btnSelectNone');
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(0);
-
-    // Filter buttons must no longer exist
-    expect(await page.locator('#btnSelectUnexported').count()).toBe(0);
-    expect(await page.locator('#btnSelectUpdated').count()).toBe(0);
-
-    // 6. Test Real-time Search Filtering
-    await page.fill('#chatSearchInput', '量子');
-    const visibleCount = await page.locator('#list .item').count();
-    expect(visibleCount).toBe(1);
-    await expect(page.locator('#list .item').first()).toContainText('量子计算的基本原理');
-
-    // Clear search
-    await page.fill('#chatSearchInput', '');
-    await expect(page.locator('#list .item')).toHaveCount(3);
-
-    // 7. Test Language Toggle Preserves Selected Items
-    // Uncheck everything then check only chat_002
-    await page.click('#btnSelectNone');
-    await page.locator('[data-chat-id="chat_002"] input[type=checkbox]').check();
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
-
-    // Switch to English
-    await page.click('#labelLangEn');
-    await expect(page.locator('#btnSelectAll')).toHaveText('All');
-    // Selection must remain exactly 1 item (chat_002)
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
-    expect(await page.locator('[data-chat-id="chat_002"] input[type=checkbox]').isChecked()).toBe(true);
-
-    // Switch back to Chinese
-    await page.click('#labelLangZh');
-    await expect(page.locator('#btnSelectAll')).toHaveText('全选');
-    // Selection must still remain exactly 1 item (chat_002)
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
-    expect(await page.locator('[data-chat-id="chat_002"] input[type=checkbox]').isChecked()).toBe(true);
-
-    // 8. Test Feedback Box as an interactive button link
-    const feedbackBox = page.locator('#feedbackBox');
-    await expect(feedbackBox).toBeVisible();
-    await expect(feedbackBox).toHaveAttribute('href', 'https://tally.so/r/Y56ZBB');
-    await expect(feedbackBox).toHaveAttribute('target', '_blank');
-    await expect(feedbackBox).toContainText('遇到问题或有新建议？');
-
-    // Standalone #btnFeedback must no longer exist
-    expect(await page.locator('#btnFeedback').count()).toBe(0);
-
-    // Switch to English and check feedback text
-    await page.click('#labelLangEn');
-    await expect(page.locator('[data-i18n="feedbackPrompt"]')).toHaveText('Got questions or suggestions?');
-
-    // Switch back to Chinese
-    await page.click('#labelLangZh');
-    await expect(page.locator('[data-i18n="feedbackPrompt"]')).toHaveText('遇到问题或有新建议？');
-  });
-
-  test('should display "已更新" badge for previously exported conversations with new activity and auto-select', async ({ context, extensionId }) => {
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await page.waitForLoadState('domcontentloaded');
-
-    await page.evaluate(async () => {
-      await chrome.storage.local.clear();
-      const ConversationsStore = (window as any).ConversationsStore;
-      if (ConversationsStore && typeof ConversationsStore.setConversations === 'function') {
-        ConversationsStore.setConversations([]);
-      }
-      const now = Date.now();
-      const mockConvs = [
-        { id: 'chat_fresh', title: '未导出新会话', timestamp: now - 3600000 },
-        { id: 'chat_exported', title: '已导出未变动会话', timestamp: now - 7200000, updatedAt: now - 7200000 },
-        { id: 'chat_updated', title: '已导出又有新对话', timestamp: now - 7200000, updatedAt: now },
-        { id: 'chat_partial', title: '附件缺失但正文已导出', timestamp: now - 7200000 },
-        { id: 'chat_legacy_partial', title: '旧版附件缺失记录', timestamp: now - 7200000 },
-        { id: 'chat_partial_updated', title: '附件缺失后又有新对话', timestamp: now - 7200000, updatedAt: now },
-        { id: 'chat_failed', title: '之前整次导出失败', timestamp: now - 7200000 },
-        { id: 'chat_empty', title: '之前未导出任何正文', timestamp: now - 7200000 }
-      ];
-      const mockExported = {
-        'chat_exported': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, title: '已导出未变动会话' },
-        'chat_updated': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, title: '已导出又有新对话' },
-        'chat_partial': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'partial', hasFailedAssets: true },
-        'chat_legacy_partial': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, hasFailedAssets: true },
-        'chat_partial_updated': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'partial', hasFailedAssets: true },
-        'chat_failed': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'failed' },
-        'chat_empty': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'empty', messageCount: 0 }
-      };
-      await chrome.storage.local.set({
-        ['conversations_10000000-0000-4000-8000-000000000001']: (mockConvs).map(canonicalIndexFixture),
-        ['exported_10000000-0000-4000-8000-000000000001']: mockExported,
-        has_completed_tour: true,
-        last_seen_feature_version: '999.0.0'
-      });
-      if (typeof window.__workbenchLoadStore === 'function') {
-        await window.__workbenchLoadStore(true);
-      }
-    });
-
-    const listItems = page.locator('#list .item');
-    await expect(listItems).toHaveCount(8);
-
-    // 1. Verify "Updated" badge on chat_updated (default headless locale is en)
-    const updatedItem = page.locator('#list .item[data-chat-id="chat_updated"]');
-    await expect(updatedItem.locator('.badge-updated')).toBeVisible();
-    await expect(updatedItem.locator('.badge-updated')).toContainText('Updated');
-
-    // 2. Verify "Exported" badge on chat_exported
-    const exportedItem = page.locator('#list .item[data-chat-id="chat_exported"]');
-    await expect(exportedItem.locator('.badge-exported')).toBeVisible();
-    await expect(exportedItem.locator('.badge-exported')).toContainText('Exported');
-
-    // 3. Verify unexported item has no badge
-    const freshItem = page.locator('#list .item[data-chat-id="chat_fresh"]');
-    expect(await freshItem.locator('.badge').count()).toBe(0);
-
-    // 4. New, updated and wholly failed exports are selected; unchanged partial delivery is accepted.
-    expect(await freshItem.locator('input[type=checkbox]').isChecked()).toBe(true);
-    expect(await updatedItem.locator('input[type=checkbox]').isChecked()).toBe(true);
-    expect(await exportedItem.locator('input[type=checkbox]').isChecked()).toBe(false);
-    const partialItem = page.locator('#list .item[data-chat-id="chat_partial"]');
-    await expect(partialItem.locator('input[type=checkbox]')).not.toBeChecked();
-    await expect(partialItem.locator('.badge-exported-partial')).toBeVisible();
-    await expect(page.locator('#list .item[data-chat-id="chat_legacy_partial"] input[type=checkbox]')).not.toBeChecked();
-    await expect(page.locator('#list .item[data-chat-id="chat_partial_updated"] input[type=checkbox]')).toBeChecked();
-    await expect(page.locator('#list .item[data-chat-id="chat_failed"] input[type=checkbox]')).toBeChecked();
-    await expect(page.locator('#list .item[data-chat-id="chat_empty"] input[type=checkbox]')).toBeChecked();
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(5);
-
-    // Accepting partial delivery by default does not prevent an explicit retry.
-    await partialItem.locator('input[type=checkbox]').check();
-
-    // 5. Test Chinese language switch: badge updates to "已更新" and "已导出"
-    await page.click('#labelLangZh');
-    await expect(updatedItem.locator('.badge-updated')).toContainText('已更新');
-    await expect(exportedItem.locator('.badge-exported')).toContainText('已导出');
-    await expect(partialItem.locator('input[type=checkbox]')).toBeChecked();
-    await expect(partialItem.locator('.badge-exported-partial')).toBeVisible();
-
-    await page.reload();
-    await expect(partialItem.locator('input[type=checkbox]')).not.toBeChecked();
-    await expect(page.locator('#list .item[data-chat-id="chat_failed"] input[type=checkbox]')).toBeChecked();
-    await expect(freshItem.locator('input[type=checkbox]')).toBeChecked();
-    await expect(updatedItem.locator('input[type=checkbox]')).toBeChecked();
-    await expect(page.locator('#list .item[data-chat-id="chat_empty"] input[type=checkbox]')).toBeChecked();
-    await expect(page.locator('#list .item[data-chat-id="chat_partial_updated"] input[type=checkbox]')).toBeChecked();
-  });
+    for(const id of ['fresh','failed','empty'])await expect(page.locator(`[data-chat-id="${id}"] small`)).toContainText('No export record');
+    await expect(page.locator('[data-chat-id="updated"] small')).toContainText('Last export · html');await expect(page.locator('[data-chat-id="partial"] small')).toContainText('Partial export');
+    await expect(page.locator('#list input:checked')).toHaveCount(0);await expect(page.locator('.badge-updated,.badge-exported')).toHaveCount(0);
+    await page.locator('[data-chat-id="partial"] input').check();await page.locator('#language').selectOption('zh');await expect(page.locator('[data-chat-id="partial"] input')).toBeChecked();await expect(page.locator('[data-chat-id="partial"] small')).toContainText('部分导出');
+    await page.reload();await expect(page.locator('#list .item')).toHaveCount(7);await expect(page.locator('#list input:checked')).toHaveCount(0);
 });

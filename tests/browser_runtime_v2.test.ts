@@ -161,7 +161,7 @@ test('Live Save returns the exact unified result and request, including skip/par
     const key = { accountId: uuid, conversationId: 'abc' };
     const result = { exported: 0, skipped: 1, partial: 1, failed: [key], aborted: true };
     const save = live({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: false }, 'granted', true, async (request: unknown) => {
-        assert.deepEqual(request, { keys: [key], format: 'markdown', delivery: 'folderWriter', useZip: false, includeAssets: false, skipUnchanged: false });
+        assert.deepEqual(request, { keys: [key], format: 'markdown', delivery: 'folderWriter', includeAssets: false, skipUnchanged: false });
         return result;
     });
     assert.equal(await save(key), result);
@@ -174,7 +174,7 @@ test('routing matches Provider and UUID, prefers matching active Tab, and never 
         sendMessage: (id: number, message: any, callback: Function) => {
             sent.push({ id, message });
             if (message.action === 'getAccountContext') callback({ ok: true, accountContext: { accountId: id === 1 ? 'other' : uuid, providerId: 'gemini' } });
-            else { global.chrome.runtime.lastError = { message: 'Tab navigated' }; callback(); delete global.chrome.runtime.lastError; }
+            else { Reflect.set(chrome.runtime, 'lastError', { message: 'Tab navigated' }); callback(); Reflect.deleteProperty(global.chrome.runtime, 'lastError'); }
         },
     } } as any;
     const routing = load('src/core/utils/tabService.ts', { 'src/core/storage/storageService.js': storage, 'src/core/api/runtimeReady.js': ready });
@@ -273,7 +273,7 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
     let install!: Function;
     const order: unknown[] = [];
     global.chrome = { runtime: { onInstalled: { addListener: (fn: Function) => { install = fn; } },
-        getManifest: () => ({ version: '2.0.0' }), openOptionsPage: async () => { order.push('open'); } } } as any;
+        getManifest: () => ({ version: '2.0.0' }), getURL: (path: string) => 'chrome-extension://ext/' + path }, tabs: { create: async ({url}: {url: string}) => { assert.match(url, /options.html\?startTour=1$/); order.push('open'); } } } as any;
     const lifecycle = load('src/background/lifecycle.ts', {
         'src/background/readiness.js': { ensureV2Ready: async () => { order.push('ready'); } },
         'src/core/application/settings/index.js': { getSettings: async () => ({}), updateSettings: async (patch: unknown) => { order.push(patch); } },
@@ -283,10 +283,10 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
     assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '2.0.0' }, 'open']);
     order.length = 0;
     install({ reason: 'update', previousVersion: '1.8.1' }); await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(order, ['ready', { tourShown: true, lastSeenFeatureVersion: '1.8.1' }]);
+    assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '1.8.1' }]);
     order.length = 0;
     install({ reason: 'update', previousVersion: 'untrusted' }); await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(order, ['ready', { tourShown: true }]);
+    assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '2.0.0' }]);
     assert.equal(Object.hasOwn(order[1] as object, 'tour' + 'AutoHandled'), false);
 });
 
@@ -397,14 +397,13 @@ test('Content registers capture, account and message listeners while readiness i
         'src/content/messageRouter.js': { MessageRouter: { init: () => initialized.push('router') } },
         'src/content/messageBridge.js': { MessageBridge: { init: () => initialized.push('bridge') } },
         'src/content/badgeView.js': { BadgeView: { ensureBadge: () => initialized.push('badge') } },
-        'src/content/liveSaveObserver.js': { LiveSaveObserver: { init: () => initialized.push('completion'), cleanup: () => {} } },
         'src/content/liveSaveCoordinator.js': { LiveSaveCoordinator: { init: () => {}, cleanup: () => {} } },
-        'src/content/accountContext.js': { invalidateAccountContext: () => {} },
+        'src/content/accountContext.js': { setAccountChangedHandler() {}, invalidateAccountContext: () => {} },
         'src/content/cleanupRegistry.js': { runCleanups: () => {}, registerCleanup: () => {} },
     });
-    assert.deepEqual(initialized, ['credentials', 'router', 'completion', 'bridge']);
+    assert.deepEqual(initialized, ['credentials', 'router', 'bridge']);
     finish(); await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(initialized, ['credentials', 'router', 'completion', 'bridge', 'badge']);
+    assert.deepEqual(initialized, ['credentials', 'router', 'bridge', 'badge']);
 });
 
 test('an early source completion survives readiness wait and keeps its captured Account after a switch', async () => {
@@ -453,7 +452,7 @@ test('active Content Account validation targets the sending document and rejects
     await assert.rejects(guard.requireCurrentContentAccount({ ...sender, documentId: 'source-document' }, uuid), /sending Tab/);
     assert.equal(checks, 1);
     global.chrome.tabs.sendMessage = ((_id: unknown, _message: unknown, _options: unknown, callback: Function) => {
-        global.chrome.runtime.lastError = { message: 'Document closed' }; callback(); delete global.chrome.runtime.lastError;
+        Reflect.set(chrome.runtime, 'lastError', { message: 'Document closed' }); callback(); Reflect.deleteProperty(global.chrome.runtime, 'lastError');
     }) as any;
     await assert.rejects(guard.requireCurrentContentAccount(sender, uuid), /Document closed/);
 });
@@ -693,16 +692,16 @@ test('passive Detail change waits for commit and Live Save writes latest Markdow
     let commit!: () => void;
     const gate = new Promise<void>(resolve => { commit = resolve; });
     const harness = completionBridge(async () => { await gate; app.append(); return true; });
-    let exported: Promise<any> | undefined;
-    harness.bridge.init({ onDetailChanged: key => { exported = app.save(key); } });
+    const exports: Promise<any>[] = [];
+    harness.bridge.init({ onDetailChanged: (key: unknown) => { exports.push(app.save(key)); } });
     const detail = harness.detail();
     const completion = harness.complete(); // Completion is only an observation, not a save trigger.
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(exported, undefined);
+    assert.equal(exports.length, 0);
     assert.equal(app.markdown.length, 1);
     commit(); await detail; await completion;
-    assert.ok(exported);
-    assert.equal((await exported).exported, 1);
+    assert.equal(exports.length, 1);
+    assert.equal((await exports[0]).exported, 1);
     assert.equal(app.markdown.length, 2);
     assert.match(app.markdown[1], /original reply/);
     assert.match(app.markdown[1], /latest generated reply/);
@@ -790,10 +789,10 @@ function migratedRuntime(initial: Record<string, unknown>, beforeWrite: (patch: 
     const writes: Record<string, unknown>[] = [];
     let listener!: Function, installed!: Function;
     let opened = 0;
-    global.chrome = { ...chromeBase(), storage: { local: {
+    global.chrome = { ...chromeBase(), tabs: { ...chromeBase().tabs, create: async () => { opened++; } }, storage: { local: {
         get: async (keys: string | string[]) => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).map(key => [key, structuredClone(data[key])])),
         set: async (patch: Record<string, unknown>) => { await beforeWrite(patch); writes.push(structuredClone(patch)); Object.assign(data, structuredClone(patch)); },
-    } }, runtime: { id: 'ext', getManifest: () => ({ version: '2.0.0' }), openOptionsPage: async () => { opened++; },
+    } }, runtime: { id: 'ext', getURL: (path: string) => 'chrome-extension://ext/' + path, getManifest: () => ({ version: '2.0.0' }), openOptionsPage: async () => { opened++; },
         onInstalled: { addListener: (fn: Function) => { installed = fn; } },
         onMessage: { addListener: (fn: Function) => { listener = fn; } },
         sendMessage: async (message: unknown) => invoke(listener, message),
@@ -885,8 +884,8 @@ for (const baseline of ['1.6.0', undefined]) test(`real Migration: Account/count
     assert.deepEqual(await count, { ok: true, count: 1 }); await settleHook();
     assert.deepEqual(await runtime.store.listIndexes(uuid), [legacyIndex]);
     assert.deepEqual(await runtime.settings.getSettings(), {
-        defaultFormat: 'html', useZip: false, skipExported: true, includeAssets: true,
-        enabledDisk: false, developerMode: false, tourShown: true, lastSeenFeatureVersion: baseline || '1.8.1',
+        defaultFormat: 'html', skipExported: true, includeAssets: true,
+        enabledDisk: false, developerMode: false, lastSeenFeatureVersion: baseline || '1.8.1',
     });
     assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
     assert.deepEqual(runtime.data[`conversations_${uuid}`], [legacyIndex]);

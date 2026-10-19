@@ -93,95 +93,29 @@ def test_html_includes():
 
 
 def test_i18n_keys():
-    # Dictionaries live in locales/{zh,en}.js since Phase 2b (classic-script
-    # modules whose bodies are flat `key: "value"` object literals).
-    dicts = {"zh": {}, "en": {}}
-    for lang in ("zh", "en"):
-        loc_ts = os.path.join(BASE_DIR, "src/core/utils/locales", f"{lang}.ts")
-        loc_file = loc_ts if os.path.isfile(loc_ts) else os.path.join(BASE_DIR, "src/core/utils/locales", f"{lang}.js")
-        with open(loc_file, "r", encoding="utf-8") as f:
-            text = f.read()
-        in_dict = False
-        for line in text.splitlines():
-            stripped = line.strip()
-            if stripped == "return {":
-                in_dict = True
-                continue
-            if in_dict:
-                if stripped.startswith("};"):
-                    break
-                if ":" in stripped:
-                    parts = stripped.split(":", 1)
-                    k = parts[0].strip().strip('"').strip("'")
-                    v = parts[1].strip().rstrip(",").strip().strip('"').strip("'")
-                    dicts[lang][k] = v
-
-    zh_dict = dicts["zh"]
-    en_dict = dicts["en"]
-    assert len(zh_dict) >= 100, f"zh locale should have 100+ keys, got {len(zh_dict)}"
-    assert len(en_dict) >= 100, f"en locale should have 100+ keys, got {len(en_dict)}"
-
+    # v2 owns small bilingual labels in UI; removed core locale dictionaries
+    # are no longer an interface. Validate every pair, including duplicate attrs.
     from html.parser import HTMLParser
-    void_tags = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}
-    zh_regex = re.compile(r'[\u4e00-\u9fa5]')
-
-    class StrictHTMLChecker(HTMLParser):
-        def __init__(self, filepath):
+    class Labels(HTMLParser):
+        def __init__(self):
             super().__init__()
-            self.filepath = filepath
-            self.tag_stack = []
-            self.errors = []
-
+            self.count = 0
         def handle_starttag(self, tag, attrs):
-            attr_dict = dict(attrs)
-            has_i18n = any(k.startswith('data-i18n') for k in attr_dict.keys())
-            for k in ['title', 'placeholder']:
-                if k in attr_dict:
-                    v = attr_dict[k]
-                    if 'Switch Language' in v or 'Developer Mode' in v:
-                        continue
-                    if f'data-i18n-{k}' not in attr_dict:
-                        self.errors.append((self.getpos(), tag, f'attr {k}="{v}" missing data-i18n-{k}'))
-            if tag not in void_tags:
-                self.tag_stack.append((tag, attr_dict, has_i18n))
+            pairs = dict(attrs)
+            assert len(pairs) == len(attrs), f"Duplicate attributes on {tag}: {attrs}"
+            assert not any(k.startswith("data-i18n") for k in pairs), "Old dictionary bindings must be migrated"
+            if "data-en" in pairs or "data-zh" in pairs:
+                assert pairs.get("data-en") and pairs.get("data-zh"), f"Incomplete bilingual label: {attrs}"
+                self.count += 1
+    for filepath in ("src/ui/options/options.html", "src/ui/popup/popup.html"):
+        checker = Labels()
+        with open(os.path.join(BASE_DIR, filepath), encoding="utf-8") as f:
+            checker.feed(f.read())
+        assert checker.count > 0, f"No bilingual labels checked in {filepath}"
+    # Actual switching, selection preservation and safe textContent rendering
+    # are exercised by i18n.test.ts / popup_ui.spec.ts / workbench_ui.spec.ts.
+    print("  ✓ Current UI bilingual label pairs are complete")
 
-        def handle_endtag(self, tag):
-            if tag in void_tags:
-                return
-            for i in range(len(self.tag_stack) - 1, -1, -1):
-                if self.tag_stack[i][0] == tag:
-                    self.tag_stack = self.tag_stack[:i]
-                    break
-
-        def handle_data(self, data):
-            clean = data.strip()
-            if not clean or clean == '中':
-                return
-            if zh_regex.search(clean):
-                in_script = any(item[0] in ('script', 'style') for item in self.tag_stack)
-                if in_script:
-                    return
-                if self.tag_stack:
-                    curr_tag, curr_attrs, curr_has_i18n = self.tag_stack[-1]
-                    if not curr_has_i18n:
-                        has_parent_html = any(attrs.get('data-i18n-html') for _, attrs, _ in self.tag_stack)
-                        if not has_parent_html:
-                            self.errors.append((self.getpos(), curr_tag, f'text: "{clean[:40]}" missing data-i18n'))
-
-    for html_file in ["src/ui/options/options.html", "src/ui/popup/popup.html"]:
-        with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
-            content = f.read()
-        html_keys = set(re.findall(r'data-i18n(?:-title|-placeholder|-html)?=["\']([^"\']+)["\']', content))
-        missing_zh = html_keys - set(zh_dict.keys())
-        missing_en = html_keys - set(en_dict.keys())
-        assert not missing_zh, f"Missing in zh ({html_file}): {missing_zh}"
-        assert not missing_en, f"Missing in en ({html_file}): {missing_en}"
-
-        checker = StrictHTMLChecker(html_file)
-        checker.feed(content)
-        assert not checker.errors, f"HTML i18n coverage errors in {html_file}: {checker.errors}"
-
-    print("  ✓ i18n keys complete and matched across all HTML templates")
 
 def test_javascript_syntax():
     import subprocess
@@ -679,97 +613,39 @@ def test_online_scenario_provider_and_lifecycle_tracker():
 
 
 def test_tour_status_indicator_styling():
-    # 1. Ensure options.html does not define unscoped .ok { ... }
-    for html_file in ["src/ui/options/options.html"]:
-        with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
-            content = f.read()
-        assert not re.search(r'(?<!button)\.ok\s*\{', content), f"Unscoped .ok rule found in {html_file}"
+    # The current Spotlight uses a cutout and dialog, not old connection lamps.
+    with open(os.path.join(BASE_DIR, "src/ui/tour/tourGuide.css"), encoding="utf-8") as f:
+        css = f.read()
+    container = re.search(r'\.tour-overlay-container\s*\{([^}]+)', css).group(1)
+    popover = re.search(r'\.tour-popover\s*\{([^}]+)', css).group(1)
+    assert "pointer-events:none" in container.replace(" ", ""), "Cutout must pass business clicks to its target"
+    assert "pointer-events:auto" in popover.replace(" ", ""), "Popover controls must stay operable"
+    assert "max-height:" in popover and "overflow:auto" in popover.replace(" ", ""), "Small viewports must retain all Tour actions"
+    with open(os.path.join(BASE_DIR, "src/ui/tour/tourGuide.ts"), encoding="utf-8") as f:
+        guide = f.read()
+    assert "role', 'dialog'" in guide and "Escape" in guide, "Guidance must preserve dialog semantics and keyboard dismissal"
+    print("  ✓ Current Tour cutout, interaction and viewport styles verified")
 
-    # 2. Ensure tourGuide.css explicitly sets background: transparent and high-contrast color for ok/warn indicators
-    tour_css_path = os.path.join(BASE_DIR, "src/ui/tour/tourGuide.css")
-    with open(tour_css_path, "r", encoding="utf-8") as f:
-        tour_css = f.read()
-    assert ".tour-status-indicator.ok" in tour_css and ".tour-status-indicator.tour-status-ok" in tour_css, "tourGuide.css missing tour-status-ok"
-    assert "background: transparent" in tour_css, "tourGuide.css must ensure status indicators have transparent background"
-    assert "#34d399" in tour_css, "tourGuide.css should use crisp high-contrast emerald color (#34d399) for status ok"
-
-    # 3. Ensure tourGuide.js uses tour-status-ok and tour-status-warn
-    tour_ts = os.path.join(BASE_DIR, "src/ui/tour/tourGuide.ts")
-    tour_js_path = tour_ts if os.path.isfile(tour_ts) else os.path.join(BASE_DIR, "src/ui/tour/tourGuide.js")
-    with open(tour_js_path, "r", encoding="utf-8") as f:
-        tour_js = f.read()
-    assert "tour-status-indicator tour-status-ok" in tour_js, "tourGuide.js missing tour-status-ok class"
-    assert "tour-status-indicator tour-status-warn" in tour_js, "tourGuide.js missing tour-status-warn class"
-
-    print("  ✓ TourGuide status indicator styles and class scoping verified")
 
 def test_takeout_limit_modal_and_wall_detection():
-    # 1. Ensure src/ui/options/options.html contains takeoutLimitModal with required actions
-    for html_file in ["src/ui/options/options.html"]:
-        with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
-            content = f.read()
-        assert 'id="takeoutLimitModal"' in content, f"takeoutLimitModal missing in {html_file}"
-        assert 'id="btnModalImportTakeout"' in content, f"btnModalImportTakeout missing in {html_file}"
-        assert 'id="btnModalOpenTakeoutWeb"' in content, f"btnModalOpenTakeoutWeb missing in {html_file}"
+    with open(os.path.join(BASE_DIR, "src/ui/options/options.ts"), encoding="utf-8") as f:
+        options = f.read()
+    with open(os.path.join(BASE_DIR, "src/ui/tour/tourGuide.ts"), encoding="utf-8") as f:
+        guide = f.read()
+    with open(os.path.join(BASE_DIR, "src/ui/controllers/syncController.ts"), encoding="utf-8") as f:
+        sync = f.read()
+    with open(os.path.join(BASE_DIR, "src/core/application/settings/index.ts"), encoding="utf-8") as f:
+        settings = f.read()
+    assert "takeoutFileInput" in options and "handleTakeoutImport" in options
+    assert "takeoutPromptCompleted" in settings and "takeoutPromptCompleted" in options
+    assert "showTakeoutPrompt" in guide and "importFile()" in guide
+    assert "scanAll" in sync and "AbortSignal" in sync, "Scan is a local typed Application invocation"
+    for old in ("deepScan", "hitGoogleLimit", "gemini_pending_takeout_prompt"):
+        assert old not in sync, f"UI must not reconstruct provider limits with {old}"
+    # Threshold, acknowledgement, import and cancellation behavior run against
+    # actual handlers in tour_guide.test.ts and takeout_limit_prompt.spec.ts.
+    print("  ✓ Takeout guidance uses Application counters, current Settings and File import")
 
-    # 2. Ensure geminiClient.js and syncController.js recognize Google 500+ sliding window limit & 429 errors
-    client_ts = os.path.join(BASE_DIR, "src/core/api/geminiClient.ts")
-    client_path = client_ts if os.path.isfile(client_ts) else os.path.join(BASE_DIR, "src/core/api/geminiClient.js")
-    with open(client_path, "r", encoding="utf-8") as f:
-        client_code = f.read()
-    assert re.search(r'all\.length\s*>=\s*500', client_code) or "hitGoogleLimit" in client_code, "geminiClient should flag hitGoogleLimit for full scans reaching 500+ chats"
-    assert "429" in client_code, "geminiClient should detect 429 rate limit wall"
-
-    sync_ts = os.path.join(BASE_DIR, "src/ui/controllers/syncController.ts")
-    sync_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/ui/controllers/syncController.js")
-    with open(sync_path, "r", encoding="utf-8") as f:
-        sync_code = f.read()
-    assert re.search(r'count\s*>=\s*500', sync_code) or "hitGoogleLimit" in sync_code, "syncController.js should treat full scan >= 500 as hitGoogleLimit"
-    assert "429" in sync_code, "syncController.js should treat 429 as hitGoogleLimit"
-
-    # 3. Ensure tabService.ts/js allocates at least 300000ms (5m) for deepScan
-    tab_service_ts = os.path.join(BASE_DIR, "src/core/utils/tabService.ts")
-    tab_service_path = tab_service_ts if os.path.isfile(tab_service_ts) else os.path.join(BASE_DIR, "src/core/utils/tabService.js")
-    with open(tab_service_path, "r", encoding="utf-8") as f:
-        tab_code = f.read()
-    assert re.search(r'(300000|5\s*\*\s*60\s*\*\s*1000)', tab_code) and "deepScan" in tab_code, "tabService.js should allow at least 300000ms timeout for deepScan"
-
-    # 4. Ensure options.js checks gemini_pending_takeout_prompt on store load
-    options_ts = os.path.join(BASE_DIR, "src/ui/options/options.ts")
-    options_js_path = options_ts if os.path.isfile(options_ts) else os.path.join(BASE_DIR, "src/ui/options/options.js")
-    with open(options_js_path, "r", encoding="utf-8") as f:
-        options_code = f.read()
-    assert "gemini_pending_takeout_prompt" in options_code, "options.js should check gemini_pending_takeout_prompt"
-    assert "checkPendingTakeoutPrompt" in options_code, "options.js should have checkPendingTakeoutPrompt"
-
-    # 5. Ensure syncEngine.js records gemini_pending_takeout_prompt when limit hit
-    sync_ts = os.path.join(BASE_DIR, "src/content/syncEngine.ts")
-    sync_js_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/content/syncEngine.js")
-    with open(sync_js_path, "r", encoding="utf-8") as f:
-        sync_code = f.read()
-    assert "gemini_pending_takeout_prompt" in sync_code or "STORAGE_KEYS.PENDING_TAKEOUT_PROMPT" in sync_code, "syncEngine.js should persist gemini_pending_takeout_prompt (literal or via STORAGE_KEYS)"
-
-    # 6. Ensure single-time tutorial prompt behavior (isTakeoutPromptCompleted & has_completed_takeout_prompt)
-    storage_ts = os.path.join(BASE_DIR, "src/core/storage/storageService.ts")
-    storage_path = storage_ts if os.path.isfile(storage_ts) else os.path.join(BASE_DIR, "src/core/storage/storageService.js")
-    with open(storage_path, "r", encoding="utf-8") as f:
-        storage_code = f.read()
-    user_prefs_path = os.path.join(BASE_DIR, "src/core/storage/userPreferences.ts")
-    if os.path.isfile(user_prefs_path):
-        with open(user_prefs_path, "r", encoding="utf-8") as f:
-            storage_code += "\n" + f.read()
-    assert "has_completed_takeout_prompt" in storage_code or "STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT" in storage_code, "storageService should track has_completed_takeout_prompt"
-    assert "isTakeoutPromptCompleted" in storage_code and "setTakeoutPromptCompleted" in storage_code, "storageService should export takeout prompt completion helpers"
-
-    dialog_ts = os.path.join(BASE_DIR, "src/ui/views/dialogView.ts")
-    dialog_js_path = dialog_ts if os.path.isfile(dialog_ts) else os.path.join(BASE_DIR, "src/ui/views/dialogView.js")
-    with open(dialog_js_path, "r", encoding="utf-8") as f:
-        dialog_code = f.read()
-    assert "isTakeoutPromptCompleted" in dialog_code and "setTakeoutPromptCompleted" in dialog_code, "dialogView.js should guard and mark takeout prompt completed"
-
-    assert "isTakeoutPromptCompleted" in options_code, "options.js should check isTakeoutPromptCompleted"
-
-    print("  ✓ Takeout limit modal & Google sliding window wall detection verified")
 
 def test_stage1_architecture_ssot_and_state_isolation():
     # 1. Verify per-slot aborts in background.ts/js (or modular src/background/)
@@ -1157,4 +1033,3 @@ def run_all():
 
 if __name__ == "__main__":
     run_all()
-

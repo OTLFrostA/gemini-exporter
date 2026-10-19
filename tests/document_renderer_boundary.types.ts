@@ -65,7 +65,8 @@ const metadataBypass: MarkdownRenderOptions = { frontMatter: [{ key: 'title', va
 void metadataBypass;
 
 
-import type { ResolveExportRecordStatusOptions } from '../src/core/engine/export/exportCompletion.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+type ResolveExportRecordStatusOptions = Pick<DomainConversationDetail, 'quality'>;
 // @ts-expect-error Diagnostic descriptions are reporting data, not export-integrity evidence.
 const diagnosticStatusInput: ResolveExportRecordStatusOptions = { quality: { status: 'unknown', diagnostics: ['warning'] } };
 void diagnosticStatusInput;

@@ -81,9 +81,9 @@ declare global {
 
     function toUrlString(url: string | URL | Request | null | undefined): string {
         if (!url) return '';
-        if (typeof url === 'string') return url;
-        if (typeof Request !== 'undefined' && url instanceof Request) return url.url;
-        return url.toString();
+        const raw = typeof url === 'string' ? url
+            : typeof Request !== 'undefined' && url instanceof Request ? url.url : url.toString();
+        try { return new URL(raw, location.href).href; } catch { return raw; }
     }
 
     function captureFromUrl(url: string | URL | Request | null | undefined, body?: unknown): void {

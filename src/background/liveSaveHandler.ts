@@ -12,5 +12,5 @@ export async function runLiveSave(key: ConversationKey): Promise<ExportResult | 
     if (!handle) throw new Error('Choose a Live Save directory in Options');
     if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Reauthorize the Live Save directory in Options');
     return runExport({ keys: [key], format: 'markdown', delivery: 'folderWriter',
-        useZip: false, includeAssets: settings.includeAssets, skipUnchanged: false });
+        includeAssets: settings.includeAssets, skipUnchanged: false });
 }

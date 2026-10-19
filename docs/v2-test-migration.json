@@ -1,0 +1,749 @@
+{
+  "baseline": "2f78e71c9551c4eec863cdbc21965e8f92bcf8b1",
+  "status": "scoped_repairs_complete_remaining_unchanged",
+  "policy": "Preserve original behavioral scenarios. Move tests to current owner APIs; explicit design changes require updated assertions, not deletion or skip. Restored tests remain in normal discovery even when failing.",
+  "files": [
+    {
+      "file": "tests/account_identity_isolation.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/active_client_contract.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/active_title_fetch.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/archive-resource-path.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/asset_dedup_and_matching.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/asset_direct_write_failure.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/asset_tab_fallback.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/audit_reinforcement.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/b1_writer_unified.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/background_modules.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/batch-b-normalization-boundary.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/batch_a_followup.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/batch_fetcher_abort.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/chat_formatter.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/clear_exported_race.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/concurrency_consistency.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/content-domain-boundary.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/content_quality.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/continued_chat_export_badge.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/conversation-representation.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/conversation_index.types.ts",
+      "status": "migrated"
+    },
+    {
+      "file": "tests/conversation_index_storage.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/conversation_repository.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/conversation_repository.types.ts",
+      "status": "migrated"
+    },
+    {
+      "file": "tests/conversation_version.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/conversations_store.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/core_host_decoupling.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/crosstab_write_queue.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/data_safety_batch1.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/dedup_regressions.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/diagnostic_snapshot.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/document-freeze.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/document-model.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/document-neutral.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/document_renderer_boundary.types.ts",
+      "status": "migrated"
+    },
+    {
+      "file": "tests/dom_scraper.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/domain_conversation_detail.types.ts",
+      "status": "migrated"
+    },
+    {
+      "file": "tests/domain_downstream_boundaries.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/domain_downstream_contract.types.ts",
+      "status": "migrated_typechecked"
+    },
+    {
+      "file": "tests/domain_readonly.types.ts",
+      "status": "migrated"
+    },
+    {
+      "file": "tests/domain_trust_counts.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/archive_notice.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/archive_retention.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/cloud_deletion_isolation.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/direct_write_prompt.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/domain_storage.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/domain_storage_extension.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/e2e_globals.d.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/export_flow.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/export_session_recovery.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/export_zip.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/html_export.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/incremental_sync.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/json_export.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/l2Fixtures.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/live_save.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/media_identity_persistence.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/mitex_pdf_export.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/multi_tier_title_arbitration.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/page_sync.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/popup_ui.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/realtime_delete.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/scan_flow.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/takeout_limit_prompt.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/e2e/uuid_request_attribution.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/visual_inspector.spec.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/e2e/workbench_ui.spec.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/export_cancel_semantics.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/export_orchestrator.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/exportedids_alias.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/exportedids_readpath_normalization.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/feature_walkthrough.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/finalize_conversation_export.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/format_store.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/gemini_client_retry.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/helpers/makeTestWorker.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/helpers/pdfAcquisitionFixture.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/html-document-migration.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/html_export.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/i18n.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/idb_handle_store.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/imagen_generated_assets.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/istakeout_unify.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/live_save_assets.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/live_save_coordinator.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/live_save_coordinator_safety.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/live_save_observer.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/live_save_permission_deadlock.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/live_storage_manager.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/maintenance_convergence_batch4.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/media-identity-persistence.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/messageRouter_liveSave_detail_contract.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/message_bridge.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/message_transport_contract.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/native_detail_transport.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/observed_page_ingest.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/options_index_notification.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/options_live_save.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/options_title_persist.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/p0_regressions.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_a_regressions.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_archive_retention.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_b1_engine.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_b2_msgui.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_b3_attach.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_c_regressions.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_d_regressions.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_h2_pathwriter.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/p1_h3_ui.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/partial_retry.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf-conversation-fallback.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf-dataurl-assets.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf-e2e-disk.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf-export.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf-exporter-dispose.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf-image-hydration.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf-options-metadata-resolution.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf-stress-gates.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf_domain_direct.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pdf_resource_acquisition.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/perf_optimizations.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/phase_g_p2_fixes.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pr3_lastseen_fallback.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/pr865_followups.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/progress_view.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/provider-native-callers.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/provider_abstraction.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/provider_degrade.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/regression_lock.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/reliability_ux_batch3.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/resource-delivery.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/retry_utils.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/rpc_list_ingest.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/run_tests.py",
+      "status": "three_ui_guards_migrated_other_checks_unchanged"
+    },
+    {
+      "file": "tests/schema_badge.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/schema_migration.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/seam_s1_content_router.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/seam_s2_background_router.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/seam_s3_ui_timeout.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/search_image_export.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/session_store.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/shared_type_foundations_contract.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/sniff_watermark_isolation.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/storage_alias_migration_race.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/storage_export_surface.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/storage_read_canonical.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/storage_readiness_boundary.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/storage_reconciliation.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/storage_service.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/storage_trust_snapshot.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/sync_provider_contract.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/tab_service.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/takeout-resource-lookup.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/takeout_and_limit_guidance.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/takeout_transact.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/test_batch_worker_c1.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/touch_timestamp_authority.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/tour_guide.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/trusted_domain_export.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/ts_c2_storage_service.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/ts_c4_session_recovery.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/ui_controllers.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/ui_views.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/unified_ingest_integrity.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/upsert_lastseen_max.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/user_file_attachment.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/user_preferences.test.ts",
+      "status": "migrated_verified"
+    },
+    {
+      "file": "tests/verifiable_export_batch2.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/verified_scan_overlap.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/watermark_checkpoint.test.ts",
+      "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/write_failure_semantics.test.ts",
+      "status": "restored_pending_review"
+    }
+  ],
+  "verification": {
+    "migrated_unit_files": 29,
+    "migrated_unit_cases": 150,
+    "migrated_browser_files": 10,
+    "migrated_browser_cases": 27,
+    "additional_ui_regressions": 8,
+    "python_ui_guards": 3,
+    "unchanged_ui_v2_browser_cases": 11,
+    "build": "passed",
+    "whole_project_typecheck": "fails: 328 diagnostics in unrepaired legacy tests; no diagnostics in this round changed files",
+    "tier2_and_tier3": "not run"
+  },
+  "new_verified_regressions": {
+    "file": "tests/ui_legacy_safety.test.ts",
+    "cases": 8,
+    "original_mixed_suites": "Retained unchanged at baseline; UI scenarios additionally ported here."
+  },
+  "verified_migrated_files": [
+    "tests/conversations_store.test.ts",
+    "tests/ui_controllers.test.ts",
+    "tests/concurrency_consistency.test.ts",
+    "tests/touch_timestamp_authority.test.ts",
+    "tests/upsert_lastseen_max.test.ts",
+    "tests/account_identity_isolation.test.ts",
+    "tests/active_client_contract.test.ts",
+    "tests/ui_views.test.ts",
+    "tests/user_preferences.test.ts",
+    "tests/feature_walkthrough.test.ts",
+    "tests/i18n.test.ts",
+    "tests/tour_guide.test.ts",
+    "tests/storage_alias_migration_race.test.ts",
+    "tests/crosstab_write_queue.test.ts",
+    "tests/storage_read_canonical.test.ts",
+    "tests/format_store.test.ts",
+    "tests/options_index_notification.test.ts",
+    "tests/options_title_persist.test.ts",
+    "tests/progress_view.test.ts",
+    "tests/options_live_save.test.ts",
+    "tests/seam_s3_ui_timeout.test.ts",
+    "tests/shared_type_foundations_contract.test.ts",
+    "tests/istakeout_unify.test.ts",
+    "tests/message_transport_contract.test.ts",
+    "tests/p1_h3_ui.test.ts",
+    "tests/live_save_permission_deadlock.test.ts",
+    "tests/takeout_transact.test.ts",
+    "tests/clear_exported_race.test.ts",
+    "tests/exportedids_readpath_normalization.test.ts",
+    "tests/e2e/workbench_ui.spec.ts",
+    "tests/e2e/popup_ui.spec.ts",
+    "tests/e2e/export_flow.spec.ts",
+    "tests/e2e/direct_write_prompt.spec.ts",
+    "tests/e2e/export_session_recovery.spec.ts",
+    "tests/e2e/takeout_limit_prompt.spec.ts",
+    "tests/e2e/scan_flow.spec.ts",
+    "tests/e2e/live_save.spec.ts",
+    "tests/e2e/archive_notice.spec.ts",
+    "tests/e2e/archive_retention.spec.ts"
+  ]
+}

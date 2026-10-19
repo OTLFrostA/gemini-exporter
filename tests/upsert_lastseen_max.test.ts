@@ -1,65 +1,23 @@
-import { catalogMock } from './helpers/catalogMock.js';
-import { withRegistry } from './helpers/registryMock.js';
-import { indexFixture } from './helpers/indexFixture.js';
-/**
- * Server-authored updatedAt is monotonic across index observations.
- * Legacy/local lastSeen is not an activity version and must not enter Domain;
- * unknown source times remain absent rather than being seeded from Date.now().
- */
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-const SyncEngine = require('../src/content/syncEngine.js');
-const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
-
-function mockStorageContext() {
-    const previousChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    const previousStorage = __getModuleOverride('StorageService');
-    let savedList: any[] = [];
-    const mockStorage = {
-        getConversations: async () => ([...savedList]).map(indexFixture),
-        transactConversations: async (_slot: string, updater: any) => {
-            const res = updater([...savedList]);
-            if (res && res.list) savedList = res.list;
-            return { list: savedList, changed: res?.changed || 0, written: !!res };
-        },
-        setLastSync: async () => {},
-        updateAccountSlot: async () => {},
-        getScanCheckpoint: async () => null,
-        setScanCheckpoint: async () => {}
-    };
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({ runtime: { sendMessage: () => {} }, storage: catalogMock(() => savedList, list => { savedList = list; }) }) });
-    __setModuleOverride('StorageService', mockStorage);
-    return {
-        seed: (items: any[]) => { savedList = items.map(indexFixture); },
-        find: (id: string) => savedList.find((c: any) => c.key.conversationId === id),
-        restore: () => {
-            __setModuleOverride('StorageService', previousStorage);
-            if (previousChrome) Object.defineProperty(globalThis, 'chrome', previousChrome);
-            else Reflect.deleteProperty(globalThis, 'chrome');
-        },
-    };
-}
-
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { ingestIndexes } from '../src/core/domain/ingestion.js';
+import { getIndex } from '../src/core/storage/storageService.js';
+useIndexStorage();
+const accountId = '10000000-0000-4000-8000-000000000001';
 test('local observation time never enters an existing or new index', async () => {
-    for (const previous of [[], [{ id: 'chat1', title: 'Research', updatedAt: 1000, lastSeen: 'old' }]]) {
-        const ctx = mockStorageContext();
-        try {
-            ctx.seed(previous);
-            await SyncEngine.upsertConversations([{ id: 'chat1', title: 'Research', updatedAt: 900, lastSeen: '2099-01-01' }], 'page-sync', '10000000-0000-4000-8000-000000000001');
-            const index = ctx.find('chat1');
-            assert.equal(index.updatedAt, previous.length ? 1000 : 900);
-            assert.equal('lastSeen' in index, false);
-            assert.equal('timestamp' in index, false);
-        } finally { ctx.restore(); }
+    for (const [id, previous] of [['new', undefined], ['existing', 1000]] as const) {
+        const key = { accountId, conversationId: id };
+        if (previous) await ingestIndexes(accountId, [{ conversationId: id, fields: { updatedAt: previous } }]);
+        await ingestIndexes(accountId, [{ conversationId: id, fields: { updatedAt: 900 } }]);
+        const index = await getIndex(key); assert.equal(index?.updatedAt, previous ?? 900);
+        assert.equal(Object.hasOwn(index!, 'lastSeen'), false); assert.equal(Object.hasOwn(index!, 'timestamp'), false);
+        await assert.rejects(ingestIndexes(accountId, [{ conversationId: id, fields: { lastSeen: '2099-01-01' } as never }]), /Invalid conversation index schema/);
+        assert.equal((await getIndex(key))?.updatedAt, previous ?? 900);
     }
 });
 test('an observation without authored time stays undated', async () => {
-    const ctx = mockStorageContext();
-    try {
-        ctx.seed([]);
-        await SyncEngine.upsertConversations([{ id: 'chat1', title: 'Research' }], 'page-sync', '10000000-0000-4000-8000-000000000001');
-        assert.equal(ctx.find('chat1').updatedAt, undefined);
-        assert.equal(ctx.find('chat1').createdAt, undefined);
-    } finally { ctx.restore(); }
+    await ingestIndexes(accountId, [{ conversationId: 'undated', fields: {} }]);
+    const index = await getIndex({ accountId, conversationId: 'undated' });
+    assert.equal(index?.updatedAt, undefined); assert.equal(index?.createdAt, undefined);
 });

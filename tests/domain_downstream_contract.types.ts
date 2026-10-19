@@ -1,29 +1,28 @@
-import { checkIsUpdated, getEffectiveTimestamp, resolveConversationExportState, render, getSelected } from '../src/ui/views/listView.js';
+import { renderList } from '../src/ui/views/listView.js';
+import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
+import { getEffectiveTimestamp } from '../src/core/utils/titleUtils.js';
 import type { ReadonlyDomain } from '../src/core/domain/runtimeValidation.js';
 
-function checkConsumers(input: ReadonlyDomain, index: Parameters<typeof checkIsUpdated>[0], rec: Parameters<typeof checkIsUpdated>[1]) {
-    checkIsUpdated(input.index, rec);
-    resolveConversationExportState(input.index, rec);
-    render([input.index]);
-    const selected = getSelected([input.index]);
-    // @ts-expect-error Selecting an index does not grant write access to it.
-    selected[0].title = 'changed';
-    // @ts-expect-error UI wrappers must preserve the core timestamp contract.
-    checkIsUpdated({ id: 'x', updatedAt: 'not-a-number' });
+function checkConsumers(input: ReadonlyDomain, state: ConversationViewState) {
+    const indexes: ConversationViewState['indexes'] = [input.index];
+    state.indexes = indexes;
+    renderList(state, false);
+    getEffectiveTimestamp(input.index);
+    // @ts-expect-error Selecting an index does not grant write access to Domain facts.
+    input.index.title = 'changed';
+    // @ts-expect-error Source timestamps remain numeric.
+    getEffectiveTimestamp({ updatedAt: 'not-a-number' });
     // @ts-expect-error Primitive inputs cannot be used as conversation indexes.
-    resolveConversationExportState(123);
+    getEffectiveTimestamp(123);
     // @ts-expect-error Historical aliases do not belong in canonical index consumers.
     getEffectiveTimestamp({ timestamp: 123 });
-    if (index) {
-        // @ts-expect-error Consumers cannot rewrite activity facts.
-        index.updatedAt = 123;
-    }
-    if (rec) {
-        // @ts-expect-error Consumers cannot rewrite export activity records.
-        rec.chatTime = 123;
-    }
-    const conversations: Parameters<typeof render>[0] = [input.index];
-    // @ts-expect-error The UI consumes a read-only catalog.
-    conversations.push(input.index);
+    // @ts-expect-error The UI must not rewrite activity facts.
+    input.index.updatedAt = 123;
+    const key = state.keys()[0];
+    // @ts-expect-error Selection returns scoped keys, never editable Domain records.
+    key.title = 'changed';
+    const record = state.records[key.conversationId];
+    // @ts-expect-error Export source versions remain numeric.
+    record.chatTime = 'invalid';
 }
 void checkConsumers;

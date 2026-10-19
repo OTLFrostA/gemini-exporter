@@ -10,28 +10,30 @@ from pathlib import Path
 
 INSTALL_CAPTURE = r"""(() => {
     if (window.__geminiDualCapture) throw new Error('Gemini capture already installed');
-    const original = chrome.tabs.sendMessage;
-    const state = {original, replies: {}};
+    const original = window.fetch;
+    const state = {original, replies:{}, pending:[], errors:[]};
     window.__geminiDualCapture = state;
-    chrome.tabs.sendMessage = function(...args) {
-        const message = args[1];
-        if (message?.action !== 'getConversationDetail') return original.apply(this, args);
-        const capture = reply => {
-            const id = String(message.conversationId || '').replace(/^c_/, '');
-            try {
-                (state.replies[id] ||= []).push(reply === undefined ? null : JSON.parse(JSON.stringify(reply)));
-            } catch (error) {
-                (state.replies[id] ||= []).push({success: false, error: 'capture failed: ' + String(error)});
-            }
-        };
-        const last = args.length - 1;
-        if (typeof args[last] === 'function') {
-            const callback = args[last];
-            args[last] = function(reply) { capture(reply); return callback(reply); };
-            return original.apply(this, args);
-        }
+    window.fetch = function(...args) {
         const result = original.apply(this, args);
-        result?.then?.(capture, () => {});
+        let request;
+        try {
+            const url = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href);
+            if (url.origin !== 'https://gemini.google.com' || !url.pathname.endsWith('/batchexecute')) return result;
+            const fReq = new URLSearchParams(args[1]?.body).get('f.req');
+            const calls = JSON.parse(fReq)[0];
+            const detail = calls.filter(call => call[0] === 'hNvQHb');
+            if (detail.length !== 1) return result;
+            request = JSON.parse(detail[0][1]);
+            if (typeof request[0] !== 'string') return result;
+        } catch { return result; }
+        const id = request[0].replace(/^c_/, '');
+        // Clone immediately, before the client can consume the original Response.
+        state.pending.push(result.then(response => {
+            if (!response.ok) throw new Error('Detail HTTP ' + response.status);
+            return response.clone().text();
+        }).then(text => {
+            (state.replies[id] ||= []).push({requestCursor:request[2] ?? null, text});
+        }).catch(error => {state.errors.push({id,error:String(error)});}));
         return result;
     };
     return true;
@@ -44,32 +46,40 @@ def install_capture(cdp):
 
 
 def finish_capture(cdp, directory, expected_ids):
-    """Persist each target response and always restore sendMessage, including on failure."""
+    """Drain response clones, persist exact RPC pages, restore fetch on every exit."""
     directory = Path(directory)
-    selected = list(dict.fromkeys(expected_ids))
+    selected = list(dict.fromkeys(cid.removeprefix('c_') for cid in expected_ids))
     missing = []
     try:
+        state = cdp.eval("""(async () => {
+            const state = window.__geminiDualCapture;
+            if (!state) throw new Error('Gemini capture not installed');
+            await Promise.all(state.pending);
+            return {replies:state.replies, errors:state.errors};
+        })()""", await_promise=True)
+        if not isinstance(state, dict):
+            raise RuntimeError('Missing native capture result')
         directory.mkdir(parents=True, exist_ok=True)
-        # Stale earlier targets must not enter a new audit.
         for previous in directory.glob('*.json'):
             previous.unlink()
         for cid in selected:
             if not re.fullmatch(r'[A-Za-z0-9_-]+', cid):
                 raise ValueError('Invalid Gemini conversation ID in capture')
-            replies = cdp.eval(f'window.__geminiDualCapture?.replies[{json.dumps(cid)}]') or []
-            native = [reply for reply in replies if isinstance(reply, dict)
-                      and reply.get('success') is True and reply.get('source') == 'batchexecute']
-            if not native:
+            pages = state.get('replies', {}).get(cid, [])
+            if (not pages or any(not isinstance(p, dict) or not isinstance(p.get('text'), str) or not p['text'] for p in pages)
+                    or any(error.get('id') == cid for error in state.get('errors', []))):
                 missing.append(cid)
                 continue
-            (directory / f'{cid}.json').write_text(json.dumps(native[-1], ensure_ascii=False, indent=2), encoding='utf-8')
-        manifest = {'expected': selected, 'missingNative': missing}
+            (directory / f'{cid}.json').write_text(json.dumps({
+                'schemaVersion': 1, 'source': 'raw_rpc_pages', 'conversationId': cid, 'pages': pages,
+            }, ensure_ascii=False, indent=2), encoding='utf-8')
+        manifest = {'expected': selected, 'missingNative': missing, 'errors': state.get('errors', [])}
         (directory.parent / 'capture.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
         return manifest
     finally:
         cdp.eval("""(() => {
             const state = window.__geminiDualCapture;
-            if (state) chrome.tabs.sendMessage = state.original;
+            if (state) window.fetch = state.original;
             delete window.__geminiDualCapture;
         })()""")
 

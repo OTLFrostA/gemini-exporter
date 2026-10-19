@@ -167,6 +167,31 @@ function object(value: unknown): Record<string, unknown> {
 export function readGeminiAuditInput(input: string, kind: 'raw_rpc' | 'native_envelope') {
     if (kind === 'raw_rpc') return { evidence: decodeGeminiDetail(input), provenance: kind, expectedMessages: null };
     const envelope = object(JSON.parse(input));
+    if (envelope.source === 'raw_rpc_pages') {
+        if (envelope.schemaVersion !== 1 || typeof envelope.conversationId !== 'string'
+            || !Array.isArray(envelope.pages) || !envelope.pages.length) throw new Error('Missing native RPC pages');
+        const expectedId = envelope.conversationId.replace(/^c_/, '');
+        const seenCursors = new Set<string | null>();
+        const seenMessages = new Set<string>();
+        let cursor: string | null = null;
+        let merged: GeminiDetailEvidence | undefined;
+        for (const raw of envelope.pages) {
+            const page = object(raw);
+            if (page.requestCursor !== cursor || seenCursors.has(cursor) || typeof page.text !== 'string') throw new Error('Broken native RPC cursor chain');
+            seenCursors.add(cursor);
+            const evidence = decodeGeminiDetail(page.text, expectedId);
+            if (evidence.id.replace(/^c_/, '') !== expectedId || evidence.turnsRejected || !evidence.messages.length) throw new Error('Invalid native Detail page');
+            const fresh = evidence.messages.filter(message => {
+                if (!message.id) throw new Error('Native message identity missing');
+                if (seenMessages.has(message.id)) return false;
+                seenMessages.add(message.id); return true;
+            });
+            merged = { ...evidence, messages: [...fresh, ...(merged?.messages ?? [])] };
+            cursor = evidence.nextPageToken ?? null;
+        }
+        if (!merged || cursor !== null) throw new Error('Native RPC pagination incomplete');
+        return { evidence: merged, provenance: 'captured_raw_rpc_pages', expectedMessages: null };
+    }
     if (envelope.success !== true || envelope.source !== 'batchexecute') throw new Error('Only successful native batchexecute evidence is accepted; DOM/cache is not a differential source');
     const data = object(envelope.data), transport = object(data.transport);
     if (!Array.isArray(transport.decodedPayload)) throw new Error('Missing native decodedPayload');

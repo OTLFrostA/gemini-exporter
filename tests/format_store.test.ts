@@ -1,77 +1,39 @@
 import test from 'node:test';
-import assert from 'node:assert';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { indexStorage } from './helpers/indexStorage.js';
+import { ensureUpgraded } from '../src/core/migration/upgradeV1.js';
+import { getSettings, updateSettings } from '../src/core/application/settings/index.js';
+import { ALLOWED_FORMATS, DEFAULT_FORMAT, FEEDBACK_URL } from '../src/core/utils/constants.js';
+const html = () => readFileSync('src/ui/options/options.html', 'utf8');
 
-import * as Constants from '../src/core/utils/constants.js';
-import * as FormatStore from '../src/core/storage/formatStore.js';
-
-
-test('formatStore - ALLOWED_FORMATS and DEFAULT_FORMAT', () => {
-    assert.deepStrictEqual(FormatStore.ALLOWED_FORMATS, ['markdown', 'html', 'json', 'pdf']);
-    assert.strictEqual(FormatStore.DEFAULT_FORMAT, 'markdown');
+test('current export format constants retain the four supported formats and Markdown default', async () => {
+    assert.deepEqual(ALLOWED_FORMATS, ['markdown', 'html', 'json', 'pdf']); assert.equal(DEFAULT_FORMAT, 'markdown');
+    const env = indexStorage(); try { assert.equal((await getSettings()).defaultFormat, 'markdown'); } finally { env.restore(); }
 });
-
-test('formatStore - isAllowed', () => {
-    assert.strictEqual(FormatStore.isAllowed('markdown'), true);
-    assert.strictEqual(FormatStore.isAllowed('html'), true);
-    assert.strictEqual(FormatStore.isAllowed('pdf'), true);
-    assert.strictEqual(FormatStore.isAllowed('json_openai'), false);
-    assert.strictEqual(FormatStore.isAllowed('json'), true);
-    assert.strictEqual(FormatStore.isAllowed('json_raw'), false);
-    assert.strictEqual(FormatStore.isAllowed('xml'), false);
-    assert.strictEqual(FormatStore.isAllowed(''), false);
-    assert.strictEqual(FormatStore.isAllowed(null as any), false);
+test('current Options format control accepts exactly the four current formats', () => {
+    const select = html().match(/<select id="format"[^>]*>(.*?)<\/select>/s)?.[1]; assert.ok(select);
+    const values = [...select.matchAll(/value="([^"]+)"/g)].map(match => match[1]);
+    for (const format of ['markdown', 'html', 'pdf', 'json']) assert.ok(values.includes(format));
+    for (const invalid of ['json_openai', 'json_raw', 'xml', '']) assert.equal(values.includes(invalid), false);
 });
-
-
-test('formatStore - normalizeFormat rejects removed formats', () => {
-    // Normal mode: json_raw should fall back to markdown
-    assert.strictEqual(FormatStore.normalizeFormat('markdown'), 'markdown');
-    assert.strictEqual(FormatStore.normalizeFormat('html'), 'html');
-    assert.strictEqual(FormatStore.normalizeFormat('json_openai'), 'markdown');
-    assert.strictEqual(FormatStore.normalizeFormat('json'), 'json');
-    assert.strictEqual(FormatStore.normalizeFormat('json_raw'), 'markdown');
-    assert.strictEqual(FormatStore.normalizeFormat('invalid'), 'markdown');
+test('removed saved formats normalize only through the one-time migration owner', async () => {
+    for (const value of ['markdown', 'html', 'json', 'pdf', 'json_openai', 'json_raw', 'invalid']) {
+        const env = indexStorage({ gemini_export_format: value }); try {
+            await ensureUpgraded(); assert.equal((await getSettings()).defaultFormat, ALLOWED_FORMATS.includes(value as typeof ALLOWED_FORMATS[number]) ? value : 'markdown');
+        } finally { env.restore(); }
+    }
 });
-
-test('formatStore - validateAgainstSelect', () => {
-    const mockSelect = {
-        options: [
-            { value: 'markdown' },
-            { value: 'html' },
-            { value: 'json' }
-        ]
-    };
-    assert.strictEqual(FormatStore.validateAgainstSelect('markdown', mockSelect), true);
-    assert.strictEqual(FormatStore.validateAgainstSelect('json_raw', mockSelect), false);
-    assert.strictEqual(FormatStore.validateAgainstSelect('markdown', null), true);
+test('format control choices match the ExportRequest formats rather than removed legacy variants', () => {
+    const select = html().match(/<select id="format"[^>]*>(.*?)<\/select>/s)?.[1] ?? '';
+    assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(match => match[1]).sort(), [...ALLOWED_FORMATS].sort());
 });
-
-test('constants - FEEDBACK_URL is configured', () => {
-    assert.strictEqual(Constants.FEEDBACK_URL, 'https://tally.so/r/Y56ZBB');
+test('constants - FEEDBACK_URL is configured', () => { assert.equal(FEEDBACK_URL, 'https://tally.so/r/Y56ZBB'); });
+for (const stored of ['json_openai', 'json_raw']) for (const developerMode of [false, true]) test(`migration repairs saved ${stored} in developer mode ${developerMode}`, async () => {
+    const env = indexStorage({ gemini_export_format: stored, gemini_dev_mode: developerMode }); try {
+        await ensureUpgraded(); const settings = await getSettings();
+        assert.equal(settings.defaultFormat, 'markdown'); assert.equal(settings.developerMode, developerMode);
+        await updateSettings({ defaultFormat: 'html' }); assert.equal((await getSettings()).defaultFormat, 'html');
+        assert.equal(env.local.gemini_export_format, stored, 'normal v2 Settings writes do not maintain a legacy preference mirror');
+    } finally { env.restore(); }
 });
-
-for (const stored of ['json_openai', 'json_raw']) for (const isDev of [false, true]) {
-    test(`formatStore repairs saved ${stored} in developer mode ${isDev}`, async () => {
-        const originalChrome = globalThis.chrome;
-        const data: Record<string, unknown> = {
-            [Constants.STORAGE_KEYS.FORMAT]: stored,
-            [Constants.STORAGE_KEYS.DEV_MODE]: isDev,
-        };
-        globalThis.chrome = { storage: { local: {
-            get: async () => ({ ...data }),
-            set: async (patch: Record<string, unknown>) => { Object.assign(data, patch); },
-        } } } as unknown as typeof chrome;
-        const select = { value: '', options: FormatStore.ALLOWED_FORMATS.map(value => ({ value })) };
-        try {
-            const loaded = await FormatStore.loadFormat(select);
-            assert.strictEqual(loaded.format, 'markdown');
-            assert.strictEqual(loaded.stored, stored);
-            assert.strictEqual(loaded.isDev, isDev);
-            assert.strictEqual(select.value, 'markdown');
-            assert.strictEqual(data[Constants.STORAGE_KEYS.FORMAT], 'markdown');
-            assert.strictEqual(await FormatStore.saveFormat(stored), 'markdown');
-        } finally {
-            globalThis.chrome = originalChrome;
-        }
-    });
-}

@@ -172,7 +172,7 @@ export async function runExport(request: ExportRequest, options: {
                 const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
                     record: { exportedAt: 0, format: request.format, status: partial ? 'partial' : 'ok',
                         ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) } };
-                if (request.delivery === 'folderWriter' && !request.useZip) {
+                if (request.delivery === 'folderWriter') {
                     await writeToFolder(group.files, directory!);
                     await finalize([group]);
                 } else groups.push(group);
@@ -185,7 +185,7 @@ export async function runExport(request: ExportRequest, options: {
         signal.throwIfAborted();
         if (groups.length) {
             try {
-                const files = await packageExportFiles(groups.map(group => group.files), request.delivery, request.useZip);
+                const files = await packageExportFiles(groups.map(group => group.files), request.delivery);
                 signal.throwIfAborted();
                 if (request.delivery === 'browserDownload') {
                     if (files.length !== 1) throw new Error('Browser delivery requires one final file');

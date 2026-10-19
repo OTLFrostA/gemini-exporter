@@ -1,223 +1,57 @@
-import { indexFixture } from './helpers/indexFixture.js';
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
+import { seed, request, reset, key } from './helpers/applicationHarness.js';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as Directory from '../src/ui/controllers/dirHandleController.js';
+import type { DirectoryHandle } from '../src/core/engine/writers/directoryHandle.js';
+import { startSync } from '../src/ui/controllers/syncController.js';
+import { handleTakeoutImport } from '../src/ui/controllers/takeoutController.js';
+import { runExport as uiExport } from '../src/ui/controllers/exportController.js';
+import { runExport } from '../src/core/application/export/runExport.js';
+import { errorText } from '../src/ui/utils/settings.js';
+const id = '10000000-0000-4000-8000-000000000001';
+test.beforeEach(reset);
 
-const { __setModuleOverride, __getModuleOverride, __resolveModule } = require('../src/core/utils/moduleOverrides.js');
-if (!__resolveModule('GeminiProtocol', null)) {
-    __setModuleOverride('GeminiProtocol', require('../src/core/protocol/protocol.js'));
-}
-// Mock I18n with Chinese strings for syncController error message tests
-__setModuleOverride('I18n', {
-    t: (key: string, ...args: any[]) => {
-        const zh: Record<string, string> = {
-            'syncConnectionFailedRefresh': '未能与 Gemini 建立连接，请刷新 gemini.google.com 页面后重试',
-            'syncFailed': `同步失败: ${args[0] || ''}`,
-        };
-        return zh[key] || key;
-    }
-});
-
-const DirHandleController = require('../src/ui/controllers/dirHandleController.js');
-const ExportController = require('../src/ui/controllers/exportController.js');
-const SyncController = require('../src/ui/controllers/syncController.js');
-const TakeoutController = require('../src/ui/controllers/takeoutController.js');
-const GeminiUtils = require('../src/core/utils/utils.js');
-
-// Headless Node environment test harness: provide lightweight mock document for UI controllers
-if (typeof (globalThis as any).document === 'undefined') {
-    (globalThis as any).document = {
-        getElementById: () => null,
-        querySelectorAll: () => [],
-        createElement: () => ({})
-    };
-}
-
-// ---------------------------------------------------------------------------
-// DirHandleController
-// ---------------------------------------------------------------------------
 test('dirHandleController - exports and in-memory handle state', () => {
-    assert.ok(DirHandleController);
-    assert.strictEqual(typeof DirHandleController.getStoredDirHandle, 'function');
-    assert.strictEqual(typeof DirHandleController.saveStoredDirHandle, 'function');
-    assert.strictEqual(typeof DirHandleController.verifyDirPermission, 'function');
-    assert.strictEqual(typeof DirHandleController.restoreSavedDirHandle, 'function');
-    assert.strictEqual(typeof DirHandleController.requestDirHandle, 'function');
-    assert.strictEqual(typeof DirHandleController.getDirHandle, 'function');
-    assert.strictEqual(typeof DirHandleController.setDirHandle, 'function');
-
-    const mockHandle = { name: 'my_export_folder' };
-    DirHandleController.setDirHandle(mockHandle);
-    assert.strictEqual(DirHandleController.getDirHandle(), mockHandle);
-    DirHandleController.setDirHandle(null);
-    assert.strictEqual(DirHandleController.getDirHandle(), null);
+    for (const method of ['getStoredDirHandle', 'saveStoredDirHandle', 'verifyDirPermission', 'restoreSavedDirHandle', 'requestDirHandle'] as const) assert.equal(typeof Directory[method], 'function');
+    const handle = { name: 'exports' } as DirectoryHandle;
+    Directory.setDirHandle(handle); assert.strictEqual(Directory.getDirHandle(), handle);
+    Directory.setDirHandle(null); assert.equal(Directory.getDirHandle(), null);
 });
-
-// ---------------------------------------------------------------------------
-// ExportController
-// ---------------------------------------------------------------------------
-test('exportController - state machine, flags, and exports', () => {
-    assert.strictEqual(typeof ExportController.runExport, 'function');
-    assert.strictEqual(typeof ExportController.abort, 'function');
-    assert.strictEqual(typeof ExportController.setRunning, 'function');
-    assert.strictEqual(typeof ExportController.isRunning, 'function');
-    assert.strictEqual(typeof ExportController.getActiveEngine, 'function');
-
-    assert.strictEqual(ExportController.isRunning(), false);
-    ExportController.setRunning(true);
-    assert.strictEqual(ExportController.isRunning(), true);
-    ExportController.setRunning(false);
-    assert.strictEqual(ExportController.isRunning(), false);
+test('exportController - delegates to the unique Application workflow without another engine state machine', () => {
+    assert.strictEqual(uiExport, runExport);
 });
-
-test('ExportController / GeminiUtils.formatExportProgress - formats conversation progress and attachment stats', () => {
-    assert.strictEqual(typeof GeminiUtils.formatExportProgress, 'function');
-
-    // Case 1: Active export with chats and attachments in Chinese
-    const resZh = GeminiUtils.formatExportProgress({
-        current: 2,
-        total: 5,
-        pct: 40,
-        title: 'CAS无法夺取制空权机制',
-        assetsDownloaded: 3,
-        assetsTotal: 8
-    }, '', false);
-
-    assert.strictEqual(resZh.pct, 40);
-    assert.ok(resZh.text.includes('导出中 (2/5)'), 'Must include progress count (2/5)');
-    assert.ok(resZh.text.includes('CAS无法夺取制空权机制'), 'Must include chat title');
-    assert.ok(resZh.text.includes('📎 附件 3/8'), 'Must include attachment count 3/8');
-
-    // Case 2: Active export with English locale
-    const resEn = GeminiUtils.formatExportProgress({
-        current: 4,
-        total: 10,
-        pct: 40,
-        title: 'Quantum Computing',
-        assetsDownloaded: 5,
-        assetsTotal: 12
-    }, '', true);
-
-    assert.ok(resEn.text.includes('Exporting (4/10)'), 'Must include English progress count (4/10)');
-    assert.ok(resEn.text.includes('📎 Assets 5/12'), 'Must include English asset count 5/12');
-
-    // Case 3: Packaging ZIP stage
-    const resZip = GeminiUtils.formatExportProgress({
-        current: 5,
-        total: 5,
-        pct: 95,
-        title: 'Packaging ZIP file...',
-        assetsDownloaded: 8,
-        assetsTotal: 8
-    }, '', false);
-
-    assert.ok(resZip.text.includes('正在打包 ZIP 文件...'), 'Translates system title');
-    assert.ok(resZip.text.includes('📎 附件 8/8'), 'Keeps attachment stats');
-
-    // Case 4: No attachments
-    const resNoAssets = GeminiUtils.formatExportProgress({
-        current: 1,
-        total: 3,
-        pct: 33,
-        title: 'Simple Chat'
-    }, '', false);
-
-    assert.ok(resNoAssets.text.includes('导出中 (1/3)'));
-    assert.ok(!resNoAssets.text.includes('📎 附件'), 'Omits attachment text when no assets');
-
-    // Case 5: Legacy numeric progress
-    const resLegacy = GeminiUtils.formatExportProgress(60, 'Processing Takeout...');
-    assert.strictEqual(resLegacy.pct, 60);
-    assert.strictEqual(resLegacy.text, 'Processing Takeout...');
+test('ExportController progress uses the Application current/total/key contract unchanged', async () => {
+    seed(); seed('second'); const seen: unknown[] = [];
+    const result = await uiExport(request({ keys: [key(), key('second')] }), { onProgress: progress => seen.push(progress) });
+    assert.equal(result.exported, 2);
+    assert.deepEqual(seen, [{ current: 1, total: 2, key: key() }, { current: 2, total: 2, key: key('second') }]);
 });
-
-// ---------------------------------------------------------------------------
-// SyncController
-// ---------------------------------------------------------------------------
-test('syncController - exports and isScanning state management', () => {
-    assert.ok(SyncController);
-    assert.strictEqual(typeof SyncController.startSync, 'function');
-    assert.strictEqual(typeof SyncController.stopScan, 'function');
-    assert.strictEqual(typeof SyncController.setScanRunning, 'function');
-
-    SyncController.setScanRunning(true);
-    assert.strictEqual(SyncController.isScanning(), true);
-    SyncController.setScanRunning(false);
-    assert.strictEqual(SyncController.isScanning(), false);
-});
-
-test('syncController - formats Receiving end does not exist with friendly refresh hint', () => {
-    const fn = (SyncController as any).formatSyncErrorMessage;
-    assert.strictEqual(typeof fn, 'function');
-
-    const rawErr = 'Could not establish connection. Receiving end does not exist.';
-    const formatted = fn(rawErr);
-    assert.ok(
-        formatted.includes('刷新') && formatted.includes('未能与 Gemini 建立连接'),
-        `Formatted error should hint user to refresh gemini, got: ${formatted}`
-    );
-
-    const normalErr = 'HTTP 503 Service Unavailable';
-    const formattedNormal = fn(normalErr);
-    assert.ok(
-        formattedNormal.includes('503'),
-        `Normal error should preserve original error info, got: ${formattedNormal}`
-    );
-});
-
-test('syncController - startSync dispatches friendly message on connection error', async () => {
-    const origChrome = (globalThis as any).chrome;
-    try {
-        let loggedMsg = '';
-        let loggedLevel = '';
-        let errorMsg = '';
-
-        (globalThis as any).chrome = {
-            runtime: {
-                lastError: null,
-                sendMessage: (_msg: any, cb: any) => {
-                    cb({
-                        success: false,
-                        error: 'Could not establish connection. Receiving end does not exist.'
-                    });
-                }
-            }
-        };
-
-        await new Promise<void>((resolve) => {
-            SyncController.startSync('10000000-0000-4000-8000-000000000001', {
-                onLog: (msg: string, lvl: string) => {
-                    loggedMsg = msg;
-                    loggedLevel = lvl;
-                },
-                onError: (_err: any, errMsg: string) => {
-                    errorMsg = errMsg;
-                    resolve();
-                }
-            });
-        });
-
-        assert.strictEqual(loggedLevel, 'error');
-        assert.ok(
-            loggedMsg.includes('刷新') && loggedMsg.includes('未能与 Gemini 建立连接'),
-            `Log should contain friendly refresh prompt, got: ${loggedMsg}`
-        );
-        assert.strictEqual(errorMsg, loggedMsg);
-    } finally {
-        (globalThis as any).chrome = origChrome;
-    }
-});
-
-// ---------------------------------------------------------------------------
-// TakeoutController
-// ---------------------------------------------------------------------------
-test('takeoutController - exports and gracefully handles null file', async () => {
-    assert.ok(TakeoutController);
-    assert.strictEqual(typeof TakeoutController.handleTakeoutImport, 'function');
-
-    let called = false;
-    await TakeoutController.handleTakeoutImport(null as any, {
-        onFinished: () => { called = true; }
+test('syncController - running cancellation belongs to this invocation AbortSignal', async () => {
+    const controller = new AbortController(); let called = false;
+    const operation = startSync(id, { signal: controller.signal, onTarget: async () => controller.abort() }, {
+        resolveScanTarget: async () => id, scanAll: async () => { called = true; throw Error('unexpected'); }
     });
-    assert.strictEqual(called, false);
+    await assert.rejects(operation, { name: 'AbortError' }); assert.equal(called, false);
+});
+test('syncController - connection failures retain the actionable original error', () => {
+    const error = new Error('Could not establish connection. Receiving end does not exist.');
+    assert.equal(errorText(error), error.message); assert.equal(errorText('HTTP 503 Service Unavailable'), 'HTTP 503 Service Unavailable');
+});
+test('syncController - failed source resolution rejects and never dispatches a scan', async () => {
+    const failure = new Error('Receiving end does not exist'); let scans = 0, targets = 0;
+    await assert.rejects(startSync(id, { signal: new AbortController().signal, onTarget: async () => { targets++; } }, {
+        resolveScanTarget: async () => { throw failure; }, scanAll: async () => { scans++; throw Error('unexpected'); }
+    }), error => error === failure);
+    assert.equal(scans, 0); assert.equal(targets, 0);
+});
+test('takeoutController - typed File input reaches the current importer with its target and progress', async () => {
+    const file = new File(['fixture'], 'takeout.zip'), seen: unknown[] = [];
+    const account = { id, providerId: 'gemini', providerAccountId: 'fixture' };
+    const result = await handleTakeoutImport(file, id, { onTarget: async target => { seen.push(target); }, onProgress: p => seen.push(p) }, {
+        listAccounts: async () => [account], getAccount: async () => account, getOrCreateAccount: async () => { throw Error('unexpected'); },
+        updateSettings: async patch => { seen.push(patch); }, importTakeout: async (actual, target, progress) => {
+            assert.strictEqual(actual, file); assert.equal(target, id); progress?.(100); return { imported: 1, status: 'ok' as const };
+        }
+    });
+    assert.deepEqual(seen, [id, { takeoutPromptCompleted: true }, 100]); assert.equal(result.imported, 1);
 });

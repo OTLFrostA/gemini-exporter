@@ -12,15 +12,8 @@ const STORAGE_DIR_PREFIX = 'src/core/storage/';
 
 // Only controlled storage modules under src/core/storage/ are allowed to call chrome.storage.local.set(
 const ALLOWED_STORAGE_FILES = new Set<string>([
-    'src/core/storage/storageService.ts',
-    'src/core/storage/userPreferences.ts',
-    'src/core/storage/sessionStore.ts',
-    'src/core/storage/formatStore.ts',
-    'src/core/storage/liveStorageManager.ts',
-    'src/core/storage/schemaMigration.ts',
-    'src/core/storage/conversationAvailability.ts',
-    'src/core/storage/conversationCatalogStore.ts',
-    'src/core/storage/scanCoverageStore.ts',
+    'src/core/storage/settingsStore.ts',
+    'src/core/storage/migrationMarker.ts',
 ]);
 
 function gitGrepFixed(pattern: string): Array<{ file: string; line: number; text: string }> {

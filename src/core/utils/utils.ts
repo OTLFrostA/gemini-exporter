@@ -29,17 +29,11 @@ import {
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
-    checkIsUpdated,
-    resolveConversationExportState,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK,
     normalizeReliableTitleSource,
     resolveReliableTitleSource,
-    type TitleResolution,
-    type ConversationExportState,
-    type ConversationExportStateKind,
-    type ConversationBadgeDescriptor,
-    type ResolveConversationExportStateOptions
+    type TitleResolution
 } from './titleUtils.js';
 
 import {
@@ -92,17 +86,11 @@ export {
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
-    checkIsUpdated,
-    resolveConversationExportState,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK,
     normalizeReliableTitleSource,
     resolveReliableTitleSource,
     type TitleResolution,
-    type ConversationExportState,
-    type ConversationExportStateKind,
-    type ConversationBadgeDescriptor,
-    type ResolveConversationExportStateOptions,
     formatExportProgress,
     type ExportProgressFormatted,
     type ExportProgressInput,
@@ -148,8 +136,6 @@ export interface GeminiUtilsModule {
     toTimestampMs: typeof toTimestampMs;
     getEffectiveTimestamp: (chat?: Partial<DomainConversationIndex> | null) => number;
     compareConversations: typeof compareConversations;
-    checkIsUpdated: (c: any, rec?: any) => boolean;
-    resolveConversationExportState: typeof resolveConversationExportState;
     formatExportProgress: (progress?: ExportProgressInput | number | null, txt?: string, isEn?: boolean) => ExportProgressFormatted;
     mergeConversation: typeof mergeConversation;
     deduplicateConversations: typeof deduplicateConversations;
@@ -190,8 +176,6 @@ export const GeminiUtils: GeminiUtilsModule = {
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
-    checkIsUpdated,
-    resolveConversationExportState,
     formatExportProgress,
     mergeConversation,
     deduplicateConversations,
