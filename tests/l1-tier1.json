@@ -1,6 +1,5 @@
 {
   "suites": [
-    "tests/batch_a_followup.test.ts",
     "tests/client_cancellation.test.ts",
     "tests/compat_rules.test.ts",
     "tests/cred_storage_unify.test.ts",
@@ -28,8 +27,6 @@
     "tests/list-source-boundary.test.ts",
     "tests/markdown_adapter.test.ts",
     "tests/media_index_safety.test.ts",
-    "tests/p1_a_regressions.test.ts",
-    "tests/p1_c_regressions.test.ts",
     "tests/p1_e_regressions.test.ts",
     "tests/p1_h1_takeout.test.ts",
     "tests/p1_i_regressions.test.ts",
@@ -47,7 +44,6 @@
     "tests/provider-gemini-rpc-domain.test.ts",
     "tests/provider-gemini-takeout-domain.test.ts",
     "tests/provider-underscore-delimiter.test.ts",
-    "tests/provider_abstraction.test.ts",
     "tests/provider_adapter.test.ts",
     "tests/provider_contract.test.ts",
     "tests/provider_degrade.test.ts",
@@ -59,9 +55,21 @@
     "tests/takeout_engine.test.ts",
     "tests/takeout_generated_reconciliation.test.ts",
     "tests/takeout_missing_ts.test.ts",
-    "tests/visible_image_detection.test.ts"
+    "tests/visible_image_detection.test.ts",
+    "tests/message_bridge.test.ts",
+    "tests/observed_page_ingest.test.ts",
+    "tests/sniff_watermark_isolation.test.ts",
+    "tests/content_quality.test.ts",
+    "tests/regression_lock.test.ts"
   ],
   "typeTests": [
-    "tests/domain_parsing.types.ts"
+    "tests/domain_parsing.types.ts",
+    "tests/l1_l2_frozen_contract.types.ts"
+  ],
+  "integrationSuites": [
+    "tests/batch_a_followup.test.ts",
+    "tests/p1_a_regressions.test.ts",
+    "tests/p1_c_regressions.test.ts",
+    "tests/provider_abstraction.test.ts"
   ]
 }

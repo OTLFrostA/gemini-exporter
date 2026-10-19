@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture, rpcFixture } from './helpers/nativeFixture.js';
 import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
 
 test('parser closes heuristic document identities and rejects malformed messages before Domain', () => {
     const parsed = historicalFixture({ id: 'quality', messages: [null as never,
@@ -10,7 +9,7 @@ test('parser closes heuristic document identities and rejects malformed messages
     assert.deepEqual(parsed.conversation.detail.quality, { status: 'partial' });
     assert.deepEqual(parsed.evidence, { rejectedTurns: 1, heuristicDocumentIds: [parsed.conversation.detail.assets[0].id] });
     assert.equal('hasFabricatedText' in parsed.conversation.detail.assets[0].document!, false);
-    assert.equal(buildExportCompletion({ conversation: parsed.conversation }).exportRecord.status, 'partial');
+    assert.equal(parsed.conversation.detail.quality.status, 'partial', 'L2 quality is independent of delivery records');
 });
 
 test('finished pagination clears pending coverage and remaps heuristic references on asset collisions', () => {

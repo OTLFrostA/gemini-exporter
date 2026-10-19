@@ -74,3 +74,10 @@ test('protocol - reqid generator increments (frontend fingerprint convention)', 
     assert.strictEqual(b, a + 1, 'reqid must increment by 1, not re-randomize');
     assert.strictEqual(c, a + 2, 'reqid must keep incrementing');
 });
+
+test('protocol - Detail rate limiting requires HTTP 429', () => {
+    assert.strictEqual(Proto.classifyDetailError('', 429), 'rate_limited');
+    assert.strictEqual(Proto.classifyDetailError('["BardErrorInfo",1096]', 200), 'inaccessible');
+    assert.strictEqual(Proto.classifyDetailError('RESOURCE_EXHAUSTED', 200), 'parse_error');
+    assert.strictEqual(Proto.classifyDetailError('Too many requests', 200), 'parse_error');
+});

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
-const { withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
+const { withRateLimitRetry, isRateLimited } = require('../src/core/engine/export/rateLimiter.js');
 const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
 const { useIndexStorage } = require('./helpers/indexStorage.js');
 useIndexStorage();
@@ -154,3 +154,27 @@ test('rateLimiter - withRateLimitRetry respects abort signal', async () => {
     );
 });
 
+test('rateLimiter - HTTP 429 errors retry but ordinary provider errors do not', async () => {
+    let attempts = 0;
+    const result = await withRateLimitRetry(async () => {
+        attempts++;
+        if (attempts === 1) throw new Error('HTTP 429 Too Many Requests :: response body');
+        return 'ok';
+    }, { initialDelayMs: 1, jitterMs: 0 });
+    assert.strictEqual(result, 'ok');
+    assert.strictEqual(attempts, 2);
+
+    for (const message of ['["BardErrorInfo",1096]', 'RESOURCE_EXHAUSTED',
+        'Too many requests', 'quota exceeded', 'rate limit exceeded',
+        '服务端上限', 'request failed: 429', 'HTTP 4290', 'conversation 429']) {
+        const error = new Error(message);
+        assert.strictEqual(isRateLimited(error), false, message);
+        assert.strictEqual(isRateLimited({ error: message }), false, message);
+        attempts = 0;
+        await assert.rejects(withRateLimitRetry(async () => {
+            attempts++;
+            throw error;
+        }, { initialDelayMs: 1, jitterMs: 0 }), (actual: unknown) => actual === error);
+        assert.strictEqual(attempts, 1, message);
+    }
+});

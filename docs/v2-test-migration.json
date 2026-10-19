@@ -49,7 +49,7 @@
     },
     {
       "file": "tests/batch_a_followup.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/batch_fetcher_abort.test.ts",
@@ -73,7 +73,7 @@
     },
     {
       "file": "tests/content_quality.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/continued_chat_export_badge.test.ts",
@@ -89,7 +89,7 @@
     },
     {
       "file": "tests/conversation_index_storage.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/conversation_repository.test.ts",
@@ -153,7 +153,7 @@
     },
     {
       "file": "tests/domain_downstream_boundaries.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/domain_downstream_contract.types.ts",
@@ -165,7 +165,7 @@
     },
     {
       "file": "tests/domain_trust_counts.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/archive_notice.spec.ts",
@@ -373,7 +373,7 @@
     },
     {
       "file": "tests/message_bridge.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/message_transport_contract.test.ts",
@@ -385,7 +385,7 @@
     },
     {
       "file": "tests/observed_page_ingest.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/options_index_notification.test.ts",
@@ -405,7 +405,7 @@
     },
     {
       "file": "tests/p1_a_regressions.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/p1_archive_retention.test.ts",
@@ -425,7 +425,7 @@
     },
     {
       "file": "tests/p1_c_regressions.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/p1_d_regressions.test.ts",
@@ -509,15 +509,15 @@
     },
     {
       "file": "tests/provider_abstraction.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/provider_degrade.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/regression_lock.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/reliability_ux_batch3.test.ts",
@@ -573,7 +573,7 @@
     },
     {
       "file": "tests/sniff_watermark_isolation.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/storage_alias_migration_race.test.ts",
@@ -745,5 +745,15 @@
     "tests/e2e/live_save.spec.ts",
     "tests/e2e/archive_notice.spec.ts",
     "tests/e2e/archive_retention.spec.ts"
-  ]
+  ],
+  "l1L2Repair": {
+    "base": "65581493",
+    "details": "docs/l1-l2-freeze-repair.md",
+    "manifests": [
+      "tests/l1-tier1.json",
+      "tests/l2-tier1.json"
+    ],
+    "preservedOtherLayerScenarios": "tests/regression_lock_other_layers.test.ts",
+    "fullRepositoryMigration": "incomplete; ordinary full discovery and npm test are unchanged"
+  }
 }

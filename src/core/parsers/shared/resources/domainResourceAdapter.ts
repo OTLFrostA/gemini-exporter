@@ -1,3 +1,4 @@
+import { isDurableSourceUri } from '../../../domain/sourceUri.js';
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../../resources/resourceAcquisition.js';
 import type { LegacyResourceHints } from './resourceHints.js';
 import type { DomainAsset, DomainAssetKind, DomainMessage } from '../../../domain/conversationDetail.js';
@@ -29,7 +30,9 @@ function identityKey(record: ResourceEvidence, providerId: string, sourceReferen
     const request = (record.providerRequestId || record.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
     const ordinal = record.imageOrdinal ?? record.generation?.imageOrdinal ?? (record.generation?.imageCount === 1 ? 0 : undefined);
     const chat = (record.generation?.chatId ?? '').replace(/^c_/, '');
-    const uri = record.resolvedUrl || record.sourceUrl || record.url || record.src || (/^https?:\/\//i.test(record.localName ?? '') ? record.localName : undefined);
+    const uri = [record.sourceUrl, record.url, record.src, record.resolvedUrl].find(isDurableSourceUri)
+        ?? record.resolvedUrl ?? record.sourceUrl ?? record.url ?? record.src
+        ?? (/^https?:\/\//i.test(record.localName ?? '') ? record.localName : undefined);
     const location = uri;
     if (sourceReferences && location) return JSON.stringify([providerId, kindOf(record), normalizedSourceReference(location)]);
     if (request) return JSON.stringify([providerId, 'generation', chat, request, ordinal ?? location ?? null]);
@@ -44,7 +47,8 @@ function identityKey(record: ResourceEvidence, providerId: string, sourceReferen
 function toAsset(record: ResourceEvidence, id: string): DomainAsset {
     const kind = kindOf(record);
     const name = displayName(record);
-    const uri = record.resolvedUrl || record.sourceUrl || record.url || record.src || (/^https?:\/\//i.test(record.localName ?? '') ? record.localName : undefined);
+    const uri = [record.sourceUrl, record.url, record.src, record.resolvedUrl,
+        /^https?:\/\//i.test(record.localName ?? '') ? record.localName : undefined].find(isDurableSourceUri);
     const mediaType = record.mimeType || record.mime;
     const body = record.contentMarkdown ?? '';
     const additions = [
@@ -67,7 +71,7 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
     return { id, kind, ...(name ? { name } : {}),
         ...(mediaType ? { mediaType } : {}),
         ...(record.size !== undefined ? { byteLength: record.size } : {}),
-        ...(uri && !/^(data|blob):/i.test(uri) ? { sourceUri: uri } : {}),
+        ...(uri ? { sourceUri: uri } : {}),
         ...(Object.keys(generation).length ? { generation } : {}),
         ...(Object.keys(document).length ? { document } : {}),
     };
@@ -118,14 +122,14 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
             if (claimedIds.has(id)) {
                 // The input contains conflicting resources with this source; keep the unresolved reference separate.
                 const ambiguousId = `resource-${crypto.randomUUID()}`;
-                assets.push({ id: ambiguousId, kind, sourceUri: ref });
+                assets.push({ id: ambiguousId, kind, ...(isDurableSourceUri(ref) ? { sourceUri: ref } : {}) });
                 acquisitionHints[ambiguousId] = { url: ref };
                 inline.set(key, ambiguousId);
                 return ambiguousId;
             }
             claimedIds.add(id);
             const name = alt?.trim() || (hasSource && !/^data:/i.test(ref) ? (ref.split('/').pop() ?? '').split('?')[0] : undefined);
-            assets.push({ id, kind, ...(name ? { name } : {}), ...(hasSource && !/^(data|blob):/i.test(ref) ? { sourceUri: ref } : {}) });
+            assets.push({ id, kind, ...(name ? { name } : {}), ...(hasSource && isDurableSourceUri(ref) ? { sourceUri: ref } : {}) });
             if (hasSource) acquisitionHints[id] = { url: ref, ...(name ? { fileName: name } : {}) };
             if (!hasSource) resourceHints[id] = { unresolvedReference: ref };
             inline.set(key, id);

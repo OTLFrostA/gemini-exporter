@@ -1,3 +1,4 @@
+import { isDurableSourceUri } from './sourceUri.js';
 import { readConversationKey, sameConversationKey } from './conversationKey.js';
 import type { TableBlock } from './content/blocks.js';
 import { MAX_TABLE_COLUMNS, MAX_TABLE_ROW_SPAN, tableCellPlacements } from './content/tableLayout.js';
@@ -25,11 +26,11 @@ function object(v: unknown): v is Record<string, unknown> { return !!v && typeof
 const shape = (fields: Record<string, Check>, nonEmpty = false): Check => v => {
     if (!object(v)) return false;
     const keys = Object.keys(v);
-    return (!nonEmpty || keys.length > 0) && keys.every(k => Object.hasOwn(fields, k)) && Object.entries(fields).every(([k, check]) => check(v[k]));
+    return (!nonEmpty || keys.some(k => v[k] !== undefined)) && keys.every(k => Object.hasOwn(fields, k)) && Object.entries(fields).every(([k, check]) => check(v[k]));
 };
 const generation = shape({ providerRequestId: optional(text), time: optional(number), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number) }, true);
 const document = shape({ id: optional(text), contentMarkdown: optional(text) }, true);
-const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), sourceUri: optional(v => text(v) && !/^(?:data|blob):/i.test(v as string)), generation: optional(generation), document: optional(document) });
+const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), sourceUri: optional(isDurableSourceUri), generation: optional(generation), document: optional(document) });
 const citation = shape({ id: text, url: optional(text), title: optional(text) });
 
 function inline(v: unknown): boolean {
@@ -82,6 +83,24 @@ const quality = shape({ status: enumeration('complete', 'partial', 'unknown') })
 const domainFields: Record<string, Check> = { key: v => { try { readConversationKey(v); return true; } catch { return false; } }, savedAt: optional(number), assets: array(asset), messages: array(message), quality };
 const domain = shape(domainFields);
 
+/** Omit unknown optional facts without copying already canonical parser/Storage graphs. */
+function omitUndefined<T>(value: T): T {
+    if (Array.isArray(value)) {
+        const entries: readonly unknown[] = value;
+        const next = entries.map(item => omitUndefined(item));
+        return (next.some((item, i) => item !== value[i]) ? next : value) as T;
+    }
+    if (!object(value)) return value;
+    let changed = false;
+    const next: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+        if (item === undefined) { changed = true; continue; }
+        next[key] = omitUndefined(item);
+        if (next[key] !== item) changed = true;
+    }
+    return (changed ? next : value) as T;
+}
+
 /** Compile-time evidence of schema and reference closure; never serialized. */
 declare const trustedDomain: unique symbol;
 export type TrustedDomainBody = DomainConversationDetail & { readonly [trustedDomain]: true };
@@ -123,8 +142,10 @@ function assertConversation(value: unknown): asserts value is DomainConversation
 
 /** Parser finalization validates the graph without cloning or changing its content. */
 export function validateParserDomain(input: { index: DomainConversationIndex; detail: Omit<DomainConversationDetail, 'key'> & { key?: DomainConversationDetail['key'] } }): TrustedDomain {
-    const value = input.detail.key === undefined ? { ...input, detail: { ...input.detail, key: input.index.key } } : input;
+    let value = input.detail.key === undefined ? { ...input, detail: { ...input.detail, key: input.index.key } } : input;
     assertConversation(value);
+    const detail = omitUndefined(value.detail);
+    if (detail !== value.detail) value = { ...value, detail };
     trustedBodies.add(value.detail);
     return value as TrustedDomain;
 }
@@ -146,14 +167,17 @@ export function acceptDetailFacts(key: DomainConversationDetail['key'], facts: O
 export function restoreDomainDetail(value: unknown): TrustedDomainBody {
     assertSchema(value);
     assertDomainClosure(value);
-    trustedBodies.add(value);
-    return value as TrustedDomainBody;
+    const detail = omitUndefined(value);
+    trustedBodies.add(detail);
+    return detail as TrustedDomainBody;
 }
 
 export function restoreDomainSnapshot(value: unknown): TrustedDomain {
     assertConversation(value);
-    trustedBodies.add(value.detail);
-    return value as TrustedDomain;
+    const detail = omitUndefined(value.detail);
+    const conversation = detail === value.detail ? value : { ...value, detail };
+    trustedBodies.add(detail);
+    return conversation as TrustedDomain;
 }
 
 /** Preserve body trust while recording a checked source version, without reparsing content. */

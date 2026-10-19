@@ -275,9 +275,6 @@ const pagination = GeminiClientPagination;
                 if (errCategory === 'confirmed_deleted') {
                     throw new Error(`Unverified Gemini Detail not found (${id})`);
                 }
-                if (errCategory === 'rate_limited') {
-                    throw new Error(`Google 服务端限流或到达上限 (${id}) [BardErrorInfo: 1096]`);
-                }
                 if (errCategory === 'inaccessible') {
                     throw new Error(`会话暂时不可访问或服务端异常 (${id}) [BardErrorInfo]`);
                 }

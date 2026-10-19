@@ -1,4 +1,4 @@
-import { ingestIndexes, ingestDetail } from '../core/domain/ingestion.js';
+import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../core/domain/ingestion.js';
 import { ensureV2Ready } from './readiness.js';
 import { object, requireContentAccount, assertContentSender } from './contentSender.js';
 
@@ -27,6 +27,10 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                 const changed = await ingestDetail(account.id, request.conversationId, request.detail as Parameters<typeof ingestDetail>[2], request.indexFields as Parameters<typeof ingestDetail>[3]);
                 respond({ ok: true, changed });
                 return;
+            } else if (request.operation === 'deleted') {
+                if (account.providerAccountId === 'default') throw new TypeError('Deletion requires an identified Account');
+                if (typeof request.conversationId !== 'string' || !/^[a-f0-9]{8,64}$/.test(request.conversationId)) throw new TypeError('Expected Gemini conversation ID');
+                await ingestDeletedConversation(account.id, request.conversationId);
             } else throw new TypeError('Unknown ingestion operation');
             respond({ ok: true });
         } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : String(error) }); }

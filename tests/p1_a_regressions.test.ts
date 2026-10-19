@@ -73,21 +73,23 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
                 cb({ success: true });
             }
         };
-        MessageRouter.init({ assets: assets as any });
+        const { AssetFetcher } = require('../src/content/assetFetcher.js');
+        const originalAssets = { ...AssetFetcher };
+        Object.assign(AssetFetcher, assets);
+        MessageRouter.init();
         assert.equal(handlers.size, 1);
         const listener = [...handlers][0];
 
-        for (const action of ['getFileBlob', 'getImageBlob', 'downloadAssetDirect']) {
+        for (const action of ['getFileBlob', 'getImageBlob']) {
             for (const url of [
                 'http://lh3.googleusercontent.com/photo.png',
                 'https://googleusercontent.com.evil.example/photo.png',
                 'https://evil.example/photo.png',
                 'javascript:alert(1)'
             ]) {
-                let reply: any;
-                listener({ action, url }, {}, (value) => { reply = value; });
+                const reply: any = await new Promise(resolve => listener({ action, url, accountId: '10000000-0000-4000-8000-000000000001' }, {}, resolve));
                 assert.equal(reply?.success, false, `${action} must reject ${url}`);
-                assert.match(reply?.error || '', /not allowlisted/i);
+                assert.match(reply?.error || '', /not allowed/i);
             }
             assert.ok(!calls.includes(action), `${action} must not fetch a blocked URL`);
 
@@ -99,6 +101,7 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
             assert.equal(calls.filter(a => a === action).length, 1);
         }
 
+        Object.assign(AssetFetcher, originalAssets);
         runCleanups();
         assert.equal(handlers.size, 0, 'the injected runtime listener should be removed');
     } finally {
@@ -110,8 +113,8 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
 
 test('P1-009: background reload remains scoped to Gemini tabs (source guard)', () => {
     const src = readSrc('background/background.ts');
-    assert.ok(src.includes('not a gemini tab'));
-    assert.ok(src.includes("startsWith('https://gemini.google.com/')"));
+    assert.ok(src.includes('Not a Gemini Tab'));
+    assert.ok(src.includes("new URL(tab.url).origin !== 'https://gemini.google.com'"));
 });
 
 // P1-010: this is a genuine storage behavior test; preserve it.

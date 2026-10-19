@@ -4,7 +4,7 @@ export interface PageObservation<T> {
     /** Local Registry UUID; null means unverified and cannot authorize ingestion or coverage. */
     accountId: string | null;
     streamId: string;
-    items: T[];
+    items: readonly T[];
     requestCursor: string | null;
     nextCursor: string | null;
     requestedAt: number;
@@ -13,5 +13,5 @@ export interface PageObservation<T> {
     ordered: boolean;
     /** Only explicit Provider proof of a history window boundary. */
     terminal?: 'provider_limit';
-    keys: { id: string; time: number }[];
+    keys: readonly { id: string; time: number }[];
 }

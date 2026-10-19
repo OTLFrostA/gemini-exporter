@@ -331,21 +331,25 @@ class CDPAssertions:
         return False, f'v2 export history/freshness evidence missing: {last}', last
 
     @staticmethod
-    def assert_cloud_deleted_retained(cdp_opt, deleted_chat_id: str, timeout: float = 10.0) -> Tuple[bool, str, Dict[str, Any]]:
-        """After actual webpage deletion, v2 retains its local Index/Detail and UI row."""
+    def assert_confirmed_deleted(cdp_opt, deleted_chat_id: str, retained_ids: List[str], timeout: float = 10.0) -> Tuple[bool, str, Dict[str, Any]]:
+        """Confirmed remote deletion removes the same key's three local facts only."""
         install_probe(cdp_opt)
         deadline = time.monotonic() + timeout
         last = {}
         while time.monotonic() < deadline:
             last = cdp_opt.eval(f"""(async () => {{
                 const id = {json.dumps(deleted_chat_id.removeprefix('c_'))};
-                const [record] = await globalThis.__tier2V2.conversations([id]);
-                return {{retained:!!record?.domain, inDom:[...document.querySelectorAll('#list .item')].some(el => el.dataset.chatId?.replace(/^c_/, '') === id)}};
+                const stored = await globalThis.__tier2V2.storedConversation(id);
+                const state = await globalThis.__tier2V2.snapshot();
+                const ids = new Set(state.rows.map(row => row.key.conversationId));
+                return {{removed: stored.index === null && stored.detail === null && stored.exportRecord === null,
+                    othersRetained: {json.dumps(retained_ids)}.every(id => ids.has(id)),
+                    inDom:[...document.querySelectorAll('#list .item')].some(el => el.dataset.chatId?.replace(/^c_/, '') === id)}};
             }})()""", await_promise=True) or {}
-            if last.get('retained') and last.get('inDom'):
-                return True, 'Local Index/Detail and UI row retained after webpage deletion', last
+            if last.get('removed') and last.get('othersRetained'):
+                return True, 'Confirmed deletion removed Index, Detail and ExportRecord; unrelated Index facts remain', last
             time.sleep(0.3)
-        return False, f'Local archive retention failed: {last}', last
+        return False, f'Confirmed local deletion failed: {last}', last
 
     @staticmethod
     def assert_title_upgraded(cdp_opt, check_ids: List[str]) -> Tuple[bool, str, Dict[str, Any]]:

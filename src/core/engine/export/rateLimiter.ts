@@ -30,35 +30,22 @@ export interface RetryOptions extends RateLimiterOptions {
 
 export interface RateLimitModule {
     RateLimitManager: typeof RateLimitManager;
-    isRateLimited: (res: any) => boolean;
+    isRateLimited: (res: unknown) => boolean;
     calculateBackoff: (retryCount: number, options?: RateLimiterOptions) => number;
     withRateLimitRetry: <T>(operation: () => Promise<T>, options?: RetryOptions) => Promise<T>;
     abortableSleep: (ms: number, signal?: AbortSignal | null) => Promise<boolean>;
 }
 
-/**
- * Check if a response result or error indicates rate limit (HTTP 429 or quota exceeded).
- *
- * Canonical predicate for the whole codebase: previously inlined variants
- * lived in exportOrchestrator.ts, types/errors.ts (GeminiRpcError),
- * content/messageRouter.ts (BardErrorInfo / 1096 / resource_exhausted),
- * syncController.ts (服务端上限), and pagination.ts.
- * All call sites now converge here so the semantics cannot drift again.
- */
-export function isRateLimited(res: any): boolean {
-    if (!res) return false;
-    if (typeof res === 'string') {
-        if (/429|rate\s*limit|quota|too\s*many\s*requests|resource_exhausted/i.test(res)) return true;
-        return res.includes('BardErrorInfo') || res.includes('1096') || res.includes('服务端上限');
-    }
-    if (res instanceof Error) {
-        return isRateLimited(res.message);
-    }
-    if (res.success === true) return false;
-    if (res.status === 429) return true;
-    const err = String(res.error || res.message || '');
-    if (/429|rate\s*limit|quota|too\s*many\s*requests|resource_exhausted/i.test(err)) return true;
-    return err.includes('BardErrorInfo') || err.includes('1096') || err.includes('服务端上限');
+/** Recognize HTTP 429, including the HTTP errors emitted by GeminiAPIClient. */
+export function isRateLimited(res: unknown): boolean {
+    if (typeof res === 'string') return /^HTTP 429\b/.test(res);
+    if (res instanceof Error) return isRateLimited(res.message);
+    if (!res || typeof res !== 'object') return false;
+    if ('success' in res && res.success === true) return false;
+    if ('status' in res && res.status === 429) return true;
+    const message = 'error' in res && typeof res.error === 'string' ? res.error
+        : 'message' in res && typeof res.message === 'string' ? res.message : '';
+    return /^HTTP 429\b/.test(message);
 }
 
 export async function withRateLimitRetry<T>(
@@ -124,7 +111,7 @@ export class RateLimitManager {
         this.jitterMs = options?.jitterMs ?? 1000;
     }
 
-    isRateLimited(res: any): boolean {
+    isRateLimited(res: unknown): boolean {
         return isRateLimited(res);
     }
 

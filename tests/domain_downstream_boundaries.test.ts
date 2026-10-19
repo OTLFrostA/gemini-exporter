@@ -3,26 +3,23 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDiagnosticSnapshot } from '../src/core/diagnostics/diagnosticSnapshot.js';
+import { putExportRecord } from '../src/core/storage/storageService.js';
+import { ingestDetail } from '../src/core/domain/ingestion.js';
+import { readConversation } from '../src/core/domain/readConversation.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { contentComposer } from '../src/core/document/compose/composeContent.js';
 import type { DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
 
 const index: DomainConversationIndex = { key: fixtureKey(String('review123'), 'gemini'),   title: 'Review fixture', titleSource: "provider",   updatedAt: 1700000000000 };
 
-test('diagnostic acquisition rejects bad records individually before typed state calculation', async () => {
+test('malformed delivery history cannot contaminate the independently validated Domain snapshot', async () => {
+    await ingestDetail(index.key.accountId, index.key.conversationId, { quality: { status: 'complete' }, assets: [], messages: [] },
+        { title: index.title, titleSource: index.titleSource, updatedAt: index.updatedAt });
+    const original = await readConversation(index.key);
     for (const record of [null, [], 1, { chatTime: { toString: null } }, { messageCount: 'many' }, { status: {} }, { hasFailedAssets: 'yes' }, { chatTime: Infinity }]) {
-        const snapshot = await buildDiagnosticSnapshot({
-            conversations: [index, { ...index, key: { ...index.key, conversationId: 'valid' } }],
-            exportedIds: { review123: record, valid: { status: 'ok', chatTime: index.updatedAt, messageCount: 2 } },
-        });
-        assert.deepEqual(snapshot.exportRecoveryIssues, ['Rejected export record: review123']);
-        assert.equal(snapshot.conversationsStateMirror[0].derivedState.state, 'unexported');
-        assert.equal(snapshot.conversationsStateMirror[1].derivedState.state, 'exported_ok');
-        assert.equal(snapshot.storageOverview.totalExportedRecords, 1);
+        await putExportRecord(index.key, record as never);
+        assert.deepEqual(await readConversation(index.key), original);
     }
-    const snapshot = await buildDiagnosticSnapshot({ conversations: [index], exportedIds: [] });
-    assert.deepEqual(snapshot.exportRecoveryIssues, ['Invalid export record container']);
 });
 
 test('validated tables compose across header rowspans without changing Domain data', () => {

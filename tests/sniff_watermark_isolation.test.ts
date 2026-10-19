@@ -1,42 +1,31 @@
-import { catalogMock } from './helpers/catalogMock.js';
-import { withRegistry } from './helpers/registryMock.js';
-import { fixtureAccount } from './helpers/domainFixture.js';
-/** Passive captures only save records; they cannot establish or advance scan coverage. */
+/** Trusted passive pages can advance Coverage; uncorrelated facts cannot. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ingestRpcList } from '../src/content/syncEngine.js';
-import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
-import type { DomainConversationIndex as Conversation } from '../src/core/domain/conversationIndex.js';
-import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
-
-test('interleaved repeated RPC captures preserve authoritative timestamps without accessing coverage', async () => {
-    let records: Conversation[] = [];
-    __setModuleOverride('StorageService', {
-        async transactConversations(_slot: string, apply: (items: Conversation[]) => { list: Conversation[]; changed: number }) {
-            records = apply(records).list; return { list: records, changed: 0, written: true };
-        },
-        async setLastSync() {}, async updateAccountSlot() {},
-        async beginScanCoverage() { throw new Error('Sniff must not begin coverage'); },
-        async finishScanCoverage() { throw new Error('Sniff must not finish coverage'); },
-        async preparePageCoverage() { throw new Error('Sniff must not prepare coverage'); },
-        async recordPageCoverage() { throw new Error('Sniff must not advance coverage'); }
-    });
-    const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({ runtime: { sendMessage: async () => {} }, storage: catalogMock(() => records, list => { records = list; }) }) });
-    const item = parseGeminiIndexObservation({ id: 'abcdef123', title: 'A', titleSource: 'rpc',
-        updatedAt: 1700000000000 }, 'rpc-list', fixtureAccount().id);
+import { indexStorage } from './helpers/indexStorage.js';
+import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
+import { init, handleWindowMessage } from '../src/content/messageBridge.js';
+import { listIndexes, getCoverage } from '../src/core/storage/storageService.js';
+const wire = (seconds: number) => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+    [['c_abcdef123', 'A', null, null, null, [seconds, 0]]]])]]);
+function capture(seconds: number, correlated: boolean): MessageEvent {
+    return { origin: location.origin, source: window, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: {
+        text: wire(seconds), slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION, requestedAt: Date.now(),
+        truncated: false, url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute',
+        ...(correlated ? { listRequest: { streamId: 'recent', requestCursor: null } } : {}),
+    } } } as unknown as MessageEvent;
+}
+test('repeated uncorrelated captures preserve authoritative timestamps without establishing Coverage', async () => {
+    const storage = indexStorage(), runtime = accountRuntime();
     try {
-        await ingestRpcList([item], '10000000-0000-4000-8000-000000000001');
-        await ingestRpcList([{ ...item, updatedAt: item.updatedAt! - 1000 }], '10000000-0000-4000-8000-000000000001');
-        assert.equal(records.length, 1, 'an older repeated capture must not create a second chat');
-        assert.equal(records[0].updatedAt, item.updatedAt, 'an older capture must not regress updatedAt');
-        await ingestRpcList([{ ...item }], '10000000-0000-4000-8000-000000000001');
-        assert.equal(records.length, 1);
-        assert.equal(records[0].updatedAt, item.updatedAt);
-        assert.equal(Reflect.get(records[0] ?? {}, 'cloudAvailability'), undefined);
-    } finally {
-        __clearModuleOverrides();
-        if (previous) Object.defineProperty(globalThis, 'chrome', previous);
-        else Reflect.deleteProperty(globalThis, 'chrome');
-    }
+        init();
+        for (const seconds of [1700000000, 1699999999, 1700000000]) await handleWindowMessage(capture(seconds, false));
+        const indexes = await listIndexes(ACCOUNT_UUID);
+        assert.equal(indexes.length, 1); assert.equal(indexes[0].updatedAt, 1700000000000);
+        assert.equal(await getCoverage(ACCOUNT_UUID, 'recent'), null);
+        assert.equal(Object.hasOwn(indexes[0], 'cloudAvailability'), false);
+        await handleWindowMessage(capture(1700000000, true));
+        assert.deepEqual((await getCoverage(ACCOUNT_UUID, 'recent'))?.range, {
+            head: { id: 'abcdef123', time: 1700000000000 }, tail: { id: 'abcdef123', time: 1700000000000 }
+        });
+    } finally { runtime.restore(); storage.restore(); }
 });

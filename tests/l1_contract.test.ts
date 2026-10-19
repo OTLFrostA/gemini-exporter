@@ -154,12 +154,12 @@ test('L1 passive observed detail chain shares active source assembly', async () 
     assert.ok(stored); assert.equal(stored.quality.status, 'complete');
     assert.equal(stored.messages.length, 4);
 });
-test('L1 delete only emits existing source control callback', async () => {
+test('L1 unverified delete notification cannot invoke L2 or emit a committed callback', async () => {
     let observed: unknown;
     init({ onConversationDeleted: (id, accountId) => { observed = [id, accountId]; } });
     await handleWindowMessage({ ...sourceEvent('unused'), data: { type: CrossWorldEvents.CONVERSATION_DELETED,
         payload: { id: 'source_chat_123', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION } } });
-    assert.deepEqual(observed, ['source_chat_123', ACCOUNT_UUID]);
+    assert.equal(observed, undefined);
 });
 test('L1 detail returns void after successful L2 admission', async () => {
     const account = await getAccount(ACCOUNT_UUID); assert.ok(account);
