@@ -3,7 +3,6 @@ import { initBootstrap } from './bootstrap.js';
 import { MessageRouter } from './messageRouter.js';
 import { MessageBridge } from './messageBridge.js';
 import { BadgeView } from './badgeView.js';
-import { LiveSaveObserver } from './liveSaveObserver.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { invalidateAccountContext } from './accountContext.js';
 import { runCleanups, registerCleanup } from './cleanupRegistry.js';
@@ -17,12 +16,9 @@ if (typeof window !== 'undefined') {
     MessageRouter.init();
     LiveSaveCoordinator.init({ badge: BadgeView });
     registerCleanup(LiveSaveCoordinator.cleanup);
-    LiveSaveObserver.init({ onTurnComplete: (key, reason) => {
-        void LiveSaveCoordinator.executeLiveSave(key, reason).catch(error => console.warn('[Runtime] Live Save failed', error));
+    MessageBridge.init({ onDetailChanged: key => {
+        void LiveSaveCoordinator.executeLiveSave(key).catch(error => console.warn('[Runtime] Live Save failed', error));
     } });
-    registerCleanup(LiveSaveObserver.cleanup);
-    MessageBridge.init({ onStreamStart: LiveSaveObserver.notifyStreamStart,
-        onStreamComplete: LiveSaveObserver.notifyStreamComplete });
     // Capture source events at document_start; their L2/Registry ports await readiness.
     void ensureV2Ready().then(() => {
         if (!active) return;

@@ -133,7 +133,6 @@
   "src/core/utils/errorText.ts",
   "src/core/imports/takeout/readArchive.ts",
   "src/core/parsers/shared/archive/zipBombGuard.ts",
-  "src/core/domain/admissionLock.ts",
   "src/core/domain/readConversation.ts",
   "src/core/storage/settingsStore.ts",
   "src/core/storage/exportRecordStore.ts",

@@ -56,10 +56,20 @@ test('complete disjoint snapshots replace the old boundary; empty history retain
     assert.deepEqual(new CoverageSession().observe(prior, page([200, 150])), { range: { head: { id: 'id200', time: 200 }, tail: { id: 'id150', time: 150 } } });
     assert.deepEqual(new CoverageSession().observe(prior, page([])), emptyStream());
 });
-test('time inversions do not create a persistent invalidation state', () => {
+test('unordered source rows never certify Coverage or a trusted early-stop boundary', () => {
     const s = new CoverageSession();
-    s.observe(emptyStream(), { ...page([100, 60, 90], null, 'tail'), ordered: false });
-    const current = s.observe(emptyStream(), page([80, 50], 'tail'));
-    assert.deepEqual(Object.keys(current), ['range']);
-    assert.ok(current.range);
+    assert.deepEqual(s.observe(emptyStream(), { ...page([100, 60, 90], null, 'tail'), ordered: false }), emptyStream());
+    assert.deepEqual(s.observe(emptyStream(), page([80, 50], 'tail')), emptyStream());
+    assert.equal(s.exhausted(), false);
+});
+test('a cursor link cannot stitch pages of different accounts, streams or acquisition order', () => {
+    for (const patch of [{ accountId: 'other' }, { streamId: 'other' }, { providerId: 'other' }, { requestedAt: 0 }]) {
+        const s = new CoverageSession(), head = page([100], null, 'next');
+        s.observe(emptyStream(), head);
+        assert.deepEqual(s.observe(emptyStream(), { ...page([90], 'next'), ...patch }), emptyStream());
+        assert.equal(s.exhausted(), false);
+    }
+    const crossPageTime = new CoverageSession();
+    crossPageTime.observe(emptyStream(), page([100], null, 'next'));
+    assert.deepEqual(crossPageTime.observe(emptyStream(), page([110], 'next')), emptyStream());
 });

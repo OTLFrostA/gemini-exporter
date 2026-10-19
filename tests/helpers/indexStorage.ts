@@ -1,4 +1,4 @@
-import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
+import { IDBFactory, IDBObjectStore, IDBKeyRange } from 'fake-indexeddb';
 import { resetIndexCoverageSessions } from '../../src/core/domain/indexCoverage.js';
 import { fixtureAccount } from './domainFixture.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountRuntime.js';
@@ -7,8 +7,9 @@ import { beforeEach, afterEach } from 'node:test';
 
 /** Production Storage over a fresh IndexedDB test backend; Chrome Settings/IPC are boundary doubles. */
 export function indexStorage(seed: Record<string, unknown> = {}) {
-    const previous = globalThis.chrome, previousDB = globalThis.indexedDB;
+    const previous = globalThis.chrome, previousDB = globalThis.indexedDB, previousRange = globalThis.IDBKeyRange;
     globalThis.indexedDB = new IDBFactory();
+    globalThis.IDBKeyRange = IDBKeyRange;
     const originalPut = IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put = function(value: unknown, key?: IDBValidKey) {
         const row = value as { key?: { accountId?: string } };
@@ -26,6 +27,7 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
     ]);
     for (const provider of ['chatgpt', 'custom', 'future', 'future-provider', 'other', 'example', 'neutral', 'openai', 'independent']) { const account = fixtureAccount(provider); accounts.set(account.id, account); }
     globalThis.chrome = { runtime: { async sendMessage(message: Record<string, unknown>) {
+        if (message.action === 'ensureV2Ready') return { ok: true };
         if (message.action !== 'accountRegistry') return undefined;
         if (message.command === 'get') return { ok: true, value: accounts.get(String(message.accountId)) ?? null };
         if (message.command === 'list') return { ok: true, value: [...accounts.values()].filter(account => !message.providerId || account.providerId === message.providerId) };
@@ -46,7 +48,8 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
     resetIndexCoverageSessions();
 
     return { local, writes: () => writes, fail: (key?: string) => { failKey = key; },
-        restore() { globalThis.chrome = previous; globalThis.indexedDB = previousDB; IDBObjectStore.prototype.put = originalPut; } };
+        restore() { globalThis.chrome = previous; globalThis.indexedDB = previousDB; globalThis.IDBKeyRange = previousRange;
+            IDBObjectStore.prototype.put = originalPut; } };
 }
 
 /** Catalog-aware application tests use the same storage boundary as production reads. */

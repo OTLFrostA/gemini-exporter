@@ -1,4 +1,4 @@
-import { getCoverage } from '../src/core/storage/storageService.js';
+import { getCoverage, getIndex, getDetail, updateIndexesAtomically } from '../src/core/storage/storageService.js';
 import { admitFixture } from './helpers/admitFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -88,5 +88,89 @@ test('default retains source Index facts without establishing trusted account co
         });
         assert.deepEqual(await getConversations(accountId), [{ key, updatedAt: 100 }]);
         assert.equal(await getCoverage(accountId, 'recent'), null);
+    } finally { env.restore(); }
+});
+
+test('ingestDetail changed reports only committed messages/assets/quality differences', async () => {
+    const env = indexStorage(), key = fixtureKey('changed-semantics');
+    try {
+        const body = { ...snapshot('first', 'complete', 10).conversation.detail };
+        const { key: _unused, ...facts } = body;
+        assert.equal(await ingestDetail(account.id, key.conversationId, facts), true);
+        assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts }), false);
+        assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 11 }), false);
+        assert.equal((await readFixture(storageIdentity('gemini', account.id, key.conversationId)))!.conversation.detail.savedAt, 11);
+        assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts, quality: { status: 'partial' }, savedAt: 12 },
+            { title: 'New index', titleSource: 'provider' }), false);
+        assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 12,
+            messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'edited' }] }] }] }), true);
+    } finally { env.restore(); }
+});
+
+test('one failed Detail write rolls back its freshly created Index', async () => {
+    const env = indexStorage(), key = fixtureKey('atomic-rollback');
+    try {
+        env.fail('details');
+        const { key: _unused, ...facts } = snapshot('new body', 'complete', 10).conversation.detail;
+        await assert.rejects(ingestDetail(account.id, key.conversationId, facts), /write failed/);
+        env.fail();
+        assert.equal(await getIndex(key), null);
+        assert.equal(await getDetail(key), null);
+        assert.equal(await ingestDetail(account.id, key.conversationId, facts), true);
+        assert.ok(await getIndex(key));
+        assert.ok(await getDetail(key));
+    } finally { env.restore(); }
+});
+
+test('concurrent Index admissions preserve the highest trusted updatedAt', async () => {
+    const env = indexStorage(), key = fixtureKey('atomic-index');
+    try {
+        await Promise.all(Array.from({ length: 20 }, (_, updatedAt) =>
+            ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { updatedAt } }])));
+        assert.equal((await getIndex(key))?.updatedAt, 19);
+    } finally { env.restore(); }
+});
+
+test('Index atomic update accepts only changed subset and zero-write no-op admissions', async () => {
+    const env = indexStorage(), one = fixtureKey('subset-one'), two = fixtureKey('subset-two');
+    try {
+        await ingestIndexes(account.id, [
+            { conversationId: one.conversationId, fields: { updatedAt: 10 } },
+            { conversationId: two.conversationId, fields: { updatedAt: 20 } },
+        ]);
+        const beforeNoop = env.writes();
+        await ingestIndexes(account.id, [
+            { conversationId: one.conversationId, fields: { updatedAt: 10 } },
+            { conversationId: two.conversationId, fields: { updatedAt: 20 } },
+        ]);
+        assert.equal(env.writes(), beforeNoop, 'L2 chooses an empty write subset');
+        await updateIndexesAtomically([one, two], rows => {
+            assert.equal(rows[0]?.updatedAt, 10);
+            assert.equal(rows[1]?.updatedAt, 20);
+            return [{ ...rows[1]!, updatedAt: 30 }];
+        });
+        assert.equal((await getIndex(one))?.updatedAt, 10);
+        assert.equal((await getIndex(two))?.updatedAt, 30);
+    } finally { env.restore(); }
+});
+
+test('Index atomic update rejects duplicate/foreign decision keys and rolls back partial writes', async () => {
+    const env = indexStorage(), one = fixtureKey('subset-first'), two = fixtureKey('subset-second');
+    try {
+        await ingestIndexes(account.id, [
+            { conversationId: one.conversationId, fields: { updatedAt: 10 } },
+            { conversationId: two.conversationId, fields: { updatedAt: 20 } },
+        ]);
+        await assert.rejects(updateIndexesAtomically([one, one], () => []), /Duplicate Index admission key/);
+        await assert.rejects(updateIndexesAtomically([one, two], old => [
+            { ...old[0]!, updatedAt: 999 },
+            { key: fixtureKey('foreign'), updatedAt: 300 },
+        ]), /Index decision key mismatch/);
+        assert.equal((await getIndex(one))?.updatedAt, 10);
+        await assert.rejects(updateIndexesAtomically([one, two], old => [
+            { ...old[0]!, updatedAt: 999 }, { ...old[0]!, updatedAt: 888 },
+        ]), /Duplicate Index decision key/);
+        assert.equal((await getIndex(one))?.updatedAt, 10);
+        assert.equal((await getIndex(two))?.updatedAt, 20);
     } finally { env.restore(); }
 });

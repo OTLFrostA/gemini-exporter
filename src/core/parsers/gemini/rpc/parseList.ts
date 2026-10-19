@@ -68,6 +68,16 @@ function listResult(conversations: ConversationListItem[], nextPageToken: string
         ordered: valid && keys.every(key => key.time > 0) && keys.every((key, i) => i === 0 || keys[i - 1].time >= key.time) } };
 }
 
+/** Only the LIST RPC's own structured error slot may certify Gemini's 1096 window limit. */
+function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boolean {
+    if (!Array.isArray(top)) return false;
+    const hasCode = (value: unknown): boolean => Array.isArray(value)
+        && ((value[0] === 'BardErrorInfo' && value.slice(1, 4).includes(1096))
+            || value.some(hasCode));
+    return top.some(row => Array.isArray(row) && row[0] === wrb && row[1] === listRpc
+        && hasCode(row[GEMINI_JSPB_SCHEMA.ERROR_INFO.ERROR_SLOT]));
+}
+
     function parseList(text: string): ListParseResult {
         try {
             let top = robustFirstPayload(text);
@@ -89,9 +99,9 @@ function listResult(conversations: ConversationListItem[], nextPageToken: string
                 }
                 return {
                     ...listResult([], null, null),
-                    // Pragmatic provider heuristic: 1096 on a continuation is treated as the history window.
-                    // HTTP 429 is handled by Client and never becomes this parser result.
-                    failure: bardError && /BardErrorInfo\D{0,80}1096\b/.test(bardError) ? 'hit_google_limit' : 'invalid_response',
+                    // Request-bound Provider observation checks that this is the Recent continuation.
+                    // Another RPC's BardErrorInfo cannot certify the list boundary.
+                    failure: bardError && isConfirmedListLimit(top, wrb, listRpc) ? 'hit_google_limit' : 'invalid_response',
                     _debug: {
                         error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
                         bardError: bardError,

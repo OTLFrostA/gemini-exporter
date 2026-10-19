@@ -4,6 +4,7 @@ import { geminiAccountObservation } from '../core/provider/gemini/accountObserva
 import { readGeminiDetailRequest } from '../core/parsers/gemini/rpc/detailRequest.js';
 import { readGeminiListRequest } from '../core/parsers/gemini/rpc/listRequest.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
+import { parseConfirmedGeminiDeletion } from '../core/parsers/gemini/rpc/parseDeletion.js';
 import type { GeminiProtocolModule } from '../core/protocol/protocol.js';
 import type {
     GeminiCredentialsPayload,
@@ -134,44 +135,18 @@ declare global {
         url: string | URL | Request | null | undefined,
         body: unknown,
         responseText: unknown,
-        requestAccountObservation: Omit<Account, 'id'> | null
+        requestAccountObservation: Omit<Account, 'id'> | null,
+        successfulResponse: boolean
     ): void {
-        try {
-            const u = toUrlString(url);
-            const bodyStr = body ? String(body) : '';
-            const respStr = responseText ? String(responseText) : '';
-            const hasGz = (bodyStr && bodyStr.includes(Proto.RPCS.DELETE)) ||
-                          (respStr && respStr.includes(Proto.RPCS.DELETE)) ||
-                          u.includes(Proto.RPCS.DELETE);
-            if (!hasGz) return;
-
-            const slot = getSlotFromUrl(url);
-
-            let targetText = bodyStr + ' ' + respStr;
-            try {
-                if (targetText.includes('%')) {
-                    targetText = decodeURIComponent(targetText);
-                }
-            } catch {
-                /* intentional: invalid date or URI fallback */
-            }
-
-            // Anchor specifically to the delete-RPC payload parameter context to prevent false positives
-            const anchor0 = Proto.DELETION_ANCHORS[0];
-            const anchor1 = Proto.DELETION_ANCHORS[1];
-            const idMatch = (anchor0 ? targetText.match(anchor0) : null) ||
-                            (anchor1 ? targetText.match(anchor1) : null);
-            if (idMatch && idMatch[1]) {
-                const deletedId = idMatch[1];
-                const payload: GeminiConversationDeletedPayload = { id: deletedId, slot, requestAccountObservation };
-                window.postMessage({
-                    type: Events.CONVERSATION_DELETED,
-                    payload
-                }, location.origin);
-            }
-        } catch (e) {
-            if (isDev()) console.debug('[GemExporter:hook]', e);
-        }
+        if (!successfulResponse || !requestAccountObservation
+            || requestAccountObservation.providerAccountId === 'default'
+            || typeof body !== 'string' || typeof responseText !== 'string') return;
+        const conversationId = parseConfirmedGeminiDeletion(body, responseText);
+        if (!conversationId) return;
+        const payload: GeminiConversationDeletedPayload = {
+            id: conversationId, slot: getSlotFromUrl(url), requestAccountObservation
+        };
+        window.postMessage({ type: Events.CONVERSATION_DELETED, payload }, location.origin);
     }
 
     function getSlotFromUrl(url: string | URL | Request | null | undefined): string {
@@ -430,7 +405,7 @@ declare global {
                     const cloned = response.clone();
                     readCappedText(cloned).then(async ({ text: txt, truncated }) => {
                         try {
-                            detectDeletedConversation(input, await capturedBody, txt, requestAccountObservation);
+                            detectDeletedConversation(input, await capturedBody, txt, requestAccountObservation, response.ok && !truncated);
                             broadcastBatchexecute(input, txt, await capturedBody, truncated || !response.ok, requestedAt, requestAccountObservation, requestSlot);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -490,7 +465,9 @@ declare global {
                 if (u.includes('batchexecute')) {
                     this.addEventListener('load', () => {
                         try {
-                            detectDeletedConversation(url, body, this.responseText, requestAccountObservation);
+                            detectDeletedConversation(url, typeof body === 'string' ? body
+                                : body instanceof URLSearchParams ? body.toString() : '', this.responseText,
+                                requestAccountObservation, this.status >= 200 && this.status < 300);
                             broadcastBatchexecute(url, this.responseText, body, this.status < 200 || this.status >= 300, requestedAt, requestAccountObservation, requestSlot);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);

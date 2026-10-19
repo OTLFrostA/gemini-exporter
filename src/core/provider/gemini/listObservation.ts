@@ -7,7 +7,7 @@ export function geminiListObservation(result: ListParseResult, request: GeminiLi
     if (!request || !['recent', 'pinned'].includes(request.streamId)
         || !(request.requestCursor === null || typeof request.requestCursor === 'string')) request = null;
     const { keys, valid: parsedValid, ordered } = result.pageEvidence;
-    const providerLimit = !truncated && request?.requestCursor !== null && request !== null
+    const providerLimit = !truncated && request?.streamId === 'recent' && request.requestCursor !== null
         && result.failure === 'hit_google_limit' && result.conversations.length === 0;
     const valid = !truncated && (providerLimit || parsedValid && !result.failure);
     return { providerId: 'gemini', accountId, streamId: request?.streamId ?? 'unknown', items: result.conversations,
