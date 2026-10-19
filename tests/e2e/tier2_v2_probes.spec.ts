@@ -35,7 +35,7 @@ function wire() {
     return JSON.stringify([['wrb.fr','hNvQHb',JSON.stringify([[turn]])]]);
 }
 
-test('Tier 2 v2 read probe sees actual account-scoped data; Coverage reset preserves Domain and ExportRecords', async ({ context, extensionId }) => {
+test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset preserves Domain and clears ExportRecords', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.evaluate(async accountId => {
         const api = Reflect.get(globalThis,'probeFixture');
@@ -45,14 +45,15 @@ test('Tier 2 v2 read probe sees actual account-scoped data; Coverage reset prese
             {role:'assistant',content:[{type:'paragraph',children:[{type:'text',text:'Answer'}]}]},
         ]},{title:'Probe title',titleSource:'provider',updatedAt:100});
         await api.putExportRecord(key,{exportedAt:200,chatTime:100,status:'ok',format:'markdown'});
-        await api.putCoverage(accountId,'recent',{range:{head:{id:'probe',time:100},tail:{id:'probe',time:100}}});
+        await api.updateCoverageAtomically(accountId,'recent',()=>({next:{range:{head:{id:'probe',time:100},tail:{id:'probe',time:100}}},result:undefined}));
     },accountId);
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(page.locator('#list .item[data-chat-id="probe"]')).toHaveCount(1);
     const before = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').snapshot());
     await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').resetCoverage());
     const after = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').snapshot());
-    expect(after.coverage).toBeNull(); expect(after.rows).toEqual(before.rows); expect(after.records).toEqual(before.records);
+    expect(after.coverage).toBeNull(); expect(after.rows).toEqual(before.rows);
+    expect(Object.keys(before.records)).toEqual(['probe']); expect(after.records).toEqual({});
     const [conversation] = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').conversations(['probe']));
     expect(conversation.domain.detail.messages).toHaveLength(2);
     await page.locator('#accountIdSelect').selectOption('10000000-0000-4000-8000-000000000002');

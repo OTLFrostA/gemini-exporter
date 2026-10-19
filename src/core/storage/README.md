@@ -3,8 +3,11 @@
 `storageService.ts` exports the frozen passive persistence API from the
 [Storage design](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00).
 
-One IndexedDB (`gemini_exporter_v2`, version 1) holds six stores. Raw partial
-Settings use Chrome Storage. Writes resolve after physical transaction completion;
+One IndexedDB (`gemini_exporter_v2`, version 1) holds six stores and only the
+unique `accounts.providerIdentity` index. The public surface has exactly 22
+functions; user cleanup atomically deletes Coverage + ExportRecord or ExportRecord
+alone, while retaining Account, Index and Detail. Raw partial Settings use one
+Chrome Storage key, and Patch uses an extension-origin Web Lock. Writes resolve after physical transaction completion;
 missing values return null/empty collections and IO errors reject. No memory
 fallback, resource bytes or persistent task state is stored here.
 

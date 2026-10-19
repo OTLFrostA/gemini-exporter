@@ -1,19 +1,13 @@
 import type { Account } from '../domain/accountRegistry.js';
 import type { StreamCoverage } from '../domain/streamCoverage.js';
-import { inStores, readOne, putOne, deleteOne } from './idb.js';
+import { inStores, readOne } from './idb.js';
 
 interface CoverageRow { accountId: string; streamId: string; value: StreamCoverage }
 export async function getCoverage(accountId: Account['id'], streamId: string): Promise<StreamCoverage | null> {
     return (await readOne<CoverageRow>('coverage', [accountId, streamId]))?.value ?? null;
 }
-export function putCoverage(accountId: Account['id'], streamId: string, accepted: StreamCoverage): Promise<void> {
-    return putOne('coverage', { accountId, streamId, value: accepted });
-}
-export function deleteCoverage(accountId: Account['id'], streamId: string): Promise<void> {
-    return deleteOne('coverage', [accountId, streamId]);
-}
 
-/** Serialize Coverage read -> L2 decision -> optional write against account clear. */
+/** Serialize Coverage read -> L2 decision -> optional write against scan cleanup. */
 export function updateCoverageAtomically<R>(accountId: Account['id'], streamId: string,
     decide: (current: StreamCoverage | null) => { next?: StreamCoverage; result: R }): Promise<R> {
     return inStores<R>(['coverage'], 'readwrite', (tx, done, fail) => {
@@ -29,16 +23,12 @@ export function updateCoverageAtomically<R>(accountId: Account['id'], streamId: 
     });
 }
 
-/** Physical account-prefix deletion, leaving all Index, Detail and ExportRecord facts intact. */
-export function clearStoredAccountCoverage(accountId: Account['id']): Promise<void> {
-    return inStores<void>(['coverage'], 'readwrite', (tx, done) => {
-        const store = tx.objectStore('coverage');
+/** Reset this account's trusted scan boundaries and export skip history atomically. */
+export function clearStoredAccountScanRecords(accountId: Account['id']): Promise<void> {
+    return inStores<void>(['coverage', 'exportRecords'], 'readwrite', (tx, done) => {
         const range = IDBKeyRange.bound([accountId], [accountId, []]);
-        const request = store.openCursor(range);
-        request.onsuccess = () => {
-            const cursor = request.result;
-            if (cursor) { cursor.delete(); cursor.continue(); }
-        };
+        tx.objectStore('coverage').delete(range);
+        tx.objectStore('exportRecords').delete(range);
         done(undefined);
     });
 }

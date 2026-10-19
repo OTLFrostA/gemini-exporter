@@ -1,5 +1,5 @@
 import type { Account } from '../domain/accountRegistry.js';
-import { inStore, readOne, putOne } from './idb.js';
+import { inStore, inStores, readOne } from './idb.js';
 
 export function getAccount(id: Account['id']): Promise<Account | null> {
     return readOne('accounts', id);
@@ -20,6 +20,19 @@ export function insertAccountIfAbsent(account: Account): Promise<Account> {
         };
     });
 }
+/** Keep the stable UUID and provider identity immutable while allowing migration Upsert. */
 export function putAccount(account: Account): Promise<void> {
-    return putOne('accounts', account);
+    return inStores<void>(['accounts'], 'readwrite', (tx, done, fail) => {
+        const store = tx.objectStore('accounts');
+        const request = store.get(account.id);
+        request.onsuccess = () => {
+            try {
+                const old = request.result as Account | undefined;
+                if (old && (old.providerId !== account.providerId || old.providerAccountId !== account.providerAccountId))
+                    throw new TypeError('Account identity cannot change');
+                store.put(account);
+                done(undefined);
+            } catch (error) { fail(error); }
+        };
+    });
 }

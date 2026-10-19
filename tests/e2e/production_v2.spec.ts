@@ -129,7 +129,23 @@ test('Service Worker unified Live Save writes a real stored directory handle and
         return texts.join('\n');
     });
     expect(contents).toContain('Answer production');
-    await page.evaluate(() => Reflect.get(globalThis, 'productionProbe').clearDirectoryHandle());
+    // Simulate a missing native capability directly in the test fixture, not via a public Storage delete API.
+    await page.evaluate(async () => {
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open('gemini_exporter_v2', 1);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction('directoryHandles', 'readwrite');
+                tx.objectStore('directoryHandles').delete('default');
+                tx.oncomplete = () => resolve();
+                tx.onabort = () => reject(tx.error);
+                tx.onerror = () => reject(tx.error);
+            });
+        } finally { db.close(); }
+    });
     await expect(worker.evaluate(async accountId => Reflect.get(globalThis, 'productionProbe').runLiveSave({ accountId, conversationId: 'production' }), accountId)).rejects.toThrow(/directory/i);
     expect(await page.evaluate(async () => (await Reflect.get(globalThis, 'productionProbe').getStoredSettings()).enabledDisk)).toBe(true);
 });

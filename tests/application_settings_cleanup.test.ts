@@ -33,20 +33,20 @@ test('Settings IO failures propagate instead of silently manufacturing defaults 
     state.failSettingsWrite = true; await assert.rejects(updateSettings({ language: 'en' }), /write failed/);
     assert.deepEqual(events, []);
 });
-test('record cleanup enumerates only the requested account and does not touch Domain', async () => {
+test('record cleanup atomically clears only the requested account and does not touch Domain', async () => {
     seed();
     const record = { exportedAt: 1, format: 'markdown' as const, status: 'ok' as const };
     records.set(address(key()), record); records.set(address(key('second')), record);
     const other = { accountId: '10000000-0000-4000-8000-000000000002', conversationId: 'first' };
     records.set(address(other), record);
     await clearLocalExportRecords(key().accountId);
-    assert.deepEqual(events, ['delete-record:first', 'delete-record:second']);
+    assert.deepEqual(events, [`clear-export:${key().accountId}`]);
     assert.equal(records.size, 1); assert.equal(records.has(address(other)), true); assert.equal(indexes.size, 1);
 });
 test('scan cleanup clears coverage and export history, preserving Index and Detail', async () => {
     seed(); records.set(address(key()), { exportedAt: 1, format: 'markdown', status: 'ok' });
     await clearLocalScanRecords(key().accountId);
-    assert.deepEqual(events, [`clear-coverage:${key().accountId}`, 'delete-record:first']);
+    assert.deepEqual(events, [`clear-scan:${key().accountId}`]);
     assert.equal(indexes.size, 1); assert.equal(details.size, 1); assert.equal(records.size, 0);
 });
 test('scan cleanup failure propagates without deleting Domain or claiming success', async () => {

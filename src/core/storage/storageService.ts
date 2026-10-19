@@ -1,8 +1,7 @@
 /** Passive persistence only. Business decisions and browser IPC belong to callers. */
 export { getAccount, listAccounts, insertAccountIfAbsent, putAccount } from './accountRegistryStore.js';
-export { getIndex, listIndexes, putIndexes, deleteIndex, getDetail, putDetail, deleteDetail, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from './conversationStore.js';
-export { getCoverage, putCoverage, deleteCoverage, updateCoverageAtomically, clearStoredAccountCoverage } from './scanCoverageStore.js';
-export { getExportRecord, listExportRecords, putExportRecord, deleteExportRecord } from './exportRecordStore.js';
+export { getIndex, listIndexes, putIndexes, getDetail, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from './conversationStore.js';
+export { getCoverage, updateCoverageAtomically, clearStoredAccountScanRecords } from './scanCoverageStore.js';
+export { getExportRecord, listExportRecords, putExportRecord, clearStoredAccountExportRecords } from './exportRecordStore.js';
 export { getStoredSettings, patchStoredSettings } from './settingsStore.js';
-export { getDirectoryHandle, setDirectoryHandle, clearDirectoryHandle } from './idbHandleStore.js';
-export { clearStoredAccountData } from './accountDataStore.js';
+export { getDirectoryHandle, setDirectoryHandle } from './idbHandleStore.js';
