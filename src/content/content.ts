@@ -4,7 +4,7 @@ import { MessageRouter } from './messageRouter.js';
 import { MessageBridge } from './messageBridge.js';
 import { BadgeView } from './badgeView.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
-import { invalidateAccountContext } from './accountContext.js';
+import { invalidateAccountContext, setAccountChangedHandler } from './accountContext.js';
 import { runCleanups, registerCleanup } from './cleanupRegistry.js';
 
 if (typeof window !== 'undefined') {
@@ -16,7 +16,8 @@ if (typeof window !== 'undefined') {
     MessageRouter.init();
     LiveSaveCoordinator.init({ badge: BadgeView });
     registerCleanup(LiveSaveCoordinator.cleanup);
-    MessageBridge.init({ onDetailChanged: key => {
+    setAccountChangedHandler(() => { void BadgeView.refreshAccount().catch(error => console.warn('[Runtime] Badge account refresh failed', error)); });
+    MessageBridge.init({ onIndexesCommitted: accountId => { void BadgeView.refreshIndexCount(accountId); }, onDetailChanged: key => {
         void LiveSaveCoordinator.executeLiveSave(key).catch(error => console.warn('[Runtime] Live Save failed', error));
     } });
     // Capture source events at document_start; their L2/Registry ports await readiness.

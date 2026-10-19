@@ -6,7 +6,6 @@ export interface ExportRequest {
     keys: readonly ConversationKey[];
     format: ExportFormat;
     delivery: ExportDelivery;
-    useZip: boolean;
     includeAssets: boolean;
     skipUnchanged: boolean;
 }

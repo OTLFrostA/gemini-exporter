@@ -53,7 +53,7 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
         }
         // Even an otherwise authorized module cannot add a double trust assertion.
         const double = snapshot.getDefaultProjectForFile([...virtual.keys()][9])!.program.getSourceFile([...virtual.keys()][9])!;
-        assert.ok(trustBoundaryViolations(double, 'core/utils/nativeDetailTransport.ts').some(issue => issue.includes('double trust assertion')));
+        assert.ok(trustBoundaryViolations(double, 'core/domain/readConversation.ts').some(issue => issue.includes('double trust assertion')));
         snapshot.dispose();
     } finally { api.close(); }
 });

@@ -1,7 +1,5 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -46,18 +44,4 @@ test('AST: separate reasoning presentation does not reinterpret the Domain body'
     assert.equal(reasoning.blocks[0].children[0].type, 'strong');
     assert.deepEqual(body, domain.detail.messages[0].content[0]);
     assert.deepEqual(reasoning.blocks, domain.detail.messages[0].reasoning);
-});
-
-test('provider parsing diagnoses malformed entries at their source position without mutating input', async () => {
-    const raw = { id: 'legacy', messages: [
-        null as never,
-        { role: 'assistant', content: { unsupported: 'visible fallback' } },
-    ] };
-    const original = structuredClone(raw);
-    const result = historicalFixture(raw, { providerId: 'gemini' });
-    assert.equal(result.conversation.detail.messages.length, 1);
-    assert.deepEqual(raw, original);
-    assert.equal(result.diagnostics.find(d => d.code === 'BAD_MESSAGE_SHAPE')?.path, 'messages[0]');
-    assert.equal(result.conversation.detail.messages[0].content[0].type, 'unknown');
-    assert.equal(result.diagnostics.filter(d => d.code === 'BAD_MESSAGE_SHAPE').length, 1);
 });

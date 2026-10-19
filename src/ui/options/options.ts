@@ -145,9 +145,7 @@ export async function initWorkbench(): Promise<void> {
             : text('Clear export records for this account? Conversations and files are kept.', '清除此账户导出记录？对话和磁盘文件保留。'))) return;
         void perform(async () => {
             if (scanRecords) {
-                const cleanup = Cleanup as typeof Cleanup & { clearLocalScanRecords?: (id: string) => Promise<void> };
-                if (!cleanup.clearLocalScanRecords) throw new Error('Application clearLocalScanRecords unavailable');
-                await cleanup.clearLocalScanRecords(accountId);
+                await Cleanup.clearLocalScanRecords(accountId);
             } else await Cleanup.clearLocalExportRecords(accountId);
             status(text('Records cleared', '记录已清除'));
         });

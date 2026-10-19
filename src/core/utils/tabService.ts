@@ -34,6 +34,28 @@ export async function resolveAccountTab(accountId: string): Promise<chrome.tabs.
     }
     throw new Error('No open Provider Tab matches this Account');
 }
+/** Resolve only live, verified Content bindings; never infer identity from a URL slot. */
+export async function resolveScanTarget(preferredAccountId?: string): Promise<string> {
+    await ensureV2Ready();
+    const accounts = new Set<string>();
+    const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+    for (const tab of tabs) {
+        if (tab.id === undefined) continue;
+        try {
+            const response = await send(tab.id, { action: 'getAccountContext' }, 3000);
+            if (!response || typeof response !== 'object' || !('accountContext' in response)) continue;
+            const context = response.accountContext;
+            if (!context || typeof context !== 'object' || !('accountId' in context) || !isAccountId(context.accountId)) continue;
+            const account = await getAccount(context.accountId);
+            if (account?.providerId === 'gemini' && account.providerAccountId !== 'default'
+                && matches(response, account.id, 'gemini')) accounts.add(account.id);
+        } catch { /* Unavailable Content is not a scan source. */ }
+    }
+    if (preferredAccountId && accounts.has(preferredAccountId)) return preferredAccountId;
+    if (accounts.size === 1) return [...accounts][0];
+    throw new Error(accounts.size ? 'Multiple Gemini accounts are open. Select the account to scan.'
+        : 'Open Gemini, log in and refresh the page before scanning.');
+}
 export async function getGeminiTab(accountId?: string): Promise<chrome.tabs.Tab | null> {
     if (!accountId) throw new TypeError('Tab routing requires an Account UUID');
     return resolveAccountTab(accountId);
@@ -59,6 +81,6 @@ export async function sendToAITab(providerId: string, message: unknown, accountI
 }
 export function openGeminiPage(): Promise<unknown> { return chrome.runtime.sendMessage({ action: 'openGeminiPage' }); }
 export function reloadGeminiTab(tabId?: number): Promise<unknown> { return chrome.runtime.sendMessage({ action: 'reloadGeminiTab', tabId }); }
-export const TabService = { resolveAccountTab, getGeminiTab, sendToGeminiTab, checkGeminiStatus,
+export const TabService = { resolveScanTarget, resolveAccountTab, getGeminiTab, sendToGeminiTab, checkGeminiStatus,
     getAITab, sendToAITab, openGeminiPage, reloadGeminiTab };
 export default TabService;

@@ -6,34 +6,12 @@ declare const __EXT_VERSION__: string;
 
 declare var GeminiAPIClient: import('../core/api/geminiClient.js').GeminiAPIClient;
 
-// UI workbench globals (mixed UMD / ESM transition, used via typeof checks)
-declare var ConversationsStore: import('./ui.js').IConversationsStore;
-declare var ListView: import('./ui.js').IListView;
-declare var LogView: import('./ui.js').ILogView;
-declare var DialogView: import('./ui.js').IDialogView;
-declare var AccountView: import('./ui.js').IAccountView;
-declare var ExportController: import('./ui.js').ExportControllerContract;
-declare var SyncController: import('./ui.js').SyncControllerContract;
-declare var TakeoutController: import('./ui.js').TakeoutControllerContract;
-declare var DirHandleController: import('./ui.js').DirHandleControllerContract;
-declare var TourGuide: import('./ui.js').TourGuideContract;
-
-declare var TabService: import('./utils.js').TabServiceModule;
-
 declare var _WIZ_global_data: Record<string, string> | undefined;
 declare var WIZ_global_data: Record<string, string> | undefined;
 declare var __WIZ_global_data: Record<string, string> | undefined;
 
 interface Window {
     showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<import('../core/engine/writers/directoryHandle.js').DirectoryHandle>;
-    __workbenchLoadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<void>;
-    ConversationsStore?: typeof import('../ui/state/conversationsStore.js').default;
-    DialogView?: typeof import('../ui/views/dialogView.js').default;
-    TourGuide?: typeof import('../ui/tour/tourGuide.js').default;
-    FsWriter?: typeof import('../core/engine/writers/fsWriter.js').default;
-    TakeoutController?: typeof import('../ui/controllers/takeoutController.js').default;
-    SyncController?: typeof import('../ui/controllers/syncController.js').default;
-    ExportController?: typeof import('../ui/controllers/exportController.js').default;
     __mitex?: Pick<typeof import('../core/renderers/typst/mathConverter.js'), 'initMitexWasm' | 'isMitexReady' | 'convertMathWithMitex'>;
     __gemExporterAborted?: boolean;
     __gemExporterActiveClient?: import('../content/contentContext.js').ActiveClientContract | null;
@@ -67,5 +45,4 @@ interface HTMLElement {
     __initialRefreshed?: boolean;
 }
 
-declare var __liveSaveStorageWatcherBound: boolean | undefined;
 declare var __gemExporterAborted: boolean | undefined;

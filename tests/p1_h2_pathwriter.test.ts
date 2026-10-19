@@ -1,12 +1,9 @@
-import { indexFixture } from './helpers/indexFixture.js';
+
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
 const pathUtils = require('../src/core/utils/pathUtils.js');
-const titleUtils = require('../src/core/utils/titleUtils.js');
-const { mergeConversation } = require('../src/core/domain/indexCollection.js');
-const progressUtils = require('../src/core/utils/progressUtils.js');
 
 test('p1_h2 - P1-102: con.md is rewritten, not left as a reserved name', () => {
     const out = pathUtils.sanitizeFileName('con.md');
@@ -48,61 +45,6 @@ test('p1_h2 - P1-105b: buildExportFileName preserves _cid6 under downstream sani
     assert.ok(out.endsWith('_1acd53.md'), `filename must end with _1acd53.md, got ${out}`);
     const cleaned = pathUtils.sanitizeRelativePath(out, 'file');
     assert.strictEqual(cleaned, out, 'downstream sanitizeRelativePath must not truncate _cid6');
-});
-
-// ---------- P1-106: toTimestampMs ----------
-test('p1_h2 - P1-106: toTimestampMs normalizes timestamp shapes', () => {
-    const f = titleUtils.toTimestampMs;
-    assert.strictEqual(f(3000), 3000, 'number keeps ms contract');
-    assert.strictEqual(f('1726358400'), 1726358400000, 'digit string < 1e11 is epoch seconds');
-    assert.strictEqual(f('1726358400000'), 1726358400000, 'long digit string is epoch ms');
-    assert.strictEqual(f('2024-09-14T00:00:00.000Z'), 1726272000000, 'ISO string');
-    assert.strictEqual(f(new Date('2024-09-14T00:00:00.000Z')), 1726272000000, 'Date');
-    assert.strictEqual(f('not-a-date'), null);
-    assert.strictEqual(f(null), null);
-    assert.strictEqual(f(undefined), null);
-    assert.strictEqual(f(-5), null);
-    assert.strictEqual(f(''), null);
-});
-
-// ---------- P1-107: takeout fallback uses the same bar as tier 1 ----------
-test('p1_h2 - P1-107: takeout placeholder titles do not flow back in', () => {
-    const bad = titleUtils.resolveTitle({ id: 'c_1', titles: { takeout: 'Google Gemini' } });
-    assert.strictEqual(bad.source, 'derived', `placeholder must not resolve as takeout, got ${bad.source}`);
-    const good = titleUtils.resolveTitle({ id: 'c_1', title: 'Weekend hiking plan', titleSource: 'derived' });
-    assert.strictEqual(good.source, 'derived');
-    assert.strictEqual(good.title, 'Weekend hiking plan');
-});
-
-// ---------- P1-108: merge timestamps via toTimestampMs ----------
-test('p1_h2 - P1-108: mergeConversation honors digit-string updatedAt', () => {
-    const oldC = { id: 'c_1', updatedAt: '2024-01-01T00:00:00.000Z', title: 'Old' };
-    const inc = { id: 'c_1', updatedAt: '1726358400000', title: 'New' };
-    const r = mergeConversation(indexFixture(oldC), indexFixture(inc));
-    assert.ok(r.isChanged, 'newer digit-string timestamp should win');
-    const eff = titleUtils.getEffectiveTimestamp(r.merged);
-    assert.strictEqual(eff, 1726358400000);
-});
-
-// ---------- P1-109: NaN progress ----------
-test('p1_h2 - P1-109: NaN/Infinity pct becomes 0, not NaN', () => {
-    assert.strictEqual(progressUtils.formatExportProgress({ pct: NaN }).pct, 0);
-    assert.strictEqual(progressUtils.formatExportProgress({ pct: Infinity }).pct, 0);
-    assert.strictEqual(progressUtils.formatExportProgress(NaN).pct, 0);
-    assert.strictEqual(progressUtils.formatExportProgress({ pct: 42 }).pct, 42);
-});
-
-// ---------- P1-110: code spans survive the residual tag strip ----------
-test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
-    const html = '<pre><code class="language-html">&lt;div&gt;hi&lt;/div&gt;</code></pre>'
-        + '<p>real <b>bold</b> text</p>'
-        + '<p>sample <code>List&lt;String&gt;</code> and <code>&lt;h1&gt;t&lt;/h1&gt;</code></p>';
-    const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
-    const out = ChatFormatter.convertHtmlToMarkdown(html);
-    assert.ok(out.includes('<div>hi</div>'), 'fenced code content must survive');
-    assert.ok(out.includes('`List<String>`'), 'inline code generic must survive');
-    assert.ok(out.includes('`<h1>t</h1>`'), 'inline code must not be rewritten by heading pass');
-    assert.ok(out.includes('**bold**'), 'real bold outside code still converts');
 });
 
 // ---------- P1-112: no substring cross-file matching ----------
@@ -168,47 +110,4 @@ test('p1_h2 - review fix (c): writeChains map does not grow without bound', asyn
     ]);
     assert.strictEqual(w.__writeChains.size, 0, `chain map must be empty after writes, got ${w.__writeChains.size}`);
     assert.deepStrictEqual(written.slice().sort(), ['one', 'three', 'two']);
-});
-
-// ---------- Review fix (d): legacy filename compat ----------
-test('p1_h2 - review fix (d): legacy rules reproduced byte-for-byte', () => {
-    // reserved-name check ran BEFORE ext stripping in the old rules
-    assert.strictEqual(pathUtils.sanitizeFileNameLegacy('con.md'), 'con.md');
-    assert.strictEqual(pathUtils.sanitizeFileNameLegacy('lpt99.txt'), 'lpt99.txt');
-    assert.strictEqual(pathUtils.sanitizeFileNameLegacy('aux'), 'aux_chat');
-    // old truncation used UTF-16 code units
-    assert.strictEqual(pathUtils.sanitizeFileNameLegacy('😀'.repeat(100)).length, 70);
-    // new rules differ exactly where intended
-    assert.notStrictEqual(pathUtils.sanitizeFileName('con.md'), 'con.md');
-    assert.strictEqual(pathUtils.sanitizeFileName('con.md'), 'con_chat.md');
-});
-test('p1_h2 - review fix (d): resolveExportFileName reuses on-disk legacy name', async () => {
-    const title = '😀'.repeat(100); // >70 chars: code-point vs UTF-16 truncation differ
-    const id = 'c_abcdef123456';
-    const newName = pathUtils.buildExportFileName(title, id, 'md');
-    const legacyName = pathUtils.buildExportFileNameLegacy(title, id, 'md');
-    assert.notStrictEqual(newName, legacyName, `rules must differ for this fixture, got ${newName} vs ${legacyName}`);
-    // legacy file on disk -> reuse it, no orphan
-    const r1 = await pathUtils.resolveExportFileName(title, id, 'md', async (n: string) => n === legacyName);
-    assert.strictEqual(r1, legacyName);
-    // new-rule file on disk -> keep the new name
-    const r2 = await pathUtils.resolveExportFileName(title, id, 'md', async (n: string) => n === newName);
-    assert.strictEqual(r2, newName);
-    // nothing on disk -> fresh export uses the new name
-    const r3 = await pathUtils.resolveExportFileName(title, id, 'md', async () => false);
-    assert.strictEqual(r3, newName);
-    // unaffected title -> no probing at all
-    let probed = false;
-    const r4 = await pathUtils.resolveExportFileName('plain title', id, 'md', async () => { probed = true; return true; });
-    assert.strictEqual(r4, pathUtils.buildExportFileName('plain title', id, 'md'));
-    assert.strictEqual(probed, false, 'no disk probe when rules agree');
-});
-test('p1_h2 - review fix (d): reserved stem with extension also compat-probed', async () => {
-    const title = 'con.md'; // old rules left it, new rules rewrite the stem
-    const id = 'c_abcdef123456';
-    const newName = pathUtils.buildExportFileName(title, id, 'md');
-    const legacyName = pathUtils.buildExportFileNameLegacy(title, id, 'md');
-    assert.notStrictEqual(newName, legacyName);
-    const r = await pathUtils.resolveExportFileName(title, id, 'md', async (n: string) => n === legacyName);
-    assert.strictEqual(r, legacyName, 'must reuse the on-disk legacy file');
 });

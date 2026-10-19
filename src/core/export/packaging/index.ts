@@ -72,7 +72,7 @@ export function buildExportFiles(format: ExportFormat, plan: ExportPathPlan,
 }
 
 export async function packageExportFiles(groups: readonly (readonly ExportArtifact[])[],
-    delivery: ExportDelivery, userRequestedZip: boolean): Promise<ExportArtifact[]> {
+    delivery: ExportDelivery): Promise<ExportArtifact[]> {
     const nonempty = groups.filter(group => group.length > 0);
     const files = nonempty.flatMap(group => [...group]);
     const paths = new Set<string>();
@@ -82,7 +82,7 @@ export async function packageExportFiles(groups: readonly (readonly ExportArtifa
         if (paths.has(key)) throw new Error(`Duplicate export path: ${file.fileName}`);
         paths.add(key);
     }
-    if (!files.length || !(userRequestedZip || (delivery === 'browserDownload' && files.length > 1))) return files;
+    if (!files.length || !(delivery === 'browserDownload' && files.length > 1)) return files;
     const writer = new ZipWriter();
     for (const file of files) {
         if (writer.writeFile(file.fileName, file.content) !== file.fileName) throw new Error('ZIP writer changed planned path');

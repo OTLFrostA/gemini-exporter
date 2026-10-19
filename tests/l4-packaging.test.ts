@@ -63,7 +63,7 @@ for (const format of ['markdown', 'html', 'json'] as const) {
         assert.ok(resource.ok);
         assert.equal(files[1].content, resource.value.bytes);
         __setModuleOverride('JSZip', JSZip);
-        const [artifact] = await packageExportFiles([files], 'browserDownload', false);
+        const [artifact] = await packageExportFiles([files], 'browserDownload');
         const zip = await JSZip.loadAsync(await (artifact.content as Blob).arrayBuffer());
         for (const file of files) assert.ok(zip.file(file.fileName), file.fileName);
         assert.equal(zip.file(plan.fileName) !== null, true);
@@ -79,12 +79,12 @@ test('ZIP decision uses actual flattened files and delivery, never format or bat
     __setModuleOverride('JSZip', JSZip);
     const a = { fileName: 'a.pdf', mimeType: 'application/pdf', content: new Uint8Array([1]) };
     const b = { ...a, fileName: 'b.pdf' };
-    assert.deepEqual(await packageExportFiles([[a]], 'browserDownload', false), [a]);
-    assert.deepEqual(await packageExportFiles([[a], [], [b]], 'folderWriter', false), [a, b]);
-    assert.equal((await packageExportFiles([[a]], 'folderWriter', true))[0].fileName, 'a.zip');
-    assert.match((await packageExportFiles([[a], [b]], 'browserDownload', false))[0].fileName, /^conversations_\d+\.zip$/);
-    assert.deepEqual(await packageExportFiles([[]], 'browserDownload', true), []);
-    await assert.rejects(packageExportFiles([[a, a]], 'folderWriter', false), /Duplicate/);
+    assert.deepEqual(await packageExportFiles([[a]], 'browserDownload'), [a]);
+    assert.deepEqual(await packageExportFiles([[a], [], [b]], 'folderWriter'), [a, b]);
+    assert.deepEqual(await packageExportFiles([[a]], 'folderWriter'), [a]);
+    assert.match((await packageExportFiles([[a], [b]], 'browserDownload'))[0].fileName, /^conversations_\d+\.zip$/);
+    assert.deepEqual(await packageExportFiles([[]], 'browserDownload'), []);
+    await assert.rejects(packageExportFiles([[a, a]], 'folderWriter'), /Duplicate/);
 });
 test('ZIP writer rejects unsafe paths rather than rewriting renderer bindings', () => {
     __setModuleOverride('JSZip', JSZip);
@@ -95,7 +95,7 @@ test('ZIP writer rejects unsafe paths rather than rewriting renderer bindings', 
 });
 test('ZIP generation failures reject without producing a delivery artifact', async () => {
     __setModuleOverride('JSZip', class { file() {} async generateAsync() { throw new Error('zip failed'); } });
-    await assert.rejects(packageExportFiles([[{ fileName: 'a.md', mimeType: 'text/markdown', content: 'body' }]], 'browserDownload', true), /zip failed/);
+    await assert.rejects(packageExportFiles([[{ fileName: 'a.md', mimeType: 'text/markdown', content: 'body' }, { fileName: 'b.md', mimeType: 'text/markdown', content: 'second' }]], 'browserDownload'), /zip failed/);
 });
 
 test('Format references resolve to the same planned ZIP entries for Markdown, HTML and JSON', async () => {
@@ -110,7 +110,7 @@ test('Format references resolve to the same planned ZIP entries for Markdown, HT
             : format === 'html' ? renderDocumentHtml(document, plan.resources).html
             : serializeDomainJson(c, account, plan.resources);
         const files = buildExportFiles(format, plan, content, prepared);
-        const [packed] = await packageExportFiles([files], 'browserDownload', false);
+        const [packed] = await packageExportFiles([files], 'browserDownload');
         const zip = await JSZip.loadAsync(await (packed.content as Blob).arrayBuffer());
         for (const path of Object.values(plan.resources)) {
             assert.ok(content.includes(path), `${format} reference: ${path}`);

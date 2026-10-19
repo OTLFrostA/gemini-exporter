@@ -1,23 +1,29 @@
 {
   "suites": [
+    "tests/archive-resource-path.test.ts",
     "tests/document-feature-matrix.test.ts",
     "tests/document-file-badge.test.ts",
+    "tests/document-freeze.test.ts",
     "tests/document-generated-image-consistency.test.ts",
-    "tests/document-html.test.ts",
     "tests/document-html-features.test.ts",
     "tests/document-html-math-policy.test.ts",
     "tests/document-html-parity.test.ts",
-    "tests/document-markdown.test.ts",
+    "tests/document-html.test.ts",
     "tests/document-markdown-contract.test.ts",
+    "tests/document-markdown.test.ts",
     "tests/document-neutral.test.ts",
     "tests/document-pdf.test.ts",
     "tests/document-renderer-contract.test.ts",
     "tests/document-rich-pdf.test.ts",
     "tests/document-typst-contract.test.ts",
+    "tests/fs_writer_disk.test.ts",
     "tests/html-document-orchestration.test.ts",
+    "tests/l4-delivery.test.ts",
+    "tests/l4-packaging.test.ts",
     "tests/local-font-provider.test.ts",
     "tests/mitex-adapter.test.ts",
     "tests/native-json-export.test.ts",
+    "tests/p1_h2_pathwriter.test.ts",
     "tests/pdf-content-order.test.ts",
     "tests/pdf-d8-evidence.test.ts",
     "tests/pdf-format.test.ts",
@@ -27,6 +33,7 @@
     "tests/pdf-release-gates.test.ts",
     "tests/pdf-sandbox-compiler.test.ts",
     "tests/pdf-stream-parser.test.ts",
+    "tests/pdf-stress-gates.test.ts",
     "tests/pdf-visual-corpus.test.ts",
     "tests/renderer-strings-locale.test.ts",
     "tests/typst-headerless-table.test.ts",
@@ -34,27 +41,7 @@
     "tests/typst-nested-semantics.test.ts",
     "tests/typst-phase-b.test.ts",
     "tests/typst-table-span.test.ts",
-    "tests/writers.test.ts",
-    "tests/fs_writer_disk.test.ts",
-    "tests/l4-packaging.test.ts",
-    "tests/l4-delivery.test.ts"
+    "tests/writers.test.ts"
   ],
-  "selected": [
-    {
-      "file": "tests/document-freeze.test.ts",
-      "pattern": "^(HTML owns|file badges|PDF renders)"
-    },
-    {
-      "file": "tests/pdf-stress-gates.test.ts",
-      "pattern": "^(stress: 121|stress: 100|memory:)"
-    },
-    {
-      "file": "tests/archive-resource-path.test.ts",
-      "pattern": "^(archive |Domain attachment)"
-    },
-    {
-      "file": "tests/p1_h2_pathwriter.test.ts",
-      "pattern": "^p1_h2 - (P1-10[2345]|P1-11[56]|review fix \\(c\\))"
-    }
-  ]
+  "typeTests": []
 }

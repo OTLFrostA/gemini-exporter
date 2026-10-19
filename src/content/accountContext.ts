@@ -7,6 +7,12 @@ import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
 export interface AccountContext { readonly providerId: string; readonly accountId: string; readonly slot: string }
 let binding: { context: AccountContext; providerAccountId: string } | null = null;
 let generation = 0;
+let onAccountChanged: (() => void) | undefined;
+/** Runtime wires its existing identity completion directly to the Badge. */
+export function setAccountChangedHandler(handler: () => void): void {
+    onAccountChanged = handler;
+    registerCleanup(() => { onAccountChanged = undefined; });
+}
 let latestSignature: string | null = null;
 let pending: { signature: string; result: Promise<AccountContext | null> } | null = null;
 const slotNow = () => detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
@@ -82,8 +88,10 @@ export async function resolveCurrentAccount(observed?: Omit<Account, 'id'> | nul
             observation.email, observation.displayName);
         if (ticket !== generation || capturedSlot !== slotNow()) return null;
         const context = { providerId: account.providerId, accountId: account.id, slot: capturedSlot };
+        const changed = binding?.context.accountId !== account.id;
         binding = { context, providerAccountId: account.providerAccountId };
         latestSignature = signature;
+        if (changed) onAccountChanged?.();
         return { ...context };
     })();
     pending = { signature, result };

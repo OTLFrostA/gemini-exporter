@@ -87,11 +87,11 @@ test('cleanup registry runs callbacks once and isolates a throwing cleanup', () 
 
 test('messageRouter re-init replaces a single active Chrome listener and still answers ping', () => {
     withMockHost(({ chrome }) => {
-        MessageRouter.init({});
+        MessageRouter.init();
         assert.equal(chrome.messages.length, 1);
         runCleanups();
         assert.equal(chrome.messages.length, 0);
-        MessageRouter.init({});
+        MessageRouter.init();
         assert.equal(chrome.messages.length, 1);
         let response: any;
         chrome.messages[0]({ action: 'ping' }, {}, (result: any) => { response = result; });

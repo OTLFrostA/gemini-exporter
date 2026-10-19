@@ -1,3 +1,4 @@
+import { markV2Initialized } from '../storage/migrationMarker.js';
 import { readAccountRegistry } from '../domain/accountRegistry.js';
 import { restoreConversationIndex } from '../domain/conversationIndex.js';
 import { conversationKey } from '../domain/conversationKey.js';
@@ -8,9 +9,9 @@ import { putAccount, putIndexes, putExportRecord, patchStoredSettings, setDirect
 const INITIALIZED = 'gemini_exporter_v2_initialized';
 const DOMAIN_DB = 'gemini_exporter_domain';
 const HANDLE_DB = 'gemini_exporter_idb';
-const preferenceKeys = ['gemini_export_format', 'gemini_export_zip', 'gemini_dev_mode',
+const preferenceKeys = ['gemini_export_format', 'gemini_dev_mode',
     'gemini_exporter_lang', 'gemini_export_badge_pos', 'live_save_config',
-    'last_seen_feature_version', 'has_completed_takeout_prompt', 'has_imported_takeout', 'has_completed_tour'];
+    'last_seen_feature_version', 'has_completed_takeout_prompt', 'has_imported_takeout'];
 let pending: Promise<void> | undefined;
 
 /** Background/Service Worker only. Runtime must await this before opening v2 business access.
@@ -44,11 +45,10 @@ function exportRecord(value: unknown): ExportRecord | undefined {
         ...(chatTime === undefined ? {} : { chatTime }) };
 }
 
-// Existing users must not see the first-install Tour again.
+// Only retained v2 preferences are migrated; Tour is a one-time URL intent.
 function settings(raw: Record<string, unknown>): Partial<GlobalSettings> {
-    const result: Partial<GlobalSettings> = { tourShown: true };
+    const result: Partial<GlobalSettings> = {};
     if (format(raw.gemini_export_format)) result.defaultFormat = raw.gemini_export_format;
-    if (typeof raw.gemini_export_zip === 'boolean') result.useZip = raw.gemini_export_zip;
     if (typeof raw.gemini_dev_mode === 'boolean') result.developerMode = raw.gemini_dev_mode;
     if (raw.gemini_exporter_lang === 'zh' || raw.gemini_exporter_lang === 'en') result.language = raw.gemini_exporter_lang;
     const pos = raw.gemini_export_badge_pos;
@@ -123,5 +123,5 @@ async function upgrade(): Promise<void> {
     }
     if (isUpgrade) await patchStoredSettings(settings(raw));
     if (handle !== undefined && handle !== null) await setDirectoryHandle(handle);
-    await chrome.storage.local.set({ [INITIALIZED]: true });
+    await markV2Initialized();
 }

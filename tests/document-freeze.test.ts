@@ -1,13 +1,11 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/core/document/ast/ast.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { fileBadge } from '../src/core/renderers/shared/backendPresentation.js';
-import { renderMathHtml } from '../src/core/renderers/html/htmlMath.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
@@ -62,42 +60,6 @@ test('AST: display date selects the first valid fact and normalizes to UTC at co
         else input.index.createdAt = undefined;
     }
     assert.equal(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).header.date, undefined);
-});
-
-test('integration: display date selects the first valid fact and normalizes to UTC at composition', () => {
-    const input = domain();
-    input.index.createdAt = Date.parse('2026-10-04T00:00:00Z');
-    let sourceVersion: number | undefined = Date.parse('2026-10-06T23:30:00-07:00');
-    for (const [field, expected] of [['updatedAt', '2026-10-07'], ['createdAt', '2026-10-04']] as const) {
-        const document: DocumentAst = composeDomainDocument(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } }), fixtureAccountFor(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } })));
-        assert.equal(document.header.date, expected);
-        assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
-        assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
-        if (field === 'updatedAt') sourceVersion = undefined;
-        else input.index.createdAt = undefined;
-    }
-    assert.equal(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).header.date, undefined);
-    const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
-    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture(source, { providerId: 'gemini' }).conversation)).header.date, '2026-10-07');
-    source.updatedAt = 'invalid';
-    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture(source, { providerId: 'gemini' }).conversation));
-    assert.equal(document.header.date, '2026-10-04');
-    assert.equal(document.messages[0].modelLabel, 'provider only');
-    assert.equal(renderDocumentTypst(document, {}).messages[0].model, 'provider only');
-});
-
-test('parser removes math delimiters; HTML renders source verbatim and preserves malformed source', () => {
-    const parsed = historicalFixture({ id: 'math', messages: [{ role: 'model', content: '$x^2$\n\n$$\ny^2\n$$' }] }, { providerId: 'gemini' });
-    const document = composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation));
-    assert.deepEqual(document.messages[0].blocks, [
-        { type: 'paragraph', children: [{ type: 'inlineMath', source: 'x^2' }] }, { type: 'math', source: 'y^2' },
-    ]);
-    assert.equal(renderDocumentHtml(document, {}).diagnostics.length, 0);
-    for (const source of ['$x^2$', '$$y^2$$', '  $z^2$  ']) {
-        const result = renderMathHtml(source, true, 'Formula');
-        assert.equal(result.diagnostic?.code, 'HTML_MATH_RENDER_FAILED');
-        assert.ok(result.html.includes(`<code>${source}</code>`));
-    }
 });
 
 test('PDF renders prepared AST images; one frozen rich JSON AST serves all backends', async () => {

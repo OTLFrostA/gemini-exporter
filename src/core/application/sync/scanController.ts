@@ -1,4 +1,5 @@
 import { getAccount } from '../../api/accountRegistry.js';
+import { defaultGeminiProvider } from '../../provider/gemini/geminiProvider.js';
 import { ProviderRegistry } from '../../provider/providerRegistry.js';
 import CoverageAdmission, { type ScanHead } from '../../domain/coverageAdmission.js';
 
@@ -26,7 +27,7 @@ export async function scanAll(request: ScanRequest, options: {
     try {
         options.signal?.throwIfAborted();
         const account = await getAccount(accountId);
-        const provider = account && ProviderRegistry.get(account.providerId);
+        const provider = account && (ProviderRegistry.get(account.providerId) ?? (account.providerId === 'gemini' ? defaultGeminiProvider : undefined));
         if (!provider) throw new Error('Account provider unavailable');
         const previous = await CoverageAdmission.getCoverage(accountId, 'recent');
         const baseline = previous ? structuredClone(previous) : null;

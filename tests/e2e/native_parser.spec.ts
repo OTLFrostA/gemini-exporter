@@ -5,6 +5,8 @@ import * as path from 'node:path';
 let bundle: string;
 test.beforeAll(async () => {
     const built = await build({ stdin: { contents: `
+        import { validateParserDomain } from './src/core/domain/runtimeValidation.ts';
+        import { fixtureKey } from './tests/helpers/domainFixture.ts';
         import { fixtureAccount } from './tests/helpers/domainFixture.ts';
         import { parseGeminiDomConversation } from './src/core/parsers/gemini/dom/parseConversation.ts';
         import { composeDomainDocument } from './src/core/document/compose/composeDomainDocument.ts';
@@ -13,7 +15,9 @@ test.beforeAll(async () => {
         globalThis.nativeParserProbe = (document) => {
             const result = parseGeminiDomConversation({ document, id: 'native_dom_123' }, { providerId: 'gemini', account: fixtureAccount() });
             assertDomainClosure(JSON.parse(JSON.stringify(result.conversation.detail)));
-            const { document: ast } = composeDomainDocument(result.conversation, result.account);
+            const key = fixtureKey(result.conversationId);
+            const domain = validateParserDomain({ index: { ...result.conversation.index, key }, detail: { ...result.conversation.detail, key } });
+            const ast = composeDomainDocument(domain, fixtureAccount());
             return { result, ast, images: [...collectDocumentResources(ast).imageIds] };
         };`, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, format: 'iife', platform: 'browser' });
     bundle = built.outputFiles[0].text;

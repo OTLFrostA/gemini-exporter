@@ -14,7 +14,7 @@ test('Skip requires same format, ok record and comparable source versions; deliv
     }
     assert.equal(shouldSkipExport(previous, undefined, request({ skipUnchanged: true })), false);
     assert.equal(shouldSkipExport(previous, 100, request()), false);
-    assert.equal(shouldSkipExport(previous, 100, request({ skipUnchanged: true, includeAssets: false, delivery: 'folderWriter', useZip: true })), true);
+    assert.equal(shouldSkipExport(previous, 100, request({ skipUnchanged: true, includeAssets: false, delivery: 'folderWriter', })), true);
 });
 for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
     test(`${format} uses local Domain, shared resources, then delivery before the minimal Record`, async () => {
@@ -161,16 +161,16 @@ for (const delivery of ['browserDownload', 'folderWriter'] as const) {
         records.set(address(key()), previous); records.set(address(key('skipped')), previous);
         state.failDelivery = 1;
         const result = await runExport(request({ keys: [key(), key('second'), key('skipped')], format: 'markdown', delivery,
-            useZip: true, skipUnchanged: true }));
+            skipUnchanged: true }));
         assert.equal(result.skipped, 2); assert.equal(result.exported, 0);
         assert.deepEqual(result.failed, [key('second')]); assert.equal(records.get(address(key())), previous);
         assert.equal(events.some(event => event.startsWith('record:')), false);
     });
-    test(`${delivery} cancellation during successful delivery still finalizes its entire ZIP`, async () => {
+    test(`${delivery} cancellation after delivery finalizes only the delivered group`, async () => {
         seed(); seed('second');
         const controller = new AbortController(); state.onDelivery = () => controller.abort();
-        const result = await runExport(request({ keys: [key(), key('second')], delivery, useZip: true }), { signal: controller.signal });
-        assert.equal(result.aborted, true); assert.equal(result.exported, 2); assert.deepEqual(result.failed, []);
+        const result = await runExport(request({ keys: [key(), key('second')], delivery, }), { signal: controller.signal });
+        assert.equal(result.aborted, true); assert.equal(result.exported, delivery === 'browserDownload' ? 2 : 1); assert.deepEqual(result.failed, []);
     });
 }
 test('ZIP Record failure counts only committed records without a second delivery', async () => {
@@ -203,7 +203,7 @@ test('missing Folder capability rejects initialization and never falls back to B
 test('progress describes requested targets, not delivery completion; all-skipped does not produce ZIP', async () => {
     seed(); records.set(address(key()), previous);
     const progress: unknown[] = [];
-    await runExport(request({ useZip: true, skipUnchanged: true }), { onProgress(value) { progress.push(value); } });
+    await runExport(request({ skipUnchanged: true }), { onProgress(value) { progress.push(value); } });
     assert.deepEqual(progress, [{ current: 1, total: 1, key: key() }]); assert.equal(deliveries.length, 0);
 });
 test('Storage read failure is reported, never treated as a missing snapshot followed by network refresh', async () => {

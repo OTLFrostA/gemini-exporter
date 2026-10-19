@@ -182,16 +182,16 @@ test('storage v2 coverage and export records are keyed, isolated, replaced, and 
 test('storage v2 settings patch preserves false, omitted fields, and native change notification', async () => {
     const result = await page.evaluate(async () => {
         const s = window.storage;
-        await s.patchStoredSettings({ useZip: true, enabledDisk: true, language: 'zh' });
-        await s.patchStoredSettings({ useZip: false, enabledDisk: false });
+        await s.patchStoredSettings({ includeAssets: true, enabledDisk: true, language: 'zh' });
+        await s.patchStoredSettings({ includeAssets: false, enabledDisk: false });
         const settings = await s.getStoredSettings();
         window.failSettings = true;
         let readFailed = false, writeFailed = false;
         try { await s.getStoredSettings(); } catch { readFailed = true; }
-        try { await s.patchStoredSettings({ useZip: true }); } catch { writeFailed = true; }
+        try { await s.patchStoredSettings({ includeAssets: true }); } catch { writeFailed = true; }
         return { settings, changes: window.settingsChanges, keys: Object.keys(window.settingsData), readFailed, writeFailed };
     });
-    assert.deepEqual(result.settings, { useZip: false, enabledDisk: false, language: 'zh' });
+    assert.deepEqual(result.settings, { includeAssets: false, enabledDisk: false, language: 'zh' });
     assert.deepEqual(result.keys, ['gemini_exporter_v2_settings']); assert.equal(result.changes.length, 2);
     assert.equal(result.readFailed, true); assert.equal(result.writeFailed, true);
 });
@@ -214,7 +214,7 @@ test('storage v2 account clear removes orphans and all streams while preserving 
     const result = await page.evaluate(async () => {
         const s = window.storage;
         await s.putAccount({ id: 'a', providerId: 'gemini', providerAccountId: 'subject' });
-        await s.patchStoredSettings({ useZip: false });
+        await s.patchStoredSettings({ includeAssets: false });
         await s.setDirectoryHandle(await navigator.storage.getDirectory());
         for (const accountId of ['a', 'b']) {
             const key = { accountId, conversationId: 'orphan' };
@@ -227,7 +227,7 @@ test('storage v2 account clear removes orphans and all streams while preserving 
         const a = { accountId: 'a', conversationId: 'orphan' }, b = { ...a, accountId: 'b' };
         return { cleared: await Promise.all([s.listIndexes('a'), s.getDetail(a), s.listExportRecords('a'),
             s.getCoverage('a', 'recent'), s.getCoverage('a', 'archive')]),
-            retained: [!!await s.getAccount('a'), !!await s.getDirectoryHandle(), (await s.getStoredSettings()).useZip,
+            retained: [!!await s.getAccount('a'), !!await s.getDirectoryHandle(), (await s.getStoredSettings()).includeAssets,
                 (await s.listIndexes('b')).length, !!await s.getDetail(b), !!await s.getExportRecord(b),
                 !!await s.getCoverage('b', 'recent'), !!await s.getCoverage('b', 'archive')] };
     });

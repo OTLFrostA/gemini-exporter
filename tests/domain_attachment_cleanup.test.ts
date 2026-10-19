@@ -26,7 +26,6 @@ async function assertRoundTrip(input: Conversation): Promise<DomainConversationW
     ]);
     assert.deepEqual(semantic.document, raw.document);
     assert.deepEqual(restored.document, semantic.document);
-    assert.deepEqual(restored.diagnostics, semantic.diagnostics);
     assert.deepEqual(input, original);
     for (const message of domain.detail.messages) {
         assert.equal('images' in message, false);

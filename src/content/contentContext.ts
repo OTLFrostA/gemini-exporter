@@ -10,7 +10,6 @@ export interface GeminiCredentials {
 
 export interface ActiveClientContract {
     abort?: () => void;
-    getAllConversations?: (...args: Parameters<GeminiProviderClient['getAllConversations']>) => Promise<unknown>;
     getConversationDetail?: (...args: Parameters<GeminiProviderClient['getConversationDetail']>) => Promise<unknown>;
     [key: string]: any;
 }

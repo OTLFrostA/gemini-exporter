@@ -29,19 +29,3 @@ test('getEffectiveTimestamp: lastSeen-only chat returns 0', () => {
         id: 'c3', updatedAt: serverUpdatedAt, lastSeen: 1788100000000
     }), serverUpdatedAt);
 });
-
-// Case 2: checkIsUpdated 不再因客户端 lastSeen 推进而误判 updated。
-test('checkIsUpdated: lastSeen-only chat is not flagged updated by client clock', () => {
-    const rec = {
-        id: 'c_lastseen_only',
-        exportedAt: 1788000000000, // 导出时间
-        messageCount: 4,
-    };
-    // 会话只有客户端 lastSeen（比导出时间更晚），没有服务端时间戳和消息数变化
-    const chat = {
-        id: 'c_lastseen_only',
-        lastSeen: 1788100000000,
-        messageCount: 4,
-    };
-    assert.strictEqual(checkIsUpdated(chat, rec), false, 'client-observed lastSeen must not mark export stale');
-});

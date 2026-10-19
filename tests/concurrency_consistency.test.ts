@@ -45,48 +45,6 @@ function setupMockChromeStorage(options: { beforeSet?: (data: Record<string, any
     };
 }
 
-test('DomainAdmission.updateConversation patches only the target record and rejects missing IDs', async () => {
-    const env = setupMockChromeStorage();
-    try {
-        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', ([
-            { id: 'chat_1', title: 'Old Title 1', messageCount: 2 },
-            { id: 'chat_2', title: 'Title 2', messageCount: 5 },
-            { id: 'chat_3', title: 'Title 3', messageCount: 1 }
-        ]).map(indexFixture));
-
-        // 1. Update with partial object
-        const updated = await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_1', {
-            title: 'New Title 1',
-            updatedAt: 10
-        });
-        assert.strictEqual(updated, true);
-
-        const listAfter1 = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-        assert.strictEqual(listAfter1.length, 3);
-        assert.strictEqual(listAfter1[0].title, 'New Title 1');
-        assert.strictEqual(listAfter1[0].updatedAt, 10);
-        assert.strictEqual(listAfter1[1].title, 'Title 2');
-        assert.strictEqual(listAfter1[2].title, 'Title 3');
-
-        // 2. Update with mutator function
-        const updated2 = await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_2', (conv: any) => {
-            conv.title = 'Updated Title 2';
-            conv.titleSource = 'provider';
-        });
-        assert.strictEqual(updated2, true);
-
-        const listAfter2 = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-        assert.strictEqual(listAfter2[1].title, 'Updated Title 2');
-        assert.strictEqual(listAfter2[1].titleSource, 'provider');
-
-        // 3. Non-existent conversation
-        const updated3 = await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat_nonexistent', { title: 'X' });
-        assert.strictEqual(updated3, false);
-    } finally {
-        env.restore();
-    }
-});
-
 test('mergeConversation keeps source updatedAt monotonic and earliest createdAt', () => {
     const existing = {
         id: 'chat_monotonic',
@@ -127,48 +85,4 @@ test('mergeConversation keeps source updatedAt monotonic and earliest createdAt'
     const res2 = mergeConversation(indexFixture(existing), indexFixture(newerIncoming));
     assert.strictEqual(res2.merged.updatedAt, 1700000090000, 'updatedAt must advance to newer timestamp');
     assert.strictEqual(res2.merged.createdAt, 1699999990000, 'createdAt must advance to earlier timestamp');
-});
-
-test('overlapping updateConversation writes preserve both independent changes', async () => {
-    // Unlike a sequential "export snapshot" scenario, this suspends the first
-    // actual indexed-list write while a second update races on the same slot.
-    let blockNext = false;
-    let releaseWrite: (() => void) | undefined;
-    let firstWriteEntered: (() => void) | undefined;
-    const hold = new Promise<void>(resolve => { releaseWrite = resolve; });
-    const entered = new Promise<void>(resolve => { firstWriteEntered = resolve; });
-    const env = setupMockChromeStorage({
-        beforeSet: async data => {
-            if (blockNext && Object.prototype.hasOwnProperty.call(data, 'conversations_10000000-0000-4000-8000-000000000001')) {
-                blockNext = false;
-                firstWriteEntered!();
-                await hold;
-            }
-        },
-    });
-    try {
-        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', [
-            { id: 'first', title: 'Before', messageCount: 1 },
-            { id: 'second', title: 'Independent', messageCount: 1 },
-        ].map(indexFixture));
-
-        blockNext = true;
-        const writeFirst = DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'first', { title: 'After' });
-        await entered; // First read-modify-write is now intentionally in flight.
-        const writeSecond = DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'second', { updatedAt: 7 });
-        await new Promise<void>(resolve => setImmediate(resolve)); // Give a broken unlocked implementation a chance to read stale state.
-        releaseWrite!();
-        const results = await Promise.all([writeFirst, writeSecond]);
-        assert.deepStrictEqual(results, [true, true]);
-
-        const final = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-        assert.equal(final.length, 2);
-        assert.equal(final.find((c: any) => c.key.conversationId === 'first')?.title, 'After',
-            'first committed change must not be lost by the second write');
-        assert.equal(final.find((c: any) => c.key.conversationId === 'second')?.updatedAt, 7,
-            'second committed change must not be lost by the first write');
-    } finally {
-        releaseWrite?.();
-        env.restore();
-    }
 });

@@ -1,5 +1,6 @@
 import type { Diagnostic } from '../../src/core/diagnostics/diagnostic.js';
-import type { DocumentAst, ResourceBindings } from '../../src/core/document/ast/ast.js';
+import type { DocumentAst } from '../../src/core/document/ast/ast.js';
+import type { ResourceBindings } from '../../src/core/export/packaging/resourceBindings.js';
 import type { PdfRenderOptions } from '../../src/core/renderers/shared/renderOptions.js';
 import { renderDocumentTypst } from '../../src/core/renderers/typst/renderTypst.js';
 

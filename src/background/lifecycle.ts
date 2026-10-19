@@ -41,14 +41,15 @@ export function initLifecycleListeners(): void {
             await ensureV2Ready();
             const currentVersion = chrome.runtime.getManifest().version;
             if (details.reason === 'install') {
-                await updateSettings({ lastSeenFeatureVersion: currentVersion });
-                await chrome.runtime.openOptionsPage();
+                const settings = await getSettings();
+                if (!settings.lastSeenFeatureVersion) await updateSettings({ lastSeenFeatureVersion: currentVersion });
+                await chrome.tabs.create({ url: chrome.runtime.getURL('src/ui/options/options.html') + '?startTour=1' });
             } else if (details.reason === 'update') {
                 const settings = await getSettings();
-                const patch = { tourShown: true as const,
-                    ...(!settings.lastSeenFeatureVersion && details.previousVersion
-                        && /^\d+\.\d+\.\d+(?:\.\d+)?$/.test(details.previousVersion)
-                        ? { lastSeenFeatureVersion: details.previousVersion } : {}) };
+                const patch = !settings.lastSeenFeatureVersion ? {
+                    lastSeenFeatureVersion: details.previousVersion && /^\d+\.\d+\.\d+(?:\.\d+)?$/.test(details.previousVersion)
+                        ? details.previousVersion : currentVersion
+                } : {};
                 await updateSettings(patch);
             }
         })().catch(error => console.error('[Runtime] Installation initialization failed', error));

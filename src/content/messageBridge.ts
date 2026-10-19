@@ -18,6 +18,7 @@ import { registerCleanup } from './cleanupRegistry.js';
 export type MessageBridgeConversationInput = GeminiIndexObservationInput;
 export interface MessageBridgeDeps {
     resources?: SourceResourceContext;
+    onIndexesCommitted?: (accountId: string) => void;
     onStreamStart?: (cid?: string | null, slot?: string) => void;
     onStreamComplete?: (key: ConversationKey, slot?: string) => void;
     onDetailChanged?: (key: ConversationKey) => void;
@@ -88,6 +89,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
                 const trustedIdentity = field('requestAccountObservation') !== null && account.providerAccountId !== 'default';
                 await ingestIndexes(account.id, parsed.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')),
                     trustedIdentity && context ? page : undefined);
+                if (deps === capturedDeps) capturedDeps.onIndexesCommitted?.(account.id);
             }
             if (text.includes(GeminiProtocol.RPCS.DETAIL)) {
                 const request = field('detailRequest');
@@ -118,6 +120,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
                 const merged = mergeConversationPages(pages, truncated ? 'capture_truncated' : undefined, complete);
                 const index = merged.conversation.index;
                 const changed = await ingestDetail(account.id, cid, merged.conversation.detail, index);
+                if (deps === capturedDeps) capturedDeps.onIndexesCommitted?.(account.id);
                 capturedDeps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
                 if (changed && deps === capturedDeps) capturedDeps.onDetailChanged?.({ accountId: account.id, conversationId: cid });
             }
@@ -137,6 +140,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
             const item = parseGeminiDomIndex(typeof document !== 'undefined' ? document : null, cid);
             const { conversationId, fields } = parseGeminiIndexObservation(item, 'dom');
             await ingestIndexes(account.id, [{ conversationId, fields }]);
+            if (deps === capturedDeps) capturedDeps.onIndexesCommitted?.(account.id);
         }
         if (raw.type === CrossWorldEvents.STREAM_START) {
             if (deps === capturedDeps && capturedDeps.onStreamStart) capturedDeps.onStreamStart(typeof id === 'string' ? id : null, slot);

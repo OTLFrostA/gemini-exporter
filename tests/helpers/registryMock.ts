@@ -11,6 +11,7 @@ export function withRegistry<T extends object>(mock: T, extra: Account[] = []): 
     const runtime: any = Reflect.get(mock, 'runtime');
     const send = runtime?.sendMessage;
     return Object.assign(mock, { runtime: { ...runtime, async sendMessage(message: Record<string, unknown>, ...args: unknown[]) {
+        if (message.action === 'ensureV2Ready') return { ok: true };
         if (message.action !== 'accountRegistry') return send?.call(runtime, message, ...args);
         if (message.command === 'get') return { ok: true, value: accounts.find(a => a.id === message.accountId) ?? null };
         if (message.command === 'list') return { ok: true, value: accounts.filter(a => !message.providerId || a.providerId === message.providerId) };

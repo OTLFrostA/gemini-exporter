@@ -31,6 +31,7 @@ export function accountRuntime(slot = 'u0') {
     };
     Object.defineProperty(globalThis, 'window', { configurable: true, value: windowMock });
     runtime.sendMessage = (async (message: { action: string; command?: string; accountId?: string; providerId?: string; providerAccountId?: string; email?: string; displayName?: string }) => {
+        if (message.action === 'ensureV2Ready') return { ok: true };
         if (message.action === 'accountRegistry' && (message.command === 'get' || message.command === 'list')) {
             const accounts = [
                 { id: ACCOUNT_UUID, ...ACCOUNT_OBSERVATION },

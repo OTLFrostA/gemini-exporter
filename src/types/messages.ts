@@ -1,185 +1,20 @@
-export type { GetConversationDetailResponse } from './detailTransport.js';
-import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
-import type { DomainConversationIndex } from './conversation.js';
-import type { LiveSaveConfig } from './liveSave.js';
-
 export const MESSAGE_ACTIONS = {
-    SYNC_UPDATE: 'syncUpdate',
-    SCAN_PROGRESS: 'scanProgress',
     OPEN_OPTIONS: 'openOptions',
-    GET_CONVERSATION_DETAIL: 'getConversationDetail',
-    FETCH_BATCH: 'fetchBatch',
-    FETCH_CHAT: 'fetchChat',
-    CANCEL_EXPORT: 'cancelExport',
-    DOWNLOAD_ASSET_DIRECT: 'downloadAssetDirect',
-    ABORT_SYNC: 'abortSync',
-    DEEP_SCAN: 'deepScan',
-    STOP_DEEP_SCAN: 'stopDeepScan',
-    EXPORT_PROGRESS: 'exportProgress',
     PING: 'ping',
+    ENSURE_V2_READY: 'ensureV2Ready',
+    DOMAIN_INGEST: 'domainIngest',
+    GET_LOCAL_INDEX_COUNT: 'getLocalIndexCount',
+    RUN_LIVE_SAVE: 'runLiveSave',
     GET_ACCOUNT_CONTEXT: 'getAccountContext',
     ACCOUNT_REGISTRY: 'accountRegistry',
     OPEN_GEMINI_PAGE: 'openGeminiPage',
     RELOAD_GEMINI_TAB: 'reloadGeminiTab',
-    LIVE_SAVE_VIA_HANDLE: 'liveSaveViaHandle',
     GET_FILE_BLOB: 'getFileBlob',
     GET_IMAGE_BLOB: 'getImageBlob',
-    GET_SCROLL_CONTAINER: 'getScrollContainer'
 } as const;
 
 export type MessageAction = typeof MESSAGE_ACTIONS[keyof typeof MESSAGE_ACTIONS];
 
 export interface BaseMessage {
     action: MessageAction;
-}
-
-export interface SyncUpdateMessage extends BaseMessage {
-    action: 'syncUpdate';
-    accountId: string;
-    count?: number;
-    from?: string;
-    conversations?: DomainConversationIndex[];
-}
-
-export interface ScanProgressMessage extends BaseMessage {
-    action: 'scanProgress';
-    accountId?: string;
-    scanned?: number;
-    total?: number;
-    status?: string;
-    stoppedEarly?: boolean;
-}
-
-export interface DownloadAssetDirectMessage extends BaseMessage {
-    accountId?: string;
-    action: 'downloadAssetDirect';
-    url: string;
-    referer?: string;
-    preferBuffer?: boolean;
-    fileName?: string;
-    candidates?: string[];
-    timeoutMs?: number;
-}
-
-export interface DownloadAssetResponse {
-    success: boolean;
-    dataBuffer?: ArrayBuffer | ArrayBufferView;
-    blobBuffer?: ArrayBuffer | ArrayBufferView;
-    dataBase64?: string;
-    blobBase64?: string;
-    mime?: string;
-    mimeType?: string;
-    contentType?: string;
-    size?: number;
-    finalUrl?: string;
-    error?: string;
-}
-
-export interface GetConversationDetailMessage extends BaseMessage {
-    action: 'getConversationDetail';
-    conversationId: string;
-    accountId?: string;
-    targetSid?: string;
-}
-
-export interface CancelExportMessage extends BaseMessage {
-    action: 'cancelExport';
-}
-
-export interface ExportProgressMessage extends BaseMessage {
-    action: 'exportProgress';
-    pct?: number;
-    current?: number;
-    total?: number;
-    title?: string;
-    assetsDownloaded?: number;
-    assetsTotal?: number;
-}
-
-export interface LiveSaveAsset {
-    assetId?: string;
-    fileName: string;
-    subDir?: string;
-    base64?: string;
-}
-
-export interface LiveSaveViaHandlePayload {
-    chat: ResourceConversationParseResult;
-    safeTitle: string;
-    nid: string;
-    config?: LiveSaveConfig;
-    fileName?: string;
-    assets?: LiveSaveAsset[];
-    failedAssets?: Array<{ file: string; error: string }>;
-}
-
-export interface LiveSaveViaHandleMessage extends BaseMessage {
-    action: 'liveSaveViaHandle';
-    payload: LiveSaveViaHandlePayload;
-    accountId?: string;
-}
-
-export interface FetchChatMessage extends BaseMessage {
-    action: 'fetchChat';
-    conversationId: string;
-    accountId?: string;
-}
-
-export interface GetFileBlobMessage extends BaseMessage {
-    action: 'getFileBlob';
-    url: string;
-    token?: string;
-}
-
-export interface GetImageBlobMessage extends BaseMessage {
-    action: 'getImageBlob';
-    url: string;
-}
-
-export interface GetScrollContainerMessage extends BaseMessage {
-    action: 'getScrollContainer';
-}
-
-export interface FetchBatchMessage extends BaseMessage {
-    action: 'fetchBatch';
-    ids?: (string | { id: string; title?: string; url?: string })[];
-    format?: string;
-    skipExported?: boolean;
-    globalOffset?: number;
-    globalTotal?: number;
-    accountId?: string;
-}
-
-export interface AbortSyncMessage extends BaseMessage {
-    // Kept for backward compatibility even though no direct UI sender currently exists
-    action: 'abortSync';
-    accountId?: string;
-}
-
-export interface DeepScanMessage extends BaseMessage {
-    action: 'deepScan';
-    maxIter?: number;
-    accountId?: string;
-}
-
-export interface StopDeepScanMessage extends BaseMessage {
-    action: 'stopDeepScan';
-    accountId?: string;
-}
-
-export interface PingMessage extends BaseMessage {
-    action: 'ping';
-}
-
-export interface OpenOptionsMessage extends BaseMessage {
-    action: 'openOptions';
-}
-
-export interface OpenGeminiPageMessage extends BaseMessage {
-    action: 'openGeminiPage';
-}
-
-export interface ReloadGeminiTabMessage extends BaseMessage {
-    action: 'reloadGeminiTab';
-    tabId?: number;
 }

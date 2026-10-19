@@ -1,5 +1,6 @@
 import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
-import { upsertConversations, persistConversationBatch } from '../src/content/geminiIndexCapture.js';
+import { ingestIndexes } from '../src/core/api/domainIngestion.js';
+import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -23,7 +24,11 @@ import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js
 import { fixtureAccount } from './helpers/domainFixture.js';
 
 let storage: ReturnType<typeof indexStorage>;
-beforeEach(() => { storage = indexStorage(); init(); });
+beforeEach(() => {
+    storage = indexStorage();
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: { addEventListener() {}, removeEventListener() {} } });
+    init();
+});
 afterEach(() => storage.restore());
 const row = (id = 'source_chat_123', seconds = 1700000050) => [`c_${id}`, 'Source title', null, null, null, [seconds, 0]];
 const listWire = (rows: unknown[] = [], next: string | null = null) => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, next, rows])]]);
@@ -43,10 +48,10 @@ const detailWire = (prompt = 'Question', next: string | null = null, version = t
     ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_source_chat_123', `r_${prompt}`], [1700000000, 0], [[prompt]], [[['rc_' + prompt, [['Answer']]]]]]], next])],
     ...(version ? [['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [row()]])]] : []),
 ]);
-const sourceEvent = (text: string, extra: Record<string, unknown> = {}) => ({ origin: typeof location !== 'undefined' ? location.origin : 'https://gemini.google.com', data: {
+const sourceEvent = (text: string, extra: Record<string, unknown> = {}) => ({ source: window, origin: typeof location !== 'undefined' ? location.origin : 'https://gemini.google.com', data: {
     type: CrossWorldEvents.NETWORK_BATCHEXECUTE, payload: { text, slot: 'u0', requestedAt: Date.now(), truncated: false,
         url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute', requestAccountObservation: ACCOUNT_OBSERVATION, ...extra },
-} } as MessageEvent);
+} } as unknown as MessageEvent);
 
 test('L1 list commits each page before callback and emits only first trusted head', async () => {
     const requests: unknown[] = [], progress: CommittedListPage[] = [];
@@ -221,18 +226,12 @@ test('L1 source resource operation returns bytes and respects pre-abort', async 
 });
 
 test('L1 DOM capture commits source metadata without fabricating activity clocks', async () => {
-    assert.equal(await upsertConversations([{ id: 'dom_source_123', title: 'Observed title', titleSource: 'dom' }], 'dom', false, ACCOUNT_UUID), 1);
+    await ingestIndexes(ACCOUNT_UUID, [parseGeminiIndexObservation({ id: 'dom_source_123', title: 'Observed title' }, 'dom')]);
     const [index] = await getConversations(ACCOUNT_UUID);
     assert.equal(index.titleSource, 'provider');
     assert.equal(index.updatedAt, undefined);
     assert.equal(await getCoverage(ACCOUNT_UUID, 'recent'), null);
 });
-test('L1 capture preserves valid source rows when another row is malformed', async () => {
-    const result = await persistConversationBatch([{ id: 'valid_source_123' }, { broken: true }], 'dom', false, ACCOUNT_UUID);
-    assert.equal(result.accepted, 1); assert.equal(result.rejected, 1);
-});
-
-
 test('L1 current inline bytes survive missing locator without network or Runtime route', async () => {
     const account = await getAccount(ACCOUNT_UUID); assert.ok(account);
     const parsed = parseGeminiRpcConversation(detailWire(), { providerId: 'gemini', account });

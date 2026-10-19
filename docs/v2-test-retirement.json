@@ -1,0 +1,835 @@
+{
+  "retired_suites": {
+    "tests/account_identity_isolation.test.ts": [
+      "../src/ui/views/accountView.js",
+      "../src/ui/views/accountView.js"
+    ],
+    "tests/active_title_fetch.test.ts": [
+      "../src/content/syncEngine.js"
+    ],
+    "tests/asset_dedup_and_matching.test.ts": [
+      "../src/core/engine/assetPipeline.js"
+    ],
+    "tests/asset_direct_write_failure.test.ts": [
+      "../src/core/engine/assetPipeline.js"
+    ],
+    "tests/asset_tab_fallback.test.ts": [
+      "../src/core/engine/assetPipeline.js"
+    ],
+    "tests/audit_reinforcement.test.ts": [
+      "../src/core/resources/takeout/mediaIndex.js"
+    ],
+    "tests/b1_writer_unified.test.ts": [
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/engine/export/sessionRecovery.js"
+    ],
+    "tests/background_modules.test.ts": [
+      "../src/background/abortManager.js"
+    ],
+    "tests/batch_fetcher_abort.test.ts": [
+      "../src/background/abortManager.js",
+      "../src/background/batchFetcher.js",
+      "../src/background/abortManager.js",
+      "../src/background/batchFetcher.js"
+    ],
+    "tests/chat_formatter.test.ts": [
+      "../src/core/engine/chatFormatter.js",
+      "../src/core/engine/export/exportOrchestrator.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/engine/export/sessionRecovery.js",
+      "../src/core/engine/formatters/jsonFormatter.js"
+    ],
+    "tests/content_quality.test.ts": [
+      "../src/core/engine/export/exportCompletion.js"
+    ],
+    "tests/continued_chat_export_badge.test.ts": [
+      "../src/core/engine/export/exportCompletion.js"
+    ],
+    "tests/conversation_index_storage.test.ts": [
+      "../src/core/engine/export/exportCompletion.js",
+      "../src/content/syncEngine.js",
+      "../src/core/storage/domain/nativePersistence.js"
+    ],
+    "tests/conversation_repository.test.ts": [
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/storage/conversationRepository.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/engine/export/exportCompletion.js",
+      "../src/core/engine/export/sessionRecovery.js"
+    ],
+    "tests/conversation_repository.types.ts": [
+      "../src/core/storage/conversationRepository.js"
+    ],
+    "tests/conversation_version.test.ts": [
+      "../src/core/engine/formatters/jsonFormatter.js",
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/engine/export/exportCompletion.js"
+    ],
+    "tests/core_host_decoupling.test.ts": [
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/engine/export/sessionRecovery.js"
+    ],
+    "tests/data_safety_batch1.test.ts": [
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/engine/export/batchWorker.js"
+    ],
+    "tests/dedup_regressions.test.ts": [
+      "../src/core/engine/liveSaveWriter.js"
+    ],
+    "tests/diagnostic_snapshot.test.ts": [
+      "../src/core/diagnostics/diagnosticSnapshot.js"
+    ],
+    "tests/document-model.test.ts": [
+      "../src/core/engine/chatFormatter.js"
+    ],
+    "tests/document_renderer_boundary.types.ts": [
+      "../src/core/engine/export/exportCompletion.js"
+    ],
+    "tests/dom_scraper.test.ts": [
+      "../src/content/domScraper.js"
+    ],
+    "tests/domain_conversation_detail.types.ts": [
+      "../src/core/resources/takeout/mediaIndex.js"
+    ],
+    "tests/domain_downstream_boundaries.test.ts": [
+      "../src/core/diagnostics/diagnosticSnapshot.js"
+    ],
+    "tests/domain_readonly.types.ts": [
+      "../src/core/export/exportDomainDocument.js"
+    ],
+    "tests/domain_trust_counts.test.ts": [
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/storage/domain/resourceContext.js"
+    ],
+    "tests/export_cancel_semantics.test.ts": [
+      "../src/core/engine/export/exportOrchestrator.js",
+      "../src/core/storage/sessionStore.js"
+    ],
+    "tests/export_orchestrator.test.ts": [
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/engine/export/exportOrchestrator.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/engine/chatFormatter.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/storage/sessionStore.js",
+      "../src/core/engine/export/sessionRecovery.js"
+    ],
+    "tests/exportedids_alias.test.ts": [
+      "../src/core/engine/export/sessionRecovery.js",
+      "../src/core/utils/locales/zh.js",
+      "../src/core/utils/locales/en.js"
+    ],
+    "tests/finalize_conversation_export.test.ts": [
+      "../src/core/engine/export/exportCompletion.js",
+      "../src/core/engine/export/sessionRecovery.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/engine/export/exportOrchestrator.js",
+      "../src/core/engine/export/exportOrchestrator.js",
+      "../src/core/engine/export/exportOrchestrator.js"
+    ],
+    "tests/format_store.test.ts": [
+      "../src/core/storage/formatStore.js"
+    ],
+    "tests/html-document-migration.test.ts": [
+      "../src/core/engine/chatFormatter.js"
+    ],
+    "tests/html_export.test.ts": [
+      "../src/core/engine/chatFormatter.js"
+    ],
+    "tests/i18n.test.ts": [
+      "../src/core/utils/i18n.js",
+      "../src/ui/utils/domI18n.js",
+      "../src/core/utils/locales/zh.js",
+      "../src/core/utils/locales/en.js"
+    ],
+    "tests/imagen_generated_assets.test.ts": [
+      "../src/core/engine/chatFormatter.js"
+    ],
+    "tests/live_save_observer.test.ts": [
+      "../src/content/liveSaveObserver.js"
+    ],
+    "tests/live_save_permission_deadlock.test.ts": [
+      "../src/core/storage/liveStorageManager.js"
+    ],
+    "tests/live_storage_manager.test.ts": [
+      "../src/core/storage/liveStorageManager.js",
+      "../src/core/engine/liveSaveWriter.js",
+      "../src/core/storage/formatStore.js"
+    ],
+    "tests/media-identity-persistence.test.ts": [
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/export/assets/planExportResources.js",
+      "../src/core/resources/takeout/mediaIndex.js",
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/storage/domain/resourceContext.js"
+    ],
+    "tests/messageRouter_liveSave_detail_contract.test.ts": [
+      "../src/content/domScraper.js",
+      "../src/types/detailTransport.js"
+    ],
+    "tests/message_bridge.test.ts": [
+      "../src/core/storage/conversationCatalogStore.js",
+      "../src/core/storage/domain/domainStore.js"
+    ],
+    "tests/message_transport_contract.test.ts": [
+      "../src/core/utils/messageResponses.js",
+      "../src/core/utils/messageResponses.js",
+      "../src/types/ui.js"
+    ],
+    "tests/native_detail_transport.test.ts": [
+      "../src/core/utils/nativeDetailTransport.js",
+      "../src/core/storage/domain/transport.js",
+      "../src/core/storage/domain/domainStore.js"
+    ],
+    "tests/observed_page_ingest.test.ts": [
+      "../src/core/application/sync/scanLifecycle.js",
+      "../src/core/storage/storageCompatibility.js",
+      "../src/content/syncEngine.js"
+    ],
+    "tests/options_index_notification.test.ts": [
+      "../src/ui/options/modules/optionsSync.js"
+    ],
+    "tests/options_live_save.test.ts": [
+      "../src/ui/options/modules/optionsSettings.js",
+      "../src/core/storage/liveStorageManager.js"
+    ],
+    "tests/options_title_persist.test.ts": [
+      "../src/ui/options/modules/optionsExport.js"
+    ],
+    "tests/p0_regressions.test.ts": [
+      "../src/core/engine/chatFormatter.js"
+    ],
+    "tests/p1_archive_retention.test.ts": [
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/storage/domain/resourceContext.js",
+      "../src/core/storage/domain/nativePersistence.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/content/syncEngine.js"
+    ],
+    "tests/p1_b1_engine.test.ts": [
+      "../src/core/engine/export/exportOrchestrator.js"
+    ],
+    "tests/p1_b2_msgui.test.ts": [
+      "../src/content/liveSaveObserver.js"
+    ],
+    "tests/p1_b3_attach.test.ts": [
+      "../src/core/engine/export/progressReporter.js"
+    ],
+    "tests/p1_d_regressions.test.ts": [
+      "../src/core/storage/liveStorageManager.js",
+      "../src/core/storage/formatStore.js"
+    ],
+    "tests/p1_h3_ui.test.ts": [
+      "../src/ui/options/modules/optionsTakeout.js",
+      "../src/ui/options/modules/optionsInit.js",
+      "../src/core/utils/locales/en.js",
+      "../src/core/utils/locales/zh.js"
+    ],
+    "tests/pdf-conversation-fallback.test.ts": [
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/storage/domain/domainStore.js"
+    ],
+    "tests/pdf-dataurl-assets.test.ts": [
+      "../src/core/export/pdf/prepareResources.js",
+      "../src/core/export/pdf/pipeline/resourceStage.js"
+    ],
+    "tests/pdf-export.test.ts": [
+      "../src/core/storage/domain/domainStore.js"
+    ],
+    "tests/pdf-image-hydration.test.ts": [
+      "../src/core/export/pdf/pipeline/resourceStage.js",
+      "../src/core/export/pdf/pipeline/payloadStage.js"
+    ],
+    "tests/pdf_domain_direct.test.ts": [
+      "../src/core/export/pdf/pipeline/resourceStage.js",
+      "../src/core/export/pdf/pipeline/payloadStage.js"
+    ],
+    "tests/pdf_resource_acquisition.test.ts": [
+      "../src/core/export/pdf/prepareResources.js"
+    ],
+    "tests/perf_optimizations.test.ts": [
+      "../src/core/engine/assetPipeline.js"
+    ],
+    "tests/phase_g_p2_fixes.test.ts": [
+      "../src/core/engine/chatFormatter.js",
+      "../src/core/storage/sessionStore.js",
+      "../src/core/storage/sessionStore.js",
+      "../src/core/storage/sessionStore.js"
+    ],
+    "tests/pr865_followups.test.ts": [
+      "../src/core/storage/conversationAvailability.js",
+      "../src/core/engine/export/exportOrchestrator.js",
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/storage/domain/domainStore.js",
+      "../src/ui/options/modules/optionsSync.js",
+      "../src/ui/options/modules/optionsExport.js",
+      "../src/ui/views/progressView.js",
+      "../src/ui/uiCommon.js",
+      "../src/core/utils/i18n.js",
+      "../src/types/ui.js"
+    ],
+    "tests/progress_view.test.ts": [
+      "../src/ui/views/progressView.js"
+    ],
+    "tests/provider-native-callers.test.ts": [
+      "../src/core/engine/export/exportCompletion.js",
+      "../src/core/engine/chatFormatter.js",
+      "../src/core/resources/takeout/mediaIndex.js",
+      "../src/core/storage/domain/nativePersistence.js",
+      "../src/core/export/pdf/prepareResources.js"
+    ],
+    "tests/regression_lock.test.ts": [
+      "../src/core/engine/assetPipeline.js"
+    ],
+    "tests/reliability_ux_batch3.test.ts": [
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/core/engine/export/batchWorker.js",
+      "../src/background/abortManager.js",
+      "../src/background/abortManager.js",
+      "../src/background/batchFetcher.js",
+      "../src/core/storage/sessionStore.js"
+    ],
+    "tests/resource-delivery.test.ts": [
+      "../src/core/engine/export/exportOrchestrator.js",
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/export/assets/prepareDomainResources.js",
+      "../src/core/engine/chatFormatter.js",
+      "../src/core/export/pdf/pipeline/resourceStage.js",
+      "../src/core/export/pdf/pipeline/payloadStage.js",
+      "../src/core/export/pdf/pdfExporter.js",
+      "../src/core/resources/takeout/mediaIndex.js",
+      "../src/core/export/assets/planExportResources.js",
+      "../src/core/engine/liveSaveWriter.js"
+    ],
+    "tests/rpc_list_ingest.test.ts": [
+      "../src/content/syncEngine.js"
+    ],
+    "tests/schema_badge.test.ts": [
+      "../src/core/storage/schemaState.js"
+    ],
+    "tests/schema_migration.test.ts": [
+      "../src/core/storage/schemaState.js",
+      "../src/core/storage/schemaMigration.js"
+    ],
+    "tests/seam_s2_background_router.test.ts": [
+      "../src/background/abortManager.js",
+      "../src/background/abortManager.js",
+      "../src/background/abortManager.js"
+    ],
+    "tests/search_image_export.test.ts": [
+      "../src/core/engine/assetPipeline.js"
+    ],
+    "tests/session_store.test.ts": [
+      "../src/core/storage/sessionStore.js"
+    ],
+    "tests/shared_type_foundations_contract.test.ts": [
+      "../src/types/ui.js",
+      "../src/core/export/pdf/pdfExporter.js",
+      "../src/ui/views/dialogView.js",
+      "../src/ui/options/modules/optionsInit.js"
+    ],
+    "tests/sniff_watermark_isolation.test.ts": [
+      "../src/content/syncEngine.js"
+    ],
+    "tests/storage_export_surface.test.ts": [
+      "../src/core/engine/export/sessionRecovery.js",
+      "../src/core/engine/export/sessionRecovery.js"
+    ],
+    "tests/storage_read_canonical.test.ts": [
+      "../src/core/storage/schemaMigration.js"
+    ],
+    "tests/storage_readiness_boundary.test.ts": [
+      "../src/core/storage/schemaMigration.js"
+    ],
+    "tests/storage_service.test.ts": [
+      "../src/core/storage/schemaMigration.js",
+      "../src/core/storage/formatStore.js"
+    ],
+    "tests/storage_trust_snapshot.test.ts": [
+      "../src/core/storage/domain/transport.js",
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/storage/domain/resourceContext.js"
+    ],
+    "tests/sync_provider_contract.test.ts": [
+      "../src/core/application/sync/scanLifecycle.js",
+      "../src/content/syncEngine.js",
+      "../src/content/syncEngine.js"
+    ],
+    "tests/takeout-resource-lookup.test.ts": [
+      "../src/core/engine/assetPipeline.js",
+      "../src/core/resources/takeout/mediaIndex.js",
+      "../src/core/export/assets/planExportResources.js"
+    ],
+    "tests/takeout_and_limit_guidance.test.ts": [
+      "../src/core/utils/i18n.js",
+      "../src/ui/views/dialogView.js",
+      "../src/ui/options/modules/optionsTakeout.js"
+    ],
+    "tests/test_batch_worker_c1.test.ts": [
+      "../src/core/storage/domain/domainStore.js",
+      "../src/core/engine/export/batchWorker.js"
+    ],
+    "tests/touch_timestamp_authority.test.ts": [
+      "../src/content/syncEngine.js"
+    ],
+    "tests/trusted_domain_export.test.ts": [
+      "../src/core/engine/chatFormatter.js"
+    ],
+    "tests/ts_c4_session_recovery.test.ts": [
+      "../src/core/engine/export/sessionRecovery.js",
+      "../src/core/storage/sessionStore.js",
+      "../src/core/storage/storageCompatibility.js"
+    ],
+    "tests/ui_views.test.ts": [
+      "../src/ui/views/accountView.js",
+      "../src/ui/views/dialogView.js",
+      "../src/ui/views/logView.js",
+      "../src/ui/views/progressView.js",
+      "../src/ui/uiCommon.js"
+    ],
+    "tests/unified_ingest_integrity.test.ts": [
+      "../src/content/syncEngine.js"
+    ],
+    "tests/upsert_lastseen_max.test.ts": [
+      "../src/content/syncEngine.js"
+    ],
+    "tests/user_file_attachment.test.ts": [
+      "../src/core/engine/chatFormatter.js"
+    ],
+    "tests/user_preferences.test.ts": [
+      "../src/core/storage/userPreferences.js"
+    ],
+    "tests/verified_scan_overlap.test.ts": [
+      "../src/content/syncEngine.js",
+      "../src/core/application/sync/scanLifecycle.js"
+    ],
+    "tests/watermark_checkpoint.test.ts": [
+      "../src/core/application/sync/scanLifecycle.js"
+    ],
+    "tests/write_failure_semantics.test.ts": [
+      "../src/core/engine/export/exportOrchestrator.js"
+    ],
+    "tests/active_client_contract.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/batch-b-normalization-boundary.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/clear_exported_race.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/conversations_store.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/crosstab_write_queue.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/exportedids_readpath_normalization.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/feature_walkthrough.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/idb_handle_store.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/istakeout_unify.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/live_save_assets.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/live_save_coordinator.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/live_save_coordinator_safety.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/partial_retry.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/pdf-e2e-disk.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/pdf-exporter-dispose.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/pdf-options-metadata-resolution.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/seam_s1_content_router.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/seam_s3_ui_timeout.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/storage_alias_migration_race.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/storage_reconciliation.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/tab_service.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/takeout_transact.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/tour_guide.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/ts_c2_storage_service.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/ui_controllers.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/verifiable_export_batch2.test.ts": [
+      "Retired v1 API/ownership; replaced by application_export, storage_v2, browser_runtime_v2 and ui_v2 suites."
+    ],
+    "tests/conversation_index.types.ts": [
+      "Types/helper for retired v1 APIs."
+    ],
+    "tests/domain_downstream_contract.types.ts": [
+      "Types/helper for retired v1 APIs."
+    ],
+    "tests/helpers/makeTestWorker.ts": [
+      "Types/helper for retired v1 APIs."
+    ],
+    "tests/helpers/pdfAcquisitionFixture.ts": [
+      "Types/helper for retired v1 APIs."
+    ],
+    "tests/e2e/archive_notice.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/archive_retention.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/cloud_deletion_isolation.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/direct_write_prompt.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/domain_storage.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/domain_storage_extension.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/export_flow.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/export_session_recovery.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/export_zip.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/html_export.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/incremental_sync.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/json_export.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/live_save.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/media_identity_persistence.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/mitex_pdf_export.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/multi_tier_title_arbitration.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/page_sync.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/popup_ui.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/realtime_delete.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/scan_flow.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/takeout_limit_prompt.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/uuid_request_attribution.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/visual_inspector.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ],
+    "tests/e2e/workbench_ui.spec.ts": [
+      "Retired UI globals, v1 storage/exports or old DOM-detail transport; replaced by production_v2.spec.ts + ui_v2.spec.ts."
+    ]
+  },
+  "trimmed_v1_cases": {
+    "tests/gemini_client_retry.test.ts": [
+      "rateLimiter - withRateLimitRetry retries on rate limit and succeeds",
+      "rateLimiter - withRateLimitRetry respects abort signal"
+    ],
+    "tests/retry_utils.test.ts": [
+      "rateLimiter - engine re-exports calculateBackoff and abortableSleep matching retryUtils"
+    ],
+    "tests/p1_c_regressions.test.ts": [
+      "p1c - fetchBatch: 429 退避睡眠可被取消中断（不再睡满整个 backoff）",
+      "p1c - fetchBatch: 在途 tab 消息期间取消也生效（不等 25s tab 超时）",
+      "p1c - fetchBatch: 接收侧 retryAfterMs 生效（content 侧透传的 server hint）",
+      "p1c - processAsset: 瞬时失败重试后成功（默认最多 3 次重试）",
+      "p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间取消）",
+      "p1c - processAsset: 本地写入异常立即终止，不盲目重试网络拉取",
+      "P1-039: batchFetcher honors server retryAfterMs hint"
+    ],
+    "tests/p1_a_regressions.test.ts": [
+      "P1-006: asset messages reject untrusted hosts before invoking cookie-authenticated fetchers",
+      "P1-009: background reload remains scoped to Gemini tabs (source guard)"
+    ],
+    "tests/batch_a_followup.test.ts": [
+      "batch A asset no-response keeps the historical default failure reason"
+    ],
+    "tests/document-freeze.test.ts": [
+      "integration: display date selects the first valid fact and normalizes to UTC at composition",
+      "parser removes math delimiters; HTML renders source verbatim and preserves malformed source"
+    ],
+    "tests/pdf-stress-gates.test.ts": [
+      "attachment gate spec: 50MiB boundary",
+      "attachment gate spec: zero and invalid sizes are rejected with a warning",
+      "attachment gate spec: duplicate content is billed once (contentHash dedup)",
+      "attachment gate spec: set budget boundary at exactly 50MiB",
+      "stress: full-pipeline release stress with real Typst compile (Item 4)"
+    ],
+    "tests/archive-resource-path.test.ts": [
+      "extractAttachmentInlineBytes decodes contentMarkdown as UTF-8 bytes"
+    ],
+    "tests/p1_h2_pathwriter.test.ts": [
+      "p1_h2 - P1-106: toTimestampMs normalizes timestamp shapes",
+      "p1_h2 - P1-107: takeout placeholder titles do not flow back in",
+      "p1_h2 - P1-108: mergeConversation honors digit-string updatedAt",
+      "p1_h2 - P1-109: NaN/Infinity pct becomes 0, not NaN",
+      "p1_h2 - P1-110: fenced/inline code keeps HTML-like content",
+      "p1_h2 - review fix (d): legacy rules reproduced byte-for-byte",
+      "p1_h2 - review fix (d): resolveExportFileName reuses on-disk legacy name",
+      "p1_h2 - review fix (d): reserved stem with extension also compat-probed"
+    ],
+    "tests/content-domain-boundary.test.ts": [
+      "provider parsing diagnoses malformed entries at their source position without mutating input"
+    ],
+    "tests/document-neutral.test.ts": [
+      "one immutable JSON document serves all three backends without losing rich structure",
+      "UI locale, theme and page policy change independently of document language and content",
+      "prepared resource absence is reported by each backend without deleting the display reference"
+    ],
+    "tests/conversation-representation.test.ts": [
+      "integration: Index owns exported metadata while the body version remains capture evidence"
+    ]
+  },
+  "additional_retired_cases": {
+    "tests/concurrency_consistency.test.ts": [
+      "overlapping updateConversation writes preserve both independent changes",
+      "DomainAdmission.updateConversation patches only the target record and rejects missing IDs"
+    ],
+    "tests/maintenance_convergence_batch4.test.ts": [
+      "Batch 4 - listView restricts conversation URLs to http/https and blocks javascript:/data:"
+    ],
+    "tests/pr3_lastseen_fallback.test.ts": [
+      "checkIsUpdated: lastSeen-only chat is not flagged updated by client clock"
+    ],
+    "tests/provider_abstraction.test.ts": [
+      "TabService - getAITab and sendToAITab integration"
+    ],
+    "tests/provider_degrade.test.ts": [
+      "Phase E: 共享 resolveProvider 行为与原来一致（无 location 时回落 default）",
+      "Phase E: 三处 resolveProvider 收口到共享 helper",
+      "Phase E: content-script matches are scoped to explicit HTTPS provider hosts"
+    ]
+  },
+  "deleted_files": [
+    "src/content/liveSaveObserver.ts",
+    "src/content/providerCompatibility.ts",
+    "src/core/diagnostics/diagnosticSnapshot.ts",
+    "src/core/engine/assetPipeline.ts",
+    "src/core/engine/chatFormatter.ts",
+    "src/core/engine/export/batchWorker.ts",
+    "src/core/engine/export/exportOrchestrator.ts",
+    "src/core/engine/export/progressReporter.ts",
+    "src/core/utils/i18n.ts",
+    "src/core/utils/locales/en.ts",
+    "src/core/utils/locales/zh.ts",
+    "src/core/utils/messageResponses.ts",
+    "src/core/utils/nativeDetailTransport.ts",
+    "src/types/detailTransport.ts",
+    "src/types/entrypoints.ts",
+    "src/types/liveSave.ts",
+    "src/types/ui.ts",
+    "tests/account_identity_isolation.test.ts",
+    "tests/active_client_contract.test.ts",
+    "tests/active_title_fetch.test.ts",
+    "tests/asset_dedup_and_matching.test.ts",
+    "tests/asset_direct_write_failure.test.ts",
+    "tests/asset_tab_fallback.test.ts",
+    "tests/audit_reinforcement.test.ts",
+    "tests/b1_writer_unified.test.ts",
+    "tests/background_modules.test.ts",
+    "tests/batch-b-normalization-boundary.test.ts",
+    "tests/batch_fetcher_abort.test.ts",
+    "tests/chat_formatter.test.ts",
+    "tests/clear_exported_race.test.ts",
+    "tests/content_quality.test.ts",
+    "tests/continued_chat_export_badge.test.ts",
+    "tests/conversation_index.types.ts",
+    "tests/conversation_index_storage.test.ts",
+    "tests/conversation_repository.test.ts",
+    "tests/conversation_repository.types.ts",
+    "tests/conversation_version.test.ts",
+    "tests/conversations_store.test.ts",
+    "tests/core_host_decoupling.test.ts",
+    "tests/crosstab_write_queue.test.ts",
+    "tests/data_safety_batch1.test.ts",
+    "tests/dedup_regressions.test.ts",
+    "tests/diagnostic_snapshot.test.ts",
+    "tests/document-model.test.ts",
+    "tests/document_renderer_boundary.types.ts",
+    "tests/dom_scraper.test.ts",
+    "tests/domain_conversation_detail.types.ts",
+    "tests/domain_downstream_boundaries.test.ts",
+    "tests/domain_downstream_contract.types.ts",
+    "tests/domain_readonly.types.ts",
+    "tests/domain_trust_counts.test.ts",
+    "tests/e2e/archive_notice.spec.ts",
+    "tests/e2e/archive_retention.spec.ts",
+    "tests/e2e/cloud_deletion_isolation.spec.ts",
+    "tests/e2e/direct_write_prompt.spec.ts",
+    "tests/e2e/domain_storage.spec.ts",
+    "tests/e2e/domain_storage_extension.spec.ts",
+    "tests/e2e/e2e_globals.d.ts",
+    "tests/e2e/export_flow.spec.ts",
+    "tests/e2e/export_session_recovery.spec.ts",
+    "tests/e2e/export_zip.spec.ts",
+    "tests/e2e/html_export.spec.ts",
+    "tests/e2e/incremental_sync.spec.ts",
+    "tests/e2e/json_export.spec.ts",
+    "tests/e2e/l2Fixtures.ts",
+    "tests/e2e/live_save.spec.ts",
+    "tests/e2e/media_identity_persistence.spec.ts",
+    "tests/e2e/mitex_pdf_export.spec.ts",
+    "tests/e2e/multi_tier_title_arbitration.spec.ts",
+    "tests/e2e/page_sync.spec.ts",
+    "tests/e2e/popup_ui.spec.ts",
+    "tests/e2e/realtime_delete.spec.ts",
+    "tests/e2e/scan_flow.spec.ts",
+    "tests/e2e/takeout_limit_prompt.spec.ts",
+    "tests/e2e/uuid_request_attribution.spec.ts",
+    "tests/e2e/visual_inspector.spec.ts",
+    "tests/e2e/workbench_ui.spec.ts",
+    "tests/export_cancel_semantics.test.ts",
+    "tests/export_orchestrator.test.ts",
+    "tests/exportedids_alias.test.ts",
+    "tests/exportedids_readpath_normalization.test.ts",
+    "tests/feature_walkthrough.test.ts",
+    "tests/finalize_conversation_export.test.ts",
+    "tests/format_store.test.ts",
+    "tests/helpers/makeTestWorker.ts",
+    "tests/helpers/pdfAcquisitionFixture.ts",
+    "tests/html-document-migration.test.ts",
+    "tests/html_export.test.ts",
+    "tests/i18n.test.ts",
+    "tests/idb_handle_store.test.ts",
+    "tests/imagen_generated_assets.test.ts",
+    "tests/istakeout_unify.test.ts",
+    "tests/live_save_assets.test.ts",
+    "tests/live_save_coordinator.test.ts",
+    "tests/live_save_coordinator_safety.test.ts",
+    "tests/live_save_observer.test.ts",
+    "tests/live_save_permission_deadlock.test.ts",
+    "tests/live_storage_manager.test.ts",
+    "tests/media-identity-persistence.test.ts",
+    "tests/messageRouter_liveSave_detail_contract.test.ts",
+    "tests/message_bridge.test.ts",
+    "tests/message_transport_contract.test.ts",
+    "tests/native_detail_transport.test.ts",
+    "tests/observed_page_ingest.test.ts",
+    "tests/options_index_notification.test.ts",
+    "tests/options_live_save.test.ts",
+    "tests/options_title_persist.test.ts",
+    "tests/p0_regressions.test.ts",
+    "tests/p1_archive_retention.test.ts",
+    "tests/p1_b1_engine.test.ts",
+    "tests/p1_b2_msgui.test.ts",
+    "tests/p1_b3_attach.test.ts",
+    "tests/p1_d_regressions.test.ts",
+    "tests/p1_h3_ui.test.ts",
+    "tests/partial_retry.test.ts",
+    "tests/pdf-conversation-fallback.test.ts",
+    "tests/pdf-dataurl-assets.test.ts",
+    "tests/pdf-e2e-disk.test.ts",
+    "tests/pdf-export.test.ts",
+    "tests/pdf-exporter-dispose.test.ts",
+    "tests/pdf-image-hydration.test.ts",
+    "tests/pdf-options-metadata-resolution.test.ts",
+    "tests/pdf_domain_direct.test.ts",
+    "tests/pdf_resource_acquisition.test.ts",
+    "tests/perf_optimizations.test.ts",
+    "tests/phase_g_p2_fixes.test.ts",
+    "tests/pr865_followups.test.ts",
+    "tests/progress_view.test.ts",
+    "tests/provider-native-callers.test.ts",
+    "tests/regression_lock.test.ts",
+    "tests/reliability_ux_batch3.test.ts",
+    "tests/resource-delivery.test.ts",
+    "tests/rpc_list_ingest.test.ts",
+    "tests/schema_badge.test.ts",
+    "tests/schema_migration.test.ts",
+    "tests/seam_s1_content_router.test.ts",
+    "tests/seam_s2_background_router.test.ts",
+    "tests/seam_s3_ui_timeout.test.ts",
+    "tests/search_image_export.test.ts",
+    "tests/session_store.test.ts",
+    "tests/shared_type_foundations_contract.test.ts",
+    "tests/sniff_watermark_isolation.test.ts",
+    "tests/storage_alias_migration_race.test.ts",
+    "tests/storage_export_surface.test.ts",
+    "tests/storage_read_canonical.test.ts",
+    "tests/storage_readiness_boundary.test.ts",
+    "tests/storage_reconciliation.test.ts",
+    "tests/storage_service.test.ts",
+    "tests/storage_trust_snapshot.test.ts",
+    "tests/sync_provider_contract.test.ts",
+    "tests/tab_service.test.ts",
+    "tests/takeout-resource-lookup.test.ts",
+    "tests/takeout_and_limit_guidance.test.ts",
+    "tests/takeout_transact.test.ts",
+    "tests/test_batch_worker_c1.test.ts",
+    "tests/touch_timestamp_authority.test.ts",
+    "tests/tour_guide.test.ts",
+    "tests/trusted_domain_export.test.ts",
+    "tests/ts_c2_storage_service.test.ts",
+    "tests/ts_c4_session_recovery.test.ts",
+    "tests/ui_controllers.test.ts",
+    "tests/ui_views.test.ts",
+    "tests/unified_ingest_integrity.test.ts",
+    "tests/upsert_lastseen_max.test.ts",
+    "tests/user_file_attachment.test.ts",
+    "tests/user_preferences.test.ts",
+    "tests/verifiable_export_batch2.test.ts",
+    "tests/verified_scan_overlap.test.ts",
+    "tests/watermark_checkpoint.test.ts",
+    "tests/write_failure_semantics.test.ts"
+  ]
+}
