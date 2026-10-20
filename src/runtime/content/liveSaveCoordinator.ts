@@ -17,6 +17,8 @@ export async function executeLiveSave(value: ConversationKey): Promise<ExportRes
     const feedback = badge;
     const key = readConversationKey(value);
     const stillCurrent = () => getAccountContext()?.accountId === key.accountId;
+    // A late passive Detail result from an old account must not start a new active export.
+    if (!stillCurrent()) return null;
     try {
         const response = await chrome.runtime.sendMessage({ action: 'runLiveSave', key });
         if (!response || response.ok !== true) throw new Error(response?.error || 'Live Save unavailable');
