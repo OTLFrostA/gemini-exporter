@@ -15,6 +15,7 @@ const path = require('node:path');
 const suites = {
     client: [
         'tests/l1_contract.test.ts',
+        'tests/l1-outbound-contract.test.ts',
         'tests/l1-native-acquisition.test.ts',
         'tests/l1_l2_verified_deletion.test.ts',
         'tests/gemini_client_retry.test.ts',
@@ -22,6 +23,8 @@ const suites = {
         'tests/provider_adapter.test.ts',
         'tests/provider_neutral.test.ts',
         'tests/provider_contract.test.ts',
+        'tests/provider-native-callers.test.ts',
+        'tests/provider_degrade.test.ts',
         'tests/provider-chatgpt-tree.test.ts',
         'tests/list-source-boundary.test.ts',
     ],
@@ -35,6 +38,8 @@ const suites = {
     ],
     parser: [
         'tests/l1_extracted_regressions.test.ts',
+        'tests/structured-rpc-domain.test.ts',
+        'tests/index-source-boundary.test.ts',
         'tests/l1-source-timestamps.test.ts',
         'tests/provider-gemini-rpc-domain.test.ts',
         'tests/provider-gemini-markup-sanitization.test.ts',
@@ -51,6 +56,7 @@ const suites = {
     takeout: [
         'tests/provider-gemini-takeout-domain.test.ts',
         'tests/takeout-archive-resources.test.ts',
+        'tests/takeout_missing_ts.test.ts',
         'tests/takeout_generated_reconciliation.test.ts',
     ],
     resources: [
