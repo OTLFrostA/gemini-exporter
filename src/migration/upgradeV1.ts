@@ -98,18 +98,28 @@ async function upgrade(): Promise<void> {
         const savedList = raw[`conversations_${account.id}`];
         const list = savedList === undefined ? [] : savedList;
         if (!Array.isArray(list)) throw new TypeError('Invalid legacy index container');
-        const indexes = list.map(value => {
-            if (!object(value)) throw new TypeError('Invalid legacy index schema');
-            const normalized = { ...value };
-            for (const field of ['createdAt', 'updatedAt']) if (value[field] !== undefined) {
-                const millis = time(value[field]);
-                if (millis === undefined) throw new TypeError('Invalid legacy index schema: source time');
-                normalized[field] = millis;
+        const indexes: ReturnType<typeof restoreConversationIndex>[] = [];
+        const seen = new Set<string>();
+        for (const [rowNumber, value] of list.entries()) {
+            try {
+                if (!object(value)) throw new TypeError('Invalid legacy index schema');
+                const normalized = { ...value };
+                for (const field of ['createdAt', 'updatedAt']) if (value[field] !== undefined) {
+                    const millis = time(value[field]);
+                    if (millis === undefined) throw new TypeError('Invalid legacy index schema: source time');
+                    normalized[field] = millis;
+                }
+                const index = restoreConversationIndex(normalized);
+                if (index.key.accountId !== account.id) throw new TypeError('Legacy index account mismatch');
+                if (seen.has(index.key.conversationId)) throw new TypeError('Duplicate legacy index identity');
+                seen.add(index.key.conversationId);
+                indexes.push(index);
+            } catch (error) {
+                // One corrupt source row must not block valid conversations or other categories.
+                if (!(error instanceof TypeError)) throw error;
+                console.warn('[Migration] Ignoring unconvertible legacy index', account.id, rowNumber, error.message);
             }
-            return restoreConversationIndex(normalized);
-        });
-        if (indexes.some(index => index.key.accountId !== account.id)) throw new TypeError('Legacy index account mismatch');
-        if (new Set(indexes.map(index => index.key.conversationId)).size !== indexes.length) throw new TypeError('Duplicate legacy index identity');
+        }
         const oldRecords = raw[`exported_${account.id}`];
         const records = new Map<string, ExportRecord>();
         if (oldRecords !== undefined && !object(oldRecords)) console.warn('[Migration] Invalid legacy export record container', account.id);

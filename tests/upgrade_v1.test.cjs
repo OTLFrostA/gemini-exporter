@@ -105,20 +105,27 @@ test('preferences alone identify an upgrade; invalid preferences keep defaults s
     assert.deepEqual(await indexedDB.databases(), []);
 });
 
-test('invalid accounts or index ownership fail before writing and allow retry', async () => {
-    await accounts(a);
-    data[`conversations_${a.id}`] = [index(b)];
-    await assert.rejects(ensureUpgraded(), /account mismatch/);
-    assert.equal(data[marker], undefined);
-    assert.deepEqual(writes, []);
-    assert.deepEqual(await storage.listAccounts(), []);
-    data[`conversations_${a.id}`] = [{ ...index(a), updatedAt: NaN }];
-    await assert.rejects(ensureUpgraded(), /index schema/);
-    data[`conversations_${a.id}`] = [index(a)];
-    await ensureUpgraded();
+test('invalid legacy index rows are skipped while valid accounts, indexes, settings and exports migrate', async () => {
+    await accounts(a, b);
+    const badTime = { ...index(a), key: { ...index(a).key, conversationId: 'bad-time' }, updatedAt: NaN };
+    data[`conversations_${a.id}`] = [index(a), badTime, index(b), index(a), null];
+    data[`conversations_${b.id}`] = [index(b)];
+    data[`exported_${a.id}`] = { shared: { status: 'ok', exportedAt: 1000, format: 'markdown' } };
+    data.gemini_export_format = 'html';
+    const legacy = structuredClone(data);
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => warnings.push(args);
+    try { await ensureUpgraded(); } finally { console.warn = originalWarn; }
+    assert.deepEqual(await storage.listAccounts(), [a, b]);
     assert.deepEqual(await storage.listIndexes(a.id), [index(a)]);
+    assert.deepEqual(await storage.listIndexes(b.id), [index(b)]);
+    assert.deepEqual(await storage.getExportRecord(index(a).key), { status: 'ok', exportedAt: 1000, format: 'markdown' });
+    assert.equal(data[settingsKey]?.defaultFormat, 'html');
+    assert.equal(data[marker], true);
+    assert.equal(warnings.filter(args => args[0] === '[Migration] Ignoring unconvertible legacy index').length, 4);
+    for (const [key, value] of Object.entries(legacy)) assert.deepEqual(data[key], value);
 });
-
 test('mid-write failure leaves marker unset; retry overwrites stable keys without duplicates', async () => {
     await accounts(a);
     data[`conversations_${a.id}`] = [index(a)];
@@ -156,16 +163,23 @@ test('invalid account registry is rejected without completion', async () => {
     assert.deepEqual(writes, []);
 });
 
-test('malformed and duplicate index containers never silently discard history', async () => {
+test('malformed whole index containers still fail rather than inventing a history', async () => {
     await accounts(a);
-    for (const list of [null, {}, [index(a), index(a)]]) {
+    for (const list of [null, {}]) {
         data[`conversations_${a.id}`] = list;
-        await assert.rejects(ensureUpgraded(), /index container|Duplicate legacy index/);
+        await assert.rejects(ensureUpgraded(), /index container/);
         assert.equal(data[marker], undefined);
         assert.deepEqual(writes, []);
     }
 });
 
+test('duplicate legacy indexes preserve one valid record instead of blocking upgrade', async () => {
+    await accounts(a);
+    data[`conversations_${a.id}`] = [index(a), index(a)];
+    await ensureUpgraded();
+    assert.deepEqual(await storage.listIndexes(a.id), [index(a)]);
+    assert.equal(data[marker], true);
+});
 test('failure to commit the final marker is retryable and never clears legacy sources', async () => {
     data = { gemini_export_zip: false };
     failKey = marker;
@@ -185,11 +199,12 @@ test('upgrade normalizes provable source Index times to safe millisecond integer
     assert.deepEqual(await storage.getIndex(index(a).key), { ...index(a), createdAt: Date.parse('2026-10-17T10:00:00Z'), updatedAt: 0 });
 });
 for (const value of [0.25, Number.MAX_SAFE_INTEGER + 1, Infinity, '2026-10-17T12:00:00', 'unknown']) {
-    test(`invalid Index source time ${value} aborts before v2 writes`, async () => {
-        await accounts(a); data[`conversations_${a.id}`] = [{ ...index(a), updatedAt: value }];
-        await assert.rejects(ensureUpgraded(), /source time/);
-        assert.deepEqual(await storage.listAccounts(), []); assert.equal(data[marker], undefined);
-        assert.deepEqual(writes, []);
+    test(`invalid Index source time ${value} is skipped without losing a valid sibling`, async () => {
+        await accounts(a);
+        data[`conversations_${a.id}`] = [{ ...index(a), key: { ...index(a).key, conversationId: 'bad' }, updatedAt: value }, index(a)];
+        await ensureUpgraded();
+        assert.deepEqual(await storage.listIndexes(a.id), [index(a)]);
+        assert.equal(data[marker], true);
     });
 }
 test('invalid optional export times are omitted, invalid exportedAt records rejected, epoch zero preserved', async () => {
