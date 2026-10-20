@@ -71,10 +71,14 @@ test('L1 callback stop never overrides a real source terminal', async () => {
     assert.equal(await provider([list([row()])]).listConversations({ ...options(), onPageCommitted: async () => true }), 'source_end');
     assert.equal(await provider([list([row()], 'tC_NEXT_PAGE_123456789')]).listConversations({ ...options(), onPageCommitted: async () => true }), 'stopped');
 });
-test('L1 preserves row counts independently of Domain deduplication', async () => {
+test('L1 counts committed source rows but refuses to trust duplicate IDs across pages', async () => {
     const counts: number[] = [];
-    await provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row()])]).listConversations({ ...options(), onPageCommitted: async info => { counts.push(info.totalObserved); return false; } });
-    assert.deepEqual(counts, [1, 2]); assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
+    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row()])]).listConversations({
+        ...options(), onPageCommitted: async info => { counts.push(info.totalObserved); return false; },
+    }), /Unverified Gemini list page/);
+    assert.deepEqual(counts, [1, 2], 'progress describes committed rows, not unique local Index records');
+    assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
+    assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range ?? null, null);
 });
 test('L1 propagates commit failure without callback or another request', async () => {
     storage.fail(`conversations_${ACCOUNT_UUID}`);
@@ -87,7 +91,7 @@ test('L1 propagates network errors even after a committed page', async () => {
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
 });
 test('L1 rejects malformed pages and cursor loops', async () => {
-    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row()], 'tC_NEXT_PAGE_123456789')]).listConversations(options()), /cursor loop/);
+    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row('different_chat_456', 1700000040)], 'tC_NEXT_PAGE_123456789')]).listConversations(options()), /cursor loop/);
     await assert.rejects(provider([parseList('garbage')]).listConversations(options()), /list failed/);
 });
 test('L1 abort never reports exhaustion or starts another page', async () => {
@@ -108,9 +112,12 @@ test('L1 rejects account mismatch and route changes before acquisition', async (
 test('L1 unknown identity can retain rows but emits no trusted scanHead', async () => {
     const defaultId = '10000000-0000-4000-8000-000000000003';
     let head: unknown;
-    await provider([list([row()])]).listConversations({ ...options(), accountId: defaultId,
-        onPageCommitted: async info => { head = info.scanHead; return false; } });
-    assert.equal(head, undefined); assert.equal(await getCoverage(defaultId, 'recent'), null);
+    await assert.rejects(provider([list([row()])]).listConversations({ ...options(), accountId: defaultId,
+        onPageCommitted: async info => { head = info.scanHead; return false; },
+    }), /Unverified Gemini list endpoint/);
+    assert.equal(head, undefined);
+    assert.equal((await getConversations(defaultId)).length, 1, 'unknown identity still admits source Index facts');
+    assert.equal(await getCoverage(defaultId, 'recent'), null);
 });
 test('L1 unknown Bard errors cannot become a history-window terminal', () => {
     for (const error of ['BardErrorInfo: cursor expired', '["BardErrorInfo",9999]']) {
@@ -186,6 +193,7 @@ test('L1 import submits facts and returns count/status with numerical progress',
 });
 test('L1 ChatGPT body quality is independent of missing image bytes', () => {
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'), conversation: { id: 'chatgpt_123', create_time: 1700000000, update_time: 1700000001, is_archived: false, title: 'Images', current_node: 'node', mapping: {
+        root: { id: 'root', children: ['node'] },
         node: { id: 'node', parent: 'root', children: [], message: { id: 'msg', author: { role: 'assistant', metadata: {} }, recipient: 'all', status: 'finished_successfully', weight: 1, content: { content_type: 'multimodal_text', parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_123' }] } } },
     } }, assetsByNode: new Map() });
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
