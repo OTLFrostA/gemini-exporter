@@ -40,3 +40,19 @@ test('canonical report body keeps independent sections and links', () => {
     const result = closeDomainResources('custom', [], [{ input: { attachments: [{ type: 'file', contentMarkdown: '# Canonical', sections: ['# Canonical', 'Unique section'], links: [{ title: 'Evidence', url: 'https://example.test/evidence' }] }] } }]);
     assert.equal(result.assets[0].document?.contentMarkdown, '# Canonical\n\nUnique section\n\n[Evidence](https://example.test/evidence)');
 });
+
+test('L2 never admits ephemeral signed resource locators or invalid byte counts', () => {
+    for (const sourceUri of [
+        '', 'data:image/png;base64,AQID', 'blob:https://example.test/a',
+        'https://example.test/image?X-Amz-Date=20261019T120000Z&X-Amz-Signature=abc',
+        'https://example.test/image?X-Goog-Credential=abc&X-Goog-Signature=abc',
+        'https://example.test/file?Expires=123&Signature=abc&Key-Pair-Id=key',
+        'https://example.test/image?token=temporary',
+        'archive/images/photo.png?token=temporary',
+    ]) assert.throws(() => validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri }])), TypeError, sourceUri);
+    for (const byteLength of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1])
+        assert.throws(() => validateParserDomain(base([{ id: 'image', kind: 'image', byteLength }])), TypeError);
+    validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'https://example.test/image?id=stable', byteLength: 0 }]));
+    validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'provider-stable-resource-id' }]));
+    validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'archive/photo.png' }]));
+});

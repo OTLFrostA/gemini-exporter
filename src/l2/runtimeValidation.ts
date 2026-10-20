@@ -12,6 +12,7 @@ type Check = (value: unknown) => boolean;
 const text: Check = v => typeof v === 'string';
 const number: Check = v => typeof v === 'number' && Number.isFinite(v);
 const sourceTime: Check = v => typeof v === 'number' && Number.isSafeInteger(v);
+const byteLength: Check = v => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const boolean: Check = v => typeof v === 'boolean';
 const optional = (check: Check): Check => v => v === undefined || check(v);
 const array = (check: Check): Check => v => {
@@ -28,9 +29,9 @@ const shape = (fields: Record<string, Check>, nonEmpty = false): Check => v => {
     const keys = Object.keys(v);
     return (!nonEmpty || keys.some(k => v[k] !== undefined)) && keys.every(k => Object.hasOwn(fields, k)) && Object.entries(fields).every(([k, check]) => check(v[k]));
 };
-const generation = shape({ providerRequestId: optional(text), time: optional(number), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number) }, true);
+const generation = shape({ providerRequestId: optional(text), time: optional(sourceTime), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number) }, true);
 const document = shape({ id: optional(text), contentMarkdown: optional(text) }, true);
-const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), sourceUri: optional(isDurableSourceUri), generation: optional(generation), document: optional(document) });
+const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(byteLength), sourceUri: optional(isDurableSourceUri), generation: optional(generation), document: optional(document) });
 const citation = shape({ id: text, url: optional(text), title: optional(text) });
 
 function inline(v: unknown): boolean {
@@ -80,7 +81,7 @@ function block(v: unknown): boolean {
 }
 const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(sourceTime), attachmentIds: optional(array(text)), reasoning: optional(array(block)), citations: optional(array(citation)) });
 const quality = shape({ status: enumeration('complete', 'partial', 'unknown') });
-const domainFields: Record<string, Check> = { key: v => { try { readConversationKey(v); return true; } catch { return false; } }, savedAt: optional(number), assets: array(asset), messages: array(message), quality };
+const domainFields: Record<string, Check> = { key: v => { try { readConversationKey(v); return true; } catch { return false; } }, savedAt: optional(sourceTime), assets: array(asset), messages: array(message), quality };
 const domain = shape(domainFields);
 
 /** Omit unknown optional facts without copying already canonical parser/Storage graphs. */
@@ -182,7 +183,7 @@ export function restoreDomainSnapshot(value: unknown): TrustedDomain {
 
 /** Preserve body trust while recording a checked source version, without reparsing content. */
 export function withSourceVersion(conversation: TrustedDomain, savedAt: number | undefined): TrustedDomain {
-    if (savedAt !== undefined && !Number.isFinite(savedAt)) throw new TypeError('Invalid source version');
+    if (savedAt !== undefined && !Number.isSafeInteger(savedAt)) throw new TypeError('Invalid source version');
     const { savedAt: _old, ...body } = conversation.detail;
     const detail: TrustedDomainBody = { ...body, ...(savedAt !== undefined ? { savedAt } : {}) };
     trustedBodies.add(detail);

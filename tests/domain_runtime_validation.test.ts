@@ -1,7 +1,7 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { acceptDetailFacts, validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
+import { acceptDetailFacts, validateParserDomain, restoreDomainSnapshot, withSourceVersion } from '../src/l2/runtimeValidation.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 function valid(): DomainConversationWithDetail {
@@ -144,4 +144,11 @@ test('trusted parser bodies are reused internally but copied IPC facts must pass
     received.assets = [];
     assert.throws(() => acceptDetailFacts(parsed.detail.key, received), TypeError);
     assert.throws(() => acceptDetailFacts({ ...parsed.detail.key, conversationId: 'other' }, parsed.detail), TypeError);
+});
+
+test('withSourceVersion rejects unsafe or fractional source timestamps', () => {
+    const trusted = validateParserDomain(valid());
+    for (const savedAt of [0.5, Number.MAX_SAFE_INTEGER + 1, Infinity])
+        assert.throws(() => withSourceVersion(trusted, savedAt), TypeError);
+    assert.equal(withSourceVersion(trusted, 0).detail.savedAt, 0);
 });

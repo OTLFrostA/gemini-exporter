@@ -10,6 +10,18 @@ import { restoreConversationIndex, type DomainConversationIndex, type Conversati
 import { updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
 import { conversationKey } from './conversationKey.js';
 
+/** Domain values are JSON facts: object property insertion order is not a content change. */
+function sameStoredFacts(left: unknown, right: unknown): boolean {
+    if (left === right) return true;
+    if (Array.isArray(left)) return Array.isArray(right) && left.length === right.length
+        && left.every((item, i) => sameStoredFacts(item, right[i]));
+    if (!left || !right || typeof left !== 'object' || typeof right !== 'object' || Array.isArray(right)) return false;
+    const a = left as Record<string, unknown>, b = right as Record<string, unknown>;
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length
+        && keys.every(key => Object.hasOwn(b, key) && sameStoredFacts(a[key], b[key]));
+}
+
 /** Duplicate source rows merge in input order; Storage reads their current values under one transaction. */
 async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<void> {
     const groups = new Map<string, DomainConversationIndex[]>();
@@ -25,7 +37,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
         entries.forEach((group, i) => {
             let merged = previous[i] ? restoreConversationIndex(previous[i]) : undefined;
             for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
-            if (merged && JSON.stringify(merged) !== JSON.stringify(previous[i])) changed.push(merged);
+            if (merged && !sameStoredFacts(merged, previous[i])) changed.push(merged);
         });
         return changed;
     });
@@ -45,7 +57,7 @@ export async function ingestIndexes(accountId: Account['id'],
     });
 }
 
-/** Frozen L1 → L2 Detail admission contract. The implementation is migrated separately. */
+/** Committed admission result; temporary resource ownership is decided by accepted. */
 export interface DetailIngestResult {
     accepted: boolean;
     changed: boolean;
@@ -63,14 +75,15 @@ export async function ingestDetail(accountId: Account['id'], conversationId: Con
         const acceptedIndex = mergeConversationIndex(existingIndex, index);
         const existing = oldDetail ? restoreDomainDetail(oldDetail) : null;
         const selected = selectConversationDetail(existing ? { detail: existing } : undefined, { detail: incoming }).detail;
-        const changed = !existing || (selected !== existing
-            && (JSON.stringify(existing.messages) !== JSON.stringify(selected.messages)
-                || JSON.stringify(existing.assets) !== JSON.stringify(selected.assets)
-                || existing.quality.status !== selected.quality.status));
+        const sameFacts = (a: DomainConversationDetail, b: DomainConversationDetail): boolean =>
+            sameStoredFacts(a.messages, b.messages) && sameStoredFacts(a.assets, b.assets)
+            && a.quality.status === b.quality.status;
+        const accepted = selected === incoming || (existing !== null && sameFacts(existing, incoming));
+        const changed = !existing || (selected !== existing && !sameFacts(existing, selected));
         return {
-            ...(JSON.stringify(acceptedIndex) !== JSON.stringify(existingIndex) ? { index: acceptedIndex } : {}),
-            ...(JSON.stringify(selected) !== JSON.stringify(existing) ? { detail: selected } : {}),
-            result: changed,
+            ...(!sameStoredFacts(acceptedIndex, existingIndex) ? { index: acceptedIndex } : {}),
+            ...(!sameStoredFacts(selected, existing) ? { detail: selected } : {}),
+            result: { accepted, changed },
         };
     });
 }

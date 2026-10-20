@@ -27,7 +27,9 @@ export async function hasTrustedBoundary(accountId: string, frozenBaseline: Stre
         // A user clear must not resurrect a frozen pre-clear baseline.
         if (!current?.range) return { result: false };
         const session = indexCoverageSession(accountId, scanHead.streamId);
-        if (!session.connects(frozenBaseline, head)) return { result: false };
+        // Both the frozen baseline and the latest committed range must still connect.
+        // A different terminal scan may have replaced the old boundary meanwhile.
+        if (!session.connects(frozenBaseline, head) || !session.connects(current, head)) return { result: false };
         const next = session.extend(current);
         return { ...(JSON.stringify(next) !== JSON.stringify(current) ? { next } : {}), result: true };
     });
