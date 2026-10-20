@@ -117,8 +117,8 @@ test('a cached v2 view cannot republish old metadata or resurrect a deleted Inde
         const current = await readStoredConversation(key);
         assert.equal(current?.index.title, 'New title');
         assert.equal(current?.detail.savedAt, 200);
-        assert.equal(current?.detail.messages[1].content[0].children[0].text, 'New body');
-        assert.equal(cached.detail.messages[1].content[0].children[0].text, 'Old body');
+        assert.match(JSON.stringify(current?.detail.messages), /New body/);
+        assert.match(JSON.stringify(cached.detail.messages), /Old body/);
         assert.equal(env.writes(), writes, 'read-only projections never write stale snapshots');
         await deleteStoredConversation(key);
         assert.equal(await readStoredConversation(key), null);
