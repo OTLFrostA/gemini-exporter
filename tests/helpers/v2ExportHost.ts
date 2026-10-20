@@ -44,7 +44,7 @@ export function v2ExportHost(t: TestContext, onClick: () => void = () => {}) {
         else Reflect.deleteProperty(globalThis, 'location');
         storage.restore();
     });
-    return { blobs, filenames, clicks: () => clicks };
+    return { blobs, filenames, clicks: () => clicks, failStorage: storage.fail };
 }
 
 export function exportKey(conversationId: string) {
