@@ -225,9 +225,11 @@ const titleAuthorityPort: Pick<typeof import('../../src/l2/titleAuthority.js'),
 };
 const indexComparisonPort: Pick<typeof import('../../src/l2/conversationIndex.js'),
     'indexActivityTime' | 'compareConversationIndexes'> = {
-    indexActivityTime: index => index.updatedAt ?? index.createdAt,
-    compareConversationIndexes: (a, b) =>
-        ((b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0)),
+    indexActivityTime: index => index.updatedAt,
+    compareConversationIndexes(a, b) {
+        if (a.updatedAt === undefined) return b.updatedAt === undefined ? 0 : 1;
+        return b.updatedAt === undefined ? -1 : b.updatedAt - a.updatedAt;
+    },
 };
 const indexCollectionPort: Pick<typeof import('../../src/l2/indexCollection.js'),
     'mergeConversation' | 'deduplicateConversations'> = {
