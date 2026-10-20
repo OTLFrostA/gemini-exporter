@@ -69,20 +69,20 @@ def select_format_targets(cdp_opt, ctx, format_type):
     required = [r['chat_id'] for r in ctx.chat_records if r.get('chat_id')]
     required += [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if not h.get('optional')]
     optional = [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if h.get('optional')]
-    install_probe(cdp_opt)
+    # The v2 Options controller maintains its own Settings mirror. Drive its
+    # real change handlers, then verify both UI and persisted Application values.
+    configured = CDPActions.configure_export_controls(cdp_opt, format_type, False)
+    if not configured.get('ok'):
+        raise RuntimeError(f"v2 export settings were not committed: {configured}")
     result = cdp_opt.eval(f"""
-    (async () => {{
-        await globalThis.__tier2V2.updateSettings({{skipExported:false,defaultFormat:{json.dumps(format_type)}}});
-        for (let i=0;i<100;i++) {{
-            if (document.body.dataset.busy === 'false' && document.getElementById('format')?.value === {json.dumps(format_type)} && !document.getElementById('skipExported')?.checked) break;
-            await new Promise(resolve => setTimeout(resolve,50));
-        }}
+    (() => {{
         const required = {json.dumps(required)}, optional = {json.dumps(optional)};
         const normalize = id => (id || '').replace(/^c_/, '');
         const items = Array.from(document.querySelectorAll('#list .item'));
         const skip = document.getElementById('skipExported'), format = document.getElementById('format');
         if (!skip || !format) return {{ error: 'Missing format/skip controls' }};
-        if (format.value !== {json.dumps(format_type)} || skip.checked || document.body.dataset.busy !== 'false') return {{error:'Settings did not settle'}};
+        if (format.value !== {json.dumps(format_type)} || skip.checked || document.body.dataset.busy !== 'false')
+            return {{error:'v2 export controls changed before selection'}};
         const matched = [];
         for (const item of items) {{
             const cid = normalize(item.dataset.chatId), cb = item.querySelector('input[type=checkbox]');
@@ -94,7 +94,7 @@ def select_format_targets(cdp_opt, ctx, format_type):
         return {{ matched, missing: required.filter(cid => !matched.includes(cid)),
                   optionalMissing: optional.filter(cid => !matched.includes(cid)) }};
     }})()
-    """, await_promise=True) or {}
+    """) or {}
     if result.get('error') or result.get('missing') or not result.get('matched'):
         raise RuntimeError(f"指定 {format_type} 目标未完整勾选: {result}")
     return result
@@ -544,13 +544,11 @@ class FastSkipExportedCase(FeatureTestCase):
         try:
             CDPActions.clear_search_workbench(cdp_opt)
             install_probe(cdp_opt)
+            settings = CDPActions.configure_export_controls(cdp_opt, 'markdown', True)
+            if not settings.get('ok'):
+                return False, f"v2 Skip 设置未提交: {settings}", settings
             prep = cdp_opt.eval("""
             (async () => {
-                await globalThis.__tier2V2.updateSettings({defaultFormat:'markdown',skipExported:true});
-                for (let i=0;i<100;i++) {
-                    if (document.body.dataset.busy === 'false' && document.getElementById('format')?.value === 'markdown' && document.getElementById('skipExported')?.checked) break;
-                    await new Promise(resolve => setTimeout(resolve,50));
-                }
                 const items = Array.from(document.querySelectorAll('#list .item'));
                 const state = await globalThis.__tier2V2.snapshot();
                 const exported = items.filter(it => {
@@ -561,7 +559,7 @@ class FastSkipExportedCase(FeatureTestCase):
                 });
                 const skip = document.getElementById('skipExported');
                 const btn = document.getElementById('btnExport');
-                if (!skip || !btn) return { error: 'Export controls unavailable' };
+                if (!skip || !btn || !skip.checked) return { error: 'v2 Skip controls unavailable' };
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');
                     if (cb) { cb.checked = exported.includes(it); cb.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -620,20 +618,32 @@ class FastSkipExportedCase(FeatureTestCase):
             """, await_promise=True) or {}
             if not partial.get('exportedId') or not partial.get('unexportedId') or partial.get('unexportedSourceVerified') is not True:
                 return False, "部分跳过需要真实已导出会话与云端可用的未导出会话，准备不足", partial
-            partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True)
-            if not partial_zip or not os.path.isfile(partial_zip):
-                return False, "部分跳过没有生成 ZIP", partial
-            with zipfile.ZipFile(partial_zip) as zf:
-                ok, msg = assert_archive_targets(zf.namelist(), [partial['unexportedId']], '.md', [partial['exportedId']])
-                if not ok:
-                    return False, msg, partial
-                name = next(n for n in zf.namelist() if n.endswith('.md') and not os.path.basename(n).startswith('.'))
-                text = zf.read(name).decode('utf-8')
-                match = re.search(r'^id:\s*["\']?([^"\'\s]+)', text, re.MULTILINE)
-                if not match or match.group(1).removeprefix('c_') != partial['unexportedId'].removeprefix('c_'):
-                    return False, "部分跳过 ZIP 正文的会话 ID 不匹配", partial
-            return True, f"全量跳过与部分跳过均验证，ZIP 只含未导出目标 (全量耗时 {duration:.2f}s)", {
-                'all_skip_duration': duration, 'partial_prep': partial, 'zip_path': partial_zip
+            # V2 L4 packages a ZIP only for multiple physical files. One
+            # Markdown document without assets is delivered directly as .md.
+            partial_file = CDPActions.trigger_export_zip(
+                cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True, allow_standalone=True
+            )
+            if not partial_file or not os.path.isfile(partial_file):
+                return False, "部分跳过没有生成 v2 Markdown/ZIP 文件", partial
+            if partial_file.lower().endswith('.zip'):
+                with zipfile.ZipFile(partial_file) as zf:
+                    ok, msg = assert_archive_targets(zf.namelist(), [partial['unexportedId']],
+                                                     '.md', [partial['exportedId']])
+                    if not ok:
+                        return False, msg, partial
+                    name = next(n for n in zf.namelist()
+                                if n.endswith('.md') and not os.path.basename(n).startswith('.'))
+                    text = zf.read(name).decode('utf-8')
+            elif partial_file.lower().endswith('.md'):
+                with open(partial_file, encoding='utf-8') as exported:
+                    text = exported.read()
+            else:
+                return False, f"v2 Partial Skip 交付了意外格式: {partial_file}", partial
+            match = re.search(r'^id:\s*["\']?([^"\'\s]+)', text, re.MULTILINE)
+            if not match or match.group(1).removeprefix('c_') != partial['unexportedId'].removeprefix('c_'):
+                return False, "部分跳过正文的会话 ID 不匹配", partial
+            return True, f"全量跳过与部分跳过均验证，交付只含未导出目标 (全量耗时 {duration:.2f}s)", {
+                'all_skip_duration': duration, 'partial_prep': partial, 'download_path': partial_file
             }
         finally:
             cdp_opt.close()
