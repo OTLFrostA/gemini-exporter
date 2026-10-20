@@ -51,15 +51,19 @@ test('malformed ChatGPT pages cannot masquerade as empty exhausted history', asy
 
 test('provider commits indexes before progress and exposes control facts only', async () => {
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
-        url.includes('/api/auth/session') ? { accessToken: 'test-token' }
-            : { items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }], total: 1 }
+        url.includes('/api/auth/session') ? { accessToken: 'test-token', user: { id: 'u-index' }, account: { id: 'w-index' } }
+            : { items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }],
+                total: 1, offset: 0, limit: 100, has_missing_conversations: false }
     )) });
-    const account = await getOrCreateAccount('chatgpt', 'default');
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-index', 'w-index']));
     let observed: unknown;
     const result = await provider.listConversations({ accountId: account.id, streamId: 'recent', onPageCommitted: async info => {
         observed = info; assert.equal((await getConversations(account.id)).length, 1); return false;
     } });
-    assert.equal(result, 'source_end'); assert.deepEqual(observed, { page: 1, totalObserved: 1 });
+    assert.equal(result, 'source_end');
+    assert.equal((observed as { page: number; totalObserved: number }).page, 1);
+    assert.equal((observed as { page: number; totalObserved: number }).totalObserved, 1);
+    assert.deepEqual((observed as { scanHead: { keys: unknown[] } }).scanHead.keys, [{ id: 'listed', time: 1700000060000 }]);
 
 });
 
