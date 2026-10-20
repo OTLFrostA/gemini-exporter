@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { indexStorage } from './helpers/indexStorage.js';
+import { storageUnitEnvironment as indexStorage } from './helpers/l3aStorageUnitEnvironment.js';
 import { patchStoredSettings, getStoredSettings } from '../src/l3a/storageService.js';
 
 test('passive Storage propagates IO errors without a global schema freeze or badge side effects', async () => {
