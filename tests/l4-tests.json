@@ -18,6 +18,7 @@
     "tests/document-typst-contract.test.ts",
     "tests/fs_writer_disk.test.ts",
     "tests/html-document-orchestration.test.ts",
+    "tests/l4-internal-contract.test.ts",
     "tests/l4-delivery.test.ts",
     "tests/l4-packaging.test.ts",
     "tests/local-font-provider.test.ts",
@@ -43,5 +44,7 @@
     "tests/typst-table-span.test.ts",
     "tests/writers.test.ts"
   ],
-  "typeTests": []
+  "typeTests": [
+    "tests/document_renderer_boundary.types.ts"
+  ]
 }

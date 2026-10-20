@@ -92,13 +92,13 @@ test('backend decides unavailable resources, preserves caption, and keeps nested
 test('renderer requires prepared bindings and escapes text and URL attributes', () => {
     const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     assert.ok(renderDocumentHtml(document, {}).html.includes('gem-missing-asset'));
-    const html = renderDocumentHtml(document, { img: 'assets/a" onload="evil.png' }).html;
-    assert.ok(html.includes('&quot;'));
-    assert.ok(!html.includes('src="assets/a" onload='));
-    assert.ok(html.includes('&lt;x&gt;'));
+    const invalidBinding = renderDocumentHtml(document, { img: 'assets/a" onload="evil.png' });
+    assert.ok(invalidBinding.diagnostics.some(d => d.code === 'HTML_ASSET_UNRESOLVED'));
+    assert.ok(!invalidBinding.html.includes('onload="evil.png'), 'invalid physical path cannot reach an attribute');
+    assert.ok(invalidBinding.html.includes('&lt;x&gt;'));
     document.messages[0].blocks = [{ type: 'paragraph', children: [{ type: 'link', href: 'https://example.com?a=1&b=2', children: [{ type: 'text', text: 'Query' }] }] }];
     const queryHtml = renderDocumentHtml(document, { img: 'assets/img.png' }).html;
-    assert.ok(queryHtml.includes('href="https://example.com?a=1&amp;b=2"'));
+    assert.ok(queryHtml.includes('href="https://example.com/?a=1&amp;b=2"'));
     assert.ok(!queryHtml.includes('&amp;amp;'));
 });
 

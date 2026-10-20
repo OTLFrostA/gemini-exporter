@@ -48,6 +48,9 @@
     "./document-freeze.test.ts",
     "./pdf-stress-gates.test.ts",
     "./archive-resource-path.test.ts",
-    "./p1_h2_pathwriter.test.ts"
+    "./p1_h2_pathwriter.test.ts",
+    "./l4-internal-contract.test.ts",
+    "./document_renderer_boundary.types.ts",
+    "./helpers/renderTypstFixture.ts"
   ]
 }

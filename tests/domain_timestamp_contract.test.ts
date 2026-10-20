@@ -6,7 +6,7 @@ import { validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeVa
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-const exportDomainMarkdown = (domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(domain, account), {}, { includeFrontMatter: true });
+const exportDomainMarkdown = (domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(domain, account), {});
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 const base = (): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('chat'), 'custom'),   titleSource: "derived",   title: 'Times' }, detail: { key: fixtureKey(String('chat'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [] } });
 test('conversation times are independent finite epoch milliseconds and unknown facts are absent', () => {

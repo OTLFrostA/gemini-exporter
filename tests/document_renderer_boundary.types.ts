@@ -59,10 +59,18 @@ void pdfFormatBoundary;
 import type { Diagnostic } from '../src/l3b/ast/ast.js';
 void (null as unknown as Diagnostic);
 
-import type { MarkdownRenderOptions } from '../src/l4/format/shared/renderOptions.js';
-// @ts-expect-error Renderer options cannot supply metadata that bypasses Document AST.
-const metadataBypass: MarkdownRenderOptions = { frontMatter: [{ key: 'title', value: 'stale' }] };
-void metadataBypass;
+import type { RendererOptions } from '../src/l4/format/shared/renderOptions.js';
+const localeOnly: RendererOptions = { locale: 'zh' };
+void localeOnly;
+// @ts-expect-error Front Matter is always authored by L4 Format, never supplied by callers.
+renderDocumentMarkdown({} as DocumentAst, {}, { includeFrontMatter: false });
+// @ts-expect-error PDF technical options cannot leak through the public Typst Renderer.
+renderDocumentTypst({} as DocumentAst, {}, { convertMath: () => 'x' });
+// @ts-expect-error HTML presentation defaults cannot be changed by a public theme knob.
+renderDocumentHtml({} as DocumentAst, {}, { theme: 'light' });
+// @ts-expect-error The shared locale permits only the frozen two languages.
+const invalidLocale: RendererOptions = { locale: 'fr' };
+void invalidLocale;
 
 
 import type { DomainConversationDetail } from '../src/l2/conversationDetail.js';

@@ -6,7 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { renderDocumentMarkdown } = require('../src/l4/format/markdown/renderMarkdown.js');
 const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
-const exportDomainMarkdown = (conversation: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(conversation, account), {}, { includeFrontMatter: true, exportedAt: Date.now() });
+const exportDomainMarkdown = (conversation: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(conversation, account), {});
 const renderFixtureMarkdown = (parsed: ReturnType<typeof historicalFixture>): string => renderDocumentMarkdown(composeDomainDocument(parsed.conversation, parsed.account), {});
 const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
@@ -25,7 +25,7 @@ test('Markdown code serialization preserves existing final newlines without addi
 test('Markdown export envelope uses Domain metadata and omits absent optional fields', async () => {
     const b = domainFixture([]); Object.assign(b.index, { createdAt: Date.parse('2026-01-01T00:00:00Z') });
     const md = await exportDomainMarkdown({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } }, fixtureAccountFor({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } }));
-    assert.ok(md.startsWith('---\ntitle: "Title"\nid: "c"\nprovider: "gemini"\ndate: "2026-01-01T00:00:00.000Z"\nupdated: "2026-01-02T00:00:00.000Z"\nexported: "'));
+    assert.ok(md.startsWith('---\ntitle: "Title"\nid: "c"\nprovider: "gemini"\ndate: "2026-01-01T00:00:00.000Z"\nupdated: "2026-01-02T00:00:00.000Z"\ntags:'));
     assert.ok(md.includes('tags:\n  - gemini-export\n---\n\n# Title'));
     const minimal = await exportDomainMarkdown(domainFixture([]), fixtureAccountFor(domainFixture([]))); assert.ok(!/^url:|^date:|^updated:/m.test(minimal));
 });
@@ -64,7 +64,8 @@ test('Markdown inline and display math use the original LaTeX source', () => {
 
 test('Markdown tables serialize alignment, captions, spans, pipes and newlines visibly', () => {
     const md = render([{ type: 'table', caption: [txt('caption')], columns: [{ align: 'left' }, { align: 'right' }], headerRows: [{ cells: [{ children: [txt('A')] }, { children: [txt('B')] }] }], rows: [{ cells: [{ children: [txt('x|y\nz')], colSpan: 2 }] }] }]);
-    assert.ok(md.includes('caption\n\n| A | B |\n| :--- | ---: |\n| x\\|y<br>z |  |'));
+    assert.ok(md.includes('<table>') && md.includes('<caption>caption</caption>'));
+    assert.ok(md.includes('<td colspan="2">x|y\nz</td>'), 'merged cell and its original text are preserved');
 });
 
 test('Markdown table separators preserve backslashes and formatted inline content', () => {

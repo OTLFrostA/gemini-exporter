@@ -25,7 +25,6 @@ const image = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]);
 const prepared: PreparedResources = new Map([['image', { ok: true, resourceId: 'image', value: { bytes: image, mediaType: 'image/png' } }]]);
 const bindings = { image: 'assets/Chosen name.png', file: 'files/notes.pdf' };
 const pdf = new TextEncoder().encode('%PDF-1.7\n' + ' '.repeat(80));
-const options = { convertMath: () => undefined };
 const context = () => ({ signal: new AbortController().signal, reportProgress() {} });
 
 test('PDF mounts the Packaging path verbatim and only resolves supplied image bytes', async () => {
@@ -41,7 +40,7 @@ test('PDF mounts the Packaging path verbatim and only resolves supplied image by
         assert.equal(payload.document.messages[0].blocks[1].type, 'file');
         return { pdfBytes: pdf, diagnostics: [{ severity: 'info', code: 'COMPILED', message: 'ok' }] };
     } };
-    const result = await compileDocumentPdf(document, bindings, prepared, compiler, context(), options);
+    const result = await compileDocumentPdf(document, bindings, prepared, compiler, context());
     assert.equal(calls, 1);
     assert.equal(result.pdfBytes, pdf);
     assert.equal(result.diagnostics.at(-1)?.code, 'COMPILED');
@@ -59,26 +58,27 @@ test('corrupt and absent images produce readable placeholders, retaining caption
         return { pdfBytes: pdf, diagnostics: [] };
     } };
     const corrupt: PreparedResources = new Map([['image', { ok: true, resourceId: 'image', value: { bytes: new Uint8Array([1]), mediaType: 'image/png' } }]]);
-    const result = await compileDocumentPdf(doc, bindings, corrupt, compiler, context(), options);
+    const result = await compileDocumentPdf(doc, bindings, corrupt, compiler, context());
     assert.ok(result.diagnostics.some(d => d.code === 'ASSET_CORRUPT'));
-    await compileDocumentPdf(doc, {}, new Map(), compiler, context(), options);
+    assert.ok(result.diagnostics.some(d => d.code === 'FORMAT_CONTENT_OMITTED'), 'acquired-but-unrenderable image is partial');
+    await compileDocumentPdf(doc, {}, new Map(), compiler, context());
 });
 
 test('compile failure propagates without a second render, retry or delivery', async () => {
     let calls = 0;
     const compiler: IPdfCompiler = { name: 'test', async compile() { calls++; throw new Error('sandbox failed'); } };
-    await assert.rejects(compileDocumentPdf(document, bindings, prepared, compiler, context(), options), /sandbox failed/);
+    await assert.rejects(compileDocumentPdf(document, bindings, prepared, compiler, context()), /sandbox failed/);
     assert.equal(calls, 1);
 });
 
 test('invalid PDF output and cancellation are explicit failures', async () => {
     for (const bytes of [new Uint8Array(), new Uint8Array(100), new TextEncoder().encode('%PDF-')]) {
         const compiler: IPdfCompiler = { name: 'test', async compile() { return { pdfBytes: bytes, diagnostics: [] }; } };
-        await assert.rejects(compileDocumentPdf(document, {}, new Map(), compiler, context(), options), /invalid PDF/);
+        await assert.rejects(compileDocumentPdf(document, {}, new Map(), compiler, context()), /invalid PDF/);
     }
     const abort = new AbortController(); abort.abort();
     const compiler: IPdfCompiler = { name: 'test', async compile() { assert.fail('aborted compilation must not start'); } };
-    await assert.rejects(compileDocumentPdf(document, {}, new Map(), compiler, { ...context(), signal: abort.signal }, options), { name: 'AbortError' });
+    await assert.rejects(compileDocumentPdf(document, {}, new Map(), compiler, { ...context(), signal: abort.signal }), { name: 'AbortError' });
 });
 
 test('each conversation retains its own bindings and bytes for overlapping resource IDs', async () => {
@@ -87,7 +87,7 @@ test('each conversation retains its own bindings and bytes for overlapping resou
             assert.equal(payload.assetPaths.get('image'), path);
             return { pdfBytes: pdf, diagnostics: [] };
         } };
-        await compileDocumentPdf(document, { image: path }, prepared, compiler, context(), options);
+        await compileDocumentPdf(document, { image: path }, prepared, compiler, context());
     }
 });
 
@@ -99,7 +99,7 @@ test('all renderers use supplied local bindings and visibly degrade invalid path
         assert.equal(renderDocumentTypst(document, resources).messages[0].blocks[0].type, 'unknown');
     }
     assert.match(renderDocumentMarkdown(document, bindings), /assets\/Chosen%20name.png/);
-    assert.match(renderDocumentHtml(document, bindings).html, /assets\/Chosen name.png/);
+    assert.match(renderDocumentHtml(document, bindings).html, /assets\/Chosen%20name.png/);
 });
 
 test('MiTeX initialization failure preserves source math with a diagnostic', async () => {
@@ -127,7 +127,7 @@ test('abort during compilation rejects even when the compiler returns bytes', as
         abort.abort();
         return { pdfBytes: pdf, diagnostics: [] };
     } };
-    await assert.rejects(compileDocumentPdf(document, {}, new Map(), compiler, { ...context(), signal: abort.signal }, options), { name: 'AbortError' });
+    await assert.rejects(compileDocumentPdf(document, {}, new Map(), compiler, { ...context(), signal: abort.signal }), { name: 'AbortError' });
 });
 
 test('real WASM compiles an image at the supplied Packaging path and releases its sandbox', async () => {
@@ -135,7 +135,7 @@ test('real WASM compiles an image at the supplied Packaging path and releases it
     const bytes = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
     const resources: PreparedResources = new Map([['image', { ok: true, resourceId: 'image', value: { bytes } }]]);
     try {
-        const result = await compileDocumentPdf(document, { image: 'assets/packaging-image.png' }, resources, compiler, context(), options);
+        const result = await compileDocumentPdf(document, { image: 'assets/packaging-image.png' }, resources, compiler, context());
         const extracted = extractPdfText(result.pdfBytes);
         assert.ok(extracted.imageXObjectCount >= 1);
         assert.match(extracted.text, /notes\.pdf/);
