@@ -6,7 +6,7 @@ import { clearLocalScanRecords, clearLocalExportRecords } from '../src/applicati
 
 test.beforeEach(reset);
 test('Settings defaults are applied only on read; explicit false is preserved', async () => {
-    assert.deepEqual(await getSettings(), { defaultFormat: 'markdown', skipExported: true, includeAssets: true, enabledDisk: false, developerMode: false });
+    assert.deepEqual(await getSettings(), { defaultFormat: 'markdown', skipExported: true, includeAssets: true, enabledDisk: false, developerMode: false, exportDelivery: 'browserDownload' });
     assert.deepEqual(events, []);
     await updateSettings({ includeAssets: false, language: 'en' });
     await updateSettings({ enabledDisk: true });
@@ -20,7 +20,7 @@ test('sparse Settings patches preserve optional Spotlight, Takeout and Badge sta
     await updateSettings({ includeAssets: false, skipExported: false });
     assert.deepEqual(await getSettings(), {
         defaultFormat: 'markdown', skipExported: false, includeAssets: false,
-        enabledDisk: false, developerMode: false,
+        enabledDisk: false, developerMode: false, exportDelivery: 'browserDownload',
         lastSeenFeatureVersion: '1.8.0', takeoutPromptCompleted: true, badgePosition,
     });
     assert.deepEqual(events, ['settings-write', 'settings-write']);
@@ -28,6 +28,7 @@ test('sparse Settings patches preserve optional Spotlight, Takeout and Badge sta
 test('Live Save format and directory changes pause effectiveness without mutating user intent', async () => {
     await updateSettings({ enabledDisk: true });
     const markdown = await getSettings();
+    assert.equal(markdown.exportDelivery, 'folderWriter', 'existing Live Save users retain the local folder mode');
     assert.equal(isLiveSaveEffective(markdown, true), true);
     assert.equal(isLiveSaveEffective(markdown, false), false);
     for (const defaultFormat of ['pdf', 'html', 'json'] as const) {
@@ -37,7 +38,12 @@ test('Live Save format and directory changes pause effectiveness without mutatin
     }
     await updateSettings({ defaultFormat: 'markdown' });
     assert.equal(isLiveSaveEffective(await getSettings(), true), true);
-    assert.equal(events.filter(event => event === 'settings-write').length, 5);
+    await updateSettings({ exportDelivery: 'browserDownload' });
+    assert.equal((await getSettings()).enabledDisk, true, 'browser mode pauses without clearing intent');
+    assert.equal(isLiveSaveEffective(await getSettings(), true), false);
+    await updateSettings({ exportDelivery: 'folderWriter' });
+    assert.equal(isLiveSaveEffective(await getSettings(), true), true);
+    assert.equal(events.filter(event => event === 'settings-write').length, 7);
 });
 test('Settings IO failures propagate instead of silently manufacturing defaults or claiming success', async () => {
     state.failSettingsRead = true; await assert.rejects(getSettings(), /read failed/);
