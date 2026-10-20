@@ -81,9 +81,19 @@ export class GeminiProvider implements GeminiProviderContract {
             const trustedHead = !sentHead && pageEvidence && head.requestCursor === null && head.requestKnown && head.valid && head.ordered;
             if (trustedHead) sentHead = true;
             const stop = await options.onPageCommitted?.({ page, totalObserved, ...(trustedHead ? { scanHead: head } : {}) });
-            if (result.failure === 'hit_google_limit') return 'provider_limit';
-            if (!result.pageEvidence.valid) throw new Error('Malformed Gemini list page');
-            if (result.nextPageToken === null) return 'source_end';
+            // L1 may report a trusted terminal only after L2 committed every
+            // trustworthy Recent page and its request-bound terminal evidence.
+            if (!observation.valid || (options.streamId === 'recent' && !observation.ordered))
+                throw new Error('Unverified Gemini list page');
+            if (result.failure === 'hit_google_limit') {
+                if (!pageEvidence || observation.terminal !== 'provider_limit')
+                    throw new Error('Unverified Gemini provider limit');
+                return 'provider_limit';
+            }
+            if (result.nextPageToken === null) {
+                if (!pageEvidence) throw new Error('Unverified Gemini list endpoint');
+                return 'source_end';
+            }
             if (seen.has(result.nextPageToken)) throw new Error('Gemini list cursor loop');
             if (stop) return 'stopped';
             seen.add(result.nextPageToken);
