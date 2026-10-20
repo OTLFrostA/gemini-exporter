@@ -167,7 +167,7 @@ for (const baseline of ['1.6.0', undefined]) test(`real Migration: Account/count
     assert.deepEqual(await runtime.store.listIndexes(uuid), [legacyIndex]);
     assert.deepEqual(await runtime.settings.getSettings(), {
         defaultFormat: 'html', skipExported: true, includeAssets: true,
-        enabledDisk: false, developerMode: false, lastSeenFeatureVersion: baseline || '1.8.1',
+        enabledDisk: false, developerMode: false, exportDelivery: 'browserDownload', lastSeenFeatureVersion: baseline || '1.8.1',
     });
     assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
     assert.deepEqual(runtime.data[`conversations_${uuid}`], [legacyIndex]);
