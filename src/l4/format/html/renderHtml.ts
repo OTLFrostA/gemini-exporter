@@ -1,10 +1,10 @@
 import { blockText, codeHeader, fileBadge, headerMetadata, messageLabel, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
-import type { HtmlRenderOptions } from '../shared/internalRenderOptions.js';
+import { safeExternalHref, safeGeneratedFragment, encodeResourceHref } from '../shared/safeLinks.js';
 import type { RendererOptions } from '../shared/renderOptions.js';
 import { visual } from '../shared/visualContract.js';
-import { GEM_HTML_CSS, GEM_HTML_SCRIPT, sanitizeUrl } from './htmlTemplate.js';
+import { GEM_HTML_CSS, GEM_HTML_SCRIPT } from './htmlTemplate.js';
 import { renderMathHtml } from './htmlMath.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../../l3b/ast/ast.js';
@@ -134,6 +134,9 @@ a.gem-citation-chip { color: var(--accent-blue); }
   font-size: 0.9em;
   padding: 1px 4px;
 }
+/* Keep every wide table column readable; scroll its own region instead of stacking letters. */
+.gem-table { width: max-content; min-width: 100%; }
+.gem-table th, .gem-table td { min-width: 8ch; word-break: normal; overflow-wrap: normal; }
 `;
 
 
@@ -149,21 +152,26 @@ const CHEVRON_SVG = '<svg class="gem-thought-chevron" viewBox="0 0 24 24" width=
 
 
 /** Pure backend: only the presentation tree and prepared resource bindings. */
-export function renderDocumentHtml(document: DocumentAst, resources: ResourceBindings, options?: RendererOptions): { html: string; diagnostics: Diagnostic[] };
-export function renderDocumentHtml(document: DocumentAst, resources: ResourceBindings, options: HtmlRenderOptions = {}): { html: string; diagnostics: Diagnostic[] } {
-    const locale = options.locale ?? 'zh';
+export function renderDocumentHtml(document: DocumentAst, resources: ResourceBindings, options: RendererOptions = {}): { html: string; diagnostics: Diagnostic[] } {
+    const locale = options.locale ?? 'en';
     const strings = getRendererStrings(locale);
     const isEn = locale === 'en';
     const unavailableText = (kind: 'image' | 'file', label: string) => unavailableResourceText(kind, label, locale);
-    const available = (id: string) => isResourcePath(resources[id]) && sanitizeUrl(resources[id], true) !== '#';
+    const available = (id: string) => isResourcePath(resources[id]);
     const missing = (id: string) => diagnostics.push({ severity: 'warning', code: 'HTML_ASSET_UNRESOLVED', message: `Resource ${id} has no prepared safe URL` });
     const diagnostics: Diagnostic[] = [];
-    // The shared URL sanitizer already escapes the attribute value.
-    const url = (value: string): string => sanitizeUrl(value, false);
+    // Source URLs are untrusted. Fragments are links only to our own generated IDs.
+    const anchors = new Set(document.messages.flatMap((msg, index) => {
+        const anchor = `turn-${msg.role === 'user' ? 'user' : 'model'}-${index}`;
+        return msg.role === 'user' ? [anchor, `prompt-${anchor}`] : [anchor];
+    }));
+    const sourceUrl = (value: string | undefined): string | undefined =>
+        safeExternalHref(value) ?? safeGeneratedFragment(value, anchors);
+    const sourceTarget = (value: string): string => value.startsWith('#') ? '' : ' target="_blank" rel="noopener noreferrer"';
     const resource = (id: string): string => {
         const value = resources[id];
-        if (!value) throw new TypeError(`Missing prepared resource binding: ${id}`);
-        return sanitizeUrl(value, true);
+        if (!isResourcePath(value)) throw new TypeError(`Missing safe resource binding: ${id}`);
+        return escapeHtml(encodeResourceHref(value));
     };
     const math = (source: string, display: boolean): string => {
         const result = renderMathHtml(source, display, strings.mathFallback);
@@ -177,10 +185,16 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
             case 'emphasis': return `<em>${inlines(node.children)}</em>`;
             case 'strikethrough': return `<del>${inlines(node.children)}</del>`;
             case 'inlineCode': return `<code class="gem-inline-code">${escapeHtml(node.code)}</code>`;
-            case 'link': return `<a href="${url(node.href)}" target="_blank" rel="noopener noreferrer" class="gem-link"${node.title ? ` title="${escapeHtml(node.title)}"` : ''}>${inlines(node.children)}</a>`;
+            case 'link': {
+                const href = sourceUrl(node.href);
+                const label = inlines(node.children);
+                return href ? `<a href="${escapeHtml(href)}"${sourceTarget(href)} class="gem-link"${node.title ? ` title="${escapeHtml(node.title)}"` : ''}>${label}</a>`
+                    : `<span class="gem-link"${node.title ? ` title="${escapeHtml(node.title)}"` : ''}>${label}</span>`;
+            }
             case 'citation': {
                 const attrs = `class="gem-link gem-citation-ref" data-citation-id="${escapeHtml(node.id)}"`;
-                return node.href ? `<a ${attrs} href="${url(node.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(node.label)}</a>` : `<span ${attrs}>${escapeHtml(node.label)}</span>`;
+                const href = sourceUrl(node.href);
+                return href ? `<a ${attrs} href="${escapeHtml(href)}"${sourceTarget(href)}>${escapeHtml(node.label)}</a>` : `<span ${attrs}>${escapeHtml(node.label)}</span>`;
             }
             case 'lineBreak': return '<br>';
             case 'inlineMath': return math(node.source, false);
@@ -201,8 +215,8 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
                 return `<${tag} class="gem-list"${node.start !== undefined ? ` start="${node.start}"` : ''}>${node.items.map(item => `<li>${blocks(item.blocks)}</li>`).join('')}</${tag}>`;
             }
             case 'quote': return `<blockquote class="gem-blockquote">${blocks(node.blocks)}</blockquote>`;
-            case 'code': return `<div class="gem-code-block">${options.showCodeHeader !== false ? `<div class="gem-code-header"><span class="gem-code-lang">${escapeHtml(codeHeader(node, 'html', options))}</span>${node.meta ? `<span class="gem-code-meta"> · ${escapeHtml(node.meta)}</span>` : ''}
-${options.copyCode !== false ? `<button class="gem-copy-btn" onclick="copyCode(this)" title="${isEn ? 'Copy Code' : '复制代码'}">${COPY_SVG}<span class="copy-text">${isEn ? 'Copy' : '复制'}</span></button>` : ''}</div>` : ''}<pre><code class="language-${escapeHtml(node.language || 'text')}">${escapeHtml(node.code)}</code></pre></div>`;
+            case 'code': return `<div class="gem-code-block"><div class="gem-code-header"><span class="gem-code-lang">${escapeHtml(codeHeader(node, 'html'))}</span>${node.meta ? `<span class="gem-code-meta"> · ${escapeHtml(node.meta)}</span>` : ''}
+<button class="gem-copy-btn" onclick="copyCode(this)" title="${isEn ? 'Copy Code' : '复制代码'}">${COPY_SVG}<span class="copy-text">${isEn ? 'Copy' : '复制'}</span></button></div><pre><code class="language-${escapeHtml(node.language || 'text')}">${escapeHtml(node.code)}</code></pre></div>`;
             case 'math': return math(node.source, true);
             case 'table': {
                 const row = (cells: typeof node.rows[number], tag: 'th' | 'td') => `<tr>${cells.map(cell => `<${tag}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${node.columnAlignments[cell.column] && node.columnAlignments[cell.column] !== 'default' ? ` style="text-align:${node.columnAlignments[cell.column]}"` : ''}>${inlines(cell.children)}</${tag}>`).join('')}</tr>`;
@@ -214,14 +228,18 @@ ${options.copyCode !== false ? `<button class="gem-copy-btn" onclick="copyCode(t
             case 'file':
                 if (!available(node.resourceId)) { missing(node.resourceId); return `<div class="gem-missing-asset">${escapeHtml(unavailableText('file', node.label))}${node.description ? `<div>${inlines(node.description)}</div>` : ''}</div>`; }
                 return `<a class="gem-att-card gem-att-file" href="${resource(node.resourceId)}" target="_blank" download="${escapeHtml(node.label)}" title="${escapeHtml(`${isEn ? 'Open or download' : '点击打开或下载'} ${node.label}`)}"><div class="gem-att-icon">${FILE_SVG}</div><div class="gem-att-info"><span class="gem-att-name">${escapeHtml(node.label)}</span><span class="gem-att-badge">${escapeHtml(fileBadge(node))}</span></div>${node.description ? `<div class="gem-att-desc">${inlines(node.description)}</div>` : ''}<div class="gem-att-open-btn">${OPEN_SVG}</div></a>`;
-            case 'disclosure': return `<details class="gem-thoughts"${options.thoughtInitiallyCollapsed ?? false ? '' : ' open'}><summary class="gem-thoughts-summary"><div class="gem-thoughts-header">${THOUGHT_SVG}<span>${escapeHtml(node.title)}</span>${CHEVRON_SVG}</div></summary><div class="gem-thoughts-content">${blocks(node.blocks)}</div></details>`;
+            case 'disclosure': return `<details class="gem-thoughts"><summary class="gem-thoughts-summary"><div class="gem-thoughts-header">${THOUGHT_SVG}<span>${escapeHtml(node.title)}</span>${CHEVRON_SVG}</div></summary><div class="gem-thoughts-content">${blocks(node.blocks)}</div></details>`;
             case 'thematicBreak': return '<hr class="gem-hr">';
             case 'unsupported':
                 diagnostics.push({ severity: 'info', code: 'HTML_UNKNOWN_BLOCK', message: `Unsupported block ${node.sourceType}` });
                 return `<section class="gem-unknown-block" data-source-type="${escapeHtml(node.sourceType)}"><div class="gem-unknown-label">${escapeHtml(`${strings.unsupportedContent} · ${node.sourceType}`)}</div><pre class="gem-unknown-text">${escapeHtml(node.text)}</pre></section>`;
         }
     };
-    const sources = (group: SourceItem[] | undefined): string => group?.length ? `<section class="gem-citation-group"><div class="gem-citation-chips">${group.map(item => item.href ? `<a class="gem-citation-chip" href="${url(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel(item))}</a>` : `<span class="gem-citation-chip">${escapeHtml(sourceLabel(item))}</span>`).join('')}</div></section>` : '';
+    const sources = (group: SourceItem[] | undefined): string => group?.length ? `<section class="gem-citation-group"><div class="gem-citation-chips">${group.map(item => {
+        const href = sourceUrl(item.href);
+        return href ? `<a class="gem-citation-chip" href="${escapeHtml(href)}"${sourceTarget(href)}>${escapeHtml(sourceLabel(item))}</a>`
+            : `<span class="gem-citation-chip">${escapeHtml(sourceLabel(item))}</span>`;
+    }).join('')}</div></section>` : '';
     const message = (node: DisplayMessage, index: number): string => {
         const anchor = `turn-${node.role === 'user' ? 'user' : 'model'}-${index}`;
         const role = ['system', 'developer', 'unknown'].includes(node.role) ? `<div class="gem-role-label">${escapeHtml(messageLabel(node, locale))}</div>` : '';
@@ -229,13 +247,13 @@ ${options.copyCode !== false ? `<button class="gem-copy-btn" onclick="copyCode(t
         const footer = sources(node.sources);
         if (node.role !== 'user') return `<section class="gem-turn gem-turn-model" id="${escapeHtml(anchor)}"><div class="gem-model-content">${body}${footer}</div></section>`;
         const plain = node.blocks.map(blockText).join('\n');
-        const folding = options.foldLongPrompts !== false && (plain.length > 280 || plain.split('\n').length > 5) ? { initiallyCollapsed: true, moreLabel: isEn ? 'Show more' : '展开', lessLabel: isEn ? 'Show less' : '收起' } : undefined;
+        const folding = plain.length > 280 || plain.split('\n').length > 5 ? { initiallyCollapsed: true, moreLabel: isEn ? 'Show more' : '展开', lessLabel: isEn ? 'Show less' : '收起' } : undefined;
         return `<section class="gem-turn gem-turn-user" id="${escapeHtml(anchor)}"><div class="gem-user-bubble"><div class="gem-prompt-content${folding?.initiallyCollapsed ? ' collapsed' : ''}" id="prompt-${escapeHtml(anchor)}">${body}</div>${folding ? `<button class="gem-prompt-toggle" data-more="${escapeHtml(folding.moreLabel)}" data-less="${escapeHtml(folding.lessLabel)}" onclick="togglePrompt(this, this.dataset.more, this.dataset.less)"><span class="toggle-text">${escapeHtml(folding.initiallyCollapsed ? folding.moreLabel : folding.lessLabel)}</span>${CHEVRON_SVG}</button>` : ''}</div>${footer}</section>`;
     };
     const title = escapeHtml(document.title);
     const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Gemini Exporter"><title>${title}</title><style>${GEM_HTML_CSS}\n${CANONICAL_EXTRA_CSS}</style></head>
-<body class="${options.theme === 'light' ? 'light-theme' : ''}"><main class="gem-container"><header class="gem-conversation-header"><h1 class="gem-conversation-title">${title}</h1><p class="gem-conversation-metadata">${escapeHtml(headerMetadata(document, locale))}</p></header>${document.messages.map(message).join('\n')}${!document.messages.length ? `<div class="gem-empty-notice">${escapeHtml(strings.emptyConversation)}</div>` : ''}</main><script>${GEM_HTML_SCRIPT}</script></body></html>`;
+<body><main class="gem-container"><header class="gem-conversation-header"><h1 class="gem-conversation-title">${title}</h1><p class="gem-conversation-metadata">${escapeHtml(headerMetadata(document, locale))}</p></header>${document.messages.map(message).join('\n')}${!document.messages.length ? `<div class="gem-empty-notice">${escapeHtml(strings.emptyConversation)}</div>` : ''}</main><script>${GEM_HTML_SCRIPT}</script></body></html>`;
     return { html, diagnostics };
 }

@@ -1,3 +1,4 @@
+import { safeExternalHref } from '../shared/safeLinks.js';
 import { visual } from '../shared/visualContract.js';
 
 function escapeHtml(text?: string | null): string {
@@ -14,30 +15,10 @@ function escapeAttr(text?: string | null): string {
     return escapeHtml(text);
 }
 
-export function sanitizeUrl(rawUrl?: string | null, allowImageData: boolean = false): string {
-    if (!rawUrl || typeof rawUrl !== 'string') return '#';
-    const trimmed = rawUrl.trim();
-    if (!trimmed) return '#';
-
-    if (/[\u0000-\u001F\u007F-\u009F]/.test(trimmed)) return '#';
-
-    const schemeMatch = trimmed.match(/^([a-zA-Z0-9+.-]+):/);
-    if (schemeMatch) {
-        const scheme = schemeMatch[1].toLowerCase();
-        if (scheme === 'javascript' || scheme === 'vbscript') {
-            return '#';
-        }
-        if (scheme === 'data') {
-            if (allowImageData && /^data:image\/(?:png|jpeg|jpg|gif|webp|svg\+xml);base64,[a-z0-9+/=]+$/i.test(trimmed)) {
-                return escapeAttr(trimmed);
-            }
-            return '#';
-        }
-        if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto' && scheme !== 'tel') {
-            return '#';
-        }
-    }
-    return escapeAttr(trimmed);
+/** Source URLs are untrusted. Resource paths are validated separately by Packaging. */
+export function sanitizeUrl(rawUrl?: string | null): string {
+    const safe = safeExternalHref(rawUrl ?? undefined);
+    return safe ? escapeAttr(safe) : '#';
 }
 
 export const GEM_HTML_CSS = `
@@ -85,24 +66,6 @@ export const GEM_HTML_CSS = `
     --math-color: #0f5132;
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
   }
-}
-
-body.light-theme {
-  --bg-main: #ffffff;
-  --bg-user-bubble: #f0f4f9;
-  --bg-card: #f8f9fa;
-  --bg-card-hover: #eef0f3;
-  --text-primary: #1f1f1f;
-  --text-secondary: #444746;
-  --text-muted: #747775;
-  --border-color: #e0e2e5;
-  --accent-blue: #0b57d0;
-  --accent-blue-hover: #0842a0;
-  --code-bg: #f8f9fa;
-  --code-border: #e0e2e5;
-  --table-stripe: rgba(0, 0, 0, 0.02);
-  --math-color: #0f5132;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
 }
 
 * {

@@ -1,5 +1,4 @@
 import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../../l3b/ast/ast.js';
-import type { RenderOptions } from './internalRenderOptions.js';
 import { getRendererStrings } from './renderStrings.js';
 
 export function inlineText(node: DisplayInline): string {
@@ -27,8 +26,7 @@ export function blockText(node: DisplayBlock): string {
         case 'thematicBreak': return '';
     }
 }
-export function codeHeader(node: Extract<DisplayBlock, { type: 'code' }>, format: 'html' | 'markdown' | 'pdf', options: RenderOptions = {}): string {
-    if (options.showCodeHeader === false) return '';
+export function codeHeader(node: Extract<DisplayBlock, { type: 'code' }>, format: 'html' | 'markdown' | 'pdf'): string {
     if (format === 'markdown') return node.meta ?? '';
     const language = node.language || 'text';
     const title = language;

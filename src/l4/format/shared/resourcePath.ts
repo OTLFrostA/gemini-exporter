@@ -1,4 +1,12 @@
-/** Packaging supplies relative file paths. Reject unsafe bindings rather than fetching them. */
+import { assertExportPath } from '../../packaging/exportPath.js';
+
+/** Only Packaging's already-canonical relative paths are valid resource bindings. */
 export function isResourcePath(path: string | undefined): path is string {
-    return Boolean(path && !/(^\s|^\/|\\|^[a-z][a-z\d+.-]*:|(^|\/)\.\.(\/|$)|[\u0000-\u001f])/i.test(path));
+    if (!path) return false;
+    try {
+        assertExportPath(path);
+        return true;
+    } catch {
+        return false;
+    }
 }

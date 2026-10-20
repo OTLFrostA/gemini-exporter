@@ -41,10 +41,11 @@ export function createExportPathPlanner(format: ExportFormat):
             if (!used.has(key)) { used.add(key); return candidate; }
         }
     }
-    return (conversation, prepared) => {
+    return (conversation, prepared, fileIds) => {
         const id = conversation.index.key.conversationId;
         const fileName = reserve('', buildExportFileName(conversation.index.title, id, extensions[format]));
         const resources: Record<string, string> = Object.create(null);
+        const externalResourceIds = new Set<string>();
         for (const asset of conversation.detail.assets) {
             const result = prepared.get(asset.id);
             if (!result?.ok) continue;
@@ -53,8 +54,9 @@ export function createExportPathPlanner(format: ExportFormat):
             const baseName = sanitizeFileName(asset.name || asset.id);
             const name = asset.name && /\.[^.]+$/.test(baseName) ? baseName : `${baseName}.${extension}`;
             resources[asset.id] = reserve(asset.kind === 'image' ? 'assets/' : 'files/', shortScope(id) + name);
+            if (format !== 'pdf' || fileIds.has(asset.id)) externalResourceIds.add(asset.id);
         }
-        return { fileName, resources };
+        return { fileName, resources, externalResourceIds };
     };
 }
 
@@ -64,7 +66,7 @@ export function planExportPaths(
     format: ExportFormat,
 ): readonly ExportPathPlan[] {
     const planNext = createExportPathPlanner(format);
-    return inputs.map(({ conversation, prepared }) => planNext(conversation, prepared));
+    return inputs.map(({ conversation, prepared, fileIds }) => planNext(conversation, prepared, fileIds));
 }
 
 /** Application fills prepared mediaType from acquisition metadata, then trusted
@@ -73,8 +75,9 @@ export function buildExportFiles(format: ExportFormat, plan: ExportPathPlan,
     content: string | Uint8Array, prepared: PreparedResources): ExportArtifact[] {
     assertExportPath(plan.fileName);
     const files: ExportArtifact[] = [{ fileName: plan.fileName, mimeType: mimeTypes[format], content }];
-    if (format === 'pdf') return files;
-    for (const [id, path] of Object.entries(plan.resources)) {
+    for (const id of plan.externalResourceIds) {
+        const path = plan.resources[id];
+        if (!path) throw new Error(`External resource has no planned path: ${id}`);
         assertExportPath(path);
         const result = prepared.get(id);
         if (!result?.ok) throw new Error(`Bound resource unavailable: ${id}`);
