@@ -35,3 +35,20 @@ export function assertRuntimeUnitBoundary(resolvedPath: string, root: string): v
         throw new Error(`Runtime unit must mock external v2 module: ${relative}`);
     }
 }
+
+// Frozen Application Settings defaults; tests supply only scenario-specific patches.
+export const v2Settings = {
+    defaultFormat: 'markdown' as const,
+    skipExported: true,
+    includeAssets: true,
+    enabledDisk: false,
+    developerMode: false,
+};
+
+// Frozen L2 Index DTO shape; Runtime Count only uses the returned array length.
+export function v2IndexFixtures(accountId: string) {
+    return ['first', 'second'].map((conversationId, index) => ({
+        key: { accountId, conversationId }, title: conversationId,
+        titleSource: 'provider' as const, updatedAt: 1700000000000 + index,
+    }));
+}
