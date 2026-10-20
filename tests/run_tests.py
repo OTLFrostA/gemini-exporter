@@ -93,9 +93,24 @@ def test_html_includes():
 
 
 def test_i18n_keys():
-    # v2 owns small bilingual labels in UI; removed core locale dictionaries
-    # are no longer an interface. Validate every pair, including duplicate attrs.
+    # V2 UI supports two intentional static-label mechanisms:
+    #  1. data-en/data-zh (and data-ui-* pairs) for inline labels;
+    #  2. data-i18n, data-i18n-title and data-i18n-placeholder for the
+    #     existing UI_COPY dictionary consumed by labelPage().
+    # Removing those active attributes would break language switching. Verify
+    # complete EN/ZH translations instead of banning one of the two mechanisms.
     from html.parser import HTMLParser
+    import json
+    labels_path = os.path.join(BASE_DIR, "src/ui/shared/legacyLabels.ts")
+    with open(labels_path, encoding="utf-8") as f:
+        source = f.read()
+    body = source.split(" = {", 1)[1].rsplit("};", 1)[0]
+    copy = json.loads("{" + body + "}")
+    assert set(copy) == {"en", "zh"}, "UI_COPY must declare both languages"
+    assert set(copy["en"]) == set(copy["zh"]), "UI_COPY keys must match across languages"
+    assert all(isinstance(value, str) and value.strip()
+               for language in ("en", "zh") for value in copy[language].values()), "Every UI_COPY translation must be nonempty"
+
     class Labels(HTMLParser):
         def __init__(self):
             super().__init__()
@@ -103,19 +118,23 @@ def test_i18n_keys():
         def handle_starttag(self, tag, attrs):
             pairs = dict(attrs)
             assert len(pairs) == len(attrs), f"Duplicate attributes on {tag}: {attrs}"
-            assert not any(k.startswith("data-i18n") for k in pairs), "Old dictionary bindings must be migrated"
-            if "data-en" in pairs or "data-zh" in pairs:
-                assert pairs.get("data-en") and pairs.get("data-zh"), f"Incomplete bilingual label: {attrs}"
+            for en, zh in (("data-en", "data-zh"), ("data-ui-en", "data-ui-zh")):
+                if en in pairs or zh in pairs:
+                    assert pairs.get(en) and pairs.get(zh), f"Incomplete inline bilingual label: {attrs}"
+                    self.count += 1
+            for attr in ("data-i18n", "data-i18n-title", "data-i18n-placeholder"):
+                if attr not in pairs:
+                    continue
+                key = pairs[attr]
+                assert key and key in copy["en"] and key in copy["zh"], f"Unknown UI_COPY key for {attr}: {key}"
                 self.count += 1
+
     for filepath in ("src/ui/options/options.html", "src/ui/popup/popup.html"):
         checker = Labels()
         with open(os.path.join(BASE_DIR, filepath), encoding="utf-8") as f:
             checker.feed(f.read())
         assert checker.count > 0, f"No bilingual labels checked in {filepath}"
-    # Actual switching, selection preservation and safe textContent rendering
-    # are exercised by i18n.test.ts / popup_ui.spec.ts / workbench_ui.spec.ts.
-    print("  ✓ Current UI bilingual label pairs are complete")
-
+    print("  ✓ Current UI static labels have complete EN/ZH translations")
 
 def test_javascript_syntax():
     import subprocess
