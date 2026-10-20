@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [integrationSuites, consumerSuites]
+        group: [integrationSuites, consumerSuites, indirectConsumerSuites]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
