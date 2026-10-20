@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
-import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountIds.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../src/l2/ingestion.js';
 import { listIndexes, getIndex, getDetail, putExportRecord, getExportRecord } from '../src/l3a/storageService.js';
 import { mergeConversationIndex, restoreConversationIndex, indexActivityTime } from '../src/l2/conversationIndex.js';
