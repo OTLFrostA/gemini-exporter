@@ -90,7 +90,7 @@ test('a repeated Recent source ID across pages cannot certify complete Coverage'
     const result=await scanAll({accountId:ACCOUNT_UUID,forceFull:true});
     assert.equal(result.status,'error');
     assert.equal(result.pagesFetched,2);
-    assert.equal(await getCoverage(ACCOUNT_UUID,'recent')?.then(value => value?.range ?? null),null);
+    assert.equal((await getCoverage(ACCOUNT_UUID,'recent'))?.range ?? null,null);
 }));
 test('ordinary request failures cannot manufacture a provider limit or reusable boundary',async()=>fixture(async(_env,provider)=>{
     provider([sourceList(['first'],'tC_next'),new Error('HTTP 500')]);
