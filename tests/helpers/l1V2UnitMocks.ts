@@ -135,6 +135,71 @@ const normalizeTimestamp: typeof import('../../src/l2/time.js').normalizeTimesta
     return Number.isSafeInteger(ms) ? ms : undefined;
 };
 
+/** Pure L2 helpers are also mocked; unit coverage asserts L1's use of the
+ * declared v2 shape, not L2's implementation of an AST traversal or policy. */
+const unknownPayloadPort: Pick<typeof import('../../src/l2/content/unknownFallback.js'), 'formatUnknownPayload'> = {
+    formatUnknownPayload(payload) {
+        const text = typeof payload === 'string' ? JSON.stringify(payload) : JSON.stringify(payload) ?? 'null';
+        return { text: text.length > 2000 ? text.slice(0, 2000) + '…' : text,
+            truncated: text.length > 2000 };
+    },
+};
+type BlockNode = import('../../src/l2/content/blocks.js').BlockNode;
+type InlineNode = import('../../src/l2/content/inline.js').InlineNode;
+const assetReferencePort: Pick<typeof import('../../src/l2/content/assetReferences.js'), 'mapContentAssetReferences'> = {
+    mapContentAssetReferences(blocks, resolve) {
+        const inline = (node: InlineNode): InlineNode => {
+            if (node.type === 'image') return { ...node, assetId: resolve(node.assetId, 'image', node.alt, node.title) };
+            if ('children' in node) return { ...node, children: node.children.map(inline) };
+            return node;
+        };
+        const mapBlock = (node: BlockNode): BlockNode => {
+            if (node.type === 'image') return { ...node, assetId: resolve(node.assetId, 'image', node.alt) };
+            if (node.type === 'file') return { ...node, assetId: resolve(node.assetId, 'file') };
+            if (node.type === 'paragraph' || node.type === 'heading')
+                return { ...node, children: node.children.map(inline) };
+            if (node.type === 'quote') return { ...node, blocks: node.blocks.map(mapBlock) };
+            if (node.type === 'list') return { ...node, items: node.items.map(item =>
+                ({ ...item, blocks: item.blocks.map(mapBlock) })) };
+            if (node.type === 'table') {
+                const rows = (items: typeof node.rows) => items.map(row => ({ ...row,
+                    cells: row.cells.map(cell => ({ ...cell, children: cell.children.map(inline) })) }));
+                return { ...node, rows: rows(node.rows), ...(node.headerRows ? { headerRows: rows(node.headerRows) } : {}),
+                    ...(node.caption ? { caption: node.caption.map(inline) } : {}) };
+            }
+            return node;
+        };
+        return blocks.map(mapBlock);
+    },
+};
+const sourceUriPort: Pick<typeof import('../../src/l2/sourceUri.js'), 'isDurableSourceUri'> = {
+    isDurableSourceUri(value): value is string {
+        if (typeof value !== 'string' || !value || value.trim() !== value || /^(?:data|blob):/i.test(value)) return false;
+        try {
+            const url = new URL(value, 'https://source-locator.invalid/');
+            return ![...url.searchParams.keys()].some(k => /^(?:x-goog-.*|x-amz-.*|signature|sig|expires|policy|key-pair-id|access_token|auth_token|token)$/i.test(k));
+        } catch { return !value.includes('://'); }
+    },
+};
+const accountIdentityPort: Pick<typeof import('../../src/l2/accountRegistry.js'),
+    'readAccountParameters' | 'isAccountId' | 'readAccount' | 'DEFAULT_ACCOUNT_KEY'> = {
+    DEFAULT_ACCOUNT_KEY: 'default',
+    isAccountId(value): value is string { return typeof value === 'string' && keyPattern.test(value); },
+    readAccountParameters(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid account');
+        const { providerId, providerAccountId, email, displayName } = value as Partial<Account>;
+        if (typeof providerId !== 'string' || !providerId || typeof providerAccountId !== 'string' || !providerAccountId)
+            throw new TypeError('Invalid account parameters');
+        return { providerId, providerAccountId, ...(email ? { email } : {}), ...(displayName ? { displayName } : {}) };
+    },
+    readAccount(value) {
+        if (!value || typeof value !== 'object') throw new TypeError('Invalid account');
+        const account = value as Account;
+        if (!accountIdentityPort.isAccountId(account.id)) throw new TypeError('Invalid local account UUID');
+        return { id: account.id, ...accountIdentityPort.readAccountParameters(account) };
+    },
+};
+
 type Loader = { _load(request: string, parent: { filename?: string } | undefined, isMain: boolean): unknown };
 const loader = require('node:module') as Loader;
 let installed = false;
@@ -155,6 +220,13 @@ export function installL1V2Mocks(): void {
             if (request.endsWith('/runtime/content/cleanupRegistry.js')) return { registerCleanup: () => () => {} };
             if (request.endsWith('/l2/conversationKey.js')) return { readConversationKey };
             if (request.endsWith('/l2/time.js')) return { normalizeTimestamp };
+            if (request.endsWith('/l2/content/unknownFallback.js')) return unknownPayloadPort;
+            if (request.endsWith('/l2/content/assetReferences.js')) return assetReferencePort;
+            if (request.endsWith('/l2/sourceUri.js')) return sourceUriPort;
+            if (request.endsWith('/l2/accountRegistry.js')) return accountIdentityPort;
+            if (request.endsWith('/runtime/devMode.js')) return { isDevMode: () => false };
+            if (request.endsWith('/runtime/ipc/messaging.js'))
+                return { getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) };
             if (/\/(?:l2|l3a|l3b|l4|runtime|application|ui)\//.test(request) && !request.endsWith('.d.ts'))
                 throw new Error('Unmocked external dependency in L1 unit test: ' + request + ' from ' + parentPath);
         }
