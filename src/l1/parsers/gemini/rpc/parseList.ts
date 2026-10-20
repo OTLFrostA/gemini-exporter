@@ -86,14 +86,13 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
             const wrb = protocol.WRB || "wrb.fr";
             const listRpc = protocol.RPCS ? protocol.RPCS.LIST : "MaZiqc";
 
-            const { inner, innerStr, bardError } = extractInnerPayload(top, {
-                wrb,
-                rpcId: listRpc,
-                heuristicFilter: s => s.startsWith("[") || s.startsWith('"[') || /c_[a-zA-Z0-9_-]{8,64}/.test(s)
-            });
+            // A response from another RPC may resemble an empty LIST page.
+            // Only the explicitly matching LIST wrapper can establish source coverage.
+            const { inner, innerStr, isStandardWrb, bardError } = extractInnerPayload(top, { wrb, rpcId: listRpc });
 
-            if (!innerStr || !inner) {
-                if (bardError) {
+            if (!isStandardWrb || !innerStr || !inner) {
+                const listLimit = isConfirmedListLimit(top, wrb, listRpc);
+                if (bardError || listLimit) {
                     console.debug("[Gemini Exporter] List source error (BardErrorInfo):", bardError);
                 } else {
                     console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
@@ -102,9 +101,9 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
                     ...listResult([], null, null),
                     // Request-bound Provider observation checks that this is the Recent continuation.
                     // Another RPC's BardErrorInfo cannot certify the list boundary.
-                    failure: bardError && isConfirmedListLimit(top, wrb, listRpc) ? 'hit_google_limit' : 'invalid_response',
+                    failure: listLimit ? 'hit_google_limit' : 'invalid_response',
                     _debug: {
-                        error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
+                        error: bardError || listLimit ? "BARD_ERROR_INFO" : "NO_INNER_STR",
                         bardError: bardError,
                         textLen: text?.length,
                         rawPreview: text?.slice(0, 500),

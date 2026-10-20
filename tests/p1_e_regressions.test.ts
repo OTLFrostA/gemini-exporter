@@ -150,12 +150,12 @@ test('P1-065a: 启发式跳过仅含 "c_" 子串的错误 chunk（decodeGeminiDe
     assert.strictEqual(modelMessageOf(res).content, "world");
 });
 
-test('P1-065b: 启发式跳过仅含 "c_" 子串的错误 chunk（parseList）', () => {
+test('P1-065b: bogus chunks preceding a genuine LIST envelope cannot take precedence (parseList)', () => {
     const junkStr = JSON.stringify("just public_wifi talk");
     const listInnerStr = JSON.stringify([null, [["c_list0012345678", "ListTitle", null, null, 5]], null]);
     const outer = JSON.stringify([
         ["x.fr", "junk", junkStr],
-        ["y.fr", "data", listInnerStr]
+        ["wrb.fr", "MaZiqc", listInnerStr]
     ]);
     const res = parseListMod.parseList(`)]}'\n\n${outer}`);
     assert.strictEqual(res.conversations.length, 1);
