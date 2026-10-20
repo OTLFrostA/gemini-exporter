@@ -1,3 +1,4 @@
+import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../../l2/ingestion.js';
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
@@ -49,7 +50,7 @@ export class GeminiProvider implements GeminiProviderContract {
         try { return ['gemini.google.com', 'bard.google.com'].includes(new URL(url).hostname); }
         catch { return false; }
     }
-    async checkReadiness(accountId: string): Promise<ProviderReadiness> {
+    async checkReadiness(accountId: Account['id']): Promise<ProviderReadiness> {
         try {
             const { slot } = await this.context(accountId);
             const cred = await credentials.resolveCred(slot);
@@ -90,7 +91,7 @@ export class GeminiProvider implements GeminiProviderContract {
         }
         return 'max_pages';
     }
-    async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void> {
+    async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal): Promise<void> {
         signal?.throwIfAborted();
         const { account, slot } = await this.context(accountId);
         let parsed: Awaited<ReturnType<GeminiProviderClient['getConversationDetail']>>;

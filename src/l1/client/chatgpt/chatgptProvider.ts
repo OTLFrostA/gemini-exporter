@@ -98,7 +98,7 @@ export class ChatGPTProvider implements AIProvider {
         return (await res.json()) as T;
     }
 
-    async checkReadiness(accountId: string): Promise<ProviderReadiness> {
+    async checkReadiness(accountId: Account['id']): Promise<ProviderReadiness> {
         try {
             await this.context(accountId);
             const res = await this.fetchFn(`${this.origin}/api/auth/session`, {
@@ -137,7 +137,7 @@ export class ChatGPTProvider implements AIProvider {
         }
         return 'max_pages';
     }
-    async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void> {
+    async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal): Promise<void> {
         const account = await this.context(accountId);
         const raw = await this.authedGet<Omit<ChatGPTApiConversationWithId, 'id'>>(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
         const conversation = { ...raw, id: conversationId };
