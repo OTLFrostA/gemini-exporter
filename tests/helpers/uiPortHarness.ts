@@ -64,6 +64,10 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
     }, { A, B, patch });
     await page.goto('https://ui.test/' + query);
     await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/tour/tourGuide.css'), 'utf8') });
+    if (kind === 'badge') {
+        // Production injects this through manifest.json; the isolated UI harness must do the same.
+        await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/content/content.css'), 'utf8') });
+    }
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
 }
 export const read = (page: Page, key: string) => page.evaluate(key => (window as any).harness[key], key);
