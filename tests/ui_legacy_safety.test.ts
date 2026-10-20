@@ -30,7 +30,7 @@ test('P1-021: export startup rejection releases UI running state for a later inv
     await open({throwExport:true});await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Injected export failure');assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.evaluate(()=>{Reflect.get(window,'harness').throwExport=false;});await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal((await read(page,'exports')).length,2);assert.match(await page.locator('#status').textContent()??'',/Delivery initiated: 1/);
 });
 test('list UI blocks javascript and data URLs from source fields',async()=>{
-    await open({indexes:['javascript:alert(1)','data:text/html,<script>alert(1)</script>','https://gemini.google.com/app/safe'].map((url,i)=>({key:{accountId:A,conversationId:`safe_${i}`},title:'Safe title',url}))});await page.locator('#list .item').first().waitFor();assert.equal(await page.locator('#list a,#list script').count(),0);assert.equal(await page.locator('#list .item').count(),3);
+    await open({indexes:['javascript:alert(1)','data:text/html,<script>alert(1)</script>','https://gemini.google.com/app/safe'].map((url,i)=>({key:{accountId:A,conversationId:`safe_${i}`},title:'Safe title',url}))});await page.locator('#list .item').first().waitFor();assert.equal(await page.locator('#list script').count(),0);assert.equal(await page.locator('#list .item').count(),3);assert.deepEqual(await page.locator('#list a').evaluateAll(items=>items.map(item=>(item as HTMLAnchorElement).origin)),['https://gemini.google.com','https://gemini.google.com','https://gemini.google.com']);
 });
 test('list UI prevents attribute breakout from source titles and URLs',async()=>{
     await open({indexes:[{key:{accountId:A,conversationId:'test_xss'},title:'\" onclick=\"alert(1)',url:'https://gemini.google.com/app/test\" onclick=\"alert(1)'}]});await page.locator('#list .item').waitFor();assert.equal(await page.locator('#list [onclick],#list a').count(),0);assert.equal(await page.locator('#list span').textContent(),'\" onclick=\"alert(1)');
@@ -43,7 +43,15 @@ test('D7: Tour connection errors and absent Tabs API never advance to a connecte
 });
 test('Takeout guidance distinguishes source limits from local budget results without asserting a fabricated complete history',async()=>{
     for(const language of ['en','zh'])for(const reason of ['provider_limit','max_pages']){
-        await open({settings:{language},scanCount:620,scanResult:{status:'partial_limit',reason,pagesFetched:2,conversationsFetched:620}});await page.locator('#btnSyncAll').click();await page.locator('.tour-popover').waitFor();const status=await page.locator('#status').textContent()??'';
-        assert.match(status,reason==='provider_limit'?(language==='en'?/Source online access limit/:/来源在线访问范围限制/):(language==='en'?/Local page budget reached/:/本地页数预算/));assert.match(await page.locator('.tour-popover').textContent()??'',language==='en'?/Online history may have access limits/:/在线历史可能受到访问范围限制/);assert.doesNotMatch(await page.locator('.tour-popover').textContent()??'',/Reached Google Cloud History Limit/);await page.close();
+        await open({settings:{language},scanCount:620,scanResult:{status:'partial_limit',reason,pagesFetched:2,conversationsFetched:620}});
+        await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+        const status=await page.locator('#status').textContent()??'';
+        assert.match(status,reason==='provider_limit'?(language==='en'?/Source online access limit/:/来源在线访问范围限制/):(language==='en'?/Local page budget reached/:/本地页数预算/));
+        assert.equal(await page.locator('#takeoutLimitModal').isVisible(),reason==='provider_limit');
+        if(reason==='provider_limit') {
+            assert.match(await page.locator('#takeoutLimitPromptText').textContent()??'',language==='en'?/online history access limit/:/在线历史访问范围受限/);
+            assert.doesNotMatch(await page.locator('#takeoutLimitPromptText').textContent()??'',/Reached Google Cloud History Limit/);
+        }
+        await page.close();
     }
 });

@@ -1,8 +1,109 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Gemini Exporter</title>
-<style>body{font:14px system-ui;width:310px;margin:18px;color:#202334}h1{font-size:16px;overflow-wrap:anywhere}nav{display:flex;gap:5px;margin:16px 0}button{padding:9px;border:1px solid #b9bfd3;border-radius:7px;background:white;cursor:pointer}button[aria-pressed=true],#btnCurrent{background:#5146cc;color:white}button:disabled{opacity:.5;cursor:default}#btnCurrent,#btnOptions{width:100%;margin-bottom:9px}#status{min-height:38px;font-size:12px;overflow-wrap:anywhere}</style></head>
-<body><h1 id="currentChatTitle">Gemini Exporter</h1><nav aria-label="Format">
-<button data-format="markdown">Markdown</button><button data-format="html">HTML</button><button data-format="pdf">PDF</button><button data-format="json">JSON</button></nav>
-<button id="btnCurrent" disabled data-en="Export current conversation" data-zh="导出当前对话">Export current conversation</button>
-<button id="btnOptions" data-en="Open Options" data-zh="打开工作台">Open Options</button>
-<p id="status" role="status" aria-live="polite"></p><script src="/lib/jszip.min.js"></script><script src="/dist/ui/popup.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gemini Exporter</title>
+<style>
+:root{--bg:#090a10;--card:#12131d;--border:#222436;--text:#f1f3fc;--muted:#8a92b2;--accent:#4f46e5;--accent2:#06b6d4}
+*{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.4;}
+body{width:360px;margin:0;background:var(--bg);color:var(--text);padding:12px;position:relative;overflow-x:hidden;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.label{font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:.02em}
+.row{display:flex;gap:6px}
+button{flex:1;border:0;border-radius:9px;padding:9px 10px;font-weight:600;cursor:pointer;transition:all 0.15s ease}
+button:disabled{opacity:0.4;cursor:not-allowed;box-shadow:none;pointer-events:none}
+button.ghost:disabled{background:#11121c;color:#6b7280;border-color:#1e2030}
+.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;box-shadow:0 2px 8px rgba(79,70,229,0.35)}
+.primary:hover{opacity:.95;box-shadow:0 4px 12px rgba(6,182,212,0.35)}
+.ghost{background:#171926;color:var(--text);border:1px solid var(--border)}
+.tab-group{display:flex;background:#0b0c14;border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px;margin-bottom:8px;}
+.tab-btn{flex:1;border:0;background:transparent;color:var(--muted);border-radius:6px;padding:6px 2px;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.15s ease;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tab-btn:hover{color:var(--text);background:rgba(255,255,255,0.05);}
+.tab-btn.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.4);}
+.tab-btn:disabled{opacity:0.35;cursor:not-allowed;pointer-events:none;}
+select{width:100%;background:#0e0f17;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 8px;margin-bottom:6px;font-size:11px}
+select:disabled{opacity:0.45;cursor:not-allowed;background:#10111a;color:#6b7280}
+.label.disabled{opacity:0.45}
+.log{font-size:11px;color:var(--muted);white-space:pre-wrap;max-height:80px;overflow:auto;font-family:ui-monospace,monospace;margin-top:6px}
+.log::-webkit-scrollbar{width:4px}
+.log::-webkit-scrollbar-track{background:transparent}
+.log::-webkit-scrollbar-thumb{background:#282c44;border-radius:99px}
+.badge{font-size:10px;background:#171929;border:1px solid var(--border);color:#a5b4fc;padding:2px 7px;border-radius:99px}
+.badge.inactive{background:#141520;color:#6b7280;border-color:#202232}
+.progress{height:5px;background:#161824;border-radius:99px;overflow:hidden;margin-top:6px;display:none}
+.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s}
+input[type=checkbox].toggle{
+  -webkit-appearance:none;appearance:none;width:26px;height:14px;background:#1e2030;border-radius:14px;position:relative;cursor:pointer;outline:none;margin:0;flex:none;transition:background 0.2s;
+}
+input[type=checkbox].toggle::after{
+  content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;background:var(--muted);border-radius:50%;transition:transform 0.2s,background 0.2s;
+}
+input[type=checkbox].toggle:checked{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+input[type=checkbox].toggle:checked::after{transform:translateX(12px);background:white}
+</style>
+</head>
+<body>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+  <div style="display:flex;align-items:center;gap:6px">
+    <b style="font-size:13px;">Gemini Exporter</b>
+    <span id="countBadge" class="badge">0</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <div id="langTogglePill" style="display:inline-flex;align-items:center;gap:4px;user-select:none;background:#141624;border:1px solid var(--border);padding:2px 6px;border-radius:14px;cursor:pointer;" title="Switch Language / 切换语言">
+      <span id="labelLangZh" style="font-size:10px;font-weight:600;color:var(--text);transition:color .2s;cursor:pointer;">中</span>
+      <input type="checkbox" id="langToggle" class="toggle">
+      <span id="labelLangEn" style="font-size:10px;font-weight:600;color:var(--muted);transition:color .2s;cursor:pointer;">EN</span>
+    </div>
+  </div>
+</div>
+
+<!-- Card 1: Active Chat Awareness -->
+<div id="chatInfoCard" class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+    <span id="currentChatLabel" class="label" style="margin:0;color:#818cf8;" data-i18n="currentChatLabel">当前会话</span>
+  </div>
+  <div id="currentChatContent">
+    <div id="currentChatTitle" style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px;" data-i18n="detectingChat">正在识别当前会话...</div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span id="chatTurnBadge" class="badge" style="background:#0e0f17;font-size:9px;" data-i18n="chatNoMessages">新会话</span>
+    </div>
+  </div>
+  <div id="notGeminiNotice" style="display:none;font-size:11px;line-height:1.5;color:var(--muted);" data-i18n="popupNotGeminiDesc">当前标签不是 gemini.google.com。在 Gemini 页面打开即可导出当前对话。</div>
+</div>
+
+<!-- Card 2: Export Options & Actions -->
+<div class="card">
+  <!-- Format Tabs -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <span class="label" style="margin:0;" data-i18n="format">格式</span>
+    <span id="activeFormatLabel" style="font-size:10px;color:var(--accent2);font-weight:600;">Markdown</span>
+  </div>
+  <div id="formatTabs" class="tab-group" role="tablist">
+    <button type="button" class="tab-btn active" data-value="markdown" data-format="markdown" data-i18n="fmtMarkdownTab">Markdown</button>
+    <button type="button" class="tab-btn" data-value="pdf" data-format="pdf" data-i18n="fmtPdfTab">PDF</button>
+    <button type="button" class="tab-btn" data-value="html" data-format="html" data-i18n="fmtHtmlTab">HTML</button>
+    <button type="button" class="tab-btn" data-value="json" data-format="json" data-i18n="fmtJsonStandardTab">JSON (标准)</button>
+  </div>
+
+  <!-- Fallback/Sync select element -->
+  <select id="format" style="display:none;">
+    <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (.md)</option>
+    <option value="html" data-i18n="fmtHtml">HTML 独立网页 (.html)</option>
+    <option value="json" data-i18n="fmtJsonStandard">JSON (插件标准)</option>
+  </select>
+
+  <!-- Row 1: Export Current Page & Open Console Batch Export -->
+  <div class="row" style="margin-bottom:0px;">
+    <button id="btnCurrent" class="ghost" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnCurrent">📥 导出当前页面</button>
+    <button id="btnOptions" class="primary" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnOptions">去控制台批量导出 ↗</button>
+  </div>
+
+  <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
+  <div id="log" class="log" style="display:none"></div>
+  <p id="status" class="log" role="status" aria-live="polite" style="margin:6px 0 0;min-height:15px;"></p>
+</div>
+
+<script src="/dist/ui/popup.js"></script>
+</body>
+</html>

@@ -34,14 +34,16 @@ test('UI v2: account switch clears selection and only selected current keys expo
     await page.evaluate(()=>{(window as any).harness.finishExport();}); await expect(page.locator('#accountIdSelect')).toBeEnabled();
     expect((await read(page,'exports'))[0].keys).toEqual([{accountId:B,conversationId:'b'}]);
 });
-test('UI v2: zero accounts can scan, no fake percent, strict Takeout threshold and source switching', async ({ page }) => {
+test('UI v2: scans only advise Takeout on verified Provider history limit', async ({ page }) => {
     await mount(page,'options',{accounts:[],indexes:[],holdScan:true}); await expect(page.locator('#btnSyncAll')).toBeEnabled();
     await page.locator('#btnSyncAll').click(); await expect(page.locator('#status')).toHaveText('Committed 2 pages, 150 source entries');
     expect(await read(page,'scans')).toEqual([{accountId:A}]); await page.evaluate(()=>{(window as any).harness.finishScan();});
-    await expect(page.locator('#btnSyncAll')).toBeEnabled(); await expect(page.locator('.tour-popover')).toHaveCount(0);
-    await page.evaluate(()=>{Object.assign((window as any).harness,{holdScan:false,scanCount:151});});
-    await page.locator('#btnSyncAll').click(); await expect(page.locator('.tour-popover')).toContainText('More complete history');
-    expect((await read(page,'patches')).length).toBe(0); await page.locator('.tour-popover button',{hasText:'Got it'}).click();
+    await expect(page.locator('#btnSyncAll')).toBeEnabled(); await expect(page.locator('#takeoutLimitModal')).toBeHidden();
+    await page.evaluate(()=>{Object.assign((window as any).harness,{holdScan:false,scanCount:620});});
+    await page.locator('#btnSyncAll').click(); await expect(page.locator('#takeoutLimitModal')).toBeHidden();
+    await page.evaluate(()=>{(window as any).harness.scanResult={status:'partial_limit',reason:'provider_limit',pagesFetched:2,conversationsFetched:620};});
+    await page.locator('#btnSyncAll').click(); await expect(page.locator('#takeoutLimitModal')).toBeVisible();
+    expect((await read(page,'patches')).length).toBe(0); await page.locator('#btnModalDismissTakeout').click();
     expect(await read(page,'patches')).toContainEqual({takeoutPromptCompleted:true});
 });
 test('UI v2: settings preserve Live Save intent, record cleanup never deletes conversations', async ({ page }) => {
