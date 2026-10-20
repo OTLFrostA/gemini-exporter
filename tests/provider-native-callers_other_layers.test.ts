@@ -164,7 +164,7 @@ test('a partial Takeout cannot replace a complete v2 Detail or capture its sourc
         savedAt: 9999999999999, quality: { status: 'complete' }, assets: [],
         messages: [{ role: 'assistant', content: [{ type: 'paragraph',
             children: [{ type: 'text', text: 'Keep complete body' }] }] }],
-    }, { title: 'Local title', titleSource: 'provider', updatedAt: 9999999999999 });
+    }, { title: 'Local title', titleSource: 'user', updatedAt: 9999999999999 });
     const context = createSourceResourceContext();
     try {
         const result = await importTakeout(takeoutArchive(activity('<a href="image.png">image</a>'), {
