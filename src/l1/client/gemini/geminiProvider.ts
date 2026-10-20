@@ -63,6 +63,8 @@ export class GeminiProvider implements GeminiProviderContract {
         const { account, slot } = await this.context(options.accountId);
         const client = this.getClient();
         const seen = new Set<string>();
+        const seenConversations = new Set<string>();
+        let lastTime = Infinity;
         let cursor: string | null = null, totalObserved = 0, sentHead = false;
         for (let page = 1; page <= 2000; page++) {
             options.signal?.throwIfAborted();
@@ -74,6 +76,19 @@ export class GeminiProvider implements GeminiProviderContract {
             if (await this.route(account.id) !== slot) throw new Error('Gemini account route changed');
             const observation = geminiListObservation(result, { streamId: options.streamId, requestCursor: cursor }, account.id, false, requestedAt);
             if (result.failure && observation.terminal !== 'provider_limit') throw new Error(`Gemini list failed: ${result.failure}`);
+            if (options.streamId === 'recent' && observation.valid && observation.ordered) {
+                const keys = observation.keys;
+                if (keys.some((key, i) => seenConversations.has(key.id)
+                        || (i === 0 ? key.time > lastTime : key.time > keys[i - 1].time))) {
+                    // Keep reliably decoded Index rows, but never certify a broken
+                    // cross-page ordering or duplicated source chain to Coverage.
+                    observation.valid = false;
+                    observation.ordered = false;
+                } else {
+                    keys.forEach(key => seenConversations.add(key.id));
+                    if (keys.length) lastTime = keys[keys.length - 1].time;
+                }
+            }
             const pageEvidence = account.providerAccountId === 'default' ? undefined : observation;
             await ingestIndexes(account.id, result.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')), pageEvidence);
             options.signal?.throwIfAborted();
