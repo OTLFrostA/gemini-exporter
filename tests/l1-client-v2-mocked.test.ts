@@ -91,10 +91,18 @@ test('failed L2 Index commit prevents Client progress and next-page acquisition'
 });
 
 test('Gemini Detail may retain source bytes only for L2 accepted candidates', async () => {
-    const parsed = sourceDetail();
+    const base = sourceDetail();
     const asset = { id: 'current-image', kind: 'image' as const, mediaType: 'image/png' };
-    parsed.conversation.detail.assets.push(asset);
-    parsed.acquisitionHints[asset.id] = { dataBase64: 'AQID' };
+    // Acquisition hints are a read-only L1 side channel; construct the fixture
+    // with its image and bytes rather than mutating an already parsed result.
+    const parsed = {
+        ...base,
+        conversation: {
+            ...base.conversation,
+            detail: { ...base.conversation.detail, assets: [...base.conversation.detail.assets, asset] },
+        },
+        acquisitionHints: { ...base.acquisitionHints, [asset.id]: { dataBase64: 'AQID' } },
+    };
     const resources = createSourceResourceContext();
     const provider = new GeminiProvider({
         async getConversationList() { return sourceList(); },
