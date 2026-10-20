@@ -14,8 +14,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 // Mirrors the #636 Tier 2 gate: LaTeX macro followed by <em> means the parser
 // shattered a formula (e.g. \hat{H}<em>{JC}, \omega<em>a).

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startBrowserDownload, writeToFolder } from '../src/core/export/delivery/index.js';
-import { FsWriter } from '../src/core/engine/writers/fsWriter.js';
+import { startBrowserDownload, writeToFolder } from '../src/l4/delivery/index.js';
+import { FsWriter } from '../src/l4/delivery/writers/fsWriter.js';
 const file = { fileName: 'chat.md', mimeType: 'text/markdown', content: 'hello' };
 function directory(permission = 'granted', fail = false) {
     const written = new Map<string, unknown>(); let prompts = 0; let aborts = 0;

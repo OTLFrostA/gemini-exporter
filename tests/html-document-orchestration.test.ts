@@ -2,8 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFixture } from './helpers/documentFixture.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 test('HTML export returns the delivery contract and uses prepared offline destinations', async () => {
     const raw = { id: 'html', title: 'HTML export', messages: [{ role: 'user', content: 'look at this', attachments: [{ type: 'image', localName: 'assets/x.png', name: 'x.png' }] }] };
     const { domain, document, resources } = await parseFixture(raw);

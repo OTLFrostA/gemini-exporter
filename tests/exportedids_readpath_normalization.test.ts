@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
-import { listExportRecords, putIndexes } from '../src/core/storage/storageService.js';
-import { ensureUpgraded } from '../src/core/migration/upgradeV1.js';
-import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
+import { listExportRecords, putIndexes } from '../src/l3a/storageService.js';
+import { ensureUpgraded } from '../src/migration/upgradeV1.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
 const accountId='10000000-0000-4000-8000-000000000001';
 const rec=(exportedAt:number)=>({exportedAt,status:'ok' as const,format:'markdown' as const});
 const account={id:accountId,providerId:'gemini',providerAccountId:'10000000001'};

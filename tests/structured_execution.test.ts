@@ -1,14 +1,14 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { decodeGeminiStructuredNode, decodeGeminiStructuredPayload } from '../src/core/parsers/gemini/rpc/structuredContent.js';
-import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { decodeGeminiStructuredNode, decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 test('captured execution panels survive structured RPC, Domain and physical Markdown grammar with exact code/stdout', () => {
     const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_execution_nodes.json', 'utf8')) as { nodes: [{ '39': [string, string, number, null, number] }][] };

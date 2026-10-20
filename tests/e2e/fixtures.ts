@@ -41,7 +41,7 @@ export { expect };
 
 /** Explicit v2 physical fixtures; ordinary Extension reads use direct APIs, not Content IPC. */
 const seedBundle = require('esbuild').buildSync({
-  stdin: { contents: `import * as storage from './src/core/storage/storageService.ts'; globalThis.fixtureStorage = storage;`,
+  stdin: { contents: `import * as storage from './src/l3a/storageService.ts'; globalThis.fixtureStorage = storage;`,
     resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, format: 'iife',
 }).outputFiles[0].text;
 export async function seedRegistryAccounts(context: BrowserContext): Promise<void> {

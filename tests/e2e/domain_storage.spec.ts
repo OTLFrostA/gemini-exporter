@@ -5,11 +5,11 @@ import * as path from 'node:path';
 let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
-        import * as admission from './src/core/domain/ingestion.ts';
-        import * as storage from './src/core/storage/storageService.ts';
-        import { openStorageDB as openDomainDB } from './src/core/storage/idb.ts';
-        import { readConversation } from './src/core/domain/readConversation.ts';
-        import { createSourceResourceContext } from './src/core/provider/sourceResources.ts';
+        import * as admission from './src/l2/ingestion.ts';
+        import * as storage from './src/l3a/storageService.ts';
+        import { openStorageDB as openDomainDB } from './src/l3a/idb.ts';
+        import { readConversation } from './src/l2/readConversation.ts';
+        import { createSourceResourceContext } from './src/l1/resources/sourceResources.ts';
         import { historicalFixture } from './tests/helpers/nativeFixture.ts';
         import { bindFixture } from './tests/helpers/domainFixture.ts';
         import { admitFixture } from './tests/helpers/admitFixture.ts';

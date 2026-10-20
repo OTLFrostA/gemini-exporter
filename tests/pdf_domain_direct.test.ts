@@ -7,13 +7,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
-import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
-import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
+import { resourceStage } from '../src/l4/format/pdf/pipeline/resourceStage.js';
+import { payloadStage } from '../src/l4/format/pdf/pipeline/payloadStage.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { TypstSandboxCompiler } from '../src/l4/format/pdf/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
-import type { TypstConversationRenderPayload } from '../src/core/renderers/typst/transport.js';
+import type { TypstConversationRenderPayload } from '../src/l4/format/typst/transport.js';
 
 const ctx = { signal: new AbortController().signal, log() {}, reportProgress() {} };
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';

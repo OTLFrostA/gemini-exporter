@@ -10,8 +10,8 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 // Explicit owners: Settings data and the final Migration completion marker.
 const ALLOWED_STORAGE_FILES = new Set<string>([
-    'src/core/storage/settingsStore.ts',
-    'src/core/migration/upgradeV1.ts',
+    'src/l3a/settingsStore.ts',
+    'src/migration/upgradeV1.ts',
 ]);
 
 function gitGrepFixed(pattern: string): Array<{ file: string; line: number; text: string }> {
@@ -39,6 +39,6 @@ test('arch: Chrome writes stay within Settings IO and the Migration marker owner
     const unauthorized = hits.filter(h => !ALLOWED_STORAGE_FILES.has(h.file));
     assert.strictEqual(unauthorized.length, 0,
         'Unowned Chrome storage write:\n' + unauthorized.map(h => `  ${h.file}:${h.line}: ${h.text.trim()}`).join('\n'));
-    const migration = require('node:fs').readFileSync(path.join(REPO_ROOT, 'src/core/migration/upgradeV1.ts'), 'utf8');
+    const migration = require('node:fs').readFileSync(path.join(REPO_ROOT, 'src/migration/upgradeV1.ts'), 'utf8');
     assert.deepStrictEqual([...migration.matchAll(/chrome\.storage\.local\.set\(([^;]+)\);/g)].map(match => match[1]), ['{ [INITIALIZED]: true }']);
 });

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { planExportPaths } from '../src/core/export/packaging/index.js';
-import type { PreparedResources } from '../src/core/resources/resourceResult.js';
+import { planExportPaths } from '../src/l4/packaging/index.js';
+import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 
 const base = { id: 'resource-sources', title: '', timestamp: null };
 

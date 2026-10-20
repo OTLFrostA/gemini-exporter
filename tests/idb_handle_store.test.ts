@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as storage from '../src/core/storage/storageService.js';
+import * as storage from '../src/l3a/storageService.js';
 import { indexStorage, useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 
-import { openStorageDB } from '../src/core/storage/idb.js';
+import { openStorageDB } from '../src/l3a/idb.js';
 useIndexStorage();
 test('directory selection uses the single default key in the shared v2 DB', async () => {
     assert.equal(await storage.getDirectoryHandle(), null);

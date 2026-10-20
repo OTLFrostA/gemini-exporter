@@ -1,17 +1,17 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { resourceValue } from './helpers/resources.js';
-import type { ResourceBytes } from '../src/core/resources/resourceResult.js';
+import type { ResourceBytes } from '../src/shared/resources/resourceResult.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /** Inline source data stays in acquisition context; decoded bytes belong to PreparedResources. */
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { preparePdfResources } = require('../src/core/export/pdf/prepareResources.js');
-const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
-const { resourceStage } = require('../src/core/export/pdf/pipeline/resourceStage.js');
-const { decodeDataUrl, decodeDataUrlAsset } = require('../src/core/export/assets/dataUrl.js');
-const { assertDomainClosure } = require('../src/core/domain/closure.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { preparePdfResources } = require('../src/l4/format/pdf/prepareResources.js');
+const { collectDocumentResources } = require('../src/l3b/ast/resourceReferences.js');
+const { resourceStage } = require('../src/l4/format/pdf/pipeline/resourceStage.js');
+const { decodeDataUrl, decodeDataUrlAsset } = require('../src/l4/format/resources/dataUrl.js');
+const { assertDomainClosure } = require('../src/l2/closure.js');
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const PNG_SHA256 = 'c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77';
 const PNG_REF = `assets/sha256/c4/14/${PNG_SHA256}.png`;

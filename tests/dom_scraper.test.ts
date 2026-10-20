@@ -1,9 +1,9 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
-const { extractBlockText } = require('../src/core/domain/content/unknownFallback.js');
+const { extractBlockText } = require('../src/l2/content/unknownFallback.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const DomScraper = require('../src/content/domScraper.js');
+const DomScraper = require('../src/runtime/content/domScraper.js');
 
 let nodeCounter = 0;
 

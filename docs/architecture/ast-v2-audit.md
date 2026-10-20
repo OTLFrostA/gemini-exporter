@@ -1,6 +1,6 @@
 # L3b AST v2 design audit — 2026-10-17
 
-Scope: `src/core/document/ast` and `src/core/document/compose`. This audit concerns the branch implementation, not an assertion that the complete export system has migrated.
+Scope: `src/l3b/ast` and `src/l3b/compose`. This audit concerns the branch implementation, not an assertion that the complete export system has migrated.
 
 Sources fetched during the audit:
 - [L3b module](https://app.notion.com/p/3fb5d4d759e181ed9ea7cffc849a5769) — edited 2026-10-17 08:38 UTC.

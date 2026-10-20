@@ -2,9 +2,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
-const { withRateLimitRetry, isRateLimited } = require('../src/core/engine/export/rateLimiter.js');
-const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
+const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
+const { withRateLimitRetry, isRateLimited } = require('../src/l1/client/rateLimiter.js');
+const { handleHttp400 } = require('../src/l1/client/gemini/api/retryPolicy.js');
 const { useIndexStorage } = require('./helpers/indexStorage.js');
 useIndexStorage();
 

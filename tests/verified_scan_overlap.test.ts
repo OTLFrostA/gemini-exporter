@@ -1,17 +1,17 @@
 import { accountRuntime } from './helpers/accountRuntime.js';
 const test = require('node:test');
 const assert = require('node:assert');
-const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
-const { defaultGeminiProvider } = require('../src/core/provider/gemini/geminiProvider.js');
-const { contentContext } = require('../src/content/contentContext.js');
-const { syncConversations } = require('../src/content/syncEngine.js');
+const { __setModuleOverride, __clearModuleOverrides } = require('../src/shared/utils/moduleOverrides.js');
+const { defaultGeminiProvider } = require('../src/l1/client/gemini/geminiProvider.js');
+const { contentContext } = require('../src/runtime/content/contentContext.js');
+const { syncConversations } = require('../src/runtime/content/syncEngine.js');
 
 test('production scan entry admits one pagination call while another scan is pending', async () => {
     const oldDocument = (global as any).document;
     const oldLocation = (global as any).location;
     const oldChrome = (global as any).chrome;
     const originalList = defaultGeminiProvider.listConversations;
-    const lifecycle = require('../src/core/application/sync/scanLifecycle.js');
+    const lifecycle = require('../src/application/sync/scanLifecycle.js');
     const begin = test.mock.method(lifecycle, 'beginScanCoverage', async () => ({ runId: 'test-run', previous: null }));
     const finish = test.mock.method(lifecycle, 'finishScanCoverage', async () => true);
     let release!: () => void;

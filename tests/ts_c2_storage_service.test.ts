@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as storage from '../src/core/storage/storageService.js';
+import * as storage from '../src/l3a/storageService.js';
 import { indexStorage, useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 

@@ -5,14 +5,14 @@ useIndexStorage();
  * tests/p1_i_regressions.test.ts
  * I 组「协议层与 provider 契约收尾」P1-075~080, P1-084, P1-088/089 回归测试。
  */
-import type { GeminiLiveSaveTriggerPayload } from '../src/core/protocol/events.js';
+import type { GeminiLiveSaveTriggerPayload } from '../src/l1/protocol/gemini/events.js';
 
 const test = require('node:test');
 const assert = require('node:assert');
 
-const Proto = require('../src/core/protocol/protocol.js');
-const { ProviderRegistryClass } = require('../src/core/provider/providerRegistry.js');
-const { GeminiProvider } = require('../src/core/provider/gemini/geminiProvider.js');
+const Proto = require('../src/l1/protocol/gemini/protocol.js');
+const { ProviderRegistryClass } = require('../src/l1/client/providerRegistry.js');
+const { GeminiProvider } = require('../src/l1/client/gemini/geminiProvider.js');
 
 function fakeProvider(id: string, opts: { matchesUrl?: (u: string) => boolean; hostPatterns?: string[] } = {}) {
     const p: any = { id, name: id, hostPatterns: opts.hostPatterns || [] };
@@ -125,7 +125,7 @@ void rejectedLiveSaveTrigger;
 // ---------------------------------------------------------------- P1-088
 test('P1-088 - checkReadiness never passes the slot id off as the account name', async () => {
     // Runtime: stub credential resolution to force the ready:true branch.
-    const credMgr = require('../src/core/api/client/credentialManager.js').default;
+    const credMgr = require('../src/l1/client/gemini/api/credentialManager.js').default;
     const orig = credMgr.resolveCred;
     credMgr.resolveCred = async () => ({ sid: 's', at: 'a', bl: 'b', accountSlot: 'u0' });
     try {

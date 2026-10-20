@@ -2,11 +2,11 @@ import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
 import type { ConversationRecordInput } from './helpers/recordFixture/conversationRecord.js';
 import type { DomainFixture } from './helpers/domainFixture.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 
 const parse = (data: ConversationRecordInput) => historicalFixture(data, { providerId: 'gemini' });
 

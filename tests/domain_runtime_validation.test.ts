@@ -1,8 +1,8 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { acceptDetailFacts, validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { acceptDetailFacts, validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 function valid(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('independent'), 'future'),   titleSource: "derived",   title: 'Fixture' }, detail: { key: fixtureKey(String('independent'), 'future'), quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
@@ -101,10 +101,10 @@ test('both entry points reject holes and undefined elements throughout nested Do
 });
 
 test('parser and recovery reject nonintegral, out-of-range, and over-wide table grids before composition', () => {
-    const withTable = (table: import('../src/core/domain/content/blocks.js').TableBlock) => {
+    const withTable = (table: import('../src/l2/content/blocks.js').TableBlock) => {
         const value = valid(); value.detail.messages[0].content = [table]; return value;
     };
-    const invalidTables: import('../src/core/domain/content/blocks.js').TableBlock[] = [];
+    const invalidTables: import('../src/l2/content/blocks.js').TableBlock[] = [];
     for (const span of [0, -1, 1.5, 4294967296, Number.MAX_VALUE]) {
         invalidTables.push({ type: 'table', rows: [{ cells: [{ children: [], colSpan: span }] }] });
         invalidTables.push({ type: 'table', rows: [{ cells: [{ children: [], rowSpan: span }] }] });

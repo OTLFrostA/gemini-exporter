@@ -10,9 +10,9 @@ useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert';
 
-import { ProviderRegistryClass } from '../src/core/provider/providerRegistry.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import * as TabService from '../src/core/utils/tabService.js';
+import { ProviderRegistryClass } from '../src/l1/client/providerRegistry.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import * as TabService from '../src/runtime/capabilities/tabService.js';
 
 test('TabService - getAITab and sendToAITab integration', async () => {
     const origChrome = (global as any).chrome;
@@ -46,7 +46,7 @@ test('TabService - getAITab and sendToAITab integration', async () => {
 
         await assert.rejects(TabService.getAITab('chatgpt'), /no production Content Script/);
 
-        await require('../src/core/storage/storageService.js').putAccount({ id: ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '10000000001' });
+        await require('../src/l3a/storageService.js').putAccount({ id: ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '10000000001' });
         bindTabAccounts({ 202: ACCOUNT_UUID });
         const geminiTab = await TabService.getAITab('gemini', ACCOUNT_UUID);
         assert.strictEqual(geminiTab?.id, 202, 'Should resolve Gemini tab');

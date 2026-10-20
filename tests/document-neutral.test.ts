@@ -1,13 +1,13 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst, defaultPdfLayout } from '../src/core/renderers/typst/renderTypst.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst, defaultPdfLayout } from '../src/l4/format/typst/renderTypst.js';
 
 function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-neutral.json', 'utf8'));
@@ -63,12 +63,12 @@ test('AST: neutral tree has no output controls and renderers do not import sourc
         [...readFileSync(file, 'utf8').matchAll(/^\s*(?:import|export)\s+(?:(?:type\s+)?[^;]*?\bfrom\s+)?(['"])([^'"]+)\1/gm)]
             .map(match => match[2]);
     for (const name of ['html/renderHtml', 'markdown/renderMarkdown', 'typst/renderTypst', 'shared/backendPresentation', 'shared/renderOptions', 'shared/renderStrings']) {
-        for (const source of importSources(`src/core/renderers/${name}.ts`)) {
+        for (const source of importSources(`src/l4/format/${name}.ts`)) {
             assert.doesNotMatch(source, /(^|\/)(?:canonical|domain|provider|content)\//,
                 `Renderer ${name} cannot import source-model module ${source}`);
         }
     }
-    const composerImports = importSources('src/core/document/compose/composeDomainDocument.ts');
+    const composerImports = importSources('src/l3b/compose/composeDomainDocument.ts');
     assert.ok(composerImports.every(source => !source.includes('/renderers/')),
         'Document composition must not import an output backend');
 });
@@ -77,7 +77,7 @@ test('AST: neutral tree has no output controls and renderers do not import sourc
 test('prepared resource absence is reported by each backend without deleting the display reference', () => {
     const input = fixture(); input.detail.messages[0].reasoning = undefined; input.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
     const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), before = JSON.stringify(document);
-    const diagnostics: import('../src/core/diagnostics/diagnostic.js').Diagnostic[] = [];
+    const diagnostics: import('../src/shared/diagnostics/diagnostic.js').Diagnostic[] = [];
     const pdf = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic) });
     assert.ok(diagnostics.some(d => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));
     const paragraph = pdf.messages[0].blocks[0]; if (paragraph.type !== 'paragraph') throw new Error('Expected paragraph');

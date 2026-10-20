@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
-import { normId } from '../src/core/utils/pathUtils.js';
-import { conversationKey } from '../src/core/domain/conversationKey.js';
-import type { DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
-import type { ExportRecord } from '../src/core/application/export/types.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
+import { normId } from '../src/shared/utils/pathUtils.js';
+import { conversationKey } from '../src/l2/conversationKey.js';
+import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
+import type { ExportRecord } from '../src/application/export/types.js';
 
 const A = '10000000-0000-4000-8000-000000000001';
 const B = '10000000-0000-4000-8000-000000000002';

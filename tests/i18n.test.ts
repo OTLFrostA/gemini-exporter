@@ -67,7 +67,7 @@ test('i18n - language selector updates the single Settings owner and document la
     assert.equal(await page.locator('#language').inputValue(), 'zh');
 });
 test('i18n - business Settings stays independent from DOM translation and document labeling', () => {
-    const source = readFileSync('src/core/application/settings/index.ts', 'utf8');
+    const source = readFileSync('src/application/settings/index.ts', 'utf8');
     assert.doesNotMatch(source, /\b(?:document|HTMLElement|querySelector|createElement|navigator)\b/);
-    assert.match(readFileSync('src/ui/utils/settings.ts', 'utf8'), /export function labelPage/);
+    assert.match(readFileSync('src/ui/shared/settings.ts', 'utf8'), /export function labelPage/);
 });

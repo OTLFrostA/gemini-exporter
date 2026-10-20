@@ -3,11 +3,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { extractBlockText } from '../src/l2/content/unknownFallback.js';
 
 const ID = 'c_native12345678';
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
@@ -43,8 +43,8 @@ test('raw RPC input constructs Domain content, reasoning and citations directly'
 
 test('native parsing imports no historical persisted detail parser', () => {
     assert.equal(native(rpc([[turn()]])).conversation.detail.messages.length, 2);
-    const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
-    assert.doesNotMatch(source, /parseConversationRecord|parseConversation|parseLegacyConversation|types\/conversation|core\/storage/);
+    const source = readFileSync(join(__dirname, '../src/l1/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
+    assert.doesNotMatch(source, /parseConversationRecord|parseConversation|parseLegacyConversation|types\/conversation|l3a/);
 });
 
 test('source request tokens survive intact in source evidence and Domain', () => {

@@ -3,11 +3,11 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { importTakeout } from '../src/core/imports/takeout/importTakeout.js';
-import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
-import { getDetail } from '../src/core/storage/storageService.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { getDetail } from '../src/l3a/storageService.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
 
 const activity = (id: string, date: string, response: string) => `<div class="outer-cell"><a href="https://gemini.google.com/app/${id}">Chat</a>
 <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Draw<br>2 generated images.<br>${date}<br>${response}</div></div>`;

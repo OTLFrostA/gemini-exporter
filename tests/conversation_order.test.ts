@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { compareConversationIndexes, indexActivityTime, mergeConversationIndex } from '../src/core/domain/conversationIndex.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { compareConversationIndexes, indexActivityTime, mergeConversationIndex } from '../src/l2/conversationIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
 
 test('index ordering prioritizes authored activity over creation and leaves unknown times after known times', () => {

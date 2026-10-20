@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { indexStorage } from './helpers/indexStorage.js';
-import { ensureUpgraded } from '../src/core/migration/upgradeV1.js';
-import { getSettings, updateSettings } from '../src/core/application/settings/index.js';
-import { ALLOWED_FORMATS, DEFAULT_FORMAT, FEEDBACK_URL } from '../src/core/utils/constants.js';
+import { ensureUpgraded } from '../src/migration/upgradeV1.js';
+import { getSettings, updateSettings } from '../src/application/settings/index.js';
+import { ALLOWED_FORMATS, DEFAULT_FORMAT, FEEDBACK_URL } from '../src/shared/utils/constants.js';
 const html = () => readFileSync('src/ui/options/options.html', 'utf8');
 
 test('current export format constants retain the four supported formats and Markdown default', async () => {

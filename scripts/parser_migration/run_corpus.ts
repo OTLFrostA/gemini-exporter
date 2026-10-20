@@ -18,13 +18,13 @@ import { historicalFixture } from '../../tests/helpers/nativeFixture.js';
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
-import type { DomainConversationWithDetail } from '../../src/core/domain/conversation.js';
-import type { Diagnostic } from '../../src/core/diagnostics/diagnostic.js';
-import { convertMathWithMitex, initMitexWasm } from '../../src/core/renderers/typst/mathConverter.js';
+import { composeDomainDocument } from '../../src/l3b/compose/composeDomainDocument.js';
+import type { DomainConversationWithDetail } from '../../src/l2/conversation.js';
+import type { Diagnostic } from '../../src/shared/diagnostics/diagnostic.js';
+import { convertMathWithMitex, initMitexWasm } from '../../src/l4/format/typst/mathConverter.js';
 import { compareMarkdownAst, compareMathConversion, type DiffCategory } from './diff_runner.js';
-import { TypstSandboxCompiler } from '../../src/core/export/typst/typstSandboxCompiler.js';
-import { renderDocumentTypst } from '../../src/core/renderers/typst/renderTypst.js';
+import { TypstSandboxCompiler } from '../../src/l4/format/pdf/typst/typstSandboxCompiler.js';
+import { renderDocumentTypst } from '../../src/l4/format/typst/renderTypst.js';
 import { RealWasmSandboxHost, repoRoot } from '../../tests/helpers/realWasmSandbox.js';
 
 export type MarkdownParserFn = (content: string, id: string) => Promise<{ conversation: DomainConversationDetail; diagnostics: Diagnostic[] }>;

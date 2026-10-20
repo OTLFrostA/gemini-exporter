@@ -4,15 +4,15 @@ import { admitFixture } from './helpers/admitFixture.js';
 import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { restoreDomainSnapshot, validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { TITLE_AUTHORITY_RANK } from '../src/core/domain/titleAuthority.js';
-import { closeDomainResources } from '../src/core/parsers/shared/resources/domainResourceAdapter.js';
+import { restoreDomainSnapshot, validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { TITLE_AUTHORITY_RANK } from '../src/l2/titleAuthority.js';
+import { closeDomainResources } from '../src/l1/parsers/shared/resources/domainResourceAdapter.js';
 import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
 import { storageIdentity } from './helpers/admitFixture.js';
 import { readFixture } from './helpers/admitFixture.js';
-import { acquireSourceResource } from '../src/core/provider/sourceResources.js';
-import { attemptResource, resourceDiagnostics } from '../src/core/resources/resourceResult.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { acquireSourceResource } from '../src/l1/resources/sourceResources.js';
+import { attemptResource, resourceDiagnostics } from '../src/shared/resources/resourceResult.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 const base = (): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('final-contract'), 'custom'),   titleSource: "derived",   title: 'Final' }, detail: { key: fixtureKey(String('final-contract'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [] } });
 

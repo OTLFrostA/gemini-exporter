@@ -15,8 +15,8 @@ class L3Tier2Contracts(unittest.TestCase):
         code = r"""
 const {indexStorage}=require('./tests/helpers/indexStorage.ts');
 const {fixtureAccount}=require('./tests/helpers/domainFixture.ts');
-const {validateParserDomain}=require('./src/core/domain/runtimeValidation.ts');
-const storage=require('./src/core/storage/storageService.ts');
+const {validateParserDomain}=require('./src/l2/runtimeValidation.ts');
+const storage=require('./src/l3a/storageService.ts');
 const env=indexStorage();
 (async()=>{try{
  const account=fixtureAccount('gemini'),key={accountId:account.id,conversationId:'same'};

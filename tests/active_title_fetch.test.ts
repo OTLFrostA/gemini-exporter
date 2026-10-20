@@ -4,9 +4,9 @@ import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
-const { scheduleActiveChatDetailFetch } = require('../src/content/syncEngine.js');
-const { ProviderRegistry } = require('../src/core/provider/providerRegistry.js');
+const { __setModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
+const { scheduleActiveChatDetailFetch } = require('../src/runtime/content/syncEngine.js');
+const { ProviderRegistry } = require('../src/l1/client/providerRegistry.js');
 const { rpcFixture } = require('./helpers/nativeFixture.js');
 
 test('active detail fetch retries unresolved or undated titles, but skips timestamped RPC titles', async (t: any) => {

@@ -1,11 +1,11 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { closeDomainResources } from '../src/core/parsers/shared/resources/domainResourceAdapter.js';
-import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
-import type { DomainAsset } from '../src/core/domain/conversationDetail.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { closeDomainResources } from '../src/l1/parsers/shared/resources/domainResourceAdapter.js';
+import { findResourceMatch, resourceIdentity } from '../src/l1/parsers/shared/resources/resourceIdentity.js';
+import type { DomainAsset } from '../src/l2/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 const base = (assets: DomainAsset[] = []): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('chat'), 'custom'),   titleSource: "derived",   title: 'Resources' }, detail: { key: fixtureKey(String('chat'), 'custom'), quality: { status: 'unknown' }, assets, messages: [] } });
 test('source metadata stays outside Domain and canonical report body retains authored sections and links', () => {
     const result = closeDomainResources('custom', [], [{ input: { attachments: [{ type: 'file', id: 'report', url: 'https://example.test/report', createdAt: 1, chipUrl: 'https://example.test/chip', width: 100, height: 80, source: 'source', sections: ['# Report', 'Evidence'], links: [{ title: 'Reference', url: 'https://example.test/reference' }], candidates: ['https://example.test/download'] }] } }]);

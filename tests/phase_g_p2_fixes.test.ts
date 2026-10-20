@@ -10,7 +10,7 @@ const assert = require('node:assert');
 
 // ---------- P2-1: pagination 达 maxPages 必须标 stoppedEarly ----------
 test('P2-1: getAllConversations 跑满 maxPages 时 stoppedEarly=true', async () => {
-    const Pagination = require('../src/core/api/client/pagination.js');
+    const Pagination = require('../src/l1/client/gemini/api/pagination.js');
     let callCount = 0;
     const mockClient = {
         getConversationList: async () => {
@@ -26,7 +26,7 @@ test('P2-1: getAllConversations 跑满 maxPages 时 stoppedEarly=true', async ()
 });
 
 test('P2-1 对照: 自然到底时 stoppedEarly 不为 true', async () => {
-    const Pagination = require('../src/core/api/client/pagination.js');
+    const Pagination = require('../src/l1/client/gemini/api/pagination.js');
     const mockClient = {
         getConversationList: async () => listFixture([], null)
     };
@@ -46,7 +46,7 @@ function make401Deps(map: Record<string, any>) {
 }
 
 test('P2-3: 401 且页面有更新的 at → 刷新 at 并保留凭证', async () => {
-    const RetryPolicy = require('../src/core/api/client/retryPolicy.js');
+    const RetryPolicy = require('../src/l1/client/gemini/api/retryPolicy.js');
     const inner: Record<string, any> = { sid1: { at: 'stale-at', sid: 'sid1' } };
     const warns: string[] = [];
     const origWarn = console.warn;
@@ -68,7 +68,7 @@ test('P2-3: 401 且页面有更新的 at → 刷新 at 并保留凭证', async (
 });
 
 test('P2-3: 401 且页面无更新的 at → 删除过期凭证', async () => {
-    const RetryPolicy = require('../src/core/api/client/retryPolicy.js');
+    const RetryPolicy = require('../src/l1/client/gemini/api/retryPolicy.js');
     const inner: Record<string, any> = { sid1: { at: 'stale-at', sid: 'sid1' } };
     const origWarn = console.warn;
     console.warn = () => {};
@@ -85,7 +85,7 @@ test('P2-3: 401 且页面无更新的 at → 删除过期凭证', async () => {
 });
 
 test('P2-3: 401 且页面抓不到 at → 删除过期凭证（旧行为保留）', async () => {
-    const RetryPolicy = require('../src/core/api/client/retryPolicy.js');
+    const RetryPolicy = require('../src/l1/client/gemini/api/retryPolicy.js');
     const inner: Record<string, any> = { sid1: { at: 'stale-at', sid: 'sid1' } };
     const origWarn = console.warn;
     console.warn = () => {};
@@ -102,7 +102,7 @@ test('P2-3: 401 且页面抓不到 at → 删除过期凭证（旧行为保留�
 });
 
 test('P2-3: 401 但 map 中无此 sid → 两条路径都是 no-op（不写不抛）', async () => {
-    const RetryPolicy = require('../src/core/api/client/retryPolicy.js');
+    const RetryPolicy = require('../src/l1/client/gemini/api/retryPolicy.js');
     // map 里根本没有 sid9（可能已被其他 tab 删除）
     const inner: Record<string, any> = { sidOther: { at: 'x', sid: 'sidOther' } };
     let writes = 0;
@@ -178,8 +178,8 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
     };
     (globalThis as any).location = { href: 'https://gemini.google.com/app', origin: 'https://gemini.google.com' };
     try {
-        delete require.cache[require.resolve('../src/content/bootstrap.js')];
-        require('../src/content/bootstrap.js');
+        delete require.cache[require.resolve('../src/l1/client/gemini/bootstrap.js')];
+        require('../src/l1/client/gemini/bootstrap.js');
         // 预置旧 bl
         store['gemini_credentials_map'] = {
             sid1: { at: 'old-at', sid: 'sid1', bl: 'old-bl', accountSlot: 'u0', lastUsed: 1 }
@@ -206,7 +206,7 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
         delete (globalThis as any).document;
         delete (globalThis as any).location;
         delete (globalThis as any).chrome;
-        delete require.cache[require.resolve('../src/content/bootstrap.js')];
+        delete require.cache[require.resolve('../src/l1/client/gemini/bootstrap.js')];
     }
 });
 
@@ -245,8 +245,8 @@ test('P2-11: 并发 updateSession 串行化，无 lost update', async () => {
     // navigator.locks 在 Node 24 原生存在；这里验证 fallback 链同样串行。
     // 为确定性，测试走"无 Web Locks → 内存链"路径与"有 Web Locks"路径两种情形。
     try {
-        delete require.cache[require.resolve('../src/core/storage/sessionStore.js')];
-        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/core/storage/sessionStore.js');
+        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
+        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/l3a/sessionStore.js');
         await SessionStore.setSession({ status: 'running' });
         const N = 10;
         await Promise.all(Array.from({ length: N }, (_, i) =>
@@ -259,7 +259,7 @@ test('P2-11: 并发 updateSession 串行化，无 lost update', async () => {
         assert.strictEqual(final.status, 'running', '原有字段应被 merge 保留');
     } finally {
         delete (globalThis as any).chrome;
-        delete require.cache[require.resolve('../src/core/storage/sessionStore.js')];
+        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
     }
 });
 
@@ -291,8 +291,8 @@ test('P2-11: 无 Web Locks 时内存链 fallback 串行化', async () => {
             configurable: true,
             writable: true,
         });
-        delete require.cache[require.resolve('../src/core/storage/sessionStore.js')];
-        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/core/storage/sessionStore.js');
+        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
+        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/l3a/sessionStore.js');
         await SessionStore.setSession({ status: 'running' });
         const N = 10;
         await Promise.all(Array.from({ length: N }, (_, i) =>
@@ -307,7 +307,7 @@ test('P2-11: 无 Web Locks 时内存链 fallback 串行化', async () => {
         delete (globalThis as any).chrome;
         if (origDesc) Object.defineProperty(globalThis, 'navigator', origDesc);
         else delete (globalThis as any).navigator;
-        delete require.cache[require.resolve('../src/core/storage/sessionStore.js')];
+        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
     }
 });
 
@@ -341,8 +341,8 @@ test('P2-11: 有 Web Locks 时使用锁名 gemini-exporter:write:session', async
             configurable: true,
             writable: true,
         });
-        delete require.cache[require.resolve('../src/core/storage/sessionStore.js')];
-        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/core/storage/sessionStore.js');
+        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
+        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/l3a/sessionStore.js');
         await SessionStore.setSession({ status: 'running' });
         await Promise.all([1, 2, 3].map(i => SessionStore.updateSession({ [`f${i}`]: i })));
         assert.ok(seenNames.length > 0, '有 Web Locks 时应走 locks.request');
@@ -357,6 +357,6 @@ test('P2-11: 有 Web Locks 时使用锁名 gemini-exporter:write:session', async
         delete (globalThis as any).chrome;
         if (origDesc) Object.defineProperty(globalThis, 'navigator', origDesc);
         else delete (globalThis as any).navigator;
-        delete require.cache[require.resolve('../src/core/storage/sessionStore.js')];
+        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
     }
 });

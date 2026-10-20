@@ -4,10 +4,10 @@ const assert = require('node:assert/strict');
 
 const {
     extractGroundingCitationMarkers,
-} = require('../src/core/parsers/gemini/rpc/extractors.js');
+} = require('../src/l1/parsers/gemini/rpc/extractors.js');
 const {
     decodeGeminiDetail,
-} = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
+} = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const { sourceConversation } = require('./helpers/l1SourceFixture.js');
 
 test('extractGroundingCitationMarkers extracts declared markers from JSPB candidate metadata', () => {

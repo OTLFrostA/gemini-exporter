@@ -23,10 +23,10 @@ const {
     isMitexReady,
     mitexConvertMath,
     resetMitexForTesting,
-} = require('../src/core/renderers/typst/mitex/index.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+} = require('../src/l4/format/typst/mitex/index.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
 const { RealWasmSandboxHost, repoRoot } = require('./helpers/realWasmSandbox.js');
 
 test('T1.1: MiTeX WASM initializes and reports ready state', async () => {
@@ -186,10 +186,10 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
 
 test('T5.1: MiTeX version and provenance consistency across repository metadata', () => {
     const root = repoRoot();
-    const vendorReadmePath = path.join(root, 'src/core/renderers/typst/mitex/vendor/README.md');
+    const vendorReadmePath = path.join(root, 'src/l4/format/typst/mitex/vendor/README.md');
     const noticesPath = path.join(root, 'THIRD_PARTY_NOTICES.md');
-    const scopePath = path.join(root, 'src/core/renderers/typst/templates/mitex-scope.typ');
-    const wasmPath = path.join(root, 'src/core/renderers/typst/mitex/vendor/mitex_wasm_bg.wasm');
+    const scopePath = path.join(root, 'src/l4/format/typst/templates/mitex-scope.typ');
+    const wasmPath = path.join(root, 'src/l4/format/typst/mitex/vendor/mitex_wasm_bg.wasm');
 
     const readmeContent = fs.readFileSync(vendorReadmePath, 'utf8');
     const noticesContent = fs.readFileSync(noticesPath, 'utf8');

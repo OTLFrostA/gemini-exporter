@@ -2,7 +2,7 @@ export {};
 
 const test = require('node:test');
 const assert = require('node:assert');
-const AssetFetcherModule = require('../src/content/assetFetcher.js');
+const AssetFetcherModule = require('../src/runtime/capabilities/assetFetcher.js');
 
 const { fetchWithCredentialFallback, downloadAssetDirect, toHighRes } = AssetFetcherModule;
 
@@ -17,7 +17,7 @@ test('assetFetcher - toHighRes preserves gstatic.com thumbnail URLs without corr
 });
 
 test('assetFetcher & attachments - bare /gg/ and /rd-gg/ URLs normalize to authoritative =s0 rendition', () => {
-    const { highResVariant } = require('../src/core/resources/geminiImageUrl.js');
+    const { highResVariant } = require('../src/l1/client/gemini/geminiImageUrl.js');
     const bareGg = 'https://lh3.googleusercontent.com/gg/AN-53XYZ1234567890';
     assert.strictEqual(highResVariant(bareGg), `${bareGg}=s0`, 'highResVariant appends =s0 to bare /gg/');
     assert.strictEqual(highResVariant(`${bareGg}?authuser=0`), `${bareGg}=s0?authuser=0`, 'highResVariant preserves queries on bare /gg/');

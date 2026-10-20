@@ -1,7 +1,7 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';

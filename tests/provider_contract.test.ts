@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { AIProvider, ProviderListOptions, CommittedListPage, ListEnd } from '../src/core/provider/aiProvider.js';
-import type { SourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import { ProviderRegistryClass } from '../src/core/provider/providerRegistry.js';
-import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { parseGeminiTakeoutArchive } from '../src/core/parsers/gemini/takeout/parseConversation.js';
+import type { AIProvider, ProviderListOptions, CommittedListPage, ListEnd } from '../src/l1/client/aiProvider.js';
+import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { ProviderRegistryClass } from '../src/l1/client/providerRegistry.js';
+import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { parseGeminiTakeoutArchive } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
 
 type Assert<T extends true> = T;
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;

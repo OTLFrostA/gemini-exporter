@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { indexStorage } from './helpers/indexStorage.js';
-import type { PageObservation } from '../src/core/domain/pageObservation.js';
-import CoverageAdmission from '../src/core/domain/coverageAdmission.js';
+import type { PageObservation } from '../src/l2/pageObservation.js';
+import CoverageAdmission from '../src/l2/coverageAdmission.js';
 import { clearStoredAccountScanRecords, getCoverage, updateCoverageAtomically, getIndex,
-    putIndexes, getExportRecord, putExportRecord } from '../src/core/storage/storageService.js';
+    putIndexes, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
 
 const accountId = fixtureAccount().id;
 const otherId = fixtureAccount('chatgpt').id;

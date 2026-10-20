@@ -2,17 +2,17 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
-import { parseChatGPTList } from '../src/core/parsers/chatgpt/parseList.js';
-import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
+import { restoreConversationIndex } from '../src/l2/conversationIndex.js';
+import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
+import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
-import { getOrCreateAccount } from '../src/core/api/accountRegistry.js';
+import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { sourceDetail } from './helpers/l1SourceFixture.js';
-import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
-import { parseGeminiDomList, parseGeminiDomIndex } from '../src/core/parsers/gemini/dom/parseIndex.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { parseGeminiDomList, parseGeminiDomIndex } from '../src/l1/parsers/gemini/dom/parseIndex.js';
 
 test('ChatGPT lists emit exact Domain indexes with source times and no invented fallback facts', () => {
     const page = parseChatGPTList({ items: [

@@ -2,7 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { SessionStore, EXPORT_SESSION_KEY } = require('../src/core/storage/sessionStore.js');
+const { SessionStore, EXPORT_SESSION_KEY } = require('../src/l3a/sessionStore.js');
 
 // Each case injects Chrome storage; restore the caller's exact global even on failure.
 let chromeDescriptor: PropertyDescriptor | undefined;

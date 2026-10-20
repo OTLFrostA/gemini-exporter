@@ -3,7 +3,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
+const { isRateLimited, calculateBackoff } = require('../src/l1/client/rateLimiter.js');
 const { formatLiveSaveMarkdown, writeLiveSaveMarkdown } = require('../src/core/engine/liveSaveWriter.js');
 
 // ---------------------------------------------------------------------------

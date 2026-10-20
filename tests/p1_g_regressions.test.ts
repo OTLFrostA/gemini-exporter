@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { ChatMessage, Attachment } from './helpers/historicalConversation.js';
-import type { MessageAction } from '../src/types/messages.js';
+import type { MessageAction } from '../src/runtime/types/messages.js';
 
 // P1-090, 091, 092, 093, 098, 099, 100 are type-check contracts.
 // The @ts-expect-error directives fail compilation if forbidden types
@@ -74,7 +74,7 @@ void typecheckContracts;
 
 // P1-094 is a real runtime invariant: consumers rely on this hierarchy.
 test('P1-094: live error subclasses extend GeminiError and dead class stays absent', () => {
-    const errors = require('../src/types/errors.js');
+    const errors = require('../src/shared/types/errors.js');
     assert.equal(errors.GeminiRpcError, undefined);
     assert.equal(typeof errors.GeminiError, 'function');
     for (const name of ['ExportPipelineError', 'TakeoutParseError', 'StorageError']) {

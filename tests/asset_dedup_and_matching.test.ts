@@ -4,7 +4,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
+const TakeoutEngine = require('../src/l1/imports/takeoutEngine.js');
 
 test('asset_dedup - ZIP import preserves exact image bytes and per-turn Domain ownership', async () => {
     const slot = '10000000-0000-4000-8000-000000000001';

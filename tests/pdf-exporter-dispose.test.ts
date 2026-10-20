@@ -30,10 +30,10 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { PdfExporter } = require('../src/core/export/pdf/index.js');
-const ExportController = require('../src/ui/controllers/exportController.js');
+const { PdfExporter } = require('../src/l4/format/pdf/index.js');
+const ExportController = require('../src/ui/options/controllers/exportController.js');
 const { buildMinimalValidPdf } = require('./helpers/stubPdfCompiler.js');
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
 const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));

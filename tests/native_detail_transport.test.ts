@@ -4,10 +4,10 @@ import { admitFixture } from './helpers/admitFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { requestNativeDetail, requestNativeBatch } from '../src/core/utils/nativeDetailTransport.js';
-import { isResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
-import { callDomainBroker, encodeBytes, decodeBytes } from '../src/core/storage/domain/transport.js';
-import { __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { requestNativeDetail, requestNativeBatch } from '../src/shared/utils/nativeDetailTransport.js';
+import { isResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
+import { callDomainBroker, encodeBytes, decodeBytes } from '../src/l3a/domain/transport.js';
+import { __clearDomainMemory } from '../src/l3a/domain/domainStore.js';
 
 function opaqueCannotBecomeNative(raw: unknown): void {
     // @ts-expect-error Unknown input is not a typed native result.

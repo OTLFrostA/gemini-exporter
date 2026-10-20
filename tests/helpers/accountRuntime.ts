@@ -1,5 +1,5 @@
 import { beforeEach, afterEach } from 'node:test';
-import { invalidateAccountContext } from '../../src/content/accountContext.js';
+import { invalidateAccountContext } from '../../src/runtime/content/accountContext.js';
 
 export const ACCOUNT_UUID = '10000000-0000-4000-8000-000000000001';
 export const OTHER_ACCOUNT_UUID = '10000000-0000-4000-8000-000000000002';

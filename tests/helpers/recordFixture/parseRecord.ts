@@ -1,20 +1,20 @@
-import { semanticTitleSource } from '../../../src/core/parsers/shared/parseIndexMetadata.js';
-import { contentQuality, type ContentQuality } from '../../../src/core/parsers/qualityEvidence.js';
-import { parseIndexMetadata } from '../../../src/core/parsers/shared/parseIndexMetadata.js';
-import { normalizeConversationTimes } from '../../../src/core/domain/time.js';
+import { semanticTitleSource } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
+import { contentQuality, type ContentQuality } from '../../../src/l1/parsers/qualityEvidence.js';
+import { parseIndexMetadata } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
+import { normalizeConversationTimes } from '../../../src/l2/time.js';
 import { structuredBodyAttachments } from './contentAdapter.js';
-import { closeSourceCitations } from '../../../src/core/parsers/shared/resources/domainCitationAdapter.js';
-import { closeDomainResources } from '../../../src/core/parsers/shared/resources/domainResourceAdapter.js';
-import { resolveTitle, isTitleSource } from '../../../src/core/domain/titleAuthority.js';
-import { validateParserDomain } from '../../../src/core/domain/runtimeValidation.js';
-import type { BlockNode } from '../../../src/core/domain/content/blocks.js';
-import { parseImportedBody } from '../../../src/core/parsers/shared/importedContentAdapter.js';
-import { parseGeminiBody, parseSourceReasoning } from '../../../src/core/parsers/gemini/shared/contentAdapter.js';
+import { closeSourceCitations } from '../../../src/l1/parsers/shared/resources/domainCitationAdapter.js';
+import { closeDomainResources } from '../../../src/l1/parsers/shared/resources/domainResourceAdapter.js';
+import { resolveTitle, isTitleSource } from '../../../src/l2/titleAuthority.js';
+import { validateParserDomain } from '../../../src/l2/runtimeValidation.js';
+import type { BlockNode } from '../../../src/l2/content/blocks.js';
+import { parseImportedBody } from '../../../src/l1/parsers/shared/importedContentAdapter.js';
+import { parseGeminiBody, parseSourceReasoning } from '../../../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { supplementLegacyGeneratedMedia } from './generatedMediaReconciliation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
-import type { ConversationParseContext } from '../../../src/core/parsers/contracts.js';
+import type { ConversationParseContext } from '../../../src/l1/parsers/contracts.js';
 import type { DomainFixture } from '../domainFixture.js';
-import type { Diagnostic } from '../../../src/core/diagnostics/diagnostic.js';
+import type { Diagnostic } from '../../../src/shared/diagnostics/diagnostic.js';
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -22,7 +22,7 @@ import type {
     DomainCitation,
     DomainConversationDetail,
     DomainMessage,
-} from '../../../src/core/domain/conversationDetail.js';
+} from '../../../src/l2/conversationDetail.js';
 
 function copyAttachment(value: ConversationRecordAttachment): ConversationRecordAttachment {
     return { ...value, ...(value.generation ? { generation: { ...value.generation } } : {}) };
@@ -108,7 +108,7 @@ function flattenLegacyTurns(conversation: ConversationRecordInput): Conversation
 
 /** Provider evidence accepted only while constructing Domain. */
 export interface ConversationRecordParseContext extends ConversationParseContext {
-    account: import('../../../src/core/domain/accountRegistry.js').Account;
+    account: import('../../../src/l2/accountRegistry.js').Account;
     /** Detached Takeout/provider generated-media evidence, reconciled before returning Domain. */
     generatedMedia?: readonly unknown[];
     /** Migration coverage correction is applied before final schema validation. */

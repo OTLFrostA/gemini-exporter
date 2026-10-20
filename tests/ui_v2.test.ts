@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
-import { startSync } from '../src/ui/controllers/syncController.js';
-import { handleTakeoutImport } from '../src/ui/controllers/takeoutController.js';
-import { bindDelayedActions } from '../src/ui/tour/tourSteps.js';
-import { getLatestEligibleFeature } from '../src/ui/tour/featureReleases.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
+import { startSync } from '../src/ui/options/controllers/syncController.js';
+import { handleTakeoutImport } from '../src/ui/options/controllers/takeoutController.js';
+import { bindDelayedActions } from '../src/ui/guidance/tourSteps.js';
+import { getLatestEligibleFeature } from '../src/ui/guidance/featureReleases.js';
 
 const A = { id: '11111111-1111-4111-8111-111111111111', providerId: 'gemini', providerAccountId: 'A' };
 const B = { ...A, id: '22222222-2222-4222-8222-222222222222', providerAccountId: 'B' };

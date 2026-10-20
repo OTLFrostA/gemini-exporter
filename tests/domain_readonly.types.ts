@@ -1,9 +1,9 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import type { ReadonlyDomain, TrustedDomain } from '../src/core/domain/runtimeValidation.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { serializeDomainJson } from '../src/core/renderers/json/serializeDomainJson.js';
-import { contentComposer } from '../src/core/document/compose/composeContent.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { ReadonlyDomain, TrustedDomain } from '../src/l2/runtimeValidation.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
+import { contentComposer } from '../src/l3b/compose/composeContent.js';
 
 // These checks exercise the actual consumer signatures, including their nested fields.
 function consumerContract(input: Parameters<typeof composeDomainDocument>[0]) {

@@ -6,10 +6,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
-const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
-const I18n = require('../src/core/utils/i18n.js');
-const DialogView = require('../src/ui/views/dialogView.js');
+const TakeoutEngine = require('../src/l1/imports/takeoutEngine.js');
+const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
+const I18n = require('../src/shared/utils/i18n.js');
+const DialogView = require('../src/ui/options/views/dialogView.js');
 
 let originalJsZipDescriptor: PropertyDescriptor | undefined;
 test.beforeEach(() => { originalJsZipDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'JSZip'); });
@@ -210,7 +210,7 @@ test('dialogView - showTakeoutLimitPrompt differentiates between server limit an
 
 test('optionsTakeout - processTakeoutImport blocks concurrent imports with _isImporting lock', async () => {
     const OptionsTakeout = require('../src/ui/options/modules/optionsTakeout.js');
-    const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+    const { __setModuleOverride, __getModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
     const originalTakeoutOverride = __getModuleOverride('TakeoutController');
 
     assert.strictEqual(OptionsTakeout.isImporting(), false, 'Initially not importing');

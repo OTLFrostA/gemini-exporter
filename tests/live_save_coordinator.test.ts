@@ -7,7 +7,7 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const LiveSaveCoordinator = require('../src/content/liveSaveCoordinator.js');
+const LiveSaveCoordinator = require('../src/runtime/content/liveSaveCoordinator.js');
 
 test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async () => {
     let writtenFiles: Record<string, string> = {};
@@ -77,7 +77,7 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
     assert.strictEqual(exportedRecord.messageCount, 2);
     assert.strictEqual(exportedRecord.chatTime, 1710000000000);
     assert.strictEqual(exportedRecord.id, '9876543210abcdef');
-    const { checkIsUpdated } = require('../src/core/utils/titleUtils.js');
+    const { checkIsUpdated } = require('../src/shared/utils/titleUtils.js');
     assert.strictEqual(checkIsUpdated({ timestamp: 1710000000000, messageCount: 2 }, exportedRecord), false);
 
     // 1. Verify Disk FsWriter persistence with gemini_export folder and _cid6.md

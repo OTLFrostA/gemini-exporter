@@ -2,7 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { FsWriter } = require('../src/core/engine/writers/fsWriter.js');
+const { FsWriter } = require('../src/l4/delivery/writers/fsWriter.js');
 
 // FsWriter owns the folder, relative-path routing, writable lifecycle and bytes.
 // Conversation filename selection/cid6 is an upstream contract covered by

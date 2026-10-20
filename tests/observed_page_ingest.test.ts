@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
-import { ingestIndexes } from '../src/core/domain/ingestion.js';
-import { getCoverage, listIndexes } from '../src/core/storage/storageService.js';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
-import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
-import { init, handleWindowMessage } from '../src/content/messageBridge.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
+import { getCoverage, listIndexes } from '../src/l3a/storageService.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
+import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
+import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 
 const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, 'tC_tail', [
     ['c_abcdef123', 'Newest', null, null, null, [1700000020, 0]],

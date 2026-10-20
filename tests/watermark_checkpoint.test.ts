@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { getCoverage, recordPageCoverage, hasTrustedBoundary } from '../src/core/domain/coverageAdmission.js';
-import type { PageObservation } from '../src/core/domain/pageObservation.js';
+import { getCoverage, recordPageCoverage, hasTrustedBoundary } from '../src/l2/coverageAdmission.js';
+import type { PageObservation } from '../src/l2/pageObservation.js';
 const accountId = fixtureAccount().id;
 let time = 0;
 function page(cursor: string | null = null, next: string | null = null, values = [100, 70]): PageObservation<unknown> {

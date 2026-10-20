@@ -2,18 +2,18 @@ import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { useAccountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
-import { init, handleWindowMessage } from '../src/content/messageBridge.js';
-import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
-import { getDetail } from '../src/core/storage/storageService.js';
-import { getCoverage } from '../src/core/domain/coverageAdmission.js';
-import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
+import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { getDetail } from '../src/l3a/storageService.js';
+import { getCoverage } from '../src/l2/coverageAdmission.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 useIndexStorage(); useAccountRuntime(); beforeEach(() => { init(); });
 const list = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_bridge_chat_123', 'Title', null, null, null, [1700000000, 0]]]])]]);
 const detail = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_bridge_chat_123', 'r_1'], [1700000000, 0], [['Question']], [[['rc_1', [['Answer']]]]]]]])]]);
 function event(type: string, extra: Record<string, unknown> = {}): MessageEvent {
     return { origin: location.origin, source: window, data: { type, payload: { slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION, ...extra } } } as unknown as MessageEvent;
 }
-import { CrossWorldEvents } from '../src/core/protocol/protocol.js';
+import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
 function sourceCapture(text = list, extra: Record<string, unknown> = {}): MessageEvent {
     return event(CrossWorldEvents.NETWORK_BATCHEXECUTE, { text, url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute', requestedAt: Date.now(), truncated: false, ...extra });
 }

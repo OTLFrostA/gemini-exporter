@@ -1,9 +1,9 @@
 import { reset, state, events, key } from './helpers/applicationHarness.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runLiveSave } from '../src/background/liveSaveHandler.js';
-import { updateSettings, getSettings } from '../src/core/application/settings/index.js';
-import * as Directory from '../src/ui/controllers/dirHandleController.js';
+import { runLiveSave } from '../src/runtime/background/liveSaveHandler.js';
+import { updateSettings, getSettings } from '../src/application/settings/index.js';
+import * as Directory from '../src/runtime/capabilities/dirHandleController.js';
 let previousChrome:typeof chrome;
 test.beforeEach(()=>{reset();Directory.setDirHandle(null);previousChrome=globalThis.chrome;globalThis.chrome={runtime:{sendMessage:async()=>({ok:true})}} as unknown as typeof chrome;});
 test.afterEach(()=>{Directory.setDirHandle(null);globalThis.chrome=previousChrome;});

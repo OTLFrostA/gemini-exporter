@@ -16,7 +16,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseGeminiBody, parseSourceReasoning } = require('../src/core/parsers/gemini/shared/contentAdapter.js');
+const { parseGeminiBody, parseSourceReasoning } = require('../src/l1/parsers/gemini/shared/contentAdapter.js');
 
 test('Gemini interactive markup is removed by provider content adapter before source AST output', () => {
     const rawContent = [

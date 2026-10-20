@@ -3,10 +3,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const pathUtils = require('../src/core/utils/pathUtils.js');
-const titleUtils = require('../src/core/utils/titleUtils.js');
-const { mergeConversation } = require('../src/core/domain/indexCollection.js');
-const progressUtils = require('../src/core/utils/progressUtils.js');
+const pathUtils = require('../src/shared/utils/pathUtils.js');
+const titleUtils = require('../src/shared/utils/titleUtils.js');
+const { mergeConversation } = require('../src/l2/indexCollection.js');
+const progressUtils = require('../src/ui/shared/progressUtils.js');
 
 test('p1_h2 - P1-102: con.md is rewritten, not left as a reserved name', () => {
     const out = pathUtils.sanitizeFileName('con.md');
@@ -110,7 +110,7 @@ test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
 test('p1_h2 - P1-115: ZipWriter refuses beyond safe budget instead of warning', async () => {
     (globalThis as any).self = (globalThis as any).self || {};
     (globalThis as any).self.JSZip = (globalThis as any).self.JSZip || require('../lib/jszip.min.js');
-    const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
+    const { ZipWriter } = require('../src/l4/packaging/writers/zipWriter.js');
     const w = new ZipWriter();
     assert.throws(
         () => w.writeFile('big.bin', { byteLength: 300 * 1024 * 1024 } as any),
@@ -120,7 +120,7 @@ test('p1_h2 - P1-115: ZipWriter refuses beyond safe budget instead of warning', 
 
 // ---------- P1-116: FsWriter serializes same-path writes ----------
 test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', async () => {
-    const { FsWriter } = require('../src/core/engine/writers/fsWriter.js');
+    const { FsWriter } = require('../src/l4/delivery/writers/fsWriter.js');
     const events: string[] = [];
     const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
     // Tag writables by creation order to observe interleaving.
@@ -147,7 +147,7 @@ test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', a
 });
 
 test('p1_h2 - review fix (c): writeChains map does not grow without bound', async () => {
-    const { FsWriter } = require('../src/core/engine/writers/fsWriter.js');
+    const { FsWriter } = require('../src/l4/delivery/writers/fsWriter.js');
     const written: string[] = [];
     const fakeFile = () => ({
         createWritable: async () => ({

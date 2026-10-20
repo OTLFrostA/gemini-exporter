@@ -2,7 +2,7 @@ import test, { before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import { mount, read } from './helpers/uiPortHarness.js';
-import { STEPS } from '../src/ui/tour/tourSteps.js';
+import { STEPS } from '../src/ui/guidance/tourSteps.js';
 let browser: Browser, page: Page;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });

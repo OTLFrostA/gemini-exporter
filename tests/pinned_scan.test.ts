@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import { getCoverage } from '../src/core/domain/coverageAdmission.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { getCoverage } from '../src/l2/coverageAdmission.js';
 useIndexStorage();
 
 test('each Client call acquires exactly its requested stream with independent cursors', async () => {

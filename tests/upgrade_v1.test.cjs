@@ -1,8 +1,8 @@
 const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { IDBFactory, IDBDatabase, IDBObjectStore } = require('fake-indexeddb');
-const { ensureUpgraded } = require('../src/core/migration/upgradeV1.ts');
-const storage = require('../src/core/storage/storageService.ts');
+const { ensureUpgraded } = require('../src/migration/upgradeV1.ts');
+const storage = require('../src/l3a/storageService.ts');
 const marker = 'gemini_exporter_v2_initialized';
 const settingsKey = 'gemini_exporter_v2_settings';
 const a = { id: '12345678-1234-4234-8234-123456789abc', providerId: 'gemini', providerAccountId: 'one' };

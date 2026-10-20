@@ -3,20 +3,20 @@ import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
-import type { SourceResourceContext } from '../src/core/provider/sourceResources.js';
-import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
-import * as storage from '../src/core/storage/storageService.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { getOrCreateAccount } from '../src/core/domain/accountAdmission.js';
-import { readConversation } from '../src/core/domain/readConversation.js';
-import { ingestDetail, ingestIndexes } from '../src/core/domain/ingestion.js';
-import { scanAll } from '../src/core/application/sync/scanController.js';
-import { clearLocalExportRecords, clearLocalScanRecords } from '../src/core/application/localCleanup.js';
-import { getSettings, updateSettings } from '../src/core/application/settings/index.js';
-import { getAccount, listAccounts } from '../src/core/api/accountRegistry.js';
-import { __setModuleOverride } from '../src/core/utils/moduleOverrides.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
+import type { SourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import type { GeminiProviderClient } from '../src/l1/client/gemini/geminiContracts.js';
+import * as storage from '../src/l3a/storageService.js';
+import type { DomainConversationDetail } from '../src/l2/conversationDetail.js';
+import { getOrCreateAccount } from '../src/l2/accountAdmission.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
+import { scanAll } from '../src/application/sync/scanController.js';
+import { clearLocalExportRecords, clearLocalScanRecords } from '../src/application/localCleanup.js';
+import { getSettings, updateSettings } from '../src/application/settings/index.js';
+import { getAccount, listAccounts } from '../src/runtime/api/accountRegistry.js';
+import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 const account = fixtureAccount();
@@ -24,14 +24,14 @@ const key = { accountId: account.id, conversationId: 'source_chat_123' };
 let client: GeminiProviderClient;
 const contexts: SourceResourceContext[] = [];
 // Inject only the network/route construction, retaining the real L1 provider and all downstream modules.
-const filename = require.resolve('../src/core/provider/taskProvider.js');
+const filename = require.resolve('../src/l1/client/taskProvider.js');
 require.cache[filename] = { id: filename, filename, loaded: true, exports: {
     createTaskProvider(_id: string, resources: SourceResourceContext) {
         contexts.push(resources);
         return new GeminiProvider(client, async () => 'u0', resources);
     }
 } } as NodeModule;
-const { runExport }: typeof import('../src/core/application/export/runExport.js') = require('../src/core/application/export/runExport.js');
+const { runExport }: typeof import('../src/application/export/runExport.js') = require('../src/application/export/runExport.js');
 
 function environment() {
     const env = indexStorage();

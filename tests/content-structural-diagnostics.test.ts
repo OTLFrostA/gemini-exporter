@@ -1,12 +1,12 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 test('nested resource references are checked before composition; unavailable bytes are backend diagnostics', () => {
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('conversation'), 'test'),   titleSource: "derived",   title: 'Nested' }, detail: { key: fixtureKey(String('conversation'), 'test'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'message', role: 'assistant', content: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [{ type: 'image', assetId: 'missing', alt: 'Nested figure' }] }] }] }] }] } };
     assert.throws(() => assertDomainClosure((domain).detail), /Unregistered Domain asset 'missing' in messages\[0\]/);

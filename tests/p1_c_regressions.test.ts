@@ -1,7 +1,7 @@
 import { bindTabAccounts } from './helpers/tabAccounts.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { sourceDetail } from './helpers/l1SourceFixture.js';
 useIndexStorage();
 export {};
@@ -11,18 +11,18 @@ const assert = require('node:assert');
 // P1-C 组「取消/超时/退避逻辑缺陷」回归测试（P1-031~035、P1-038~042）
 // 运行：node -r ./tests/ts_register.js --test tests/p1_c_regressions.test.ts
 
-const { handleHttp429, interruptibleSleep, parseRetryAfterMs } = require('../src/core/api/client/retryPolicy.js');
-const rpcClientMod = require('../src/core/api/client/rpcClient.js');
-const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
-const paginationMod = require('../src/core/api/client/pagination.js');
+const { handleHttp429, interruptibleSleep, parseRetryAfterMs } = require('../src/l1/client/gemini/api/retryPolicy.js');
+const rpcClientMod = require('../src/l1/client/gemini/api/rpcClient.js');
+const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
+const paginationMod = require('../src/l1/client/gemini/api/pagination.js');
 // tabService.ts 以 `module.exports = TabService` 结尾覆盖了 esbuild 的具名导出，
 // ts_register 的 CJS 转译下 `import { TabService }` 会拿到 undefined（生产 bundle
 // 走 ESM 静态链接不受影响）。测试内给 require 缓存打补丁，仅用于测试。
-const tabServiceMod: any = require('../src/core/utils/tabService.js');
+const tabServiceMod: any = require('../src/runtime/capabilities/tabService.js');
 if (tabServiceMod && !tabServiceMod.TabService) tabServiceMod.TabService = tabServiceMod;
-const { withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
-const { waitForResources, attemptResource } = require('../src/core/resources/resourceResult.js');
-const { acquireSourceResource } = require('../src/core/provider/sourceResources.js');
+const { withRateLimitRetry } = require('../src/l1/client/rateLimiter.js');
+const { waitForResources, attemptResource } = require('../src/shared/resources/resourceResult.js');
+const { acquireSourceResource } = require('../src/l1/resources/sourceResources.js');
 // The retired asset pipeline belongs to the unselected runtime cases below.
 
 // ---------------------------------------------------------------------------

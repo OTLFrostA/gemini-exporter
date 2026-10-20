@@ -1,13 +1,13 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import type { DocumentAst } from '../src/core/document/ast/ast.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { DocumentAst } from '../src/l3b/ast/ast.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 
 const time = Date.parse('2026-10-06T00:00:00Z');
 function fixture(): DomainConversationWithDetail {
@@ -62,7 +62,7 @@ test('Markdown renderer owns unavailability and emits diagnostics without remote
 });
 
 test('Markdown renderer cannot depend on provider, Domain or storage services', () => {
-    const code = readFileSync('src/core/renderers/markdown/renderMarkdown.ts', 'utf8');
+    const code = readFileSync('src/l4/format/markdown/renderMarkdown.ts', 'utf8');
     // This is a module-boundary policy, not a check for literal words or function names.
     const dependencies = [...code.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map(match => match[1]);
     assert.ok(dependencies.length > 0, 'module import scan must find the real renderer dependencies');

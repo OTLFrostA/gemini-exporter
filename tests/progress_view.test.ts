@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mount } from './helpers/uiPortHarness.js';
-import { errorText } from '../src/ui/utils/settings.js';
+import { errorText } from '../src/ui/shared/settings.js';
 
 test('headless UI status helpers preserve errors without requiring a DOM', () => {
     assert.equal(errorText(new Error('Offline')), 'Offline'); assert.equal(errorText('Aborted'), 'Aborted');

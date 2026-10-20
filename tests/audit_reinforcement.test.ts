@@ -20,7 +20,7 @@ test('L2 rejects fat metadata without changing stored indexes', async () => {
     const { indexStorage } = require('./helpers/indexStorage.js');
     const env = indexStorage();
     try {
-        const { ingestIndexes } = require('../src/core/domain/ingestion.js');
+        const { ingestIndexes } = require('../src/l2/ingestion.js');
         await assert.rejects(ingestIndexes('10000000-0000-4000-8000-000000000001', [{ conversationId: 'chat', fields: { title: 'Research', titleSource: 'provider', messages: [] } }]), /index schema/);
         assert.equal(env.writes(), 0);
     } finally { env.restore(); }
@@ -28,7 +28,7 @@ test('L2 rejects fat metadata without changing stored indexes', async () => {
 
 // 2. Takeout MediaIndex Strict Slot Isolation Verification
 test('mediaIndex: strict slot isolation prevents cross-account data corruption', () => {
-    const MediaIndex = require('../src/core/resources/takeout/mediaIndex.js');
+    const MediaIndex = require('../src/shared/resources/takeout/mediaIndex.js');
     try {
 
     // Commit takeout data for Slot u0
@@ -72,7 +72,7 @@ test('mediaIndex: strict slot isolation prevents cross-account data corruption',
 
 // 3. Pagination Token Loop Guard Verification
 test('pagination: getAllConversations detects token loop and terminates safely', async () => {
-    const Pagination = require('../src/core/api/client/pagination.js');
+    const Pagination = require('../src/l1/client/gemini/api/pagination.js');
 
     // Create a mock client that returns a repeating nextPageToken
     let callCount = 0;

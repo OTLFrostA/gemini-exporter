@@ -1,5 +1,5 @@
-import type { PageObservation } from '../src/core/domain/pageObservation.js';
-import type { ingestIndexes } from '../src/core/domain/ingestion.js';
+import type { PageObservation } from '../src/l2/pageObservation.js';
+import type { ingestIndexes } from '../src/l2/ingestion.js';
 const keys = [{ id: 'source', time: 100 }] as const;
 const items = [{ conversationId: 'source', fields: {} }] as const;
 const observation: PageObservation<(typeof items)[number]> = {

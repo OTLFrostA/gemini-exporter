@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { ingestIndexes } from '../src/core/domain/ingestion.js';
-import { getIndex, listIndexes } from '../src/core/storage/storageService.js';
-import { mergeConversationIndex } from '../src/core/domain/conversationIndex.js';
-import { conversationKey } from '../src/core/domain/conversationKey.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
+import { getIndex, listIndexes } from '../src/l3a/storageService.js';
+import { mergeConversationIndex } from '../src/l2/conversationIndex.js';
+import { conversationKey } from '../src/l2/conversationKey.js';
 useIndexStorage();
 const accountId = '10000000-0000-4000-8000-000000000001';
 const key = (id: string) => conversationKey(accountId, id);

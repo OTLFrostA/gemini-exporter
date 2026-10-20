@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
-import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
-import type { ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { scanAll, type ScanProgress } from '../src/core/application/sync/scanController.js';
-import { ingestIndexes } from '../src/core/domain/ingestion.js';
-import { listIndexes, getCoverage, putExportRecord, getExportRecord } from '../src/core/storage/storageService.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
+import type { GeminiProviderClient } from '../src/l1/client/gemini/geminiContracts.js';
+import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { scanAll, type ScanProgress } from '../src/application/sync/scanController.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
+import { listIndexes, getCoverage, putExportRecord, getExportRecord } from '../src/l3a/storageService.js';
 
 // Former syncEngine/checkpoint/receipt contracts are replaced by committed L1
 // pages, L2 facts, and the current Scan controller. Badge rendering is a UI owner.

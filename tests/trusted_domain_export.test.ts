@@ -3,11 +3,11 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { preparePdfItem, pdfDomainSelection } from './helpers/pdfAcquisitionFixture.js';
 import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 
 function rawIsNotExportable(raw: DomainConversationWithDetail): void {
     // @ts-expect-error Builders must establish trust at their source.

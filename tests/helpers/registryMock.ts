@@ -1,4 +1,4 @@
-import type { Account } from '../../src/core/domain/accountRegistry.js';
+import type { Account } from '../../src/l2/accountRegistry.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountRuntime.js';
 
 /** Explicit fixture Accounts, shared by storage-only chrome mocks. */

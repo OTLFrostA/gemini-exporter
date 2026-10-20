@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
-import { readGeminiListRequest } from '../src/core/parsers/gemini/rpc/listRequest.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
+import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
 const wire = (rows: unknown[], token: string | null = null) => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, token, rows])]]);
 const row = (id: string, seconds: number) => ['c_' + id, id, null, null, null, [seconds, 0]];
 const body = (filter: unknown, cursor: unknown = null) => new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([50, cursor, filter]), null, 'generic']]]) }).toString();

@@ -1,11 +1,11 @@
 import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import * as DomainAdmission from '../src/l2/ingestion.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { sourceIndex } from './helpers/domainFixture.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+import { StorageService as catalogStorage } from '../src/l3a/storageService.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
@@ -17,7 +17,7 @@ const assert = require('node:assert');
 const { ExportOrchestrator, AsyncQueue } = require('../src/core/engine/export/exportOrchestrator.js');
 const { BatchWorker, formatDebugInfo } = require('../src/core/engine/export/batchWorker.js');
 const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
-const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
 // AsyncQueue
@@ -594,7 +594,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
         assert.strictEqual(finalizedEvents[0].rec.chatTime, tUpdate, 'record.chatTime must use effective timestamp (updatedAt), not stale creation timestamp');
         assert.strictEqual(savedRecords['chat_with_img']?.chatTime, tUpdate);
 
-        const { checkIsUpdated } = require('../src/core/utils/titleUtils.js');
+        const { checkIsUpdated } = require('../src/shared/utils/titleUtils.js');
         assert.strictEqual(
             checkIsUpdated(conversations[0], finalizedEvents[0].rec),
             false,
@@ -812,7 +812,7 @@ test('BatchWorker - accepts typed native results; storage rejects a mutated grap
 
 test('ExportOrchestrator - uses native envelope bodies and reports missing bodies', async () => {
     for (const mode of ['envelope', 'missing', 'falsy-first']) {
-        require('../src/core/storage/domain/domainStore.js').__clearDomainMemory();
+        require('../src/l3a/domain/domainStore.js').__clearDomainMemory();
         const useEnvelopeChat = mode === 'envelope';
         setupMockJSZip();
         setupMockStorage();
@@ -918,7 +918,7 @@ test('ExportOrchestrator - queues image and file attachments while preserving im
 
 test('all ordinary formats use completion for both records and meta, including fallback sources', async () => {
     const { rpcFixture } = require('./helpers/nativeFixture.js');
-    const store = require('../src/core/storage/domain/domainStore.js');
+    const store = require('../src/l3a/domain/domainStore.js');
     for (const format of ['markdown', 'html', 'json']) {
         for (const scenario of ['clean', 'partial', 'rejected', 'truncated', 'warning', 'heuristic', 'assets-disabled', 'takeout', 'snapshot', 'deleted', 'empty', 'fetch-failed', 'write-failed']) {
             const id = `integrity-${scenario}`;
@@ -928,7 +928,7 @@ test('all ordinary formats use completion for both records and meta, including f
                 isTruncated: scenario === 'truncated',
             }, { turnsRejected: scenario === 'rejected' ? 1 : 0, schemaDrift: scenario === 'warning' ? ['benign'] : [] });
             if (scenario === 'heuristic') {
-                const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
+                const { validateParserDomain } = require('../src/l2/runtimeValidation.js');
                 parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { key: fixtureKey(), ...parsed.conversation.detail,
                     quality: { status: 'partial' },
                     assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated' } }],
@@ -979,9 +979,9 @@ test('all ordinary formats use completion for both records and meta, including f
 });
 
 test('ZIP delivery with stub generator preserves real Storage, UI, counts and retry across failure stages', async () => {
-    const Storage = require('../src/core/storage/storageService.js');
-    const { SessionStore } = require('../src/core/storage/sessionStore.js');
-    const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const Storage = require('../src/l3a/storageService.js');
+    const { SessionStore } = require('../src/l3a/sessionStore.js');
+    const { __clearModuleOverrides } = require('../src/shared/utils/moduleOverrides.js');
     const previousChrome = Reflect.get(globalThis, 'chrome');
     for (const format of ['markdown', 'html', 'json']) {
         for (const failure of ['none', 'generate', 'download-throw', 'download-reject', 'missing-handler', 'cancel-generate', 'cancel-download', 'index', 'meta', 'storage', 'item']) {
@@ -1118,7 +1118,7 @@ test('ZIP delivery with stub generator preserves real Storage, UI, counts and re
 test('ZIP finalize returning false does not count a newly completed record', async () => {
     const recovery = require('../src/core/engine/export/sessionRecovery.js').default;
     const finalize = recovery.finalizeChatExport;
-    const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const { __clearModuleOverrides } = require('../src/shared/utils/moduleOverrides.js');
     setupMockJSZip();
     const { savedRecords } = setupMockStorage();
     recovery.finalizeChatExport = async () => false;

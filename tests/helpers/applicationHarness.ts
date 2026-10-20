@@ -1,12 +1,12 @@
-import type { ConversationKey } from '../../src/core/domain/conversationKey.js';
-import type { DomainConversationIndex } from '../../src/core/domain/conversationIndex.js';
-import type { TrustedDomainBody } from '../../src/core/domain/runtimeValidation.js';
-import { restoreDomainDetail } from '../../src/core/domain/runtimeValidation.js';
-import type { ExportRecord, ExportRequest } from '../../src/core/application/export/types.js';
-import type { GlobalSettings } from '../../src/core/application/settings/index.js';
-import type { AIProvider } from '../../src/core/provider/aiProvider.js';
-import type { ExportArtifact } from '../../src/core/export/artifacts.js';
-import type { SourceResourceContext } from '../../src/core/provider/sourceResources.js';
+import type { ConversationKey } from '../../src/l2/conversationKey.js';
+import type { DomainConversationIndex } from '../../src/l2/conversationIndex.js';
+import type { TrustedDomainBody } from '../../src/l2/runtimeValidation.js';
+import { restoreDomainDetail } from '../../src/l2/runtimeValidation.js';
+import type { ExportRecord, ExportRequest } from '../../src/application/export/types.js';
+import type { GlobalSettings } from '../../src/application/settings/index.js';
+import type { AIProvider } from '../../src/l1/client/aiProvider.js';
+import type { ExportArtifact } from '../../src/l4/artifacts.js';
+import type { SourceResourceContext } from '../../src/l1/resources/sourceResources.js';
 
 // Unit tests isolate IO at the public contract. The six-module integration suite
 // separately exercises the production IndexedDB backend.
@@ -84,10 +84,10 @@ const storage = {
         events.push('settings-write'); settings = { ...settings, ...patch };
     },
 };
-stubModule('../../src/core/storage/storageService.js', storage);
-stubModule('../../src/core/api/accountRegistry.js', { async getAccount(id: string) { return { ...account, id }; } });
-stubModule('../../src/core/provider/providerRegistry.js', { ProviderRegistry: { get() { return provider; }, register() {}, setDefaultProviderId() {} } });
-stubModule('../../src/core/provider/taskProvider.js', {
+stubModule('../../src/l3a/storageService.js', storage);
+stubModule('../../src/runtime/api/accountRegistry.js', { async getAccount(id: string) { return { ...account, id }; } });
+stubModule('../../src/l1/client/providerRegistry.js', { ProviderRegistry: { get() { return provider; }, register() {}, setDefaultProviderId() {} } });
+stubModule('../../src/l1/client/taskProvider.js', {
     createTaskProvider(_providerId: string, resources: SourceResourceContext): AIProvider {
         contexts.push(resources);
         state.sourceContext = resources;
@@ -99,15 +99,15 @@ async function deliver(files: readonly ExportArtifact[]) {
     if (state.failDelivery === deliveries.length) throw new Error('delivery failed');
     state.onDelivery?.();
 }
-stubModule('../../src/core/export/delivery/index.js', { startBrowserDownload: (file: ExportArtifact) => deliver([file]), writeToFolder: deliver });
-stubModule('../../src/core/export/pdf/compileDocumentPdf.js', { async compileDocumentPdf(_doc: unknown, bindings: Readonly<Record<string, string>>, prepared: ReadonlyMap<string, unknown>) {
+stubModule('../../src/l4/delivery/index.js', { startBrowserDownload: (file: ExportArtifact) => deliver([file]), writeToFolder: deliver });
+stubModule('../../src/l4/format/pdf/compileDocumentPdf.js', { async compileDocumentPdf(_doc: unknown, bindings: Readonly<Record<string, string>>, prepared: ReadonlyMap<string, unknown>) {
     state.pdfPrepared = [...prepared.keys()]; state.pdfBindings = bindings;
     return { pdfBytes: new Uint8Array([37, 80, 68, 70]), diagnostics: [] };
 } });
-stubModule('../../src/core/export/typst/typstSandboxCompiler.js', { TypstSandboxCompiler: class { dispose() { state.disposed++; } } });
-stubModule('../../src/core/export/typst/fonts/localFontProvider.js', { async resolveLocalFonts() { return {}; } });
-stubModule('../../src/core/export/typst/fonts/mountRuntimeFonts.js', { async mountRuntimeFonts() { return { effectiveFonts: { diagnostics: [] } }; } });
-const { __setModuleOverride } = require('../../src/core/utils/moduleOverrides.js');
+stubModule('../../src/l4/format/pdf/typst/typstSandboxCompiler.js', { TypstSandboxCompiler: class { dispose() { state.disposed++; } } });
+stubModule('../../src/l4/format/pdf/typst/fonts/localFontProvider.js', { async resolveLocalFonts() { return {}; } });
+stubModule('../../src/l4/format/pdf/typst/fonts/mountRuntimeFonts.js', { async mountRuntimeFonts() { return { effectiveFonts: { diagnostics: [] } }; } });
+const { __setModuleOverride } = require('../../src/shared/utils/moduleOverrides.js');
 __setModuleOverride('JSZip', require('../../lib/jszip.min.js'));
 
 export function seed(id = 'first', options: { updatedAt?: number; savedAt?: number; quality?: 'complete' | 'partial' | 'unknown'; assets?: boolean } = {}) {

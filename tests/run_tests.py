@@ -258,55 +258,55 @@ def test_javascript_unit_tests(target_tests=None):
 
             preload_js = []
             for mod_path, mod_id in [
-                ("src/core/utils/utils.js", "../src/core/utils/utils.js"),
-                ("src/core/utils/utils.js", "./src/core/utils/utils.js"),
-                ("src/core/utils/utils.js", "./utils.js"),
-                ("src/core/utils/utils.js", "../utils.js"),
-                ("src/core/parsers/gemini/rpc/extractors.js", "./parser/extractors.js"),
-                ("src/core/parsers/gemini/rpc/extractors.js", "./extractors.js"),
-                ("src/core/parsers/gemini/rpc/extractors.js", "../src/core/parsers/gemini/rpc/extractors.js"),
+                ("src/shared/utils/utils.js", "../src/shared/utils/utils.js"),
+                ("src/shared/utils/utils.js", "./src/shared/utils/utils.js"),
+                ("src/shared/utils/utils.js", "./utils.js"),
+                ("src/shared/utils/utils.js", "../utils.js"),
+                ("src/l1/parsers/gemini/rpc/extractors.js", "./parser/extractors.js"),
+                ("src/l1/parsers/gemini/rpc/extractors.js", "./extractors.js"),
+                ("src/l1/parsers/gemini/rpc/extractors.js", "../src/l1/parsers/gemini/rpc/extractors.js"),
                 ("tests/helpers/recordFixture/attachments.js", "./parser/attachments.js"),
                 ("tests/helpers/recordFixture/attachments.js", "./attachments.js"),
                 ("tests/helpers/recordFixture/attachments.js", "./helpers/recordFixture/attachments.js"),
-                ("src/core/parsers/gemini/rpc/parseList.js", "./parser/parseList.js"),
-                ("src/core/parsers/gemini/rpc/parseList.js", "./parseList.js"),
-                ("src/core/parsers/gemini/rpc/parseList.js", "../src/core/parsers/gemini/rpc/parseList.js"),
-                ("src/core/api/client/credentialManager.js", "./client/credentialManager.js"),
-                ("src/core/api/client/credentialManager.js", "./credentialManager.js"),
-                ("src/core/api/client/credentialManager.js", "../src/core/api/client/credentialManager.js"),
-                ("src/core/api/client/retryPolicy.js", "./client/retryPolicy.js"),
-                ("src/core/api/client/retryPolicy.js", "./retryPolicy.js"),
-                ("src/core/api/client/retryPolicy.js", "../src/core/api/client/retryPolicy.js"),
-                ("src/core/api/client/rpcClient.js", "./client/rpcClient.js"),
-                ("src/core/api/client/rpcClient.js", "./rpcClient.js"),
-                ("src/core/api/client/rpcClient.js", "../src/core/api/client/rpcClient.js"),
-                ("src/core/api/client/pagination.js", "./client/pagination.js"),
-                ("src/core/api/client/pagination.js", "./pagination.js"),
-                ("src/core/api/client/pagination.js", "../src/core/api/client/pagination.js"),
-                ("src/core/api/geminiClient.js", "../src/core/api/geminiClient.js"),
-                ("src/core/api/geminiClient.js", "./src/core/api/geminiClient.js"),
-                ("src/core/api/geminiClient.js", "./geminiClient.js"),
+                ("src/l1/parsers/gemini/rpc/parseList.js", "./parser/parseList.js"),
+                ("src/l1/parsers/gemini/rpc/parseList.js", "./parseList.js"),
+                ("src/l1/parsers/gemini/rpc/parseList.js", "../src/l1/parsers/gemini/rpc/parseList.js"),
+                ("src/l1/client/gemini/api/credentialManager.js", "./client/credentialManager.js"),
+                ("src/l1/client/gemini/api/credentialManager.js", "./credentialManager.js"),
+                ("src/l1/client/gemini/api/credentialManager.js", "../src/l1/client/gemini/api/credentialManager.js"),
+                ("src/l1/client/gemini/api/retryPolicy.js", "./client/retryPolicy.js"),
+                ("src/l1/client/gemini/api/retryPolicy.js", "./retryPolicy.js"),
+                ("src/l1/client/gemini/api/retryPolicy.js", "../src/l1/client/gemini/api/retryPolicy.js"),
+                ("src/l1/client/gemini/api/rpcClient.js", "./client/rpcClient.js"),
+                ("src/l1/client/gemini/api/rpcClient.js", "./rpcClient.js"),
+                ("src/l1/client/gemini/api/rpcClient.js", "../src/l1/client/gemini/api/rpcClient.js"),
+                ("src/l1/client/gemini/api/pagination.js", "./client/pagination.js"),
+                ("src/l1/client/gemini/api/pagination.js", "./pagination.js"),
+                ("src/l1/client/gemini/api/pagination.js", "../src/l1/client/gemini/api/pagination.js"),
+                ("src/l1/client/gemini/geminiClient.js", "../src/l1/client/gemini/geminiClient.js"),
+                ("src/l1/client/gemini/geminiClient.js", "./src/l1/client/gemini/geminiClient.js"),
+                ("src/l1/client/gemini/geminiClient.js", "./geminiClient.js"),
                 ("utils.js", "../utils.js"),
                 ("utils.js", "./utils.js"),
                 ("src/core/constants.js", "../src/core/constants.js"),
                 ("src/core/constants.js", "./constants.js"),
                 ("src/core/tabService.js", "../src/core/tabService.js"),
-                ("src/core/engine/writers/zipWriter.js", "../src/core/engine/writers/zipWriter.js"),
-                ("src/core/engine/writers/fsWriter.js", "../src/core/engine/writers/fsWriter.js"),
-                ("src/core/engine/writers/writerInterface.js", "../src/core/engine/writers/writerInterface.js"),
+                ("src/l4/packaging/writers/zipWriter.js", "../src/l4/packaging/writers/zipWriter.js"),
+                ("src/l4/delivery/writers/fsWriter.js", "../src/l4/delivery/writers/fsWriter.js"),
+                ("src/l4/delivery/writers/writerInterface.js", "../src/l4/delivery/writers/writerInterface.js"),
                 ("src/core/engine/chatFormatter.js", "../src/core/engine/chatFormatter.js"),
-                ("src/core/imports/takeout/zipBombGuard.js", "./takeout/zipBombGuard.js"),
-                ("src/core/imports/takeout/zipBombGuard.js", "./zipBombGuard.js"),
-                ("src/core/imports/takeout/zipBombGuard.js", "../src/core/imports/takeout/zipBombGuard.js"),
-                ("src/core/resources/takeout/mediaIndex.js", "./takeout/mediaIndex.js"),
-                ("src/core/resources/takeout/mediaIndex.js", "./mediaIndex.js"),
-                ("src/core/resources/takeout/mediaIndex.js", "../src/core/resources/takeout/mediaIndex.js"),
-                ("src/core/imports/takeout/importTakeout.js", "./takeout/takeoutParser.js"),
-                ("src/core/imports/takeout/importTakeout.js", "./takeoutParser.js"),
-                ("src/core/imports/takeout/importTakeout.js", "../src/core/imports/takeout/importTakeout.js"),
-                ("src/core/engine/takeoutEngine.js", "../src/core/engine/takeoutEngine.js"),
-                ("src/core/engine/takeoutEngine.js", "./src/core/engine/takeoutEngine.js"),
-                ("src/core/engine/takeoutEngine.js", "./takeoutEngine.js"),
+                ("src/l1/imports/takeout/zipBombGuard.js", "./takeout/zipBombGuard.js"),
+                ("src/l1/imports/takeout/zipBombGuard.js", "./zipBombGuard.js"),
+                ("src/l1/imports/takeout/zipBombGuard.js", "../src/l1/imports/takeout/zipBombGuard.js"),
+                ("src/shared/resources/takeout/mediaIndex.js", "./takeout/mediaIndex.js"),
+                ("src/shared/resources/takeout/mediaIndex.js", "./mediaIndex.js"),
+                ("src/shared/resources/takeout/mediaIndex.js", "../src/shared/resources/takeout/mediaIndex.js"),
+                ("src/l1/imports/takeout/importTakeout.js", "./takeout/takeoutParser.js"),
+                ("src/l1/imports/takeout/importTakeout.js", "./takeoutParser.js"),
+                ("src/l1/imports/takeout/importTakeout.js", "../src/l1/imports/takeout/importTakeout.js"),
+                ("src/l1/imports/takeoutEngine.js", "../src/l1/imports/takeoutEngine.js"),
+                ("src/l1/imports/takeoutEngine.js", "./src/l1/imports/takeoutEngine.js"),
+                ("src/l1/imports/takeoutEngine.js", "./takeoutEngine.js"),
                 ("src/core/engine/export/progressReporter.js", "./export/progressReporter.js"),
                 ("src/core/engine/export/progressReporter.js", "./progressReporter.js"),
                 ("src/core/engine/export/progressReporter.js", "../src/core/engine/export/progressReporter.js"),
@@ -316,36 +316,36 @@ def test_javascript_unit_tests(target_tests=None):
                 ("src/core/engine/export/batchWorker.js", "./export/batchWorker.js"),
                 ("src/core/engine/export/batchWorker.js", "./batchWorker.js"),
                 ("src/core/engine/export/batchWorker.js", "../src/core/engine/export/batchWorker.js"),
-                ("src/core/engine/export/rateLimiter.js", "./export/rateLimiter.js"),
-                ("src/core/engine/export/rateLimiter.js", "./rateLimiter.js"),
-                ("src/core/engine/export/rateLimiter.js", "../src/core/engine/export/rateLimiter.js"),
+                ("src/l1/client/rateLimiter.js", "./export/rateLimiter.js"),
+                ("src/l1/client/rateLimiter.js", "./rateLimiter.js"),
+                ("src/l1/client/rateLimiter.js", "../src/l1/client/rateLimiter.js"),
                 ("src/core/engine/export/exportOrchestrator.js", "./export/exportOrchestrator.js"),
                 ("src/core/engine/export/exportOrchestrator.js", "./exportOrchestrator.js"),
                 ("src/core/engine/export/exportOrchestrator.js", "../src/core/engine/export/exportOrchestrator.js"),
-                ("src/core/engine/exportEngine.js", "../src/core/engine/exportEngine.js"),
-                ("src/core/engine/exportEngine.js", "./src/core/engine/exportEngine.js"),
-                ("src/core/engine/exportEngine.js", "./exportEngine.js"),
+                ("src/application/exportEngine.js", "../src/application/exportEngine.js"),
+                ("src/application/exportEngine.js", "./src/application/exportEngine.js"),
+                ("src/application/exportEngine.js", "./exportEngine.js"),
                 ("src/core/exporter/zipWriter.js", "../src/core/exporter/zipWriter.js"),
                 ("src/core/exporter/fsWriter.js", "../src/core/exporter/fsWriter.js"),
-                ("src/ui/state/conversationsStore.js", "../src/ui/state/conversationsStore.js"),
-                ("src/ui/views/listView.js", "../src/ui/views/listView.js"),
-                ("src/ui/views/logView.js", "../src/ui/views/logView.js"),
-                ("src/ui/views/accountView.js", "../src/ui/views/accountView.js"),
-                ("src/ui/views/dialogView.js", "../src/ui/views/dialogView.js"),
-                ("src/ui/controllers/dirHandleController.js", "../src/ui/controllers/dirHandleController.js"),
-                ("src/ui/controllers/takeoutController.js", "../src/ui/controllers/takeoutController.js"),
-                ("src/ui/controllers/syncController.js", "../src/ui/controllers/syncController.js"),
-                ("src/ui/controllers/exportController.js", "../src/ui/controllers/exportController.js"),
+                ("src/ui/options/state/conversationsStore.js", "../src/ui/options/state/conversationsStore.js"),
+                ("src/ui/options/views/listView.js", "../src/ui/options/views/listView.js"),
+                ("src/ui/options/views/logView.js", "../src/ui/options/views/logView.js"),
+                ("src/ui/options/views/accountView.js", "../src/ui/options/views/accountView.js"),
+                ("src/ui/options/views/dialogView.js", "../src/ui/options/views/dialogView.js"),
+                ("src/runtime/capabilities/dirHandleController.js", "../src/runtime/capabilities/dirHandleController.js"),
+                ("src/ui/options/controllers/takeoutController.js", "../src/ui/options/controllers/takeoutController.js"),
+                ("src/ui/options/controllers/syncController.js", "../src/ui/options/controllers/syncController.js"),
+                ("src/ui/options/controllers/exportController.js", "../src/ui/options/controllers/exportController.js"),
                 ("storage_service.js", "../storage_service.js"),
                 ("chat_formatter.js", "../chat_formatter.js"),
                 ("gemini_parser.js", "../gemini_parser.js"),
                 ("takeout_engine.js", "../takeout_engine.js"),
-                ("src/core/utils/locales/zh.js", "./locales/zh.js"),
-                ("src/core/utils/locales/en.js", "./locales/en.js"),
-                ("src/core/utils/locales/zh.js", "../src/core/utils/locales/zh.js"),
-                ("src/core/utils/locales/en.js", "../src/core/utils/locales/en.js"),
-                ("src/core/utils/i18n.js", "../src/core/utils/i18n.js"),
-                ("src/core/utils/i18n.js", "./i18n.js"),
+                ("src/shared/utils/locales/zh.js", "./locales/zh.js"),
+                ("src/shared/utils/locales/en.js", "./locales/en.js"),
+                ("src/shared/utils/locales/zh.js", "../src/shared/utils/locales/zh.js"),
+                ("src/shared/utils/locales/en.js", "../src/shared/utils/locales/en.js"),
+                ("src/shared/utils/i18n.js", "../src/shared/utils/i18n.js"),
+                ("src/shared/utils/i18n.js", "./i18n.js"),
                 ("i18n.js", "../i18n.js")
             ]:
                 full_p = os.path.join(BASE_DIR, mod_path)
@@ -376,7 +376,7 @@ def test_javascript_unit_tests(target_tests=None):
             print(f"  ✓ Unit test suite passed: {rel}")
 
 def test_content_badge_flicker_prevention():
-    css_path = os.path.join(BASE_DIR, "src/content/content.css")
+    css_path = os.path.join(BASE_DIR, "src/ui/badge/content.css")
     with open(css_path, "r", encoding="utf-8") as f:
         css = f.read()
     assert "white-space: nowrap" in css, "content.css should prevent badge text wrapping"
@@ -384,29 +384,29 @@ def test_content_badge_flicker_prevention():
     assert ".syncing .pulse" in css, "content.css should only pulse when syncing"
     assert re.search(r'#geminiExportBadge\s+\.pulse\s*\{[^}]*background:\s*#06b6d4', css), "content.css idle pulse should define static background #06b6d4"
 
-    content_ts = os.path.join(BASE_DIR, "src/content/content.ts")
-    js_path = content_ts if os.path.isfile(content_ts) else os.path.join(BASE_DIR, "src/content/content.js")
+    content_ts = os.path.join(BASE_DIR, "src/runtime/content/content.ts")
+    js_path = content_ts if os.path.isfile(content_ts) else os.path.join(BASE_DIR, "src/runtime/content/content.js")
     with open(js_path, "r", encoding="utf-8") as f:
         js = f.read()
-    badge_ts = os.path.join(BASE_DIR, "src/content/badgeView.ts")
-    badge_js_path = badge_ts if os.path.isfile(badge_ts) else os.path.join(BASE_DIR, "src/content/badgeView.js")
+    badge_ts = os.path.join(BASE_DIR, "src/ui/badge/badgeView.ts")
+    badge_js_path = badge_ts if os.path.isfile(badge_ts) else os.path.join(BASE_DIR, "src/ui/badge/badgeView.js")
     badge_js = ""
     if os.path.exists(badge_js_path):
         with open(badge_js_path, "r", encoding="utf-8") as f:
             badge_js = f.read()
-    observer_ts = os.path.join(BASE_DIR, "src/content/pageObserver.ts")
-    observer_path = observer_ts if os.path.isfile(observer_ts) else os.path.join(BASE_DIR, "src/content/pageObserver.js")
+    observer_ts = os.path.join(BASE_DIR, "src/runtime/content/pageObserver.ts")
+    observer_path = observer_ts if os.path.isfile(observer_ts) else os.path.join(BASE_DIR, "src/runtime/content/pageObserver.js")
     with open(observer_path, "r", encoding="utf-8") as f:
         observer_js = f.read()
-    sync_ts = os.path.join(BASE_DIR, "src/content/syncEngine.ts")
-    sync_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/content/syncEngine.js")
+    sync_ts = os.path.join(BASE_DIR, "src/runtime/content/syncEngine.ts")
+    sync_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/runtime/content/syncEngine.js")
     with open(sync_path, "r", encoding="utf-8") as f:
         sync_js = f.read()
     combined_js = js + badge_js
     assert "debouncedSync" in observer_js, "pageObserver.js should debounce sync triggers"
-    with open(os.path.join(BASE_DIR, "src/core/domain/ingestion.ts"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/l2/ingestion.ts"), encoding="utf-8") as f:
         ingestion = f.read()
-    with open(os.path.join(BASE_DIR, "src/content/geminiIndexCapture.ts"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/runtime/content/geminiIndexCapture.ts"), encoding="utf-8") as f:
         capture_js = f.read()
     assert "ingestIndexes" in capture_js, "L1 capture must delegate admission to the shared Domain boundary"
     assert "JSON.stringify(list) !== JSON.stringify(existing)" in ingestion, "Index admission must skip unchanged writes"
@@ -415,7 +415,7 @@ def test_content_badge_flicker_prevention():
     print("  ✓ Content badge flicker prevention verified")
 
 def test_account_uuid_storage_boundary():
-    with open(os.path.join(BASE_DIR, "src/core/storage/storageService.ts"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/l3a/storageService.ts"), encoding="utf-8") as f:
         storage = f.read()
     assert "gemini_account_slots" not in storage, "Storage must not maintain a second account registry"
     assert "gemini_exported_u0" not in storage, "Current storage must not read legacy slot aliases"
@@ -614,14 +614,14 @@ def test_online_scenario_provider_and_lifecycle_tracker():
 
 def test_tour_status_indicator_styling():
     # The current Spotlight uses a cutout and dialog, not old connection lamps.
-    with open(os.path.join(BASE_DIR, "src/ui/tour/tourGuide.css"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.css"), encoding="utf-8") as f:
         css = f.read()
     container = re.search(r'\.tour-overlay-container\s*\{([^}]+)', css).group(1)
     popover = re.search(r'\.tour-popover\s*\{([^}]+)', css).group(1)
     assert "pointer-events:none" in container.replace(" ", ""), "Cutout must pass business clicks to its target"
     assert "pointer-events:auto" in popover.replace(" ", ""), "Popover controls must stay operable"
     assert "max-height:" in popover and "overflow:auto" in popover.replace(" ", ""), "Small viewports must retain all Tour actions"
-    with open(os.path.join(BASE_DIR, "src/ui/tour/tourGuide.ts"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.ts"), encoding="utf-8") as f:
         guide = f.read()
     assert "role', 'dialog'" in guide and "Escape" in guide, "Guidance must preserve dialog semantics and keyboard dismissal"
     print("  ✓ Current Tour cutout, interaction and viewport styles verified")
@@ -630,11 +630,11 @@ def test_tour_status_indicator_styling():
 def test_takeout_limit_modal_and_wall_detection():
     with open(os.path.join(BASE_DIR, "src/ui/options/options.ts"), encoding="utf-8") as f:
         options = f.read()
-    with open(os.path.join(BASE_DIR, "src/ui/tour/tourGuide.ts"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.ts"), encoding="utf-8") as f:
         guide = f.read()
-    with open(os.path.join(BASE_DIR, "src/ui/controllers/syncController.ts"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/ui/options/controllers/syncController.ts"), encoding="utf-8") as f:
         sync = f.read()
-    with open(os.path.join(BASE_DIR, "src/core/application/settings/index.ts"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/application/settings/index.ts"), encoding="utf-8") as f:
         settings = f.read()
     assert "takeoutFileInput" in options and "handleTakeoutImport" in options
     assert "takeoutPromptCompleted" in settings and "takeoutPromptCompleted" in options
@@ -648,8 +648,8 @@ def test_takeout_limit_modal_and_wall_detection():
 
 
 def test_stage1_architecture_ssot_and_state_isolation():
-    # 1. Verify per-slot aborts in background.ts/js (or modular src/background/)
-    bg_dir = os.path.join(BASE_DIR, "src/background")
+    # 1. Verify per-slot aborts in background.ts/js (or modular src/runtime/background/)
+    bg_dir = os.path.join(BASE_DIR, "src/runtime/background")
     if os.path.isdir(bg_dir):
         bg_code = ""
         for bf_name in sorted(os.listdir(bg_dir)):
@@ -657,8 +657,8 @@ def test_stage1_architecture_ssot_and_state_isolation():
                 with open(os.path.join(bg_dir, bf_name), "r", encoding="utf-8") as bf:
                     bg_code += bf.read() + "\n"
     else:
-        bg_ts = os.path.join(BASE_DIR, "src/background/background.ts")
-        bg_js_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/background/background.js")
+        bg_ts = os.path.join(BASE_DIR, "src/runtime/background/background.ts")
+        bg_js_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/runtime/background/background.js")
         with open(bg_js_path, "r", encoding="utf-8") as f:
             bg_code = f.read()
     assert "__bgAborts" in bg_code and "Map" in bg_code, "background.js must isolate abort flags per account slot using Map"
@@ -666,16 +666,16 @@ def test_stage1_architecture_ssot_and_state_isolation():
     assert "isSlotAborted" in bg_code and "setSlotAborted" in bg_code, "background.js must provide slot-aware abort helpers"
 
     # 2. Verify per-slot Takeout cache in takeoutEngine
-    takeout_ts = os.path.join(BASE_DIR, "src/core/engine/takeoutEngine.ts")
-    takeout_path = takeout_ts if os.path.isfile(takeout_ts) else os.path.join(BASE_DIR, "src/core/engine/takeoutEngine.js")
+    takeout_ts = os.path.join(BASE_DIR, "src/l1/imports/takeoutEngine.ts")
+    takeout_path = takeout_ts if os.path.isfile(takeout_ts) else os.path.join(BASE_DIR, "src/l1/imports/takeoutEngine.js")
     with open(takeout_path, "r", encoding="utf-8") as f:
         takeout_code = f.read()
     assert "__accountTakeouts" in takeout_code and "Map" in takeout_code, "takeoutEngine must isolate takeout dictionaries per account slot"
     assert "getStore" in takeout_code, "takeoutEngine must route through getStore(slot)"
 
     # 3. Verify SSoT compareConversations in syncEngine.ts and options.js
-    sync_ts = os.path.join(BASE_DIR, "src/content/syncEngine.ts")
-    sync_js_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/content/syncEngine.js")
+    sync_ts = os.path.join(BASE_DIR, "src/runtime/content/syncEngine.ts")
+    sync_js_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/runtime/content/syncEngine.js")
     with open(sync_js_path, "r", encoding="utf-8") as f:
         sync_code = f.read()
     assert "compareConversations" in sync_code, "syncEngine.js upsertConversations must use compareConversations SSoT"
@@ -687,8 +687,8 @@ def test_stage1_architecture_ssot_and_state_isolation():
     assert "compareConversations" in options_code, "options.js loadStore must use compareConversations SSoT"
 
     # 4. Verify SSoT sanitizeFileName and cleanTitle delegation in exportEngine
-    export_ts = os.path.join(BASE_DIR, "src/core/engine/exportEngine.ts")
-    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
+    export_ts = os.path.join(BASE_DIR, "src/application/exportEngine.ts")
+    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/application/exportEngine.js")
     with open(export_path, "r", encoding="utf-8") as f:
         export_code = f.read()
     assert "sanitizeFileName" in export_code, "exportEngine sanitizeFileName must delegate to GeminiUtils SSoT"
@@ -696,7 +696,7 @@ def test_stage1_architecture_ssot_and_state_isolation():
     print("  ✓ Stage 1 Architecture: SSoT consolidation and per-slot state isolation verified")
 
 def test_storage_keys_and_constants_ssot():
-    constants_path = os.path.join(BASE_DIR, "src/core/utils/constants.ts")
+    constants_path = os.path.join(BASE_DIR, "src/shared/utils/constants.ts")
     with open(constants_path, "r", encoding="utf-8") as f:
         constants_code = f.read()
 
@@ -757,20 +757,20 @@ def test_storage_keys_and_constants_ssot():
 
 def test_stage2_architecture_improvements():
     # 1. Verify sanitizeRelativePath in utils, zipWriter, fsWriter, and exportEngine
-    utils_ts = os.path.join(BASE_DIR, "src/core/utils/utils.ts")
-    utils_path = utils_ts if os.path.isfile(utils_ts) else os.path.join(BASE_DIR, "src/core/utils/utils.js")
+    utils_ts = os.path.join(BASE_DIR, "src/shared/utils/utils.ts")
+    utils_path = utils_ts if os.path.isfile(utils_ts) else os.path.join(BASE_DIR, "src/shared/utils/utils.js")
     with open(utils_path, "r", encoding="utf-8") as f:
         utils_code = f.read()
     assert "sanitizeRelativePath" in utils_code, "utils must implement and export sanitizeRelativePath"
 
-    zip_writer_ts = os.path.join(BASE_DIR, "src/core/engine/writers/zipWriter.ts")
-    zip_writer_path = zip_writer_ts if os.path.isfile(zip_writer_ts) else os.path.join(BASE_DIR, "src/core/engine/writers/zipWriter.js")
+    zip_writer_ts = os.path.join(BASE_DIR, "src/l4/packaging/writers/zipWriter.ts")
+    zip_writer_path = zip_writer_ts if os.path.isfile(zip_writer_ts) else os.path.join(BASE_DIR, "src/l4/packaging/writers/zipWriter.js")
     with open(zip_writer_path, "r", encoding="utf-8") as f:
         zip_code = f.read()
     assert "sanitizeRelativePath" in zip_code or "sanitizePath" in zip_code, "zipWriter must use sanitizeRelativePath"
 
-    fs_writer_ts = os.path.join(BASE_DIR, "src/core/engine/writers/fsWriter.ts")
-    fs_writer_path = fs_writer_ts if os.path.isfile(fs_writer_ts) else os.path.join(BASE_DIR, "src/core/engine/writers/fsWriter.js")
+    fs_writer_ts = os.path.join(BASE_DIR, "src/l4/delivery/writers/fsWriter.ts")
+    fs_writer_path = fs_writer_ts if os.path.isfile(fs_writer_ts) else os.path.join(BASE_DIR, "src/l4/delivery/writers/fsWriter.js")
     with open(fs_writer_path, "r", encoding="utf-8") as f:
         fs_code = f.read()
     assert "sanitizeRelativePath" in fs_code, "fsWriter must use sanitizeRelativePath"
@@ -779,8 +779,8 @@ def test_stage2_architecture_improvements():
     # 2. Verify export orchestrator AsyncQueue and elimination of busy-polling
     export_ts = os.path.join(BASE_DIR, "src/core/engine/export/exportOrchestrator.ts")
     if not os.path.isfile(export_ts):
-        export_ts = os.path.join(BASE_DIR, "src/core/engine/exportEngine.ts")
-    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
+        export_ts = os.path.join(BASE_DIR, "src/application/exportEngine.ts")
+    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/application/exportEngine.js")
     with open(export_path, "r", encoding="utf-8") as f:
         export_code = f.read()
     assert "AsyncQueue" in export_code, "exportEngine must implement event-driven AsyncQueue"
@@ -789,8 +789,8 @@ def test_stage2_architecture_improvements():
     assert "writeFileDirect" in export_code, "exportEngine must have writeFileDirect"
 
     # 3. Verify hookCredentials.js error sandboxing
-    hook_ts = os.path.join(BASE_DIR, "src/content/hookCredentials.ts")
-    hook_path = hook_ts if os.path.isfile(hook_ts) else os.path.join(BASE_DIR, "src/content/hookCredentials.js")
+    hook_ts = os.path.join(BASE_DIR, "src/l1/sniffer/gemini/hookCredentials.ts")
+    hook_path = hook_ts if os.path.isfile(hook_ts) else os.path.join(BASE_DIR, "src/l1/sniffer/gemini/hookCredentials.js")
     with open(hook_path, "r", encoding="utf-8") as f:
         hook_code = f.read()
     assert "origFetch" in hook_code, "hookCredentials.js must guard origFetch"
@@ -798,8 +798,8 @@ def test_stage2_architecture_improvements():
     assert "RegExp.$1" not in hook_code, "hookCredentials.js must not use deprecated RegExp.$1"
 
     # 4. Verify geminiClient.js dynamic credential refresh on HTTP 400
-    client_ts = os.path.join(BASE_DIR, "src/core/api/geminiClient.ts")
-    client_path = client_ts if os.path.isfile(client_ts) else os.path.join(BASE_DIR, "src/core/api/geminiClient.js")
+    client_ts = os.path.join(BASE_DIR, "src/l1/client/gemini/geminiClient.ts")
+    client_path = client_ts if os.path.isfile(client_ts) else os.path.join(BASE_DIR, "src/l1/client/gemini/geminiClient.js")
     with open(client_path, "r", encoding="utf-8") as f:
         client_code = f.read()
     assert "cachedCredentials" not in client_code, "geminiClient must not reference undefined cachedCredentials"
@@ -807,8 +807,8 @@ def test_stage2_architecture_improvements():
     assert re.search(r'async\s+function\s+resolveCred\s*\(', client_code) or "resolveCred" in client_code, "geminiClient resolveCred must accept credential overrides"
 
     # 5. Verify background.ts/js MV3 keepalive
-    bg_ts = os.path.join(BASE_DIR, "src/background/background.ts")
-    bg_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/background/background.js")
+    bg_ts = os.path.join(BASE_DIR, "src/runtime/background/background.ts")
+    bg_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/runtime/background/background.js")
     with open(bg_path, "r", encoding="utf-8") as f:
         bg_code = f.read()
     assert re.search(r'function\s+startKeepAlive\s*\(', bg_code) or "startKeepAlive" in bg_code, "background.js must implement startKeepAlive"

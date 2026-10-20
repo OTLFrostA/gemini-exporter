@@ -52,7 +52,7 @@ test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () 
 });
 
 test('htmlConverter preserves emphasis on strong and em tags with attributes', () => {
-    const { convertHtmlToMarkdown } = require('../src/core/parsers/shared/html/htmlToMarkdown.js');
+    const { convertHtmlToMarkdown } = require('../src/l1/parsers/shared/html/htmlToMarkdown.js');
     assert.strictEqual(convertHtmlToMarkdown('<strong class="x">bold</strong>'), '**bold**');
     assert.strictEqual(convertHtmlToMarkdown('<em data-x="1">italics</em>'), '*italics*');
 });
@@ -104,7 +104,7 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
         titleSource: 'sniff'
     };
 
-    await require('../src/core/storage/storageService.js').setConversations('10000000-0000-4000-8000-000000000001', [indexFixture(listConv)]);
+    await require('../src/l3a/storageService.js').setConversations('10000000-0000-4000-8000-000000000001', [indexFixture(listConv)]);
     await require('./helpers/admitFixture.js').admitFixture('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
     const resolved = await BatchWorker.resolveChat(
         historicalFixture(chat),
@@ -122,7 +122,7 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
 });
 
 test('engine - RateLimiter detects 429 status and calculates backoff with jitter', () => {
-    const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
+    const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/l1/client/rateLimiter.js');
     assert.strictEqual(isRateLimited({ status: 429 }), true);
     assert.strictEqual(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), false);
     assert.strictEqual(isRateLimited({ error: 'Too many requests, quota exceeded' }), false);
@@ -189,7 +189,7 @@ test('chat_formatter - natural language prompt > 400 chars with code keywords is
 
 test('chat_formatter - decoupled formatters export valid focused functions', async () => {
     const { toJsonStandard } = require('../src/core/engine/formatters/jsonFormatter.js');
-    const { convertHtmlToMarkdown } = require('../src/core/parsers/shared/html/htmlToMarkdown.js');
+    const { convertHtmlToMarkdown } = require('../src/l1/parsers/shared/html/htmlToMarkdown.js');
 
     assert.strictEqual(typeof toJsonStandard, 'function');
     assert.strictEqual(typeof convertHtmlToMarkdown, 'function');

@@ -151,9 +151,9 @@ test.describe('Typst sandbox compile container (P1b smoke)', () => {
         };
       },
       {
-        sandbox: `${extOrigin}/src/ui/sandbox/typst-compile.html`,
-        wasm: `${extOrigin}/src/ui/sandbox/vendor/typst_ts_web_compiler_bg.wasm`,
-        font: `${extOrigin}/src/ui/sandbox/fonts/NewCMMath-Regular.otf`,
+        sandbox: `${extOrigin}/src/l4/format/pdf/sandbox/typst-compile.html`,
+        wasm: `${extOrigin}/src/l4/format/pdf/sandbox/vendor/typst_ts_web_compiler_bg.wasm`,
+        font: `${extOrigin}/src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf`,
       },
     );
 

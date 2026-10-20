@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 
 const registryBundle = require('esbuild').buildSync({ stdin: { resolveDir: require('node:path').resolve(__dirname, '../..'), loader: 'ts', contents: `
-    import * as registry from './src/core/api/accountRegistry.ts'; globalThis.accountProbe = registry;
+    import * as registry from './src/runtime/api/accountRegistry.ts'; globalThis.accountProbe = registry;
 ` }, bundle: true, write: false, format: 'iife', logLevel: 'silent' }).outputFiles[0].text;
 async function accounts(page: Page) {
     await page.evaluate(registryBundle);

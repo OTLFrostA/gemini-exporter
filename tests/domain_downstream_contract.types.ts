@@ -1,7 +1,7 @@
-import { renderList } from '../src/ui/views/listView.js';
-import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
-import { getEffectiveTimestamp } from '../src/core/utils/titleUtils.js';
-import type { ReadonlyDomain } from '../src/core/domain/runtimeValidation.js';
+import { renderList } from '../src/ui/options/views/listView.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
+import { getEffectiveTimestamp } from '../src/shared/utils/titleUtils.js';
+import type { ReadonlyDomain } from '../src/l2/runtimeValidation.js';
 
 function checkConsumers(input: ReadonlyDomain, state: ConversationViewState) {
     const indexes: ConversationViewState['indexes'] = [input.index];

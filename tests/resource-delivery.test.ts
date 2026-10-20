@@ -3,26 +3,26 @@ import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
-import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
-import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import { __setModuleOverride, __clearModuleOverrides } from '../src/shared/utils/moduleOverrides.js';
+import type { ResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import type { AssetPipelineOptions } from '../src/core/engine/assetPipeline.js';
-import type { ResourceRequest } from '../src/core/resources/resourceAcquisition.js';
-import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
+import type { ResourceRequest } from '../src/l1/resources/resourceAcquisition.js';
+import type { ResourceResult, ResourceDelivery } from '../src/shared/resources/resourceResult.js';
 import { makeTestWorker } from './helpers/makeTestWorker.js';
-import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
+import { prepareDomainResources } from '../src/l4/format/resources/prepareDomainResources.js';
 import { formatHtmlDocument, formatMarkdownDocument, formatContent } from '../src/core/engine/chatFormatter.js';
 import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
-import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
-import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
-import { PdfExporter } from '../src/core/export/pdf/pdfExporter.js';
+import { resourceStage } from '../src/l4/format/pdf/pipeline/resourceStage.js';
+import { payloadStage } from '../src/l4/format/pdf/pipeline/payloadStage.js';
+import { PdfExporter } from '../src/l4/format/pdf/pdfExporter.js';
 import { StubPdfCompiler } from './helpers/stubPdfCompiler.js';
-import { parseTakeoutZip } from '../src/core/imports/takeout/importTakeout.js';
-import { clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
-import { attemptResource, waitForResources } from '../src/core/resources/resourceResult.js';
+import { parseTakeoutZip } from '../src/l1/imports/takeout/importTakeout.js';
+import { clearTakeoutData } from '../src/shared/resources/takeout/mediaIndex.js';
+import { attemptResource, waitForResources } from '../src/shared/resources/resourceResult.js';
 const JSZip = require('../lib/jszip.min.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6aAAAAABJRU5ErkJggg==', 'base64');
 afterEach(() => { __clearModuleOverrides(); mock.restoreAll(); });
@@ -58,7 +58,7 @@ for (const format of ['markdown', 'html', 'json']) for (const failure of ['throw
         });
         // Exercise real writer rejection, including inline document companion writes.
         if (failure === 'write' || failure === 'file-write') {
-            const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
+            const { ZipWriter } = require('../src/l4/packaging/writers/zipWriter.js');
             const originalWrite = ZipWriter.prototype.writeFile;
             mock.method(ZipWriter.prototype, 'writeFile', function (this: InstanceType<typeof ZipWriter>, path: string, data: string | Uint8Array) {
                 if (path.includes('bad') || path.includes('never-delivered')) throw new Error('Injected resource write failure');
@@ -144,9 +144,9 @@ test('queued resource wait cancels promptly and ordinary resource exceptions rem
 });
 
 test('background live save renders only after attachments settle and keeps a partial Markdown body on write failure', async () => {
-    const { setMemoryDirHandle } = require('../src/core/storage/idbHandleStore.js');
-    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
-    const { StorageService } = require('../src/core/storage/storageService.js');
+    const { setMemoryDirHandle } = require('../src/l3a/idbHandleStore.js');
+    const { handleLiveSaveViaHandle } = require('../src/runtime/background/liveSaveHandler.js');
+    const { StorageService } = require('../src/l3a/storageService.js');
     const written = new Map<string, string | Uint8Array>();
     const records: Array<{ status: string }> = [];
     mock.method(StorageService, 'getConversations', async () => []);
@@ -204,8 +204,8 @@ for (const mode of ['queued', 'transport']) test(`resource cancellation ${mode} 
 });
 
 test('long companion filenames remain distinct after writer normalization and receipts name actual files', async () => {
-    const { planExportResources } = require('../src/core/export/assets/planExportResources.js');
-    const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
+    const { planExportResources } = require('../src/l4/format/resources/planExportResources.js');
+    const { ZipWriter } = require('../src/l4/packaging/writers/zipWriter.js');
     __setModuleOverride('JSZip', JSZip);
     const source = native('throw');
     source.conversation.detail.assets = ['first', 'second'].map(id => ({ id, kind: 'file', name: `${'same-long-name-'.repeat(10)}.md`, document: { contentMarkdown: `# ${id}` } }));
@@ -231,7 +231,7 @@ for (const [kind, broken] of [
     ['WebP', new TextEncoder().encode('RIFFxxxxWEBP')],
     ['SVG', new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><broken')],
 ] as const) test(`real WASM PDF: magic-valid broken ${kind} preserves body and healthy image after precise recovery`, async () => {
-    const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+    const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
     const { RealWasmSandboxHost } = require('./helpers/realWasmSandbox.js');
     const { extractPdfText } = require('./helpers/pdfTextExtract.js');
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost() });
@@ -256,7 +256,7 @@ for (const [kind, broken] of [
 
 test('direct live save uses distinct actual filesystem paths for long image names', async () => {
     const { createLiveSaveWriter } = require('../src/core/engine/liveSaveWriter.js');
-    const { processAndSaveImages } = require('../src/content/liveSaveCoordinator.js');
+    const { processAndSaveImages } = require('../src/runtime/content/liveSaveCoordinator.js');
     const written = new Map<string, string | Uint8Array>();
     const directory = (prefix: string) => ({
         name: 'long-live-test',
@@ -271,7 +271,7 @@ test('direct live save uses distinct actual filesystem paths for long image name
         source.acquisitionHints = { ...source.acquisitionHints, [asset.id]: { dataBase64: png.toString('base64') } };
         delete asset.sourceUri;
     }
-    const receipts: import('../src/core/resources/resourceResult.js').ResourceResult<import('../src/core/resources/resourceResult.js').ResourceDelivery>[] = [];
+    const receipts: import('../src/shared/resources/resourceResult.js').ResourceResult<import('../src/shared/resources/resourceResult.js').ResourceDelivery>[] = [];
     const failures: Array<{ file: string; error: string }> = [];
     const writer = await createLiveSaveWriter(directory(''));
     await processAndSaveImages(source, source.conversation.index.key.conversationId, writer, failures, receipts);
@@ -286,7 +286,7 @@ test('direct live save uses distinct actual filesystem paths for long image name
 });
 
 test('real WASM PDF: unrelated Typst compile failure stays fatal and does not discard healthy images', async () => {
-    const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+    const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
     const { RealWasmSandboxHost } = require('./helpers/realWasmSandbox.js');
     const host = new RealWasmSandboxHost();
     const createFrame = host.createFrame.bind(host);

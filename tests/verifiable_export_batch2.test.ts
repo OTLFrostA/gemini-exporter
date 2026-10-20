@@ -6,7 +6,7 @@ const assert = require('node:assert');
 
 // 1. D3: Detail Pagination Truncation Reporting
 test('D3: getConversationDetail flags truncated=true when exceeding 20 pages', async () => {
-    const Pagination = require('../src/core/api/client/pagination.js');
+    const Pagination = require('../src/l1/client/gemini/api/pagination.js');
 
     let pageCalls = 0;
     const mockClient = {
@@ -29,7 +29,7 @@ test('D3: getConversationDetail flags truncated=true when exceeding 20 pages', a
 });
 
 test('D3: getConversationDetail flags truncated=true on detail cursor token loop', async () => {
-    const Pagination = require('../src/core/api/client/pagination.js');
+    const Pagination = require('../src/l1/client/gemini/api/pagination.js');
 
     let pageCalls = 0;
     const mockClient = {
@@ -52,7 +52,7 @@ test('D3: getConversationDetail flags truncated=true on detail cursor token loop
 
 // 2. D5: Failed items show failure badge, never ok badge
 test('D5: resolveConversationExportState returns badgeKind=failed for failed records and session failures', () => {
-    const { resolveConversationExportState } = require('../src/core/utils/titleUtils.js');
+    const { resolveConversationExportState } = require('../src/shared/utils/titleUtils.js');
     const chat = { id: 'c_failed_1', title: 'Failed Chat', timestamp: 1700000000000 };
 
     // Case A: Persisted record with status: 'failed'
@@ -74,7 +74,7 @@ test('D5: resolveConversationExportState returns badgeKind=failed for failed rec
 
 // 3. D6: Live Save image naming collision avoidance
 test('D6: liveSaveCoordinator deduplicates candidateName collisions within the same turn', async () => {
-    const LiveSaveCoordinator = require('../src/content/liveSaveCoordinator.js');
+    const LiveSaveCoordinator = require('../src/runtime/content/liveSaveCoordinator.js');
 
     const writtenFiles = new Map<string, any>();
     const mockWriter = {

@@ -8,7 +8,7 @@ test('errors - GeminiError and error hierarchy inheritance', () => {
         ExportPipelineError,
         TakeoutParseError,
         StorageError
-    } = require('../src/types/errors.js');
+    } = require('../src/shared/types/errors.js');
 
     // 1. Root GeminiError
     const rootErr = new GeminiError('Root error');
@@ -38,8 +38,8 @@ test('errors - GeminiError and error hierarchy inheritance', () => {
 });
 
 test('messaging - getErrorMessage safely normalizes all error types', () => {
-    const { getErrorMessage } = require('../src/core/utils/messaging.js');
-    const utils = require('../src/core/utils/utils.js');
+    const { getErrorMessage } = require('../src/runtime/ipc/messaging.js');
+    const utils = require('../src/shared/utils/utils.js');
 
     assert.strictEqual(getErrorMessage('Simple error string'), 'Simple error string');
     assert.strictEqual(getErrorMessage(new Error('Standard Error object')), 'Standard Error object');
@@ -54,7 +54,7 @@ test('messaging - getErrorMessage safely normalizes all error types', () => {
 });
 
 test('messaging - isMessageAction type guard filters actions correctly', () => {
-    const { isMessageAction } = require('../src/core/utils/messaging.js');
+    const { isMessageAction } = require('../src/runtime/ipc/messaging.js');
 
     assert.strictEqual(isMessageAction({ action: 'ping' }, 'ping'), true);
     assert.strictEqual(isMessageAction({ action: 'sync' }, 'ping'), false);
@@ -64,7 +64,7 @@ test('messaging - isMessageAction type guard filters actions correctly', () => {
 });
 
 test('messaging - sendTypedMessage resolves response or handles chrome runtime errors', async () => {
-    const { sendTypedMessage } = require('../src/core/utils/messaging.js');
+    const { sendTypedMessage } = require('../src/runtime/ipc/messaging.js');
 
     const hadChrome = Object.prototype.hasOwnProperty.call(globalThis, 'chrome');
     const originalDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
@@ -107,7 +107,7 @@ test('messaging - sendTypedMessage resolves response or handles chrome runtime e
 });
 
 test('utils facade - modular sub-utilities re-exported with full compatibility', () => {
-    const utils = require('../src/core/utils/utils.js');
+    const utils = require('../src/shared/utils/utils.js');
 
     // Title utils
     assert.strictEqual(typeof utils.cleanTitle, 'function');

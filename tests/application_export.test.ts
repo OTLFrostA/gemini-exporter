@@ -1,9 +1,9 @@
 import { account, key, address, seed, request, reset, records, events, deliveries, state, provider, indexes, details, contexts } from './helpers/applicationHarness.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runExport, shouldSkipExport } from '../src/core/application/export/runExport.js';
-import { prepareExportResources } from '../src/core/application/export/prepareExportResources.js';
-import type { ExportRecord } from '../src/core/application/export/types.js';
+import { runExport, shouldSkipExport } from '../src/application/export/runExport.js';
+import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
+import type { ExportRecord } from '../src/application/export/types.js';
 
 test.beforeEach(reset);
 const previous: ExportRecord = { format: 'markdown', exportedAt: 999, chatTime: 100, status: 'ok' };

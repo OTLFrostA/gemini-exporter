@@ -2,10 +2,10 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { decodeGeminiAnnotation, decodeGeminiStructuredPayload, inspectStructuredContent } from '../src/core/parsers/gemini/rpc/structuredContent.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
-import type { Diagnostic } from '../src/core/diagnostics/diagnostic.js';
+import { decodeGeminiAnnotation, decodeGeminiStructuredPayload, inspectStructuredContent } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
+import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
 
 // Captured Tier 2 report, 2026-10-15. Only turn[3][12], no account/transport metadata.
 const report: unknown = JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-range-coder.json', 'utf8'));

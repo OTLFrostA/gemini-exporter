@@ -1,5 +1,5 @@
-import type { StreamCoverage } from '../../src/core/domain/streamCoverage.js';
-import type { DomainConversationIndex as Conversation } from '../../src/core/domain/conversationIndex.js';
+import type { StreamCoverage } from '../../src/l2/streamCoverage.js';
+import type { DomainConversationIndex as Conversation } from '../../src/l2/conversationIndex.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 
 test.beforeEach(async ({context, extensionId}) => {

@@ -1,13 +1,13 @@
 import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import * as DomainAdmission from '../src/l2/ingestion.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+import { StorageService as catalogStorage } from '../src/l3a/storageService.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
+const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 /**
  * tests/pdf-export.test.ts
  *
@@ -27,7 +27,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { PdfExporter } = require('../src/core/export/pdf/index.js');
+const { PdfExporter } = require('../src/l4/format/pdf/index.js');
 const { StubPdfCompiler, buildMinimalValidPdf } = require('./helpers/stubPdfCompiler.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
@@ -108,8 +108,8 @@ function makeValidPdf(padBytes: number): Uint8Array {
 test('stub compiler returns a parseable minimal PDF', async () => {
     const compiler = new StubPdfCompiler();
     const { conversation } = historicalFixture(sample, { providerId: 'gemini' });
-    const ast = require('../src/core/document/compose/composeDomainDocument.js').composeDomainDocument(conversation, fixtureAccountFor(conversation)).document;
-    const document = require('../src/core/renderers/typst/renderTypst.js').renderDocumentTypst(ast, {});
+    const ast = require('../src/l3b/compose/composeDomainDocument.js').composeDomainDocument(conversation, fixtureAccountFor(conversation)).document;
+    const document = require('../src/l4/format/typst/renderTypst.js').renderDocumentTypst(ast, {});
     const ctx: any = {
         assets: { resolve: async () => null },
         signal: new AbortController().signal,
@@ -635,7 +635,7 @@ test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585
 
 test('PDF directory and ZIP share integrity and acquisition facts', async () => {
     const { rpcFixture } = require('./helpers/nativeFixture.js');
-    const store = require('../src/core/storage/domain/domainStore.js');
+    const store = require('../src/l3a/domain/domainStore.js');
     for (const useZip of [false, true]) {
         for (const scenario of ['clean', 'partial', 'rejected', 'truncated', 'warning', 'heuristic', 'metadata', 'assets-disabled', 'takeout', 'snapshot', 'deleted', 'cache-response', 'empty']) {
             const id = `pdf-integrity-${scenario}`;
@@ -647,7 +647,7 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
                 isTruncated: scenario === 'truncated',
             }, { turnsRejected: scenario === 'rejected' ? 1 : 0, schemaDrift: scenario === 'warning' ? ['benign'] : [] });
             if (scenario === 'heuristic') {
-                const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
+                const { validateParserDomain } = require('../src/l2/runtimeValidation.js');
                 parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { key: fixtureKey(), ...parsed.conversation.detail,
                     quality: { status: 'partial' },
                     assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated' } }],

@@ -1,9 +1,9 @@
 import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/index.js';
-import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { parseMarkdownToBlocks } from '../src/l1/parsers/shared/markdown/index.js';
+import { extractBlockText } from '../src/l2/content/unknownFallback.js';
 
 test('native Gemini prompts preserve literal syntax while assistant Markdown remains structured', () => {
     const prompt = String.raw`Use f(\$)=1, **literal**, $x$, <input> and C:\temp\file.

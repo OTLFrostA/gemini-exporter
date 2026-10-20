@@ -1,6 +1,6 @@
 import { bindFixture } from './domainFixture.js';
 import { admitFixture } from './admitFixture.js';
-import { isResourceConversationParseResult } from '../../src/core/parsers/parsingResult.js';
+import { isResourceConversationParseResult } from '../../src/l1/parsers/parsingResult.js';
 import { BatchWorker, type BatchWorkerModule } from '../../src/core/engine/export/batchWorker.js';
 
 export function makeTestWorker(overrides: Partial<BatchWorkerModule> = {}): BatchWorkerModule {

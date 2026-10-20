@@ -1,7 +1,7 @@
 // Retained Application export-entry scenarios; still included in normal discovery.
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
+const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 /**
  * tests/html-document-migration.test.ts
  * Item 1 (P0): production HTML export routes through the canonical path

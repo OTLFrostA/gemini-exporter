@@ -1,15 +1,15 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { resolveSourceAttachmentGroups, type SourceAttachmentLists } from '../src/core/parsers/shared/resources/resolveResources.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { resolveSourceAttachmentGroups, type SourceAttachmentLists } from '../src/l1/parsers/shared/resources/resolveResources.js';
 const normalizeSourceAttachments = (input: SourceAttachmentLists) => resolveSourceAttachmentGroups([{ input }]).attachments;
 import { structuredBodyAttachments } from './helpers/recordFixture/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
@@ -218,8 +218,8 @@ test('shared source gate rejects runtime legacy aliases; Composer uses explicit 
 });
 
 test('shared Composer and Domain consumption have no legacy resource alias reconciliation', () => {
-    for (const file of ['src/core/domain/closure.ts', 'src/core/document/compose/composeDomainDocument.ts',
-        'src/core/document/compose/composeContent.ts']) {
+    for (const file of ['src/l2/closure.ts', 'src/l3b/compose/composeDomainDocument.ts',
+        'src/l3b/compose/composeContent.ts']) {
         const source = readFileSync(join(__dirname, '..', file), 'utf8');
         assert.doesNotMatch(source, /mergeMessageAttachments|reconcileLegacyMediaLists|structuredBodyAttachments|attachments\.includes|\bimages\??:|\bdocuments\??:/);
     }

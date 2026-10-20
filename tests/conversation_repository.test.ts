@@ -1,13 +1,13 @@
 /** L2 persistence/read boundaries; retired repository and export orchestration are not L2 ports. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { putOne } from '../src/core/storage/idb.js';
+import { putOne } from '../src/l3a/idb.js';
 import { indexStorage } from './helpers/indexStorage.js';
-import { ingestDetail, ingestIndexes, ingestDeletedConversation } from '../src/core/domain/ingestion.js';
-import { readConversation } from '../src/core/domain/readConversation.js';
-import { conversationKey } from '../src/core/domain/conversationKey.js';
-import { getIndex, getDetail, getExportRecord, putExportRecord, updateConversationAtomically } from '../src/core/storage/storageService.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import { ingestDetail, ingestIndexes, ingestDeletedConversation } from '../src/l2/ingestion.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import { conversationKey } from '../src/l2/conversationKey.js';
+import { getIndex, getDetail, getExportRecord, putExportRecord, updateConversationAtomically } from '../src/l3a/storageService.js';
+import type { DomainConversationDetail } from '../src/l2/conversationDetail.js';
 const accountId = '10000000-0000-4000-8000-000000000001';
 const otherId = '10000000-0000-4000-8000-000000000002';
 const key = { accountId, conversationId: 'chat' };

@@ -37,8 +37,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { PdfExporter } = require('../src/core/export/pdf/index.js');
-const { createWriter } = require('../src/core/engine/writers/writerInterface.js');
+const { PdfExporter } = require('../src/l4/format/pdf/index.js');
+const { createWriter } = require('../src/l4/delivery/writers/writerInterface.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 
 // Production serves JSZip from lib/jszip.min.js as a page global; mirror that

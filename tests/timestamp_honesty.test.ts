@@ -1,7 +1,7 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 
 const turn = [['c_noTsTurn_1', 'r_turn_1'], null, [['Question']], [[['rc_model_1', [['Answer']]]]]];
 const data = `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]])}`;

@@ -4,10 +4,10 @@ import * as path from 'node:path';
 let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
-        import * as registry from './src/core/storage/accountRegistryStore.ts';
-        import { readAccountRegistry } from './src/core/domain/accountRegistry.ts';
-        import { getOrCreateAccount } from './src/core/domain/accountAdmission.ts';
-        import { openStorageDB as openDomainDB } from './src/core/storage/idb.ts';
+        import * as registry from './src/l3a/accountRegistryStore.ts';
+        import { readAccountRegistry } from './src/l2/accountRegistry.ts';
+        import { getOrCreateAccount } from './src/l2/accountAdmission.ts';
+        import { openStorageDB as openDomainDB } from './src/l3a/idb.ts';
         globalThis.registryProbe = { ...registry, listAccounts: async () => readAccountRegistry(await registry.listAccounts()), getOrCreateAccount, openDomainDB };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;

@@ -2,10 +2,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { FsWriter, ensureSubDir, sanitizeFileName } = require('../src/core/engine/writers/fsWriter.js');
-const { ZipWriter, isPrecompressedAsset } = require('../src/core/engine/writers/zipWriter.js');
-const WriterInterface = require('../src/core/engine/writers/writerInterface.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { FsWriter, ensureSubDir, sanitizeFileName } = require('../src/l4/delivery/writers/fsWriter.js');
+const { ZipWriter, isPrecompressedAsset } = require('../src/l4/packaging/writers/zipWriter.js');
+const WriterInterface = require('../src/l4/delivery/writers/writerInterface.js');
+const { __setModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
 // FsWriter

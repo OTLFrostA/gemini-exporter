@@ -1,4 +1,4 @@
-import { getCoverage } from '../src/core/domain/coverageAdmission.js';
+import { getCoverage } from '../src/l2/coverageAdmission.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { listFixture } from './helpers/listFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -11,7 +11,7 @@ const assert = require('node:assert');
 // 2. D2: Narrowed error detection
 test('D2: BatchWorker does not delete conversation when error contains 11167 or other non-deletion numbers', async () => {
     const BatchWorker = require('../src/core/engine/export/batchWorker.js');
-    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/shared/utils/moduleOverrides.js');
 
     let removedId: string | null = null;
     const mockStorage = {
@@ -52,7 +52,7 @@ test('D2: BatchWorker does not delete conversation when error contains 11167 or 
 
 test('D2: BatchWorker confirms deletion but retains local metadata on BardErrorInfo: 1167 or 404', async () => {
     const BatchWorker = require('../src/core/engine/export/batchWorker.js');
-    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/shared/utils/moduleOverrides.js');
 
     let removedId: string | null = null;
     const mockStorage = {
@@ -95,7 +95,7 @@ test('D2: BatchWorker confirms deletion but retains local metadata on BardErrorI
 // Scan cleanup is account-scoped Coverage + ExportRecord deletion, without deleting Domain.
 test('D4: clearStoredAccountScanRecords clears both scan ledgers and keeps local history', async () => {
     const { indexStorage } = require('./helpers/indexStorage.js');
-    const storage = require('../src/core/storage/storageService.js');
+    const storage = require('../src/l3a/storageService.js');
     const env = indexStorage();
     try {
         const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: 'chat_1' };
@@ -111,7 +111,7 @@ test('D4: clearStoredAccountScanRecords clears both scan ledgers and keeps local
 
 // 4. Page-world deletion notices must be verified by the active content tab, not trusted as deletion commands.
 test('MessageBridge rejects malformed deletion IDs and verifies valid events in the active account', async () => {
-    const MessageBridge = require('../src/content/messageBridge.js');
+    const MessageBridge = require('../src/l1/sniffer/gemini/messageBridge.js');
     const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     const sent: any[] = [];
     let removedCalled = false;

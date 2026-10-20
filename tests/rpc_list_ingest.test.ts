@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
-import { ingestIndexes, ingestDeletedConversation } from '../src/core/domain/ingestion.js';
-import { listIndexes, getIndex } from '../src/core/storage/storageService.js';
-import { init, handleWindowMessage } from '../src/content/messageBridge.js';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
+import { ingestIndexes, ingestDeletedConversation } from '../src/l2/ingestion.js';
+import { listIndexes, getIndex } from '../src/l3a/storageService.js';
+import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
 const text = JSON.stringify([['wrb.fr','MaZiqc',JSON.stringify([null,null,[['c_abcdef123456','Server title',null,null,null,[1700000000,0]]]])]]);
 const items = () => parseList(text).conversations.map(item => parseGeminiIndexObservation(item,'rpc-list'));
 const capture = (): MessageEvent => ({origin:location.origin,source:window,data:{type:'GEMINI_NETWORK_BATCHEXECUTE',payload:{

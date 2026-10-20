@@ -2,12 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { decodeGeminiDetail, findTurnsDeep } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { robustFirstPayload, extractModelCandidates, extractCandidateText, extractThoughts, extractCitations } from '../src/core/parsers/gemini/rpc/extractors.js';
-import { extractInnerPayload, extractNextPageToken } from '../src/core/parsers/gemini/rpc/payload.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { decodeGeminiDetail, findTurnsDeep } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { robustFirstPayload, extractModelCandidates, extractCandidateText, extractThoughts, extractCitations } from '../src/l1/parsers/gemini/rpc/extractors.js';
+import { extractInnerPayload, extractNextPageToken } from '../src/l1/parsers/gemini/rpc/payload.js';
 import { extractImages, extractUserFiles, extractDocumentsMeta } from './helpers/recordFixture/attachments.js';
-import { decodeGeminiStructuredPayload } from '../src/core/parsers/gemini/rpc/structuredContent.js';
+import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 
 // Synthetic boundary probes based on existing gemini_parser/parse_observability
 // fixtures; they characterize current behavior, not new wire compatibility.

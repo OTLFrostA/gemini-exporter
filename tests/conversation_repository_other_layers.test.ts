@@ -1,7 +1,7 @@
 // Export preparation/completion scenarios retained for their Application owner; normal full discovery still runs these.
-import { putDetail, getDetail } from '../src/core/storage/domain/domainStore.js';
+import { putDetail, getDetail } from '../src/l3a/domain/domainStore.js';
 import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import * as DomainAdmission from '../src/l2/ingestion.js';
 import { bindFixture, fixtureAccountFor } from './helpers/domainFixture.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
@@ -9,15 +9,15 @@ import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { StorageService as storage } from '../src/core/storage/storageService.js';
-import { storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { StorageService as storage } from '../src/l3a/storageService.js';
+import { storageIdentity } from '../src/l3a/domain/domainStore.js';
 import { readFixture } from './helpers/admitFixture.js';
-import { createConversationRepository } from '../src/core/storage/conversationRepository.js';
+import { createConversationRepository } from '../src/l3a/conversationRepository.js';
 import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 import { resolveChat } from '../src/core/engine/export/batchWorker.js';
 import { buildExportCompletion, completeConversationExport } from '../src/core/engine/export/exportCompletion.js';
 import { finalizeChatExport } from '../src/core/engine/export/sessionRecovery.js';
-import { withConversationMetadata } from '../src/core/domain/runtimeValidation.js';
+import { withConversationMetadata } from '../src/l2/runtimeValidation.js';
 
 const scope = { providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001' };
 const parsed = () => ({   ...historicalFixture({ id: 'chat', title: 'Old title', titleSource: 'rpc', updatedAt: 100,

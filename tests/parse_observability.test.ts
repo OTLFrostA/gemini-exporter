@@ -1,6 +1,6 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 const { sourceDetail, sourceMessage } = require('./helpers/l1SourceFixture.js');
-const { parseGeminiRpcConversation } = require('../src/core/parsers/gemini/rpc/parseConversation.js');
+const { parseGeminiRpcConversation } = require('../src/l1/parsers/gemini/rpc/parseConversation.js');
 /**
  * Phase C 规格测试 —— 解析可观测 (P1-8 / P1-9)
  * red-by-design: 修复前失败、修复后通过。
@@ -11,10 +11,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const attachments = require('../src/core/parsers/gemini/rpc/sourceAttachments.js');
-const pagination = require('../src/core/api/client/pagination.js');
-const { contentQuality } = require('../src/core/parsers/qualityEvidence.js');
+const detailDecoder = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const attachments = require('../src/l1/parsers/gemini/rpc/sourceAttachments.js');
+const pagination = require('../src/l1/client/gemini/api/pagination.js');
+const { contentQuality } = require('../src/l1/parsers/qualityEvidence.js');
 
 // ---------------------------------------------------------------- helpers
 function makeDetailRpc(inner: unknown): string {

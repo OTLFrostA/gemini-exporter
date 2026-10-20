@@ -1,8 +1,8 @@
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { fixtureAccountFor } = require('./helpers/domainFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 /**
  * tests/html-document-migration.test.ts
  * Item 1 (P0): the Domain -> Document AST -> HTML interface preserves all content classes.

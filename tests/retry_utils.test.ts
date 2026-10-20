@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { calculateBackoff, abortableSleep } from '../src/core/utils/retryUtils.js';
+import { calculateBackoff, abortableSleep } from '../src/shared/utils/retryUtils.js';
 import {
     handleHttp429,
     interruptibleSleep
-} from '../src/core/api/client/retryPolicy.js';
+} from '../src/l1/client/gemini/api/retryPolicy.js';
 import {
     RateLimitManager,
     calculateBackoff as engineCalculateBackoff,
     abortableSleep as engineAbortableSleep
-} from '../src/core/engine/export/rateLimiter.js';
+} from '../src/l1/client/rateLimiter.js';
 
 const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
@@ -234,14 +234,14 @@ test('rateLimiter - engine re-exports calculateBackoff and abortableSleep matchi
 // ---------------------------------------------------------------------------
 
 test('architecture - retryPolicy.ts does not import export engine or rateLimiter', () => {
-    const src = SRC('src/core/api/client/retryPolicy.ts');
+    const src = SRC('src/l1/client/gemini/api/retryPolicy.ts');
     assert.ok(!/from\s+['"][^'"]*engine/i.test(src), 'retryPolicy must not import from engine');
     assert.ok(!/from\s+['"][^'"]*rateLimiter/i.test(src), 'retryPolicy must not import rateLimiter');
     assert.ok(src.includes('retryUtils'), 'retryPolicy imports from retryUtils');
 });
 
 test('architecture - retryUtils.ts does not import engine or api modules', () => {
-    const src = SRC('src/core/utils/retryUtils.ts');
+    const src = SRC('src/shared/utils/retryUtils.ts');
     assert.ok(!/from\s+['"][^'"]*engine/i.test(src), 'retryUtils must not import from engine');
     assert.ok(!/from\s+['"][^'"]*api/i.test(src), 'retryUtils must not import from api');
 });

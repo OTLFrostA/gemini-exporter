@@ -1,28 +1,28 @@
 import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import * as DomainAdmission from '../src/l2/ingestion.js';
 import { bindFixture } from './helpers/domainFixture.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
-import { setConversationAvailability } from '../src/core/storage/conversationAvailability.js';
+import { setConversationAvailability } from '../src/l3a/conversationAvailability.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+import { StorageService as catalogStorage } from '../src/l3a/storageService.js';
 useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
 import { AssetPipeline, type AssetPipelineOptions } from '../src/core/engine/assetPipeline.js';
 import { BatchWorker } from '../src/core/engine/export/batchWorker.js';
-import { __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory } from '../src/l3a/domain/domainStore.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
+import { __setModuleOverride, __clearModuleOverrides } from '../src/shared/utils/moduleOverrides.js';
 import { OptionsSync } from '../src/ui/options/modules/optionsSync.js';
-import { setScanRunning } from '../src/ui/controllers/syncController.js';
+import { setScanRunning } from '../src/ui/options/controllers/syncController.js';
 import { OptionsExport } from '../src/ui/options/modules/optionsExport.js';
-import { ProgressView } from '../src/ui/views/progressView.js';
+import { ProgressView } from '../src/ui/options/views/progressView.js';
 import { setWorkbenchControlsDisabled } from '../src/ui/uiCommon.js';
-import { LOCALES } from '../src/core/utils/i18n.js';
-import type { DomainConversationIndex as Conversation } from '../src/core/domain/conversationIndex.js';
+import { LOCALES } from '../src/shared/utils/i18n.js';
+import type { DomainConversationIndex as Conversation } from '../src/l2/conversationIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
-import type { UIExportResult } from '../src/types/ui.js';
+import type { UIExportResult } from '../src/runtime/types/ui.js';
 
 function globals(values: Record<string, unknown>): () => void {
     const previous = Object.keys(values).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);

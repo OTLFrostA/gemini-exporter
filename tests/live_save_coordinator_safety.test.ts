@@ -7,7 +7,7 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const LiveSaveCoordinator = require('../src/content/liveSaveCoordinator.js');
+const LiveSaveCoordinator = require('../src/runtime/content/liveSaveCoordinator.js');
 
 test('B3 Safety 1: RPC/provider success beats DOM scraper', async () => {
     let scraperCalled = false;

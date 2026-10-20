@@ -1,8 +1,8 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectConversationDetail } from '../src/core/domain/conversationDetail.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import { selectConversationDetail } from '../src/l2/conversationDetail.js';
+import type { DomainConversationDetail } from '../src/l2/conversationDetail.js';
 
 function snapshot(status: DomainConversationDetail['quality']['status'], count: number, savedAt?: number) {
     return { detail: { key: fixtureKey(), ...(savedAt !== undefined ? { savedAt } : {}), quality: { status }, assets: [], messages: Array.from({ length: count }, () => ({ role: 'user' as const, content: [] })) },

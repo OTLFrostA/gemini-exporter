@@ -2,11 +2,11 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { decodeGeminiAnnotation, decodeGeminiStructuredPayload } from '../src/core/parsers/gemini/rpc/structuredContent.js';
-import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { extractSourceAttributions } from '../src/core/parsers/gemini/rpc/sourceAttributions.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
+import { decodeGeminiAnnotation, decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { extractSourceAttributions } from '../src/l1/parsers/gemini/rpc/sourceAttributions.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/provider/structured_rpc/${name}.json`, 'utf8'));
 const fallback = 'UNRELATED_MARKDOWN_SENTINEL';

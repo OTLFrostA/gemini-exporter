@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readTakeoutBytes } from '../src/core/imports/takeout/readArchive.js';
-import { extractC2PATimestamp } from '../src/core/parsers/shared/resources/c2paTimestamp.js';
+import { readTakeoutBytes } from '../src/l1/imports/takeout/readArchive.js';
+import { extractC2PATimestamp } from '../src/l1/parsers/shared/resources/c2paTimestamp.js';
 test('source resource - readTakeoutBytes boundaries and validation', async () => {
     // 1. Valid Uint8Array with length > 0
     const validBytes = new Uint8Array([1, 2, 3]);

@@ -3,22 +3,22 @@ import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import type { ResourceResult, ResourceDelivery } from '../src/shared/resources/resourceResult.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { getConversationDetail } from '../src/core/api/client/pagination.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
+import { getConversationDetail } from '../src/l1/client/gemini/api/pagination.js';
 import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
 import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { parseTakeoutZip } from '../src/core/imports/takeout/importTakeout.js';
-import { MediaIndex } from '../src/core/resources/takeout/mediaIndex.js';
-import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
-import { getDomainConversationResult } from '../src/core/storage/domain/nativePersistence.js';
-import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
-import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { parseTakeoutZip } from '../src/l1/imports/takeout/importTakeout.js';
+import { MediaIndex } from '../src/shared/resources/takeout/mediaIndex.js';
+import type { ResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
+import { getDomainConversationResult } from '../src/l3a/domain/nativePersistence.js';
+import { preparePdfResources } from '../src/l4/format/pdf/prepareResources.js';
+import { extractBlockText } from '../src/l2/content/unknownFallback.js';
 
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
 function page(request: string, seconds: number, cursor: string | null = null) {
@@ -142,7 +142,7 @@ test('missing ZIP references and unsupported URI schemes report failures through
 });
 
 test('live image renaming updates export hints without modifying native source facts', async () => {
-    const { processAndSaveImages, init } = require('../src/content/liveSaveCoordinator.js') as typeof import('../src/content/liveSaveCoordinator.js');
+    const { processAndSaveImages, init } = require('../src/runtime/content/liveSaveCoordinator.js') as typeof import('../src/runtime/content/liveSaveCoordinator.js');
     const native = result('https://example.test/photo.png');
     const source = structuredClone(native.conversation);
     const view = native;

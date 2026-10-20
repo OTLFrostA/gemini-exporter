@@ -1,16 +1,16 @@
-import { importTakeout } from '../src/core/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
 import { takeoutArchive } from './helpers/l1SourceFixture.js';
-import { getDetail } from '../src/core/storage/storageService.js';
-import Proto from '../src/core/protocol/protocol.js';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
+import { getDetail } from '../src/l3a/storageService.js';
+import Proto from '../src/l1/protocol/gemini/protocol.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 // L1 regression locks. Other-layer scenarios remain in regression_lock_other_layers.test.ts
 // and stay in ordinary repository discovery; see docs/l1-l2-freeze-repair.md.
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { accountRuntime, ACCOUNT_OBSERVATION, ACCOUNT_UUID } from './helpers/accountRuntime.js';
-import { listIndexes } from '../src/core/storage/storageService.js';
+import { listIndexes } from '../src/l3a/storageService.js';
 import { createHookSandbox } from './helpers/hookSandbox.js';
-import * as Extractors from '../src/core/parsers/gemini/rpc/extractors.js';
-import { isRealTitle } from '../src/core/parsers/gemini/rpc/extractors.js';
+import * as Extractors from '../src/l1/parsers/gemini/rpc/extractors.js';
+import { isRealTitle } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { extractImages } from './helpers/recordFixture/attachments.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -279,7 +279,7 @@ test('regression: gemini_parser image naming must be globally unique across turn
 test('passive RPC lists bind captured UUID independently of the routing slot', async () => {
     const runtime = accountRuntime();
     try {
-        const bridge = require('../src/content/messageBridge.js'); bridge.init();
+        const bridge = require('../src/l1/sniffer/gemini/messageBridge.js'); bridge.init();
         const text = JSON.stringify([['wrb.fr','MaZiqc',JSON.stringify([null,null,[['c_slot_isolation','Title']]])]]);
         for (const slot of ['u1','u0']) await bridge.handleWindowMessage({ origin: location.origin, source: window,
             data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot, requestAccountObservation: ACCOUNT_OBSERVATION,

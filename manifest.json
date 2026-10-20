@@ -39,7 +39,7 @@
   },
   "sandbox": {
     "pages": [
-      "src/ui/sandbox/typst-compile.html"
+      "src/l4/format/pdf/sandbox/typst-compile.html"
     ]
   },
   "content_security_policy": {
@@ -52,7 +52,7 @@
         "https://gemini.google.com/*"
       ],
       "css": [
-        "src/content/content.css"
+        "src/ui/badge/content.css"
       ],
       "js": [
         "dist/content/content.js"

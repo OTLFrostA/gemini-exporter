@@ -1,16 +1,16 @@
-import type { ConversationParser } from '../src/core/parsers/contracts.js';
-import type { SourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
-import type { TrustedDomain } from '../src/core/domain/runtimeValidation.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/core/parsers/gemini/takeout/parseConversation.js';
-import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/core/imports/takeout/readArchive.js';
+import type { ConversationParser } from '../src/l1/parsers/contracts.js';
+import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
+import type { TrustedDomain } from '../src/l2/runtimeValidation.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
+import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/l1/imports/takeout/readArchive.js';
 // @ts-expect-error The old trusted Parser contract is not a public L1 API.
-import type { ConversationParseResult } from '../src/core/parsers/contracts.js';
+import type { ConversationParseResult } from '../src/l1/parsers/contracts.js';
 // @ts-expect-error The old resource/Domain output is not a public L1 API.
-import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import type { ResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 // @ts-expect-error The barrel must not re-export the old contract.
-import type { ConversationParseResult as BarrelLegacyResult } from '../src/core/parsers/index.js';
+import type { ConversationParseResult as BarrelLegacyResult } from '../src/l1/parsers/index.js';
 
 const rawParser: ConversationParser<{ text: string }> = raw => ({ conversationId: 'source',
     conversation: { index: {}, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] } },

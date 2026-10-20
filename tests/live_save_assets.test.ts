@@ -6,8 +6,8 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const LiveSaveCoordinator = require('../src/content/liveSaveCoordinator.js');
-const AssetFetcher = require('../src/content/assetFetcher.js');
+const LiveSaveCoordinator = require('../src/runtime/content/liveSaveCoordinator.js');
+const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
 
 test.afterEach(() => { LiveSaveCoordinator.init(); });
 
@@ -227,7 +227,7 @@ test('assetFetcher - inferImageExt correctly detects MIME and URL extensions', (
 });
 
 test('liveSaveHandler - withLiveSaveLock serializes concurrent writes targeting the same key', async () => {
-    const { withLiveSaveLock } = require('../src/background/liveSaveHandler.js');
+    const { withLiveSaveLock } = require('../src/runtime/background/liveSaveHandler.js');
 
     const executionOrder: string[] = [];
 

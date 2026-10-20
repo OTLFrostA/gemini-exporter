@@ -12,13 +12,13 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { collectReferencedAssetIds } = require('../src/core/domain/content/collectAssetReferences.js');
+const { collectReferencedAssetIds } = require('../src/l2/content/collectAssetReferences.js');
 
 function domainFixture(messages: any[], extra: any = {}) {
-    const createdAt = require('../src/core/domain/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
-    const updatedAt = require('../src/core/domain/time.js').normalizeTimestamp(extra.updatedAt);
+    const createdAt = require('../src/l2/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
+    const updatedAt = require('../src/l2/time.js').normalizeTimestamp(extra.updatedAt);
     return { index: { key: fixtureKey(String('c1'), 'gemini'),   title: 'Test convo', titleSource: "derived",
         ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) },
         detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages } };
@@ -277,6 +277,6 @@ test('PDF date uses document timestamps and stays unknown without them', () => {
     assert.strictEqual(renderTypstFixture(composeDomainDocument({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-09-28T00:00:00Z') } }, fixtureAccountFor({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-09-28T00:00:00Z') } })), {}, opts).payload.metadata, 'gemini · 2026-09-28 · 0 messages · Empty conversation.');
     assert.strictEqual(renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), {}, opts).payload.metadata, 'gemini · 2026-09-20 · 0 messages · Empty conversation.');
     delete b.index.createdAt;
-    const { getRendererStrings } = require('../src/core/renderers/shared/renderStrings.js');
+    const { getRendererStrings } = require('../src/l4/format/shared/renderStrings.js');
     assert.strictEqual(renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), {}, { ...opts, locale: 'en' }).payload.metadata, `gemini · ${getRendererStrings('en').dateUnknown} · 0 messages · Empty conversation.`);
 });

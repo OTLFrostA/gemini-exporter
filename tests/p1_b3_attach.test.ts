@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ProgressReporter } from '../src/core/engine/export/progressReporter.js';
-import { handleGetImageBlob } from '../src/content/assetFetcher.js';
-import { RateLimitManager } from '../src/core/engine/export/rateLimiter.js';
+import { handleGetImageBlob } from '../src/runtime/capabilities/assetFetcher.js';
+import { RateLimitManager } from '../src/l1/client/rateLimiter.js';
 
 // P1-023: observe reported progress rather than the name of the internal tracker.
 test('P1-023: progress percentage never regresses when progress inputs decrease', () => {

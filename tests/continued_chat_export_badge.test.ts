@@ -1,7 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { resolveConversationExportState, checkIsUpdated } = require('../src/core/utils/titleUtils.js');
+const { resolveConversationExportState, checkIsUpdated } = require('../src/shared/utils/titleUtils.js');
 const { buildExportCompletion, computeAuthoritativeTimestamp } = require('../src/core/engine/export/exportCompletion.js');
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { indexFixture } = require('./helpers/indexFixture.js');

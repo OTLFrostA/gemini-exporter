@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { assertDocumentAst, assertDocumentAsts } from './helpers/assertDocumentAst.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 const valid = () => ({
     title: 'T',

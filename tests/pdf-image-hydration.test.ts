@@ -1,7 +1,7 @@
 import { acquiredReply } from './helpers/acquisitionFixture.js';
-import type { ResourceBytes } from '../src/core/resources/resourceResult.js';
+import type { ResourceBytes } from '../src/shared/resources/resourceResult.js';
 import { resourceValue } from './helpers/resources.js';
-import type { ResourceRequest } from '../src/core/resources/resourceAcquisition.js';
+import type { ResourceRequest } from '../src/l1/resources/resourceAcquisition.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -38,10 +38,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { preparePdfItem } = require('./helpers/pdfAcquisitionFixture.js');
-const { PdfExporter } = require('../src/core/export/pdf/index.js');
-const { resourceStage } = require('../src/core/export/pdf/pipeline/resourceStage.js');
-const { payloadStage } = require('../src/core/export/pdf/pipeline/payloadStage.js');
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const { PdfExporter } = require('../src/l4/format/pdf/index.js');
+const { resourceStage } = require('../src/l4/format/pdf/pipeline/resourceStage.js');
+const { payloadStage } = require('../src/l4/format/pdf/pipeline/payloadStage.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
 const { StubPdfCompiler } = require('./helpers/stubPdfCompiler.js');
 const { RealWasmSandboxHost, repoRoot } = require('./helpers/realWasmSandbox.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
@@ -278,7 +278,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     let takeoutFallbackCalls = 0;
     const fakeTakeoutEngine = {
         getTakeoutMediaForChat: () => null,
-        getTakeoutFallbackMedia: async (_chatId: string, _lookup: import('../src/core/engine/takeoutEngine.js').TakeoutResourceLookup, _slot: string) => {
+        getTakeoutFallbackMedia: async (_chatId: string, _lookup: import('../src/l1/imports/takeoutEngine.js').TakeoutResourceLookup, _slot: string) => {
             takeoutFallbackCalls++;
             return PNG_BYTES;
         },

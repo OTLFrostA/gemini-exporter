@@ -8,12 +8,12 @@ useIndexStorage();
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { init as initRouter, type MessageRouterDeps } from '../src/content/messageRouter.js';
-import { init as initLive, resolveConversationDetail } from '../src/content/liveSaveCoordinator.js';
-import { DomScraper } from '../src/content/domScraper.js';
-import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
-import type { GeminiProviderConversationDetail } from '../src/core/provider/gemini/geminiContracts.js';
-import type { DomDetail, GetConversationDetailResponse, DetailFailure } from '../src/types/detailTransport.js';
+import { init as initRouter, type MessageRouterDeps } from '../src/runtime/content/messageRouter.js';
+import { init as initLive, resolveConversationDetail } from '../src/runtime/content/liveSaveCoordinator.js';
+import { DomScraper } from '../src/runtime/content/domScraper.js';
+import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
+import type { GeminiProviderConversationDetail } from '../src/l1/client/gemini/geminiContracts.js';
+import type { DomDetail, GetConversationDetailResponse, DetailFailure } from '../src/runtime/types/detailTransport.js';
 
 // Compile-time regression: explicit null disables these optional runtime dependencies.
 // Keep this assignment typed; routing through an unchecked fixture would hide the bug.
@@ -188,7 +188,7 @@ test('asset routing rejects a different UUID and discards bytes when the tab swi
     const runtime = accountRuntime();
     let called = 0;
     try {
-        const { AssetFetcher } = require('../src/content/assetFetcher.js') as typeof import('../src/content/assetFetcher.js');
+        const { AssetFetcher } = require('../src/runtime/capabilities/assetFetcher.js') as typeof import('../src/runtime/capabilities/assetFetcher.js');
         initRouter({ assets: { ...AssetFetcher, downloadAssetDirect: async (_message, respond) => {
             called++;
             runtime.state.observation = { providerId: 'gemini', providerAccountId: 'other-gaia' };

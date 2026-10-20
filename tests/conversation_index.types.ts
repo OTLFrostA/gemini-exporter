@@ -1,6 +1,6 @@
 import { fixtureKey } from './helpers/domainFixture.js';
-import type { DomainConversationIndex, ConversationIndexPatch } from '../src/core/domain/conversationIndex.js';
-import { putIndexes } from '../src/core/storage/storageService.js';
+import type { DomainConversationIndex, ConversationIndexPatch } from '../src/l2/conversationIndex.js';
+import { putIndexes } from '../src/l3a/storageService.js';
 
 const index: DomainConversationIndex = { key: fixtureKey(String('chat'), 'gemini'),   title: '', titleSource: "derived",
       };

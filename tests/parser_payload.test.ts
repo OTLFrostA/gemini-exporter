@@ -2,8 +2,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { payloadToMs, extractInnerPayload } = require('../src/core/parsers/gemini/rpc/payload.js');
-const { resolveDetailTitle } = require('../src/core/utils/titleUtils.js');
+const { payloadToMs, extractInnerPayload } = require('../src/l1/parsers/gemini/rpc/payload.js');
+const { resolveDetailTitle } = require('../src/shared/utils/titleUtils.js');
 
 test('payloadToMs - converts JSPB timestamp representations to milliseconds', () => {
     // 1. [seconds, nanos] tuple

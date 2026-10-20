@@ -15,8 +15,8 @@ const listeners: Array<(msg: any, sender: any, sendResponse: any) => any> = [];
     },
 };
 
-const { init } = require('../src/content/messageRouter.ts');
-const { ProviderRegistry } = require('../src/core/provider/providerRegistry.ts');
+const { init } = require('../src/runtime/content/messageRouter.ts');
+const { ProviderRegistry } = require('../src/l1/client/providerRegistry.ts');
 test.after(() => {
     listeners.length = 0;
     if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);

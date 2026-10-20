@@ -1,4 +1,4 @@
-import type { DomainConversationIndex } from '../../src/core/domain/conversationIndex.js';
+import type { DomainConversationIndex } from '../../src/l2/conversationIndex.js';
 /** Physical catalog mock, with business merge always executed by real L2. */
 export function catalogMock(read: () => DomainConversationIndex[], write: (list: DomainConversationIndex[]) => void) {
     return { local: {

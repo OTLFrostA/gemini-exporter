@@ -4,9 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { extractResponseImageEvidence: extractResponseImages } = require('../src/core/parsers/gemini/rpc/sourceAttachments.js');
-const { parseGeminiRpcConversation } = require('../src/core/parsers/gemini/rpc/parseConversation.js');
-const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
+const { extractResponseImageEvidence: extractResponseImages } = require('../src/l1/parsers/gemini/rpc/sourceAttachments.js');
+const { parseGeminiRpcConversation } = require('../src/l1/parsers/gemini/rpc/parseConversation.js');
+const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 
 // Same media tuple shape as the false detections in the user's diagnostics.
 const searchUrl = 'https://encrypted-tbn2.gstatic.com/licensed-image?q=example';

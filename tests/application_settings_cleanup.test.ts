@@ -1,8 +1,8 @@
 import { key, address, reset, events, state, records, indexes, details, seed } from './helpers/applicationHarness.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getSettings, updateSettings, isLiveSaveEffective } from '../src/core/application/settings/index.js';
-import { clearLocalScanRecords, clearLocalExportRecords } from '../src/core/application/localCleanup.js';
+import { getSettings, updateSettings, isLiveSaveEffective } from '../src/application/settings/index.js';
+import { clearLocalScanRecords, clearLocalExportRecords } from '../src/application/localCleanup.js';
 
 test.beforeEach(reset);
 test('Settings defaults are applied only on read; explicit false is preserved', async () => {
