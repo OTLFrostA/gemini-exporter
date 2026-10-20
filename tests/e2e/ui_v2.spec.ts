@@ -40,6 +40,29 @@ test('UI v2: Options can toggle Light and Dark, persisting a shared preference',
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
 });
 
+
+test('UI v2: Light Dev toggle visually matches the developerMode setting', async ({ page }) => {
+    await mount(page, 'options', { settings: { theme: 'light', developerMode: false } });
+    const toggle = page.locator('#devToggle');
+    await expect(toggle).not.toBeChecked();
+    await expect(toggle).toHaveCSS('background-color', 'rgb(203, 213, 225)');
+    await expect(toggle).toHaveCSS('background-image', 'none');
+    await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
+
+    await toggle.check();
+    await expect(toggle).toBeChecked();
+    await expect(toggle).toHaveCSS('background-image', /linear-gradient/);
+    await expect(page.locator('body')).toHaveClass(/dev-mode/);
+    await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(true);
+
+    await toggle.uncheck();
+    await expect(toggle).not.toBeChecked();
+    await expect(toggle).toHaveCSS('background-color', 'rgb(203, 213, 225)');
+    await expect(toggle).toHaveCSS('background-image', 'none');
+    await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
+    await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(false);
+});
+
 test('UI v2: Popup loads the shared Light preference and can switch to Dark', async ({ page }) => {
     await mount(page, 'popup', { settings: { theme: 'light' } });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
