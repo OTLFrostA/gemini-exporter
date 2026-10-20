@@ -32,6 +32,7 @@ from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
 from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.image_evidence import assert_image_files, assert_zip_images, image_pixels, capture_webpage_images
+from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
 
 CID = '0123456789abcdef'
 OTHER = 'abcdef0123456789'
@@ -50,6 +51,55 @@ def document(evidence=EVIDENCE, cid=CID):
 def scan_evidence():
     return {'started': True, 'finished': True, 'response': {
         'status': 'complete', 'pagesFetched': 2, 'conversationsFetched': 40}}
+
+
+class V2MarkdownFormatContracts(unittest.TestCase):
+    """Keep Tier 2 file assertions aligned with the real L4 renderer."""
+
+    def test_v2_frontmatter_does_not_require_export_clock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checker = ExportSpecificationAsserter(directory)
+            content = ('---\ntitle: "Real v2 export"\nid: "' + CID
+                       + '"\nprovider: "gemini"\ndate: "2026-10-19T00:00:00.000Z"'
+                       + '\nupdated: "2026-10-19T01:00:00.000Z"\ntags:\n  - gemini-export'
+                       + '\n---\n\n# Real v2 export\n')
+            checker.assert_frontmatter(content, 'v2.md')
+            self.assertEqual(checker.errors, [])
+            for invalid in (
+                content.replace(f'id: "{CID}"\n', ''),
+                content.replace('2026-10-19T01:00:00.000Z', 'invalid-time'),
+            ):
+                rejected = ExportSpecificationAsserter(directory)
+                rejected.assert_frontmatter(invalid, 'v2.md')
+                self.assertTrue(rejected.errors)
+
+    def test_v2_both_locales_preserve_role_and_answer_validation(self):
+        turn = [{'prompt': 'Describe the model', 'response': 'Finished result.', 'has_images': False}]
+        english = '## 👤 You\n\nDescribe the model\n\n## 🤖 Assistant\n\nFinished result.\n'
+        chinese = '## 👤 你\n\nDescribe the model\n\n## 🤖 助手\n\nFinished result.\n'
+        for content in (english, chinese):
+            with self.subTest(content=content):
+                self.assertTrue(assert_turn_content(content, turn)[0])
+                with tempfile.TemporaryDirectory() as directory:
+                    checker = ExportSpecificationAsserter(directory)
+                    checker.assert_turn_flow(content, 'v2.md', min_turns=1)
+                    self.assertEqual(checker.errors, [])
+                self.assertFalse(assert_turn_content(content.replace('Finished result.', 'Different result.'), turn)[0])
+
+    def test_image_ownership_parses_both_v2_role_locales(self):
+        with tempfile.TemporaryDirectory() as directory:
+            assets = Path(directory) / 'assets'
+            assets.mkdir()
+            (assets / 'user.png').write_bytes(b'original image' * 100)
+            (assets / 'generated.png').write_bytes(b'model generated image' * 100)
+            for user, assistant in (('You', 'Assistant'), ('你', '助手')):
+                with self.subTest(locale=user):
+                    content = (f'## 👤 {user}\n\n![user](assets/user.png)\n\n'
+                               f'## 🤖 {assistant}\n\n![Generated Image](assets/generated.png)\n')
+                    checker = ExportSpecificationAsserter(directory)
+                    checker.assert_multi_turn_uploads('v2.md', content, expected_count=1)
+                    checker.assert_ai_generated_images('v2.md', content, min_images=1)
+                    self.assertEqual(checker.errors, [])
 
 
 class StaleTabHistoryTests(unittest.TestCase):
@@ -244,11 +294,12 @@ class DiskContentTests(unittest.TestCase):
         def export_now(script, *args, **kwargs):
             if "return !!btn" in script:
                 return True
-            if "const formatType" in script:
+            if "btn.click();" in script:
                 path.write_bytes(b'fresh ZIP bytes')
                 return {'clicked': True}
         cdp.eval.side_effect = export_now
-        with patch('scripts.framework.actions.time.sleep'):
+        with patch('scripts.framework.actions.time.sleep'), \
+             patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}):
             result = CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1)
         self.assertEqual(result, str(path))
         cdp.call.assert_called_once_with('Browser.setDownloadBehavior', {
@@ -263,7 +314,8 @@ class DiskContentTests(unittest.TestCase):
         cdp.reset_mock()
         cdp.call.return_value = {'result': {}}
         cdp.eval.side_effect = [True, {'clicked': False}]
-        with patch('scripts.framework.actions.time.sleep') as sleep:
+        with patch('scripts.framework.actions.time.sleep') as sleep, \
+             patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}):
             self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
         sleep.assert_not_called()  # Never enter the download wait after a missed click.
 
@@ -576,7 +628,7 @@ class ScanAndImportTests(unittest.TestCase):
     def test_full_scan_requires_real_result_and_v2_recent_row(self):
         self.assertTrue(assert_full_scan_coverage(scan_evidence(), self.coverage())[0])
         self.assertTrue(assert_full_scan_coverage(scan_evidence(), {'range':None})[0])
-        for status in ('partial_limit','error','aborted','up_to_date'):
+        for status in ('provider_limit','max_pages','error','aborted','up_to_date'):
             evidence = scan_evidence(); evidence['response']['status'] = status
             self.assertFalse(assert_full_scan_coverage(evidence, self.coverage())[0])
         for broken in (None, {}, {'version':4,'range':None}, self.coverage(5), {'range':{'head':{'id':'h','time':float('nan')},'tail':{'id':'t','time':1}}}):
@@ -631,7 +683,7 @@ class ScanAndImportTests(unittest.TestCase):
             evidence = scan_evidence()
             if change in ('started','finished'): evidence[change] = False
             elif change == 'error': evidence['error'] = 'network'
-            elif change == 'status': evidence['response']['status'] = 'partial_limit'
+            elif change == 'status': evidence['response']['status'] = 'provider_limit'
             elif change == 'pages': evidence['response']['pagesFetched'] = 0
             else: evidence['response']['conversationsFetched'] = -1
             self.assertFalse(assert_scan_result(evidence)[0],change)
@@ -896,7 +948,8 @@ class CoverageTests(unittest.TestCase):
         ctx = MagicMock()
         ctx.chat_records = [{'chat_id': CID}]
         ctx.connect_options.return_value.eval.return_value = {'matched': [OTHER], 'missing': [CID]}
-        with patch.object(CDPActions, 'wait_for_export_idle', return_value=True):
+        with patch.object(CDPActions, 'wait_for_export_idle', return_value=True), \
+             patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}):
             with self.assertRaises(RuntimeError): select_format_targets(ctx.connect_options(), ctx, 'html')
 
     def test_html_and_pdf_cases_reject_wrong_archive_targets(self):
@@ -957,6 +1010,7 @@ class CoverageTests(unittest.TestCase):
                 ctx.connect_options.return_value.eval.side_effect = [
                     {'count': 6, 'log': 'old'}, True, {'busy': False, 'log': 'Delivery initiated: 0; partial: 0; skipped: 6; failed: 0'}, partial]
                 with patch('scripts.framework.cases.export.install_probe'), \
+                     patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}), \
                      patch.object(CDPActions, 'clear_search_workbench'), \
                      patch.object(CDPActions, 'trigger_export_zip', return_value=str(path)):
                     self.assertEqual(FastSkipExportedCase().execute(ctx)[0], expected)
@@ -968,7 +1022,9 @@ class CoverageTests(unittest.TestCase):
                 ctx = MagicMock(output_dir=directory)
                 ctx.connect_options.return_value.eval.side_effect = [
                     {'count':6,'log':'old'},True,{'busy':False,'log':result}]
-                with patch('scripts.framework.cases.export.install_probe'), patch.object(CDPActions,'clear_search_workbench'):
+                with patch('scripts.framework.cases.export.install_probe'), \
+                     patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}), \
+                     patch.object(CDPActions,'clear_search_workbench'):
                     self.assertFalse(FastSkipExportedCase().execute(ctx)[0])
 
     def test_report_never_calls_skip_or_noncritical_failure_all_passed(self):
