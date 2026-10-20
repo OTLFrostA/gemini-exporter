@@ -26,7 +26,9 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
     const gemini = await sourcePage(context);
     let round = 0;
     const requests: string[][] = [[], [], []];
-    // Active scan RPC is issued by the extension/provider, not the Gemini tab.\n    // Observe requests in the BrowserContext (as the passing scan_flow E2E does).\n    await context.route('**/batchexecute*', async route => {
+    // Active scan RPC is issued by the extension/provider, not the Gemini tab.
+    // Observe requests in the BrowserContext (as the passing scan_flow E2E does).
+    await context.route('**/batchexecute*', async route => {
         const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
         const cursor = args[1];
         requests[round].push(cursor || 'head');
@@ -91,7 +93,9 @@ test('a new complete disjoint recent scan replaces old v2 coverage and never req
     const gemini = await sourcePage(context);
     let round = 0;
     const requests: string[][] = [[], []];
-    // Active scan RPC is issued by the extension/provider, not the Gemini tab.\n    // Observe requests in the BrowserContext (as the passing scan_flow E2E does).\n    await context.route('**/batchexecute*', async route => {
+    // Active scan RPC is issued by the extension/provider, not the Gemini tab.
+    // Observe requests in the BrowserContext (as the passing scan_flow E2E does).
+    await context.route('**/batchexecute*', async route => {
         const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
         expect(args[2][0]).toBe(0);
         const cursor = args[1];
