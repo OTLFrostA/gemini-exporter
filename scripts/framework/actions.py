@@ -249,25 +249,87 @@ class ExtensionActions:
 
     @staticmethod
     def switch_workbench_language(cdp_opt, lang: str = "en") -> str:
-        """切换 Options 工作台语言 (en / zh)，等待异步本地化就绪并返回全选按钮文案"""
-        btn_id = 'language'
-        expected_part = 'all' if lang == 'en' else '全选'
+        """Use the shipped v2 language toggle and wait for durable Settings."""
+        if lang not in ("en", "zh"):
+            raise ValueError("Tier 2 workbench language must be en or zh")
+        install_probe(cdp_opt)
         return cdp_opt.eval(f"""
         (async () => {{
-            const label = document.getElementById('{btn_id}');
-            if (label) {{ label.value = {json.dumps(lang)}; label.dispatchEvent(new Event('change', {{ bubbles: true }})); }}
-            for (let i = 0; i < 20; i++) {{
-                const btnAll = document.getElementById('btnSelectAll');
-                const txt = btnAll ? btnAll.textContent.trim() : '';
-                if (txt.toLowerCase().includes('{expected_part}')) {{
-                    return txt;
-                }}
-                await new Promise(r => setTimeout(r, 100));
+            const toggle = document.getElementById('langToggle');
+            if (!(toggle instanceof HTMLInputElement)) throw new Error('v2 language toggle missing');
+            const language = {json.dumps(lang)};
+            const enabled = language === 'en';
+            const current = await globalThis.__tier2V2.getSettings();
+            if (toggle.checked !== enabled || current.language !== language) {{
+                toggle.checked = enabled;
+                toggle.dispatchEvent(new Event('change', {{ bubbles: true }}));
             }}
-            const btnAll = document.getElementById('btnSelectAll');
-            return btnAll ? btnAll.textContent.trim() : '';
+            for (let i = 0; i < 100; i++) {{
+                const saved = await globalThis.__tier2V2.getSettings();
+                const button = document.getElementById('btnSelectAll');
+                const value = button?.textContent?.trim() || '';
+                const expected = language === 'en' ? value.toLowerCase().includes('all') : value.includes('全选');
+                if (document.body.dataset.busy === 'false' && saved.language === language && expected) return value;
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }}
+            throw new Error('v2 language change was not committed or reflected by UI');
         }})()
-        """, await_promise=True) or ''
+        """, await_promise=True)
+
+    @staticmethod
+    def configure_export_controls(cdp_opt, format_type=None, skip_exported=None) -> Dict[str, Any]:
+        """Drive v2 UI controls, not a silent external write to Application Settings.
+
+        The Options controller owns its in-memory Settings mirror. Updating
+        IndexedDB directly leaves that mirror stale until the next refresh.
+        """
+        install_probe(cdp_opt)
+        return cdp_opt.eval(f"""
+        (async () => {{
+            const expectedFormat = {json.dumps(format_type)};
+            const expectedSkip = {json.dumps(skip_exported)};
+            const waitIdle = async () => {{
+                for (let i = 0; i < 100; i++) {{
+                    if (document.body.dataset.busy === 'false') return true;
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }}
+                return false;
+            }};
+            if (!await waitIdle()) return {{ error: 'v2 Options workbench is busy' }};
+            for (const [id, field, value] of [
+                ['format', 'defaultFormat', expectedFormat],
+                ['skipExported', 'skipExported', expectedSkip]
+            ]) {{
+                if (value === null) continue;
+                const element = document.getElementById(id);
+                if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement))
+                    return {{ error: 'Missing v2 export control: ' + id }};
+                const actual = () => element.type === 'checkbox' ? element.checked : element.value;
+                const before = await globalThis.__tier2V2.getSettings();
+                if (actual() !== value || before[field] !== value) {{
+                    if (element.type === 'checkbox') element.checked = value;
+                    else element.value = value;
+                    element.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+                let settled = false;
+                for (let i = 0; i < 100; i++) {{
+                    const settings = await globalThis.__tier2V2.getSettings();
+                    if (document.body.dataset.busy === 'false' && actual() === value && settings[field] === value) {{
+                        settled = true; break;
+                    }}
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }}
+                if (!settled) return {{ error: 'v2 Settings did not commit ' + field }};
+            }}
+            const delivery = document.getElementById('delivery');
+            if (delivery instanceof HTMLSelectElement && delivery.value !== 'browserDownload') {{
+                delivery.value = 'browserDownload';
+                delivery.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }}
+            return {{ ok: true, format:document.getElementById('format')?.value,
+                skipExported:document.getElementById('skipExported')?.checked }};
+        }})()
+        """, await_promise=True) or {}
 
     @staticmethod
     def import_takeout_zip(cdp_opt, zip_path: str, media_paths: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -348,9 +410,10 @@ class ExtensionActions:
         output_dir: str,
         max_wait: int = 60,
         skip_exported: Optional[bool] = False,
-        format_type: Optional[str] = None
+        format_type: Optional[str] = None,
+        allow_standalone: bool = False
     ) -> Optional[str]:
-        """Configure v2 browser delivery, click Export and inspect the newly downloaded ZIP."""
+        """Drive v2 Export and inspect its physical ZIP or optional standalone Markdown."""
         # Another CDP client can reset Chrome's download behavior after setup.
         # Bind it again on the connection kept alive until this ZIP is on disk.
         os.makedirs(output_dir, exist_ok=True)
@@ -366,7 +429,11 @@ class ExtensionActions:
             print(f"❌ ZIP 测试下载目录设置失败: {exc}")
             return None
         if not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
-            print("❌ ZIP export not started: previous export did not become idle")
+            print("❌ Export not started: previous export did not become idle")
+            return None
+        settings = ExtensionActions.configure_export_controls(cdp_opt, format_type, skip_exported)
+        if not settings.get('ok'):
+            print(f"❌ Export v2 controls did not settle: {settings}")
             return None
         # TestEnvironment routes downloads to output_dir. Avoid scanning the user's
         # Downloads folder, where cloud-backed entries can block directory reads.
@@ -375,7 +442,7 @@ class ExtensionActions:
         for check_d in [output_dir]:
             if os.path.isdir(check_d):
                 for f in os.listdir(check_d):
-                    if f.lower().endswith('.zip'):
+                    if f.lower().endswith('.zip') or (allow_standalone and f.lower().endswith('.md')):
                         fp = os.path.abspath(os.path.join(check_d, f))
                         try:
                             baseline_files[fp] = os.path.getmtime(fp)
@@ -383,53 +450,26 @@ class ExtensionActions:
                             pass
 
         trigger = cdp_opt.eval(f"""
-        (async () => {{
-            const settle = async () => {{
-                for (let i=0;i<100;i++) {{
-                    if (document.body.dataset.busy === 'false') return;
-                    await new Promise(resolve => setTimeout(resolve,50));
-                }}
-                throw new Error('Settings did not settle');
-            }};
-            const formatType = {json.dumps(format_type)};
-            if (formatType) {{
-                const fmtSelect = document.getElementById('format');
-                if (fmtSelect && fmtSelect.value !== formatType) {{
-                    fmtSelect.value = formatType;
-                    fmtSelect.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    await settle();
-                }}
-            }}
-            const skipCb = document.getElementById('skipExported');
-            if (skipCb) {{
-                const shouldSkip = {json.dumps(skip_exported)};
-                if (shouldSkip !== null && skipCb.checked !== shouldSkip) {{
-                    skipCb.checked = shouldSkip;
-                    skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    await settle();
-                }}
-            }}
-            const delivery = document.getElementById('delivery');
-            if (delivery) delivery.value = 'browserDownload';
+        (() => {{
             const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
-            if (!btn || btn.disabled || btn.getAttribute('aria-busy') === 'true') return {{ clicked: false }};
+            if (!btn || btn.disabled || btn.getAttribute('aria-busy') === 'true'
+                || document.body.dataset.busy !== 'false') return {{ clicked: false }};
             btn.click();
-
             return {{ clicked: true }};
         }})()
-        """, user_gesture=True, await_promise=True)
+        """, user_gesture=True)
         if not isinstance(trigger, dict) or not trigger.get('clicked'):
             print("❌ ZIP export not started: export button was unavailable at click time")
             return None
         start_time = time.time()
-        downloaded_zip = None
+        downloaded_file = None
 
         while time.time() - start_time < max_wait:
             time.sleep(1.5)
             if os.path.isdir(output_dir):
                 candidates = []
                 for f in os.listdir(output_dir):
-                    if f.lower().endswith('.zip'):
+                    if f.lower().endswith('.zip') or allow_standalone and f.lower().endswith('.md'):
                         fp = os.path.abspath(os.path.join(output_dir, f))
                         try:
                             mtime = os.path.getmtime(fp)
@@ -439,13 +479,13 @@ class ExtensionActions:
                             pass
                 if candidates:
                     candidates.sort(key=lambda x: x[0], reverse=True)
-                    downloaded_zip = candidates[0][1]
+                    downloaded_file = candidates[0][1]
                     break
 
-        if downloaded_zip and not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
+        if downloaded_file and not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
             print("❌ ZIP downloaded, but export UI/storage cleanup did not finish")
             return None
-        return downloaded_zip
+        return downloaded_file
 
 
 class CDPActions(ExtensionActions):
