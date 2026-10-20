@@ -44,18 +44,27 @@ export async function initWorkbench(): Promise<void> {
         el('log').scrollTop = el('log').scrollHeight;
     };
     const status = (message: string, level: Level = 'info') => {
+        // Only one of the progress label and final/status line is visible at a time.
+        el('progText').textContent = '';
+        el<HTMLElement>('progText').style.display = 'none';
         el('status').textContent = message;
+        el<HTMLElement>('status').style.display = 'block';
         log.push({ at: Date.now(), level, message });
         if (log.length > 400) log.shift();
         renderLog();
     };
-    const progress = (current: number, total: number, message: string) => {
+    const progress = (message: string, percent?: number) => {
+        if (!busy || controller?.signal.aborted) return;
         el('progText').textContent = message;
-        const wrapper = el<HTMLElement>('progWrap');
-        wrapper.style.display = 'block';
-        wrapper.classList.toggle('indeterminate', action === 'scan');
-        el<HTMLElement>('bar').style.width = action === 'scan' ? '30%' : total ? `${Math.round(current / total * 100)}%` : '0%';
+        el<HTMLElement>('progText').style.display = 'block';
+        // Preserve the existing status contract for callers/tests, but do not show it twice.
         el('status').textContent = message;
+        el<HTMLElement>('status').style.display = 'none';
+        // Scan has no known total. Export progress announces the item being started,
+        // not completed file delivery; only Takeout reports an actual percentage.
+        if (action === 'takeout' && percent !== undefined && Number.isFinite(percent)) {
+            el<HTMLElement>('bar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
+        }
     };
     const showFailures = () => {
         const card = el<HTMLElement>('exportFailureCard');
@@ -124,8 +133,8 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLButtonElement>('btnForceFullScan').disabled = busy || !settings?.developerMode;
         el<HTMLElement>('btnCancel').style.display = action === 'export' && !!controller ? 'inline-flex' : 'none';
         el<HTMLElement>('btnStopScan').style.display = action === 'scan' && !!controller ? 'inline-flex' : 'none';
-        el<HTMLElement>('progWrap').style.display = busy && !!controller ? 'block' : 'none';
-        el<HTMLElement>('progWrap').classList.toggle('indeterminate', action === 'scan');
+        el<HTMLElement>('progWrap').style.display = busy && (action === 'scan' || action === 'export' || action === 'takeout') ? 'block' : 'none';
+        el<HTMLElement>('progWrap').classList.toggle('indeterminate', action === 'scan' || action === 'export');
         renderList(state, busy);
         el<HTMLButtonElement>('btnExport').disabled ||= !settings;
         showFailures();
@@ -137,7 +146,14 @@ export async function initWorkbench(): Promise<void> {
     };
     const perform = async (kind: Action, task: () => Promise<void>, cancellable = false) => {
         if (busy) return;
-        busy = true; action = kind; controller = cancellable ? new AbortController() : null; render();
+        busy = true; action = kind; controller = cancellable ? new AbortController() : null;
+        // Never show the previous operation's percent or label at the start of a new run.
+        el<HTMLElement>('bar').style.width = '0%';
+        el('progText').textContent = '';
+        el<HTMLElement>('progText').style.display = 'none';
+        el('status').textContent = '';
+        el<HTMLElement>('status').style.display = 'block';
+        render();
         try { await task(); }
         catch (error) { status(errorText(error), 'error'); }
         finally {
@@ -148,23 +164,23 @@ export async function initWorkbench(): Promise<void> {
     const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async () => {
         lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
         failed = []; dismissedFailures = false; render();
+        status(text('Preparing export…', '正在准备导出…'));
         await fonts;
         if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
             throw new Error(text('Authorize a folder first', '请先授权文件夹'));
         const result = await runExport(request, { signal: controller!.signal,
-            onProgress: p => progress(p.current, p.total, text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`))
+            onProgress: p => progress(text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`))
         });
         failed = [...result.failed];
         status(text(`Delivery initiated: ${result.exported}; partial: ${result.partial}; skipped: ${result.skipped}; failed: ${failed.length}${result.aborted ? '; cancelled' : ''}`,
             `已发起交付 ${result.exported}；部分缺失 ${result.partial}；跳过 ${result.skipped}；失败 ${failed.length}${result.aborted ? '；已取消' : ''}`),
             failed.length || result.aborted ? 'warn' : 'info');
-        el('progText').textContent = text('Export finished', '导出结束');
-    }, true);
+     }, true);
     const scan = (forceFull = false) => perform('scan', async () => {
         const signal = controller!.signal;
         status(text('Resolving Gemini source…', '正在确认 Gemini 来源…'));
         const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
-            onTarget: select, onProgress: p => progress(p.pagesFetched, 0,
+            onTarget: select, onProgress: p => progress(
                 text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
                     `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`)) });
         const reasons: Record<string, string> = {
@@ -219,9 +235,10 @@ export async function initWorkbench(): Promise<void> {
     const fileInput = el<HTMLInputElement>('takeoutFileInput');
     el('btnImportTakeout').addEventListener('click', () => { if (!busy) fileInput.click(); });
     const importFile = (file: File) => perform('takeout', async () => {
+        status(text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…'));
         try {
             const result = await handleTakeoutImport(file, state.accountId, { onTarget: select,
-                onProgress: percent => progress(percent, 100, text(`Importing ${percent}%`, `正在导入 ${percent}%`)) });
+                onProgress: percent => progress(text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent) });
             status(text(`Imported ${result.imported} conversations (${result.status})`, `已提交 ${result.imported} 条对话（${result.status}）`));
         } finally { fileInput.value = ''; }
     });
