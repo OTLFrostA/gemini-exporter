@@ -253,11 +253,32 @@
   gap: 6px;
 }
 
-/* v2 Tour keeps its original interaction/hit-testing, with the main dark presentation. */
-.tour-overlay-container{pointer-events:none}
-.tour-backdrop{position:fixed;background:rgba(5,6,10,.72);pointer-events:auto}
-.tour-popover{max-height:calc(100vh - 24px);overflow:auto}
-.tour-popover h2{font-size:15px;margin:0 0 9px;color:var(--tour-text)}
-.tour-popover p{font-size:13px;line-height:1.55;color:#cbd2e8}
-.tour-popover button{margin:4px;padding:7px 11px;border:1px solid var(--tour-border);border-radius:7px;background:#171926;color:var(--tour-text);cursor:pointer}
-.tour-popover button:hover{background:#222638}
+/* The original main Tour presentation, with v2's click-safe cutout instead of
+   the original shadow overlay so unrelated controls never receive clicks. */
+.tour-overlay-container {
+  pointer-events: none;
+}
+.tour-spotlight {
+  box-shadow: none;
+}
+.tour-backdrop {
+  position: fixed;
+  background: rgba(5, 6, 10, 0.78);
+  pointer-events: auto;
+}
+.tour-popover {
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+.tour-action-btn[hidden] {
+  display: none;
+}
+.tour-takeout-footer {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tour-takeout-footer .tour-nav-btns {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
