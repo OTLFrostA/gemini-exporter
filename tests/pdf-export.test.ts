@@ -17,6 +17,7 @@ import { ingestDetail } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getExportRecord } from '../src/l3a/storageService.js';
 import { runExport } from '../src/application/export/runExport.js';
+import { updateSettings } from '../src/application/settings/index.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
@@ -52,6 +53,8 @@ async function seed(id: string, options: {
         assets: options.assets ?? [],
         messages: [{ role: 'assistant', content: options.content ?? [paragraph('PDF output for ' + id)] }],
     }, { title: options.title ?? 'PDF ' + id, titleSource: 'provider', updatedAt: options.updatedAt ?? 100 });
+    // The fake browser navigator has no language; v2 settings supply it.
+    await updateSettings({ language: 'en' });
 }
 /** Stub the external PDF sandbox only; Application and PDF Format stay real. */
 function sandbox(t: TestContext, compile: IPdfCompiler['compile'] =
