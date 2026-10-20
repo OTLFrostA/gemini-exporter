@@ -1,5 +1,4 @@
 import { getOrCreateAccount } from '../../l2/accountAdmission.js';
-import { listAccounts } from '../../l3a/accountRegistryStore.js';
 import { ensureV2Ready } from './readiness.js';
 import { assertContentSender, requireContentAccount } from './contentSender.js';
 
@@ -11,12 +10,9 @@ export function handleAccountRegistryMessage(message: unknown, sender: chrome.ru
             assertContentSender(sender);
             await ensureV2Ready();
             if (!('command' in message)) throw new TypeError('Missing account registry command');
-            if (message.command === 'list') {
-                const providerId = 'providerId' in message ? message.providerId : undefined;
-                if (providerId !== undefined && typeof providerId !== 'string') throw new TypeError('Invalid provider ID');
-                if (providerId !== undefined && providerId !== 'gemini') throw new TypeError('Provider mismatch');
-                respond({ ok: true, value: (await listAccounts()).filter(account => account.providerId === 'gemini') }); return;
-            }
+            // Extension pages list their own Registry directly. A Content script
+            // must never enumerate other signed-in accounts across the IPC boundary.
+            if (message.command === 'list') throw new Error('Account listing requires an Extension page');
             if (message.command === 'get' && 'accountId' in message && typeof message.accountId === 'string') {
                 respond({ ok: true, value: await requireContentAccount(sender, message.accountId) }); return;
             }

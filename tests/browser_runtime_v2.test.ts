@@ -196,6 +196,18 @@ test('Live Save returns the exact unified result and request, including skip/par
     assert.equal(await save(key), result);
 });
 
+test('Worker Live Save scopes KeepAlive to the active export and releases it on failure', async () => {
+    const trace: string[] = [];
+    const save = load('src/runtime/background/liveSaveHandler.ts', {
+        'src/application/settings/index.js': { getSettings: async () => ({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: true }) },
+        'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted' }) },
+        'src/application/export/runExport.js': { runExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
+        'src/runtime/background/keepAlive.js': { startKeepAlive: () => { trace.push('start'); return () => trace.push('stop'); } },
+    }).runLiveSave;
+    await assert.rejects(save({ accountId: uuid, conversationId: 'abc' }), /Delivery failed/);
+    assert.deepEqual(trace, ['start', 'export', 'stop']);
+});
+
 test('routing matches Provider and UUID, prefers matching active Tab, and never retries a different Tab after dispatch', async () => {
     const sent: any[] = [];
     global.chrome = { runtime: { id: 'ext' }, tabs: {
@@ -434,15 +446,21 @@ test('Content registers capture, account and message listeners while readiness i
         'src/runtime/api/runtimeReady.js': { ensureV2Ready: () => pending },
         'src/l1/client/gemini/bootstrap.js': { initBootstrap: () => initialized.push('credentials') },
         'src/runtime/content/messageRouter.js': { MessageRouter: { init: () => initialized.push('router') } },
-        'src/l1/sniffer/gemini/messageBridge.js': { MessageBridge: { init: () => initialized.push('bridge') } },
-        'src/ui/badge/badgeView.js': { BadgeView: { ensureBadge: () => initialized.push('badge') } },
+        'src/l1/sniffer/gemini/messageBridge.js': { MessageBridge: { init: (deps: { onIndexesCommitted?: unknown; onDetailChanged?: unknown }) => {
+            assert.equal(deps.onIndexesCommitted, undefined);
+            assert.equal(typeof deps.onDetailChanged, 'function'); initialized.push('bridge');
+        } } },
+        'src/runtime/content/pageObserver.js': { hookHistoryEvents: (callback: unknown) => { assert.equal(typeof callback, 'function'); initialized.push('routes'); } },
+        'src/ui/badge/badgeView.js': { BadgeView: { ensureBadge: (...args: unknown[]) => {
+            assert.deepEqual(args, []); initialized.push('badge');
+        } } },
         'src/runtime/content/liveSaveCoordinator.js': { LiveSaveCoordinator: { init: () => {}, cleanup: () => {} } },
         'src/runtime/content/accountContext.js': { setAccountChangedHandler() {}, invalidateAccountContext: () => {} },
         'src/runtime/content/cleanupRegistry.js': { runCleanups: () => {}, registerCleanup: () => {} },
     });
-    assert.deepEqual(initialized, ['credentials', 'router', 'bridge']);
+    assert.deepEqual(initialized, ['credentials', 'router', 'routes', 'bridge']);
     finish(); await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(initialized, ['credentials', 'router', 'bridge', 'badge']);
+    assert.deepEqual(initialized, ['credentials', 'router', 'routes', 'bridge', 'badge']);
 });
 
 test('an early source completion survives readiness wait and keeps its captured Account after a switch', async () => {
@@ -807,6 +825,107 @@ test('resource IPC rejects aggregate duplicate Base64 fields before sending, whi
     assert.match((await invoke(listener, request)).error, /flat JSON/);
 });
 
+
+test('Content Live Save ignores a late result after switching away from the captured Account', async () => {
+    let messages = 0;
+    global.chrome = { runtime: { sendMessage: async () => { messages++; return { ok: true, result: null }; } } } as any;
+    const live = load('src/runtime/content/liveSaveCoordinator.ts', {
+        'src/runtime/content/accountContext.js': { getAccountContext: () => ({ providerId: 'gemini', accountId: 'another-account', slot: 'u0' }) },
+    });
+    live.init();
+    assert.equal(await live.executeLiveSave({ accountId: uuid, conversationId: 'abc' }), null);
+    assert.equal(messages, 0);
+    live.cleanup();
+});
+
+test('Content Registry cannot enumerate unrelated accounts', async () => {
+    global.chrome = chromeBase() as any;
+    let listed = false;
+    const handler = load('src/runtime/background/accountRegistryHandler.ts', {
+        'src/runtime/background/readiness.js': ready,
+        'src/runtime/background/contentSender.js': security(),
+        'src/l3a/accountRegistryStore.js': { listAccounts: async () => { listed = true; return [account]; } },
+        'src/l2/accountAdmission.js': { getOrCreateAccount: async () => account },
+    }).handleAccountRegistryMessage;
+    const response = await invoke(handler, { action: 'accountRegistry', command: 'list', providerId: 'gemini' });
+    assert.equal(response.ok, false);
+    assert.match(response.error, /Extension page/);
+    assert.equal(listed, false);
+    assert.deepEqual(await invoke(handler, { action: 'accountRegistry', command: 'get', accountId: uuid }), { ok: true, value: account });
+});
+
+test('Tab IPC rejects missing responses and navigation errors without treating ACK as success', async () => {
+    global.chrome = { runtime: { sendMessage: async (value: { action: string }) => value.action === 'openGeminiPage'
+        ? { ok: false, error: 'Navigation blocked' } : undefined },
+        tabs: { sendMessage: (_id: unknown, _message: unknown, callback: Function) => callback(undefined) } } as any;
+    const route = load('src/runtime/capabilities/tabService.ts', {
+        'src/l3a/storageService.js': storage, 'src/runtime/api/runtimeReady.js': ready,
+    });
+    await assert.rejects(route.sendTabMessage(7, { action: 'getAccountContext' }, 20), /no response/);
+    await assert.rejects(route.openGeminiPage(), /Navigation blocked/);
+    await assert.rejects(route.reloadGeminiTab(7), /navigation failed/);
+});
+
+test('Runtime navigation observer refreshes on SPA changes, then removes all listeners and timer on reinjection', () => {
+    global.window = contentWindow() as any;
+    global.location = { href: 'https://gemini.google.com/app/a' } as any;
+    const historyMock = { pushState() {}, replaceState() {} };
+    global.history = historyMock as any;
+    let dispose!: () => void;
+    let navigations = 0;
+    const observer = load('src/runtime/content/pageObserver.ts', {
+        'src/runtime/content/cleanupRegistry.js': { registerCleanup: (fn: () => void) => { dispose = fn; return () => {}; } },
+        'src/runtime/content/contentContext.js': { contentContext: { clearTimer() {} } },
+    });
+    observer.hookHistoryEvents(() => navigations++);
+    global.location.href = 'https://gemini.google.com/app/b';
+    global.history.pushState({}, '', '/app/b');
+    assert.equal(navigations, 1);
+    dispose();
+    global.location.href = 'https://gemini.google.com/app/c';
+    global.window.dispatchEvent(new Event('popstate'));
+    assert.equal(navigations, 1);
+});
+
+test('Resource IPC fetches only L1-specified locators and enforces blob caps before base64 encoding', async () => {
+    const originalFetch = global.fetch;
+    const originalDocument = global.document;
+    let requests = 0, domReads = 0;
+    global.document = { querySelectorAll: () => { domReads++; return []; },
+        documentElement: { innerHTML: 'https://lh3.googleusercontent.com/unrelated' } } as any;
+    const fetcher = load('src/runtime/capabilities/assetFetcher.ts', {
+        'src/runtime/content/contentContext.js': { contentContext: { isDevMode: () => false } },
+    });
+    let reply: any;
+    try {
+        global.fetch = (async () => { requests++; return { ok: false, status: 404 }; }) as any;
+        await fetcher.handleGetFileBlob({ url: 'https://lh3.googleusercontent.com/requested' }, (value: unknown) => { reply = value; });
+        assert.equal(reply.success, false);
+        assert.equal(requests, 1);
+        assert.equal(domReads, 0);
+        global.fetch = (async () => { requests++; return { ok: true, status: 200,
+            headers: { get: () => 'image/png' },
+            blob: async () => ({ size: 45 * 1024 * 1024, type: 'image/png' }) }; }) as any;
+        await fetcher.handleGetFileBlob({ url: 'https://lh3.googleusercontent.com/oversize' }, (value: unknown) => { reply = value; });
+        assert.equal(reply.success, false);
+        assert.match(reply.error, /Chrome IPC/);
+        await fetcher.handleGetImageBlob({ url: 'https://lh3.googleusercontent.com/oversize' }, (value: unknown) => { reply = value; });
+        assert.equal(reply.success, false);
+        assert.match(reply.error, /Chrome IPC cap/);
+    } finally {
+        global.fetch = originalFetch;
+        global.document = originalDocument;
+    }
+});
+
+test('Runtime diagnostic timestamps have one numeric millisecond representation', () => {
+    const recorder = load('src/runtime/diagnostics/flightRecorder.ts', {}).FlightRecorder;
+    recorder.clear(); recorder.record('background', 'ready');
+    const event = recorder.getEntries()[0];
+    assert.equal(typeof event.ts, 'number');
+    assert.equal(Number.isSafeInteger(event.ts), true);
+    assert.equal('isoTime' in event, false);
+});
 
 test('Fetch: relative StreamGenerate URL completes; unrelated BardFrontend RPC never does', async () => {
     const relative = hookHarness(async () => new Response(streamWire()));

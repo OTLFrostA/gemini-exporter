@@ -5,8 +5,8 @@ permissions, installation and teardown. L1 acquires data, L2 admits it, Storage
 persists it and Application runs Scan/Export.
 
 Content ports are `getAccountContext`, `ping`, `getFileBlob`, `getImageBlob`.
-Background exposes readiness, account registry, Domain ingestion, local Index
-count, Live Save and navigation. Content requests persistence at the extension
+Background exposes readiness, account-bound Registry admission, Domain ingestion, local Index
+count, restricted Badge position updates, Live Save and navigation. Content requests persistence at the extension
 origin; extension pages call the owner APIs directly after readiness.
 
 `resolveScanTarget(preferredAccountId?)` probes Content and verifies UUIDs against
@@ -22,7 +22,7 @@ Existing conservative completion observations remain covered by Runtime tests;
 Live Save uses the committed Detail change, not an alternate completion writer.
 
 MAIN fetch/XHR capture resolves relative URLs before passing source facts to the
-isolated world. Badge refreshes on account changes and observed Index commits.
+isolated world. Runtime observes SPA URL changes without triggering Scan; Badge owns its own visible-state Index count polling, independently of L1 Index commits.
 Readiness awaits the one-time migration. Install opens Options with `?startTour=1`;
 updates preserve the feature baseline or initialize it from valid previousVersion
 (and otherwise currentVersion). Tour has no stored flag.

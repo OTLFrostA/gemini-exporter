@@ -1,7 +1,6 @@
 export interface FlightEvent {
     id: number;
     ts: number;
-    isoTime: string;
     subsystem: 'content' | 'background' | 'workbench' | 'storage' | 'export';
     action: string;
     details?: Record<string, unknown>;
@@ -58,7 +57,6 @@ class FlightRecorderImpl {
         const entry: FlightEvent = {
             id: this._nextId++,
             ts: now,
-            isoTime: new Date(now).toISOString(),
             subsystem,
             action,
             details: safeDetails
