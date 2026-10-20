@@ -18,10 +18,9 @@ const resourceExtensions: Readonly<Record<string, string>> = {
     'text/markdown': 'md', 'application/json': 'json', 'audio/mpeg': 'mp3', 'video/mp4': 'mp4',
 };
 
-export function planExportPaths(
-    inputs: readonly { conversation: ReadonlyDomain; prepared: PreparedResources }[],
-    format: ExportFormat,
-): readonly ExportPathPlan[] {
+/** Reuse one path namespace across a batch without retaining every resource byte. */
+export function createExportPathPlanner(format: ExportFormat):
+    (conversation: ReadonlyDomain, prepared: PreparedResources) => ExportPathPlan {
     const used = new Set<string>();
     function reserve(directory: string, name: string): string {
         // Percent is literal source text, never a second encoded path supplied to a writer.
@@ -38,7 +37,7 @@ export function planExportPaths(
             if (!used.has(key)) { used.add(key); return candidate; }
         }
     }
-    return inputs.map(({ conversation, prepared }) => {
+    return (conversation, prepared) => {
         const id = conversation.index.key.conversationId;
         const fileName = reserve('', buildExportFileName(conversation.index.title, id, extensions[format]));
         const resources: Record<string, string> = Object.create(null);
@@ -52,7 +51,16 @@ export function planExportPaths(
             resources[asset.id] = reserve(asset.kind === 'image' ? 'assets/' : 'files/', shortScope(id) + name);
         }
         return { fileName, resources };
-    });
+    };
+}
+
+/** Browser downloads still plan their complete batch after resource preparation. */
+export function planExportPaths(
+    inputs: readonly { conversation: ReadonlyDomain; prepared: PreparedResources }[],
+    format: ExportFormat,
+): readonly ExportPathPlan[] {
+    const planNext = createExportPathPlanner(format);
+    return inputs.map(({ conversation, prepared }) => planNext(conversation, prepared));
 }
 
 /** Application fills prepared mediaType from acquisition metadata, then trusted
