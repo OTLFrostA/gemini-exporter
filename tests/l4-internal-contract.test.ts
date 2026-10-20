@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
-import { fixtureKey } from './helpers/domainFixture.js';
+import { v2Conversation } from './helpers/l4V2Fixtures.js';
 import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
@@ -14,15 +13,12 @@ import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
 import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 
 function domain() {
-    const key = fixtureKey('same123456', 'gemini');
-    return restoreDomainSnapshot({
-        index: { key, title: 'Contract', titleSource: 'derived' },
-        detail: { key, quality: { status: 'complete' }, messages: [], assets: [
-            { id: 'image', kind: 'image', name: 'photo.png' },
-            { id: 'file', kind: 'file', name: 'notes.txt' },
-            { id: 'dual', kind: 'image', name: 'both.png' },
-        ] },
-    });
+    // Mock the L2 v2 boundary using data only, not L2's production validator.
+    return v2Conversation('Contract', [
+        { id: 'image', kind: 'image', name: 'photo.png' },
+        { id: 'file', kind: 'file', name: 'notes.txt' },
+        { id: 'dual', kind: 'image', name: 'both.png' },
+    ]);
 }
 const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]);
 const fileBytes = new Uint8Array([65, 66, 67]);
