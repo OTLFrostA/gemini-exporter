@@ -1,11 +1,12 @@
-import { DEFAULT_ACCOUNT_KEY } from './accountRegistry.js';
-import type { DomainConversationDetail } from './conversationDetail.js';
+import { DEFAULT_ACCOUNT_KEY, type Account } from './accountRegistry.js';
+import type { ConversationKey } from './conversationKey.js';
+import type { DomainConversationDetail, ConversationDetail } from './conversationDetail.js';
 import { selectConversationDetail } from './conversationDetail.js';
 import { acceptDetailFacts, restoreDomainDetail } from './runtimeValidation.js';
 import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservation } from './pageObservation.js';
 import { getAccount } from '../runtime/api/accountRegistry.js';
-import { restoreConversationIndex, type DomainConversationIndex, mergeConversationIndex } from './conversationIndex.js';
+import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
 import { updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
 import { conversationKey } from './conversationKey.js';
 
@@ -30,8 +31,8 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
     });
 }
 
-export async function ingestIndexes(accountId: string,
-    items: ReadonlyArray<{ conversationId: string; fields: Omit<DomainConversationIndex, 'key'> }>,
+export async function ingestIndexes(accountId: Account['id'],
+    items: ReadonlyArray<{ conversationId: ConversationKey['conversationId']; fields: Omit<ConversationIndex, 'key'> }>,
     page?: Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>): Promise<void> {
     const account = await getAccount(accountId);
     if (!account) throw new TypeError('Index account does not exist');
@@ -44,9 +45,14 @@ export async function ingestIndexes(accountId: string,
     });
 }
 
-/** changed is true only for committed exportable Detail changes, not source-version or Index updates. */
-export async function ingestDetail(accountId: string, conversationId: string,
-    detail: Omit<DomainConversationDetail, 'key'>, indexFields: Omit<DomainConversationIndex, 'key'> = {}): Promise<boolean> {
+/** Frozen L1 → L2 Detail admission contract. The implementation is migrated separately. */
+export interface DetailIngestResult {
+    accepted: boolean;
+    changed: boolean;
+}
+
+export async function ingestDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'],
+    detail: Omit<ConversationDetail, 'key'>, indexFields: Omit<ConversationIndex, 'key'> = {}): Promise<DetailIngestResult> {
     const account = await getAccount(accountId);
     if (!account) throw new TypeError('Detail account does not exist');
     const key = { accountId, conversationId };
@@ -70,7 +76,7 @@ export async function ingestDetail(accountId: string, conversationId: string,
 }
 
 /** Invoked only after L1 verifies a specific remotely deleted/nonexistent conversation. */
-export async function ingestDeletedConversation(accountId: string, conversationId: string): Promise<void> {
+export async function ingestDeletedConversation(accountId: Account['id'], conversationId: ConversationKey['conversationId']): Promise<void> {
     const key = conversationKey(accountId, conversationId);
     const account = await getAccount(accountId);
     if (!account) throw new TypeError('Deletion account does not exist');
