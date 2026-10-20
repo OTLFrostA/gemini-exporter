@@ -38,6 +38,21 @@ function wire() {
     return JSON.stringify([['wrb.fr','hNvQHb',JSON.stringify([[turn], null, 'Probe title'])]]);
 }
 
+/** Runtime must have a genuine account-bound Content tab before Scan/Export. */
+async function expectVerifiedSource(page: import('@playwright/test').Page) {
+    await expect.poll(async () => page.evaluate(async id => {
+        const tabs = await chrome.tabs.query({url:'https://gemini.google.com/*'});
+        for (const tab of tabs) {
+            if (tab.id === undefined) continue;
+            try {
+                const result = await chrome.tabs.sendMessage(tab.id, {action:'getAccountContext'});
+                if (result?.ok && result.accountContext?.accountId === id) return result.accountContext.slot;
+            } catch { /* Source Content may still be attaching. */ }
+        }
+        return null;
+    }, accountId)).toMatch(/^u\d+$/);
+}
+
 test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset preserves Domain and clears ExportRecords', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.evaluate(async accountId => {
@@ -65,6 +80,7 @@ test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset preserves
 
 test('Tier 2 scan observer sees real UI → Application → Recent RPC completion and persisted Coverage', async ({ context, extensionId }) => {
     const page = await workbench(context,extensionId); await source(context);
+    await expectVerifiedSource(page);
     const list = JSON.stringify([['wrb.fr','MaZiqc',JSON.stringify([null,null,[['c_probe','Probe title',null,null,null,[1700000000,0]]]])]]);
     await page.route('**/batchexecute*',route => route.fulfill({contentType:'application/json',body:list}));
     expect(await page.evaluate(scanObserver)).toEqual({clicked:true});
@@ -86,19 +102,8 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
 
     const page = await workbench(context,extensionId);
     await source(context);
-    // The real v2 Provider requires a live, account-verified Content binding.
-    // Merely opening a Gemini-shaped tab is not enough to grant that route.
-    await expect.poll(async () => page.evaluate(async id => {
-        const tabs = await chrome.tabs.query({url:'https://gemini.google.com/*'});
-        for (const tab of tabs) {
-            if (tab.id === undefined) continue;
-            try {
-                const result = await chrome.tabs.sendMessage(tab.id, {action:'getAccountContext'});
-                if (result?.ok && result.accountContext?.accountId === id) return result.accountContext.slot;
-            } catch { /* Source Content may still be attaching. */ }
-        }
-        return null;
-    }, accountId)).toMatch(/^u\d+$/);
+    // The v2 Provider rejects an unverified tab, even when the URL looks right.
+    await expectVerifiedSource(page);
 
     await page.evaluate(async accountId => Reflect.get(globalThis,'probeFixture').putIndexes([{
         key:{accountId,conversationId:'probe'},title:'Probe title',titleSource:'provider',updatedAt:1700000000000,
