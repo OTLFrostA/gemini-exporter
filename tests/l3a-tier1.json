@@ -42,6 +42,14 @@
     "tests/browser_runtime_v2.test.ts",
     "tests/conversation_version.test.ts",
     "tests/write_failure_semantics.test.ts",
-    "tests/media-identity-persistence.test.ts"
+    "tests/media-identity-persistence.test.ts",
+    "tests/conversation_repository_other_layers.test.ts"
+  ],
+  "e2eSuites": [
+    "tests/e2e/account_registry_store.spec.ts",
+    "tests/e2e/domain_storage.spec.ts",
+    "tests/e2e/domain_storage_extension.spec.ts",
+    "tests/e2e/production_v2.spec.ts",
+    "tests/e2e/tier2_v2_probes.spec.ts"
   ]
 }
