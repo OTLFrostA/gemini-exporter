@@ -81,6 +81,25 @@ test('system and empty assistant turns are skipped, user turns kept in order', (
     assert.equal(shouldSkipChatGPTMessage(mapping.c.message), true);
 });
 
+test('missing ChatGPT ancestors and cyclic mappings never claim complete Detail or loop', () => {
+    const root = { id: 'root', children: ['a'] } as ChatGPTConversationNode;
+    const broken: Record<string, ChatGPTConversationNode> = {
+        root, a: textNode('a', 'missing', 'user', 'known body'),
+    };
+    const cyclic: Record<string, ChatGPTConversationNode> = {
+        a: textNode('a', 'b', 'user', 'question'),
+        b: textNode('b', 'a', 'assistant', 'answer'),
+    };
+    for (const mapping of [broken, cyclic]) {
+        const parsed = parseChatGPTConversation({
+            conversation: { id: 'conv-partial', title: 'Partial', create_time: 1, update_time: 2,
+                current_node: 'a', mapping, is_archived: false },
+            assetsByNode: new Map(),
+        });
+        assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    }
+});
+
 test('consecutive assistant turns merge into one node', () => {
     const a1 = textNode('a1', 'u1', 'assistant', 'part1');
     const a2 = textNode('a2', 'a1', 'assistant', 'part2');
