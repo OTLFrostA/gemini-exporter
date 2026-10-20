@@ -20,6 +20,7 @@ from scripts.framework.assertions import (
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
+from scripts.framework.cases.chat import read_initial_export_markdown
 from scripts.framework.cases.export import ImagenMultimodalCase
 from scripts.framework.cases.export import (
     LiveSaveNewChatCase, HtmlExportDownloadCase, PdfExportDownloadCase,
@@ -912,6 +913,48 @@ class ImageOutcomeTests(unittest.TestCase):
                 self.assertFalse(check(evidence, MagicMock()))
 
 
+class V2SingleConversationDeliveryTests(unittest.TestCase):
+    """v2 physically delivers a bare .md unless other files require a ZIP."""
+
+    def test_initial_baseline_accepts_standalone_md_and_zip_with_assets(self):
+        content = document(cid=CID)
+        with tempfile.TemporaryDirectory() as directory:
+            for suffix in ('.md', '.zip'):
+                with self.subTest(delivery=suffix):
+                    path = Path(directory) / f'Chat_{CID[-6:]}{suffix}'
+                    if suffix == '.zip':
+                        with zipfile.ZipFile(path, 'w') as archive:
+                            archive.writestr(f'Chat_{CID[-6:]}.md', content)
+                            archive.writestr('assets/photo.png', b'original photo')
+                    else:
+                        path.write_text(content, encoding='utf-8')
+                    baseline = read_initial_export_markdown(str(path), 'c_' + CID)
+                    self.assertEqual(baseline, content)
+                    self.assertTrue(assert_turn_content(baseline, EVIDENCE)[0])
+
+    def test_initial_baseline_rejects_wrong_target_and_missing_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            wrong_file = directory / f'Chat_{OTHER[-6:]}.md'
+            wrong_file.write_text(document(cid=CID), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                read_initial_export_markdown(str(wrong_file), CID)
+            mismatched_id = directory / f'Chat_{CID[-6:]}.md'
+            mismatched_id.write_text(document(cid=OTHER), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                read_initial_export_markdown(str(mismatched_id), CID)
+            archive_path = directory / 'ambiguous.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(f'first/Chat_{CID[-6:]}.md', document(cid=CID))
+                archive.writestr(f'second/Chat_{CID[-6:]}.md', document(cid=CID))
+            with self.assertRaises(ValueError):
+                read_initial_export_markdown(str(archive_path), CID)
+            unrelated = directory / 'unexpected.html'
+            unrelated.write_text(document(cid=CID), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                read_initial_export_markdown(str(unrelated), CID)
+
+
 class CoverageTests(unittest.TestCase):
     def test_missing_required_scenario_is_not_consumed_as_generic(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1014,6 +1057,33 @@ class CoverageTests(unittest.TestCase):
                      patch.object(CDPActions, 'clear_search_workbench'), \
                      patch.object(CDPActions, 'trigger_export_zip', return_value=str(path)):
                     self.assertEqual(FastSkipExportedCase().execute(ctx)[0], expected)
+
+    def test_all_skipped_rejects_any_unexpected_physical_download(self):
+        for extension in ('.md', '.zip', '.html', '.pdf'):
+            with self.subTest(extension=extension), tempfile.TemporaryDirectory() as directory:
+                ctx = MagicMock(output_dir=directory)
+                cdp = ctx.connect_options.return_value
+                unexpected = Path(directory) / ('unexpected' + extension)
+
+                def respond(script, **_kwargs):
+                    if 'const exported = items.filter' in script:
+                        return {'count': 6, 'log': 'before'}
+                    if 'btn.click()' in script:
+                        return True
+                    if 'busy: !!document.getElementById' in script:
+                        unexpected.write_bytes(b'export must not run')
+                        return {'busy': False, 'log':
+                                'Delivery initiated: 0; partial: 0; skipped: 6; failed: 0'}
+                    raise AssertionError('Full-skip test continued into partial export')
+
+                cdp.eval.side_effect = respond
+                with patch('scripts.framework.cases.export.install_probe'), \
+                     patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}), \
+                     patch.object(CDPActions, 'clear_search_workbench'):
+                    ok, message, _ = FastSkipExportedCase().execute(ctx)
+                self.assertFalse(ok)
+                self.assertIn('全量跳过异常生成文件', message)
+                self.assertIn(unexpected.name, message)
 
     def test_all_skipped_probe_rejects_zero_skips_and_failed_exports(self):
         for result in ('Delivery initiated: 0; partial: 0; skipped: 0; failed: 0',

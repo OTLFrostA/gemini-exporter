@@ -533,7 +533,7 @@ class FastSkipExportedCase(FeatureTestCase):
             feature_id="feat_fast_skip_exported",
             domain=FeatureDomain.EXPORT_DISK,
             name="跳过已导出会话前置极速过滤",
-            description="勾选【跳过已导出】时，已导出会话前置分流瞬间跳过（防空 ZIP 保护），含新会话时精准分流导出",
+            description="勾选【跳过已导出】时，已导出会话前置分流且不会产生下载文件；含新会话时精准导出",
             critical=True,
             # Six exported records require both live conversations and the historical ZIP batch.
             prerequisites=["feat_chat_generation", "feat_zip_export_download"]
@@ -597,9 +597,12 @@ class FastSkipExportedCase(FeatureTestCase):
             duration = time.monotonic() - start
             if not completed:
                 return False, "没有本次导出的全量跳过完成证据", status
-            new_zips = [f for f in set(os.listdir(ctx.output_dir)) - existing_files if f.endswith('.zip')]
-            if new_zips:
-                return False, f"全量跳过异常生成 ZIP: {new_zips}", status
+            new_files = sorted(
+                name for name in set(os.listdir(ctx.output_dir)) - existing_files
+                if os.path.isfile(os.path.join(ctx.output_dir, name))
+            )
+            if new_files:
+                return False, f"全量跳过异常生成文件: {new_files}", status
 
             partial = cdp_opt.eval("""
             (async () => {
