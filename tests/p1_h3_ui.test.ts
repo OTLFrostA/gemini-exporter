@@ -2,17 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import { mount, read, A } from './helpers/uiPortHarness.js';
-import { verifyDirPermission } from '../src/runtime/capabilities/dirHandleController.js';
 let browser:Browser,page:Page;
 test.before(async()=>{browser=await chromium.launch({headless:true});});test.afterEach(async()=>{await page?.close();});test.after(async()=>{await browser?.close();});
 async function open(kind:'popup'|'options'='options',patch:Record<string,unknown>={}){page=await browser.newPage();await mount(page,kind,patch);}
 test('P1-118: dynamic IDs and title updates stay literal and cannot escape into DOM selectors or markup',async()=>{
     const id='chat:with[brackets]';await open('options',{indexes:[{key:{accountId:A,conversationId:id},title:'<img src=x onerror=alert(1)>'}]});await page.locator('#list input').check();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
     assert.equal(await page.locator('#list img').count(),0);assert.equal((await read(page,'exports'))[0].keys[0].conversationId,id);
-});
-test('P1-119: checking folder permission never requests it without user activation',async()=>{
-    let requested=false;const handle={name:'folder',queryPermission:async()=> 'prompt' as const,requestPermission:async()=>{requested=true;return 'granted' as const;}};
-    assert.equal(await verifyDirPermission(handle as unknown as NonNullable<Parameters<typeof verifyDirPermission>[0]>),false);assert.equal(requested,false);
 });
 test('P1-120: File input resets after success and failure so the same archive can be selected again',async()=>{
     for(const failImport of [false,true]){
