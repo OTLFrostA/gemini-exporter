@@ -27,7 +27,7 @@ export const deliveries: ExportArtifact[][] = [];
 export const contexts: SourceResourceContext[] = [];
 export let settings: Partial<GlobalSettings> = {};
 export const state = {
-    failRead: false, failSettingsWrite: false, failRecord: '', failDelivery: 0, failDelete: '',
+    failRead: false, failSettingsRead: false, failSettingsWrite: false, failRecord: '', failDelivery: 0, failDelete: '',
     directory: {} as FileSystemDirectoryHandle | null,
     onDelivery: undefined as (() => void) | undefined,
     sourceContext: undefined as SourceResourceContext | undefined,
@@ -82,7 +82,7 @@ const storage = {
     async getDirectoryHandle() { return state.directory; },
     async setDirectoryHandle(handle: FileSystemDirectoryHandle) { events.push('save-directory'); state.directory = handle; },
     async clearDirectoryHandle() { events.push('clear-directory'); state.directory = null; },
-    async getStoredSettings() { state.settingsReads++; if (state.failRead) throw new Error('read failed'); return structuredClone(settings); },
+    async getStoredSettings() { state.settingsReads++; if (state.failSettingsRead) throw new Error('read failed'); return structuredClone(settings); },
     async patchStoredSettings(patch: Partial<GlobalSettings>) {
         if (state.failSettingsWrite) throw new Error('write failed');
         events.push('settings-write'); settings = { ...settings, ...patch };
@@ -142,7 +142,7 @@ export function request(patch: Partial<ExportRequest> = {}): ExportRequest {
 }
 export function reset(): void {
     indexes.clear(); details.clear(); records.clear(); events.length = 0; deliveries.length = 0; contexts.length = 0; settings = {};
-    Object.assign(state, { failRead: false, failSettingsWrite: false, failRecord: '', failDelivery: 0, failDelete: '', directory: {},
+    Object.assign(state, { failRead: false, failSettingsRead: false, failSettingsWrite: false, failRecord: '', failDelivery: 0, failDelete: '', directory: {},
         onDelivery: undefined, sourceContext: undefined, pdfPrepared: [], pdfBindings: {},
         pdfDiagnostics: [], pdfLocale: undefined, accountOverride: undefined, settingsReads: 0, disposed: 0 });
     Object.assign(provider, { fetchConversationDetail: defaultFetch, acquireResource: defaultAcquire, listConversations: defaultList });
