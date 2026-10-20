@@ -91,19 +91,28 @@ test('default retains source Index facts without establishing trusted account co
     } finally { env.restore(); }
 });
 
-test('ingestDetail changed reports only committed messages/assets/quality differences', async () => {
+test('ingestDetail reports admitted candidate and material change independently after commit', async () => {
     const env = indexStorage(), key = fixtureKey('changed-semantics');
     try {
         const body = { ...snapshot('first', 'complete', 10).conversation.detail };
         const { key: _unused, ...facts } = body;
-        assert.equal(await ingestDetail(account.id, key.conversationId, facts), true);
-        assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts }), false);
-        assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 11 }), false);
-        assert.equal((await readFixture(storageIdentity('gemini', account.id, key.conversationId)))!.conversation.detail.savedAt, 11);
-        assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts, quality: { status: 'partial' }, savedAt: 12 },
-            { title: 'New index', titleSource: 'provider' }), false);
-        assert.equal(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 12,
-            messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'edited' }] }] }] }), true);
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true });
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts }), { accepted: true, changed: false });
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 11 }),
+            { accepted: true, changed: false }, 'savedAt-only progress does not trigger Live Save');
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 9 }),
+            { accepted: true, changed: false }, 'equal material facts permit candidate resource reuse');
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 12, messages: [] }),
+            { accepted: true, changed: true }, 'a newer complete snapshot can remove messages');
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 11 }),
+            { accepted: false, changed: false }, 'older different material facts are rejected');
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 13 }),
+            { accepted: true, changed: true }, 'newer full snapshot can replace an older one');
+        assert.equal((await readFixture(storageIdentity('gemini', account.id, key.conversationId)))!.conversation.detail.savedAt, 13);
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts, quality: { status: 'partial' }, savedAt: 14 },
+            { title: 'New index', titleSource: 'provider' }), { accepted: false, changed: false });
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 14,
+            messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'edited' }] }] }] }), { accepted: true, changed: true });
     } finally { env.restore(); }
 });
 
@@ -116,7 +125,7 @@ test('one failed Detail write rolls back its freshly created Index', async () =>
         env.fail();
         assert.equal(await getIndex(key), null);
         assert.equal(await getDetail(key), null);
-        assert.equal(await ingestDetail(account.id, key.conversationId, facts), true);
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true });
         assert.ok(await getIndex(key));
         assert.ok(await getDetail(key));
     } finally { env.restore(); }

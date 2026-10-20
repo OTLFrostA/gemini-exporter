@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CoverageSession, emptyStream } from '../src/l2/streamCoverage.js';
+import { CoverageSession, emptyStream, readStreamCoverage } from '../src/l2/streamCoverage.js';
 import type { PageObservation } from '../src/l2/pageObservation.js';
 function page(times: number[], requestCursor: string | null = null, nextCursor: string | null = null): PageObservation<unknown> {
     return { providerId: 'other-provider', accountId: 'a', streamId: 'activity', items: [], requestCursor, nextCursor,
@@ -72,4 +72,17 @@ test('a cursor link cannot stitch pages of different accounts, streams or acquis
     const crossPageTime = new CoverageSession();
     crossPageTime.observe(emptyStream(), page([100], null, 'next'));
     assert.deepEqual(crossPageTime.observe(emptyStream(), page([110], 'next')), emptyStream());
+});
+
+test('Coverage facts require safe-integer Unix milliseconds, not merely finite numbers', () => {
+    for (const time of [0.5, Number.MAX_SAFE_INTEGER + 1]) {
+        const invalid = { range: { head: { id: 'head', time }, tail: { id: 'tail', time: 0 } } };
+        assert.equal(readStreamCoverage(invalid), null);
+        const session = new CoverageSession();
+        assert.deepEqual(session.observe(emptyStream(), page([time])), emptyStream());
+        assert.equal(session.exhausted(), false);
+        assert.deepEqual(session.observe(emptyStream(), { ...page([100]), requestedAt: time }), emptyStream());
+    }
+    assert.deepEqual(readStreamCoverage({ range: { head: { id: 'head', time: 100 }, tail: { id: 'tail', time: 0 } } }),
+        { range: { head: { id: 'head', time: 100 }, tail: { id: 'tail', time: 0 } } });
 });

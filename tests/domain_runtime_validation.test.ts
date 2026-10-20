@@ -145,3 +145,11 @@ test('trusted parser bodies are reused internally but copied IPC facts must pass
     assert.throws(() => acceptDetailFacts(parsed.detail.key, received), TypeError);
     assert.throws(() => acceptDetailFacts({ ...parsed.detail.key, conversationId: 'other' }, parsed.detail), TypeError);
 });
+
+test('withSourceVersion rejects unsafe or fractional source timestamps', () => {
+    const { withSourceVersion } = require('../src/l2/runtimeValidation.js') as typeof import('../src/l2/runtimeValidation.js');
+    const trusted = validateParserDomain(valid());
+    for (const savedAt of [0.5, Number.MAX_SAFE_INTEGER + 1, Infinity])
+        assert.throws(() => withSourceVersion(trusted, savedAt), TypeError);
+    assert.equal(withSourceVersion(trusted, 0).detail.savedAt, 0);
+});

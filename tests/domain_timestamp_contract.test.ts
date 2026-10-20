@@ -13,6 +13,8 @@ test('conversation times are independent finite epoch milliseconds and unknown f
     assert.deepEqual(normalizeConversationTimes({ updatedAt: 0 }), { updatedAt: 0 });
     assert.deepEqual(normalizeConversationTimes({ createdAt: null, updatedAt: '1700000000123' }), { updatedAt: 1700000000123 });
     assert.equal(normalizeTimestamp('2026-10-06T00:00:00Z'), Date.parse('2026-10-06T00:00:00Z'));
+    for (const invalid of [0.5, Number.MAX_SAFE_INTEGER + 1, Number.MIN_SAFE_INTEGER - 1])
+        assert.equal(normalizeTimestamp(invalid), undefined);
     for (const invalid of [null, NaN, Infinity, '', 'bad-date', true, {}]) {
         assert.equal(normalizeTimestamp(invalid), undefined);
         if (invalid !== undefined) assert.throws(() => validateParserDomain({ index: { ...base().index, createdAt: invalid as never }, detail: {   ...base().detail } }));
@@ -52,6 +54,10 @@ test('L2 admission protects the L3b Unix-ms contract from fractional and unsafe 
         }
         assert.throws(() => validateParserDomain({ ...base(), detail: { ...base().detail,
             messages: [{ role: 'assistant', timestamp: value, content: [] }] } }), TypeError);
+        assert.throws(() => validateParserDomain({ ...base(), detail: { ...base().detail, savedAt: value } }), TypeError);
+        assert.throws(() => restoreDomainSnapshot({ ...base(), detail: { ...base().detail, savedAt: value } }), TypeError);
+        assert.throws(() => validateParserDomain({ ...base(), detail: { ...base().detail,
+            assets: [{ id: 'image', kind: 'image', generation: { time: value } }] } }), TypeError);
     }
     const admitted = validateParserDomain({ ...base(), index: { ...base().index, createdAt: 0 },
         detail: { ...base().detail, messages: [{ role: 'assistant', timestamp: 0, content: [] }] } });
