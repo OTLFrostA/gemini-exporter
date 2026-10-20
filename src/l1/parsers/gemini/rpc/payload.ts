@@ -14,18 +14,18 @@ export interface InnerPayloadDiscoveryResult {
     bardError: string | null;
 }
 
+/** Provider-native Unix timestamps become finite safe integer milliseconds. */
 export function payloadToMs(val: unknown): number | null {
-    if (!val) return null;
-    if (Array.isArray(val) && typeof val[0] === "number" && val[0] > 1e9) {
-        if (val[0] > 1e11) return Math.round(val[0]);
-        const sec = val[0];
-        const nano = typeof val[1] === "number" ? val[1] : 0;
-        return Math.round(sec * 1000 + Math.floor(nano / 1e6));
+    let ms: number | null = null;
+    if (Array.isArray(val) && Number.isSafeInteger(val[0]) && val[0] > 1e9) {
+        const sec = val[0] as number;
+        const nano = val[1] === undefined ? 0 : val[1];
+        if (!Number.isSafeInteger(nano) || nano < 0 || nano >= 1e9) return null;
+        ms = sec > 1e11 ? sec : Math.round(sec * 1000 + nano / 1e6);
+    } else if (typeof val === 'number' && Number.isFinite(val) && val > 1e9) {
+        ms = val > 1e11 ? Math.round(val) : Math.round(val * 1000);
     }
-    if (typeof val === "number" && val > 1e9) {
-        return val > 1e11 ? Math.round(val) : Math.round(val * 1000);
-    }
-    return null;
+    return ms !== null && Number.isSafeInteger(ms) && ms > 0 ? ms : null;
 }
 
 export function extractInnerPayload(
