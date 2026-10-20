@@ -1,3 +1,4 @@
+import { notifyDomainChanged } from '../api/domainChanges.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../l2/ingestion.js';
 import { ensureV2Ready } from './readiness.js';
 import { object, requireContentAccount, assertContentSender } from './contentSender.js';
@@ -29,6 +30,7 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                     || typeof result.changed !== 'boolean' || (!result.accepted && result.changed)) {
                     throw new TypeError('Invalid committed Detail ingestion result');
                 }
+                notifyDomainChanged(account.id);
                 respond({ ok: true, result: { accepted: result.accepted, changed: result.changed } });
                 return;
             } else if (request.operation === 'deleted') {
@@ -36,6 +38,7 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                 if (typeof request.conversationId !== 'string' || !/^[a-f0-9]{8,64}$/.test(request.conversationId)) throw new TypeError('Expected Gemini conversation ID');
                 await ingestDeletedConversation(account.id, request.conversationId);
             } else throw new TypeError('Unknown ingestion operation');
+            notifyDomainChanged(account.id);
             respond({ ok: true });
         } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : String(error) }); }
     })();

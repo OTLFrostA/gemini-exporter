@@ -1,3 +1,4 @@
+import { notifyDomainChanged } from '../api/domainChanges.js';
 import type { DirectoryHandle } from '../capabilities/directoryHandle.js';
 import { getSettings } from '../../application/settings/index.js';
 import { refreshConversation } from '../../application/conversations/refreshConversation.js';
@@ -49,7 +50,8 @@ export function runLiveSave(key: ConversationKey, refreshDetail = false): Promis
             while (pending.refresh !== null) {
                 const refresh = pending.refresh;
                 pending.refresh = null;
-                result = await exportLiveSave(key, refresh);
+                try { result = await exportLiveSave(key, refresh); }
+                finally { notifyDomainChanged(key.accountId); }
             }
             return result;
         } finally {

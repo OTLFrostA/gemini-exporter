@@ -44,6 +44,8 @@ async function invoke(handler: Function, message: unknown, origin: unknown = sen
 
 test('ingestion awaits L2 commit, forwards empty terminal page and never writes Storage directly', async () => {
     global.chrome = chromeBase() as any;
+    const notifications: unknown[] = [];
+    Reflect.set(chrome.runtime, 'sendMessage', async (message: unknown) => { notifications.push(message); });
     let commit!: () => void;
     let args: unknown[] = [];
     const gate = new Promise<void>(resolve => { commit = resolve; });
@@ -57,9 +59,11 @@ test('ingestion awaits L2 commit, forwards empty terminal page and never writes 
     const result = invoke(handle, { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [], page }).then(value => { answered = true; return value; });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(answered, false);
+    assert.deepEqual(notifications, [], 'uncommitted facts cannot invalidate an open view');
     assert.deepEqual(args, [uuid, [], page]);
     commit();
     assert.deepEqual(await result, { ok: true });
+    assert.deepEqual(notifications, [{ action: 'domainChanged', accountId: uuid }]);
 });
 
 test('ingestion preserves Detail and Index facts; reports L2 errors', async () => {

@@ -1,89 +1,5 @@
 [
   {
-    "id": "crystallography_reciprocal_lattice_bragg_powder_indexing",
-    "domain": "crystallography_diffraction_reciprocal_space",
-    "title": "Crystal diffraction: reciprocal lattices, Bragg conditions and powder peak indexing",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an educational diagram comparing a cubic crystal lattice with its reciprocal lattice and an Ewald sphere. Explain in English and Chinese which geometric objects represent planes, reciprocal vectors and elastic scattering, distinguishing the schematic from measurable diffraction data.",
-      "Derive reciprocal basis vectors and the LaTeX relation between lattice-plane spacing, Miller indices and Bragg diffraction angle. Work through a cubic lattice example with explicit wavelength and units; distinguish primitive, body-centered and face-centered extinction conditions.",
-      "Write complete runnable Python using only the standard library to enumerate unique powder diffraction peaks for simple, body-centered and face-centered cubic crystals. Include assertions for extinction rules, degeneracies and the Bragg sine domain.",
-      "Compare peak positions, multiplicities, systematic absences and lattice-parameter uncertainty in a Markdown table for three concrete cubic crystal candidates. Explain why relative intensity cannot be inferred from peak multiplicity alone.",
-      "Design a reproducible inverse indexing audit using synthetic noisy peak angles. Provide LaTeX residual and uncertainty equations, runnable lattice-parameter estimation tests and a Markdown report distinguishing identifiable lattice geometry from unknown structure factors."
-    ]
-  },
-  {
-    "id": "compiler_ll1_nullable_first_follow_predictive_parser",
-    "domain": "compiler_theory_predictive_parsing",
-    "title": "Predictive parsing: nullable, FIRST/FOLLOW fixed points and LL(1) conflict certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a context-free expression grammar with nullable productions and explicit end-of-input. Use LaTeX to state the least-fixed-point equations for nullable, FIRST and FOLLOW, and explain the roles of epsilon and the input sentinel.",
-      "Compute nullable and FIRST step by step for a concrete expression grammar after eliminating immediate left recursion. Present every iteration in a Markdown table and prove finite termination from monotonicity.",
-      "Derive FOLLOW propagation constraints and construct the full LL(1) prediction table, including epsilon productions. Show a deterministic conflict certificate for a deliberately ambiguous grammar.",
-      "Write complete runnable Python standard-library code that computes nullable, FIRST and FOLLOW by worklist iteration and constructs an LL(1) table. Include tests for indirect nullability, cycles, unreachable productions and a conflicting cell.",
-      "Extend the Python program with a table-driven predictive parser that produces a parse trace for a parenthesized arithmetic expression. Show stack, remaining input and chosen production in a Markdown table.",
-      "Design negative tests for missing operands, unmatched parentheses, trailing tokens and a valid empty production. State the exact rejection point and prove that successful parses consume the entire input.",
-      "Compare LL(1), recursive descent with backtracking, Pratt parsing and LR(1) in a Markdown table covering grammar restrictions, lookahead, conflict diagnosis and error recovery. Include an English and Chinese terminology glossary.",
-      "Build a reproducible grammar-transformation audit: enumerate short token strings and compare acceptance before and after left-recursion elimination and factoring. Provide runnable tests, LaTeX language-equivalence claims with explicit bounds and a Markdown summary separating bounded evidence from a general proof."
-    ]
-  },
-  {
-    "id": "coding_theory_hamming_syndrome_single_error_correction",
-    "domain": "coding_theory_linear_block_codes",
-    "title": "Hamming codes: binary parity checks, syndrome decoding and exhaustive verification",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a Hamming (7,4) code over GF(2). Show explicit generator and parity-check matrices in LaTeX, state bit order conventions, and verify their orthogonality.",
-      "Derive syndrome decoding for every possible single-bit error using your chosen matrices. Work through one encoded message and one corrupted codeword with all intermediate vectors.",
-      "Write complete runnable standard-library Python that encodes all 16 messages and exhaustively corrects all seven possible single-bit flips. Include assertions for parity checks and round-trip decoding.",
-      "Compare Hamming (7,4), extended Hamming (8,4) and triple repetition in a Markdown table: rates, minimum distance, detection and correction capabilities. Explain the meaning of SECDED in English and Chinese.",
-      "Design an adversarial verification report including zero-error, single-error, double-error and invalid-input cases. Distinguish a decoder returning some codeword from proving it recovered the transmitted message, with equations and executable tests."
-    ]
-  },
-  {
-    "id": "numerical_pde_finite_volume_upwind_mass_cfl",
-    "domain": "numerical_pde_conservative_transport",
-    "title": "Conservative transport: finite-volume fluxes, CFL stability and periodic mass audits",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate one-dimensional linear advection on a periodic interval using conservative finite volumes. Specify cell averages, boundary indexing and numerical fluxes with LaTeX equations.",
-      "Derive the first-order upwind update for positive and negative speeds. Explain the CFL bound through positivity of update weights and show exact discrete mass conservation.",
-      "Give a small numeric worked example with four periodic cells, both velocity signs and a nontrivial Courant number. Present cell values, fluxes and before/after total mass in a Markdown table.",
-      "Write runnable standard-library Python implementing periodic upwind transport. Include tests for constant-state preservation, mass conservation and nonnegativity under the stated CFL condition.",
-      "Compare upwind, Lax-Wendroff and limited MUSCL reconstruction in a Markdown table covering order, diffusion, oscillations and boundary handling. Include an English/Chinese terminology glossary.",
-      "Derive a grid-refinement experiment against a smooth translated sine wave. Specify the final-time alignment, error norms and observed-order calculation in LaTeX.",
-      "Extend the verification script to run several grids and print a Markdown convergence table. Add a discontinuous pulse case, keeping smooth convergence claims separate from discontinuous behavior.",
-      "Design a failure audit using an excessive time step and a deliberately incorrect periodic flux index. Show which invariants detect each defect and explain the limits of conservation as a correctness test."
-    ]
-  },
-  {
     "id": "electrochemistry_randles_impedance_nyquist_validation",
     "domain": "electrochemistry_impedance_spectroscopy",
     "title": "Electrochemical impedance: Randles circuit, Nyquist geometry and parameter identifiability",
@@ -420,6 +336,88 @@
       "Provide a Markdown table comparing positive, negative, zero and near-unit coefficients. Discuss alternating correlation, slow decay and the required warm-up length without claiming an arbitrary universal cutoff.",
       "Analyze deterministic innovations, an initially stationary draw, invalid nonfinite parameters and a coefficient outside the stationary range. Explain how finite-horizon forecasts can exist without stationarity.",
       "Write a detailed bilingual reproducibility report separating model assumptions, initialization bias, sampling error and omitted real-world features such as seasonality or changing variance. Include a compact glossary."
+    ]
+  },
+  {
+    "id": "control_theory_discrete_lyapunov_stability",
+    "domain": "control_theory_discrete_lyapunov",
+    "title": "Discrete control: Lyapunov stability and verified state evolution",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a two-state discrete-time linear control system. State the Lyapunov equation in LaTeX and explain the distinction between stability, controllability and observability in English and Chinese.",
+      "Derive a quadratic Lyapunov certificate for a concrete stable 2 by 2 rational matrix. Show every arithmetic step and present principal-minor tests in a Markdown table.",
+      "Write runnable standard-library Python that solves the discrete Lyapunov equation by elimination, simulates state trajectories, and asserts monotonic decrease of the quadratic energy.",
+      "Compare stable, marginal and unstable two-state matrices in a Markdown table. Include negative tests where the equation is singular or a computed matrix fails positive definiteness.",
+      "Design a reproducible stability audit with rational and floating-point residual checks. Provide equations, complete Python tests and a Markdown report distinguishing a numerical certificate from a formal proof."
+    ]
+  },
+  {
+    "id": "mechanics_rigid_body_inertia_principal_axes",
+    "domain": "mechanics_rigid_body_inertia",
+    "title": "Rigid-body inertia: principal axes and rotation audits",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define the inertia tensor for a finite collection of point masses in three dimensions. State its units, symmetry and quadratic-energy meaning in LaTeX.",
+      "Derive the parallel-axis theorem from the point-mass definition and work a concrete asymmetric example. Show intermediate center-of-mass values in a Markdown table.",
+      "Write complete standard-library Python for center of mass, inertia tensors and kinetic energy. Include assertions for tensor symmetry and nonnegative rotational energy.",
+      "Derive how the tensor transforms under a proper orthogonal rotation. Verify invariance of trace, determinant and rotational kinetic energy with explicit matrices.",
+      "Implement a Jacobi eigensolver for symmetric 3 by 3 matrices using standard-library Python. Test residuals, orthogonality and repeated eigenvalues.",
+      "Compare a linear mass arrangement, planar triangle and noncoplanar arrangement in a Markdown table of ranks, principal moments and physically unobservable axes.",
+      "Explain failure cases involving zero total mass, negative masses, nearly collinear coordinates and incorrect unit conversions. Provide deterministic rejection tests.",
+      "Build a reproducible principal-axis audit with fixed synthetic mass sets. Include runnable tests, LaTeX uncertainty bounds and a Markdown report distinguishing numerical conditioning from physical ambiguity."
+    ]
+  },
+  {
+    "id": "numerical_optimization_projected_gradient_simplex",
+    "domain": "numerical_optimization_simplex",
+    "title": "Constrained optimization: projected gradients on the simplex",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a convex quadratic program on the probability simplex. State feasibility, first-order optimality and the Karush-Kuhn-Tucker conditions in LaTeX.",
+      "Derive Euclidean projection onto the simplex using sorted breakpoints. Work a three-coordinate example and explain active sets in a Markdown table.",
+      "Write complete runnable standard-library Python for simplex projection and projected gradient descent. Include assertions for feasibility, optimality residuals and monotonic objective decrease.",
+      "Compare projected gradient, coordinate descent and an active-set solve in a Markdown table. Give counterexamples for an excessive step size, an indefinite Hessian and nearly tied breakpoints.",
+      "Design a reproducible convergence audit on small rational quadratic programs. Provide equations, executable residual checks and a Markdown report separating numerical evidence from theoretical guarantees."
+    ]
+  },
+  {
+    "id": "computational_geometry_polygon_winding_exact_predicates",
+    "domain": "computational_geometry_polygon_winding",
+    "title": "Polygon geometry: winding numbers and robust boundary classification",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define signed polygon area, winding number and point membership for an oriented simple polygon. State how boundary points are classified and explain conventions in English and Chinese.",
+      "Derive an integer orientation predicate and half-open ray-crossing rule that handles horizontal edges and vertices without double counting. Show a concave polygon example in a Markdown table.",
+      "Write complete standard-library Python for exact point-in-polygon classification with integer coordinates. Include separate inside, outside and boundary outcomes.",
+      "Extend the implementation with signed area, centroid and orientation normalization. Show the LaTeX derivation and test invariance under cyclic vertex permutation.",
+      "Build tests for points on vertices, near horizontal edges, negative coordinates, repeated closing vertices and degenerate zero-area inputs. Explain each expected result.",
+      "Compare winding-number, parity-crossing, triangulation and convex-half-plane methods in a Markdown table of assumptions, complexity and boundary guarantees.",
+      "Generate a deterministic collection of small polygons and cross-check exact predicates against an independently implemented triangulation oracle. Explain the limits of random testing.",
+      "Create a reproducible robustness report with runnable Python tests, LaTeX error bounds for floating-point alternatives and a Markdown summary distinguishing numerical ambiguity from invalid geometry."
     ]
   }
 ]

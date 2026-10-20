@@ -334,9 +334,18 @@ export async function initWorkbench(): Promise<void> {
             await refresh();
         })().catch(e => status(errorText(e), 'error'));
     };
+    const onDomainChanged = (message: unknown, sender: chrome.runtime.MessageSender): void => {
+        if (sender.id !== chrome.runtime.id || sender.tab
+            || sender.url && !sender.url.startsWith(chrome.runtime.getURL(''))
+            || !message || typeof message !== 'object' || !('action' in message) || message.action !== 'domainChanged'
+            || !('accountId' in message) || message.accountId !== state.accountId) return;
+        void refresh().catch(e => status(errorText(e), 'error'));
+    };
+    chrome.runtime.onMessage.addListener(onDomainChanged);
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
-        stopSettings(); window.removeEventListener('focus', onFocus); TourGuide.destroy();
+        stopSettings(); chrome.runtime.onMessage.removeListener(onDomainChanged);
+        window.removeEventListener('focus', onFocus); TourGuide.destroy();
     }, { once: true });
     renderLog(); render();
     await ensureV2Ready();

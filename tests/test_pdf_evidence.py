@@ -24,6 +24,15 @@ INFO = {'imageXObjectCount': 1, 'contentRuns': [
 
 
 class PdfEvidenceTests(unittest.TestCase):
+    def test_adjacent_table_cell_asterisks_are_not_bold_delimiters(self):
+        # Live LL(1) trace: one cell ends in *, the following cell starts in *.
+        segments = [{'kind': 'text', 'text': value} for value in ["19", "$ E' T' F *", "* id $", "Match terminal *"]]
+        evidence = [{'prompt': 'Trace.', 'response': ''.join(s['text'] for s in segments), 'pdf_segments': segments}]
+        info = {'contentRuns': [{'kind': 'text', 'text': "Trace.19$ E' T' F ** id $Match terminal *"}]}
+        self.assertTrue(assert_pdf_turn_content(info, evidence)[0])
+        for wrong in ["Trace.19$ E' T' F * id $Match terminal *", "Trace.19$ E' T' F ** id $Match terminal +"]:
+            self.assertFalse(assert_pdf_turn_content({'contentRuns': [{'kind': 'text', 'text': wrong}]}, evidence)[0])
+
     def test_normal_multilingual_formula_code_and_image(self):
         self.assertTrue(assert_pdf_turn_content(INFO, EVIDENCE)[0])
 

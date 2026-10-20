@@ -72,7 +72,7 @@ for (const nativeVoid of [false, true]) test(`real MAIN ${nativeVoid ? 'native v
     expect(JSON.stringify(after.other)).toContain('Keep body unchanged');
 
     // The UI is a projection of the same v2 L3a Index store, not chrome.storage.local.
-    await options.reload();
+    // The open Options view updates from the committed Runtime notification, without reload or focus.
     await expect(options.locator('#list .item')).toHaveCount(2);
     await expect(options.locator('[data-chat-id="' + targetId + '"]')).toHaveCount(0);
     await expect(options.locator('[data-chat-id="keep_chat_1111"]')).toBeVisible();

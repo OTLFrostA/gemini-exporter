@@ -5,7 +5,7 @@ import { v2ExportHost, exportKey, exportRequest } from './helpers/v2ExportHost.j
 import { ingestDetail } from '../src/l2/ingestion.js';
 import { runExport } from '../src/application/export/runExport.js';
 
-test('Tier 2 uploaded-file chip does not add [1] to physical Markdown; authored literal and inline code survive', async t => {
+for (const fallback of [false, true]) test(`Tier 2 uploaded-file chip ${fallback ? 'with Markdown fallback' : 'with native body'} does not add [1]; literals survive in physical Markdown`, async t => {
     const host = v2ExportHost(t);
     const parsed = sourceDetail({ id: 'hidden-file-chip', messages: [{ ...sourceMessage('answer'),
         content: 'Loaded input.txt[cite: 1]. Literal [1] and `[cite: 1]` remain.',
@@ -16,8 +16,9 @@ test('Tier 2 uploaded-file chip does not add [1] to physical Markdown; authored 
             { nodeType: 18, text: '. Literal [1] and ' },
             { nodeType: 18, text: '[cite: 1]', annotations: [{ start: 0, end: 9, type: 7 }] },
             { nodeType: 18, text: ' remain.' },
-        ] }] },
+        ] }, ...(fallback ? [{ nodeType: 18 as const, text: 'unsupported', annotations: [{ start: 0, end: 11, type: 99 }] }] : [])] },
     }] });
+    assert.equal(parsed.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'), fallback);
     const { index, detail } = parsed.conversation;
     await ingestDetail(exportKey('hidden-file-chip').accountId, 'hidden-file-chip', detail, index);
     assert.equal((await runExport(exportRequest(['hidden-file-chip']))).exported, 1);

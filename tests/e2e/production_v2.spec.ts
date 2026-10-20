@@ -250,3 +250,40 @@ test('Tier 2 native audit acquires raw Detail even when manual export would use 
     expect(await readFile((await (await next).path())!, 'utf8')).toContain('Current native answer');
     await source.close();
 });
+
+test('completed reply with Live Save off refreshes current source and reorders the open Options view without focus or reload', async ({ context, extensionId }) => {
+    const id = 'abcdef123456';
+    const page = await workbench(context, extensionId); await seed(page, [id, 'newer']);
+    await page.evaluate(async ({ accountId, id }) => {
+        const api = Reflect.get(globalThis, 'productionProbe');
+        await api.ingestIndexes(accountId, [{ conversationId: 'newer', fields: { updatedAt: 200 } }]);
+        await api.putExportRecord({ accountId, conversationId: id }, { format: 'markdown', status: 'ok', chatTime: 100, exportedAt: 200 });
+        await api.patchStoredSettings({ enabledDisk: false });
+    }, { accountId, id });
+    await page.reload(); await page.evaluate(bundle);
+    expect(await page.locator('#list .item').first().getAttribute('data-chat-id')).toBe('newer');
+    const source = await sourcePage(context);
+    const wire = JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_' + id, 'r_question'], [1700000000, 0], [['Final prompt']], [[['rc_question', [['Final appended answer']]]]]]], null])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_' + id, 'Current continued title', null, null, null, [1700000000, 0]]]])],
+    ]);
+    let acquisitions = 0;
+    await context.route('https://gemini.google.com/**/batchexecute*', route => {
+        acquisitions++; return route.fulfill({ contentType: 'application/json', body: wire });
+    });
+    const fixture = JSON.parse(await readFile(path.resolve(__dirname, '../fixtures/gemini_answered_stream.json'), 'utf8'));
+    const frame = JSON.stringify(fixture.frames[0]);
+    await source.route('**/StreamGenerate*', route => route.fulfill({ contentType: 'application/json', body: ")]}'\n\n" + (frame.length + 2) + '\n' + frame + '\n' }));
+    await source.evaluate(async () => {
+        await fetch('/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate', { method: 'POST', body: 'f.req=test' });
+    });
+    await expect.poll(() => acquisitions).toBeGreaterThan(0);
+    await expect(page.locator('#list .item').first()).toHaveAttribute('data-chat-id', id);
+    const state = await page.evaluate(async ({ accountId, id }) => {
+        const api = Reflect.get(globalThis, 'productionProbe'), key = { accountId, conversationId: id };
+        return { index: await api.getIndex(key), detail: await api.getDetail(key), record: await api.getExportRecord(key) };
+    }, { accountId, id });
+    expect(state.index.updatedAt).toBe(1700000000000);
+    expect(state.record.chatTime).toBe(100);
+    expect(JSON.stringify(state.detail)).toContain('Final appended answer');
+});
