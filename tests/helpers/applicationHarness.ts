@@ -1,4 +1,6 @@
 import type { ConversationKey } from '../../src/l2/conversationKey.js';
+import type { Account } from '../../src/l2/accountRegistry.js';
+import type { Diagnostic } from '../../src/shared/diagnostics/diagnostic.js';
 import type { DomainConversationIndex } from '../../src/l2/conversationIndex.js';
 import type { TrustedDomainBody } from '../../src/l2/runtimeValidation.js';
 import { restoreDomainDetail } from '../../src/l2/runtimeValidation.js';
@@ -29,7 +31,9 @@ export const state = {
     directory: {} as FileSystemDirectoryHandle | null,
     onDelivery: undefined as (() => void) | undefined,
     sourceContext: undefined as SourceResourceContext | undefined,
-    pdfPrepared: [] as string[], pdfBindings: {} as Readonly<Record<string, string>>, disposed: 0,
+    pdfPrepared: [] as string[], pdfBindings: {} as Readonly<Record<string, string>>,
+    pdfDiagnostics: [] as Diagnostic[], pdfLocale: undefined as 'zh' | 'en' | undefined,
+    accountOverride: undefined as Account | null | undefined, settingsReads: 0, disposed: 0,
 };
 export const provider: AIProvider = {
     id: 'gemini', name: 'Fixture', hostPatterns: [],
@@ -78,14 +82,16 @@ const storage = {
     async getDirectoryHandle() { return state.directory; },
     async setDirectoryHandle(handle: FileSystemDirectoryHandle) { events.push('save-directory'); state.directory = handle; },
     async clearDirectoryHandle() { events.push('clear-directory'); state.directory = null; },
-    async getStoredSettings() { if (state.failRead) throw new Error('read failed'); return structuredClone(settings); },
+    async getStoredSettings() { state.settingsReads++; if (state.failRead) throw new Error('read failed'); return structuredClone(settings); },
     async patchStoredSettings(patch: Partial<GlobalSettings>) {
         if (state.failSettingsWrite) throw new Error('write failed');
         events.push('settings-write'); settings = { ...settings, ...patch };
     },
 };
 stubModule('../../src/l3a/storageService.js', storage);
-stubModule('../../src/runtime/api/accountRegistry.js', { async getAccount(id: string) { return { ...account, id }; } });
+stubModule('../../src/runtime/api/accountRegistry.js', { async getAccount(id: string) {
+    return state.accountOverride === undefined ? { ...account, id } : state.accountOverride;
+} });
 stubModule('../../src/l1/client/providerRegistry.js', { ProviderRegistry: { get() { return provider; }, register() {}, setDefaultProviderId() {} } });
 stubModule('../../src/l1/client/taskProvider.js', {
     createTaskProvider(_providerId: string, resources: SourceResourceContext): AIProvider {
@@ -100,9 +106,12 @@ async function deliver(files: readonly ExportArtifact[]) {
     state.onDelivery?.();
 }
 stubModule('../../src/l4/delivery/index.js', { startBrowserDownload: (file: ExportArtifact) => deliver([file]), writeToFolder: deliver });
-stubModule('../../src/l4/format/pdf/compileDocumentPdf.js', { async compileDocumentPdf(_doc: unknown, bindings: Readonly<Record<string, string>>, prepared: ReadonlyMap<string, unknown>) {
-    state.pdfPrepared = [...prepared.keys()]; state.pdfBindings = bindings;
-    return { pdfBytes: new Uint8Array([37, 80, 68, 70]), diagnostics: [] };
+stubModule('../../src/l4/format/pdf/compileDocumentPdf.js', { async compileDocumentPdf(
+    _doc: unknown, bindings: Readonly<Record<string, string>>, prepared: ReadonlyMap<string, unknown>,
+    _compiler: unknown, _context: unknown, options?: { locale?: 'zh' | 'en' },
+) {
+    state.pdfPrepared = [...prepared.keys()]; state.pdfBindings = bindings; state.pdfLocale = options?.locale;
+    return { pdfBytes: new Uint8Array([37, 80, 68, 70]), diagnostics: state.pdfDiagnostics };
 } });
 stubModule('../../src/l4/format/pdf/typst/typstSandboxCompiler.js', { TypstSandboxCompiler: class { dispose() { state.disposed++; } } });
 stubModule('../../src/l4/format/pdf/typst/fonts/localFontProvider.js', { async resolveLocalFonts() { return {}; } });
@@ -127,6 +136,7 @@ export function request(patch: Partial<ExportRequest> = {}): ExportRequest {
 export function reset(): void {
     indexes.clear(); details.clear(); records.clear(); events.length = 0; deliveries.length = 0; contexts.length = 0; settings = {};
     Object.assign(state, { failRead: false, failSettingsWrite: false, failRecord: '', failDelivery: 0, failDelete: '', directory: {},
-        onDelivery: undefined, sourceContext: undefined, pdfPrepared: [], pdfBindings: {}, disposed: 0 });
+        onDelivery: undefined, sourceContext: undefined, pdfPrepared: [], pdfBindings: {},
+        pdfDiagnostics: [], pdfLocale: undefined, accountOverride: undefined, settingsReads: 0, disposed: 0 });
     Object.assign(provider, { fetchConversationDetail: defaultFetch, acquireResource: defaultAcquire, listConversations: defaultList });
 }
