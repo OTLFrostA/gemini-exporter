@@ -5,12 +5,25 @@ import type { TabStatusResult } from '../types/utils.js';
 
 export async function sendTabMessage(tabId: number, message: unknown, timeout = 25000): Promise<unknown> {
     return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Provider Tab communication timed out')), timeout);
-        chrome.tabs.sendMessage(tabId, message, response => {
-            clearTimeout(timer);
-            if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let settled = false;
+        const settle = (error?: Error, response?: unknown) => {
+            if (settled) return;
+            settled = true;
+            if (timer !== undefined) clearTimeout(timer);
+            if (error) reject(error);
             else resolve(response);
-        });
+        };
+        if (timeout > 0) timer = setTimeout(() => settle(new Error('Provider Tab communication timed out')), timeout);
+        try {
+            chrome.tabs.sendMessage(tabId, message, response => {
+                const error = chrome.runtime.lastError;
+                if (error) settle(new Error(error.message || 'Provider Tab unavailable'));
+                else settle(undefined, response);
+            });
+        } catch (error) {
+            settle(error instanceof Error ? error : new Error(String(error)));
+        }
     });
 }
 function matches(response: unknown, accountId: string, providerId: string): boolean {
