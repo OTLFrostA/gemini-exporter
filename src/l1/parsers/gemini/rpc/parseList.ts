@@ -53,7 +53,8 @@ function extractListItemTimestamp(item: unknown): number | null {
     return Array.isArray(item) ? payloadToMs(item[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP]) : null;
 }
 
-function listResult(conversations: ConversationListItem[], nextPageToken: string | null, rows: unknown[] | null): ListParseResult {
+function listResult(conversations: ConversationListItem[], nextPageToken: string | null, rows: unknown[] | null,
+    sourceEndConfirmed = false): ListParseResult {
     const keys = conversations.map((item, index) => {
         const row = rows?.[index];
         const stamp = Array.isArray(row) ? row[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP] : undefined;
@@ -62,7 +63,7 @@ function listResult(conversations: ConversationListItem[], nextPageToken: string
             && Number.isInteger(stamp[1]) && stamp[1] >= 0 && stamp[1] < 1e9 ? payloadToMs(stamp) : null;
         return { id: item.id, time: time ?? 0 };
     });
-    const valid = (nextPageToken === null || keys.length > 0) && rows !== null && rows.length === conversations.length
+    const valid = (nextPageToken !== null || sourceEndConfirmed) && rows !== null && rows.length === conversations.length
         && keys.every(key => key.id.length >= 3) && new Set(keys.map(key => key.id)).size === keys.length;
     return { conversations, nextPageToken, pageEvidence: { valid, keys,
         ordered: valid && keys.every(key => key.time > 0) && keys.every((key, i) => i === 0 || keys[i - 1].time >= key.time) } };
@@ -148,7 +149,9 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
             }
             const nextToken = extractNextPageToken(inner, innerSchema.NEXT_TOKEN_CANDIDATES);
             return {
-                ...listResult(convs, nextToken, rows),
+                // Only the known explicit terminal slot may certify a natural
+                // end; a missing/unrecognized token is not terminal evidence.
+                ...listResult(convs, nextToken, rows, nextToken === null && inner[1] === null),
                 _raw: inner
             };
         } catch (e: unknown) {
