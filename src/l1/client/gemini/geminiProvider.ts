@@ -71,6 +71,7 @@ export class GeminiProvider implements GeminiProviderContract {
             const result = await client.getConversationList(cursor, slot,
                 options.streamId === 'pinned' ? [1, null, 1] : undefined, { signal: options.signal });
             options.signal?.throwIfAborted();
+            if (await this.route(account.id) !== slot) throw new Error('Gemini account route changed');
             const observation = geminiListObservation(result, { streamId: options.streamId, requestCursor: cursor }, account.id, false, requestedAt);
             if (result.failure && observation.terminal !== 'provider_limit') throw new Error(`Gemini list failed: ${result.failure}`);
             const pageEvidence = account.providerAccountId === 'default' ? undefined : observation;
@@ -115,6 +116,7 @@ export class GeminiProvider implements GeminiProviderContract {
             throw new Error('conversation_not_found');
         }
         signal?.throwIfAborted();
+        if (await this.route(accountId) !== slot) throw new Error('Gemini account route changed');
         if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new TypeError('Detail identity mismatch');
         const index = parsed.conversation.index;
         const admission = await ingestDetail(accountId, parsed.conversationId, parsed.conversation.detail, index);
