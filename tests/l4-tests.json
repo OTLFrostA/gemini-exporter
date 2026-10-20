@@ -2,7 +2,7 @@
   "suites": [
     "tests/document-file-badge.test.ts",
     "tests/fs_writer_disk.test.ts",
-    "tests/html-document-orchestration.test.ts",
+    "tests/l4-html-v2-unit.test.ts",
     "tests/l4-delivery.test.ts",
     "tests/l4-internal-contract.test.ts",
     "tests/l4-json-v2-unit.test.ts",

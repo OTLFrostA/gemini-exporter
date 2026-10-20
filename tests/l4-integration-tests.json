@@ -34,6 +34,8 @@
     "tests/typst-nested-semantics.test.ts",
     "tests/typst-phase-b.test.ts",
     "tests/typst-table-span.test.ts",
-    "tests/pdf-format-wasm.integration.test.ts"
+    "tests/pdf-format-wasm.integration.test.ts",
+    "tests/html-document-orchestration.test.ts",
+    "tests/l4-json-packaging.integration.test.ts"
   ]
 }

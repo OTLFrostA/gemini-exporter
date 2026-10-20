@@ -4,7 +4,7 @@
     "../src/l4/**/*.ts",
     "./document-file-badge.test.ts",
     "./fs_writer_disk.test.ts",
-    "./html-document-orchestration.test.ts",
+    "./l4-html-v2-unit.test.ts",
     "./l4-delivery.test.ts",
     "./l4-internal-contract.test.ts",
     "./l4-json-v2-unit.test.ts",
