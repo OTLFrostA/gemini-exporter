@@ -43,7 +43,11 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       const args = JSON.parse(JSON.parse(wire!)[0][0][1]);
       const pinned = args[2][0] === 1;
       requestedKinds.push(pinned ? 'pinned' : 'recent');
-      const inner = pinned ? JSON.stringify([null, [pinnedItem], null]) : JSON.stringify([null, mockListItems, null]);
+      // Gemini list's v2 terminal evidence is the explicit null next cursor in
+      // slot 1, with item rows in slot 2. [null, rows, null] may still parse
+      // indexes via the legacy fallback slot, but is not a trusted source_end
+      // and therefore must NOT establish L2 Coverage.
+      const inner = JSON.stringify([null, null, pinned ? [pinnedItem] : mockListItems]);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
