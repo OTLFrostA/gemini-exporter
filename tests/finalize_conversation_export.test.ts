@@ -3,7 +3,7 @@
  * coordinates one runExport path, L4 delivers, and only then L3a records outcome.
  * No retired SessionRecovery, ExportOrchestrator, BatchWorker or catalog callbacks.
  */
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { v2ExportHost, exportKey, exportRequest, seedExportConversation,
@@ -26,7 +26,7 @@ const body = (text: string) => ({
         { type: 'paragraph' as const, children: [{ type: 'text' as const, text }] },
     ] }],
 });
-function replaceProvider(t: test.TestContext, fetchConversationDetail: AIProvider['fetchConversationDetail']) {
+function replaceProvider(t: TestContext, fetchConversationDetail: AIProvider['fetchConversationDetail']) {
     const previous = ProviderRegistry.get('gemini');
     const provider: AIProvider = {
         id: 'gemini', name: 'Completion provider test', hostPatterns: [],
