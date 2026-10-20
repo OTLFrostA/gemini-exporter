@@ -50,7 +50,7 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
             const domain: typeof import('../../src/l2/ingestion.js') = require('../../src/l2/ingestion.js');
             if (message.operation === 'indexes') { await domain.ingestIndexes(message.accountId as string, message.items as Parameters<typeof domain.ingestIndexes>[1], message.page as Parameters<typeof domain.ingestIndexes>[2]); return { ok: true }; }
             if (message.operation === 'deleted') { await domain.ingestDeletedConversation(message.accountId as string, message.conversationId as string); return { ok: true }; }
-            if (message.operation === 'detail') return { ok: true, changed: await domain.ingestDetail(message.accountId as string, message.conversationId as string, message.detail as Parameters<typeof domain.ingestDetail>[2], message.indexFields as Parameters<typeof domain.ingestDetail>[3]) };
+            if (message.operation === 'detail') return { ok: true, result: await domain.ingestDetail(message.accountId as string, message.conversationId as string, message.detail as Parameters<typeof domain.ingestDetail>[2], message.indexFields as Parameters<typeof domain.ingestDetail>[3]) };
         }
         if (message.action !== 'accountRegistry') return undefined;
         if (message.command === 'get') return { ok: true, value: accounts.get(String(message.accountId)) ?? null };
