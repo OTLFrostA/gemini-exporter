@@ -321,6 +321,8 @@ declare global {
     }
 
     const BATCHEXECUTE_SNIFF_CAP = 3 * 1024 * 1024;
+    // Growing answer snapshots can exceed the RPC capture budget cumulatively.
+    const STREAM_SNIFF_CAP = 100 * 1024 * 1024;
 
     async function readCappedText(response: Response, cap: number = BATCHEXECUTE_SNIFF_CAP): Promise<{ text: string; truncated: boolean }> {
         const body = response.body;
@@ -421,7 +423,7 @@ declare global {
                 } else if (isStreamUrl(input)) {
                     if (!response.ok) { window.__geminiIsStreaming = false; return response; }
                     try {
-                        void readCappedText(response.clone()).then(({ text, truncated }) => {
+                        void readCappedText(response.clone(), STREAM_SNIFF_CAP).then(({ text, truncated }) => {
                             if (!truncated && !(init?.signal?.aborted)
                                 && !(typeof Request !== 'undefined' && input instanceof Request && input.signal.aborted)) {
                                 broadcastStreamComplete(input, text, requestAccountObservation, requestSlot);
@@ -491,7 +493,7 @@ declare global {
                         window.__geminiIsStreaming = false;
                         if (event.type !== 'load' || this.status < 200 || this.status >= 300) return;
                         try {
-                            if (this.responseText.length <= BATCHEXECUTE_SNIFF_CAP) {
+                            if (this.responseText.length <= STREAM_SNIFF_CAP) {
                                 broadcastStreamComplete(url, this.responseText, requestAccountObservation, requestSlot);
                             }
                         } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }

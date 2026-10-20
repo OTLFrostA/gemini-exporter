@@ -98,7 +98,7 @@ test('Fetch: body reader failure never falls back to successful text or complete
 test('Fetch: capped response cannot complete even when its prefix contains completion markers', async () => {
     let reads = 0, cancels = 0;
     const harness = hookHarness(async () => ({ ok: true, clone: () => ({ body: { getReader: () => ({
-        read: async () => ({ done: false, value: new TextEncoder().encode(streamWire() + ' '.repeat(4 * 1024 * 1024)) }),
+        read: async () => ({ done: false, value: new TextEncoder().encode(streamWire() + ' '.repeat(101 * 1024 * 1024)) }),
         cancel: () => { cancels++; return new Promise<void>(() => {}); }, releaseLock() { reads++; },
     }) } }) }));
     await harness.win.fetch(harness.url); await settleHook();
@@ -145,7 +145,7 @@ for (const status of [0, 403, 503]) test(`XHR: status ${status} with load cannot
 });
 test('XHR: 200 without completion markers, oversized body and synchronous send failure cannot complete', () => {
     const harness = hookHarness(async () => new Response(''));
-    for (const body of [streamWire({ answered: 1 }), streamWire() + ' '.repeat(4 * 1024 * 1024)]) {
+    for (const body of [streamWire({ answered: 1 }), streamWire() + ' '.repeat(101 * 1024 * 1024)]) {
         const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.responseText = body; xhr.send(); xhr.emit('load'); xhr.emit('loadend');
     }
     const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.nativeSendError = true;
@@ -194,4 +194,21 @@ test('Fetch: live Unicode frame lengths count UTF-16 units rather than UTF-8 byt
     const harness = hookHarness(async () => new Response(")]}'\n\n" + (frame.length + 2) + '\n\n' + frame + '\n'));
     await (await harness.win.fetch(harness.url)).text(); await settleHook();
     assert.equal(harness.complete().length, 1);
+});
+
+for (const transport of ['Fetch', 'XHR']) test(`${transport}: cumulative stream above 3 MiB reaches the final answered frame`, async () => {
+    // Repeated growing snapshots make a modest answer a large cumulative stream.
+    const progress = streamWire({ answered: 1 }).replace('latest reply', 'x'.repeat(8192));
+    const line = progress.split('\n').filter(value => value.startsWith('[['))[0];
+    const wire = ")]}'\n\n" + ((line.length + 2) + '\n' + line + '\n').repeat(480) + streamWire().split('\n').slice(2).join('\n');
+    assert.ok(Buffer.byteLength(wire) > 3 * 1024 * 1024);
+    const harness = hookHarness(async () => new Response(wire));
+    if (transport === 'Fetch') {
+        await (await harness.win.fetch(harness.url)).text(); await settleHook();
+    } else {
+        const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url);
+        xhr.responseText = wire; xhr.send(); xhr.emit('load');
+    }
+    assert.equal(harness.complete().length, 1);
+    assert.equal(harness.complete()[0].payload.id, 'abcdef123456');
 });

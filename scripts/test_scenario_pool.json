@@ -1,48 +1,5 @@
 [
   {
-    "id": "biophysics_membrane_diffusion_finite_volume",
-    "title": "Membrane diffusion: conservative compartments and flux",
-    "domain": "biophysics_membrane_diffusion",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an original educational image showing two fictional well-mixed fluid compartments separated by a permeable membrane. Label concentration, volume and the direction of net diffusive flux; use a legend and mark the diagram as conceptual.",
-      "Derive the coupled concentration equations from Fick’s law in LaTeX, distinguishing concentration, amount, permeability and area. Prove total solute conservation in a closed system and calculate the equilibrium concentration for unequal volumes.",
-      "Write complete runnable standard-library Python solving the two-compartment system with an exact exponential update. Assert conservation, nonnegative amounts, zero-permeability behavior and invariance under exchanging compartment labels.",
-      "Provide a Markdown table comparing numerical concentrations at four times against the analytical solution for three permeability values. State all fictional parameters and units, and distinguish computed results from schematic labels in the image.",
-      "Write a detailed bilingual reproducibility report on mixing assumptions, membrane storage, osmotic volume changes excluded by the model, dimensionless timescale and validation. Explain why this educational solute model cannot establish medical conclusions."
-    ]
-  },
-  {
-    "id": "signal_processing_aliasing_discrete_fourier_audit",
-    "title": "Sampling and aliasing: finite-window Fourier verification",
-    "domain": "signal_processing_sampling_aliasing",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a fictional signal consisting of three sinusoids with explicit rational frequencies, amplitudes and phases. Choose sampling rates illustrating both safe sampling and aliasing; state the distinction between a continuous signal and its finite observation.",
-      "Derive frequency alias equivalence and the Nyquist criterion in LaTeX. Explain why the finite observation window changes spectral resolution without changing the mathematical alias frequencies.",
-      "Write complete runnable standard-library Python computing a direct discrete Fourier transform with complex numbers for a small synthetic dataset. Include a single-bin sinusoid, constant signal and zero signal as deterministic tests.",
-      "Add Hann and rectangular window implementations. Verify their coherent gains and explain how amplitude normalization differs for DC, positive-frequency bins and the Nyquist bin.",
-      "Produce a Markdown table of predicted alias frequencies, measured peak bins, leakage and amplitude estimates at each sampling rate. Label the exact analytical values separately from finite-window estimates.",
-      "Derive and implement zero-padding for the same samples. Demonstrate that it interpolates the spectrum but does not improve the ability to resolve two nearby tones.",
-      "Add a seeded noise experiment and compare spectral estimates across repeated observations. Report uncertainty with explicit units and separate stochastic variation from deterministic leakage.",
-      "Write a long English-Chinese reproducibility audit including normalization conventions, phase, endpoint conventions, numerical tolerances, signal identifiability and limitations of interpolation. Include the final runnable Python and a concise validation table."
-    ]
-  },
-  {
     "id": "optical_microscopy_point_spread_deconvolution",
     "title": "Microscopy: point spread functions and image reconstruction",
     "domain": "optics_microscopy_inverse_imaging",
@@ -416,6 +373,47 @@
       "Compare analytic results and simulation with confidence intervals. Explain bias from warmup, censoring and rare blocking without treating random deviations as implementation errors.",
       "Extend the balance equations to M/M/c/K and produce a Markdown comparison at fixed total service capacity. Derive the piecewise departure rates and test c=1 equivalence.",
       "Prepare a reproducible report with Python, LaTeX formulas and automated invariants for normalization, flow balance and Little's law using admitted throughput. Include edge cases K=1 and arrival rate approaching zero."
+    ]
+  },
+  {
+    "id": "number_theory_crt_non_coprime_reconstruction",
+    "domain": "number_theory_generalized_crt",
+    "title": "Generalized Chinese remainder reconstruction and consistency certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define simultaneous integer congruences with noncoprime moduli. Derive the gcd compatibility condition in LaTeX and explain the meaning of a residue class in English and Chinese.",
+      "Work through one compatible and one incompatible three-modulus example. Show a Markdown table of gcd, Bezout coefficients, merged residue and merged modulus at each step.",
+      "Write complete standard-library Python implementing extended Euclid and generalized CRT. Return a normalized residue and least common multiple or an explicit inconsistency certificate.",
+      "Build an independent exhaustive enumeration oracle for small moduli and compare it with the implementation. Cover modulus one, negative residues, repeated constraints and contradictory duplicates.",
+      "Prepare a reproducible validation report with executable tests, a LaTeX correctness proof and a Markdown comparison of pairwise-coprime versus generalized reconstruction. Explain how input magnitude affects integer complexity."
+    ]
+  },
+  {
+    "id": "finance_fixed_income_duration_convexity_cashflow",
+    "domain": "finance_bond_cashflow_sensitivity",
+    "title": "Bond cash flows: discounting, duration, convexity and yield inversion",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a fixed-coupon bond with explicit payment times, face value and continuously compounded flat yield. Derive its price from cash flows in LaTeX and explain units in English and Chinese.",
+      "Derive first and second price derivatives, Macaulay duration and convexity under continuous compounding. State how the formulas change under periodic compounding.",
+      "Calculate a Markdown table for three maturities and three yields with price, duration and convexity. Include a zero-coupon consistency check.",
+      "Write complete standard-library Python for cash-flow generation and stable pricing. Validate payment frequencies, nonnegative maturity and finite rates.",
+      "Implement yield inversion using a bracketed root solver. Show how you find the bracket and handle targets for which no finite solution exists under the stated cash-flow assumptions.",
+      "Cross-check analytic derivatives against central differences with multiple step sizes. Explain truncation and cancellation errors and show a Markdown convergence table.",
+      "Compare exact price changes under positive and negative yield shocks with duration-only and duration-plus-convexity approximations. Explain asymmetry using the LaTeX Taylor expansion.",
+      "Build a reproducible report with runnable Python and invariant tests for scaling cash flows, zero-coupon limits and monotonicity. Distinguish numerical solver failure from inconsistent financial inputs."
     ]
   }
 ]
