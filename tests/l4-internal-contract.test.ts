@@ -163,3 +163,22 @@ test('L4 PDF safely degrades image-decoder failure without reacquiring resource'
     assert.equal(compiles, 2);
     assert.ok(out.diagnostics.some(d => d.code === 'FORMAT_CONTENT_OMITTED'));
 });
+
+test('L4 Markdown preserves merged table span structure and safely escapes HTML content', () => {
+    const doc: DocumentAst = {
+        title: 'Merged table',
+        metadata: { id: 'merge', provider: 'gemini' },
+        messages: [{ role: 'assistant', blocks: [{
+            type: 'table',
+            columnAlignments: ['left', 'right'],
+            headerRows: [[{ children: [{ type: 'text', text: 'A' }], column: 0, colSpan: 2, rowSpan: 1 }]],
+            rows: [[{ children: [{ type: 'text', text: '<unsafe>' }], column: 0, colSpan: 1, rowSpan: 1 },
+                { children: [{ type: 'strong', children: [{ type: 'text', text: 'Emphasis' }] }], column: 1, colSpan: 1, rowSpan: 1 }]],
+        }] }],
+    };
+    const markdown = renderDocumentMarkdown(doc, {});
+    assert.ok(markdown.includes('<th colspan="2">A</th>'));
+    assert.ok(markdown.includes('&lt;unsafe&gt;'));
+    assert.ok(markdown.includes('<strong>Emphasis</strong>'));
+    assert.ok(!markdown.includes('<unsafe>'));
+});

@@ -67,6 +67,49 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         }
     };
     const inlines = (nodes: DisplayInline[], tableCell = false): string => nodes.map((node) => inline(node, tableCell)).join('');
+    // GFM cannot express merged table cells. Use safe HTML for such tables,
+    // preserving cell spans and readable content rather than flattening them.
+    const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, ch =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!));
+    const htmlInline = (node: DisplayInline): string => {
+        switch (node.type) {
+            case 'text': return escapeHtml(node.text);
+            case 'strong': return '<strong>' + htmlInlines(node.children) + '</strong>';
+            case 'emphasis': return '<em>' + htmlInlines(node.children) + '</em>';
+            case 'strikethrough': return '<del>' + htmlInlines(node.children) + '</del>';
+            case 'inlineCode': return '<code>' + escapeHtml(node.code) + '</code>';
+            case 'link': {
+                const href = safeExternalHref(node.href);
+                return href ? '<a href="' + escapeHtml(href) + '">' + htmlInlines(node.children) + '</a>' : htmlInlines(node.children);
+            }
+            case 'citation': {
+                const href = safeExternalHref(node.href);
+                return href ? '<a href="' + escapeHtml(href) + '">' + escapeHtml(node.label) + '</a>' : escapeHtml(node.label);
+            }
+            case 'image':
+                return available(node.resourceId) ? '<img src="' + escapeHtml(resource(node.resourceId)) + '" alt="' + escapeHtml(node.alt) + '">'
+                    : escapeHtml(unavailableResourceText('image', node.alt || node.resourceId, locale));
+            case 'inlineMath': return '<code>' + escapeHtml(node.source) + '</code>';
+            case 'lineBreak': return '<br>';
+        }
+    };
+    const htmlInlines = (nodes: DisplayInline[]): string => nodes.map(htmlInline).join('');
+    const mergedTableHtml = (node: Extract<DisplayBlock, { type: 'table' }>): string => {
+        const row = (cells: DisplayCell[], heading: boolean): string =>
+            '<tr>' + cells.map(cell => {
+                const tag = heading ? 'th' : 'td';
+                const attrs = (cell.colSpan > 1 ? ' colspan="' + cell.colSpan + '"' : '')
+                    + (cell.rowSpan > 1 ? ' rowspan="' + cell.rowSpan + '"' : '');
+                return '<' + tag + attrs + '>' + htmlInlines(cell.children) + '</' + tag + '>';
+            }).join('') + '</tr>';
+        return [
+            '<table>',
+            ...(node.caption ? ['<caption>' + htmlInlines(node.caption) + '</caption>'] : []),
+            ...(node.headerRows.length ? ['<thead>', ...node.headerRows.map(cells => row(cells, true)), '</thead>'] : []),
+            '<tbody>', ...node.rows.map(cells => row(cells, false)), '</tbody>',
+            '</table>',
+        ].join('\n');
+    };
     const blocks = (nodes: DisplayBlock[]): string => nodes.map(block).join('\n\n');
     const block = (node: DisplayBlock): string => {
         switch (node.type) {
@@ -87,6 +130,9 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             }
             case 'math': return `$$\n${node.source}\n$$`;
             case 'table': {
+                if ([...node.headerRows, ...node.rows].some(cells => cells.some(cell => cell.colSpan > 1 || cell.rowSpan > 1))) {
+                    return mergedTableHtml(node);
+                }
                 const row = (cells: DisplayCell[]): string => `| ${cells.map(cell => inlines(cell.children, true).split('|').join('\\|').replace(/\r?\n/g, '<br>')).join(' | ')} |`;
                 const separator = `| ${node.columnAlignments.map(align => align === 'left' ? ':---' : align === 'center' ? ':---:' : align === 'right' ? '---:' : '---').join(' | ')} |`;
                 const projected = projectedTable(node);
