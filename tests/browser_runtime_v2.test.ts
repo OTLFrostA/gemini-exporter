@@ -525,6 +525,11 @@ test('both active Background ports reject a different current Account before Exp
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
         'src/l3a/storageService.js': { listIndexes: () => assert.fail('Must reject before reading Index') },
         'src/runtime/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('Must reject before writing files') },
+        // Background also imports Application Settings. Keep the v2 port mocked and
+        // assert a foreign-Account request never reaches this write operation.
+        'src/application/settings/index.js': {
+            updateSettings: async () => assert.fail('Must reject before writing Settings'),
+        } satisfies Pick<typeof import('../src/application/settings/index.js'), 'updateSettings'>,
     });
     for (const request of [{ action: 'getLocalIndexCount', accountId: uuid }, { action: 'runLiveSave', key: { accountId: uuid, conversationId: 'abc' } }]) {
         const result = await invoke(listener, request);
