@@ -8,9 +8,10 @@ Settings and two record-cleanup actions. Clearing scan records keeps all archive
 conversations, accounts, files and directory handles.
 
 Installation Tour consumes `?startTour=1` immediately; it has no persistent flag.
-Spotlight/Takeout acknowledgment follows actual display and dismissal. The Content
-Badge is UI: Runtime refreshes it after account changes and observed Index commits.
-There is no polling or separate count bus.
+Spotlight/Takeout acknowledgment follows actual display and dismissal. The Content Badge owns its account-scoped count display and Pull: it refreshes
+after account recognition or change, when a hidden page becomes visible, and
+approximately every 60 seconds while visible. Background only serves the existing
+read-only count IPC; there is no index-commit push or second count store.
 
 Formatting, Skip, delivery and ExportRecords belong to Application and its
 upstream modules. Browser multiple-file output automatically becomes ZIP; the UI
