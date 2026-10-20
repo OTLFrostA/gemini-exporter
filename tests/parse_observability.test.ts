@@ -191,7 +191,7 @@ test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透
 test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {
     const docId = UUID;
     const flatItem = ["https://y/immersive_entry_chip/e2e", docId, "End To End Heuristic Title"];
-    const clueText = "## Doc Body\n\n" + "正文".repeat(100); // >200 字符，供 findDocMarkdownByClues
+    const clueText = "## End To End Heuristic Title\n\n" + "正文".repeat(100); // >200 字符，明确匹配文档标题
     assert.ok(clueText.length > 200);
     const turn = makeTurn({ extraCand: [[flatItem], clueText] });
     const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
@@ -227,3 +227,30 @@ test('decodeGeminiDetail: ignores document when contentMarkdown contains only ch
 });
 
 
+
+test('LP-03: only a unique first-heading match can bind an unattributed Research document', () => {
+    const matching = '# Target Research Report\n\n' + 'Matched body '.repeat(40);
+    const longerOther = '# Unrelated Research Report\n\n' + 'Unrelated body '.repeat(100);
+    const meta = { id: 'doc-target', title: 'Target Research Report' };
+    assert.equal(attachments.findDocMarkdownByClues([longerOther, matching], meta), matching);
+    assert.equal(attachments.findDocMarkdownByClues([matching, matching], meta), matching, 'repeated same source is not ambiguous');
+});
+
+test('LP-03: missing, mentioned-only or ambiguous title must not claim an unrelated document', () => {
+    const unrelated = '# Unrelated Report\n\n' + 'This discusses Target Research Report in passing. '.repeat(12);
+    const target = '# Target Research Report\n\n' + 'Target body '.repeat(40);
+    const otherTarget = '## Target Research Report\n\n' + 'Different body '.repeat(45);
+    const meta = { id: 'doc-target', title: 'Target Research Report' };
+    assert.equal(attachments.findDocMarkdownByClues([unrelated], meta), '', 'body mention is not a document heading');
+    assert.equal(attachments.findDocMarkdownByClues([unrelated, target, otherTarget], meta), '', 'multiple distinct heading matches are ambiguous');
+    assert.equal(attachments.findDocMarkdownByClues([unrelated], { ...meta, title: '' }), '', 'untitled document cannot guess');
+    assert.equal(attachments.findDocMarkdownByClues([unrelated], { ...meta, title: 'Document' }), '', 'placeholder title cannot guess');
+});
+
+test('LP-03: Detail decoding leaves unmatched deep research content unattached', () => {
+    const flatItem = ['https://y/immersive_entry_chip/no-match', UUID, 'Target Research Report'];
+    const unrelated = '# Different Document\n\n' + 'Unrelated content '.repeat(35);
+    const model = modelMessageOf(detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn({ extraCand: [[flatItem], unrelated] })]])));
+    assert.ok(model, 'valid model reply remains present');
+    assert.equal(model.documents?.length ?? 0, 0, 'unmatched material must not be manufactured into the target document');
+});
