@@ -13,6 +13,7 @@ import { ingestDetail } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { readTakeoutBytes } from '../src/l1/imports/takeout/readArchive.js';
+import type { GeminiTakeoutParseResult } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
@@ -43,6 +44,7 @@ for (const [label, options] of [
         const host = v2ExportHost(t);
         useZip(t);
         const { online, offline } = mediaSources(options);
+        const takeout = offline as GeminiTakeoutParseResult;
         const context = createSourceResourceContext();
         t.after(() => context.release());
 
@@ -53,7 +55,7 @@ for (const [label, options] of [
             offline.conversation.detail, offline.conversation.index);
         assert.equal(admitted.accepted, true);
         context.retainParsed(key, offline);
-        for (const [assetId, bound] of Object.entries(offline.archiveResources)) {
+        for (const [assetId, bound] of Object.entries(takeout.archiveResources)) {
             context.retain(key, assetId, async () => {
                 const bytes = await readTakeoutBytes(bound.entry);
                 if (!bytes) throw new Error('Empty Takeout entry');
@@ -83,7 +85,7 @@ for (const [label, options] of [
         assert.ok(body);
         assert.equal(await body.async('string'), markdown);
 
-        const referencedArchive = Object.entries(offline.archiveResources)
+        const referencedArchive = Object.entries(takeout.archiveResources)
             .filter(([assetId]) => refs.referencedIds.has(assetId));
         assert.ok(referencedArchive.length > 0, 'at least one explicitly owned ZIP image remains referenced');
         for (const [assetId, bound] of referencedArchive) {
@@ -99,7 +101,7 @@ for (const [label, options] of [
 
         const generated = offline.conversation.detail.assets.find(asset => asset.generation?.prompt === mediaPrompt);
         assert.ok(generated);
-        const source = offline.archiveResources[generated.id];
+        const source = takeout.archiveResources[generated.id];
         assert.ok(source);
         assert.match(source.path, /archive-0\.png$/);
         const matchingMember = zip.file(plan.resources[generated.id]);
