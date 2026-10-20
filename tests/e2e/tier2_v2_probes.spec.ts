@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { buildSync } from 'esbuild';
 import { resolve } from 'node:path';
 import { readGeminiAuditInput, auditGeminiEvidence } from '../helpers/geminiDualParse';
+import { openOptions } from './uiFixture';
 
 const root = resolve(__dirname, '../..');
 const accountId = '10000000-0000-4000-8000-000000000001';
@@ -17,22 +18,39 @@ const fixture = buildSync({ stdin: { resolveDir: root, loader: 'ts', contents: `
 
 async function workbench(context: import('@playwright/test').BrowserContext, extensionId: string) {
     await seedRegistryAccounts(context);
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
-    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    // Use the same ready, tour-free Options contract as all v2 browser suites.
+    // The previous fixture injected its probe before Settings/Tour initialization
+    // had finished, making Export clicks silently race the overlay.
+    const page = await openOptions(context, extensionId);
     await page.evaluate(probe); await page.evaluate(fixture);
-    await page.evaluate(() => Reflect.get(globalThis, '__tier2V2').updateSettings({language:'en'}));
     return page;
 }
 async function source(context: import('@playwright/test').BrowserContext) {
     const page = await context.newPage();
     await page.route('https://gemini.google.com/**', route => route.fulfill({contentType:'text/html',body:`<!doctype html><script>window.WIZ_global_data={qDCSke:'10000000001',SNlM0e:'token',cfb2h:'build'};</script><main>Fixture</main>`}));
     await page.goto('https://gemini.google.com/app/probe');
+    await expect(page.locator('#geminiExportBadge')).toBeVisible();
     return page;
 }
 function wire() {
     const turn = [['c_probe','r_question'],[1700000000,0],[['Question']],[[['rc_question',[['Answer']]]]]];
-    return JSON.stringify([['wrb.fr','hNvQHb',JSON.stringify([[turn]])]]);
+    // Characterized native Detail payload: turns, pagination slot, title.
+    return JSON.stringify([['wrb.fr','hNvQHb',JSON.stringify([[turn], null, 'Probe title'])]]);
+}
+
+/** Runtime must have a genuine account-bound Content tab before Scan/Export. */
+async function expectVerifiedSource(page: import('@playwright/test').Page) {
+    await expect.poll(async () => page.evaluate(async id => {
+        const tabs = await chrome.tabs.query({url:'https://gemini.google.com/*'});
+        for (const tab of tabs) {
+            if (tab.id === undefined) continue;
+            try {
+                const result = await chrome.tabs.sendMessage(tab.id, {action:'getAccountContext'});
+                if (result?.ok && result.accountContext?.accountId === id) return result.accountContext.slot;
+            } catch { /* Source Content may still be attaching. */ }
+        }
+        return null;
+    }, accountId)).toMatch(/^u\d+$/);
 }
 
 test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset preserves Domain and clears ExportRecords', async ({ context, extensionId }) => {
@@ -62,6 +80,7 @@ test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset preserves
 
 test('Tier 2 scan observer sees real UI → Application → Recent RPC completion and persisted Coverage', async ({ context, extensionId }) => {
     const page = await workbench(context,extensionId); await source(context);
+    await expectVerifiedSource(page);
     const list = JSON.stringify([['wrb.fr','MaZiqc',JSON.stringify([null,null,[['c_probe','Probe title',null,null,null,[1700000000,0]]]])]]);
     await page.route('**/batchexecute*',route => route.fulfill({contentType:'application/json',body:list}));
     expect(await page.evaluate(scanObserver)).toEqual({clicked:true});
@@ -73,23 +92,75 @@ test('Tier 2 scan observer sees real UI → Application → Recent RPC completio
 });
 
 test('Tier 2 raw fetch probe captures the actual export RPC without consuming its response', async ({ context, extensionId }) => {
-    const page = await workbench(context,extensionId); await source(context);
+    test.setTimeout(60000);
+    // An invalid synthetic Gemini response must fail before any browser UI wait.
+    const nativeEnvelope = (pages: { requestCursor: null; text: string }[]) => JSON.stringify({
+        schemaVersion: 1, source: 'raw_rpc_pages', conversationId: 'probe', pages,
+    });
+    const audit = readGeminiAuditInput(nativeEnvelope([{requestCursor:null,text:wire()}]), 'native_envelope');
+    expect(auditGeminiEvidence(audit.evidence).sourceMessages).toHaveLength(2);
+
+    const page = await workbench(context,extensionId);
+    await source(context);
+    // The v2 Provider rejects an unverified tab, even when the URL looks right.
+    await expectVerifiedSource(page);
+
     await page.evaluate(async accountId => Reflect.get(globalThis,'probeFixture').putIndexes([{
         key:{accountId,conversationId:'probe'},title:'Probe title',titleSource:'provider',updatedAt:1700000000000,
     }]),accountId);
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(page.locator('#list .item')).toHaveCount(1);
-    await page.route('**/batchexecute*',route => route.fulfill({contentType:'application/json',body:wire()}));
-    await page.locator('#btnSelectAll').click(); await page.evaluate(capture);
-    const download = page.waitForEvent('download'); await page.locator('#btnExport').click();
-    expect((await download).suggestedFilename()).toMatch(/\.md$/);
+    const detailRequests: string[] = [];
+    await page.route('**/batchexecute*', route => {
+        const body = new URLSearchParams(route.request().postData() ?? '').get('f.req');
+        try {
+            const calls = JSON.parse(body ?? '')[0] as [string, string][];
+            for (const call of calls) if (call[0] === 'hNvQHb') {
+                const args = JSON.parse(call[1]);
+                detailRequests.push(String(args[0]));
+            }
+        } catch { detailRequests.push('unrecognized request'); }
+        return route.fulfill({contentType:'application/json',body:wire()});
+    });
+    await page.locator('#btnSelectAll').click();
+    await expect(page.locator('#btnExport')).toBeEnabled();
+    await page.evaluate(capture);
+    const downloadEvent = page.waitForEvent('download', {timeout:20000});
+    await page.locator('#btnExport').click();
+    let downloaded: Awaited<typeof downloadEvent>;
+    try {
+        downloaded = await downloadEvent;
+    } catch (error) {
+        // CI must distinguish source routing, Detail decoding, and Delivery
+        // instead of reporting only an opaque 30-second download timeout.
+        const diagnostics = await page.evaluate(async () => {
+            const state = Reflect.get(window,'__geminiDualCapture');
+            if (state) await Promise.allSettled(state.pending);
+            return {
+                status: document.querySelector('#status')?.textContent,
+                busy: document.body.dataset.busy,
+                replies: Object.keys(state?.replies ?? {}),
+                captureErrors: state?.errors ?? [],
+            };
+        });
+        throw new Error('Tier 2 v2 Markdown download failed: ' +
+            JSON.stringify({detailRequests, ...diagnostics, cause:String(error)}));
+    }
+    expect(downloaded.suggestedFilename()).toMatch(/\.md$/);
+    expect(detailRequests).toContain('c_probe');
     const pages = await page.evaluate(async () => {
         const state = Reflect.get(window,'__geminiDualCapture'); await Promise.all(state.pending);
         return state.replies.probe;
     });
     expect(pages).toEqual([{requestCursor:null,text:wire()}]);
-    const read = readGeminiAuditInput(JSON.stringify({schemaVersion:1,source:'raw_rpc_pages',conversationId:'probe',pages}), 'native_envelope');
+    const read = readGeminiAuditInput(nativeEnvelope(pages), 'native_envelope');
     expect(auditGeminiEvidence(read.evidence).sourceMessages).toHaveLength(2);
+    await expect.poll(async () => page.evaluate(async accountId =>
+        Reflect.get(globalThis,'probeFixture').getExportRecord({accountId,conversationId:'probe'}),accountId))
+        .toMatchObject({format:'markdown',status:'ok'});
+    const [stored] = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').conversations(['probe']));
+    expect(stored.ok).toBe(true);
+    expect(stored.domain.detail.messages).toHaveLength(2);
 });
 
 test('Tier 2 Scan observer rejects idle clicks, partial limits and changed accounts, including synchronous completion', async ({ context }) => {
