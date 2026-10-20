@@ -1,5 +1,6 @@
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { ingestIndexes } from '../src/runtime/api/domainIngestion.js';
+import { ingestDetail as commitDetail } from '../src/l2/ingestion.js';
 import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -161,6 +162,45 @@ test('L1 passive observed detail chain shares active source assembly', async () 
     assert.ok(stored); assert.equal(stored.quality.status, 'complete');
     assert.equal(stored.messages.length, 4);
 });
+test('L1 passive Live Save is driven only by committed Detail changed, not duplicate capture', async () => {
+    const changed: string[] = [];
+    const resources = createSourceResourceContext();
+    const retained: string[] = [];
+    const retainParsed = resources.retainParsed.bind(resources);
+    resources.retainParsed = (key, parsed) => { retained.push(key.conversationId); retainParsed(key, parsed); };
+    init({ resources, onDetailChanged: key => changed.push(key.conversationId) });
+    try {
+        const capture = sourceEvent(detailWire(), { detailRequest: { conversationId: 'source_chat_123', requestCursor: null } });
+        await handleWindowMessage(capture);
+        await handleWindowMessage(capture);
+        assert.deepEqual(changed, ['source_chat_123'], 'same snapshot is not a second content change');
+        assert.deepEqual(retained, ['source_chat_123', 'source_chat_123'], 'accepted same-content candidates may refresh task bytes');
+        assert.equal((await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }))?.quality.status, 'complete');
+    } finally { resources.release(); }
+});
+
+test('L1 rejected passive Detail never retains source bytes or emits Live Save', async () => {
+    const key = { accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' };
+    await commitDetail(ACCOUNT_UUID, key.conversationId, {
+        savedAt: 1700000060000, quality: { status: 'complete' },
+        assets: [], messages: [{ role: 'assistant', content: [{ type: 'paragraph',
+            children: [{ type: 'text', text: 'already selected newer body' }] }] }],
+    });
+    const selected = await getDetail(key);
+    let retained = 0, changed = 0;
+    const resources = createSourceResourceContext();
+    resources.retainParsed = () => { retained++; };
+    init({ resources, onDetailChanged: () => { changed++; } });
+    try {
+        await handleWindowMessage(sourceEvent(detailWire(), {
+            detailRequest: { conversationId: key.conversationId, requestCursor: null },
+        }));
+        assert.equal(retained, 0, 'rejected candidates cannot supply export resources');
+        assert.equal(changed, 0, 'rejected candidates cannot schedule Live Save');
+        assert.deepEqual(await getDetail(key), selected, 'L2 remains the sole selector of stored Detail');
+    } finally { resources.release(); }
+});
+
 test('L1 unverified delete notification cannot invoke L2 or emit a committed callback', async () => {
     let observed: unknown;
     init({ onConversationDeleted: (id, accountId) => { observed = [id, accountId]; } });
