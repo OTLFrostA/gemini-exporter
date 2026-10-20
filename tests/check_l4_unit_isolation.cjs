@@ -7,7 +7,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
-const ts = require('typescript');
+const { buildSync } = require('esbuild');
 const root = path.resolve(__dirname, '..');
 const manifest = require('./l4-tests.json');
 const visited = new Set();
@@ -33,38 +33,25 @@ function resolveImport(parent, specifier) {
     if (rel.startsWith('tests/helpers/')) checkFile(target);
 }
 
-function typeOnlyImport(node) {
-    const clause = node.importClause;
-    if (!clause) return false;
-    if (clause.isTypeOnly) return true;
-    const binding = clause.namedBindings;
-    return !clause.name && binding && ts.isNamedImports(binding) &&
-        binding.elements.length > 0 && binding.elements.every(element => element.isTypeOnly);
-}
-
+/**
+ * TypeScript 7 no longer exposes the old JS Compiler API. esbuild's TS parser
+ * erases genuine type-only dependencies and records all remaining static,
+ * dynamic-import and require() edges in its metafile. This guards the runtime
+ * module graph without treating frozen v2 type definitions as implementations.
+ */
 function checkFile(filename) {
     const abs = path.resolve(filename);
     if (visited.has(abs)) return;
     visited.add(abs);
-    const text = fs.readFileSync(abs, 'utf8');
-    const source = ts.createSourceFile(abs, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    function walk(node) {
-        if (ts.isImportDeclaration(node)) {
-            if (!typeOnlyImport(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
-                resolveImport(abs, node.moduleSpecifier.text);
-            }
-        } else if (ts.isExportDeclaration(node)) {
-            if (!node.isTypeOnly && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) {
-                resolveImport(abs, node.moduleSpecifier.text);
-            }
-        } else if (ts.isCallExpression(node) && node.arguments.length &&
-            (ts.isIdentifier(node.expression) && node.expression.text === 'require' ||
-             node.expression.kind === ts.SyntaxKind.ImportKeyword)) {
-            if (ts.isStringLiteralLike(node.arguments[0])) resolveImport(abs, node.arguments[0].text);
-        }
-        ts.forEachChild(node, walk);
+    const contents = fs.readFileSync(abs, 'utf8');
+    const parsed = buildSync({
+        stdin: { contents, resolveDir: path.dirname(abs), sourcefile: abs, loader: 'ts' },
+        bundle: false, write: false, metafile: true, platform: 'node', format: 'esm',
+        logLevel: 'silent',
+    });
+    for (const output of Object.values(parsed.metafile.outputs)) {
+        for (const imported of output.imports) resolveImport(abs, imported.path);
     }
-    walk(source);
 }
 
 const suites = manifest.suites;
