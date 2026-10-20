@@ -34,8 +34,8 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
         const next = round === 0 ? cursor === null ? 'tC_middle' : 'tC_limit' : 'tC_unread';
         const packet = cursor === 'tC_limit'
             ? ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]
-            : ['wrb.fr', 'MaZiqc', JSON.stringify([null,
-                values.map(t => ['c_chat' + t, 'Chat ' + t, null, null, null, [1700000000 + t, 0]]), next])];
+            : ['wrb.fr', 'MaZiqc', JSON.stringify([null, next,
+                values.map(t => ['c_chat' + t, 'Chat ' + t, null, null, null, [1700000000 + t, 0]])])];
         await route.fulfill({ contentType: 'application/json', body: JSON.stringify([packet]) });
     });
     const options = await openOptions(context, extensionId);
@@ -43,10 +43,11 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
         retained: { exportedAt: 100, format: 'markdown', status: 'ok' },
     });
     await options.click('#btnSyncAll');
-    await expect(options.locator('#takeoutLimitModal')).toBeVisible({ timeout: 15000 });
+    await expect(options.locator('#btnSyncAll')).toBeEnabled();
+    await expect(options.locator('.tour-overlay-container')).toHaveCount(0);
+    // Four committed source rows are below the v2 Takeout suggestion threshold (>150).
     expect(requests[0]).toEqual(['head', 'tC_middle', 'tC_limit']);
     await expect.poll(async () => (await v2(options)).coverage?.range?.head.time).toBe(1700000100000);
-    await options.click('#btnModalDismissTakeout');
 
     for (round = 1; round <= 2; round++) {
         await options.click('#btnSyncAll');
@@ -54,7 +55,7 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
             round === 1 ? 1700000120000 : 1700000130000);
         await expect(options.locator('#btnSyncAll')).toBeEnabled();
         const { coverage, indexes, retainedRecord, retained } = await v2(options);
-        expect(requests[round]).toEqual(['head'], 'overlap with frozen history must avoid another provider page');
+        expect(requests[round], 'overlap with frozen history must avoid another provider page').toEqual(['head']);
         expect(coverage?.range?.tail.time).toBe(1700000070000);
         expect(Object.keys(coverage!)).toEqual(['range']);
         expect(JSON.stringify(coverage)).not.toContain('tC_');
@@ -69,7 +70,7 @@ test('passive non-head Gemini page adds v2 indexes but cannot fabricate trusted 
     await gemini.route('**/batchexecute*', route => route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify([['wrb.fr', 'MaZiqc',
-            JSON.stringify([null, [['c_passive80', 'Passive 80', null, null, null, [1700000080, 0]]], null])]]),
+            JSON.stringify([null, null, [['c_passive80', 'Passive 80', null, null, null, [1700000080, 0]]]])]]),
     }));
     const options = await openOptions(context, extensionId);
     await gemini.evaluate(async () => fetch('/_/BardChatUi/data/batchexecute', {
@@ -94,8 +95,8 @@ test('a new complete disjoint recent scan replaces old v2 coverage and never req
         const values = round === 0 ? [100, 70] : cursor === null ? [150, 140] : [130, 120];
         const next = round === 1 && cursor === null ? 'tC_fresh' : null;
         await route.fulfill({ contentType: 'application/json',
-            body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null,
-                values.map(t => ['c_rebuild' + t, 'Rebuild ' + t, null, null, null, [1700000000 + t, 0]]), next])]]) });
+            body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, next,
+                values.map(t => ['c_rebuild' + t, 'Rebuild ' + t, null, null, null, [1700000000 + t, 0]])])]]) });
     });
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');
