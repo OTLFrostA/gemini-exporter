@@ -1,14 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { fixtureAccount } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { mockAccount, givenReadonlyDomain, mockedL2Calls, stubTablePlacements, composeDomainDocument } from './helpers/l3bUnitHarness.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import type { DocumentAst } from '../src/l3b/ast/ast.js';
-import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 
-const account = fixtureAccount('chatgpt');
+const account = mockAccount('chatgpt');
 function input(): DomainConversationWithDetail {
     const key = { accountId: account.id, conversationId: 'native-id' };
     return {
@@ -28,10 +26,15 @@ function freeze(value: unknown): void {
 }
 
 test('Composer uses Account/Index facts, Unix-ms time and the original body order', () => {
-    const domain = validateParserDomain(input()); freeze(domain);
+    const domain = givenReadonlyDomain(input()); freeze(domain);
+    const callsBefore = mockedL2Calls.accounts.length;
+    const keyCallsBefore = mockedL2Calls.keys.length;
     const before = JSON.stringify(domain);
     const document: DocumentAst = composeDomainDocument(domain, account);
     assert.equal(document.title, 'Index title');
+    assert.equal(mockedL2Calls.accounts.length, callsBefore + 1, 'L3b invokes the mocked L2 Account boundary');
+    assert.strictEqual(mockedL2Calls.accounts.at(-1), account);
+    assert.equal(mockedL2Calls.keys.length, keyCallsBefore + 1, 'L3b invokes the mocked L2 ConversationKey boundary');
     assert.deepEqual(document.metadata, { id: 'native-id', provider: 'chatgpt', createdAt: 1000, updatedAt: 2000 });
     assert.deepEqual(document.messages.map(m => [m.role, m.timestamp, m.modelLabel]), [
         ['assistant', 3000, 'Model'], ['user', undefined, undefined],
@@ -46,19 +49,19 @@ test('Composer uses Account/Index facts, Unix-ms time and the original body orde
 });
 
 test('Composer rejects an Account or Detail key mismatch instead of repairing it', () => {
-    const domain = validateParserDomain(input());
-    assert.throws(() => composeDomainDocument(domain, fixtureAccount('chatgpt', '20000000-0000-4000-8000-000000000001')), /Account\/key mismatch/);
+    const domain = givenReadonlyDomain(input());
+    assert.throws(() => composeDomainDocument(domain, mockAccount('chatgpt', '20000000-0000-4000-8000-000000000001')), /Account\/key mismatch/);
     domain.detail.key.conversationId = 'other';
     assert.throws(() => composeDomainDocument(domain, account), /Account\/key mismatch/);
 });
 
 test('missing Index facts use one fixed reading title and do not invent timestamps', () => {
     const raw = input(); raw.index = { key: raw.index.key };
-    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account);
     assert.equal(document.title, 'Untitled conversation');
     assert.deepEqual(document.metadata, { id: 'native-id', provider: 'chatgpt' });
     raw.detail.messages = [];
-    assert.deepEqual(composeDomainDocument(validateParserDomain(raw), account).messages, []);
+    assert.deepEqual(composeDomainDocument(givenReadonlyDomain(raw), account).messages, []);
 });
 
 test('Citation numbering follows message-local citation arrays, including unreferenced sources', () => {
@@ -69,7 +72,7 @@ test('Citation numbering follows message-local citation arrays, including unrefe
         reasoning: [{ type: 'paragraph' as const, children: [{ type: 'citationRef' as const, citationId: 'offline', label: '[99]' }] }],
         content: [{ type: 'paragraph' as const, children: [{ type: 'citationRef' as const, citationId: 'named', label: 'Read this' }, { type: 'citationRef' as const, citationId: 'url' }, { type: 'citationRef' as const, citationId: 'url' }] }],
     }));
-    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account);
     assert.deepEqual(document.messages.map(m => m.sources), [0, 1].map(i => [
         { id: 'offline', label: '', number: i * 3 + 1 },
         { id: 'url', label: 'https://example.test', href: 'https://example.test', number: i * 3 + 2 },
@@ -100,7 +103,7 @@ test('Citation source labels skip whitespace-only titles and URLs without invent
             { type: 'citationRef', citationId: 'named' },
         ] }],
     }];
-    const [message] = composeDomainDocument(validateParserDomain(raw), account).messages;
+    const [message] = composeDomainDocument(givenReadonlyDomain(raw), account).messages;
     assert.deepEqual(message.sources, [
         { id: 'untitled', number: 1, label: 'https://example.test/fallback', href: 'https://example.test/fallback' },
         { id: 'unlinked', number: 2, label: '' },
@@ -125,7 +128,7 @@ test('Reasoning, content and explicitly attached resources retain their source o
         content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }],
         attachmentIds: ['photo', 'file'],
     }];
-    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account);
     assert.deepEqual(document.messages[0].blocks.map(block => block.type), ['disclosure', 'paragraph', 'image', 'file']);
     assert.deepEqual(document.messages[0].blocks[2], { type: 'image', resourceId: 'photo', alt: 'Diagram.png' });
     assert.deepEqual(document.messages[0].blocks[3], { type: 'file', resourceId: 'file', label: 'Report.pdf', kind: 'file', mediaType: 'application/pdf', byteLength: 42 });
@@ -183,7 +186,18 @@ test('Table projection preserves merged positions, original captions and column 
         headerRows: [{ cells: [{ children: [{ type: 'text', text: 'Heading' }], colSpan: 2 }] }],
         rows: [{ cells: [{ children: [{ type: 'text', text: 'A' }], rowSpan: 2 }, { children: [{ type: 'text', text: 'B' }] }] }, { cells: [{ children: [{ type: 'text', text: 'C' }] }] }],
     }] }];
-    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const table = raw.detail.messages[0].content[0];
+    if (table.type !== 'table') throw new Error('Expected table fixture');
+    stubTablePlacements(table, [
+        { rowIndex: 0, cellIndex: 0, column: 0, colSpan: 2, rowSpan: 1 },
+        { rowIndex: 1, cellIndex: 0, column: 0, colSpan: 1, rowSpan: 2 },
+        { rowIndex: 1, cellIndex: 1, column: 1, colSpan: 1, rowSpan: 1 },
+        { rowIndex: 2, cellIndex: 0, column: 1, colSpan: 1, rowSpan: 1 },
+    ]);
+    const tableCallsBefore = mockedL2Calls.tables.length;
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account);
+    assert.strictEqual(mockedL2Calls.tables.at(-1), table, 'L3b consumes the L2 table placement port');
+    assert.equal(mockedL2Calls.tables.length, tableCallsBefore + 1);
     assert.deepEqual(document.messages[0].blocks, [{
         type: 'table', columnAlignments: ['left', 'right', 'center'],
         caption: [{ type: 'emphasis', children: [{ type: 'text', text: 'Table caption' }] }],
@@ -203,7 +217,7 @@ test('Authored rich text, alt, caption and File description survive projection u
         {type:'file',assetId:'file',label:'Original label',description:[{type:'text',text:'Original description'}]},
         {type:'unknown',sourceType:'widget',text:'Original unsupported text'},
     ]}];
-    const doc=composeDomainDocument(validateParserDomain(raw),account);
+    const doc=composeDomainDocument(givenReadonlyDomain(raw),account);
     assert.deepEqual(doc.messages[0].blocks,[
         {type:'heading',level:3,children:[{type:'strong',children:[{type:'emphasis',children:[{type:'image',resourceId:'image',alt:'Authored alt',title:'Authored title'}]}]}]},
         {type:'image',resourceId:'image',alt:'Authored block alt',caption:[{type:'emphasis',children:[{type:'text',text:'Original caption'}]}]},
@@ -220,7 +234,7 @@ test('File projections retain provided optional metadata without changing attach
         content: [{ type: 'file', assetId: 'file' }],
         attachmentIds: ['file'],
     }];
-    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account);
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'file', resourceId: 'file', label: 'Attachment', kind: 'file', mediaType: '', byteLength: 0 },
         { type: 'file', resourceId: 'file', label: 'Attachment', kind: 'file', mediaType: '', byteLength: 0 },
@@ -236,7 +250,7 @@ test('Audio, video, other and document attachments remain typed File nodes witho
         { id: 'document', kind: 'file', name: 'Research.md', mediaType: 'text/markdown', document: { contentMarkdown: '# PRIVATE_DOCUMENT_BODY' } },
     ];
     raw.detail.messages = [{ role: 'assistant', content: [], attachmentIds: ['audio', 'video', 'other', 'document'] }];
-    const domain = validateParserDomain(raw), before = JSON.stringify(domain);
+    const domain = givenReadonlyDomain(raw), before = JSON.stringify(domain);
     const document = composeDomainDocument(domain, account);
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'file', resourceId: 'audio', label: 'Recording', kind: 'audio', mediaType: 'audio/mpeg', byteLength: 12 },
@@ -260,7 +274,7 @@ test('Blank authored resource names and metadata use the same L3b fallback in ev
         { type: 'image', assetId: 'image', alt: ' ' },
         { type: 'file', assetId: 'file', label: '\t' },
     ], attachmentIds: ['image', 'file'] }];
-    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account);
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'paragraph', children: [{ type: 'image', resourceId: 'image', alt: 'Image' }] },
         { type: 'image', resourceId: 'image', alt: 'Image' },
@@ -291,7 +305,7 @@ test('all accepted roles keep their identity and message-level timestamps', () =
     const raw=input();raw.detail.messages=['user','assistant','system','developer','unknown'].map(role=>({
         role:role as 'user'|'assistant'|'system'|'developer'|'unknown',timestamp:123456789,content:[],
     }));
-    const document=composeDomainDocument(validateParserDomain(raw),{...account,email:'private@example.test',displayName:'Private name'});
+    const document=composeDomainDocument(givenReadonlyDomain(raw),{...account,email:'private@example.test',displayName:'Private name'});
     assert.deepEqual(document.messages.map(m=>[m.role,m.timestamp]),[
         ['user',123456789],['assistant',123456789],['system',123456789],['developer',123456789],['unknown',123456789],
     ]);
@@ -314,7 +328,7 @@ test('empty Reasoning emits no disclosure and fixed reading labels never rewrite
     raw.detail.messages = [{ role: 'assistant', reasoning: [], content: [
         { type: 'image', assetId: 'image' }, { type: 'file', assetId: 'file' },
     ] }];
-    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account);
     assert.equal(document.title, 'First line\nSecond line');
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'image', resourceId: 'image', alt: 'Image' },
@@ -328,7 +342,13 @@ test('Table layout carries a header rowspan into body rows and retains unused de
         headerRows: [{ cells: [{ rowSpan: 2, children: [{ type: 'text', text: 'Spans boundary' }] }] }],
         rows: [{ cells: [{ children: [{ type: 'text', text: 'Body' }] }] }, { cells: [] }],
     }] }];
-    const block = composeDomainDocument(validateParserDomain(raw), account).messages[0].blocks[0];
+    const table = raw.detail.messages[0].content[0];
+    if (table.type !== 'table') throw new Error('Expected table fixture');
+    stubTablePlacements(table, [
+        { rowIndex: 0, cellIndex: 0, column: 0, colSpan: 1, rowSpan: 2 },
+        { rowIndex: 1, cellIndex: 0, column: 1, colSpan: 1, rowSpan: 1 },
+    ]);
+    const block = composeDomainDocument(givenReadonlyDomain(raw), account).messages[0].blocks[0];
     assert.ok(block.type === 'table');
     assert.deepEqual(block.columnAlignments, ['right', 'default', 'center']);
     assert.equal(block.headerRows[0][0].rowSpan, 2);

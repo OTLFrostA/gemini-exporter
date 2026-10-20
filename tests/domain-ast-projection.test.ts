@@ -1,12 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fixtureAccount } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { mockAccount, givenReadonlyDomain, composeDomainDocument } from './helpers/l3bUnitHarness.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
-import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 
-const account = Object.freeze({ ...fixtureAccount('chatgpt'), email: 'private@example.test', displayName: 'Private name' });
+const account = Object.freeze({ ...mockAccount('chatgpt'), email: 'private@example.test', displayName: 'Private name' });
 function input(): DomainConversationWithDetail {
     const key = { accountId: account.id, conversationId: 'same-native-id' };
     return { index: { key, title: 'Index title', titleSource: 'provider', createdAt: 1000, updatedAt: 2000 },
@@ -17,7 +15,7 @@ function input(): DomainConversationWithDetail {
 }
 
 test('AST: projection uses matched Account and Index facts, preserving supplied partial body order', () => {
-    const domain = validateParserDomain(input()), before = JSON.stringify(domain);
+    const domain = givenReadonlyDomain(input()), before = JSON.stringify(domain);
     const document = composeDomainDocument(domain, account);
     assert.deepEqual(document.metadata, { id: 'same-native-id', provider: 'chatgpt', createdAt: 1000, updatedAt: 2000 });
     assert.equal(document.title, 'Index title');
@@ -25,11 +23,11 @@ test('AST: projection uses matched Account and Index facts, preserving supplied 
     assert.doesNotMatch(JSON.stringify(document), /private@example|Private name|provider-z|savedAt|quality|9999999999999/);
     assert.equal(JSON.stringify(domain), before);
 
-    const otherAccount = fixtureAccount('chatgpt', '20000000-0000-4000-8000-000000000001');
+    const otherAccount = mockAccount('chatgpt', '20000000-0000-4000-8000-000000000001');
     assert.throws(() => composeDomainDocument(domain, otherAccount), /Account\/key mismatch/);
     const other = input(); other.index.key.accountId = otherAccount.id; other.detail.key.accountId = otherAccount.id;
     other.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'Other account body' }] }];
-    const otherDocument = composeDomainDocument(validateParserDomain(other), otherAccount);
+    const otherDocument = composeDomainDocument(givenReadonlyDomain(other), otherAccount);
     assert.equal(otherDocument.metadata.id, document.metadata.id, 'AST source ID is not a cross-account storage key');
     assert.deepEqual(otherDocument.messages[0].blocks, other.detail.messages[0].content);
     assert.deepEqual(document.messages[0].blocks, domain.detail.messages[0].content);
@@ -39,7 +37,7 @@ test('AST: projection uses matched Account and Index facts, preserving supplied 
 
 test('AST: missing Index title and times get reading defaults without borrowing savedAt', () => {
     const raw = input(); raw.index = { key: raw.index.key };
-    const domain = validateParserDomain(raw), before = JSON.stringify(domain);
+    const domain = givenReadonlyDomain(raw), before = JSON.stringify(domain);
     const document = composeDomainDocument(domain, account);
     assert.equal(document.title, 'Untitled conversation');
     assert.ok(!('updatedAt' in document.metadata));
@@ -53,7 +51,7 @@ test('AST: Composer numbers sources once across messages and preserves absent UR
         reasoning: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[99]' }] }],
         content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'named', label: 'Read this' }, { type: 'citationRef', citationId: 'same' }] }],
     }));
-    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account);
     assert.deepEqual(document.messages.map(m => m.sources?.map(s => [s.id, s.number, s.label, s.href])), [
         [['same', 1, '', undefined], ['named', 2, 'Article', 'https://example.test/article']],
         [['same', 3, '', undefined], ['named', 4, 'Article', 'https://example.test/article']],
@@ -70,7 +68,7 @@ test('AST: only explicit media placements become AST content; resource absence n
         { role: 'assistant', content: [] },
         { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'photo' }] }], attachmentIds: ['photo', 'file'] },
     ];
-    const document = composeDomainDocument(validateParserDomain(raw), account), before = JSON.stringify(document);
+    const document = composeDomainDocument(givenReadonlyDomain(raw), account), before = JSON.stringify(document);
     assert.deepEqual(document.messages[0].blocks, []);
     assert.equal(document.messages[1].blocks.length, 3, 'explicit attachment IDs follow content in source order');
     assert.ok(!before.includes('unowned') && !before.includes('placeholder'));
@@ -80,7 +78,7 @@ test('AST: only explicit media placements become AST content; resource absence n
 test('AST: code and reasoning preserve facts without renderer controls', () => {
     const raw = input(); raw.detail.messages[0].reasoning = [{ type: 'code', code: 'thought', language: 'text' }];
     raw.detail.messages[0].content = [{ type: 'code', code: 'answer', language: 'js', meta: 'Authored filename' }];
-    const domain = validateParserDomain(raw), document = composeDomainDocument(domain, account), before = JSON.stringify(document);
+    const domain = givenReadonlyDomain(raw), document = composeDomainDocument(domain, account), before = JSON.stringify(document);
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'disclosure', kind: 'reasoning', title: 'Thinking Process', blocks: [{ type: 'code', code: 'thought', language: 'text' }] },
         { type: 'code', code: 'answer', language: 'js', meta: 'Authored filename' },
