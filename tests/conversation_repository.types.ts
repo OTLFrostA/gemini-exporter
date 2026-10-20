@@ -1,5 +1,5 @@
 import type { DomainConversation } from '../src/l2/conversation.js';
-import { readConversation } from '../src/l2/readConversation.js';
+import { readStoredConversation } from './helpers/readStoredConversation.js';
 
 function contract(conversation: DomainConversation, key: Parameters<typeof readConversation>[0]) {
     const title: string | undefined = conversation.index.title;

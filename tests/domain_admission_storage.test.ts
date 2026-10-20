@@ -52,7 +52,7 @@ test('admission replaces incomplete snapshots by order and rejects mismatched ow
         assert.deepEqual((await readFixture(identity))!.conversation.detail, next.conversation.detail);
         await assert.rejects(admitFixture('10000000-0000-4000-8000-000000000002', next), /account\/provider mismatch/);
         assert.equal((await getConversations('10000000-0000-4000-8000-000000000002')).length, 0);
-        env.fail(`conversations_${account.id}`);
+        env.fail('indexes');
         const failed = snapshot('uncommitted catalog', 'complete', 30); failed.conversation.index.updatedAt = 30;
         await assert.rejects(admitFixture(account.id, failed), /write failed/);
         env.fail();

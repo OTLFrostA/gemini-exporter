@@ -1,7 +1,7 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { ingestDetail } from '../src/l2/ingestion.js';
-import { readConversation } from '../src/l2/readConversation.js';
+import { readStoredConversation } from './helpers/readStoredConversation.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
@@ -104,7 +104,7 @@ test('diagnostic deletion or spoofed diagnostic codes cannot change merged Detai
 async function commitSource(source: SourceConversationParseResult) {
     const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: source.conversationId };
     await ingestDetail(key.accountId, key.conversationId, source.conversation.detail, source.conversation.index);
-    const conversation = await readConversation(key);
+    const conversation = await readStoredConversation(key);
     assert.ok(conversation);
     return { conversation, sourceVersion: conversation.detail.savedAt };
 }
