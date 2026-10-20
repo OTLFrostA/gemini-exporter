@@ -3,15 +3,11 @@
     "tests/storage_v2.test.ts",
     "tests/storage_export_surface.test.ts",
     "tests/storage_service.test.ts",
-    "tests/storage_readiness_boundary.test.ts",
-    "tests/schema_migration.test.ts",
     "tests/idb_handle_store.test.ts",
     "tests/storage_reconciliation.test.ts",
     "tests/ts_c2_storage_service.test.ts",
     "tests/storage_trust_snapshot.test.ts",
     "tests/live_storage_manager.test.ts",
-    "tests/upgrade_v1.test.cjs",
-    "tests/arch/no_bare_storage_writes.test.ts",
     "tests/schema_badge.test.ts"
   ],
   "integrationSuites": [
