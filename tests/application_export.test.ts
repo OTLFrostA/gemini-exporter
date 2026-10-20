@@ -37,8 +37,10 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         assert.equal(record.chatTime, 100); assert.equal(record.format, format);
         assert.ok(record.exportedAt >= startedAt && record.exportedAt <= Date.now(), 'delivery record uses real epoch-ms');
         assert.equal(deliveries[0].length, 1);
-        if (format !== 'pdf') assert.match(String(deliveries[0][0].content), /Body first/);
-        if (format === 'pdf') assert.equal(state.disposed, 1);
+        if (format === 'pdf') { assert.equal(state.disposed, 1); assert.equal(state.pdfRenderKey, 'first'); }
+        else assert.deepEqual(state.rendererCalls.map(call => [call.format, call.key]), [[format, 'first']]);
+        assert.equal(state.compositions.length, format === 'json' ? 0 : 1);
+        assert.equal(state.jsonInputs.length, format === 'json' ? 1 : 0);
     });
     test(`${format} includeAssets=false does not acquire bytes or mark intentional omissions partial`, async () => {
         seed('first', { assets: true });
@@ -46,8 +48,8 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         assert.equal(result.exported, 1); assert.equal(result.partial, 0);
         assert.ok(!events.some(event => event.startsWith('acquire:')));
         if (format === 'json') {
-            const json = JSON.parse(String(deliveries[0][0].content));
-            assert.equal(json.conversation.detail.assets.length, 3); assert.deepEqual(json.resources, {});
+            assert.equal(state.jsonInputs[0].detail.assets.length, 3);
+            assert.deepEqual(state.rendererCalls[0].bindings, {});
         }
     });
     test(`${format} chooses only the format's required resource IDs`, async () => {
@@ -56,23 +58,27 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         assert.equal(result.exported, 1);
         assert.deepEqual(events.filter(event => event.startsWith('acquire:')), format === 'json'
             ? ['acquire:image', 'acquire:file', 'acquire:unused'] : ['acquire:image', 'acquire:file']);
+        assert.deepEqual(state.browserPlans.map(plan => plan.preparedIds), [format === 'json'
+            ? ['image', 'file', 'unused'] : ['image', 'file']]);
+        assert.deepEqual(state.browserPlans[0].fileIds, format === 'json' ? [] : ['file']);
         if (format === 'pdf') {
             assert.deepEqual(state.pdfPrepared, ['image', 'file']);
             assert.ok(state.pdfBindings.image); assert.ok(state.pdfBindings.file);
         }
-        assert.equal(deliveries[0][0].mimeType, 'application/zip');
+        assert.equal(state.packages.length, 1);
+        assert.deepEqual(state.packages[0], { delivery: 'browserDownload', groups: 1, files: 1 });
     });
 }
-test('PDF retains referenced File-node originals but does not emit embedded images separately', async () => {
+test('PDF supplies L4 the referenced original-file IDs and all prepared bytes', async () => {
     seed('first', { assets: true });
     const result = await runExport(request({ format: 'pdf', delivery: 'folderWriter' }));
     assert.equal(result.exported, 1);
+    assert.deepEqual(state.folderPlans.map(plan => plan.fileIds), [['file']]);
+    assert.deepEqual(state.folderPlans[0].preparedIds, ['image', 'file']);
     assert.deepEqual(state.pdfPrepared, ['image', 'file']);
+    assert.equal(state.builtFiles[0].format, 'pdf');
     assert.equal(deliveries.length, 1);
-    assert.equal(deliveries[0].length, 2);
-    assert.match(deliveries[0][0].fileName, /\.pdf$/);
-    assert.match(deliveries[0][1].fileName, /^files\//);
-    assert.ok(!deliveries[0].some(file => file.fileName.startsWith('assets/')));
+    // Emitting original files vs embedded media is L4's responsibility, not an Application unit assertion.
 });
 for (const format of ['markdown', 'html', 'pdf'] as const) {
     test(`${format} uses the shared Settings language for renderer-owned text`, async () => {
@@ -82,7 +88,7 @@ for (const format of ['markdown', 'html', 'pdf'] as const) {
         assert.equal(result.exported, 1);
         assert.equal(state.settingsReads, 1);
         if (format === 'pdf') assert.equal(state.pdfLocale, 'zh');
-        else assert.match(String(deliveries[0][0].content), /你/);
+        else assert.equal(state.rendererCalls[0].locale, 'zh');
     });
 }
 test('Export resolves renderer language once per task and JSON does not read renderer preferences', async () => {
@@ -157,21 +163,20 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         const result = await runExport(request({ format }));
         assert.equal(result.exported, 1);
         assert.deepEqual(result.failed, []);
-        if (format === 'json') {
-            const json = JSON.parse(String(deliveries[0][0].content));
-            assert.deepEqual(json.conversation.detail.messages, []);
-        }
+        if (format === 'json') assert.deepEqual(state.jsonInputs[0].detail.messages, []);
+        else assert.deepEqual(state.compositions[0].detail.messages, []);
     });
 }
-test('Folder shared path planner reserves colliding file names for separate conversations', async () => {
-    const first = seed('alpha_sameid'), second = seed('beta_sameid');
-    first.index.title = 'Collision';
-    second.index.title = 'Collision';
+test('Folder Writer creates one shared L4 planner and calls it once per conversation', async () => {
+    seed('alpha_sameid'); seed('beta_sameid');
     const result = await runExport(request({
         keys: [key('alpha_sameid'), key('beta_sameid')], format: 'markdown', delivery: 'folderWriter',
     }));
     assert.equal(result.exported, 2);
-    assert.deepEqual(deliveries.map(group => group[0].fileName), ['Collision_sameid.md', 'Collision_sameid_2.md']);
+    assert.deepEqual(state.folderPlannerCreations, ['markdown']);
+    assert.deepEqual(state.folderPlans.map(plan => plan.key), ['alpha_sameid', 'beta_sameid']);
+    assert.equal(state.browserPlans.length, 0);
+    assert.equal(state.packages.length, 0, 'Folder groups go directly to Delivery');
 });
 test('refresh is void; Export rereads L2 instead of using a Provider response', async () => {
     seed('first', { savedAt: 90 });
@@ -180,7 +185,9 @@ test('refresh is void; Export rereads L2 instead of using a Provider response', 
         const { detail } = seed(); detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'Committed replacement' }] }];
     };
     const result = await runExport(request());
-    assert.equal(result.partial, 0); assert.match(String(deliveries[0][0].content), /Committed replacement/);
+    assert.equal(result.partial, 0);
+    assert.match(JSON.stringify(state.compositions[0].detail.messages), /Committed replacement/);
+    assert.equal(state.compositions.length, 1);
 });
 test('Popup with no local Index still refreshes and rereads Domain', async () => {
     provider.fetchConversationDetail = async () => { seed(); };
@@ -197,43 +204,38 @@ test('resource failure yields readable partial and no dangling binding', async (
     provider.acquireResource = async () => { throw new Error('unavailable'); };
     const result = await runExport(request({ format: 'json' }));
     assert.equal(result.partial, 1);
-    assert.deepEqual(JSON.parse(String(deliveries[0][0].content)).resources, {});
+    assert.deepEqual(state.rendererCalls[0].bindings, {});
+    assert.equal(state.jsonInputs[0].detail.assets.length, 3);
 });
-test('Folder Writer writes each item before acquiring the next and releases prior readers', async () => {
+test('Folder Writer finalizes and releases one conversation before preparing the next', async () => {
     seed('first', { assets: true, savedAt: 90 });
     seed('second', { assets: true, savedAt: 90 });
     provider.fetchConversationDetail = async (_account, id) => {
         if (id === 'second') {
-            assert.equal(deliveries.length, 1, 'first item must be written before second preparation');
-            assert.ok(events.includes('record:first'));
-            const old = await state.sourceContext!.acquire(key('first'), { id: 'image', kind: 'image' }, undefined,
-                async () => ({ bytes: new TextEncoder().encode('released') }));
-            assert.equal(new TextDecoder().decode(old.bytes), 'released', 'first item reader must be released');
+            assert.equal(deliveries.length, 1, 'first group delivered before next refresh');
+            assert.ok(events.includes('record:first'), 'first group recorded before next refresh');
+            assert.deepEqual(state.releasedKeys, ['first'], 'first reader released before next refresh');
         }
-        state.sourceContext!.retain(key(id), 'image', async () => ({ bytes: new TextEncoder().encode(id) }));
         seed(id, { assets: true });
     };
-    provider.acquireResource = async (conversationKey, asset, signal) => state.sourceContext!.acquire(
-        conversationKey, asset, signal, async () => ({ bytes: new Uint8Array([9]), mediaType: asset.mediaType }));
     const result = await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }));
     assert.equal(result.exported, 2);
-    const images = deliveries.map(group => group.find(file => file.fileName.startsWith('assets/'))!.content as Uint8Array);
-    assert.deepEqual(images.map(bytes => new TextDecoder().decode(bytes)), ['first', 'second']);
+    assert.deepEqual(state.releasedKeys, ['first', 'second']);
+    assert.equal(state.releasedContexts, 1);
+    assert.deepEqual(state.folderPlans.map(plan => plan.key), ['first', 'second']);
 });
-test('resources stay keyed by Conversation as well as asset ID and task context releases', async () => {
-    seed('first', { assets: true, savedAt: 90 }); seed('second', { assets: true, savedAt: 90 });
-    provider.fetchConversationDetail = async (_account, id) => {
-        state.sourceContext!.retain(key(id), 'image', async () => ({ bytes: new TextEncoder().encode(id) }));
-        seed(id, { assets: true });
+test('resource preparation passes ConversationKey independently for identical asset IDs', async () => {
+    seed('first', { assets: true }); seed('second', { assets: true });
+    const acquisitions: string[] = [];
+    provider.acquireResource = async (conversationKey, asset) => {
+        acquisitions.push(conversationKey.conversationId + ':' + asset.id);
+        return { bytes: new Uint8Array([9]) };
     };
-    provider.acquireResource = async (key, asset, signal) => state.sourceContext!.acquire(key, asset, signal,
-        async () => ({ bytes: new Uint8Array([1]) }));
     await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }));
-    assert.equal(contexts.length, 1);
-    const images = deliveries.map(group => group.find(file => file.fileName.startsWith('assets/'))!.content);
-    assert.equal(new TextDecoder().decode(images[0] as Uint8Array), 'first');
-    assert.equal(new TextDecoder().decode(images[1] as Uint8Array), 'second');
-    await assert.rejects(contexts[0].acquire(key(), { id: 'image', kind: 'image' }), /released/);
+    assert.deepEqual(acquisitions, ['first:image', 'first:file', 'second:image', 'second:file']);
+    assert.equal(contexts.length, 1, 'one task-level L1 context, not one context per item');
+    assert.equal(state.releasedContexts, 1);
+    assert.deepEqual(state.releasedKeys, ['first', 'second']);
 });
 test('resource preparation retains failure results and propagates Abort', async () => {
     const controller = new AbortController();
