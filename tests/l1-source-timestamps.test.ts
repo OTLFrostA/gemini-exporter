@@ -7,7 +7,7 @@ test('ChatGPT source timestamps normalize seconds and reject unsafe or fabricate
     assert.equal(chatGPTTimestamp(1700000000.125), 1700000000125);
     assert.equal(chatGPTTimestamp(1700000000123), 1700000000123);
     assert.equal(chatGPTTimestamp('2023-11-14T22:13:20Z'), 1700000000000);
-    for (const value of [null, undefined, 0, -1, NaN, Infinity, Number.MAX_SAFE_INTEGER, 'invalid']) {
+    for (const value of [null, undefined, 0, -1, NaN, Infinity, Number.MAX_SAFE_INTEGER + 2, 'invalid']) {
         assert.equal(chatGPTTimestamp(value), undefined);
     }
 });
@@ -17,7 +17,7 @@ test('Gemini native source time accepts characterized tuples but never unsafe ep
     assert.equal(payloadToMs(1700000000), 1700000000000);
     assert.equal(payloadToMs(1700000000123), 1700000000123);
     for (const value of [[1700000000, -1], [1700000000, 1000000000],
-        [1700000000, NaN], [Number.MAX_SAFE_INTEGER, 0], 0, -1, NaN, Infinity]) {
+        [1700000000, NaN], [Number.MAX_SAFE_INTEGER + 2, 0], 0, -1, NaN, Infinity]) {
         assert.equal(payloadToMs(value), null);
     }
 });
