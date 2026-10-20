@@ -89,7 +89,9 @@ test('failed export is displayed and a retry remains available after the task en
 test('scan progress exposes committed page counts and returns controls to idle', async () => {
     await open({ holdScan: true }); await page.locator('#btnSyncAll').click();
     await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes('150 source entries'));
-    assert.equal(await page.locator('#btnCancel').isEnabled(), true);
+    assert.equal(await page.locator('#btnStopScan').isVisible(), true);
+    assert.equal(await page.locator('#btnStopScan').isEnabled(), true);
+    assert.equal(await page.locator('#btnCancel').isVisible(), false);
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
 });
