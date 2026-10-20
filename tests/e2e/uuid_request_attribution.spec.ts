@@ -20,8 +20,7 @@ function capturedContext(options: import('@playwright/test').Page) {
     });
 }
 async function readIndexes(options: import('@playwright/test').Page, id: string) {
-    return options.evaluate(async accountId => Reflect.get(globalThis, 'uiFixture').listIndexes(accountId), id)
-        as Promise<Array<{ key: { conversationId: string } }>>;
+    return options.evaluate(async accountId => Reflect.get(globalThis, 'uiFixture').listIndexes(accountId), id) as Promise<Array<{ key: { conversationId: string } }>>;
 }
 async function send(source: import('@playwright/test').Page, transport: 'fetch' | 'xhr',
     rpc: 'MaZiqc' | 'hNvQHb', id: string) {
