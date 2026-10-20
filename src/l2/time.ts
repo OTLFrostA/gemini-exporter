@@ -17,11 +17,11 @@ export function toIso(value: unknown): string | undefined {
 
 /** Boundary conversion: numeric values/strings are milliseconds, never guessed seconds. */
 export function normalizeTimestamp(value: unknown): number | undefined {
-    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    if (typeof value === 'number') return Number.isSafeInteger(value) ? value : undefined;
     if (typeof value !== 'string' || !value.trim()) return undefined;
     const s = value.trim();
     const time = /^-?\d+$/.test(s) ? Number(s) : Date.parse(s);
-    return Number.isFinite(time) ? time : undefined;
+    return Number.isSafeInteger(time) ? time : undefined;
 }
 
 /** Boundary conversion of independent source-authored conversation times. */

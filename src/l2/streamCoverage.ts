@@ -9,13 +9,14 @@ export function readStreamCoverage(value: unknown): StreamCoverage | null {
     if (range === null) return emptyStream();
     if (!range || typeof range !== 'object' || Array.isArray(range) || Object.keys(range).some(k => k !== 'head' && k !== 'tail') || !('head' in range) || !('tail' in range)) return null;
     const key = (v: unknown): v is CoverageKey => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).every(k => k === 'id' || k === 'time') && 'id' in v && typeof v.id === 'string'
-        && !!v.id && 'time' in v && typeof v.time === 'number' && Number.isFinite(v.time);
+        && !!v.id && 'time' in v && typeof v.time === 'number' && Number.isSafeInteger(v.time);
     return key(range.head) && key(range.tail) ? { range: { head: { ...range.head }, tail: { ...range.tail } } } : null;
 }
 const overlaps = (a: CoverageRange, b: CoverageRange) => a.tail.time <= b.head.time && b.tail.time <= a.head.time;
 const samePage = (a: PageObservation<unknown>, b: PageObservation<unknown>) =>
     a.providerId === b.providerId && a.accountId === b.accountId && a.streamId === b.streamId
     && a.requestedAt === b.requestedAt && a.nextCursor === b.nextCursor && a.ordered === b.ordered
+    && a.requestKnown === b.requestKnown && a.valid === b.valid && a.terminal === b.terminal
     && JSON.stringify(a.keys) === JSON.stringify(b.keys);
 
 /** Ephemeral cursor evidence. Only a verified terminal chain establishes a new durable range. */
@@ -33,7 +34,7 @@ export class CoverageSession {
             if (prior && page.requestedAt < prior.requestedAt) return previous;
             this.pages.clear(); this.conflicts.clear();
         }
-        if (!page.requestKnown || !page.valid || !page.ordered
+        if (!page.requestKnown || !page.valid || !page.ordered || !Number.isSafeInteger(page.requestedAt)
             || page.nextCursor !== null && page.nextCursor === page.requestCursor) {
             this.conflicts.add(page.requestCursor); this.pages.delete(page.requestCursor); return previous;
         }
@@ -70,7 +71,7 @@ export class CoverageSession {
             if (visited.has(page.requestCursor) || this.conflicts.has(page.requestCursor) || !page.requestKnown || !page.valid || !page.ordered
                 || page.providerId !== anchor.providerId || page.accountId !== anchor.accountId || page.streamId !== anchor.streamId
                 || page.requestedAt < lastRequestedAt
-                || page.keys.some(k => !k.id || !Number.isFinite(k.time) || ids.has(k.id) || k.time > lastTime)
+                || page.keys.some(k => !k.id || !Number.isSafeInteger(k.time) || ids.has(k.id) || k.time > lastTime)
                 || new Set(page.keys.map(k => k.id)).size !== page.keys.length) break;
             visited.add(page.requestCursor);
             for (const key of page.keys) { ids.add(key.id); keys.push(key); }

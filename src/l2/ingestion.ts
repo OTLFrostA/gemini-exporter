@@ -45,7 +45,7 @@ export async function ingestIndexes(accountId: Account['id'],
     });
 }
 
-/** Frozen L1 → L2 Detail admission contract. The implementation is migrated separately. */
+/** Committed admission result; temporary resource ownership is decided by accepted. */
 export interface DetailIngestResult {
     accepted: boolean;
     changed: boolean;
@@ -63,14 +63,16 @@ export async function ingestDetail(accountId: Account['id'], conversationId: Con
         const acceptedIndex = mergeConversationIndex(existingIndex, index);
         const existing = oldDetail ? restoreDomainDetail(oldDetail) : null;
         const selected = selectConversationDetail(existing ? { detail: existing } : undefined, { detail: incoming }).detail;
-        const changed = !existing || (selected !== existing
-            && (JSON.stringify(existing.messages) !== JSON.stringify(selected.messages)
-                || JSON.stringify(existing.assets) !== JSON.stringify(selected.assets)
-                || existing.quality.status !== selected.quality.status));
+        const sameFacts = (a: DomainConversationDetail, b: DomainConversationDetail): boolean =>
+            JSON.stringify(a.messages) === JSON.stringify(b.messages)
+            && JSON.stringify(a.assets) === JSON.stringify(b.assets)
+            && a.quality.status === b.quality.status;
+        const accepted = selected === incoming || (existing !== null && sameFacts(existing, incoming));
+        const changed = !existing || (selected !== existing && !sameFacts(existing, selected));
         return {
             ...(JSON.stringify(acceptedIndex) !== JSON.stringify(existingIndex) ? { index: acceptedIndex } : {}),
             ...(JSON.stringify(selected) !== JSON.stringify(existing) ? { detail: selected } : {}),
-            result: changed,
+            result: { accepted, changed },
         };
     });
 }
