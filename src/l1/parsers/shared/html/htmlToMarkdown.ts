@@ -72,37 +72,68 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     res = res.replace(/<(strong|b)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
     res = res.replace(/<(em|i)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
     res = res.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match: string, tableContent: string) => {
-        const rows: string[] = [];
-        const trMatches = tableContent.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
-        let isFirstRow = true;
-        let colCount = 0;
-
-        for (const trMatch of trMatches) {
-            const trContent = trMatch[1];
-            const cells: string[] = [];
-            const cellMatches = trContent.matchAll(/<(?:th|td)[^>]*>([\s\S]*?)<\/(?:th|td)>/gi);
-            for (const cMatch of cellMatches) {
-                let cell = cMatch[1];
-                cell = cell.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1<br>');
-                cell = cell.replace(/<br\s*\/?>/gi, '__TABLE_BR__');
-                cell = stripHtmlTags(cell);
-                cell = unescapeHtml(cell);
-                cell = cell.replace(/\r?\n/g, ' ').trim();
-                cell = cell.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
-                cells.push(cell);
+        const parsedRows: Array<Array<{ value: string; colSpan: number; rowSpan: number }>> = [];
+        const span = (attributes: string, name: 'colspan' | 'rowspan'): number => {
+            const match = (name === 'colspan'
+                ? /\bcolspan\s*=\s*(?:"(\d+)"|'(\d+)'|(\d+))/i
+                : /\browspan\s*=\s*(?:"(\d+)"|'(\d+)'|(\d+))/i).exec(attributes);
+            const value = Number(match?.[1] ?? match?.[2] ?? match?.[3] ?? 1);
+            return Number.isSafeInteger(value) && value > 0 ? Math.min(value, 256) : 1;
+        };
+        for (const tr of tableContent.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+            const cells: Array<{ value: string; colSpan: number; rowSpan: number }> = [];
+            for (const match of tr[1].matchAll(/<(?:th|td)\b([^>]*)>([\s\S]*?)<\/(?:th|td)>/gi)) {
+                let value = match[2];
+                value = value.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1<br>');
+                value = value.replace(/<br\s*\/?>/gi, '__TABLE_BR__');
+                value = stripHtmlTags(value);
+                value = unescapeHtml(value).replace(/\r?\n/g, ' ').trim();
+                value = value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+                cells.push({ value, colSpan: span(match[1], 'colspan'), rowSpan: span(match[1], 'rowspan') });
             }
-            if (cells.length === 0) continue;
-            if (isFirstRow) {
-                colCount = cells.length;
-                rows.push('| ' + cells.join(' | ') + ' |');
-                rows.push('| ' + new Array(colCount).fill('---').join(' | ') + ' |');
-                isFirstRow = false;
-            } else {
-                while (cells.length < colCount) cells.push('');
-                rows.push('| ' + cells.slice(0, colCount).join(' | ') + ' |');
-            }
+            if (cells.length) parsedRows.push(cells);
         }
-        return rows.length > 0 ? '\n\n' + rows.join('\n') + '\n\n' : '';
+
+        // HTML spans occupy columns in later rows; Markdown represents each as
+        // one text cell followed by blanks, without discarding neighboring text.
+        const activeSpans = new Map<number, number>();
+        const flatRows: string[][] = [];
+        for (const cells of parsedRows) {
+            const columns: string[] = [];
+            const occupied = new Set(activeSpans.keys());
+            for (const column of occupied) columns[column] = '';
+            let next = 0;
+            for (const cell of cells) {
+                const fits = (column: number): boolean => {
+                    for (let offset = 0; offset < cell.colSpan; offset++)
+                        if (occupied.has(column + offset)) return false;
+                    return true;
+                };
+                while (!fits(next)) next++;
+                columns[next] = cell.value;
+                for (let offset = 0; offset < cell.colSpan; offset++) {
+                    const column = next + offset;
+                    if (offset) columns[column] = '';
+                    occupied.add(column);
+                    if (cell.rowSpan > 1) activeSpans.set(column, cell.rowSpan);
+                }
+                next += cell.colSpan;
+            }
+            for (const [column, remaining] of activeSpans) {
+                if (remaining <= 1) activeSpans.delete(column);
+                else activeSpans.set(column, remaining - 1);
+            }
+            flatRows.push(columns);
+        }
+        if (!flatRows.length) return '';
+        const colCount = flatRows.reduce((width, cells) => Math.max(width, cells.length), 0);
+        const rows: string[] = [];
+        flatRows.forEach((cells, index) => {
+            const padded = Array.from({ length: colCount }, (_, column) => cells[column] ?? '');
+            rows.push('| ' + padded.join(' | ') + ' |');
+            if (index === 0) rows.push('| ' + new Array(colCount).fill('---').join(' | ') + ' |');
+        });
+        return '\n\n' + rows.join('\n') + '\n\n';
     });
     res = res.replace(/<br\s*\/?>/gi, '\n');
     res = res.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n');
