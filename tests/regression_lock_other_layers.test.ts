@@ -90,9 +90,9 @@ function fakeNetwork(t: { after: (fn: () => void) => void }, bytes: Uint8Array, 
         headers: { 'content-type': mediaType } });
     Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
         query: async () => [{ id: 10, url: 'https://gemini.google.com/app/native' }],
-        sendMessage: async () => ({ ok: true, accountContext: {
-            accountId: account.id, providerId: 'gemini', slot: 'u0',
-        } }),
+        sendMessage: (_id: number, _message: unknown, reply: (value: unknown) => void) => {
+            reply({ ok: true, accountContext: { accountId: account.id, providerId: 'gemini', slot: 'u0' } });
+        },
     } });
     t.after(() => { globalThis.fetch = previousFetch;
         if (previousTabs) Object.defineProperty(globalThis.chrome, 'tabs', previousTabs);
