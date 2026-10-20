@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/runtime-unit.yml'
       - 'tests/browser_runtime_v2.test.ts'
+      - 'tests/helpers/runtimeV2ContractMocks.ts'
       - 'tests/background_modules.test.ts'
       - 'tests/tab_service.test.ts'
       - 'tests/asset_fetcher_cors_fallback.test.ts'
