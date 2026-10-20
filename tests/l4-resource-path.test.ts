@@ -1,7 +1,7 @@
 /** Pure L4 resource path tests with a frozen v2 AST input. L1 extraction is tested separately. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeArchiveResourceName } from '../src/l4/format/resources/archivePath.js';
+import { normalizeArchiveResourceName } from '../src/shared/utils/archivePath.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { v2Document } from './helpers/l4V2Fixtures.js';
 

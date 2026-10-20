@@ -1,11 +1,11 @@
-import { assertExportPath } from '../../packaging/exportPath.js';
+import { normalizeArchivePath } from '../../../shared/utils/archivePath.js';
+import { sanitizeRelativePath } from '../../../shared/utils/pathUtils.js';
 
 /** Only Packaging's already-canonical relative paths are valid resource bindings. */
 export function isResourcePath(path: string | undefined): path is string {
     if (!path) return false;
     try {
-        assertExportPath(path);
-        return true;
+        return normalizeArchivePath(path) === path && sanitizeRelativePath(path) === path;
     } catch {
         return false;
     }

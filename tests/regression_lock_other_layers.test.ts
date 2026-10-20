@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
-import { getExportRecord, listExportRecords, putExportRecord } from '../src/l3a/storageService.js';
+import { getExportRecord, listExportRecords, putExportRecord, putAccount } from '../src/l3a/storageService.js';
 import { updateSettings } from '../src/application/settings/index.js';
 import { runExport } from '../src/application/export/runExport.js';
 import type { ExportRequest } from '../src/application/export/types.js';
@@ -21,6 +21,10 @@ import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/mo
 
 useIndexStorage();
 const account = fixtureAccount('gemini');
+test.beforeEach(async () => {
+    await putAccount(account);
+    await putAccount({ id: '10000000-0000-4000-8000-000000000002', providerId: 'gemini', providerAccountId: '10000000002' });
+});
 const JSZip = require('../lib/jszip.min.js');
 const conversationKey = (conversationId: string) => ({ accountId: account.id, conversationId });
 function request(conversationId: string, overrides: Partial<ExportRequest> = {}): ExportRequest {
@@ -84,19 +88,21 @@ function fakeBrowser(t: { after: (fn: () => void) => void }, failClick = false) 
     return { blobs, clicks: () => clicks };
 }
 function fakeNetwork(t: { after: (fn: () => void) => void }, bytes: Uint8Array, mediaType: string) {
+    const chromeHost = globalThis.chrome;
     const previousFetch = globalThis.fetch;
-    const previousTabs = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
+    const previousTabs = Object.getOwnPropertyDescriptor(chromeHost, 'tabs');
     globalThis.fetch = async () => new Response(new Uint8Array(bytes) as BodyInit, { status: 200,
         headers: { 'content-type': mediaType } });
-    Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
+    Object.defineProperty(chromeHost, 'tabs', { configurable: true, value: {
         query: async () => [{ id: 10, url: 'https://gemini.google.com/app/native' }],
-        sendMessage: (_id: number, _message: unknown, reply: (value: unknown) => void) => {
-            reply({ ok: true, accountContext: { accountId: account.id, providerId: 'gemini', slot: 'u0' } });
+        sendMessage: (_id: number, _message: unknown, reply?: (value: unknown) => void) => {
+            const response = { ok: true, accountContext: { accountId: account.id, providerId: 'gemini', slot: 'u0' } };
+            reply?.(response); return Promise.resolve(response);
         },
     } });
     t.after(() => { globalThis.fetch = previousFetch;
-        if (previousTabs) Object.defineProperty(globalThis.chrome, 'tabs', previousTabs);
-        else Reflect.deleteProperty(globalThis.chrome, 'tabs');
+        if (previousTabs) Object.defineProperty(chromeHost, 'tabs', previousTabs);
+        else Reflect.deleteProperty(chromeHost, 'tabs');
     });
 }
 
@@ -194,7 +200,7 @@ test('L4 rejects traversal paths instead of normalizing unsafe delivery targets'
     assert.equal(sanitizeRelativePath('a/../b'), 'a/_/b');
     assert.equal(sanitizeRelativePath('files/../../etc/passwd'), 'files/_/_/etc/passwd');
     for (const path of ['a/../b', 'files/../../etc/passwd', 'files/a..b', '/absolute']) {
-        assert.throws(() => assertExportPath(path), /Noncanonical export path/);
+        assert.throws(() => assertExportPath(path), /Noncanonical export path|Unsafe archive resource path/);
     }
     assert.doesNotThrow(() => assertExportPath('assets/ab1234_image-1.jpg'));
 });
@@ -213,8 +219,9 @@ test('L4 folder delivery fails closed when a requested subdirectory cannot be cr
 });
 
 test('verified v2 Runtime account routing never falls back to a different Gemini tab', async t => {
-    const priorTabs = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
-    Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
+    const chromeHost = globalThis.chrome;
+    const priorTabs = Object.getOwnPropertyDescriptor(chromeHost, 'tabs');
+    Object.defineProperty(chromeHost, 'tabs', { configurable: true, value: {
         query: async () => [
             { id: 1, active: true, url: 'https://gemini.google.com/u/0/app/a' },
             { id: 2, active: false, url: 'https://gemini.google.com/u/1/app/b' },
@@ -224,8 +231,8 @@ test('verified v2 Runtime account routing never falls back to a different Gemini
         },
     } });
     t.after(() => {
-        if (priorTabs) Object.defineProperty(globalThis.chrome, 'tabs', priorTabs);
-        else Reflect.deleteProperty(globalThis.chrome, 'tabs');
+        if (priorTabs) Object.defineProperty(chromeHost, 'tabs', priorTabs);
+        else Reflect.deleteProperty(chromeHost, 'tabs');
     });
     const tab = await resolveAccountTab(account.id);
     assert.equal(tab.id, 1);

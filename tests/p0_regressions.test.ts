@@ -13,7 +13,9 @@ const path = require('path');
 
 const StorageService = require('../src/l3a/storageService.js');
 const CredManager = require('../src/l1/client/gemini/api/credentialManager.js').default;
-const ChatFormatter = require('../src/core/engine/chatFormatter.js');
+import { composeFixture } from './helpers/documentFixture.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { indexStorage } from './helpers/indexStorage.js';
 
 function readSrc(rel: string): string {
     return fs.readFileSync(path.join(__dirname, rel), 'utf8');
@@ -23,54 +25,17 @@ function readSrc(rel: string): string {
 // 2026-09-15 勘误：原报告称保存链一次失败后永久中毒，实际推演 + 本测试证实
 // `.catch(reject)` 让链条每次调用后自愈。本用例保留为通过性回归测试，
 // 锁定"单次失败后链条恢复"的正确行为。
-test('P0-1: export-record save chain recovers after a single failed batch (no poisoning)', async () => {
-    const store: Record<string, any> = {};
-    let failNextSet = false;
-    const prevChrome = (global as any).chrome;
-    (global as any).chrome = {
-        storage: {
-            local: {
-                get: async (keys: any) => {
-                    if (keys == null) return { ...store };
-                    const arr = Array.isArray(keys) ? keys : [keys];
-                    const r: Record<string, any> = {};
-                    for (const k of arr) if (k in store) r[k] = store[k];
-                    return r;
-                },
-                set: async (obj: any) => {
-                    if (failNextSet) {
-                        failNextSet = false;
-                        throw new Error('simulated-quota-failure');
-                    }
-                    Object.assign(store, obj);
-                },
-            },
-        },
-    };
+test('P0-1: export-record writes recover after one storage failure', async () => {
+    const env = indexStorage();
+    const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: 'recovered' };
+    const record = { exportedAt: 100, format: 'markdown', status: 'ok' };
     try {
-        // 第一次保存失败（模拟配额超限）：应当 reject
-        failNextSet = true;
-        await assert.rejects(
-            StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'c_p0_1_probe_a', { probe: 1 }),
-            /simulated-quota-failure/
-        );
-
-        // 存储已恢复：第二次保存必须成功。
-        // （原报告误称此处会以陈旧错误 reject 即"链中毒"；实际 .catch(reject)
-        //  已将链重置为 resolved，见 P0-1 勘误。）
-        // Let the second write fail the test directly if the chain is still poisoned.
-        await StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', 'c_p0_1_probe_b', { probe: 1 });
-        const got: any = await (global as any).chrome.storage.local.get(['exported_10000000-0000-4000-8000-000000000001']);
-        // P1-045 (2026-09-15): export records are now stored under a single canonical
-        // key normId(id); readers look up all historical alias forms, so the record
-        // saved here as 'c_p0_1_probe_b' persists under 'p0_1_probe_b'.
-        assert.ok(
-            got['exported_10000000-0000-4000-8000-000000000001'] && got['exported_10000000-0000-4000-8000-000000000001']['p0_1_probe_b'],
-            'second export record must be persisted after storage recovered'
-        );
-    } finally {
-        (global as any).chrome = prevChrome;
-    }
+        env.fail('exportRecords');
+        await assert.rejects(StorageService.putExportRecord(key, record), /write failed/);
+        env.fail();
+        await StorageService.putExportRecord(key, record);
+        assert.deepStrictEqual(await StorageService.getExportRecord(key), record);
+    } finally { env.restore(); }
 });
 
 // ---------------------------------------------------------------- P0-2
@@ -134,20 +99,15 @@ test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () 
 });
 
 // ---------------------------------------------------------------- P0-5
-test('P0-5: popup log() must not be a no-op (errors must surface)', () => {
-    const src = readSrc('../src/ui/popup/popup.ts');
-    // log 是模块内部函数，node 下无法行为测试；用源码断言守住回归。
-    // 修复前: const log = (_msg: string): void => {}; —— 所有导出失败被静默吞掉。
-    const isNoop = /const log\s*=\s*\([^)]*\)\s*:\s*void\s*=>\s*\{\s*\};/.test(src);
-    assert.strictEqual(
-        isNoop, false,
-        'popup.ts defines log as a no-op: every export failure is silently swallowed'
-    );
-    // 修复后的 log 必须真的把信息送到用户可见的地方（popup 的 #log 面板 / console）
-    assert.ok(
-        /getElementById\(['"]log['"]\)/.test(src) && /console\.(log|error|warn)/.test(src),
-        'popup log() should surface messages to the #log panel and the console'
-    );
+test('P0-5: popup displays export errors to the user', async () => {
+    const { chromium } = require('playwright');
+    const { mount } = require('./helpers/uiPortHarness.js');
+    const browser = await chromium.launch({ headless: true });
+    try {
+        const page = await browser.newPage(); await mount(page, 'popup', { throwExport: true });
+        await page.locator('#btnCurrent').click();
+        await page.waitForFunction(() => document.body.textContent?.includes('Injected export failure'));
+    } finally { await browser.close(); }
 });
 
 // Runtime export no longer supplements images using detached Takeout evidence.
@@ -158,9 +118,9 @@ test('P0-7: Canonical Markdown must not throw on invalid date values', async () 
     let threw: any = null;
     let md = '';
     try {
-        md = (await ChatFormatter.formatMarkdownDocument(
-            historicalFixture({ id: 'c_p0_7', title: 'T', createdAt: 'not-a-date', messages: [] }), {}
-        )).content;
+        const parsed = historicalFixture({ id: 'c_p0_7', title: 'T', createdAt: 'not-a-date', messages: [] });
+        const { document, resources } = await composeFixture(parsed.conversation);
+        md = renderDocumentMarkdown(document, resources);
     } catch (e) {
         threw = e;
     }

@@ -11,7 +11,7 @@ export function accountRuntime(slot = 'u0') {
     if (!originalLocation) Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: `https://gemini.google.com/u/${slot.slice(1)}/app`, origin: 'https://gemini.google.com' } });
     const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
     const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    if (!originalChrome) Object.defineProperty(globalThis, 'chrome', { configurable: true, writable: true, value: {} });
+    if (!globalThis.chrome) Object.defineProperty(globalThis, 'chrome', { configurable: true, writable: true, value: {} });
     const runtime = chrome.runtime ?? (chrome.runtime = {} as typeof chrome.runtime);
     const sendMessage = runtime.sendMessage;
     const state = { observation: { ...ACCOUNT_OBSERVATION } as typeof ACCOUNT_OBSERVATION | null };
@@ -49,7 +49,7 @@ export function accountRuntime(slot = 'u0') {
     invalidateAccountContext();
     return { state, restore() {
         invalidateAccountContext(); runtime.sendMessage = sendMessage;
-        if (!originalChrome) Reflect.deleteProperty(globalThis, 'chrome');
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome); else Reflect.deleteProperty(globalThis, 'chrome');
         if (!originalLocation) Reflect.deleteProperty(globalThis, 'location');
         if (original) Object.defineProperty(globalThis, 'window', original); else Reflect.deleteProperty(globalThis, 'window');
     } };

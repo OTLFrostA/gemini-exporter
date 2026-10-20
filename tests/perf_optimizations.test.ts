@@ -96,36 +96,25 @@ test('perf - geminiClient 429 throws after exceeding maxRetries', async () => {
 });
 
 // 2. Test Takeout HTML parsing time-slicing and progress
-test('perf - takeoutEngine yields to event loop and reports incremental progress on large archives', async () => {
-    const TakeoutEngine = require('../src/l1/imports/takeoutEngine.js');
-    (global as any).JSZip = require('../lib/jszip.min.js');
-    const zip = new (global as any).JSZip();
-
-    // Construct 120 blocks to trigger both 50-block time slicing and 100-block progress report
-    let html = '<html><body>';
-    for (let i = 1; i <= 120; i++) {
-        html += `
-        <div class="outer-cell">
-          <a href="https://gemini.google.com/app/c_takeout_chat_${i}">Link</a>
-          Prompted Question ${i}<br>
-          <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1"><p>Answer ${i}</p></div>
-        </div>`;
-    }
-    html += '</body></html>';
-    zip.file('Takeout/Gemini/MyActivity.html', html);
-    const buf = await zip.generateAsync({ type: 'nodebuffer' });
-
-    const progressReports: any[] = [];
-    TakeoutEngine.clearTakeoutData();
-    const res = await TakeoutEngine.parseTakeoutZip(buf, (pct: any, msg: any) => {
-        progressReports.push({ pct, msg });
-    }, '10000000-0000-4000-8000-000000000001');
-
-    assert.strictEqual(res.conversations.length, 120, 'all 120 conversations should be parsed');
-    // Check that incremental progress for block 100 was reported
-    const detailProgress = progressReports.find(p => p.msg && p.msg.includes('100/120'));
-    assert.ok(detailProgress, 'should report progress for 100/120 blocks during time slicing');
-    assert.ok(detailProgress.pct >= 70 && detailProgress.pct <= 88, 'pct should be scaled between 70 and 88');
+test('perf - Takeout import yields to the event loop and reports monotonic progress for 120 conversations', async (t: import('node:test').TestContext) => {
+    const { importTakeout } = require('../src/l1/imports/takeout/importTakeout.js');
+    const { listIndexes } = require('../src/l3a/storageService.js');
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'JSZip');
+    const JSZip = require('../lib/jszip.min.js');
+    Object.defineProperty(globalThis, 'JSZip', { configurable: true, value: JSZip });
+    t.after(() => { if (descriptor) Object.defineProperty(globalThis, 'JSZip', descriptor); else Reflect.deleteProperty(globalThis, 'JSZip'); });
+    const zip = new JSZip();
+    zip.file('Takeout/Gemini/MyActivity.html', '<html><body>' + Array.from({ length: 120 }, (_, index) =>
+        `<div class="outer-cell"><a href="https://gemini.google.com/app/takeout_${index}">Link</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question ${index}<br><p>Answer ${index}</p></div></div>`).join('') + '</body></html>');
+    const reports: number[] = [];
+    let yielded = false; setTimeout(() => { yielded = true; }, 0);
+    const id = '10000000-0000-4000-8000-000000000001';
+    const result = await importTakeout(await zip.generateAsync({ type: 'nodebuffer' }), id, (percent: number) => reports.push(percent));
+    assert.strictEqual(result.imported, 120); assert.strictEqual((await listIndexes(id)).length, 120);
+    assert.strictEqual(yielded, true);
+    assert.strictEqual(reports[reports.length - 1], 100);
+    assert.ok(reports.every((value, index) => index === 0 || value >= reports[index - 1]));
+    assert.ok(reports.some(percent => percent > 70 && percent < 100));
 });
 
 // 3. Test AssetFetcher ArrayBuffer transfer
@@ -196,47 +185,21 @@ test('perf - assetFetcher returns base64 when preferBuffer is false', async () =
     }
 });
 
-// 4. Test ExportEngine rateLimitCooldownUntil initialization
-test('perf - ExportEngine initializes and tracks rateLimitCooldownUntil', () => {
-    const { ExportEngine } = require('../src/application/exportEngine.js');
-    const engine = new ExportEngine();
-    assert.strictEqual(engine.rateLimitCooldownUntil, 0, 'rateLimitCooldownUntil should be initialized to 0');
+test('perf - RateLimitManager initializes and resets the runtime cooldown', () => {
+    const { RateLimitManager } = require('../src/l1/client/rateLimiter.js');
+    const manager = new RateLimitManager();
+    assert.strictEqual(manager.rateLimitCooldownUntil, 0);
+    manager.recordRateLimit(1000); assert.ok(manager.rateLimitCooldownUntil > Date.now());
+    manager.reset(); assert.strictEqual(manager.rateLimitCooldownUntil, 0);
 });
 
-// 5. Test AssetPipeline downloadTimeoutMs protection against hanging tabs.sendMessage (Issue A2)
-test('perf - AssetPipeline times out and recovers gracefully when tabs.sendMessage hangs', async () => {
-    const AssetPipeline = require('../src/core/engine/assetPipeline.js');
-    const originalChrome = (global as any).chrome;
-
-    try {
-        // Mock chrome.tabs.sendMessage that never responds
-        (global as any).chrome = {
-            runtime: {},
-            tabs: {
-                sendMessage: (_tabId: any, _message: any, _callback: any) => {
-                    // Intentionally never call callback to simulate hanging tab/content script
-                }
-            }
-        };
-
-        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
-            downloadTimeoutMs: 50, // fast timeout for unit test
-            getGeminiTab: async () => ({ id: 12345 })
-        }) });
-
-        const start = Date.now();
-        const res = await pipeline.processAsset(
-            { assetId: 'test-asset', url: 'https://example.com/hanging-asset.jpg', fileName: 'test.jpg' },
-            { id: 'chat_123' },
-            { isImage: true }
-        );
-        const duration = Date.now() - start;
-
-        assert.strictEqual(res.ok, false, 'should not be marked as saved');
-        assert.ok(res.reason.includes('timed out'), `failReason should indicate timeout, got "${res.reason}"`);
-        assert.ok(duration >= 45, `should have waited for timeout, duration: ${duration}ms`);
-    } finally {
-        (global as any).chrome = originalChrome;
-    }
+test('perf - runtime Tab transport times out instead of hanging an acquisition task', async (t: import('node:test').TestContext) => {
+    const { sendTabMessage } = require('../src/runtime/capabilities/tabService.js');
+    const host = chrome;
+    const previous = Object.getOwnPropertyDescriptor(host, 'tabs');
+    Object.defineProperty(host, 'tabs', { configurable: true, value: { sendMessage() {} } });
+    t.after(() => { if (previous) Object.defineProperty(host, 'tabs', previous); else Reflect.deleteProperty(host, 'tabs'); });
+    const start = Date.now();
+    await assert.rejects(sendTabMessage(12345, { action: 'getFileBlob' }, 50), /timed out/);
+    assert.ok(Date.now() - start >= 45);
 });
-

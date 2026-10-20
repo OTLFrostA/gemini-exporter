@@ -30,19 +30,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('serialized literal dollars round-trip as text while links and math retain their nodes', () => {
-    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('currency'), 'gemini'),   titleSource: "derived",   title: 'Currency' }, detail: { key: fixtureKey(String('currency'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'message', role: 'assistant', content: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('currency'), 'gemini'),   titleSource: "derived",   title: 'Currency' }, detail: { key: fixtureKey(String('currency'), 'gemini'), quality: { status: 'unknown' }, assets: [{ id: 'receipt', kind: 'file', name: 'receipt' }], messages: [{ id: 'message', role: 'assistant', content: [
                 { type: 'paragraph', children: [
                     { type: 'text', text: 'The price changed from $5 ' },
-                    { type: 'link', href: 'files/foo.pdf', children: [{ type: 'text', text: 'receipt' }] },
+                    { type: 'link', href: 'https://example.com/receipt', children: [{ type: 'text', text: 'receipt' }] },
                     { type: 'text', text: ' to $10. ' },
                     { type: 'inlineMath', source: 'E = mc^2' },
                 ] },
                 { type: 'math', source: String.raw`\left[W(k)\right](\mathbf{t})` },
+                { type: 'file', assetId: 'receipt', label: 'receipt' },
                 { type: 'code', language: 'md', code: '[fake](files/missing.pdf)' },
                 { type: 'paragraph', children: [{ type: 'inlineCode', code: '[fake](files/missing.pdf)' }] },
             ] }] } };
-    const markdown = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))), {});
-    assert.ok(markdown.includes(String.raw`The price changed from \$5 [receipt](files/foo.pdf) to \$10. $E = mc^2$`));
+    const markdown = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))), { receipt: 'files/foo.pdf' });
+    assert.ok(markdown.includes(String.raw`The price changed from \$5 [receipt](https://example.com/receipt) to \$10. $E = mc^2$`));
     assert.ok(markdown.includes('$$\n' + String.raw`\left[W(k)\right](\mathbf{t})` + '\n$$'));
     const tree = parseMarkdownAst(markdown);
     const paragraph = tree.children.find(node => node.type === 'paragraph' && node.children.some(child => child.type === 'link'));
@@ -51,7 +52,7 @@ test('serialized literal dollars round-trip as text while links and math retain 
     assert.equal(paragraph.children[0].type === 'text' && paragraph.children[0].value, 'The price changed from $5 ');
     assert.equal(paragraph.children[2].type === 'text' && paragraph.children[2].value, ' to $10. ');
     assert.equal(paragraph.children[3].type === 'inlineMath' && paragraph.children[3].value, 'E = mc^2');
-    assert.deepEqual(extractMarkdownResourceReferences(markdown), [{ kind: 'link', reference: 'files/foo.pdf' }]);
+    assert.deepEqual(extractMarkdownResourceReferences(markdown), [{ kind: 'link', reference: 'https://example.com/receipt' }, { kind: 'link', reference: 'files/foo.pdf' }]);
 
     const root = mkdtempSync(join(tmpdir(), 'serialized-resources-'));
     try {

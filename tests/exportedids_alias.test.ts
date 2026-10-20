@@ -1,205 +1,113 @@
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { indexStorage } from './helpers/indexStorage.js';
+import { listExportRecords, putExportRecord } from '../src/l3a/storageService.js';
+import { ensureUpgraded } from '../src/migration/upgradeV1.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
+import { v2ExportHost, exportKey, exportRequest, seedExportConversation } from './helpers/v2ExportHost.js';
+import { runExport } from '../src/application/export/runExport.js';
+import { ingestDetail } from '../src/l2/ingestion.js';
 
-// Regression tests for exportedIds triple-alias write bloat.
-// Historical writers stored three alias keys per conversation
-// (raw id / normId(id) / 'c_'+normId(id)) in the in-memory maps.
-// The fix: writes use the single canonical key normId(id); the read path
-// (StorageService.getExportedIds, ConversationsStore.setExportedIds) folds
-// legacy alias keys back to canonical, so readers probe the single canonical
-// key instead of a triple lookup, and no migration is needed.
-
-const { finalizeChatExport } = require('../src/core/engine/export/sessionRecovery.js');
-const { normId } = require('../src/shared/utils/pathUtils.js');
-const { exportedIdsKey } = require('../src/shared/utils/constants.js');
-const ConversationsStore = require('../src/ui/options/state/conversationsStore.js');
-const { StorageService } = require('../src/l3a/storageService.js');
-const { indexStorage } = require('./helpers/indexStorage.js');
-
-async function runFinalize(targetId: string) {
-    const nid = normId(targetId);
-    const rec = { exportedAt: '2026-09-16T00:00:00.000Z', title: 't', format: 'markdown' };
-    const exportedIds: Record<string, any> = {};
-    const curIds: Record<string, any> = {};
-    const ok = await finalizeChatExport(targetId, {
-        finalizedChatsSet: new Set<string>(),
-        chatRecordsMap: new Map<string, any>([[nid, rec]]),
-        chatFailedAssetsSet: new Set<string>(),
-        curIds,
-        exportedIds,
-        storageAdapter: { saveExportRecord: async () => ({}) },
-        onItemExported: () => {}
+const accountId = exportKey('').accountId;
+const record = (exportedAt: number) => ({ exportedAt, format: 'markdown' as const, status: 'ok' as const });
+async function seedLegacyAccount() {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('gemini_exporter_domain', 1);
+        request.onupgradeneeded = () => request.result.createObjectStore('accounts', { keyPath: 'id' });
+        request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
     });
-    return { ok, nid, rec, exportedIds, curIds };
+    try { await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('accounts', 'readwrite');
+        tx.objectStore('accounts').put({ id: accountId, providerId: 'gemini', providerAccountId: '10000000001' });
+        tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
+    }); } finally { db.close(); }
 }
 
-test('exportedIds alias - finalizeChatExport writes a single canonical key (padded id -> 3 aliases before fix)', async () => {
-    // '  xyz789  ' trims to 'xyz789': old code wrote 3 distinct keys
-    // ('  xyz789  ', 'xyz789', 'c_xyz789'); fixed code writes exactly 1.
-    const { ok, nid, rec, exportedIds, curIds } = await runFinalize('  xyz789  ');
-    assert.strictEqual(ok, true);
-    assert.strictEqual(nid, 'xyz789');
-    assert.deepStrictEqual(Object.keys(exportedIds), ['xyz789']);
-    assert.deepStrictEqual(Object.keys(curIds), ['xyz789']);
-    assert.strictEqual(exportedIds['xyz789'], rec);
-});
-
-test('exportedIds alias - finalizeChatExport writes a single canonical key (c_ prefixed id)', async () => {
-    const { ok, nid, exportedIds, curIds } = await runFinalize('c_abc123');
-    assert.strictEqual(ok, true);
-    assert.strictEqual(nid, 'abc123');
-    assert.deepStrictEqual(Object.keys(exportedIds), ['abc123']);
-    assert.deepStrictEqual(Object.keys(curIds), ['abc123']);
-});
-
-test('finalizeChatExport admits one concurrent finalization per conversation', async () => {
-    let release!: () => void;
-    let entered!: () => void;
-    const gate = new Promise<void>(resolve => { release = resolve; });
-    const started = new Promise<void>(resolve => { entered = resolve; });
-    const finalizedChatsSet = new Set<string>();
-    let saves = 0;
-    let callbacks = 0;
-    const context = {
-        finalizedChatsSet,
-        chatRecordsMap: new Map([['abc123', { status: 'ok' }]]),
-        storageAdapter: { saveExportRecord: async () => { saves++; entered(); await gate; } },
-        onItemExported: () => { callbacks++; }
-    };
-    const first = finalizeChatExport('abc123', context);
-    await started;
-    const second = finalizeChatExport('abc123', context);
-    release();
-    const outcomes = await Promise.all([first, second]);
-    assert.deepStrictEqual(outcomes, [true, false]);
-    assert.strictEqual(saves, 1);
-    assert.strictEqual(callbacks, 1);
-});
-
-test('exportedIds alias - real StorageService writes one key and UI resolves both ID forms', async () => {
-    const environment = indexStorage();
-    const previous = ConversationsStore.getExportedIds();
-    try {
-        const record = { exportedAt: '2026-09-16T00:00:00.000Z', title: 'Saved', status: 'ok' };
-        await StorageService.saveExportRecord('10000000-0000-4000-8000-000000000002', 'c_abc123', record);
-        const physical = environment.local['exported_10000000-0000-4000-8000-000000000002'] as Record<string, any>;
-        assert.deepStrictEqual(Object.keys(physical), ['abc123'],
-            'persistence must store exactly one canonical key, not the three legacy aliases');
-
-        const stored = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
-        assert.deepStrictEqual(Object.keys(stored), ['abc123']);
-        assert.deepStrictEqual(stored.abc123, record);
-        ConversationsStore.setExportedIds(stored);
-        for (const alias of ['abc123', 'c_abc123']) {
-            assert.deepStrictEqual(ConversationsStore.getExportedRecord(alias), record,
-                `UI must resolve a stored record through ${alias}`);
-        }
-    } finally {
-        ConversationsStore.setExportedIds(previous);
-        environment.restore();
-    }
-});
-
-test('exportedIds alias - legacy alias-only storage is normalized on read without migration', async () => {
-    const record = { exportedAt: '2026-01-01T00:00:00.000Z' };
-    const environment = indexStorage({ ['exported_10000000-0000-4000-8000-000000000002']: { c_xyz789: record } });
-    const previous = ConversationsStore.getExportedIds();
-    try {
-        const records = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
-        assert.deepStrictEqual(Object.keys(records), ['xyz789'],
-            'legacy-only storage must be readable without a canonical sibling');
-        assert.deepStrictEqual(records.xyz789, record);
-        assert.equal(environment.writes(), 0, 'reads should not rewrite an old record to normalize aliases');
-        assert.deepStrictEqual(Object.keys(environment.local['exported_10000000-0000-4000-8000-000000000002'] as object), ['c_xyz789'],
-            'the raw legacy map stays intact until an explicit persistence operation');
-
-        ConversationsStore.setExportedIds(records);
-        for (const alias of ['xyz789', 'c_xyz789']) {
-            assert.deepStrictEqual(ConversationsStore.getExportedRecord(alias), record);
-        }
-
-        const newer = { exportedAt: '2026-02-01T00:00:00.000Z' };
-        environment.local['exported_10000000-0000-4000-8000-000000000002'] = { c_xyz789: record, xyz789: newer };
-        const conflict = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
-        assert.deepStrictEqual(conflict, { xyz789: newer },
-            'an authoritative canonical record must win over a stale legacy alias');
-    } finally {
-        ConversationsStore.setExportedIds(previous);
-        environment.restore();
-    }
-});
-
-test('exportedIdsKey partitions UUIDs without a global fallback', () => {
-    const id = '10000000-0000-4000-8000-000000000001';
-    assert.equal(exportedIdsKey(id), `exported_${id}`);
-    for (const value of [null, undefined, '', 'u0', 'default']) assert.throws(() => exportedIdsKey(value));
-});
-
-test('exportedIds - finalizeChatExport persists export record with partial status when assets fail', async () => {
-    const targetId = 'chat_partial_123';
-    const nid = normId(targetId);
-    const rec = { exportedAt: '2026-09-21T00:00:00.000Z', title: 'test partial', format: 'markdown', status: 'ok' };
-    const exportedIds: Record<string, any> = {};
-    const curIds: Record<string, any> = {};
-    const failedSet = new Set<string>([nid]);
-    let savedInStorage: any = null;
-
-    const ok = await finalizeChatExport(targetId, {
-        finalizedChatsSet: new Set<string>(),
-        chatRecordsMap: new Map<string, any>([[nid, rec]]),
-        chatFailedAssetsSet: failedSet,
-        curIds,
-        exportedIds,
-        storageAdapter: {
-            saveExportRecord: async (_slot: any, _id: any, r: any) => {
-                savedInStorage = r;
-                return {};
-            }
-        },
-        onItemExported: () => {}
+for (const entries of [
+    { c_abc123: record(100) },
+    { abc123: record(200), c_abc123: record(100) },
+    { c_abc123: record(100), abc123: record(200) },
+]) {
+    test(`historical aliases migrate once, canonical wins regardless of insertion order: ${Object.keys(entries)}`, async () => {
+        const env = indexStorage({ [`exported_${accountId}`]: entries });
+        try {
+            await seedLegacyAccount();
+            assert.deepEqual(await listExportRecords(accountId), {});
+            await ensureUpgraded();
+            const expected = entries.abc123 ?? entries.c_abc123;
+            assert.deepEqual(await listExportRecords(accountId), { abc123: expected });
+            const writes = env.writes();
+            await ensureUpgraded();
+            assert.deepEqual(await listExportRecords(accountId), { abc123: expected });
+            assert.equal(env.writes(), writes, 'normal reads and completed migration do not rewrite records');
+        } finally { env.restore(); }
     });
+}
 
-    assert.strictEqual(ok, true, 'finalizeChatExport must succeed even when attachments fail');
-    assert.strictEqual(rec.status, 'partial', 'status must be updated to partial');
-    assert.strictEqual((rec as any).hasFailedAssets, true, 'hasFailedAssets flag must be true');
-    assert.strictEqual(exportedIds[nid].status, 'partial');
-    assert.strictEqual(exportedIds[nid].hasFailedAssets, true);
-    assert.strictEqual(curIds[nid].status, 'partial');
-    assert.strictEqual(savedInStorage.status, 'partial');
-    assert.strictEqual(savedInStorage.hasFailedAssets, true);
+test('real export writes a single canonical record; UI consumes the same key', async t => {
+    v2ExportHost(t);
+    await seedExportConversation('abc123');
+    assert.equal((await runExport(exportRequest(['abc123']))).exported, 1);
+    const stored = await listExportRecords(accountId);
+    assert.deepEqual(Object.keys(stored), ['abc123']);
+    assert.deepEqual(Object.keys(stored.abc123).sort(), ['chatTime', 'exportedAt', 'format', 'status']);
+    const view = new ConversationViewState(); view.selectAccount(accountId); await view.refresh();
+    assert.deepEqual(view.records, stored);
+    assert.equal(view.records.c_abc123, undefined);
 });
 
-test('exportedIds - finalizeChatExport preserves empty status with hasFailedAssets flag', async () => {
-    const targetId = 'chat_empty_fail_456';
-    const nid = normId(targetId);
-    const rec = { exportedAt: '2026-09-21T00:00:00.000Z', title: 'empty chat', format: 'markdown', status: 'empty' };
-    const exportedIds: Record<string, any> = {};
-    const curIds: Record<string, any> = {};
-    const failedSet = new Set<string>([nid]);
-
-    const ok = await finalizeChatExport(targetId, {
-        finalizedChatsSet: new Set<string>(),
-        chatRecordsMap: new Map<string, any>([[nid, rec]]),
-        chatFailedAssetsSet: failedSet,
-        curIds,
-        exportedIds,
-        storageAdapter: { saveExportRecord: async () => ({}) },
-        onItemExported: () => {}
-    });
-
-    assert.strictEqual(ok, true);
-    assert.strictEqual(rec.status, 'empty', 'empty status must remain empty');
-    assert.strictEqual((rec as any).hasFailedAssets, true);
-    assert.strictEqual(exportedIds[nid].status, 'empty');
-    assert.strictEqual(exportedIds[nid].hasFailedAssets, true);
+test('a completed request can be repeated with skip without another delivery', async t => {
+    const host = v2ExportHost(t);
+    await seedExportConversation('repeat');
+    await runExport(exportRequest(['repeat']));
+    assert.equal((await runExport(exportRequest(['repeat'], { skipUnchanged: true }))).skipped, 1);
+    assert.equal(host.clicks(), 1);
+    assert.deepEqual(Object.keys(await listExportRecords(accountId)), ['repeat']);
 });
 
-test('locale - badgeExportedPartial exists in zh and en locales', () => {
-    const zh = require('../src/shared/utils/locales/zh.js');
-    const en = require('../src/shared/utils/locales/en.js');
-    const zhDict = zh.zh || zh.default || zh;
-    const enDict = en.en || en.default || en;
-    assert.strictEqual(zhDict.badgeExportedPartial, '已导出 (部分附件缺失)');
-    assert.strictEqual(enDict.badgeExportedPartial, 'Exported (Partial Assets)');
+test('same conversation ID in two accounts never aliases their records', async () => {
+    const env = indexStorage();
+    try {
+        const other = '10000000-0000-4000-8000-000000000002';
+        await putExportRecord({ accountId, conversationId: 'same' }, record(100));
+        await putExportRecord({ accountId: other, conversationId: 'same' }, record(200));
+        assert.deepEqual(await listExportRecords(accountId), { same: record(100) });
+        assert.deepEqual(await listExportRecords(other), { same: record(200) });
+    } finally { env.restore(); }
+});
+
+test('failed resources persist only minimal partial status after real delivery', async t => {
+    const host = v2ExportHost(t);
+    await ingestDetail(accountId, 'partial', {
+        savedAt: 100, quality: { status: 'complete' }, assets: [{ id: 'missing', kind: 'image' }],
+        messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'missing' }] }],
+    }, { title: 'Partial', titleSource: 'provider', updatedAt: 100 });
+    const result = await runExport(exportRequest(['partial'], { includeAssets: true }));
+    assert.equal(result.exported, 1); assert.equal(result.partial, 1); assert.equal(host.clicks(), 1);
+    const records = await listExportRecords(accountId);
+    assert.equal(records.partial.status, 'partial');
+    assert.equal('hasFailedAssets' in records.partial, false);
+    assert.equal('title' in records.partial, false);
+});
+
+test('empty conversations use current ok/partial status without the retired empty record state', async t => {
+    v2ExportHost(t);
+    await ingestDetail(accountId, 'empty', { savedAt: 100, quality: { status: 'complete' }, assets: [], messages: [] },
+        { title: 'Empty', titleSource: 'provider', updatedAt: 100 });
+    assert.equal((await runExport(exportRequest(['empty']))).exported, 1);
+    assert.equal((await listExportRecords(accountId)).empty.status, 'ok');
+});
+
+test('partial export badge remains translated in both locales', async () => {
+    const { chromium } = await import('playwright');
+    const { mount, A } = require('./helpers/uiPortHarness.js') as typeof import('./helpers/uiPortHarness.js');
+    const browser = await chromium.launch({ headless: true });
+    try {
+        const page = await browser.newPage();
+        await mount(page, 'options', { records: { [A]: { a: { ...record(100), status: 'partial' } } } });
+        await page.locator('.status-partial').waitFor();
+        assert.equal(await page.locator('.status-partial').textContent(), 'Partial export');
+        await page.locator('#langToggle').setChecked(false);
+        await page.waitForFunction(() => document.querySelector('.status-partial')?.textContent === '部分导出');
+    } finally { await browser.close(); }
 });

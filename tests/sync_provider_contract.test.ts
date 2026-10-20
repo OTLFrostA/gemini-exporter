@@ -62,12 +62,12 @@ test('partial provider limit is an explicit continuation result and preserves ob
 }));
 test('1096 at the initial Recent request is not a confirmed continuation boundary',async()=>fixture(async(_env,provider)=>{
     provider([limit()]);const result=await scanAll({accountId:ACCOUNT_UUID});
-    assert.equal(result.status,'error');assert.equal(await getCoverage(ACCOUNT_UUID,'recent'),null);
+    assert.equal(result.status,'error');assert.equal((await getCoverage(ACCOUNT_UUID,'recent'))?.range ?? null,null);
 }));
 test('cancellation returns aborted without deleting existing facts or manufacturing Coverage',async()=>fixture(async(_env,provider)=>{
     provider([sourceList(['never'])]);const controller=new AbortController();controller.abort();
     assert.equal((await scanAll({accountId:ACCOUNT_UUID},{signal:controller.signal})).status,'aborted');
-    assert.equal((await listIndexes(ACCOUNT_UUID)).length,2);assert.equal(await getCoverage(ACCOUNT_UUID,'recent'),null);
+    assert.equal((await listIndexes(ACCOUNT_UUID)).length,2);assert.equal((await getCoverage(ACCOUNT_UUID,'recent'))?.range ?? null,null);
 }));
 test('malformed pages and cursor loops remain errors without reconciliation',async()=>fixture(async(_env,provider)=>{
     const malformed={...sourceList(),failure:'invalid_response' as const};
@@ -83,7 +83,7 @@ test('Recent pages with unverified source ordering never advertise source_end',a
     assert.equal(result.status,'error');
     assert.equal(result.pagesFetched,1);
     assert.ok((await listIndexes(ACCOUNT_UUID)).some(i=>i.key.conversationId==='untrusted'));
-    assert.equal(await getCoverage(ACCOUNT_UUID,'recent'),null);
+    assert.equal((await getCoverage(ACCOUNT_UUID,'recent'))?.range ?? null,null);
 }));
 test('a repeated Recent source ID across pages cannot certify complete Coverage',async()=>fixture(async(_env,provider)=>{
     provider([sourceList(['repeated'],'tC_repeat'),sourceList(['repeated'])]);

@@ -207,6 +207,13 @@ def test_javascript_unit_tests(target_tests=None):
         rel = os.path.relpath(tf, BASE_DIR)
         if node_bin:
             cmd = [node_bin, "-r", register_hook, "--test", tf] if os.path.exists(register_hook) else [node_bin, "--test", tf]
+            # L1's isolated unit fixtures require their frozen public-port mocks
+            # before loading production imports, just like test-l1-units.cjs.
+            with open(tf, encoding="utf-8") as source:
+                isolated_l1 = "helpers/l1V2UnitMocks.js" in source.read()
+            if isolated_l1:
+                cmd = [node_bin, "-r", register_hook, "-r",
+                       os.path.join(BASE_DIR, "tests", "helpers", "l1V2UnitPreload.cjs"), "--test", tf]
             res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
             assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
             print(f"  ✓ Unit test suite passed: {rel}")

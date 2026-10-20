@@ -11,7 +11,7 @@ import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
-import { normalizeArchiveResourceName } from '../src/l4/format/resources/archivePath.js';
+import { normalizeArchiveResourceName } from '../src/shared/utils/archivePath.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 function domain(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('contract'), 'test'),   titleSource: "derived",   title: 'Contract' }, detail: { key: fixtureKey(String('contract'), 'test'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'unknown', sourceType: 'widget', text: 'Visible fallback' }] }] } };

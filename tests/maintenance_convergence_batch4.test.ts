@@ -35,46 +35,25 @@ test('Batch 4 - Canonical classifyDetailError and isConfirmedDeletedError in Gem
     assert.strictEqual(classifyDetailError(''), 'unknown');
 });
 
-test('Batch 4 - listView restricts conversation URLs to http/https and blocks javascript:/data:', () => {
-    const { render } = require('../src/ui/options/views/listView.js');
-
-    const mockListEl: any = { innerHTML: '', addEventListener: () => {} };
-    const mockStatusEl: any = { textContent: '' };
-    const elements = new Map<string, any>([
-        ['list', mockListEl],
-        ['status', mockStatusEl]
-    ]);
-
-    const origDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    (global as any).document = {
-        getElementById: (id: string) => elements.get(id) || null
-    };
-
+test('Batch 4 - listView constructs fixed-origin links and renders untrusted titles as text', async () => {
+    const { chromium } = await import('playwright');
+    const { mount, A } = require('./helpers/uiPortHarness.js') as typeof import('./helpers/uiPortHarness.js');
+    const browser = await chromium.launch({ headless: true });
     try {
-        const conversations = ([
-            { id: 'c_evil1', title: 'Evil JS URL', url: 'javascript:alert(1)', timestamp: 1700000000000 },
-            { id: 'c_evil2', title: 'Evil Data URL', url: 'data:text/html,<script>alert(1)</script>', timestamp: 1700000000000 },
-            { id: 'c_good', title: 'Good HTTPS URL', url: 'https://gemini.google.com/app/c_good', timestamp: 1700000000000 }
-        ]).map(indexFixture);
-
-        render(
-            conversations,
-            {},
-            new Set(['c_evil1', 'c_evil2', 'c_good']),
-            '',
-            'all',
-            new Set()
-        );
-
-        const html = mockListEl.innerHTML;
-        assert.ok(!html.includes('javascript:'), 'must never render javascript: scheme in href');
-        assert.ok(!html.includes('data:text/html'), 'must never render data: scheme in href');
-        assert.ok(html.includes('href="https://gemini.google.com/app/evil1"'), 'must fall back to safe https Gemini URL for c_evil1');
-        assert.ok(html.includes('href="https://gemini.google.com/app/evil2"'), 'must fall back to safe https Gemini URL for c_evil2');
-        assert.ok(html.includes('href="https://gemini.google.com/app/good"'), 'must preserve valid https URL');
-        assert.ok(html.includes('rel="noopener noreferrer"'), 'must include rel="noopener noreferrer" on external link');
-    } finally {
-        if (origDocumentDescriptor) Object.defineProperty(globalThis, 'document', origDocumentDescriptor);
-        else delete (global as any).document;
-    }
+        const page = await browser.newPage();
+        const title = '<img src=x onerror=alert(1)>';
+        await mount(page, 'options', { indexes: [
+            { key: { accountId: A, conversationId: 'evil1' }, title, url: 'javascript:alert(1)' },
+            { key: { accountId: A, conversationId: 'evil2' }, title: 'Data URL', url: 'data:text/html,<script>alert(1)</script>' },
+            { key: { accountId: A, conversationId: 'good' }, title: 'Good', url: 'https://evil.test/' },
+        ] });
+        await page.locator('#list .open-link').first().waitFor();
+        const links = await page.locator('#list .open-link').evaluateAll(nodes => nodes.map(node => ({
+            href: node.getAttribute('href'), rel: node.getAttribute('rel'),
+        })));
+        assert.deepStrictEqual(links.map(link => link.href).sort(), ['evil1', 'evil2', 'good'].map(id => 'https://gemini.google.com/app/' + id));
+        assert.ok(links.every(link => link.rel === 'noopener noreferrer'));
+        assert.strictEqual(await page.locator('#list img, #list script').count(), 0);
+        assert.ok((await page.locator('#list').textContent())?.includes(title));
+    } finally { await browser.close(); }
 });

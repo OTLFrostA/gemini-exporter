@@ -32,7 +32,7 @@ test('Markdown export envelope uses Domain metadata and omits absent optional fi
 
 test('Markdown paragraph preserves nested inline formatting and line breaks', () => {
     const md = render([{ type: 'paragraph', children: [txt('plain '), { type: 'strong', children: [{ type: 'emphasis', children: [txt('nested')] }] }, txt(' '), { type: 'strikethrough', children: [txt('gone')] }, { type: 'lineBreak', kind: 'soft' }, { type: 'inlineCode', code: 'x`y' }, { type: 'lineBreak', kind: 'hard' }, { type: 'link', href: 'https://example.com', children: [txt('link')] }] }]);
-    assert.ok(md.includes('plain ***nested*** ~~gone~~\n``x`y``  \n[link](https://example.com)'));
+    assert.ok(md.includes('plain ***nested*** ~~gone~~\n``x`y``  \n[link](https://example.com/)'));
 });
 
 test('Markdown emits headings and every message role in source order', () => {
@@ -94,12 +94,12 @@ test('Markdown thought blocks contain nested Markdown inside details', () => {
 
 test('Markdown inline citations link URLs and retain labels without URLs', () => {
     const md = render([{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'c', label: 'read' }, txt(' '), { type: 'citationRef', citationId: 'd', label: 'offline' }] }], { citations: [{ id: 'c', title: 'Web', url: 'https://example.com' }, { id: 'd', title: 'Local' }] });
-    assert.ok(md.includes('[read](https://example.com) [offline]'));
+    assert.ok(md.includes('[read](https://example.com/) [offline]'));
 });
 
 test('Markdown message Sources preserve citation order after the body', () => {
     const b = domainFixture([para('body')], { citations: [{ id: 'c', title: 'Web', url: 'https://example.com' }, { id: 'd', title: 'Local' }] }); b.detail.messages[0].citations!.reverse();
-    assert.ok(renderDocumentMarkdown(composeDomainDocument(b, fixtureAccountFor(b)), {}).includes('body\n\n> 🌐 **Sources:**\n> [1] [Local]\n> [2] [Web](https://example.com)'));
+    assert.ok(renderDocumentMarkdown(composeDomainDocument(b, fixtureAccountFor(b)), {}).includes('body\n\n> 🌐 **Sources:**\n> [1] [Local]\n> [2] [Web](https://example.com/)'));
 });
 
 test('Markdown unknown content remains visible as escaped text', () => {

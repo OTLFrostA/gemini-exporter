@@ -17,9 +17,10 @@ const foreign = '10000000-0000-4000-8000-000000000002';
 
 function installTabs(t: { after(fn: () => void): void }, tabs: Array<{ id: number; active?: boolean }>,
     onMessage: (tabId: number, message: Record<string, unknown>, reply: (value: unknown) => void) => void) {
+    const chromeHost = globalThis.chrome;
     const previous = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
     const observations: Array<{ tabId: number; message: Record<string, unknown> }> = [];
-    Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
+    Object.defineProperty(chromeHost, 'tabs', { configurable: true, value: {
         query: async () => tabs.map(tab => ({ ...tab, url: 'https://gemini.google.com/app' })),
         sendMessage: (tabId: number, message: Record<string, unknown>, reply: (value: unknown) => void) => {
             observations.push({ tabId, message });
@@ -27,8 +28,8 @@ function installTabs(t: { after(fn: () => void): void }, tabs: Array<{ id: numbe
         },
     } });
     t.after(() => {
-        if (previous) Object.defineProperty(globalThis.chrome, 'tabs', previous);
-        else Reflect.deleteProperty(globalThis.chrome, 'tabs');
+        if (previous) Object.defineProperty(chromeHost, 'tabs', previous);
+        else Reflect.deleteProperty(chromeHost, 'tabs');
     });
     return observations;
 }

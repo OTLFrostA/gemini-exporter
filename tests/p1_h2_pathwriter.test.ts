@@ -97,8 +97,8 @@ test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
     const html = '<pre><code class="language-html">&lt;div&gt;hi&lt;/div&gt;</code></pre>'
         + '<p>real <b>bold</b> text</p>'
         + '<p>sample <code>List&lt;String&gt;</code> and <code>&lt;h1&gt;t&lt;/h1&gt;</code></p>';
-    const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
-    const out = ChatFormatter.convertHtmlToMarkdown(html);
+    const { convertHtmlToMarkdown } = require('../src/l1/parsers/shared/html/htmlToMarkdown.js');
+    const out = convertHtmlToMarkdown(html);
     assert.ok(out.includes('<div>hi</div>'), 'fenced code content must survive');
     assert.ok(out.includes('`List<String>`'), 'inline code generic must survive');
     assert.ok(out.includes('`<h1>t</h1>`'), 'inline code must not be rewritten by heading pass');
