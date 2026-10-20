@@ -1,5 +1,5 @@
 import { ingestDetail } from '../../src/l2/ingestion.js';
-import { readConversation } from '../../src/l2/readConversation.js';
+import { readStoredConversation } from './readStoredConversation.js';
 import { deleteStoredConversation } from '../../src/l3a/storageService.js';
 import type { ConversationKey } from '../../src/l2/conversationKey.js';
 import type { DomainFixture } from './domainFixture.js';
@@ -21,7 +21,7 @@ export async function admitFixtures(accountId: string | null | undefined, parsed
     for (const item of parsed) await admitFixture(accountId, item);
 }
 export async function readFixture(key: ConversationKey): Promise<DomainFixture | null> {
-    const conversation = await readConversation(key);
+    const conversation = await readStoredConversation(key);
     return conversation ? { account: fixtureAccountFor(conversation), conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} } : null;
 }
 export async function removeFixture(key: ConversationKey): Promise<void> { await deleteStoredConversation(key); }

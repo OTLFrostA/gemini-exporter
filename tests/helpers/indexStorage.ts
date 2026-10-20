@@ -1,7 +1,7 @@
 import { IDBFactory, IDBObjectStore, IDBKeyRange } from 'fake-indexeddb';
 import { resetIndexCoverageSessions } from '../../src/l2/indexCoverage.js';
 import { fixtureAccount } from './domainFixture.js';
-import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountRuntime.js';
+import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
 import { beforeEach, afterEach } from 'node:test';
 
 

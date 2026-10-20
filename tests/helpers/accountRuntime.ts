@@ -1,8 +1,8 @@
 import { beforeEach, afterEach } from 'node:test';
+import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
+export { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
 import { invalidateAccountContext } from '../../src/runtime/content/accountContext.js';
 
-export const ACCOUNT_UUID = '10000000-0000-4000-8000-000000000001';
-export const OTHER_ACCOUNT_UUID = '10000000-0000-4000-8000-000000000002';
 export const ACCOUNT_OBSERVATION = { providerId: 'gemini', providerAccountId: '10000000001' };
 
 /** Exercise the actual resolver with a MAIN observation bridge and committed Registry receipt. */

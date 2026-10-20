@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
-import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountIds.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../src/l2/ingestion.js';
 import { listIndexes, getIndex, getDetail, putExportRecord, getExportRecord } from '../src/l3a/storageService.js';
 import { mergeConversationIndex, restoreConversationIndex, indexActivityTime } from '../src/l2/conversationIndex.js';
@@ -121,5 +121,24 @@ test('confirmed deletion removes facts; only newly observed facts can recreate a
         assert.equal((await getIndex(key()))?.title, 'Research'); assert.equal(await getDetail(key()), null);
         assert.ok(await getIndex(key('chat', OTHER_ACCOUNT_UUID)));
         assert.equal(Object.hasOwn((await getIndex(key()))!, 'cloudAvailability'), false);
+    } finally { env.restore(); }
+});
+
+test('confirmed L2 deletion clears only the named conversation Index, Detail and ExportRecord', async () => {
+    const env = indexStorage(), target = key('delete-confirmed'), other = key('delete-confirmed', OTHER_ACCOUNT_UUID);
+    try {
+        const record = { format: 'markdown' as const, status: 'ok' as const, exportedAt: 100 };
+        await ingestDetail(ACCOUNT_UUID, target.conversationId, detail());
+        await ingestDetail(OTHER_ACCOUNT_UUID, other.conversationId, detail());
+        await putExportRecord(target, record);
+        await putExportRecord(other, record);
+        await ingestDeletedConversation(ACCOUNT_UUID, target.conversationId);
+        assert.equal(await getIndex(target), null);
+        assert.equal(await getDetail(target), null);
+        assert.equal(await getExportRecord(target), null);
+        assert.ok(await getIndex(other)); assert.ok(await getDetail(other));
+        assert.deepEqual(await getExportRecord(other), record);
+        await ingestDeletedConversation(ACCOUNT_UUID, target.conversationId);
+        assert.equal(await getIndex(target), null, 'repeated verified deletion remains idempotent');
     } finally { env.restore(); }
 });
