@@ -21,7 +21,7 @@ test('new activity and partial export records display facts without automatic se
     });
     for(const id of ['fresh','failed','empty'])await expect(page.locator(`[data-chat-id="${id}"] small`)).toContainText('No export record');
     await expect(page.locator('[data-chat-id="updated"] small')).toContainText('Last export · html');await expect(page.locator('[data-chat-id="partial"] small')).toContainText('Partial export');
-    await expect(page.locator('#list input:checked')).toHaveCount(0);await expect(page.locator('.status-updated')).toHaveCount(1);
+    await expect(page.locator('#list input:checked')).toHaveCount(0);await expect(page.locator('.status-exported')).toHaveCount(2);await expect(page.locator('.status-partial')).toHaveCount(2);await expect(page.locator('[data-chat-id="updated"] .status-exported')).toContainText('Last export complete');await expect(page.locator('[data-chat-id="partial_updated"] .status-partial')).toContainText('Partial export');
     await page.locator('[data-chat-id="partial"] input').check();await page.locator('#langToggle').uncheck();await expect(page.locator('[data-chat-id="partial"] input')).toBeChecked();await expect(page.locator('[data-chat-id="partial"] small')).toContainText('部分导出');
     await page.reload();await expect(page.locator('#list .item')).toHaveCount(7);await expect(page.locator('#list input:checked')).toHaveCount(0);
 });
