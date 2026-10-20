@@ -32,6 +32,9 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      - name: Install Chromium for browser-backed Node consumers
+        if: matrix.group == 'consumerSuites'
+        run: npx playwright install --with-deps chromium
       - name: Run consumer contracts without unrelated whole-repo typecheck
         env:
           GROUP: ${{ matrix.group }}
