@@ -104,12 +104,10 @@ stubModule('../../src/l3a/storageService.js', {
     async clearStoredAccountExportRecords(accountId: string) {
         events.push('clear-export:' + accountId);
         if (state.failDelete === 'record') throw new Error('delete failed');
-        for (const id of [...records.keys()]) if (JSON.parse(id)[0] === accountId) records.delete(id);
     },
     async clearStoredAccountScanRecords(accountId: string) {
         events.push('clear-scan:' + accountId);
         if (state.failDelete === 'coverage') throw new Error('coverage failed');
-        for (const id of [...records.keys()]) if (JSON.parse(id)[0] === accountId) records.delete(id);
     },
     async getDirectoryHandle() { return state.directory; },
     async getStoredSettings() {
