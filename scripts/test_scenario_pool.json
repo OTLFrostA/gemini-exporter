@@ -1,132 +1,5 @@
 [
   {
-    "id": "botany_phyllotaxis_golden_angle_point_pattern",
-    "title": "Phyllotaxis: golden-angle geometry and reproducible spatial statistics",
-    "domain": "botany_phyllotaxis_spatial_statistics",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an original educational illustration comparing three synthetic seed-head point patterns produced with a golden-angle rotation and two nearby rational rotations. Label all patterns as mathematical simulations, distinguish radial growth from rotation, and do not claim that the illustration is a measured botanical specimen.",
-      "Define a deterministic polar-coordinate phyllotaxis model with an explicit area-per-seed convention. Derive the golden angle and its relation to the golden ratio in LaTeX, explaining what is a geometric definition versus a biological hypothesis.",
-      "Write complete runnable standard-library Python generating Cartesian points and measuring nearest-neighbor distances for all three rotations. Include deterministic tests for the origin, radial monotonicity, equal parameter reuse and invariance under global rotation with numerical tolerances.",
-      "Provide a Markdown table comparing minimum and mean nearest-neighbor distances, boundary sensitivity and numerical cost. Separate computed quantities from illustrative numbers and include an English-Chinese glossary of botanical and geometric terminology.",
-      "Write a reproducibility report on finite-sample bias, alternative radial laws and why an attractive seed-head image is insufficient evidence of optimal packing or a mechanism of plant development. Include executable code, explicit assumptions and a falsifiable experiment design."
-    ]
-  },
-  {
-    "id": "queueing_mm1_event_simulation_stationarity_audit",
-    "title": "Queueing systems: event simulation, stationary laws and finite-run error",
-    "domain": "queueing_theory_event_driven_stationarity",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define an M/M/1 queue with arrival rate lambda and service rate mu, including units, independence assumptions and the stability condition. Derive its stationary probabilities using balance equations in LaTeX.",
-      "Derive expected queue length, system size and sojourn time, then explain Little's law and which quantities include a customer in service. Use an explicitly specified synthetic stable parameter pair.",
-      "Write complete runnable standard-library Python implementing event-driven queue simulation with a seeded random generator. Track occupancy as a time integral, event ties and per-customer waiting times without using time-stepping approximations.",
-      "Add executable tests for empty-system initialization, zero waiting for an arrival to an idle server, occupancy nonnegativity and conservation of arrivals, departures and remaining customers. Explain why lambda equal to or greater than mu is rejected for stationary comparisons.",
-      "Compare theoretical stationary values and finite-run estimates in a Markdown table, marking unexecuted numerical results explicitly. Explain why the average of event-sampled occupancies differs from a time-weighted average.",
-      "Implement warm-up removal and independent replications. Discuss autocorrelation, confidence intervals and why one long run or a fixed seed cannot prove unbiasedness; provide the full reproducible analysis code.",
-      "Analyze heavy-traffic behavior as lambda approaches mu with explicit assumptions. Include a Chinese-English glossary, a table of failure modes and a deterministic trace example that can be checked by hand.",
-      "Produce a detailed verification report distinguishing exact queueing identities, simulation diagnostics and empirical uncertainty. Include complete code, event-state pseudocode, dimensional checks and limitations of the exponential-service model."
-    ]
-  },
-  {
-    "id": "computational_geometry_bezier_subdivision_curvature",
-    "domain": "computational_geometry_bezier_curves",
-    "title": "Bezier curves: de Casteljau subdivision, curvature and numerical certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a cubic Bezier curve with four explicit two-dimensional control points using LaTeX. Derive the Bernstein representation, endpoint tangents and convex hull property with clear parameter conventions.",
-      "Derive de Casteljau subdivision at an arbitrary parameter and work through a rational numerical example. Explain how the left and right control polygons reproduce the original curve exactly.",
-      "Write runnable Python using only the standard library to evaluate and subdivide curves. Include assertions for endpoint interpolation, subdivision agreement, affine invariance and stable behavior near the parameter endpoints.",
-      "Derive signed curvature and explain zero-speed degeneracy. Compare uniform parameter sampling, chord-length refinement and control-polygon flatness in a Markdown table; include an English and Chinese terminology glossary.",
-      "Produce a reproducible adaptive flattening audit with an ASCII control-polygon diagram, executable tests, equations and a Markdown error table. Distinguish a proven geometric tolerance from a sampled estimate and report unresolved degeneracies explicitly."
-    ]
-  },
-  {
-    "id": "information_theory_arithmetic_coding_integer_intervals",
-    "domain": "information_theory_arithmetic_coding",
-    "title": "Arithmetic coding: integer intervals, renormalization and round-trip verification",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define arithmetic coding for a small fixed symbol alphabet using LaTeX. Specify half-open interval conventions, cumulative frequencies and an explicit short message including an end-of-stream symbol.",
-      "Work through exact rational interval updates and compare the resulting information bound with Huffman coding in a Markdown table. Explain why message length or a termination symbol must be communicated.",
-      "Derive a finite-precision integer interval implementation with explicit inclusive endpoints. Explain each rounding rule and identify the minimum total-frequency constraints needed to prevent empty subintervals.",
-      "Derive E1, E2 and E3 renormalization with pending underflow bits. Give pseudocode for encoder and decoder state transitions and trace a concrete sequence exercising each condition.",
-      "Provide complete runnable Python standard-library encoder and decoder code. Include exact round-trip assertions for the empty payload, repeated symbols, all symbols and deterministic random messages.",
-      "Extend the model to adaptive frequencies with deterministic rescaling. Explain how encoder and decoder stay synchronized and add executable tests around every rescale boundary.",
-      "Design malformed-input and truncation tests, distinguishing detection guarantees from cases requiring an external checksum. Compare fixed and adaptive models using a table of bit lengths computed from defined test data, marking unexecuted results explicitly.",
-      "Write a reproducibility report with equations, an ASCII interval diagram, Python commands and an English-Chinese glossary. Separate mathematical coding bounds, finite-precision overhead and empirical compression measurements."
-    ]
-  },
-  {
-    "id": "structural_mechanics_planar_truss_stiffness_energy",
-    "domain": "structural_mechanics_truss_stiffness",
-    "title": "Planar trusses: stiffness assembly, rigid modes and energy verification",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate a labeled engineering diagram of a triangular planar truss with three joints, pin and roller supports, and an oblique joint load. Then define a concrete geometry, axial rigidity, load vector and units in a Markdown table; distinguish diagram annotations from the exact numerical model.",
-      "Derive the local axial element stiffness and its transformation into global coordinates in LaTeX. Explain the sign convention, symmetry, rigid translations and rotation, and why an unsupported assembly is singular.",
-      "Assemble the supported global stiffness matrix for the specified triangle, eliminate constrained degrees of freedom, and solve for displacements and reactions with sufficient intermediate matrices to reproduce the calculation.",
-      "Provide complete Python standard-library code implementing stiffness assembly and a small pivoted linear solver. Include checks for equilibrium, symmetry, axial force recovery, and equality of external work and twice the strain energy.",
-      "Compare the baseline with one altered member rigidity in a Markdown table. Discuss conditioning, mechanisms, unit consistency and the boundary between linear truss assumptions and bending or geometric nonlinearity; show reproducible residual and energy checks."
-    ]
-  },
-  {
-    "id": "control_theory_kalman_joseph_covariance_innovations",
-    "domain": "control_theory_state_estimation",
-    "title": "Kalman filtering: Joseph covariance, missing observations and innovation checks",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a discrete constant-velocity tracking model with a position sensor. Specify state, units, sampling interval, transition and observation matrices, initial covariance, and the distinction between continuous acceleration spectral density and per-step acceleration variance.",
-      "Derive the predicted mean and covariance, innovation covariance, gain, and corrected mean from Gaussian conditioning. Present all dimensions and a concrete one-step numerical example using LaTeX matrices.",
-      "Derive the Joseph covariance update and compare it with the abbreviated update. Explain numerical symmetry, positive semidefiniteness, and the assumptions under which the two forms are algebraically equivalent.",
-      "Provide complete Python standard-library code for a two-state filter, including small matrix operations and deterministic simulated observations. Compute both covariance forms and check their numerical agreement and state dimensions.",
-      "Extend the implementation to missing observations and variable sampling intervals. Derive the corresponding process covariance and demonstrate that a missing observation performs prediction only rather than a fabricated zero-valued measurement.",
-      "Derive normalized innovation squared and explain what it can and cannot diagnose under finite samples, model mismatch and correlated noise. Produce a Markdown table of innovations, innovation variances and consistency statistics for a reproducible short sequence.",
-      "Construct executable counterexamples for zero or negative sensor variance, singular innovation covariance and asymmetric initial covariance. Describe explicit input rejection and demonstrate that no invalid inverse or silent covariance repair is used.",
-      "Summarize numerical verification in a Markdown table: maximum symmetry residual, minimum covariance determinant, estimation errors and missing-observation behavior. Explain why consistency tests alone do not prove physical model correctness and give complete reproduction instructions."
-    ]
-  },
-  {
     "id": "crystallography_reciprocal_lattice_bragg_powder_indexing",
     "domain": "crystallography_diffraction_reciprocal_space",
     "title": "Crystal diffraction: reciprocal lattices, Bragg conditions and powder peak indexing",
@@ -420,6 +293,133 @@
       "Derive total entropy change using absolute temperatures and constant heat capacities. Show the equilibrium change is nonnegative and explain why Celsius cannot be used inside logarithms.",
       "Extend the explanation to uncertain conductance: demonstrate a reproducible parameter sweep and report a Markdown table of temperature differences at fixed times. Avoid claiming an empirical confidence interval.",
       "Write a detailed bilingual reproducibility report separating conservation laws, discretization error and missing physics such as environmental losses, incomplete mixing and temperature-dependent heat capacity."
+    ]
+  },
+  {
+    "id": "geodesy_great_circle_antipodal_routes",
+    "title": "Geodesy: great-circle routes and antipodal numerical conditioning",
+    "domain": "geodesy_spherical_navigation",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational globe illustration showing two synthetic locations, their great-circle route and the longer alternative arc. Label latitude, longitude and central angle; clearly identify the illustration as schematic, not a navigation chart.",
+      "Derive spherical great-circle distance and initial bearing in LaTeX. State angular units, longitude wrapping and the difference between spherical and ellipsoidal Earth models. Explain why bearing is undefined for coincident or exactly antipodal points.",
+      "Write complete runnable standard-library Python using a numerically robust central-angle formula. Validate inputs and test coincident points, dateline crossing, poles, almost-antipodal pairs, symmetry and nonnegative distances.",
+      "Provide a Markdown table of synthetic coordinate pairs with expected central angles, distances for a stated sphere radius and initial bearings where defined. Include units, explicit tolerances and a comparison with a less stable inverse-cosine formula.",
+      "Write a bilingual reproducibility report connecting the diagram, formulas and implementation. Explain route interpolation near antipodes, rounding error and why this teaching calculation is insufficient for aircraft navigation."
+    ]
+  },
+  {
+    "id": "operations_research_inventory_newsvendor_quantiles",
+    "title": "Inventory planning: discrete newsvendor quantiles and reproducible expected cost",
+    "domain": "operations_research_inventory_uncertainty",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic single-period inventory problem with a finite demand distribution, purchase cost, selling price and salvage value. State units and assumptions and provide a valid probability mass function.",
+      "Derive expected profit and equivalent underage/overage costs in LaTeX. Show how the critical fractile determines a discrete optimal order quantity and explain ties without assuming differentiability.",
+      "Write complete runnable standard-library Python that validates the demand distribution, evaluates all feasible integer quantities and finds every optimal quantity within a stated numerical tolerance.",
+      "Provide a Markdown table of order quantity, expected sales, expected leftovers, expected shortage and expected profit for the synthetic example. Check probability normalization and show the units of every monetary column.",
+      "Demonstrate a seeded Monte Carlo check in Python and compare its estimated profit against exact enumeration. Distinguish sampling error from an implementation bug and avoid treating a single run as a guarantee.",
+      "Analyze boundary cases: zero demand, deterministic demand, zero overage cost, zero underage cost and invalid negative probabilities. Explain when an optimum is nonunique or a finite search range requires justification.",
+      "Construct a sensitivity table for several synthetic salvage values and shortage penalties. Explain the resulting optimal quantities through the critical fractile and identify parameter regimes outside the assumed model.",
+      "Write a detailed Chinese-English reproducibility report explaining all assumptions, verification checks and limitations, including demand censoring, lead times and repeat ordering. Include a small terminology glossary."
+    ]
+  },
+  {
+    "id": "hydraulics_torricelli_tank_drainage",
+    "title": "Hydraulics: tank drainage, event detection and dimensional checks",
+    "domain": "hydraulics_tank_drainage",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic cylindrical tank drainage experiment using an ideal outlet and Torricelli law. State tank area, outlet area, gravitational acceleration, initial water height and assumptions with consistent SI units.",
+      "Derive the height trajectory and emptying time in LaTeX. Explain the square-root boundary at zero height and why continuing an algebraic solution beyond the emptying event is physically invalid.",
+      "Write complete runnable standard-library Python comparing the analytic trajectory with numerical integration and explicit empty-tank event detection. Validate nonnegative heights, positive areas, initial zero height and time-step convergence.",
+      "Provide a Markdown table for synthetic outlet sizes and starting heights showing initial flow, total water volume and emptying time. Include units, rounding and an explicit dimensional consistency check.",
+      "Write a bilingual reproducibility report covering conservation, numerical errors, discharge coefficients and limitations from viscosity or changing tank cross-section. Include a small labeled ASCII diagram and terminology glossary."
+    ]
+  },
+  {
+    "id": "probability_absorbing_markov_hitting_times",
+    "title": "Probability: absorbing Markov chains and independently verified hitting times",
+    "domain": "probability_absorbing_markov_chains",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a small synthetic absorbing Markov chain representing progression through inspection stations. Give a Markdown transition matrix with rational probabilities, identify transient and absorbing states, and verify row sums.",
+      "Derive the fundamental matrix and absorption probability equations in LaTeX. State the reachability condition under which the transient inverse exists and distinguish almost-sure absorption from absorption after a bounded number of steps.",
+      "Write complete runnable standard-library Python implementing linear solves with pivoting, validating stochastic matrices and computing expected hitting times and absorption probabilities without external packages.",
+      "Provide a Markdown table of expected absorption times and terminal-state probabilities for each starting state. Independently verify the first-step recurrences and report numerical residuals.",
+      "Implement seeded Monte Carlo simulation and compare estimated hitting times and probabilities against exact computations. Explain uncertainty and why a maximum-step cap can bias an estimator.",
+      "Analyze boundary cases including an initially absorbing state, zero-probability edges, a closed transient class and nearly absorbing self-loops. Explain when expected hitting time is infinite and when conditioning is poor.",
+      "Derive a second-moment recurrence for the absorption time and implement the corresponding variance calculation. Cross-check it on a one-state geometric example and include a Markdown table.",
+      "Write a detailed bilingual reproducibility report connecting the matrix, formulas, code and simulation. Explain limitations from nonstationary transition probabilities and unobserved states, and provide a compact glossary."
+    ]
+  },
+  {
+    "id": "robotics_planar_two_link_kinematics",
+    "title": "Robotics: two-link kinematics and singularity-aware verification",
+    "domain": "robotics_planar_kinematics",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational diagram of a planar two-link robot arm. Label positive link lengths, joint angles, coordinate axes and end-effector position. Mark the drawing as schematic and state angle conventions.",
+      "Derive forward kinematics and the Jacobian in LaTeX. Derive the determinant and identify singular arm configurations, clearly distinguishing joint angles from global link orientation.",
+      "Write complete runnable standard-library Python for forward kinematics and inverse kinematics with input validation. Return both elbow branches when distinct, handle unreachable targets explicitly and verify round-trip position error.",
+      "Provide a Markdown table of synthetic link lengths, joint angles, end positions and Jacobian determinants. Include units and cases at full extension, folded configurations and a well-conditioned interior point.",
+      "Write a bilingual reproducibility report comparing analytic and finite-difference Jacobians. Explain singularity sensitivity, tolerance choices and why the ideal model omits collision avoidance and joint limits."
+    ]
+  },
+  {
+    "id": "time_series_ar1_stationarity_forecast_uncertainty",
+    "title": "Time series: AR(1) stationarity and forecast uncertainty",
+    "domain": "time_series_autoregressive_forecasting",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic AR(1) process with an intercept, autoregressive coefficient and independent Gaussian innovations. Specify parameter units, initial state and the assumption required for a stationary distribution.",
+      "Derive the stationary mean, variance and autocovariance in LaTeX. Show how initial-condition effects decay and explain what fails at coefficients equal to positive or negative one.",
+      "Write complete runnable standard-library Python for seeded simulation and conditional forecasts. Validate finite inputs and nonnegative innovation variance, and avoid external libraries.",
+      "Derive the h-step conditional forecast mean and variance and give a Markdown table for several horizons. Distinguish conditional forecast uncertainty from parameter estimation uncertainty.",
+      "Implement reproducible Monte Carlo verification of those forecast moments. Compare simulated and theoretical values using explicit tolerances and explain why one random run cannot prove correctness.",
+      "Provide a Markdown table comparing positive, negative, zero and near-unit coefficients. Discuss alternating correlation, slow decay and the required warm-up length without claiming an arbitrary universal cutoff.",
+      "Analyze deterministic innovations, an initially stationary draw, invalid nonfinite parameters and a coefficient outside the stationary range. Explain how finite-horizon forecasts can exist without stationarity.",
+      "Write a detailed bilingual reproducibility report separating model assumptions, initialization bias, sampling error and omitted real-world features such as seasonality or changing variance. Include a compact glossary."
     ]
   }
 ]

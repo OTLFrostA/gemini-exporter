@@ -6,7 +6,7 @@ import type { ConversationKey } from '../../l2/conversationKey.js';
 import type { ExportResult } from '../../application/export/types.js';
 import { startKeepAlive } from './keepAlive.js';
 
-export async function runLiveSave(key: ConversationKey): Promise<ExportResult | null> {
+async function exportLiveSave(key: ConversationKey, refreshDetail: boolean): Promise<ExportResult | null> {
     const settings = await getSettings();
     if (!settings.enabledDisk || settings.defaultFormat !== 'markdown') return null;
     const handle = await getDirectoryHandle() as DirectoryHandle | null;
@@ -17,8 +17,40 @@ export async function runLiveSave(key: ConversationKey): Promise<ExportResult | 
     const stopKeepAlive = startKeepAlive();
     try {
         return await runExport({ keys: [key], format: 'markdown', delivery: 'folderWriter',
-            includeAssets: settings.includeAssets, skipUnchanged: false });
+            includeAssets: settings.includeAssets, skipUnchanged: false }, { refreshDetail });
     } finally {
         stopKeepAlive();
     }
+}
+
+interface PendingSave {
+    refresh: boolean | null;
+    result: Promise<ExportResult | null>;
+}
+// Serialize writes for one Key. Events arriving during an export request a
+// trailing run, so a newer completed reply cannot be lost behind an older save.
+const pendingSaves = new Map<string, PendingSave>();
+export function runLiveSave(key: ConversationKey, refreshDetail = false): Promise<ExportResult | null> {
+    const id = JSON.stringify([key.accountId, key.conversationId]);
+    const existing = pendingSaves.get(id);
+    if (existing) {
+        existing.refresh = existing.refresh === true || refreshDetail;
+        return existing.result;
+    }
+    const pending: PendingSave = { refresh: refreshDetail, result: Promise.resolve(null) };
+    pendingSaves.set(id, pending);
+    pending.result = (async () => {
+        let result: ExportResult | null = null;
+        try {
+            while (pending.refresh !== null) {
+                const refresh = pending.refresh;
+                pending.refresh = null;
+                result = await exportLiveSave(key, refresh);
+            }
+            return result;
+        } finally {
+            pendingSaves.delete(id);
+        }
+    })();
+    return pending.result;
 }

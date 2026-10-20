@@ -23,6 +23,8 @@ if (typeof window !== 'undefined') {
     hookHistoryEvents(refreshAccount);
     MessageBridge.init({ onDetailChanged: key => {
         void LiveSaveCoordinator.executeLiveSave(key).catch(error => console.warn('[Runtime] Live Save failed', error));
+    }, onStreamComplete: key => {
+        void LiveSaveCoordinator.executeLiveSave(key, true).catch(error => console.warn('[Runtime] Live Save failed', error));
     } });
     // Capture source events at document_start; their L2/Registry ports await readiness.
     void ensureV2Ready().then(() => {

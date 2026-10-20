@@ -10,8 +10,8 @@ let badge: Feedback | undefined;
 let instance: object | null = null;
 export function init(options: { badge?: Feedback } = {}): void { badge = options.badge; instance = {}; }
 export function cleanup(): void { instance = null; badge = undefined; }
-/** Only an accepted passive Detail change may request the worker's unified Export. */
-export async function executeLiveSave(value: ConversationKey): Promise<ExportResult | null> {
+/** Accepted passive Detail or a completed reply may request unified Export. */
+export async function executeLiveSave(value: ConversationKey, refreshDetail = false): Promise<ExportResult | null> {
     if (!instance) return null;
     const current = instance;
     const feedback = badge;
@@ -20,7 +20,7 @@ export async function executeLiveSave(value: ConversationKey): Promise<ExportRes
     // A late passive Detail result from an old account must not start a new active export.
     if (!stillCurrent()) return null;
     try {
-        const response = await chrome.runtime.sendMessage({ action: 'runLiveSave', key });
+        const response = await chrome.runtime.sendMessage({ action: 'runLiveSave', key, ...(refreshDetail ? { refreshDetail: true } : {}) });
         if (!response || response.ok !== true) throw new Error(response?.error || 'Live Save unavailable');
         const result: ExportResult | null = response.result;
         if (current === instance && feedback === badge && stillCurrent() && result) {
