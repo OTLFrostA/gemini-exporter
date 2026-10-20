@@ -316,6 +316,7 @@ export function showTakeoutPrompt(
         '💡 ' + text('TAKEOUT', '历史记录'));
     onDismiss = dismissed;
     const bar = footer(popover);
+    bar.classList.add('tour-takeout-footer');
     button(bar, text('Got it, don’t show again', '我知道了，不再提示'),
         close, 'tourTakeoutDismissBtn', 'tour-skip-btn');
     const nav = document.createElement('div');
