@@ -43,7 +43,6 @@
   "src/l2/titleAuthority.ts",
   "src/l3b/compose/composeDomainDocument.ts",
   "src/l3b/compose/composeContent.ts",
-  "src/l3b/compose/displayDate.ts",
   "src/l1/parsers/contracts.ts",
   "src/l1/parsers/parseConversation.ts",
   "tests/helpers/recordFixture/conversationRecord.ts",
