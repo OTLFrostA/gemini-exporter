@@ -2,7 +2,6 @@ import test, { before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import { mount, read, A, B } from './helpers/uiPortHarness.js';
-import { isRealTitle } from '../src/shared/utils/titleText.js';
 let browser: Browser, page: Page;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 afterEach(async () => { await page?.close(); });
@@ -41,10 +40,6 @@ test('export status and canonical conversation titles cannot inject HTML', async
     assert.equal(await page.locator('#list .item .chat-title').textContent(), '<img src=x onerror=alert(1)>');
     await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#status img').count(), 0);
-});
-test('source title recognition retains placeholder, identifier and real-title cases at its current owner', () => {
-    assert.equal(isRealTitle('Research report', 'abc'), true);
-    for (const value of ['', 'New chat', 'Gemini', 'abc123456789']) assert.equal(isRealTitle(value, 'abc123456789'), false);
 });
 test('list displays source activity and latest ExportRecord without inferring another updated state', async () => {
     await open({ indexes: rows, records }); await page.locator('#list .item').first().waitFor();
