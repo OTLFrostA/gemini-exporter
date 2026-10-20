@@ -33,7 +33,7 @@ test('guidance renders a real modal and prevents overlapping Takeout prompts', a
     await open(); const started = await page.evaluate(() => { const tour = Reflect.get(window, 'testUi').tour;
         return [tour.showTakeoutPrompt(151, () => {}, () => {}, () => {}), tour.showTakeoutPrompt(151, () => {}, () => {}, () => {})]; });
     assert.deepEqual(started, [true, false]); assert.equal(await page.locator('[role=dialog]').count(), 1);
-    await page.getByRole('button', { name: 'Got it', exact: true }).click(); assert.equal(await page.locator('[role=dialog]').count(), 0);
+    await page.getByRole('button', { name: 'Got it, don’t show again', exact: true }).click(); assert.equal(await page.locator('[role=dialog]').count(), 0);
 });
 test('export status and canonical conversation titles cannot inject HTML', async () => {
     await open(); await page.locator('#list .item').waitFor();
