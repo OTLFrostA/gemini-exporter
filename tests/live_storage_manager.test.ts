@@ -1,24 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as storage from '../src/l3a/storageService.js';
-import { indexStorage, useIndexStorage } from './helpers/indexStorage.js';
-import { fixtureKey } from './helpers/domainFixture.js';
+import { useStorageUnitEnvironment } from './helpers/l3aStorageUnitEnvironment.js';
+import type { GlobalSettings } from '../src/application/settings/index.js';
 
-import { getSettings, updateSettings, isLiveSaveEffective } from '../src/application/settings/index.js';
-useIndexStorage();
-test('Storage preferences are sparse while Application supplies defaults', async () => {
+useStorageUnitEnvironment();
+
+test('L3a stores the v2 Settings patch without applying Application defaults', async () => {
     assert.deepEqual(await storage.getStoredSettings(), {});
-    const defaults = await getSettings();
-    assert.equal(defaults.defaultFormat, 'markdown'); assert.equal(defaults.enabledDisk, false); assert.equal(defaults.includeAssets, true);
-    await updateSettings({ enabledDisk: true, includeAssets: false });
-    assert.deepEqual(await storage.getStoredSettings(), { enabledDisk: true, includeAssets: false });
+    const patch = { enabledDisk: true, includeAssets: false } satisfies Partial<GlobalSettings>;
+    await storage.patchStoredSettings(patch);
+    assert.deepEqual(await storage.getStoredSettings(), patch);
+    await storage.patchStoredSettings({ enabledDisk: false });
+    assert.deepEqual(await storage.getStoredSettings(), { enabledDisk: false, includeAssets: false });
 });
-test('directory handle and enabledDisk are independent facts, effective permission stays transient', async () => {
-    await updateSettings({ enabledDisk: true });
+
+test('directory handle persists independently from the installed Settings fields', async () => {
+    const handle = { kind: 'directory', name: 'Selected' } as FileSystemDirectoryHandle;
+    await storage.patchStoredSettings({ enabledDisk: true });
     assert.equal(await storage.getDirectoryHandle(), null);
-    const settings = await getSettings();
-    assert.equal(isLiveSaveEffective(settings, false), false);
-    assert.equal(isLiveSaveEffective(settings, true), true);
-    assert.equal(isLiveSaveEffective({ ...settings, defaultFormat: 'pdf' }, true), false);
-    assert.equal((await storage.getStoredSettings()).enabledDisk, true);
+    await storage.setDirectoryHandle(handle);
+    await storage.patchStoredSettings({ defaultFormat: 'pdf' });
+    assert.deepEqual(await storage.getDirectoryHandle(), handle);
+    assert.deepEqual(await storage.getStoredSettings(), { enabledDisk: true, defaultFormat: 'pdf' });
 });
