@@ -210,6 +210,41 @@ const accountIdentityPort: Pick<typeof import('../../src/l2/accountRegistry.js')
     },
 };
 
+/** The Shared utility barrel reexports L2/Runtime/UI functions. These imports
+ * must be intercepted too or L1 unit tests execute real modules transitively. */
+const titleSources = ['user', 'provider', 'derived'] as const;
+const rank = { user: 3, provider: 2, derived: 1 };
+const reliableTitleSource = (value?: string | null) =>
+    titleSources.find(source => source === value);
+const titleAuthorityPort: Pick<typeof import('../../src/l2/titleAuthority.js'),
+    'TITLE_SOURCE_PRIORITY' | 'TITLE_TIER_RANK' | 'normalizeReliableTitleSource' | 'resolveReliableTitleSource'> = {
+    TITLE_SOURCE_PRIORITY: [...titleSources],
+    TITLE_TIER_RANK: { ...rank },
+    normalizeReliableTitleSource: reliableTitleSource,
+    resolveReliableTitleSource: (...values) => values.map(reliableTitleSource).find(Boolean),
+};
+const indexComparisonPort: Pick<typeof import('../../src/l2/conversationIndex.js'),
+    'indexActivityTime' | 'compareConversationIndexes'> = {
+    indexActivityTime: index => index.updatedAt ?? index.createdAt,
+    compareConversationIndexes: (a, b) =>
+        ((b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0)),
+};
+const indexCollectionPort: Pick<typeof import('../../src/l2/indexCollection.js'),
+    'mergeConversation' | 'deduplicateConversations'> = {
+    mergeConversation: (_prior, incoming) => ({ merged: incoming, isChanged: true }),
+    deduplicateConversations: list => ({ processed: [...list], changedCount: list.length }),
+};
+const messagingPort: Pick<typeof import('../../src/runtime/ipc/messaging.js'),
+    'getErrorMessage' | 'isMessageAction' | 'sendTypedMessage'> = {
+    getErrorMessage: error => error instanceof Error ? error.message : String(error),
+    isMessageAction: (value, action): value is { action: typeof action } =>
+        !!value && typeof value === 'object' && 'action' in value && value.action === action,
+    sendTypedMessage: async () => { throw new Error('Unexpected real IPC in isolated L1 unit test'); },
+};
+const progressPort: Pick<typeof import('../../src/ui/shared/progressUtils.js'), 'formatExportProgress'> = {
+    formatExportProgress: () => ({ text: '', pct: 0 }),
+};
+
 type Loader = { _load(request: string, parent: { filename?: string } | undefined, isMain: boolean): unknown };
 const loader = require('node:module') as Loader;
 let installed = false;
@@ -228,7 +263,7 @@ export function installL1V2Mocks(): void {
             && ['l2', 'l3a', 'l3b', 'l4', 'runtime', 'application', 'ui']
                 .some(layer => request.includes('/src/' + layer + '/')))
             throw new Error('L1 unit test directly loaded external implementation: ' + request);
-        if (parentPath.includes('/src/l1/')) {
+        if (parentPath.includes('/src/l1/') || parentPath.includes('/src/shared/')) {
             if (request.endsWith('/l2/ingestion.js')) return ingestion;
             if (request.endsWith('/runtime/api/domainIngestion.js')) return ingestion;
             if (request.endsWith('/runtime/api/accountRegistry.js')) return accountRegistry;
@@ -260,8 +295,11 @@ export function installL1V2Mocks(): void {
             if (request.endsWith('/l2/sourceUri.js')) return sourceUriPort;
             if (request.endsWith('/l2/accountRegistry.js')) return accountIdentityPort;
             if (request.endsWith('/runtime/devMode.js')) return { isDevMode: () => false };
-            if (request.endsWith('/runtime/ipc/messaging.js'))
-                return { getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) };
+            if (request.endsWith('/runtime/ipc/messaging.js')) return messagingPort;
+            if (request.endsWith('/l2/titleAuthority.js')) return titleAuthorityPort;
+            if (request.endsWith('/l2/conversationIndex.js')) return indexComparisonPort;
+            if (request.endsWith('/l2/indexCollection.js')) return indexCollectionPort;
+            if (request.endsWith('/ui/shared/progressUtils.js')) return progressPort;
             if (/\/(?:l2|l3a|l3b|l4|runtime|application|ui)\//.test(request) && !request.endsWith('.d.ts'))
                 throw new Error('Unmocked external dependency in L1 unit test: ' + request + ' from ' + parentPath);
         }
