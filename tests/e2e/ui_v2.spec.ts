@@ -111,6 +111,23 @@ test('UI v2: Badge isolates account counts, rejects delayed old count, partial p
     expect(await read(page,'countRequests')).toBe(2);
     await page.locator('#geminiExportBadge').focus(); await page.keyboard.press('Enter'); expect(await read(page,'events')).toContain('openOptions');
 });
+test('UI v2: Badge owns visibility-triggered count Pull without exposing a Runtime push callback', async ({ page }) => {
+    await mount(page, 'badge');
+    await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
+    expect(await read(page, 'countRequests')).toBe(1);
+    expect(await page.evaluate(() => typeof (window as any).badge.refreshIndexCount)).toBe('undefined');
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(await read(page, 'countRequests')).toBe(1);
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(() => read(page, 'countRequests')).toBe(2);
+    await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
+});
 test('UI v2: Badge drag saves only Settings on pointerup, ignores ordinary clicks and resizes', async ({ page }) => {
     await mount(page,'badge'); await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
     await expect(page.locator('#geminiExportBadge .pulse')).toHaveCount(1);
