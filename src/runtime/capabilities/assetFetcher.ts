@@ -21,6 +21,11 @@ import { contentContext } from '../content/contentContext.js';
 import { getErrorMessage } from '../ipc/messaging.js';
 
 const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024;
+// Chrome JSON IPC has its own limit: base64 expands by 4/3,
+// and the image response currently repeats the encoded value in three fields.
+// Reject oversized blobs before allocating their encoded copies.
+const MAX_IPC_FILE_BLOB_SIZE = 44 * 1024 * 1024;
+const MAX_IPC_IMAGE_BLOB_SIZE = 14 * 1024 * 1024;
 const GG_CHAIN_MAX_HOPS = 5;
 
 export function ensureAlr(url: string): string {
@@ -76,7 +81,10 @@ export async function fetchGgChain(url: string, init?: RequestInit): Promise<Res
 
     for (let i = 0; i < GG_CHAIN_MAX_HOPS; i++) {
         try {
-            const res = await fetchWithCredentialFallback(current, { ...baseInit, signal: AbortSignal.timeout(8000) });
+            const signal = baseInit.signal
+                ? AbortSignal.any([baseInit.signal, AbortSignal.timeout(8000)])
+                : AbortSignal.timeout(8000);
+            const res = await fetchWithCredentialFallback(current, { ...baseInit, signal });
             lastRes = res;
             if (!res.ok) return res;
 
@@ -99,6 +107,7 @@ export async function fetchGgChain(url: string, init?: RequestInit): Promise<Res
             }
             return res;
         } catch (err) {
+            if (baseInit.signal?.aborted) throw err;
             if (contentContext.isDevMode()) {
                 console.debug('[GemExporter:assetFetcher] fetchGgChain hop error', i, current.slice(0, 80), err);
             }
@@ -111,7 +120,8 @@ export async function fetchGgChain(url: string, init?: RequestInit): Promise<Res
             break;
         }
     }
-    return lastRes!;
+    if (!lastRes) throw new Error('Source redirect chain unavailable');
+    return lastRes;
 }
 
 export function toHighRes(url: string, variant = 's1024-rj'): string {
@@ -175,34 +185,9 @@ export function extractGucUrl(text: string): string | null {
 
 export async function handleGetFileBlob(msg: AssetFetchRequest, sendResponse: (resp: AssetFetchResponse) => void): Promise<void> {
     try {
-        let candidates: string[] = [];
-        if (msg.candidates && Array.isArray(msg.candidates)) candidates.push(...msg.candidates);
-        if (msg.url) candidates.unshift(msg.url);
-
-        try {
-            if (typeof document !== 'undefined') {
-                const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="googleusercontent"], a[href*="usercontent.google"], a[href*="drive.google"], a[download]');
-                for (const a of Array.from(links)) {
-                    const href = a.href || a.getAttribute('href') || '';
-                    const txt = (a.textContent || a.getAttribute('aria-label') || '').trim();
-                    if (!href) continue;
-                    if (msg.fileName && (txt.includes(msg.fileName) || href.includes(encodeURIComponent(msg.fileName)))) candidates.push(href);
-                    else if ((href.includes('googleusercontent') || href.includes('usercontent.google')) && href.includes('download')) candidates.push(href);
-                }
-            }
-        } catch (e) {
-            if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
-        }
-
-        try {
-            if (typeof document !== 'undefined') {
-                const html = document.documentElement?.innerHTML || '';
-                const m = html.match(/https:\/\/[^\s"'<>]*(?:googleusercontent|usercontent\.google)[^\s"'<>]*download[^\s"'<>]*/i);
-                if (m) candidates.push(m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&'));
-            }
-        } catch (e) {
-            if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
-        }
+        // L1 supplies the locators. Runtime must not search the entire Gemini page
+        // for an unrelated file when one selected asset's fetch fails.
+        const candidates = [msg.url, ...(msg.candidates || [])].filter((value): value is string => typeof value === 'string' && value.length > 0);
 
         candidates = [...new Set(candidates.filter(Boolean))];
         if (!candidates.length) {
@@ -231,6 +216,10 @@ export async function handleGetFileBlob(msg: AssetFetchRequest, sendResponse: (r
                 const blob = await res.blob();
                 if (blob.size === 0) {
                     reasons.push(`${u} -> empty blob`);
+                    continue;
+                }
+                if (blob.size > MAX_IPC_FILE_BLOB_SIZE) {
+                    reasons.push(`${u} -> asset too large for Chrome IPC`);
                     continue;
                 }
                 const dataUrl = await toDataUrl(blob);
@@ -315,9 +304,9 @@ export async function handleGetImageBlob(msg: AssetFetchRequest, sendResponse: (
                         if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
                     }
                 }
-                // Size cap applies to base64 path to avoid memory pressure
-                if (blob.size > MAX_BASE64_BLOB_SIZE) {
-                    lastErr = `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`;
+                // Reject before encoding repeated base64 fields into the Chrome JSON IPC response.
+                if (blob.size > MAX_IPC_IMAGE_BLOB_SIZE) {
+                    lastErr = `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_IPC_IMAGE_BLOB_SIZE / 1024 / 1024}MB Chrome IPC cap); use Google Takeout import`;
                     continue;
                 }
                 const dataUrl = await toDataUrl(blob);
