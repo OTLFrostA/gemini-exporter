@@ -1,4 +1,5 @@
 import { getAccount } from '../../runtime/api/accountRegistry.js';
+import { DEFAULT_ACCOUNT_KEY, isAccountId } from '../../l2/accountRegistry.js';
 import { defaultGeminiProvider } from '../../l1/client/gemini/geminiProvider.js';
 import { ProviderRegistry } from '../../l1/client/providerRegistry.js';
 import CoverageAdmission, { type ScanHead } from '../../l2/coverageAdmission.js';
@@ -22,12 +23,18 @@ export async function scanAll(request: ScanRequest, options: {
     const counts: ScanProgress = { pagesFetched: 0, conversationsFetched: 0 };
     const result = (status: ScanStatus, reason?: string): ScanResult =>
         ({ status, ...counts, ...(reason ? { reason } : {}) });
+    if (!isAccountId(accountId)) return result('error', 'Invalid account UUID');
     if (active.has(accountId)) return result('error', 'Scan already running');
     active.add(accountId);
     try {
         options.signal?.throwIfAborted();
         const account = await getAccount(accountId);
-        const provider = account && (ProviderRegistry.get(account.providerId) ?? (account.providerId === 'gemini' ? defaultGeminiProvider : undefined));
+        // Runtime resolves the current verified Gemini source; a local/offline default account
+        // is not an online identity and must never launch a successful Scan All.
+        if (!account || account.providerId !== 'gemini' || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
+            return result('error', 'Verified Gemini account unavailable');
+        }
+        const provider = ProviderRegistry.get(account.providerId) ?? defaultGeminiProvider;
         if (!provider) throw new Error('Account provider unavailable');
         const previous = await CoverageAdmission.getCoverage(accountId, 'recent');
         const baseline = previous ? structuredClone(previous) : null;
@@ -52,6 +59,7 @@ export async function scanAll(request: ScanRequest, options: {
             case 'max_pages': return result('partial_limit', 'max_pages');
             case 'stopped': return verifiedStop ? result('up_to_date') : result('error', 'Unverified scan stop');
         }
+        return result('error', 'Unknown provider list termination');
     } catch (error) {
         if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) return result('aborted');
         return result('error', error instanceof Error ? error.message : String(error));

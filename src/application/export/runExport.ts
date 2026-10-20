@@ -1,4 +1,5 @@
 import { readConversation } from '../../l2/readConversation.js';
+import { getSettings } from '../settings/index.js';
 import { getAccount } from '../../runtime/api/accountRegistry.js';
 import { getIndex, getExportRecord, putExportRecord, getDirectoryHandle } from '../../l3a/storageService.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
@@ -24,9 +25,8 @@ import { mountRuntimeFonts } from '../../l4/format/pdf/typst/fonts/mountRuntimeF
 import { prepareExportResources } from './prepareExportResources.js';
 import type { ExportRequest, ExportRecord, ExportProgress, ExportResult } from './types.js';
 
-// Missing-resource diagnostics are expected when the user explicitly omits bytes.
-const expectedMissingResource = new Set(['HTML_ASSET_UNRESOLVED', 'TYPST_V8_IMAGE_MISSING', 'TYPST_V8_INLINE_IMAGE_MISSING']);
-const comparable = (value: number | undefined): value is number => value !== undefined && Number.isFinite(value);
+// Domain and ExportRecord source versions must be finite, safe epoch-millisecond integers.
+const comparable = (value: number | undefined): value is number => value !== undefined && Number.isSafeInteger(value);
 export function shouldSkipExport(record: ExportRecord | null, updatedAt: number | undefined, request: ExportRequest): boolean {
     return request.skipUnchanged && record?.status === 'ok' && record.format === request.format
         && comparable(record.chatTime) && comparable(updatedAt) && record.chatTime >= updatedAt;
@@ -41,8 +41,9 @@ interface PendingExport {
     conversation: ReadonlyDomain;
     document?: DocumentAst;
     prepared: PreparedResources;
+    fileIds: ReadonlySet<string>;
 }
-interface ExportGroup { key: ConversationKey; record: ExportRecord; files: ExportArtifact[] }
+interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
 
 /** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
 export async function runExport(request: ExportRequest, options: {
@@ -55,10 +56,9 @@ export async function runExport(request: ExportRequest, options: {
     const resources = createSourceResourceContext();
     const providers = new Map<string, AIProvider>();
     let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
-    let pdfFonts: import('../../l4/format/pdf/typst/fonts/localFontProvider.js').LocalFontResolution | undefined;
+    let locale: 'zh' | 'en' = 'en';
     const cancelled = (error: unknown): boolean => signal.aborted || (error instanceof Error && error.name === 'AbortError');
-    const fail = (keys: readonly ConversationKey[], error?: unknown): void => {
-        const message = error instanceof Error ? error.message : error === undefined ? 'Export failed' : String(error);
+    const fail = (keys: readonly ConversationKey[], _error?: unknown): void => {
         for (const key of keys) {
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);
@@ -97,34 +97,36 @@ export async function runExport(request: ExportRequest, options: {
         let content: string | Uint8Array;
         switch (request.format) {
             case 'json': content = serializeDomainJson(conversation, item.account, plan.resources); break;
-            case 'markdown': content = renderDocumentMarkdown(document!, plan.resources); break;
+            case 'markdown': content = renderDocumentMarkdown(document!, plan.resources, { locale }); break;
             case 'html': {
-                const html = renderDocumentHtml(document!, plan.resources);
+                const html = renderDocumentHtml(document!, plan.resources, { locale });
                 content = html.html;
-                partial ||= html.diagnostics.some(diagnostic => diagnostic.severity !== 'info' && (request.includeAssets || !expectedMissingResource.has(diagnostic.code)));
+                partial ||= html.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED');
                 break;
             }
             case 'pdf': {
                 if (!compiler) {
                     compiler = new TypstSandboxCompiler();
-                    const mounted = await mountRuntimeFonts(await resolveLocalFonts(), compiler);
-                    pdfFonts = mounted.effectiveFonts;
+                    await mountRuntimeFonts(await resolveLocalFonts(), compiler);
                 }
                 const pdf = await compileDocumentPdf(document!, plan.resources, prepared, compiler,
-                    { signal, reportProgress() {} });
+                    { signal, reportProgress() {} }, { locale });
                 content = pdf.pdfBytes;
-                partial ||= [...(pdfFonts?.diagnostics ?? []), ...pdf.diagnostics].some(diagnostic => diagnostic.severity !== 'info' && (request.includeAssets || !expectedMissingResource.has(diagnostic.code)));
+                partial ||= pdf.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED');
                 break;
             }
         }
         signal.throwIfAborted();
         const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
-            record: { exportedAt: 0, format: request.format, status: partial ? 'partial' : 'ok',
+            record: { format: request.format, status: partial ? 'partial' : 'ok',
                 ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) } };
         return group;
     };
     try {
         signal.throwIfAborted();
+        // The user setting controls only renderer-owned text, not Domain, JSON, paths or records.
+        const language = request.format === 'json' ? undefined : (await getSettings()).language;
+        locale = language ?? (typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
         const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
         if (request.delivery === 'folderWriter' && !directory) throw new Error('Export directory unavailable');
         const folderPlanner = request.delivery === 'folderWriter' ? createExportPathPlanner(request.format) : undefined;
@@ -144,7 +146,11 @@ export async function runExport(request: ExportRequest, options: {
                 let conversation = await readLocal(key);
                 if (!conversation || !isFresh(conversation)) {
                     try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal); }
-                    catch (error) { if (cancelled(error)) throw error; }
+                    catch (error) {
+                        // L1 has reliably confirmed deletion and L2 has removed the local Key.
+                        // Unlike a transient refresh failure, this must never fall back to old Detail.
+                        if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
+                    }
                     // Even a failed refresh may have committed useful facts. Never export a response DTO.
                     conversation = await readLocal(key);
                 }
@@ -153,13 +159,14 @@ export async function runExport(request: ExportRequest, options: {
                 const document = request.format === 'json' ? undefined : composeDomainDocument(conversation, account);
                 const references = document && collectDocumentResources(document);
                 const requiredIds = !request.includeAssets ? new Set<string>() : request.format === 'json'
-                    ? new Set(conversation.detail.assets.map(asset => asset.id))
-                    : request.format === 'pdf' ? references!.imageIds : references!.referencedIds;
+                    ? new Set(conversation.detail.assets.map(asset => asset.id)) : references!.referencedIds;
+                // File nodes are exported as originals even for PDF; Image nodes may be embedded.
+                const fileIds = references?.fileIds ?? new Set<string>();
                 const prepared = await prepareExportResources(conversation.detail.assets, requiredIds,
                     (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
-                const item: PendingExport = { key, account, conversation, document, prepared };
+                const item: PendingExport = { key, account, conversation, document, prepared, fileIds };
                 if (folderPlanner) {
-                    const group = await renderGroup(item, folderPlanner(conversation, prepared));
+                    const group = await renderGroup(item, folderPlanner(conversation, prepared, fileIds));
                     await writeToFolder(group.files, directory!);
                     await finalize([group]);
                 } else pending.push(item);
