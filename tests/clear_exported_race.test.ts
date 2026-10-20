@@ -6,7 +6,7 @@ import { putAccount, putExportRecord, listExportRecords } from '../src/l3a/stora
 import { clearLocalExportRecords } from '../src/application/localCleanup.js';
 import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
 import { ingestIndexes } from '../src/l2/ingestion.js';
-useIndexStorage();const A='10000000-0000-4000-8000-000000000001',B='10000000-0000-4000-8000-000000000002';
+useIndexStorage({ seedAccounts: false });const A='10000000-0000-4000-8000-000000000001',B='10000000-0000-4000-8000-000000000002';
 const record={exportedAt:200,format:'markdown' as const,status:'ok' as const,chatTime:100};
 async function seed(){await putAccount({id:A,providerId:'gemini',providerAccountId:'fixture'});for(const conversationId of ['a','b'])await putExportRecord({accountId:A,conversationId},record);}
 test('P1-3: clearing records uses the current Application cleanup, and a refresh rereads committed records',async()=>{
