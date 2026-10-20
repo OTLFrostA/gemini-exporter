@@ -635,8 +635,10 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
     }
 
     function findDocMarkdownByClues(root: unknown, metaItem?: DeepResearchDocMeta | null): string {
-        if (!metaItem) return "";
-        let candidates: string[] = [];
+        // Unattributed markdown must not be attached to a nearby document simply because it is long.
+        const title = metaItem?.title?.trim();
+        if (!title || title === "Document") return "";
+        const candidates: string[] = [];
 
         deepWalk(root, (node) => {
             if (Array.isArray(node)) {
@@ -649,13 +651,13 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 }
             }
         });
-        if (!candidates.length) return "";
-        if (metaItem.title) {
-            let match = candidates.find(c => c.includes(metaItem.title));
-            if (match) return match;
-        }
-        candidates.sort((a, b) => b.length - a.length);
-        return candidates[0] || "";
+        // The first document heading must match the source title, and the match must be unique.
+        // A mention in the body (or a longest-document guess) is not identity evidence.
+        const matches = [...new Set(candidates)].filter(candidate => {
+            const heading = /^\s*#{1,6}[ \t]+([^\r\n]+)/.exec(candidate);
+            return heading?.[1].replace(/[ \t]+#+[ \t]*$/, "").trim() === title;
+        });
+        return matches.length === 1 ? matches[0] : "";
     }
 
 export {
