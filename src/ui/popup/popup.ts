@@ -27,11 +27,16 @@ export async function initPopup(): Promise<void> {
     const status = el('status');
     let settings: GlobalSettings;
     let key: ConversationKey | null = null;
+    let indexTitle: string | null = null;
+    let identityLoaded = false;
     let busy = false, active = true;
     const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-format]')];
     const formatName: Record<string, string> = { markdown: 'Markdown', html: 'HTML', pdf: 'PDF', json: 'JSON' };
     const render = () => {
         labelPage();
+        if (identityLoaded) el('currentChatTitle').textContent = indexTitle || (key
+            ? text('Current conversation', '当前对话')
+            : text('No current Gemini conversation', '当前没有 Gemini 对话'));
         button.disabled = busy || !key;
         for (const btn of buttons) {
             const current = btn.dataset.format === settings?.defaultFormat;
@@ -86,8 +91,8 @@ export async function initPopup(): Promise<void> {
         await refresh();
         key = await readActiveKey();
         const index = key ? await getIndex(key) : null;
-        el('currentChatTitle').textContent = index?.title || (key ? text('Current conversation', '当前对话')
-            : text('No current Gemini conversation', '当前没有 Gemini 对话'));
+        indexTitle = index?.title || null;
+        identityLoaded = true;
         if (!key) status.textContent = text('Open a supported conversation first', '请先打开受支持的对话');
     } catch (error) { status.textContent = errorText(error); }
     render();
