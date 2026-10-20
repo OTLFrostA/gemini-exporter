@@ -121,8 +121,10 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
             indexes:[{key:{accountId:A,conversationId:'a'},title:'<img src=x onerror=alert(1)>',updatedAt:5},{key:{accountId:B,conversationId:'b'},title:'B chat',updatedAt:5}],records:{},source:A,scanCount:150,
             patches:[],events:[],messages:[],tabRequests:[],cleanups:[],exports:[],scans:[],clears:[],imports:[],directory:null,...patch };
         w.harness.settings = {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1',...(patch.settings as object ?? {})};
+        // Most isolated UI cases model a new Options view, whose default is browser download.
+        // Tests for existing Live Save installations explicitly request folderWriter.
         if (!Object.hasOwn(w.harness.settings, 'exportDelivery'))
-            w.harness.settings.exportDelivery = w.harness.settings.enabledDisk ? 'folderWriter' : 'browserDownload';
+            w.harness.settings.exportDelivery = 'browserDownload';
         const directory = () => ({ name: w.harness.directoryName || 'Chosen folder', queryPermission: async () => w.harness.permission || 'granted', requestPermission: async () => w.harness.permission || 'granted' });
         if (w.harness.directoryName) w.harness.directory = directory();
         w.showDirectoryPicker = async () => { w.harness.events.push('picker'); if (w.harness.cancelPicker) throw new DOMException('Picker cancelled', 'AbortError'); return directory(); };
