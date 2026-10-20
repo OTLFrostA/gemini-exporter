@@ -127,7 +127,8 @@ export async function fetchGgChain(url: string, init?: RequestInit): Promise<Res
 export function toHighRes(url: string, variant = 's1024-rj'): string {
     try {
         if (!url) return url;
-        if (url.includes('gstatic.com')) return url;
+        const hostname = new URL(url).hostname;
+        if (hostname === 'gstatic.com' || hostname.endsWith('.gstatic.com')) return url;
         if (url.includes('/gg/') || url.includes('/rd-gg/')) {
             const [base, q = ''] = url.split('?');
             const suffix = q ? (q.includes('alr=yes') ? q : q + '&alr=yes') : 'alr=yes';
