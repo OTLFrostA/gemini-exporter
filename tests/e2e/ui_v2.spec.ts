@@ -41,21 +41,28 @@ test('UI v2: Options can toggle Light and Dark, persisting a shared preference',
 });
 
 
-test('UI v2: Light Dev toggle visually matches the developerMode setting', async ({ page }) => {
+test('UI v2: Dev label is on the ON side and reflects enabled state', async ({ page }) => {
     await mount(page, 'options', { settings: { theme: 'light', developerMode: false } });
     const toggle = page.locator('#devToggle');
+    const label = page.locator('#labelDevMode');
+    // The switch moves right when enabled; the "Dev" label belongs on that side.
+    expect(await label.evaluate(el => {
+        const input = document.getElementById('devToggle');
+        return !!input && el.getBoundingClientRect().left >= input.getBoundingClientRect().right;
+    })).toBe(true);
+    await expect(toggle).toHaveAccessibleName('Dev');
     await expect(toggle).not.toBeChecked();
     await expect(toggle).toHaveCSS('background-color', 'rgb(203, 213, 225)');
     await expect(toggle).toHaveCSS('background-image', 'none');
     await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
 
-    await toggle.check();
+    await label.click();
     await expect(toggle).toBeChecked();
     await expect(toggle).toHaveCSS('background-image', /linear-gradient/);
     await expect(page.locator('body')).toHaveClass(/dev-mode/);
     await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(true);
 
-    await toggle.uncheck();
+    await label.click();
     await expect(toggle).not.toBeChecked();
     await expect(toggle).toHaveCSS('background-color', 'rgb(203, 213, 225)');
     await expect(toggle).toHaveCSS('background-image', 'none');
