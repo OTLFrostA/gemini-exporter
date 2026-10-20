@@ -204,3 +204,25 @@ test('Badge drag writes only through Runtime position IPC, never Content Setting
     await badge.click();
     assert.equal((await read(page, 'messages')).filter((m: { action: string }) => m.action === 'updateBadgePosition').length, 1);
 });
+
+test('Export retry uses only current failed ConversationKeys and disables skip', async () => {
+    await open({ partial: true, failExport: true, indexes: [
+        { key: { accountId: A, conversationId: 'delivered' }, title: 'Delivered with missing assets' },
+        { key: { accountId: A, conversationId: 'failed' }, title: 'Not delivered' }
+    ] });
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    assert.equal(await page.locator('#btnRetryFailed').isVisible(), true);
+    assert.match(await page.locator('#status').textContent() ?? '', /partial: 1; skipped: 0; failed: 1/);
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness'); h.partial = false; h.failExport = false;
+    });
+    await page.locator('#btnRetryFailed').click();
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    const requests = await read(page, 'exports');
+    assert.equal(requests.length, 2);
+    assert.deepEqual(requests[0].keys.map((key: { conversationId: string }) => key.conversationId), ['delivered', 'failed']);
+    assert.deepEqual(requests[1].keys, [{ accountId: A, conversationId: 'failed' }]);
+    assert.equal(requests[1].skipUnchanged, false);
+});
