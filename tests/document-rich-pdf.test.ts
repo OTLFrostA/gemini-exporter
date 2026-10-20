@@ -15,15 +15,15 @@ function fixture(): DocumentAst {
     const rich = (label: string): DisplayInline[] => [{ type: 'strong', children: [
         { type: 'text', text: label }, { type: 'image', resourceId: 'rich', alt: label }, { type: 'inlineMath', source: 'x' },
     ] }];
-    return { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'Rich PDF', providerLabel: 'custom', messageCount: 1 }, messages: [{
-        type: 'message', id: 'm', variant: 'flow', label: 'assistant', blocks: [
+    return { title: 'Rich PDF', metadata: { id: 'fixture', provider: 'test' }, messages: [{
+        role: 'assistant', blocks: [
             { type: 'image', resourceId: 'main', alt: 'Main', caption: rich('Image caption') },
-            { type: 'table', caption: rich('Table caption'), columnAlignments: ['left'], headerRows: [], rows: [[{ column: 0, colSpan: 1, rowSpan: 1, align: 'left', children: rich('Table cell') }]] },
+            { type: 'table', caption: rich('Table caption'), columnAlignments: ['left'], headerRows: [], rows: [[{ column: 0, colSpan: 1, rowSpan: 1, children: rich('Table cell') }]] },
             { type: 'file', resourceId: 'file', kind: 'file', label: 'File', description: rich('File description') },
             { type: 'image', resourceId: 'unavailable', alt: 'Unavailable', caption: rich('Missing image caption') },
-            { type: 'placeholder', kind: 'file', text: 'Unavailable file', details: rich('Placeholder details') },
+            { type: 'file', resourceId: 'unavailable-file', kind: 'file', label: 'Unavailable file', description: rich('Placeholder details') },
             { type: 'paragraph', children: rich('Body ending') },
-        ], sources: { type: 'sources', items: [{ id: 's', number: 1, label: 'Source title' }] },
+        ], sources: [{ id: 's', number: 1, label: 'Source title' }],
     }] };
 }
 
