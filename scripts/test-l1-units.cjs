@@ -29,6 +29,7 @@ const suites = {
     parser: [
         'tests/l1_extracted_regressions.test.ts',
         'tests/l1-source-timestamps.test.ts',
+        'tests/l1-chatgpt-source-v2-unit.test.ts',
         'tests/provider-gemini-markup-sanitization.test.ts',
         'tests/gemini_dual_parse.test.ts',
         'tests/gemini_live_parser_regressions.test.ts',
