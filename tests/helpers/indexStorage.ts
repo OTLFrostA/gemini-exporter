@@ -11,7 +11,7 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
     const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     // Node's fake browser environment needs the extension-origin Web Locks contract.
     const pendingLocks = new Map<string, Promise<void>>();
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { language: 'en-US', locks: {
         async request<T>(name: string, callback: () => Promise<T>): Promise<T> {
             const previous = pendingLocks.get(name) ?? Promise.resolve();
             let unlock!: () => void;

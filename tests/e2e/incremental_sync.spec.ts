@@ -26,7 +26,9 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
     const gemini = await sourcePage(context);
     let round = 0;
     const requests: string[][] = [[], [], []];
-    await gemini.route('**/batchexecute*', async route => {
+    // Active scan RPC is issued by the extension/provider, not the Gemini tab.
+    // Observe requests in the BrowserContext (as the passing scan_flow E2E does).
+    await context.route('**/batchexecute*', async route => {
         const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
         const cursor = args[1];
         requests[round].push(cursor || 'head');
@@ -79,6 +81,10 @@ test('passive non-head Gemini page adds v2 indexes but cannot fabricate trusted 
             JSON.stringify([20, 'tC_segment', [0, null, 1]]), null, 'generic']]]) }),
     }));
     await expect.poll(async () => (await v2(options)).indexes.length).toBe(1);
+    // Passive Sniffer commits Index in the background; the Options read mirror
+    // intentionally refreshes on focus, rather than subscribing to L2 writes.
+    await options.bringToFront();
+    await options.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(options.locator('[data-chat-id="passive80"]')).toBeVisible();
     expect((await v2(options)).coverage).toEqual({ range: null });
 });
@@ -87,7 +93,9 @@ test('a new complete disjoint recent scan replaces old v2 coverage and never req
     const gemini = await sourcePage(context);
     let round = 0;
     const requests: string[][] = [[], []];
-    await gemini.route('**/batchexecute*', async route => {
+    // Active scan RPC is issued by the extension/provider, not the Gemini tab.
+    // Observe requests in the BrowserContext (as the passing scan_flow E2E does).
+    await context.route('**/batchexecute*', async route => {
         const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
         expect(args[2][0]).toBe(0);
         const cursor = args[1];

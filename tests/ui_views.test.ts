@@ -8,10 +8,17 @@ afterEach(async () => { await page?.close(); });
 after(async () => { await browser?.close(); });
 async function open(patch: Record<string, unknown> = {}) {
     page = await browser.newPage(); await mount(page, 'options', patch);
-    // Multi-account v2 intentionally blanks #accountName and displays the
-    // selector. Wait for the actual Account options (also present for a single
-    // account, where the selector itself is hidden) rather than nonempty text.
-    await page.locator('#accountIdSelect option').first().waitFor({ state: 'attached' });
+    // Multi-account v2 blanks #accountName; zero-account first imports have
+    // no selector options either. Wait for the actual ready state in each case.
+    await page.waitForFunction(() => {
+        const harness = Reflect.get(window, 'harness');
+        const count = harness?.accounts?.length ?? 0;
+        const select = document.getElementById('accountIdSelect') as HTMLSelectElement;
+        if (count > 0) return select.options.length === count;
+        // Before readSettings finishes, the Takeout action is disabled.
+        // Only an initialized zero-account Options view enables first import.
+        return !(document.getElementById('btnImportTakeout') as HTMLButtonElement).disabled;
+    });
     return page;
 }
 const rows = [
