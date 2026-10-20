@@ -1,17 +1,40 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ProgressReporter } from '../src/core/engine/export/progressReporter.js';
+import { runExport } from '../src/application/export/runExport.js';
+import { getExportRecord } from '../src/l3a/storageService.js';
+import { v2ExportHost, exportKey, exportRequest, seedExportConversation } from './helpers/v2ExportHost.js';
+import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 import { handleGetImageBlob } from '../src/runtime/capabilities/assetFetcher.js';
 import { RateLimitManager } from '../src/l1/client/rateLimiter.js';
+const JSZip = require('../lib/jszip.min.js');
 
-// P1-023: observe reported progress rather than the name of the internal tracker.
-test('P1-023: progress percentage never regresses when progress inputs decrease', () => {
-    const reported: number[] = [];
-    const reporter = new ProgressReporter({ totalChats: 4, onProgress: (p) => reported.push(p.pct) });
-    assert.equal(reporter.update(2, 'first'), 50);
-    assert.equal(reporter.update(1, 'stale'), 50);
-    assert.equal(reporter.update(3, 'later'), 75);
-    assert.deepEqual(reported, [50, 50, 75]);
+// P1-023: progress is now an Application callback with current/total, not
+// a removed ExportOrchestrator ProgressReporter. Assert actual v2 delivery too.
+test('P1-023: v2 multi-chat export progress stays ordered and each delivered key gets a Record', async t => {
+    const host = v2ExportHost(t);
+    const previousZip = __getModuleOverride('JSZip');
+    __setModuleOverride('JSZip', JSZip);
+    t.after(() => __setModuleOverride('JSZip', previousZip));
+    const ids = ['progress-a', 'progress-b', 'progress-c', 'progress-d'];
+    for (const id of ids) await seedExportConversation(id);
+    const updates: Array<{ current: number; total: number; id: string }> = [];
+    const result = await runExport(exportRequest(ids), { onProgress: ({ current, total, key }) => {
+        updates.push({ current, total, id: key.conversationId });
+    } });
+
+    assert.equal(result.exported, 4);
+    assert.deepEqual(result.failed, []);
+    assert.equal(host.clicks(), 1, 'one ZIP is delivered for the full batch');
+    assert.deepEqual(updates, ids.map((id, i) => ({ current: i + 1, total: ids.length, id })));
+    const zip = await JSZip.loadAsync(await host.blobs[0].arrayBuffer());
+    const bodies = await Promise.all(Object.values(zip.files)
+        .filter((entry: any) => !entry.dir && entry.name.endsWith('.md'))
+        .map((entry: any) => entry.async('string')));
+    assert.equal(bodies.length, ids.length);
+    for (const id of ids) {
+        assert.ok(bodies.some((body: string) => body.includes('Answer for ' + id)));
+        assert.equal((await getExportRecord(exportKey(id)))?.status, 'ok');
+    }
 });
 
 // P1-027: a large image may travel as raw bytes, but not through Base64 encoding.
