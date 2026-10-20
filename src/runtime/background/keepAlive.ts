@@ -3,7 +3,9 @@
  * during long-running tasks.
  */
 export function startKeepAlive(): () => void {
-    if (typeof chrome === 'undefined' || !chrome.runtime) return () => {};
+    // KeepAlive is strictly scoped to the running export and only useful
+    // when the corresponding Chrome API exists in this Worker.
+    if (typeof chrome === 'undefined' || !chrome.runtime?.getPlatformInfo) return () => {};
     const interval = setInterval(() => {
         try {
             if (chrome.runtime.getPlatformInfo) {
