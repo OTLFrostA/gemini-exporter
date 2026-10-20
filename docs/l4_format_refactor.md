@@ -44,7 +44,7 @@ The old `planExportResources`, `prepareDomainResources` and `exportDomainDocumen
 ## Module verification
 
 - `node tests/run_l4.cjs`: **347 selected L4 Tier 1 tests pass**, zero failures. `tests/l4-tests.json` is the explicit file/name manifest; the runner fails on any selected group failure and sums executed cases.
-- `node scripts/typecheck-v2-modules.cjs`: checks L4 sources and all manifest suites inside the four-module ownership boundary. `tests/tsconfig.l4.json` now includes every L4 suite; standalone compilation also reports four adjacent Application/UI type errors reached by mixed test helpers. See `docs/v2-module-alignment.md`.
+- `node scripts/typecheck-v2-modules.cjs`: checks L4 sources and all manifest suites inside the four-module ownership boundary. `tests/tsconfig.l4.json` now includes every L4 suite; standalone compilation also reports four adjacent Application/UI type errors reached by mixed test helpers. See [historical report](https://github.com/OTLFrostA/gemini-exporter/blob/7999e2ca7f9c4681e59c91eda8af3f5e5bc4a232/docs/v2-module-alignment.md).
 - Scoped no-explicit-any lint for new production functions: passes.
 
 Coverage includes renderer semantics, JSON identity/schema, real offline Typst WASM PDF compilation and image/text inspection, fonts/MiTeX, corrupt/missing image bytes, renderer immutability, batch duplicate IDs across accounts, case-insensitive/long/unsafe path collisions, actual ZIP entries matching rendered MD/HTML/JSON references, embedded PDF file count, direct/ZIP policy, permission refusal without a prompt, failed writes/abort, same-path serialization, and one anchor trigger with URL cleanup.

@@ -1,9 +1,0 @@
-{
-  "baseline": "47583a0aea755fefd19f94a700fc26d31a783437",
-  "equivalentCompletionCases": 78,
-  "identicalEmittedJs": [
-    "src/core/export/pdf/pdfExporter.ts",
-    "src/core/utils/titleUtils.ts",
-    "src/types/ui.ts"
-  ]
-}
