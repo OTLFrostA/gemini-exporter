@@ -7,6 +7,8 @@ import type { PageObservation } from '../src/l2/pageObservation.js';
 import type { ResourceBytes } from '../src/shared/resources/resourceResult.js';
 import type { AIProvider, ProviderListOptions, PageEvidence, CommittedListPage,
     ListEnd, ProviderReadiness } from '../src/l1/client/aiProvider.js';
+import type { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import type { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import type { GeminiNetworkBatchexecutePayload } from '../src/l1/protocol/gemini/events.js';
 import type { TakeoutParseResult } from '../src/l1/imports/takeout/importTakeout.js';
 
@@ -49,7 +51,15 @@ const verified: Contract = [
     true, true, true, true, true, true, true,
 ];
 
+type ConcreteClientContract = [
+    Assert<Equal<Parameters<GeminiProvider['checkReadiness']>[0], Account['id']>>,
+    Assert<Equal<Parameters<GeminiProvider['fetchConversationDetail']>[1], ConversationKey['conversationId']>>,
+    Assert<Equal<Parameters<ChatGPTProvider['checkReadiness']>[0], Account['id']>>,
+    Assert<Equal<Parameters<ChatGPTProvider['fetchConversationDetail']>[1], ConversationKey['conversationId']>>,
+];
+const concreteVerified: ConcreteClientContract = [true, true, true, true];
+
 test('L1 exposed Client, Sniffer and Takeout types match frozen public contracts', () => {
     assert.equal(verified.length, 23);
-    assert.ok(verified.every(Boolean));
+    assert.ok(verified.every(Boolean) && concreteVerified.every(Boolean));
 });
