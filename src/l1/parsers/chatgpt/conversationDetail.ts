@@ -37,6 +37,7 @@ export function collectChatGPTThinking(
 ): Map<string, ChatGPTThinking> {
     const out = new Map<string, ChatGPTThinking>();
     let currentId: string | undefined = startNodeId;
+    const visited = new Set<string>();
     let targetId: string | null = null;
     let thinking = emptyThinking();
 
@@ -55,7 +56,8 @@ export function collectChatGPTThinking(
         }
     };
 
-    while (currentId) {
+    while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
         const id: string = currentId;
         const node: ChatGPTConversationNode | undefined = mapping[id];
         if (!node || node.parent === undefined) break;
