@@ -41,17 +41,19 @@ test('D7: Tour connection errors and absent Tabs API never advance to a connecte
         await page.waitForFunction(()=>document.querySelector('.tour-popover')?.textContent?.includes('Connection unavailable'));assert.equal(await page.locator('.tour-popover h2').textContent(),'Connect Gemini');await page.close();
     }
 });
-test('Takeout guidance distinguishes source limits from local budget results without asserting a fabricated complete history',async()=>{
+test('Takeout guidance is neutral and independent of source-vs-local scan limit',async()=>{
     for(const language of ['en','zh'])for(const reason of ['provider_limit','max_pages']){
         await open({settings:{language},scanCount:620,scanResult:{status:'partial_limit',reason,pagesFetched:2,conversationsFetched:620}});
-        await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+        await page.locator('#btnSyncAll').click();
+        await page.waitForFunction(()=>document.body.dataset.busy!=='true');
         const status=await page.locator('#status').textContent()??'';
         assert.match(status,reason==='provider_limit'?(language==='en'?/Source online access limit/:/来源在线访问范围限制/):(language==='en'?/Local page budget reached/:/本地页数预算/));
-        assert.equal(await page.locator('#takeoutLimitModal').isVisible(),reason==='provider_limit');
-        if(reason==='provider_limit') {
-            assert.match(await page.locator('#takeoutLimitPromptText').textContent()??'',language==='en'?/online history access limit/:/在线历史访问范围受限/);
-            assert.doesNotMatch(await page.locator('#takeoutLimitPromptText').textContent()??'',/Reached Google Cloud History Limit/);
-        }
+        assert.equal(await page.locator('.tour-popover').count(),1);
+        const prompt=await page.locator('.tour-popover').textContent()??'';
+        assert.match(prompt,language==='en'?/This scan fetched 620 conversations/:/本次扫描获取了 620 条对话/);
+        assert.doesNotMatch(prompt,/Reached Google Cloud History Limit|Gemini confirmed an online history access limit|达到 Google 云端拉取上限/);
+        await page.locator('.tour-popover').getByRole('button',{name:language==='en'?'Got it, don’t show again':'我知道了，不再提示'}).click();
+        assert.equal(await page.locator('.tour-popover').count(),0);
         await page.close();
     }
 });
