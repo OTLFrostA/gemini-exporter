@@ -82,15 +82,23 @@ class HtmlEvidenceTests(unittest.TestCase):
                     zf.writestr('gemini_export/assets/picture.png', b'image bytes')
                 ctx = TestContext(output_dir=directory)
                 ctx.chat_records = [{'chat_id': CID, 'turn_evidence': copy.deepcopy(EVIDENCE)}]
-                with patch.object(ctx, 'connect_options', return_value=MagicMock()), \
+                # This unit case proves *physical HTML* fidelity with a fake CDP.
+                # The real v2 L3a/AST audit runs in the connected Tier2 scenarios;
+                # verify it is invoked here instead of inspecting a MagicMock DB.
+                fake_cdp = MagicMock()
+                with patch.object(ctx, 'connect_options', return_value=fake_cdp), \
                      patch('scripts.framework.cases.export.select_format_targets', return_value={'matched': [CID]}), \
                      patch('scripts.framework.cases.export.time.sleep'), \
                      patch('scripts.framework.cases.export.CDPActions.clear_search_workbench'), \
-                     patch('scripts.framework.cases.export.CDPActions.trigger_export_zip', return_value=str(archive)):
+                     patch('scripts.framework.cases.export.CDPActions.trigger_export_zip', return_value=str(archive)), \
+                     patch('scripts.framework.cases.export.audit_l3_contracts') as audit:
                     ok, message, details = HtmlExportDownloadCase().execute(ctx)
                 self.assertEqual(ok, expected, message)
                 if expected:
                     self.assertEqual(details['verified_turns'], 2)
+                    audit.assert_called_once_with(fake_cdp, [CID])
+                else:
+                    audit.assert_not_called()
 
 
 if __name__ == '__main__':
