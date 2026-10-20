@@ -58,7 +58,7 @@ export async function runExport(request: ExportRequest, options: {
     let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
     let locale: 'zh' | 'en' = 'en';
     const cancelled = (error: unknown): boolean => signal.aborted || (error instanceof Error && error.name === 'AbortError');
-    const fail = (keys: readonly ConversationKey[], error?: unknown): void => {
+    const fail = (keys: readonly ConversationKey[], _error?: unknown): void => {
         for (const key of keys) {
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);
