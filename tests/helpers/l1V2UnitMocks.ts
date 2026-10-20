@@ -225,7 +225,8 @@ export function installL1V2Mocks(): void {
         // The unit file (including its helpers) may import L2 *types* but not
         // execute a live external module. Type-only imports are erased by TS.
         if (parentPath.includes('/tests/')
-            && /(?:^|\\/)src\\/(?:l2|l3a|l3b|l4|runtime|application|ui)\\//.test(request))
+            && ['l2', 'l3a', 'l3b', 'l4', 'runtime', 'application', 'ui']
+                .some(layer => request.includes('/src/' + layer + '/')))
             throw new Error('L1 unit test directly loaded external implementation: ' + request);
         if (parentPath.includes('/src/l1/')) {
             if (request.endsWith('/l2/ingestion.js')) return ingestion;
