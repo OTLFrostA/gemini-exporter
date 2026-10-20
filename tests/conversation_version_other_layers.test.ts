@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
+import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { savedConversationVersion } from '../src/l2/conversationVersion.js';
 import { shouldSkipExport } from '../src/application/export/runExport.js';
@@ -24,7 +25,7 @@ function detail(messageTime: number[], version?: number[], more = false) {
     if (version) calls.push(['MaZiqc', [null, null, [['c_version_chat', 'Source title', null, null, null, version]]]]);
     return parseGeminiRpcConversation(wire(calls), { account, providerId: 'gemini', targetConvId: key.conversationId });
 }
-function toDomain(source: ReturnType<typeof detail>) {
+function toDomain(source: SourceConversationParseResult) {
     return restoreDomainSnapshot({
         index: { key, title: 'Source title', titleSource: 'provider', ...(source.sourceVersion !== undefined ? { updatedAt: source.sourceVersion } : {}) },
         detail: { key, ...(source.sourceVersion !== undefined ? { savedAt: source.sourceVersion } : {}),
