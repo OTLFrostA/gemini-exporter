@@ -76,10 +76,14 @@ for (const format of ['markdown', 'html', 'json'] as const) {
     });
 }
 test('Packaging rejects dangling external bindings before Delivery; Image-only PDF emits only main', () => {
-    const [plan] = planExportPaths([{ conversation: conversation(), prepared, fileIds: new Set<string>() }], 'pdf');
-    assert.throws(() => buildExportFiles('markdown', plan, 'body', new Map()), /Bound resource unavailable/);
-    assert.equal(plan.externalResourceIds.size, 0, 'PDF without AST File references embeds images only');
-    assert.equal(buildExportFiles('pdf', plan, new Uint8Array([1]), prepared).length, 1);
+    const input = { conversation: conversation(), prepared, fileIds: new Set<string>() };
+    const [markdownPlan] = planExportPaths([input], 'markdown');
+    // A Markdown plan must export its successful bindings; losing a prepared
+    // resource after path planning fails closed before Delivery.
+    assert.throws(() => buildExportFiles('markdown', markdownPlan, 'body', new Map()), /Bound resource unavailable/);
+    const [pdfPlan] = planExportPaths([input], 'pdf');
+    assert.equal(pdfPlan.externalResourceIds.size, 0, 'PDF without AST File references embeds images only');
+    assert.equal(buildExportFiles('pdf', pdfPlan, new Uint8Array([1]), prepared).length, 1);
 });
 test('ZIP decision uses actual flattened files and delivery, never format or batch count', async () => {
     __setModuleOverride('JSZip', JSZip);
