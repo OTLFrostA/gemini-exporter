@@ -22,6 +22,8 @@ export async function initWorkbench(): Promise<void> {
     const state = new ConversationViewState();
     let settings: GlobalSettings;
     let directoryAvailable = false;
+    // This is a per-Options-page choice, not a persisted GlobalSettings preference.
+    let delivery: UIExportRequest['delivery'] = 'browserDownload';
     let busy = false;
     let themeSaving = false;
     let action: Action = null;
@@ -84,11 +86,16 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || busy || themeSaving;
         document.body.dataset.busy = String(busy);
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
-        const ids = ['accountIdSelect','format','skipExported','includeAssets','delivery','liveSaveDiskToggle',
+        const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
             'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan','devToggle',
             'langToggle','chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
             'btnSyncAll','btnForceFullScan','btnImportTakeout'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
+        el('delivery').setAttribute('aria-label', text('Export to', '导出到'));
+        for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="delivery"]')) {
+            radio.checked = radio.value === delivery;
+            radio.disabled = busy || !settings;
+        }
         const selector = el<HTMLSelectElement>('accountIdSelect');
         selector.setAttribute('aria-label', text('Account', '账户'));
         el('chatSearchInput').setAttribute('aria-label', text('Search title or ID', '搜索标题或 ID'));
@@ -120,18 +127,39 @@ export async function initWorkbench(): Promise<void> {
             el<HTMLInputElement>('langToggle').checked = en;
             el<HTMLElement>('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
             el<HTMLElement>('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
+            // Non-Markdown pauses the background workflow; the user can still turn the intent off.
             el<HTMLInputElement>('liveSaveDiskToggle').checked = settings.enabledDisk;
-            el<HTMLInputElement>('liveSaveDiskToggle').disabled = busy || settings.defaultFormat !== 'markdown';
-            el('liveSaveStatus').textContent = isLiveSaveEffective(settings, directoryAvailable)
-                ? text('Live Save active', '自动保存已生效')
-                : !settings.enabledDisk ? text('Live Save off', '自动保存未开启')
+            const liveStatus = el<HTMLElement>('liveSaveStatus');
+            liveStatus.hidden = !settings.enabledDisk;
+            liveStatus.textContent = isLiveSaveEffective(settings, directoryAvailable)
+                ? text('Live Save active', '实时保存已开启')
                 : settings.defaultFormat !== 'markdown'
-                    ? text('Paused: switch to Markdown to resume', '已暂停：切回 Markdown 后恢复')
-                    : text('Paused: authorize a folder to resume', '已暂停：授权文件夹后恢复');
+                    ? text('Paused: Markdown only; switch back to resume', '已暂停 · 仅支持 Markdown，切回后恢复')
+                    : text('Paused: authorize a folder to resume', '已暂停 · 请选择或重新授权文件夹');
         }
+        // The same folder is used for manual direct-write and background Live Save.
+        // Show a single picker only near whichever visible action needs it.
+        const manualSlot = el<HTMLElement>('manualDirSlot');
+        const liveSlot = el<HTMLElement>('liveDirSlot');
+        const manualFolder = delivery === 'folderWriter';
+        const liveFolder = !manualFolder && !!settings?.enabledDisk;
+        manualSlot.hidden = !manualFolder;
+        liveSlot.hidden = !liveFolder;
+        const folderSlot = manualFolder ? manualSlot : liveFolder ? liveSlot : null;
+        const folderBox = el('dirBox');
+        if (folderSlot && folderBox.parentElement !== folderSlot) folderSlot.append(folderBox);
         const handle = Directory.getDirHandle();
-        el('dirLabel').textContent = handle?.name || text('Directory not set', '未设置目录');
-        el('dirLabel').title = handle?.name || text('No authorized folder', '尚未授权文件夹');
+        const pending = Directory.getPendingPermissionHandle();
+        const folderName = handle?.name || pending?.name;
+        el('dirLabel').textContent = folderName || text('No folder selected', '未选择文件夹');
+        el('dirLabel').title = folderName || text('No folder selected', '尚未选择文件夹');
+        el('dirPermissionLabel').textContent = handle && directoryAvailable
+            ? text('Authorized', '已授权')
+            : pending ? text('Permission needs renewal', '需要重新授权')
+                : text('Shared with Live Save', '与实时保存共用');
+        el<HTMLButtonElement>('btnSetDir').textContent = pending
+            ? text('Reauthorize', '重新授权')
+            : handle ? text('Change', '更换') : text('Choose folder', '选择文件夹');
         el<HTMLButtonElement>('btnImportTakeout').disabled = busy || !settings ||
             !!(state.accountId && account?.providerId !== 'gemini');
         for (const id of ['btnClearExported', 'btnClearScan']) el<HTMLButtonElement>(id).disabled = busy || !state.accountId;
@@ -213,7 +241,7 @@ export async function initWorkbench(): Promise<void> {
         if (busy || !state.keys().length || !settings) return;
         const format = settings.defaultFormat;
         const fonts = format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
-        void exportRequest({ keys: state.keys(), format, delivery: el<HTMLSelectElement>('delivery').value as UIExportRequest['delivery'],
+        void exportRequest({ keys: state.keys(), format, delivery,
             includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported }, fonts);
     });
     el('btnRetryFailed').addEventListener('click', () => {
@@ -236,7 +264,12 @@ export async function initWorkbench(): Promise<void> {
             status(text('Folder authorized', '目录已授权'));
         });
     });
-    el('delivery').addEventListener('change', render);
+    el('delivery').addEventListener('change', event => {
+        const input = event.target;
+        if (!(input instanceof HTMLInputElement) || input.name !== 'delivery' || !input.checked) return;
+        delivery = input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
+        render();
+    });
     const fileInput = el<HTMLInputElement>('takeoutFileInput');
     el('btnImportTakeout').addEventListener('click', () => { if (!busy) fileInput.click(); });
     const importFile = (file: File) => perform('takeout', async () => {
