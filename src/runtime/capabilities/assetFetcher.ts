@@ -187,7 +187,7 @@ export async function handleGetFileBlob(msg: AssetFetchRequest, sendResponse: (r
     try {
         // L1 supplies the locators. Runtime must not search the entire Gemini page
         // for an unrelated file when one selected asset's fetch fails.
-        const candidates = [msg.url, ...(msg.candidates || [])].filter((value): value is string => typeof value === 'string' && value.length > 0);
+        let candidates = [msg.url, ...(Array.isArray(msg.candidates) ? msg.candidates : [])].filter((value): value is string => typeof value === 'string' && value.length > 0);
 
         candidates = [...new Set(candidates.filter(Boolean))];
         if (!candidates.length) {
