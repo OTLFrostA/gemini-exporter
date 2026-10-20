@@ -413,7 +413,7 @@ class ExtensionActions:
         format_type: Optional[str] = None,
         allow_standalone: bool = False
     ) -> Optional[str]:
-        """Configure v2 browser delivery, click Export and inspect the newly downloaded ZIP."""
+        """Drive v2 Export and inspect its physical ZIP or optional standalone Markdown."""
         # Another CDP client can reset Chrome's download behavior after setup.
         # Bind it again on the connection kept alive until this ZIP is on disk.
         os.makedirs(output_dir, exist_ok=True)
@@ -442,7 +442,7 @@ class ExtensionActions:
         for check_d in [output_dir]:
             if os.path.isdir(check_d):
                 for f in os.listdir(check_d):
-                    if f.lower().endswith('.zip') or allow_standalone and f.lower().endswith('.md'):
+                    if f.lower().endswith('.zip') or (allow_standalone and f.lower().endswith('.md')):
                         fp = os.path.abspath(os.path.join(check_d, f))
                         try:
                             baseline_files[fp] = os.path.getmtime(fp)
@@ -462,7 +462,7 @@ class ExtensionActions:
             print("❌ ZIP export not started: export button was unavailable at click time")
             return None
         start_time = time.time()
-        downloaded_zip = None
+        downloaded_file = None
 
         while time.time() - start_time < max_wait:
             time.sleep(1.5)
@@ -479,13 +479,13 @@ class ExtensionActions:
                             pass
                 if candidates:
                     candidates.sort(key=lambda x: x[0], reverse=True)
-                    downloaded_zip = candidates[0][1]
+                    downloaded_file = candidates[0][1]
                     break
 
-        if downloaded_zip and not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
+        if downloaded_file and not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
             print("❌ ZIP downloaded, but export UI/storage cleanup did not finish")
             return None
-        return downloaded_zip
+        return downloaded_file
 
 
 class CDPActions(ExtensionActions):
