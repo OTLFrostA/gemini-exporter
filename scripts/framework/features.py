@@ -201,7 +201,7 @@ class FeatureRegistry:
             id="feat_tour_guide_interactive",
             domain=FeatureDomain.WORKBENCH,
             name="新手向导交互与 0 遮挡防撞",
-            description="推进向导步骤，气泡与高亮目标 0 遮挡重叠，完成后写入 Storage 持久化标记",
+            description="推进 v2 向导、验证目标无碰撞及 URL 启动意图消费，不依赖持久化标记",
             critical=False
         ))
 
@@ -227,7 +227,7 @@ class FeatureRegistry:
             id="feat_multimodal_spec_assertion",
             domain=FeatureDomain.EXPORT_DISK,
             name="4 大黄金分类规范断言",
-            description="解压导出的 ZIP，严格断言 Frontmatter 7 键、附件非空、AI Imagen 模型归属",
+            description="解压导出的 ZIP，按 v2 Frontmatter 检查附件、来源事实与 Imagen 模型归属",
             critical=True,
             prerequisites=["feat_zip_export_download"]
         ))

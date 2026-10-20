@@ -308,7 +308,7 @@ class MultimodalSpecCase(FeatureTestCase):
             feature_id="feat_multimodal_spec_assertion",
             domain=FeatureDomain.EXPORT_DISK,
             name="4 大黄金分类规范断言",
-            description="解压导出的 ZIP，严格断言 Frontmatter 7 键、附件非空、AI Imagen 模型归属",
+            description="解压导出的 ZIP，按 v2 Frontmatter 检查附件、来源事实与 Imagen 模型归属",
             critical=True,
             prerequisites=["feat_zip_export_download"]
         )
@@ -451,7 +451,7 @@ class StaleTabImageExportCase(FeatureTestCase):
                 # Reinstall removes the historical index. Natural sidebar loading
                 # only observes a recent page, so an older target is not guaranteed
                 # to exist until a real paginated sync finishes.
-                cdp_opt.eval("document.getElementById('tourSkipBtn')?.click()")
+                cdp_opt.eval("document.querySelector('.tour-popover button')?.click()")
                 select_source_account(cdp_opt, source_tab_id=setup['freshId'])
                 wait_for_prior_scan(cdp_opt)
                 clear_scan_records(cdp_opt)
@@ -483,7 +483,7 @@ class StaleTabImageExportCase(FeatureTestCase):
                             .find(el => el.dataset.chatId === '{image_chat['id']}');
                         const cb = item?.querySelector('input[type=checkbox]');
                         if (cb) {{
-                            document.getElementById('tourSkipBtn')?.click();
+                            document.querySelector('.tour-popover button')?.click();
                             document.getElementById('btnSelectNone')?.click();
                             cb.checked = true;
                             cb.dispatchEvent(new Event('change', {{bubbles: true}}));

@@ -71,7 +71,7 @@ def markdown_messages(text: str) -> List[Dict[str, str]]:
                 fence = token
             elif token[0] == fence[0] and len(token) >= len(fence):
                 fence = None
-        role = re.match(r'^## (?:👤 (You|用户)|🤖 (Assistant|助手))\s*$', line) if fence is None else None
+        role = re.match(r'^## (?:👤 (You|你)|🤖 (Assistant|助手))\s*$', line) if fence is None else None
         if role:
             messages.append({'role': 'user' if role.group(1) else 'model', 'content': ''})
         elif messages:
