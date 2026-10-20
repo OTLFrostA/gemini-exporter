@@ -50,7 +50,7 @@ export const getStoredDirHandle = async () => h.directory;
 export const saveStoredDirHandle = async handle => { h.directory=handle; return true; };
 export const verifyDirPermission = async (handle,options={}) => {
  if(!handle) return false;
- if(options.allowRequest) return (await handle.requestPermission({mode:'readwrite'}))==='granted';
+ if(options.allowRequest && globalThis.navigator?.userActivation?.isActive) return (await handle.requestPermission({mode:'readwrite'}))==='granted';
  return (await handle.queryPermission({mode:'readwrite'}))==='granted';
 };
 export const restoreSavedDirHandle = async () => {
