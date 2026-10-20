@@ -1,5 +1,5 @@
 import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../../l3b/ast/ast.js';
-import type { RenderOptions } from './renderOptions.js';
+import type { RenderOptions } from './internalRenderOptions.js';
 import { getRendererStrings } from './renderStrings.js';
 
 export function inlineText(node: DisplayInline): string {

@@ -8,7 +8,11 @@ import { assertExportPath } from './exportPath.js';
 
 export type ExportFormat = 'markdown' | 'html' | 'json' | 'pdf';
 export type ExportDelivery = 'browserDownload' | 'folderWriter';
-export type ExportPathPlan = Readonly<{ fileName: string; resources: ResourceBindings }>;
+export type ExportPathPlan = Readonly<{
+    fileName: string;
+    resources: ResourceBindings;
+    externalResourceIds: ReadonlySet<string>;
+}>;
 const extensions = { markdown: 'md', html: 'html', json: 'json', pdf: 'pdf' } as const;
 const mimeTypes = { markdown: 'text/markdown; charset=utf-8', html: 'text/html; charset=utf-8',
     json: 'application/json; charset=utf-8', pdf: 'application/pdf' } as const;
@@ -20,7 +24,7 @@ const resourceExtensions: Readonly<Record<string, string>> = {
 
 /** Reuse one path namespace across a batch without retaining every resource byte. */
 export function createExportPathPlanner(format: ExportFormat):
-    (conversation: ReadonlyDomain, prepared: PreparedResources) => ExportPathPlan {
+    (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>) => ExportPathPlan {
     const used = new Set<string>();
     function reserve(directory: string, name: string): string {
         // Percent is literal source text, never a second encoded path supplied to a writer.
@@ -56,7 +60,7 @@ export function createExportPathPlanner(format: ExportFormat):
 
 /** Browser downloads still plan their complete batch after resource preparation. */
 export function planExportPaths(
-    inputs: readonly { conversation: ReadonlyDomain; prepared: PreparedResources }[],
+    inputs: readonly { conversation: ReadonlyDomain; prepared: PreparedResources; fileIds: ReadonlySet<string> }[],
     format: ExportFormat,
 ): readonly ExportPathPlan[] {
     const planNext = createExportPathPlanner(format);

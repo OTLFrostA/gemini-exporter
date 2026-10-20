@@ -4,12 +4,18 @@ import { visual } from '../shared/visualContract.js';
 import { blockText, codeHeader, fileBadge, humanBytes, headerMetadata, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
-import type { PdfRenderOptions } from '../shared/renderOptions.js';
+import type { PdfRenderOptions } from '../shared/internalRenderOptions.js';
+import type { RendererOptions } from '../shared/renderOptions.js';
 import { defaultPdfLayout, applyLayout } from './layout.js';
 export { defaultPdfLayout } from './layout.js';
 import type { TypstBlockNode, TypstConversationRenderPayload, TypstInlineNode, TypstTableCell } from './transport.js';
 
 /** Lower the display contract to the output engine's wire syntax. */
+export function renderDocumentTypst(
+    document: DocumentAst,
+    resources: ResourceBindings,
+    options?: RendererOptions,
+): TypstConversationRenderPayload;
 export function renderDocumentTypst(
     document: DocumentAst,
     resources: ResourceBindings,

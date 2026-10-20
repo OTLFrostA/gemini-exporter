@@ -2,7 +2,8 @@ import type { DocumentAst } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { PreparedResources } from '../../../shared/resources/resourceResult.js';
-import type { PdfRenderOptions } from '../shared/renderOptions.js';
+import type { PdfRenderOptions } from '../shared/internalRenderOptions.js';
+import type { RendererOptions } from '../shared/renderOptions.js';
 import { renderDocumentTypst } from '../typst/renderTypst.js';
 import { isResourcePath } from '../shared/resourcePath.js';
 import { initMitexWasm, convertMathWithMitex } from '../typst/mathConverter.js';
@@ -11,6 +12,14 @@ import type { IPdfCompiler, PdfCompileContext, PdfCompileResult } from './pdfCom
 
 /** Format-only calculation. The caller supplies image bytes, paths, initialized fonts
  * and compiler lifetime; batching, acquisition, delivery and records stay upstream. */
+export function compileDocumentPdf(
+    document: DocumentAst,
+    bindings: ResourceBindings,
+    prepared: PreparedResources,
+    compiler: IPdfCompiler,
+    context: Omit<PdfCompileContext, 'assets'>,
+    options?: RendererOptions,
+): Promise<PdfCompileResult>;
 export async function compileDocumentPdf(
     document: DocumentAst,
     bindings: ResourceBindings,
