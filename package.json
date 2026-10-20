@@ -17,7 +17,8 @@
     "release": "gh workflow run release.yml --ref main",
     "test:v2-modules": "node scripts/test-v2-modules.cjs",
     "test:l2:unit": "node scripts/test-l2.cjs --unit-only",
-    "test:l3b:unit": "node scripts/test-l3b.cjs"
+    "test:l3b:unit": "node scripts/test-l3b.cjs",
+    "test:v2:unit-isolation": "node scripts/test-v2-unit-isolation.cjs"
   },
   "keywords": [
     "gemini",
