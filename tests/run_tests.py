@@ -402,7 +402,7 @@ def test_content_badge_flicker_prevention():
     assert "white-space: nowrap" in css, "Badge must not wrap while its count changes"
     assert "min-width:" in css, "Badge keeps a stable minimum width"
     assert ".syncing .pulse" in css, "Badge retains its visual sync feedback"
-    assert re.search(r'#geminiExportBadge\\s+\\.pulse\\s*\\{[^}]*background:\\s*#06b6d4', css), "Idle pulse must remain visually stable"
+    assert re.search(r'#geminiExportBadge\s+\.pulse\s*\{[^}]*background:\s*#06b6d4', css), "Idle pulse must remain visually stable"
 
     def read(path):
         with open(os.path.join(BASE_DIR, path), encoding="utf-8") as f:
