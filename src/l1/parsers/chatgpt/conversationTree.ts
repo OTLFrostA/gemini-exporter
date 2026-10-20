@@ -185,7 +185,9 @@ export function processChatGPTMapping(
     const startId =
         conversation.current_node
         || Object.values(conversation.mapping).find((n) => !n.children || n.children.length === 0)?.id;
-    if (!startId) throw new Error('Failed to find start node.');
+    // An empty/unattributable mapping is incomplete source evidence, not a parser crash.
+    // The L1 caller will return zero messages and L2 quality remains 'unknown'.
+    if (!startId) return [];
     return extractChatGPTLinearNodes(conversation.mapping, startId);
 }
 
