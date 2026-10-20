@@ -105,8 +105,11 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         return [
             '<table>',
             ...(node.caption ? ['<caption>' + htmlInlines(node.caption) + '</caption>'] : []),
-            ...(node.headerRows.length ? ['<thead>', ...node.headerRows.map(cells => row(cells, true)), '</thead>'] : []),
-            '<tbody>', ...node.rows.map(cells => row(cells, false)), '</tbody>',
+            ...(node.rows.length && node.headerRows.some((cells, index) =>
+                cells.some(cell => index + cell.rowSpan > node.headerRows.length))
+                ? ['<tbody>', ...node.headerRows.map(cells => row(cells, true)), ...node.rows.map(cells => row(cells, false)), '</tbody>']
+                : [...(node.headerRows.length ? ['<thead>', ...node.headerRows.map(cells => row(cells, true)), '</thead>'] : []),
+                    '<tbody>', ...node.rows.map(cells => row(cells, false)), '</tbody>']),
             '</table>',
         ].join('\n');
     };

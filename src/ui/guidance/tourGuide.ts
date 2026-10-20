@@ -32,14 +32,15 @@ type Placement = 'top' | 'bottom' | 'left' | 'right';
 
 /** Render the original main Tour card and highlight, retaining v2's physical click cutout. */
 function overlay(
-    target: HTMLElement | null, title: string, description: string, interactive: boolean,
+    target: HTMLElement | null | (() => HTMLElement | null), title: string, description: string, interactive: boolean,
     related: HTMLElement[] = [], placement: Placement = 'bottom', badgeText?: string, hint?: string,
 ): HTMLElement {
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove();
     const previousFocus = document.activeElement as HTMLElement | null;
-    target?.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const currentTarget = () => typeof target === 'function' ? target() : target;
+    currentTarget()?.scrollIntoView({ block: 'center', inline: 'nearest' });
     root = document.createElement('div');
     root.className = 'tour-overlay-container';
 
@@ -80,7 +81,8 @@ function overlay(
     const layout = () => {
         backdrop.forEach(el => el.remove());
         backdrop.length = 0;
-        const visible = target && target.isConnected && target.getClientRects().length ? target : null;
+        const candidate = currentTarget();
+        const visible = candidate && candidate.isConnected && candidate.getClientRects().length ? candidate : null;
         const rect = visible?.getBoundingClientRect();
         const pad = 6;
         if (rect) {
@@ -151,7 +153,7 @@ function overlay(
     };
     const guard = (event: MouseEvent) => {
         const node = event.target as Node;
-        if (popover.contains(node) || interactive && [target, ...related].some(item => item?.contains(node))) return;
+        if (popover.contains(node) || interactive && [currentTarget(), ...related].some(item => item?.contains(node))) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         close();
@@ -164,7 +166,13 @@ function overlay(
     window.addEventListener('resize', layout);
     window.addEventListener('scroll', layout, true);
     const frame = requestAnimationFrame(layout);
+    // Options re-renders rows with replaceChildren() while a scan completes.
+    // Follow the live row without binding to a detached DOM node.
+    const list = mode === 'tour' && STEPS[stepIndex]?.id === 'select' ? document.getElementById('list') : null;
+    const observer = list ? new MutationObserver(layout) : null;
+    if (list) observer?.observe(list, { childList: true });
     cleanupOverlay = () => {
+        observer?.disconnect();
         cancelAnimationFrame(frame);
         document.removeEventListener('click', guard, true);
         document.removeEventListener('keydown', keydown, true);
@@ -204,7 +212,7 @@ export async function goToStep(index: number): Promise<void> {
     const related = relatedId
         ? [document.getElementById(relatedId)].filter((item): item is HTMLElement => item instanceof HTMLElement)
         : [];
-    const popover = overlay(step.target(), step.title(), step.description(), true,
+    const popover = overlay(step.target, step.title(), step.description(), true,
         related, step.placement, undefined, step.hint?.());
     const navFooter = footer(popover);
     button(navFooter, text('Skip', '跳过'), () => { destroy(); }, 'tourSkipBtn', 'tour-skip-btn');

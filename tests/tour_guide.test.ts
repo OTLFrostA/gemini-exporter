@@ -122,3 +122,22 @@ test('tourGuide - Select All is physically clickable and advances from selection
     await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Choose a format');
     assert.equal(await page.evaluate(() => Reflect.get(window, 'testUi').tour.isActive()), true);
 });
+
+test('tourGuide - a replaced list row becomes the live spotlight target after scanning', async () => {
+    await open(); await start(2);
+    await page.evaluate(() => {
+        const list = document.getElementById('list')!;
+        const old = list.querySelector<HTMLElement>('.item')!;
+        const replacement = old.cloneNode(true) as HTMLElement;
+        replacement.style.marginTop = '64px';
+        list.replaceChildren(replacement);
+    });
+    await page.waitForFunction(() => {
+        const current = document.querySelector('#list .item')?.getBoundingClientRect();
+        const spotlight = document.querySelector<HTMLElement>('.tour-spotlight');
+        return !!current && !!spotlight && Math.abs(parseFloat(spotlight.style.top) - (current.top - 6)) < 2;
+    });
+    await page.locator('#list .item input').check();
+    await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Choose a format');
+    assert.equal(await page.evaluate(() => Reflect.get(window, 'testUi').tour.isActive()), true);
+});
