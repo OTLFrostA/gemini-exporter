@@ -15,6 +15,7 @@ const {
 } = require('../src/l4/format/pdf/typst/fonts/localFontProvider.js');
 const { mountRuntimeFonts } = require('../src/l4/format/pdf/typst/fonts/mountRuntimeFonts.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
+const { probePdfLayout } = require('./helpers/pdfPageProbe.js');
 const {
     RealWasmSandboxHost,
     repoRoot,
@@ -367,6 +368,88 @@ test('D: production-style CJK path resolves provider bytes into the sandbox and 
         }
         const missing = [...inputChars].filter((ch) => !extracted.text.includes(ch));
         assert.ok(missing.length === 0, `all input CJK chars extractable; missing: ${missing.slice(0, 20).join('')}`);
+    } finally {
+        restore();
+    }
+});
+
+
+test('E: eight-font budget delivers Mono bytes to the sandbox alongside CJK fonts', async () => {
+    const monoBytes = Uint8Array.of(101, 102, 103, 104, 105, 106, 107, 108);
+    const entries = [
+        ['Noto Sans CJK SC', 'NotoSansCJKsc-Regular'],
+        ['Noto Sans CJK', 'NotoSansCJK-Regular'],
+        ['PingFang SC', 'PingFangSC-Regular'],
+        ['PingFang TC', 'PingFangTC-Regular'],
+        ['PingFang HK', 'PingFangHK-Regular'],
+        ['Microsoft YaHei', 'MicrosoftYaHei-Regular'],
+        ['Microsoft JhengHei', 'MicrosoftJhengHei-Regular'],
+        ['Source Han Sans SC', 'SourceHanSansSC-Regular'],
+    ];
+    const restore = mockQueryLocalFonts([
+        ...entries.map(([family, ps]) => fakeEntry(family, ps, KNOWN_BYTES)),
+        fakeEntry('DejaVu Sans Mono', 'DejaVuSansMono', monoBytes),
+    ]);
+    try {
+        const resolution = await resolveLocalFonts();
+        assert.strictEqual(resolution.fonts.length, 8);
+        assert.strictEqual(resolution.fonts[7].family, 'DejaVu Sans Mono');
+        const host = new FakeHost();
+        const compiler = makeCompiler(host);
+        try {
+            const mounted = await mountRuntimeFonts(resolution, compiler);
+            assert.strictEqual(mounted.mountedCount, 8);
+            const domain = makeDomain();
+            const pending = compiler.compile(makePayload(domain), makeContext(domain));
+            await driveInitHandshake(host);
+            const compileMsg = await driveCompileRoundTrip(host);
+            const received = (compileMsg.message.fonts as ArrayBuffer[]).map((buffer) => Buffer.from(buffer));
+            assert.ok(received.some((font) => font.equals(Buffer.from(monoBytes))),
+                'the real Mono file must reach the Typst sandbox despite eight prose candidates');
+            await pending;
+        } finally {
+            compiler.dispose();
+        }
+    } finally {
+        restore();
+    }
+});
+
+test('F: real Typst WASM embeds the mounted Mono font in a PDF containing code', async (t: { skip: (msg?: string) => void }) => {
+    // CI normally provides this system font. Do not add font binaries to the extension.
+    const monoPath = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf';
+    if (!fs.existsSync(monoPath)) {
+        t.skip('system DejaVuSansMono.ttf is unavailable');
+        return;
+    }
+    const fontBytes = new Uint8Array(fs.readFileSync(monoPath));
+    const restore = mockQueryLocalFonts([fakeEntry('DejaVu Sans Mono', 'DejaVuSansMono', fontBytes)]);
+    try {
+        const resolution = await resolveLocalFonts();
+        assert.deepStrictEqual(resolution.fonts.map((font: any) => font.family), ['DejaVu Sans Mono']);
+
+        const host = new RealWasmSandboxHost(repoRoot());
+        const compiler = new TypstSandboxCompiler({ host: host as any });
+        try {
+            const mounted = await mountRuntimeFonts(resolution, compiler);
+            assert.strictEqual(mounted.mountedCount, 1);
+            const domain: any = makeDomain();
+            domain.detail.messages[1].content = [{
+                type: 'code',
+                language: 'text',
+                code: 'iiiiiiiiii|FIRSTCOL\nWWWWWWWWWW|SECONDCOL',
+            }];
+            const result = await compiler.compile(makePayload(domain), makeContext(domain));
+            assert.deepStrictEqual(result.diagnostics.filter((d: any) => d.severity === 'error'), []);
+            const report = probePdfLayout(result.pdfBytes);
+            assert.ok(report.fonts.some((name: string) => name.includes('DejaVuSansMono')),
+                'the code font must actually be embedded; PDF fonts: ' + report.fonts.join(', '));
+            const extracted = extractPdfText(result.pdfBytes).text;
+            assert.ok(extracted.includes('FIRSTCOL') && extracted.includes('SECONDCOL'),
+                'both code lines should remain selectable text in the PDF');
+        } finally {
+            compiler.dispose();
+        }
     } finally {
         restore();
     }
