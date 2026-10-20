@@ -50,16 +50,16 @@ def validate_takeout_records(expected_ids, expected_media, records, source_facts
                                  ('document', {'id', 'contentMarkdown'})):
                 if name in asset and (not isinstance(asset[name], dict) or not asset[name] or set(asset[name]) - fields):
                     return False, f'Takeout Asset.{name} 不是当前事实 schema'
-        def has_content(value):
+        def has_content(value, owned_asset_ids):
             if isinstance(value, list):
-                return any(has_content(child) for child in value)
+                return any(has_content(child, owned_asset_ids) for child in value)
             if not isinstance(value, dict):
                 return False
             if any(isinstance(value.get(key), str) and value[key].strip() for key in ('text', 'code', 'source')):
                 return True
-            if value.get('type') in ('image', 'file') and value.get('assetId') in asset_ids:
+            if value.get('type') in ('image', 'file') and value.get('assetId') in owned_asset_ids:
                 return True
-            return any(has_content(value.get(key)) for key in ('children', 'blocks', 'items', 'rows', 'cells', 'headerRows'))
+            return any(has_content(value.get(key), owned_asset_ids) for key in ('children', 'blocks', 'items', 'rows', 'cells', 'headerRows'))
         for message in messages:
             if (set(message) - {'id', 'role', 'model', 'content', 'timestamp', 'attachmentIds', 'reasoning', 'citations'}
                     or not set(message.get('attachmentIds', [])).issubset(asset_ids)):
@@ -67,8 +67,11 @@ def validate_takeout_records(expected_ids, expected_media, records, source_facts
         source_messages = (source_facts[record['id']].get('detail') or {}).get('messages') or []
         if not source_messages:
             return False, 'Takeout 来源没有可核验的消息事实'
-        for role in {message['role'] for message in source_messages}:
-            if not any(m.get('role') == role and (has_content(m.get('content'))
+        source_asset_ids = {asset.get('id') for asset in source_facts[record['id']].get('detail', {}).get('assets', [])}
+        source_roles = {message['role'] for message in source_messages
+                        if has_content(message.get('content'), source_asset_ids) or message.get('attachmentIds')}
+        for role in source_roles:
+            if not any(m.get('role') == role and (has_content(m.get('content'), asset_ids)
                        or m.get('attachmentIds')) for m in messages):
                 return False, f"Takeout 会话 {record['id']} 缺少来源已知的 {role} 内容"
         for resource in record.get('resources', []):

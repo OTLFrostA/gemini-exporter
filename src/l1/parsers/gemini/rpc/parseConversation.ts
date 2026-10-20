@@ -1,3 +1,4 @@
+import { closeGeminiCodeCitations } from '../shared/codeCitations.js';
 import type { GeminiStructuredNode } from './structuredContent.js';
 import { contentQuality } from '../../qualityEvidence.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
@@ -97,6 +98,10 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             ...(reasoning !== undefined ? { reasoning } : {}),
             ...(legacyCitations.length ? { citations: legacyCitations } : {}),
         }, message.groundingCitationMarkers);
+        if (message.role === 'model') {
+            closeGeminiCodeCitations(closed.content, message.groundingCitationMarkers);
+            if (closed.reasoning) closeGeminiCodeCitations(closed.reasoning, message.groundingCitationMarkers);
+        }
         // Newly bound native sources are not evidence that literal [1] prose is a citation.
         const allCitations = [...citations, ...(closed.citations ?? []).filter(item => !citations.some(c => c.id === item.id))];
         return { ...closed, ...(allCitations.length ? { citations: allCitations } : {}) };

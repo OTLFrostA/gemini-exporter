@@ -599,3 +599,34 @@ test('combined [cite:1,2] becomes source citation references without metadata le
     assert.ok(body.includes('citationRef'));
     assert.ok(body.includes('[1]'));
 });
+
+test('real Gemini code diagram drops confirmed grounding tokens exactly as the webpage does', () => {
+    const fixture = require('./fixtures/gemini_confirmed_code_citations.json');
+    const { conversation } = sourceConversation({ id: 'code-citations', title: 'Code citations', messages: [{
+        role: 'model', content: '```text\n' + fixture.code + '```',
+        structuredContent: { children: [{ nodeType: 1, code: fixture.code, info: 'text' }] },
+        groundingCitationMarkers: fixture.markers,
+    }] });
+    assert.strictEqual(conversation.detail.messages[0].content[0].code.replace(/\n$/, ''), fixture.visibleCode.replace(/\n$/, ''));
+});
+
+test('code citation cleanup preserves quoted literals, unknown markers and inline code', () => {
+    const { closeGeminiCodeCitations } = require('../src/l1/parsers/gemini/shared/codeCitations.js');
+    const literal = String.raw`pattern = r"[cite: 1]"
+other = '[cite: 1]'
+escaped = "quote\"[cite: 1]"
+multiline = """literal
+[cite: 1]
+"""
+` + 'template = `[cite: 1]`';
+    const blocks = [{ type: 'quote', blocks: [{ type: 'list', items: [{ blocks: [
+        { type: 'code', code: literal + '\nlabel[cite: 1] and unknown[cite: 99]' },
+        { type: 'paragraph', children: [{ type: 'inlineCode', code: '[cite: 1]' }] },
+    ] }] }] }];
+    closeGeminiCodeCitations(blocks, ['[cite: 1]']);
+    assert.strictEqual(blocks[0].blocks[0].items[0].blocks[0].code, literal + '\nlabel and unknown[cite: 99]');
+    assert.strictEqual(blocks[0].blocks[0].items[0].blocks[1].children![0].code, '[cite: 1]');
+    const unconfirmed = [{ type: 'code', code: 'label[cite: 1]' }];
+    closeGeminiCodeCitations(unconfirmed);
+    assert.strictEqual(unconfirmed[0].code, 'label[cite: 1]');
+});

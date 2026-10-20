@@ -759,6 +759,18 @@ class ScanAndImportTests(unittest.TestCase):
         detail['messages'][1]['attachmentIds'] = ['foreign']
         self.assertFalse(self.validate_takeout(record,source))
 
+    def test_takeout_empty_source_assistant_does_not_require_invented_content(self):
+        record, source = self.takeout_fixture()
+        source[CID]['detail']['messages'][1]['content'] = []
+        record['domain']['detail']['messages'][1]['content'] = []
+        self.assertTrue(self.validate_takeout(record, source))
+        # Authored source content must still survive the import.
+        source[CID]['detail']['messages'][1]['content'] = [{'type': 'paragraph', 'children': [{'type': 'text', 'text': 'Known answer'}]}]
+        self.assertFalse(self.validate_takeout(record, source))
+        source[CID]['detail']['messages'][1]['content'] = [{'type': 'image', 'assetId': 'lost-image'}]
+        source[CID]['detail']['assets'] = [{'id': 'lost-image', 'kind': 'image'}]
+        self.assertFalse(self.validate_takeout(record, source))
+
     def test_takeout_unresolved_generation_notice_does_not_invent_assistant_message(self):
         record, source = self.takeout_fixture()
         source[CID]['detail']['messages'] = source[CID]['detail']['messages'][:1]
