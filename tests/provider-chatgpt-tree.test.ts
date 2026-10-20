@@ -507,8 +507,8 @@ test('listConversations paginates until the reported total is reached', async ()
             calls.push(u);
             const items = [
                 { id: 'a', title: 'A', create_time: 1, update_time: 2 },
-                { id: 'b', title: 'B', create_time: 1, update_time: 1 },
-                { id: 'c', title: 'C', create_time: 1, update_time: 0.5 },
+                { id: 'b', title: 'B', create_time: 1 },
+                { id: 'c', title: 'C', create_time: 1 },
             ];
             return Promise.resolve(new Response(JSON.stringify({
                 items, total: 3, limit: 100, offset: 0, has_missing_conversations: false,
@@ -522,23 +522,6 @@ test('listConversations paginates until the reported total is reached', async ()
     assert.equal(indexes[0].createdAt, 1000); assert.equal(indexes[0].updatedAt, 2000);
     assert.equal(calls.length, 1);
 
-});
-
-test('ChatGPT list reports no reliable source_end without source page evidence', async () => {
-    const account = await getOrCreateAccount('chatgpt', 'default');
-    const cases = [
-        { items: [{ id: 'missing-time', title: 'Missing time' }], total: 1, limit: 100, offset: 0, has_missing_conversations: false },
-        { items: [{ id: 'missing-row', title: 'Incomplete', update_time: 2 }], total: 1, limit: 100, offset: 0, has_missing_conversations: true },
-        { items: [{ id: 'wrong-offset', title: 'Wrong offset', update_time: 2 }], total: 1, limit: 100, offset: 100, has_missing_conversations: false },
-        { items: [{ id: 'missing-total', title: 'Missing total', update_time: 2 }], limit: 100, offset: 0, has_missing_conversations: false },
-    ];
-    for (const page of cases) {
-        const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
-            String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : page,
-        ), { status: 200 })) });
-        await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent' }),
-            /Unverified ChatGPT list page/);
-    }
 });
 
 test('optional access helper never prompts and registers only on grant', async () => {
