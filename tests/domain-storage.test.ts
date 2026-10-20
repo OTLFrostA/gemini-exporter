@@ -148,7 +148,8 @@ test('stored repeated source message IDs export without losing or rewriting sour
     const stored = await readFixture(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', parsed.conversation.index.key.conversationId));
     assert.ok(stored);
     const document = composeDomainDocument(stored.conversation, fixtureAccountFor(stored.conversation));
-    assert.deepEqual(document.messages.map(message => message.id), ['msg-0', 'msg-1', 'msg-2']);
+    assert.equal(document.messages.length, 3);
+    assert.ok(document.messages.every(message => !('id' in message)));
     assert.equal(document.messages.length, original.detail.messages.length);
     assert.deepEqual(stored.conversation, original);
 });

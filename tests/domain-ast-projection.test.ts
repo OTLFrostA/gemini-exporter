@@ -19,11 +19,9 @@ function input(): DomainConversationWithDetail {
 test('AST: projection uses matched Account and Index facts, preserving supplied partial body order', () => {
     const domain = validateParserDomain(input()), before = JSON.stringify(domain);
     const document = composeDomainDocument(domain, account);
-    assert.deepEqual(document.metadata, { id: 'same-native-id', provider: 'chatgpt', createdAt: '1970-01-01T00:00:01.000Z', updatedAt: '1970-01-01T00:00:02.000Z' });
-    assert.deepEqual(document.header, { title: 'Index title', providerLabel: 'chatgpt', date: '1970-01-01', messageCount: 2 });
-    assert.deepEqual(document.messages.map(m => [m.id, m.label, m.variant, m.modelLabel]), [
-        ['msg-0', 'assistant', 'flow', 'Source model'], ['msg-1', 'you', 'bubble', undefined],
-    ]);
+    assert.deepEqual(document.metadata, { id: 'same-native-id', provider: 'chatgpt', createdAt: 1000, updatedAt: 2000 });
+    assert.equal(document.title, 'Index title');
+    assert.deepEqual(document.messages.map(m => [m.role, m.modelLabel]), [['assistant', 'Source model'], ['user', undefined]]);
     assert.doesNotMatch(JSON.stringify(document), /private@example|Private name|provider-z|savedAt|quality|9999999999999/);
     assert.equal(JSON.stringify(domain), before);
 
@@ -43,8 +41,8 @@ test('AST: missing Index title and times get reading defaults without borrowing 
     const raw = input(); raw.index = { key: raw.index.key };
     const domain = validateParserDomain(raw), before = JSON.stringify(domain);
     const document = composeDomainDocument(domain, account);
-    assert.equal(document.header.title, 'Untitled conversation');
-    assert.ok(!('date' in document.header));
+    assert.equal(document.title, 'Untitled conversation');
+    assert.ok(!('updatedAt' in document.metadata));
     assert.deepEqual(document.metadata, { id: 'same-native-id', provider: 'chatgpt' });
     assert.equal(JSON.stringify(domain), before);
 });
@@ -56,9 +54,9 @@ test('AST: Composer numbers sources once across messages and preserves absent UR
         content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'named', label: 'Read this' }, { type: 'citationRef', citationId: 'same' }] }],
     }));
     const document = composeDomainDocument(validateParserDomain(raw), account);
-    assert.deepEqual(document.messages.map(m => m.sources?.items.map(s => [s.id, s.number, s.label, s.href])), [
-        [['msg-0:same', 1, '', undefined], ['msg-0:named', 2, 'Article', 'https://example.test/article']],
-        [['msg-1:same', 3, '', undefined], ['msg-1:named', 4, 'Article', 'https://example.test/article']],
+    assert.deepEqual(document.messages.map(m => m.sources?.map(s => [s.id, s.number, s.label, s.href])), [
+        [['same', 1, '', undefined], ['named', 2, 'Article', 'https://example.test/article']],
+        [['same', 3, '', undefined], ['named', 4, 'Article', 'https://example.test/article']],
     ]);
     const reasoning = document.messages[1].blocks[0];
     assert.ok(JSON.stringify(reasoning).includes('"label":"[3]"'));
@@ -74,7 +72,7 @@ test('AST: only explicit media placements become AST content; resource absence n
     ];
     const document = composeDomainDocument(validateParserDomain(raw), account), before = JSON.stringify(document);
     assert.deepEqual(document.messages[0].blocks, []);
-    assert.equal(document.messages[1].blocks.length, 2, 'placed photo is not repeated as an attachment');
+    assert.equal(document.messages[1].blocks.length, 3, 'explicit attachment IDs follow content in source order');
     assert.ok(!before.includes('unowned') && !before.includes('placeholder'));
     assert.equal(JSON.stringify(document), before);
 });

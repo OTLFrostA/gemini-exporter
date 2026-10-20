@@ -13,7 +13,7 @@ test('AST: Index owns exported metadata while the body version remains capture e
     parsed.conversation.index.title = 'Current rename';
     parsed.conversation.index.updatedAt = 200;
     const document = composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation));
-    assert.equal(document.header.title, 'Current rename');
+    assert.equal(document.title, 'Current rename');
     assert.equal(document.metadata?.updatedAt, new Date(200).toISOString());
 });
 
