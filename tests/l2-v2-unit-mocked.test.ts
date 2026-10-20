@@ -36,6 +36,18 @@ test('L2 refuses unknown Registry accounts before Index, Detail or deletion writ
     assert.deepEqual(calls.deletions, []);
 });
 
+test('L2 validates stored Account facts before Index, Detail, or deletion writes', async () => {
+    accounts.set(ACCOUNT.id, { ...ACCOUNT, id: ABSENT_ACCOUNT });
+    await assert.rejects(ingestIndexes(ACCOUNT.id, [index('c')]), /Account registry UUID mismatch/);
+    await assert.rejects(ingestDetail(ACCOUNT.id, 'c', body(100)), /Account registry UUID mismatch/);
+    await assert.rejects(ingestDeletedConversation(ACCOUNT.id, 'c'), /Account registry UUID mismatch/);
+    accounts.set(ACCOUNT.id, { ...ACCOUNT, providerId: '' });
+    await assert.rejects(ingestIndexes(ACCOUNT.id, [index('c')]), /Invalid account parameters/);
+    assert.deepEqual(calls.indexUpdates, []);
+    assert.deepEqual(calls.detailUpdates, []);
+    assert.deepEqual(calls.deletions, []);
+});
+
 test('L2 binds keyless Index rows to the resolved Account and coalesces duplicate source rows', async () => {
     await ingestIndexes(ACCOUNT.id, [
         { conversationId: 'c', fields: { title: 'Derived', titleSource: 'derived', updatedAt: 100 } },
