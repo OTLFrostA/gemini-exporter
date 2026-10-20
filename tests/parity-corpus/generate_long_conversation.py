@@ -75,12 +75,12 @@ def build_message(idx, role, rng):
             "type": "table",
             "columnAlignments": ["left", "right"],
             "headerRows": [[
-                {"children": [text("指标")], "column": 0, "colSpan": 1, "rowSpan": 1, "align": "left"},
-                {"children": [text("第 %d 轮" % n)], "column": 1, "colSpan": 1, "rowSpan": 1, "align": "right"},
+                {"children": [text("指标")], "column": 0, "colSpan": 1, "rowSpan": 1},
+                {"children": [text("第 %d 轮" % n)], "column": 1, "colSpan": 1, "rowSpan": 1},
             ]],
             "rows": [[
-                {"children": [text("消息数")], "column": 0, "colSpan": 1, "rowSpan": 1, "align": "left"},
-                {"children": [text(str(idx))], "column": 1, "colSpan": 1, "rowSpan": 1, "align": "right"},
+                {"children": [text("消息数")], "column": 0, "colSpan": 1, "rowSpan": 1},
+                {"children": [text(str(idx))], "column": 1, "colSpan": 1, "rowSpan": 1},
             ]],
         })
     if role == "assistant" and idx % 21 == 0:

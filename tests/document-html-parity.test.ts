@@ -169,7 +169,7 @@ test('parity: long prompt collapses', () => {
 
 test('parity: thoughts accordion, code copy, attachments kept', () => {
     assert.ok(newHtml.includes('gem-thoughts'), 'thoughts accordion kept');
-    assert.ok(newHtml.includes('思考过程'), 'thoughts title kept');
+    assert.ok(newHtml.includes('Thinking Process'), 'thoughts title kept');
     assert.ok(newHtml.includes('The user wants binary search explained'), 'thought text kept');
     assert.ok(newHtml.includes('gem-code-block'), 'code block kept');
     assert.ok(newHtml.includes('copyCode(this)'), 'code copy button kept');

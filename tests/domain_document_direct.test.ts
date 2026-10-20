@@ -52,11 +52,11 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
         { id: 'citation-0', title: 'Source', url: 'https://example.test/source' }, { id: 'grounding-2' },
     ]);
     const ast = composeDomainDocument(domain, fixtureAccountFor(domain));
-    assert.equal(ast.messages[0].blocks.length, 1, 'inline placement suppresses the attachment tail');
+    assert.equal(ast.messages[0].blocks.length, 2, 'explicit attachment placement follows the inline content');
     const answer = ast.messages[1].blocks[1];
     assert.equal(answer.type, 'paragraph');
     if (answer.type !== 'paragraph') throw Error('expected paragraph');
-    assert.deepEqual(answer.children[1], { type: 'strong', children: [{ type: 'citation', id: 'msg-1:citation-0', label: '[1]', href: 'https://example.test/source' }] });
+    assert.deepEqual(answer.children[1], { type: 'strong', children: [{ type: 'citation', id: 'citation-0', label: '[1]', href: 'https://example.test/source' }] });
     assert.ok(answer.children.some(node => node.type === 'citation' && node.label === '[2]' && !node.href));
     assert.ok(answer.children.some(node => node.type === 'inlineCode' && node.code === '[1]'));
     const file = ast.messages[1].blocks[2];
@@ -85,7 +85,7 @@ test('AST: composer trusts literal Domain content and does not reinterpret Markd
     assert.deepEqual(ast.messages[0].blocks, domain.detail.messages[0].content);
 });
 
-test('AST: reasoning placement prevents another attachment copy and dangling citations fail closed', () => {
+test('AST: reasoning and explicit attachments retain each source placement and dangling citations fail closed', () => {
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('placement'), 'custom'),    }, detail: { key: fixtureKey(String('placement'), 'custom'), quality: { status: 'unknown' }, assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
             { role: 'assistant', content: [], reasoning: [{ type: 'image', assetId: 'shared' }], attachmentIds: ['shared'] },
             { role: 'user', content: [], attachmentIds: ['shared'] },
@@ -155,13 +155,13 @@ test('citation numbering is conversation-wide in body, reasoning and Sources, in
     const document = composeDomainDocument(domain, fixtureAccountFor(domain));
     const first = document.messages[0].blocks[0];
     assert.ok(first.type === 'paragraph');
-    assert.deepEqual(first.children, [{ type: 'citation', id: 'same', label: '[1]', href: 'https://example.test/one' }]);
+    assert.deepEqual(first.children, [{ type: 'citation', id: 'same', label: '[17]', href: 'https://example.test/one' }]);
     const second = document.messages[1].blocks[1];
     assert.ok(second.type === 'paragraph');
     assert.deepEqual(second.children, [{ type: 'citation', id: 'same', label: '[2]' }]);
     const reasoning = document.messages[1].blocks[0];
     assert.ok(reasoning.type === 'disclosure');
-    assert.deepEqual(reasoning.blocks, [{ type: 'paragraph', children: second.children }]);
+    assert.deepEqual(reasoning.blocks, [{ type: 'paragraph', children: [{ type: 'citation', id: 'same', label: '[91]' }] }]);
     assert.equal(document.messages[0].sources?.[0].number, 1);
     assert.equal(document.messages[1].sources?.[0].number, 2);
     const markdown = await exportDomainMarkdown(domain, fixtureAccountFor(domain));

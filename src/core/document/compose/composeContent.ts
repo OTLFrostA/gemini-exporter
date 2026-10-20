@@ -1,3 +1,4 @@
+import { resourceLabel } from './resourcePresentation.js';
 import type { DeepReadonly } from '../../domain/readonly.js';
 import type { BlockNode, TableBlock } from '../../domain/content/blocks.js';
 import { tableCellPlacements } from '../../domain/content/tableLayout.js';
@@ -7,7 +8,7 @@ import type { DisplayBlock, DisplayCell, DisplayInline } from '../ast/ast.js';
 
 /** Shared logical content composition; callers provide resolved semantic relationships. */
 export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainAsset>>, source: (id: string, explicit?: string) => { id: string; label: string; href?: string }): (nodes: DeepReadonly<BlockNode[]>) => DisplayBlock[] {
-    const label = (id: string, explicit?: string, fallback = 'Image'): string => explicit?.trim() || assets.get(id)?.name?.trim() || fallback;
+    const label = (id: string, explicit?: string, kind: 'image' | 'file' = 'image'): string => resourceLabel(explicit, assets.get(id)?.name, kind);
     const inlines = (nodes: DeepReadonly<InlineNode[]>): DisplayInline[] => nodes.map(node => {
         switch (node.type) {
             case 'text': return { type: 'text', text: node.text };
@@ -44,7 +45,7 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
                     ...(node.caption !== undefined ? { caption: inlines(node.caption) } : {}),
                 };
             case 'file': {
-                const asset = assets.get(node.assetId)!, name = label(node.assetId, node.label, 'Attachment');
+                const asset = assets.get(node.assetId)!, name = label(node.assetId, node.label, 'file');
                 const description = node.description ? inlines(node.description) : undefined;
                 return { type: 'file', resourceId: node.assetId, label: name, kind: asset.kind, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.byteLength !== undefined ? { byteLength: asset.byteLength } : {}), ...(description ? { description } : {}) };
             }

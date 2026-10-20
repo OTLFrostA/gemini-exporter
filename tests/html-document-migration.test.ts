@@ -1,15 +1,16 @@
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
+const { fixtureAccountFor } = require('./helpers/domainFixture.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 /**
  * tests/html-document-migration.test.ts
- * Item 1 (P0): production HTML export routes through the canonical path
- * (ChatFormatter.formatHtmlDocument: parseConversation -> Domain -> Document AST -> HTML backend).
+ * Item 1 (P0): the Domain -> Document AST -> HTML interface preserves all content classes.
  *
  * History: this file originally compared the legacy toHtml() output with
  * the new production entry as migration evidence. Item 2 (P0) removed the
  * legacy toHtml() pipeline entirely; the remaining assertions verify the
- * production entry directly: turn count/order and no dropped content
+ * Composer/Renderer boundary directly: turn count/order and no dropped content
  * class (text, attachments, images, thought, code, table, citation).
  * Not pixel-perfect: tags/styles may differ.
  */
@@ -17,7 +18,11 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
+async function renderFixture(native: ReturnType<typeof historicalFixture>) {
+    const results = await fixtureResourceResults(native.conversation, native.resourceHints, native.acquisitionHints);
+    const resources = Object.fromEntries(results.map(result => [result.resourceId, result.value.path]));
+    return renderDocumentHtml(composeDomainDocument(native.conversation, fixtureAccountFor(native.conversation)), resources);
+}
 
 const chat: any = {
     id: 'migrate_001',
@@ -82,11 +87,9 @@ let newHtml: string;
 // Build independent test evidence in a suite hook, not in a preceding test.
 test.before(async () => {
     const native = historicalFixture(chat);
-    const res = await ChatFormatter.formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
-    assert.strictEqual(res.ext, 'html');
-    assert.strictEqual(res.mime, 'text/html');
-    assert.ok(String(res.content).startsWith('<!DOCTYPE html>'), 'must be a full HTML document');
-    newHtml = String(res.content);
+    const res = await renderFixture(native);
+    assert.ok(res.html.startsWith('<!DOCTYPE html>'), 'must be a full HTML document');
+    newHtml = res.html;
 });
 
 test('migration: message count and order are correct', () => {
@@ -146,8 +149,8 @@ test('migration: duplicate source message IDs preserve every message at export',
             { id: 'c_dup_001', role: 'user', content: 'first user prompt' },
         ],
     };
-    const result = await ChatFormatter.formatHtmlDocument(historicalFixture(dupChat));
-    assert.deepStrictEqual(turnRoles(result.content), ['user', 'model', 'user']);
-    assert.equal(result.content.match(/first user prompt/g)?.length, 2);
-    assert.ok(result.content.includes('model answer'));
+    const result = await renderFixture(historicalFixture(dupChat));
+    assert.deepStrictEqual(turnRoles(result.html), ['user', 'model', 'user']);
+    assert.equal(result.html.match(/first user prompt/g)?.length, 2);
+    assert.ok(result.html.includes('model answer'));
 });

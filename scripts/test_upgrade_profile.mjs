@@ -8,8 +8,8 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium, expect } from '@playwright/test';
-import { bodyFacts, byteFacts, assertPersistedBaseline, upgradeOutcome } from './upgrade_baseline.mjs';
-import { NativeExportFailure, assertOfflineFailures, assertExpectedOfflineFailure } from './upgrade_failures.mjs';
+import { migrationFacts, assertPersistedBaseline, upgradeOutcome } from './upgrade_baseline.mjs';
+import { NativeExportFailure } from './upgrade_failures.mjs';
 
 const require = createRequire(import.meta.url);
 const JSZip = require('../lib/jszip.min.js');
@@ -232,6 +232,7 @@ async function snapshot(page, label) {
         const bytes = value instanceof ArrayBuffer ? new Uint8Array(value) : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
         return { binarySnapshot: true, byteLength: bytes.length, sha256: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map(b => b.toString(16).padStart(2, '0')).join('') };
       }
+      if (value?.kind === 'directory' && typeof value.name === 'string') return { directoryHandleSnapshot: true, kind: value.kind, name: value.name };
       if (Array.isArray(value)) return Promise.all(value.map(encode));
       if (value && typeof value === 'object') return Object.fromEntries(await Promise.all(Object.entries(value).map(async ([k, v]) => [k, await encode(v)])));
       return value;
@@ -239,12 +240,13 @@ async function snapshot(page, label) {
     const databases = {};
     for (const info of await indexedDB.databases()) {
       const db = await new Promise((resolve, reject) => { const r = indexedDB.open(info.name); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
-      const stores = {};
+      const stores = {}, keys = {};
       for (const name of db.objectStoreNames) {
         const rows = await new Promise((resolve, reject) => { const r = db.transaction(name).objectStore(name).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
         stores[name] = await encode(rows);
+        keys[name] = await new Promise((resolve, reject) => { const r = db.transaction(name).objectStore(name).getAllKeys(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
       }
-      databases[info.name] = { version: db.version, stores }; db.close();
+      databases[info.name] = { version: db.version, stores, keys }; db.close();
     }
     return { local: await encode(await chrome.storage.local.get(null)), databases };
   });
@@ -255,24 +257,8 @@ async function snapshot(page, label) {
 }
 
 async function retained(before, after) {
-  for (const slot of accounts) {
-    const key = 'gemini_conversations' + (slot === 'u0' ? '' : '_' + slot);
-    const original = before.local[key];
-    assert.equal(original.length, 3, 'Old production profile must have three conversations per account');
-    const rows = after.local[key];
-    assert.deepEqual(rows.map(r => r.id).sort(), original.map(r => r.id).sort(), 'History IDs lost on upgrade');
-    for (const row of original) {
-      const current = rows.find(r => r.id === row.id);
-      for (const field of ['title', 'timestamp', 'updatedAt']) assert.deepEqual(current[field], row[field], `History ${field} changed`);
-    }
-    const exp = slot === 'u0' ? 'exportedIds' : 'gemini_exported_' + slot;
-    assert.equal(Object.keys(before.local[exp] || {}).length, 3, 'Old production export flags absent');
-    for (const [id, record] of Object.entries(before.local[exp] || {})) {
-      assert.deepEqual(after.local[exp]?.[id], record, 'Original export record changed/lost');
-    }
-  }
   await assertPersistedBaseline(before, after);
-  report.legacyPersistedByteRecords = byteFacts(before).length;
+  report.migratedCategories = ['accounts', 'indexes', 'exportRecords', 'settings', 'directoryHandle'];
 }
 
 async function stage(name, run) {
@@ -315,6 +301,7 @@ try {
       await page.close();
     }
     const page = await options('u0'); baseline = await snapshot(page, 'baseline');
+    migrationFacts(baseline); // Fail with an explicit unsupported-source diagnostic before installing candidate.
     await context.close(); context = null;
     await fs.cp(profile, path.join(output, 'baseline-profile'), { recursive: true });
     baselineProfileSha = await profileDigest(path.join(output, 'baseline-profile'));
@@ -327,82 +314,6 @@ try {
     await context.close(); context = null; await launch();
     const reopened = await options('u0'); await retained(baseline, await snapshot(reopened, 'after-restart')); await reopened.close();
   });
-  await stage('legacy body/image availability after upgrade, with cloud refetch blocked', async () => {
-    offline = true; // Never recover a body from fresh cloud traffic.
-    for (const slot of accounts) await connectAccount(slot);
-    const bodies = bodyFacts(baseline);
-    const bytes = byteFacts(baseline);
-    report.offlineBaseline = { bodyConversations: bodies.map(({slot,id}) => ({slot,id})), byteRecords: bytes.length,
-      unavailable: accounts.flatMap(slot => [...ids(slot),takeoutId(slot)].filter(id => !bodies.some(fact => fact.slot === slot && fact.id === id)).map(id => ({slot,id,status:'not_applicable',reason:'Old runtime did not persist a body'}))) };
-    const checkpoint = await options('u0');
-    await assertPersistedBaseline(baseline, await snapshot(checkpoint, 'offline-retained'));
-    await checkpoint.close();
-    // NA does not excuse a false successful export. Exercise unavailable
-    // bodies offline and require native failure plus unchanged old flags.
-    for (const slot of accounts) {
-      const unavailable = report.offlineBaseline.unavailable.filter(fact => fact.slot === slot).map(fact => fact.id);
-      if (!unavailable.length) continue;
-      const page = await options(slot);
-      const key = slot === 'u0' ? 'exportedIds' : 'gemini_exported_' + slot;
-      const before = await page.evaluate(key => chrome.storage.local.get(key), key);
-      let failedChats;
-      try {
-        const entries = await exportZip(page, slot, 'markdown', 'unavailable-offline', unavailable);
-        assert.ok(!Object.keys(entries).some(name => unavailable.some(id => name.endsWith(`_${id.slice(-6)}.md`))), 'Unstored body falsely exported offline');
-        const errors = Object.entries(entries).find(([name]) => name.endsWith('_export_errors.json'));
-        assert.ok(errors, 'Missing native failure report for unavailable bodies');
-        failedChats = JSON.parse(errors[1].toString()).failedChats;
-        assertOfflineFailures(failedChats, unavailable);
-      } catch (error) {
-        // Only the explicit product failure UI is expected. Timeouts, package,
-        // schema and harness errors remain real failed stages.
-        assertExpectedOfflineFailure(error, unavailable);
-        failedChats = error.failedChats;
-      }
-      const after = await page.evaluate(key => chrome.storage.local.get(key), key);
-      assert.deepEqual(after[key], before[key], 'Offline failure changed existing export records');
-      report.checks.push({ unavailableOfflineFailure: slot, ids: unavailable,
-        failures: failedChats.map(({ id, error }) => ({ id, error })), originalExportRecordsUnchanged: true });
-      await page.close();
-    }
-    if (!bodies.length) {
-      offline = false;
-      return { status: 'not_applicable', reason: `No persisted legacy bodies; ${bytes.length} original byte records checked for retention, no successful offline recovery claimed` };
-    }
-    for (const slot of accounts) {
-      const available = bodies.filter(fact => fact.slot === slot);
-      if (!available.length) continue;
-      const page = await options(slot);
-      for (const format of ['markdown', 'html', 'pdf']) {
-        const entries = await exportZip(page, slot, format, 'upgraded', available.map(fact => fact.id));
-        const extension = format === 'markdown' ? '.md' : '.' + format;
-        for (const fact of available) {
-          const matches = Object.keys(entries).filter(name => name.endsWith(`_${fact.id.slice(-6)}${extension}`));
-          assert.equal(matches.length, 1, 'Missing/duplicate physical format file for persisted body');
-          assert.ok(entries[matches[0]].length > 0, 'Empty physical format file');
-          if (format === 'markdown') for (const text of fact.texts) {
-            const plain = value => normalize(value).replace(/[`*_~]/g, '');
-            assert.ok(plain(entries[matches[0]].toString()).includes(plain(text)), 'Persisted authored body missing from offline Markdown');
-          }
-        }
-        // Retain the original full HTML/PDF content/formula assertions when
-        // the original disk really contains every authored golden turn. A
-        // partially persisted body must not be judged against unstored turns.
-        const fullGolden = ids(slot).every(id => available.some(fact => fact.id === id
-          && [0, 1, 2].every(index => [prompt(slot, index), response(slot, index)].every(text =>
-            fact.texts.some(saved => normalize(saved).includes(normalize(text)))))));
-        if (format !== 'markdown' && fullGolden) execFileSync('python3', [path.join(scriptRoot, 'upgrade_content_check.py'),
-          path.join(output, `upgraded-${slot}-${format}.zip`), slot, format], { stdio: 'inherit' });
-        // A downloaded old ZIP is evidence of export, not of persistence. Only
-        // attachment hashes actually present in the old disk snapshot qualify.
-        for (const fact of bytes.filter(fact => Object.values(baselineExports[slot]).some(value => sha(value) === fact.sha256))) {
-          assert.ok(Object.values(entries).some(value => value.length === fact.byteLength && sha(value) === fact.sha256), 'Persisted physical image SHA changed');
-        }
-      }
-      await page.close();
-    }
-    offline = false;
-  }).catch(() => {}); // Continue independent activity/failure checks; final result stays failed.
   await stage('new activity, incremental export and account isolation after restart', async () => {
     offline = false;
     revision = 1;

@@ -1,6 +1,5 @@
 // tests/arch/no_bare_storage_writes.test.ts
-// Architectural gate: Prohibit direct `chrome.storage.local.set(` calls outside `src/core/storage/` boundary.
-// All storage writes must be consolidated in dedicated storage modules.
+// Chrome writes belong only to the Settings IO adapter and the one-time Migration marker.
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -8,12 +7,11 @@ const { execSync } = require('node:child_process');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const STORAGE_DIR_PREFIX = 'src/core/storage/';
 
-// Only controlled storage modules under src/core/storage/ are allowed to call chrome.storage.local.set(
+// Explicit owners: Settings data and the final Migration completion marker.
 const ALLOWED_STORAGE_FILES = new Set<string>([
     'src/core/storage/settingsStore.ts',
-    'src/core/storage/migrationMarker.ts',
+    'src/core/migration/upgradeV1.ts',
 ]);
 
 function gitGrepFixed(pattern: string): Array<{ file: string; line: number; text: string }> {
@@ -35,21 +33,12 @@ function isRealCodeCall(text: string, pattern: string): boolean {
     return code.includes(pattern);
 }
 
-test('arch: no bare chrome.storage.local.set( outside src/core/storage/ boundary', () => {
+test('arch: Chrome writes stay within Settings IO and the Migration marker owner', () => {
     const hits = gitGrepFixed('chrome.storage.local.set(')
         .filter(h => isRealCodeCall(h.text, 'chrome.storage.local.set('));
-
-    const outsideStorageDir = hits.filter(h => !h.file.startsWith(STORAGE_DIR_PREFIX));
-    assert.strictEqual(
-        outsideStorageDir.length, 0,
-        `严禁在 ${STORAGE_DIR_PREFIX} 目录外直接调用 chrome.storage.local.set(，必须通过 StorageService 或存储模块收口：\n` +
-        outsideStorageDir.map(h => `  ${h.file}:${h.line}: ${h.text.trim()}`).join('\n')
-    );
-
-    const unauthorizedStorageFiles = hits.filter(h => !ALLOWED_STORAGE_FILES.has(h.file));
-    assert.strictEqual(
-        unauthorizedStorageFiles.length, 0,
-        `${STORAGE_DIR_PREFIX} 下出现未登记的新增直写模块，请走现有 StorageService 或显式纳入 ALLOWED_STORAGE_FILES：\n` +
-        unauthorizedStorageFiles.map(h => `  ${h.file}:${h.line}: ${h.text.trim()}`).join('\n')
-    );
+    const unauthorized = hits.filter(h => !ALLOWED_STORAGE_FILES.has(h.file));
+    assert.strictEqual(unauthorized.length, 0,
+        'Unowned Chrome storage write:\n' + unauthorized.map(h => `  ${h.file}:${h.line}: ${h.text.trim()}`).join('\n'));
+    const migration = require('node:fs').readFileSync(path.join(REPO_ROOT, 'src/core/migration/upgradeV1.ts'), 'utf8');
+    assert.deepStrictEqual([...migration.matchAll(/chrome\.storage\.local\.set\(([^;]+)\);/g)].map(match => match[1]), ['{ [INITIALIZED]: true }']);
 });

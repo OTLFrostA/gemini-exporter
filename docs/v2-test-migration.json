@@ -33,7 +33,7 @@
     },
     {
       "file": "tests/audit_reinforcement.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_other_owner_scenarios_pending"
     },
     {
       "file": "tests/b1_writer_unified.test.ts",
@@ -81,7 +81,7 @@
     },
     {
       "file": "tests/conversation-representation.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/conversation_index.types.ts",
@@ -117,7 +117,7 @@
     },
     {
       "file": "tests/data_safety_batch1.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_other_owner_scenarios_pending"
     },
     {
       "file": "tests/dedup_regressions.test.ts",
@@ -133,11 +133,11 @@
     },
     {
       "file": "tests/document-model.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/document-neutral.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/document_renderer_boundary.types.ts",
@@ -313,7 +313,7 @@
     },
     {
       "file": "tests/html-document-migration.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/html_export.test.ts",
@@ -325,7 +325,7 @@
     },
     {
       "file": "tests/idb_handle_store.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/imagen_generated_assets.test.ts",
@@ -357,7 +357,7 @@
     },
     {
       "file": "tests/live_storage_manager.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/maintenance_convergence_batch4.test.ts",
@@ -541,11 +541,11 @@
     },
     {
       "file": "tests/schema_badge.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/schema_migration.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/seam_s1_content_router.test.ts",
@@ -581,7 +581,7 @@
     },
     {
       "file": "tests/storage_export_surface.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/storage_read_canonical.test.ts",
@@ -589,19 +589,19 @@
     },
     {
       "file": "tests/storage_readiness_boundary.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/storage_reconciliation.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/storage_service.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/storage_trust_snapshot.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/sync_provider_contract.test.ts",
@@ -641,7 +641,7 @@
     },
     {
       "file": "tests/ts_c2_storage_service.test.ts",
-      "status": "restored_pending_review"
+      "status": "l3_contract_migrated_verified"
     },
     {
       "file": "tests/ts_c4_session_recovery.test.ts",
@@ -686,6 +686,99 @@
     {
       "file": "tests/write_failure_semantics.test.ts",
       "status": "restored_pending_review"
+    },
+    {
+      "file": "tests/arch/no_bare_storage_writes.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/arch/semantic-layer-boundary.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/asset-presentation.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/ast-composer.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/document-ast-contract.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/document-generated-image-consistency.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/document-html-parity.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/document-markdown-contract.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/document-typst-contract.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/domain-ast-projection.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/domain_closure.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/domain_conversation_detail.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/domain_document_direct.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/domain_timestamp_contract.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/provider-conversation-parser.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/renderer-strings-locale.test.ts",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/upgrade_v1.test.cjs",
+      "status": "l3_contract_migrated_verified"
+    },
+    {
+      "file": "tests/conversation-representation-other-layers.test.ts",
+      "status": "retained_pending_other_owner_migration",
+      "note": "Preserved from the mixed original suite; remains in normal full discovery."
+    },
+    {
+      "file": "tests/document-model-other-layers.test.ts",
+      "status": "retained_pending_other_owner_migration",
+      "note": "Preserved from the mixed original suite; remains in normal full discovery."
+    },
+    {
+      "file": "tests/html-document-migration-other-layers.test.ts",
+      "status": "retained_pending_other_owner_migration",
+      "note": "Preserved from the mixed original suite; remains in normal full discovery."
+    },
+    {
+      "file": "tests/live_storage_manager_other_layers.test.ts",
+      "status": "retained_pending_other_owner_migration",
+      "note": "Preserved from the mixed original suite; remains in normal full discovery."
+    },
+    {
+      "file": "tests/storage_export_surface_other_layers.test.ts",
+      "status": "retained_pending_other_owner_migration",
+      "note": "Preserved from the mixed original suite; remains in normal full discovery."
     }
   ],
   "verification": {
@@ -764,5 +857,11 @@
     "tier2": "L1/L2 probes, source/index/detail/assets/coverage/deletion oracles migrated; offline harness verified; live run deferred by user",
     "followupBase": "4ede73c5884d4667c5c87e1f85642d2225843f49",
     "initialRepair": "https://github.com/OTLFrostA/gemini-exporter/pull/1061 (merged)"
+  },
+  "l3Audit": {
+    "base": "870fb0ec15ef61b4731342b6962981eea5102986",
+    "scopedCommand": "node scripts/test-l3.cjs",
+    "tier2": "Harness contracts migrated; no live Tier 2 execution.",
+    "report": "docs/l3-frozen-design-audit.md"
   }
 }

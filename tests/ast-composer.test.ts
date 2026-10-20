@@ -76,7 +76,7 @@ test('Citation numbering follows message-local citation arrays, including unrefe
         { id: 'named', label: 'Article', href: 'https://example.test', number: i * 3 + 3 },
     ]));
     assert.deepEqual(document.messages[1].blocks, [
-        { type: 'disclosure', kind: 'reasoning', blocks: [{ type: 'paragraph', children: [{ type: 'citation', id: 'offline', label: '[4]' }] }] },
+        { type: 'disclosure', kind: 'reasoning', title: 'Thinking Process', blocks: [{ type: 'paragraph', children: [{ type: 'citation', id: 'offline', label: '[99]' }] }] },
         { type: 'paragraph', children: [
             { type: 'citation', id: 'named', label: 'Read this', href: 'https://example.test' },
             { type: 'citation', id: 'url', label: '[5]', href: 'https://example.test' },
@@ -111,7 +111,7 @@ test('Resource query visits nested inlines, table cells, captions and descriptio
     const document: DocumentAst = {
         title: 'T', metadata: { id: 'x', provider: 'test' }, messages: [{
             role: 'assistant', blocks: [
-                { type: 'disclosure', kind: 'reasoning', blocks: [{ type: 'quote', blocks: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'link', href: '#', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'nested', alt: '' }] }] }] }] }] }] }] },
+                { type: 'disclosure', kind: 'reasoning', title: 'Thinking Process', blocks: [{ type: 'quote', blocks: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'link', href: '#', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'nested', alt: '' }] }] }] }] }] }] }] },
                 { type: 'table', columnAlignments: ['default'], headerRows: [[{ column: 0, colSpan: 1, rowSpan: 1, children: [{ type: 'image', resourceId: 'header', alt: '' }] }]], rows: [[{ column: 0, colSpan: 1, rowSpan: 1, children: [{ type: 'image', resourceId: 'cell', alt: '' }] }]], caption: [{ type: 'image', resourceId: 'table-caption', alt: '' }] },
                 { type: 'image', resourceId: 'figure', alt: '', caption: [{ type: 'image', resourceId: 'caption', alt: '' }] },
                 { type: 'file', resourceId: 'file', label: '', kind: 'file', description: [{ type: 'image', resourceId: 'description', alt: '' }] },
@@ -184,4 +184,32 @@ test('AST modules have no acquisition, persistence, renderer or diagnostics depe
         }
         assert.doesNotMatch(source,/\bfetch\s*\(|chrome\.storage|\bdataBase64\b|\bResourceBindings\b/);
     }
+});
+
+test('empty Reasoning emits no disclosure and fixed reading labels never rewrite source text', () => {
+    const raw = input(); raw.index.title = 'First line\nSecond line';
+    raw.detail.assets = [{ id: 'image', kind: 'image' }, { id: 'file', kind: 'file' }];
+    raw.detail.messages = [{ role: 'assistant', reasoning: [], content: [
+        { type: 'image', assetId: 'image' }, { type: 'file', assetId: 'file' },
+    ] }];
+    const document = composeDomainDocument(validateParserDomain(raw), account);
+    assert.equal(document.title, 'First line\nSecond line');
+    assert.deepEqual(document.messages[0].blocks, [
+        { type: 'image', resourceId: 'image', alt: 'Image' },
+        { type: 'file', resourceId: 'file', label: 'Attachment', kind: 'file' },
+    ]);
+});
+
+test('Table layout carries a header rowspan into body rows and retains unused declared columns', () => {
+    const raw = input(); raw.detail.messages = [{ role: 'assistant', content: [{ type: 'table',
+        columns: [{ align: 'right' }, {}, { align: 'center' }],
+        headerRows: [{ cells: [{ rowSpan: 2, children: [{ type: 'text', text: 'Spans boundary' }] }] }],
+        rows: [{ cells: [{ children: [{ type: 'text', text: 'Body' }] }] }, { cells: [] }],
+    }] }];
+    const block = composeDomainDocument(validateParserDomain(raw), account).messages[0].blocks[0];
+    assert.ok(block.type === 'table');
+    assert.deepEqual(block.columnAlignments, ['right', 'default', 'center']);
+    assert.equal(block.headerRows[0][0].rowSpan, 2);
+    assert.equal(block.rows[0][0].column, 1); assert.deepEqual(block.rows[1], []);
+    assert.ok(!('align' in block.rows[0][0]));
 });

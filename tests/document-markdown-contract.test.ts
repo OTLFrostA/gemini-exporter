@@ -88,7 +88,7 @@ test('Markdown files use local links or a visible unavailable label', () => {
 });
 
 test('Markdown thought blocks contain nested Markdown inside details', () => {
-    assert.ok(render([], { reasoning: [para('thinking')] }).includes('<details>\n<summary>🧠 Thinking Process</summary>\n\nthinking\n\n</details>'));
+    assert.ok(render([], { reasoning: [para('thinking')] }).includes('<details>\n<summary>Thinking Process</summary>\n\nthinking\n\n</details>'));
 });
 
 test('Markdown inline citations link URLs and retain labels without URLs', () => {
@@ -119,7 +119,7 @@ test('Gemini Markdown fallback reaches Document Markdown with semantic formattin
 test('Markdown escapes unsafe links, local paths and YAML title boundaries', async () => {
     const b = domainFixture([{ type: 'paragraph', children: [{ type: 'link', href: 'javascript:alert(1)', children: [txt('safe')] }, { type: 'image', assetId: 'a', alt: 'blocked' }] }], { assets: [{ id: 'a', kind: 'image', sourceUri: 'https://remote/pic.png' }] });
     b.index.title = 'Title"\nextra: yes'; const md = await exportDomainMarkdown({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } }, fixtureAccountFor({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } }));
-    assert.ok(md.includes('title: "Title\\" extra: yes"')); assert.ok(!md.includes('javascript:')); assert.ok(!md.includes('https://remote')); assert.ok(md.includes('[Image unavailable: blocked]'));
+    assert.equal(md.split('\n')[1], 'title: ' + JSON.stringify(b.index.title)); assert.ok(!md.includes('javascript:')); assert.ok(!md.includes('https://remote')); assert.ok(md.includes('[Image unavailable: blocked]'));
 });
 
 test('Document Markdown preserves both messages with duplicate source IDs', async () => {

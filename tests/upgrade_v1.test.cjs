@@ -1,4 +1,4 @@
-const { test, beforeEach } = require('node:test');
+const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { IDBFactory, IDBDatabase, IDBObjectStore } = require('fake-indexeddb');
 const { ensureUpgraded } = require('../src/core/migration/upgradeV1.ts');
@@ -8,8 +8,11 @@ const settingsKey = 'gemini_exporter_v2_settings';
 const a = { id: '12345678-1234-4234-8234-123456789abc', providerId: 'gemini', providerAccountId: 'one' };
 const b = { ...a, id: '22345678-1234-4234-8234-123456789abc', providerAccountId: 'two' };
 const index = account => ({ key: { accountId: account.id, conversationId: 'shared' }, title: 'History', titleSource: 'provider', updatedAt: 123 });
-let data, writes, failKey;
+const { indexStorage } = require('./helpers/indexStorage.ts');
+let data, writes, failKey, environment;
+afterEach(() => environment.restore());
 beforeEach(() => {
+    environment = indexStorage();
     global.indexedDB = new IDBFactory();
     data = {}; writes = []; failKey = undefined;
     global.chrome = { storage: { local: {
@@ -173,4 +176,32 @@ test('failure to commit the final marker is retryable and never clears legacy so
     await ensureUpgraded();
     assert.equal(data[marker], true);
     assert.equal(data[settingsKey]?.useZip, undefined);
+});
+
+test('upgrade normalizes provable source Index times to safe millisecond integers', async () => {
+    await accounts(a);
+    data[`conversations_${a.id}`] = [{ ...index(a), createdAt: '2026-10-17T12:00:00+02:00', updatedAt: '0' }];
+    await ensureUpgraded();
+    assert.deepEqual(await storage.getIndex(index(a).key), { ...index(a), createdAt: Date.parse('2026-10-17T10:00:00Z'), updatedAt: 0 });
+});
+for (const value of [0.25, Number.MAX_SAFE_INTEGER + 1, Infinity, '2026-10-17T12:00:00', 'unknown']) {
+    test(`invalid Index source time ${value} aborts before v2 writes`, async () => {
+        await accounts(a); data[`conversations_${a.id}`] = [{ ...index(a), updatedAt: value }];
+        await assert.rejects(ensureUpgraded(), /source time/);
+        assert.deepEqual(await storage.listAccounts(), []); assert.equal(data[marker], undefined);
+        assert.deepEqual(writes, []);
+    });
+}
+test('invalid optional export times are omitted, invalid exportedAt records rejected, epoch zero preserved', async () => {
+    await accounts(a);
+    data[`exported_${a.id}`] = {
+        valid: { exportedAt: 0, chatTime: 0, status: 'ok', format: 'json' },
+        optional: { exportedAt: '123', chatTime: '2026-10-17T12:00:00', status: 'partial', format: 'html' },
+        invalid: { exportedAt: 0.5, status: 'ok', format: 'pdf' },
+    };
+    await ensureUpgraded();
+    assert.deepEqual(await storage.listExportRecords(a.id), {
+        valid: { exportedAt: 0, chatTime: 0, status: 'ok', format: 'json' },
+        optional: { exportedAt: 123, status: 'partial', format: 'html' },
+    });
 });

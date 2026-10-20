@@ -15,13 +15,13 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
 
-// Index storage rejects content before touching physical storage.
-test('storageService rejects fat metadata without changing stored indexes', async () => {
+// L2 admission rejects fat Index data before passive Storage receives a write decision.
+test('L2 rejects fat metadata without changing stored indexes', async () => {
     const { indexStorage } = require('./helpers/indexStorage.js');
     const env = indexStorage();
     try {
-        const storage = require('../src/core/storage/storageService.js');
-        await assert.rejects(storage.setConversations('10000000-0000-4000-8000-000000000001', [{ ...indexFixture({ id: 'chat', title: 'Research' }), messages: [] }]), /index schema/);
+        const { ingestIndexes } = require('../src/core/domain/ingestion.js');
+        await assert.rejects(ingestIndexes('10000000-0000-4000-8000-000000000001', [{ conversationId: 'chat', fields: { title: 'Research', titleSource: 'provider', messages: [] } }]), /index schema/);
         assert.equal(env.writes(), 0);
     } finally { env.restore(); }
 });

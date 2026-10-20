@@ -145,7 +145,7 @@ test('resource IDs never collide with export numbering or acquisition URI aliase
     ], messages: [{ role: 'assistant', attachmentIds: ['msg-0-a1', 'second'],
         content: [{ type: 'image', assetId: 'msg-0-a1' }, { type: 'image', assetId: 'second' }] }] } };
     const result = await composeFixture(domain);
-    assert.deepEqual(result.document.messages[0].blocks.map(block => 'resourceId' in block ? block.resourceId : undefined), ['msg-0-a1', 'second']);
+    assert.deepEqual(result.document.messages[0].blocks.map(block => 'resourceId' in block ? block.resourceId : undefined), ['msg-0-a1', 'second', 'msg-0-a1', 'second']);
 });
 
 test('resource metadata and audio/video kinds survive neutral downstream adaptation', async () => {

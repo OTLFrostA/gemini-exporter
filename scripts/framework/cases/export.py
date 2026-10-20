@@ -17,6 +17,7 @@ from scripts.framework.assertions import CDPAssertions, assert_archive_targets, 
 from scripts.framework.pdf_evidence import assert_pdf_turn_content
 from scripts.framework.html_evidence import assert_html_turn_content
 from scripts.framework.selectors import WorkbenchSelectors
+from scripts.framework.l3_contracts import audit_l3_contracts
 from scripts.framework.v2_probe import install_probe
 from scripts.framework.cases.sync import wait_for_prior_scan, clear_scan_records, select_source_account
 
@@ -292,6 +293,7 @@ class ZipExportDownloadCase(FeatureTestCase):
                 ctx.shared_data['gemini_dual_capture'] = finish_capture(
                     cdp_opt, os.path.join(ctx.output_dir, 'gemini_dual_parse', 'native'), check_res['matched'])
             if downloaded_zip and os.path.isfile(downloaded_zip) and os.path.getsize(downloaded_zip) > 0:
+                audit_l3_contracts(cdp_opt, check_res['matched'])
                 ctx.shared_data["downloaded_zip"] = downloaded_zip
                 size = os.path.getsize(downloaded_zip)
                 return True, f"ZIP 导出成功落盘: {os.path.basename(downloaded_zip)} ({size} bytes)", {"zip_path": downloaded_zip, "size": size}
@@ -742,6 +744,7 @@ class HtmlExportDownloadCase(FeatureTestCase):
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 HTML 文件", None
 
+            audit_l3_contracts(cdp_opt, check_res['matched'])
             return True, f"HTML 独立网页导出成功落盘并解压验证通过 (HTML文件数: {len(html_files)}, ZIP大小: {zip_size} bytes, 规范结构与 {verified_turns} 轮真实内容核验)", {
                 "zip_path": downloaded_zip,
                 "html_count": len(html_files),
@@ -931,6 +934,7 @@ class PdfExportDownloadCase(FeatureTestCase):
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 PDF 文件", None
 
+            audit_l3_contracts(cdp_opt, check_res['matched'])
             return True, f"PDF 真实编译导出成功落盘并解压验证通过 (PDF文件数: {len(pdf_files)}, ZIP大小: {zip_size} bytes, 二进制与 {verified_turns} 轮真实内容核验)", {
                 "zip_path": downloaded_zip,
                 "pdf_count": len(pdf_files),

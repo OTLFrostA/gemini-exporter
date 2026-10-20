@@ -28,7 +28,7 @@ export type DisplayBlock = (
     | { type: 'table'; caption?: DisplayInline[]; columnAlignments: Array<'left' | 'center' | 'right' | 'default'>; headerRows: DisplayCell[][]; rows: DisplayCell[][] }
     | { type: 'image'; resourceId: string; alt: string; caption?: DisplayInline[] }
     | { type: 'file'; resourceId: string; label: string; kind: DomainAssetKind; mediaType?: string; byteLength?: number; description?: DisplayInline[] }
-    | { type: 'disclosure'; kind: string; title?: string; blocks: DisplayBlock[] }
+    | { type: 'disclosure'; kind: string; title: string; blocks: DisplayBlock[] }
     | { type: 'thematicBreak' }
     | { type: 'unsupported'; sourceType: string; text: string }
 );

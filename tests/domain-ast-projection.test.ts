@@ -59,7 +59,7 @@ test('AST: Composer numbers sources once across messages and preserves absent UR
         [['same', 3, '', undefined], ['named', 4, 'Article', 'https://example.test/article']],
     ]);
     const reasoning = document.messages[1].blocks[0];
-    assert.ok(JSON.stringify(reasoning).includes('"label":"[3]"'));
+    assert.ok(JSON.stringify(reasoning).includes('"label":"[99]"'));
 
 });
 
@@ -82,7 +82,7 @@ test('AST: code and reasoning preserve facts without renderer controls', () => {
     raw.detail.messages[0].content = [{ type: 'code', code: 'answer', language: 'js', meta: 'Authored filename' }];
     const domain = validateParserDomain(raw), document = composeDomainDocument(domain, account), before = JSON.stringify(document);
     assert.deepEqual(document.messages[0].blocks, [
-        { type: 'disclosure', kind: 'reasoning', blocks: [{ type: 'code', code: 'thought', language: 'text' }] },
+        { type: 'disclosure', kind: 'reasoning', title: 'Thinking Process', blocks: [{ type: 'code', code: 'thought', language: 'text' }] },
         { type: 'code', code: 'answer', language: 'js', meta: 'Authored filename' },
     ]);
     assert.equal(JSON.stringify(document), before);

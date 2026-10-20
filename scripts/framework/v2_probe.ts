@@ -1,3 +1,6 @@
+import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../../src/core/document/ast/resourceReferences.js';
+import { openStorageDB } from '../../src/core/storage/idb.js';
 import { readConversationKey, type ConversationKey } from '../../src/core/domain/conversationKey.js';
 import { clearLocalScanRecords } from '../../src/core/application/localCleanup.js';
 /** Test-only access to public v2 owners. Bundled by the Python harness, never shipped. */
@@ -37,6 +40,35 @@ export async function conversations(ids: string[]) {
             summary: state.rows.find(row => row.key.conversationId === id) };
     }));
 }
+/** Inspect physical L3a schema and the actual L2 -> L3b boundary after export acquisition. */
+export async function l3Contracts(ids: string[]) {
+    const state = await snapshot();
+    const db = await openStorageDB();
+    let layout;
+    try {
+        const stores = Array.from(db.objectStoreNames);
+        const tx = db.transaction(stores, 'readonly');
+        layout = { name: db.name, version: db.version, stores: stores.map(name => {
+            const store = tx.objectStore(name);
+            return { name, keyPath: store.keyPath, autoIncrement: store.autoIncrement,
+                indexes: Array.from(store.indexNames).map(name => {
+                    const index = store.index(name);
+                    return { name, keyPath: index.keyPath, unique: index.unique, multiEntry: index.multiEntry };
+                }) };
+        }) };
+    } finally { db.close(); }
+    const documents = await Promise.all(ids.map(async id => {
+        const key = { accountId: state.accountId, conversationId: id };
+        const domain = await readConversation(key);
+        if (!domain) throw new Error('Exported conversation has no current Detail: ' + id);
+        const document = composeDomainDocument(domain, state.account);
+        const references = collectDocumentResources(document);
+        return { key, account: state.account, domain, document,
+            referencedIds: [...references.referencedIds].sort(), imageIds: [...references.imageIds].sort() };
+    }));
+    return { layout, documents };
+}
+
 /** Scan reset clears both trusted Coverage and export records (frozen L3a contract). */
 export async function clearScanRecords() {
     await ensureV2Ready();
@@ -69,7 +101,7 @@ export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
     }
     return {ids:parsed.map(result => result.conversationId), sourceFacts:Object.fromEntries(parsed.map(result => [result.conversationId, result.conversation])), resources, mediaDigests};
 }
-Object.assign(globalThis, { __tier2V2: { accountId, snapshot, conversations, storedConversation, clearScanRecords, inspectTakeout,
+Object.assign(globalThis, { __tier2V2: { accountId, snapshot, conversations, storedConversation, l3Contracts, clearScanRecords, inspectTakeout,
     getAccount: storage.getAccount, listAccounts: storage.listAccounts,
     getSettings, updateSettings,
     setDirectoryHandle: storage.setDirectoryHandle } });

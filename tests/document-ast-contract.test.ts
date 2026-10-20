@@ -53,6 +53,7 @@ test('contract rejects stale fields, bad types and a second sources wrapper', ()
         value => Object.assign(value.messages[0], { blocks: [{ type: 'placeholder', kind: 'file', text: 'Absent' }] }),
         value => Object.assign(value.messages[0], { blocks: [{ type: 'table', columnAlignments: ['default'], headerRows: [], rows: [[{ column: 0, colSpan: 1, rowSpan: 1, align: 'left', children: [] }]] }] }),
         value => Object.assign(value, { diagnostics: [] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'disclosure', kind: 'reasoning', blocks: [] }] }),
     ];
     for (const change of mutate) {
         const value = valid(); change(value);

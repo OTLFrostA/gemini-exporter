@@ -1,4 +1,4 @@
-import { codeHeader, disclosureTitle, messageLabel, sourceNumberPrefix, unavailableResourceText } from '../shared/backendPresentation.js';
+import { codeHeader, messageLabel, sourceNumberPrefix, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
 import type { MarkdownRenderOptions } from '../shared/renderOptions.js';
@@ -100,7 +100,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return [image(node.resourceId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
             }
             case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
-            case 'disclosure': return `<details${options.thoughtInitiallyCollapsed ?? true ? '' : ' open'}>\n<summary>${node.title ? escapeText(node.title) : '🧠 ' + escapeText(disclosureTitle(node, { ...options, locale }))}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
+            case 'disclosure': return `<details${options.thoughtInitiallyCollapsed ?? true ? '' : ' open'}>\n<summary>${escapeText(node.title)}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
             case 'thematicBreak': return '---';
             case 'unsupported': return `${escapeText(`${strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;
         }

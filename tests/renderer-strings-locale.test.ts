@@ -44,8 +44,8 @@ test('typst zh locale localizes chrome copy', () => {
     const b = domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]);
     const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), {}, { ...opts, locale: 'zh' });
     const nodes = payload.messages[0].blocks;
-    const thought = nodes.find((n: any) => n.type === 'note' && n.label === '思考过程');
-    assert.ok(thought, 'thought label localized');
+    const thought = nodes.find((n: any) => n.type === 'note' && n.label === 'Thinking Process');
+    assert.ok(thought, 'Composer reasoning title stays fixed while renderer chrome is localized');
     const unknown = nodes.find((n: any) => n.type === 'unknown');
     assert.ok(unknown.label.startsWith('不支持的内容'));
     const math = nodes.find((n: any) => n.type === 'math');
@@ -69,7 +69,7 @@ test('typst zh date unknown is localized', () => {
 test('html uses the same string source', () => {
     const blocks: any[] = [];
     const zh = renderDocumentHtml(composeDomainDocument(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]), fixtureAccountFor(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]))), {}, { locale: 'zh' });
-    assert.ok(zh.html.includes('思考过程'));
+    assert.ok(zh.html.includes('Thinking Process'));
     const en = renderDocumentHtml(composeDomainDocument(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]), fixtureAccountFor(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]))), {}, { locale: 'en' });
     assert.ok(en.html.includes('Thinking Process'));
 });
