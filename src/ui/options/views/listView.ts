@@ -4,13 +4,10 @@ import type { ConversationViewState } from '../state/conversationsStore.js';
 import { text } from '../../shared/settings.js';
 
 /** Presentation-only status. Domain and Application remain authorities for updates and Skip. */
-function viewStatus(index: DomainConversationIndex, record: ExportRecord | undefined, failed: boolean) {
-    if (failed) return { label: text('Export failed', '导出失败'), className: 'status-failed' };
-    if (!record) return { label: text('Not exported', '未导出'), className: '' };
+function viewStatus(record: ExportRecord | undefined) {
+    if (!record) return { label: text('No export record', '无导出记录'), className: '' };
     if (record.status === 'partial') return { label: text('Partial export', '部分导出'), className: 'status-partial' };
-    if (record.chatTime !== undefined && index.updatedAt !== undefined && record.chatTime < index.updatedAt)
-        return { label: text('Updated', '有更新'), className: 'status-updated' };
-    return { label: text('Exported', '已导出'), className: 'status-exported' };
+    return { label: text('Last export complete', '上次导出完整'), className: 'status-exported' };
 }
 function date(value: number | undefined): string {
     return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString();
@@ -22,7 +19,7 @@ export function renderList(state: ConversationViewState, disabled: boolean): voi
     for (const index of state.visible()) {
         const id = index.key.conversationId;
         const record = state.records[id];
-        const status = viewStatus(index, record, state.failed.has(id));
+        const status = viewStatus(record);
         const row = document.createElement('div');
         row.className = 'item'; row.dataset.chatId = id;
         const checkbox = document.createElement('input');

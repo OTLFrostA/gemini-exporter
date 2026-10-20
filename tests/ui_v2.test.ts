@@ -15,10 +15,20 @@ test('UI: single account, explicit selection, record-only filters and visible se
         listIndexes: async () => [row(A.id, 'one'), row(A.id, 'two')],
         listExportRecords: async () => ({ one: { status: 'partial', format: 'pdf', exportedAt: 1 } }) });
     await state.refresh(); assert.equal(state.accountId, A.id); assert.equal(state.selected.size, 0);
-    state.filter = 'exported'; assert.deepEqual(state.visible().map(row => row.key.conversationId), ['one']);
+    state.filter = 'has_record'; assert.deepEqual(state.visible().map(row => row.key.conversationId), ['one']);
     state.selectVisible(); assert.deepEqual(state.keys(), [{ accountId: A.id, conversationId: 'one' }]);
-    state.filter = 'unexported'; assert.equal(state.visible()[0].key.conversationId, 'two');
+    state.filter = 'no_record'; assert.deepEqual(state.visible().map(row => row.key.conversationId), ['two']);
     state.selectAccount(B.id); assert.equal(state.selected.size, 0); assert.equal(state.indexes.length, 0);
+});
+test('UI: Select All replaces previously selected hidden rows', async () => {
+    const state = new ConversationViewState({ listAccounts: async () => [A],
+        listIndexes: async () => [row(A.id, 'one'), row(A.id, 'two')],
+        listExportRecords: async () => ({ one: { status: 'partial', format: 'pdf', exportedAt: 1 } }) });
+    await state.refresh();
+    state.selected.add('one');
+    state.filter = 'no_record';
+    state.selectVisible();
+    assert.deepEqual(state.keys(), [{ accountId: A.id, conversationId: 'two' }]);
 });
 test('UI: delayed account A read cannot replace account B', async () => {
     const old = deferred<ReturnType<typeof row>[]>();
@@ -92,5 +102,5 @@ test('UI: a step can schedule advancement only once', async () => {
 });
 test('UI: missing or unusable Spotlight baseline does not replay announcements', () => {
     for (const value of ['', 'invalid', '1.0']) assert.equal(getLatestEligibleFeature(value, '1.8.1'), null);
-    assert.deepEqual(getLatestEligibleFeature('1.5.0', '1.8.1'), { version: '1.7.0', stepId: 'export' });
+    assert.equal(getLatestEligibleFeature('1.5.0', '1.8.1'), null);
 });

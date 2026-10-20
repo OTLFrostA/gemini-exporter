@@ -9,10 +9,23 @@ let accountId: string | null = null;
 let count: number | null = null;
 let feedback: 'ok' | 'partial' | 'failed' | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let countPoll: ReturnType<typeof setInterval> | undefined;
 let dragging = false;
 let alive = false;
 let positionChanged = false;
 const clearFeedback = () => { clearTimeout(timer); timer = undefined; feedback = null; };
+const stopCountPolling = () => {
+    if (countPoll !== undefined) clearInterval(countPoll);
+    countPoll = undefined;
+};
+const startCountPolling = () => {
+    stopCountPolling();
+    if (!alive || !accountId || document.hidden) return;
+    countPoll = setInterval(() => {
+        const id = accountId;
+        if (id) void refreshIndexCount(id);
+    }, 60_000);
+};
 function render(): void {
     const label = badge?.querySelector('#geminiExportBadgeText');
     if (!label) return;
@@ -31,15 +44,16 @@ function position(left: number, top: number): void {
 }
 export async function refreshAccount(): Promise<void> {
     const cachedId = getAccountContext()?.accountId ?? null;
-    if (cachedId !== accountId) { accountId = null; count = null; clearFeedback(); render(); }
+    if (cachedId !== accountId) { accountId = null; count = null; clearFeedback(); stopCountPolling(); render(); }
     const context = await resolveCurrentAccount();
     if (!alive) return;
     const id = context?.accountId ?? null;
     if (id !== (getAccountContext()?.accountId ?? null) || accountId === id) return;
     accountId = id; count = null; clearFeedback(); render();
-    if (id) await refreshIndexCount(id);
+    startCountPolling();
+    if (id && !document.hidden) await refreshIndexCount(id);
 }
-/** Runtime calls this only for already observed, successfully committed Index updates. */
+/** Badge-internal count Pull: never requires Index-commit push callbacks. */
 async function refreshIndexCount(id: string): Promise<void> {
     if (id !== accountId || !alive) return;
     try {
@@ -47,11 +61,11 @@ async function refreshIndexCount(id: string): Promise<void> {
         if (!alive || accountId !== id || getAccountContext()?.accountId !== id) return;
         if (!response?.ok || !Number.isInteger(response.count) || response.count < 0) throw new Error('Invalid index count');
         count = response.count;
-    } catch { if (accountId === id) count = null; }
+    } catch { if (alive && accountId === id && getAccountContext()?.accountId === id) count = null; }
     render();
 }
 /** One final result per task. Null/skipped do not create a notification. */
-function showLiveSaveResultImpl(result: ExportResult | null, id = getAccountContext()?.accountId): void {
+function showLiveSaveResultImpl(result: ExportResult | null, id: string): void {
     if (!result || !alive || !id || id !== accountId) return;
     const outcome = result.failed.length || result.aborted ? 'failed'
         : result.exported && result.partial ? 'partial' : result.exported ? 'ok' : null;
@@ -59,12 +73,12 @@ function showLiveSaveResultImpl(result: ExportResult | null, id = getAccountCont
     clearFeedback(); feedback = outcome; render();
     timer = setTimeout(() => { feedback = null; timer = undefined; render(); }, 3000);
 }
-function showLiveSaveErrorImpl(id = getAccountContext()?.accountId): void {
+function showLiveSaveErrorImpl(id: string): void {
     if (!alive || id !== accountId) return;
     clearFeedback(); feedback = 'failed'; render();
     timer = setTimeout(() => { feedback = null; timer = undefined; render(); }, 3000);
 }
-function ensureBadgeImpl(options: { onClick?: (event: MouseEvent) => void } = {}): HTMLElement | null {
+function ensureBadgeImpl(): HTMLElement | null {
     if (typeof document === 'undefined') return null;
     if (badge) { if (!badge.isConnected) (document.body || document.documentElement).append(badge); return badge; }
     badge = document.createElement('div'); badge.id = 'geminiExportBadge'; alive = true;
@@ -95,7 +109,7 @@ function ensureBadgeImpl(options: { onClick?: (event: MouseEvent) => void } = {}
     });
     badge.addEventListener('pointercancel', () => { dragging = false; moved = true; });
     const open = () => { void chrome.runtime.sendMessage({ action: 'openOptions' }).catch(console.warn); };
-    badge.addEventListener('click', event => { if (moved) { moved = false; event.preventDefault(); return; } if (options.onClick) options.onClick(event); else open(); });
+    badge.addEventListener('click', event => { if (moved) { moved = false; event.preventDefault(); return; } open(); });
     badge.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
     (document.body || document.documentElement).append(badge); render();
     let previousPosition: string | undefined;
@@ -110,17 +124,28 @@ function ensureBadgeImpl(options: { onClick?: (event: MouseEvent) => void } = {}
     const stop = observeSettings(() => { positionChanged = dragging; void refreshSettings().catch(console.warn); });
     const resize = () => { if (badge) { const rect = badge.getBoundingClientRect(); position(rect.left, rect.top); } };
     window.addEventListener('resize', resize);
-    // Existing Runtime route notifications; no observer or polling for counts.
-    const route = () => { void refreshAccount().catch(() => { accountId = null; count = null; clearFeedback(); render(); }); };
+    // Account changes come from Runtime; count refresh scheduling belongs entirely to Badge.
+    const route = () => { void refreshAccount().catch(() => { accountId = null; count = null; clearFeedback(); stopCountPolling(); render(); }); };
+    const visibility = () => {
+        if (document.hidden) { stopCountPolling(); return; }
+        const priorAccount = accountId;
+        void refreshAccount().then(() => {
+            if (!alive || document.hidden) return;
+            if (accountId && accountId === priorAccount) void refreshIndexCount(accountId);
+            startCountPolling();
+        }).catch(() => { accountId = null; count = null; clearFeedback(); stopCountPolling(); render(); });
+    };
     window.addEventListener('gemini:locationchange', route); window.addEventListener('popstate', route);
+    document.addEventListener('visibilitychange', visibility);
     registerCleanup(() => {
-        alive = false; clearFeedback(); stop(); window.removeEventListener('resize', resize);
+        alive = false; clearFeedback(); stopCountPolling(); stop(); window.removeEventListener('resize', resize);
         window.removeEventListener('gemini:locationchange', route); window.removeEventListener('popstate', route);
+        document.removeEventListener('visibilitychange', visibility);
         badge?.remove(); badge = null; accountId = null; count = null; positionChanged = false; dragging = false;
     });
     void refreshSettings().catch(console.warn); route(); return badge;
 }
-// Public UI API only. Internal implementations are deliberately unchanged in this PR.
+// Public Badge API remains frozen; implementation owns display and count timing.
 export const ensureBadge: () => HTMLElement | null = ensureBadgeImpl;
 export const showLiveSaveResult: (result: ExportResult | null, accountId: string) => void = showLiveSaveResultImpl;
 export const showLiveSaveError: (accountId: string) => void = showLiveSaveErrorImpl;

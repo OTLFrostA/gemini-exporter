@@ -31,9 +31,9 @@ test('badge view creates one real DOM badge and displays account-scoped count', 
 });
 test('guidance renders a real modal and prevents overlapping Takeout prompts', async () => {
     await open(); const started = await page.evaluate(() => { const tour = Reflect.get(window, 'testUi').tour;
-        return [tour.showTakeoutPrompt(() => {}, () => {}), tour.showTakeoutPrompt(() => {}, () => {})]; });
+        return [tour.showTakeoutPrompt(151, () => {}, () => {}, () => {}), tour.showTakeoutPrompt(151, () => {}, () => {}, () => {})]; });
     assert.deepEqual(started, [true, false]); assert.equal(await page.locator('[role=dialog]').count(), 1);
-    await page.getByRole('button', { name: 'Got it', exact: true }).click(); assert.equal(await page.locator('[role=dialog]').count(), 0);
+    await page.getByRole('button', { name: 'Got it, don’t show again', exact: true }).click(); assert.equal(await page.locator('[role=dialog]').count(), 0);
 });
 test('export status and canonical conversation titles cannot inject HTML', async () => {
     await open(); await page.locator('#list .item').waitFor();
@@ -93,19 +93,27 @@ test('scan progress exposes committed page counts and returns controls to idle',
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
 });
-test('record filters keep partial exports in incomplete and failed views', async () => {
-    await open({ indexes: rows, records }); await page.locator('#chatFilterSelect').selectOption('exported');
-    assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), []);
-    await page.locator('#chatFilterSelect').selectOption('unexported');
-    assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), ['Beta','Alpha']);
-    await page.locator('#chatFilterSelect').selectOption('failed');
+test('record filters distinguish only persisted record presence; partial records count as present', async () => {
+    await open({ indexes: rows, records }); await page.locator('#chatFilterSelect').selectOption('has_record');
     assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), ['Alpha']);
+    await page.locator('#chatFilterSelect').selectOption('no_record');
+    assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), ['Beta']);
+    await page.locator('#chatFilterSelect').selectOption('all');
+    assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), ['Beta','Alpha']);
 });
 test('select visible selects only matching rows and clearing selection leaves hidden rows unselected', async () => {
     await open({ indexes: rows }); await page.locator('#chatSearchInput').fill('Alpha'); await page.locator('#btnSelectAll').click();
     await page.locator('#chatSearchInput').fill('');
     assert.equal(await page.locator('[data-chat-id=one] input').isChecked(), true); assert.equal(await page.locator('[data-chat-id=two] input').isChecked(), false);
     await page.locator('#btnSelectNone').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
+});
+test('Select All replaces hidden selections with currently visible conversation keys', async () => {
+    await open({ indexes: rows, records }); await page.locator('#list [data-chat-id=one] input').check();
+    await page.locator('#chatFilterSelect').selectOption('no_record');
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#chatFilterSelect').selectOption('all');
+    assert.equal(await page.locator('[data-chat-id=one] input').isChecked(), false);
+    assert.equal(await page.locator('[data-chat-id=two] input').isChecked(), true);
 });
 test('partial record remains visible after newer source activity without a fabricated exported badge', async () => {
     await open({ indexes: [{ ...rows[0], updatedAt: 300 }], records }); await page.locator('#list .item').waitFor();
