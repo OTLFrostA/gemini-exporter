@@ -49,10 +49,12 @@ export function renderList(state: ConversationViewState, disabled: boolean): voi
             badge.textContent = status.label;
             heading.append(badge);
         }
-        const meta = document.createElement('div'); meta.className = 'meta';
+        const meta = document.createElement('small'); meta.className = 'meta'; meta.style.display = 'block';
         const seen = date(index.updatedAt);
         const exported = date(record?.exportedAt);
-        meta.textContent = [seen, record ? `${record.format} · ${text('Last export', '上次导出')} ${exported}` : status.label].filter(Boolean).join(' · ');
+        meta.textContent = [seen, record
+            ? `${text('Last export', '上次导出')} · ${record.format} · ${exported} · ${status.label}`
+            : text('No export record', '无导出记录')].filter(Boolean).join(' · ');
         body.append(heading, meta);
         body.addEventListener('click', () => {
             if (disabled) return;
