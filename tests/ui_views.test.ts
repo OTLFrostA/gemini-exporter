@@ -144,3 +144,41 @@ test('busy workbench disables conflicting actions and selection, then restores t
     await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#list input').isEnabled(), true);
 });
+
+test('zero-account Takeout creates the first Gemini default only after ZIP selection', async () => {
+    await open({ accounts: [], indexes: [], records: {} });
+    await page.waitForFunction(() => !(document.getElementById('btnImportTakeout') as HTMLButtonElement).disabled);
+    assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
+    assert.equal((await read(page, 'events')).includes('create'), false);
+    const chooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#btnImportTakeout').click();
+    const chooser = await chooserPromise;
+    assert.equal((await read(page, 'events')).includes('create'), false, 'Opening the picker must not create an account');
+    await chooser.setFiles({ name: 'Takeout.zip', mimeType: 'application/zip', buffer: Buffer.from('fixture') });
+    await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes('Imported 2'));
+    assert.deepEqual(await read(page, 'imports'), [A]);
+    assert.equal((await read(page, 'events')).filter((value: string) => value === 'create').length, 1);
+    assert.equal((await read(page, 'accounts')).length, 1);
+    assert.equal(await page.locator('#accountName').textContent(), 'default');
+    assert.deepEqual((await read(page, 'patches')).at(-1), { takeoutPromptCompleted: true });
+});
+
+test('Badge refreshes on visibility restoration and visible timer, never while hidden', async () => {
+    page = await browser.newPage();
+    await page.clock.install();
+    await mount(page, 'badge');
+    await page.waitForFunction(() => Reflect.get(window, 'harness').countRequests === 1);
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.clock.fastForward(60_000);
+    assert.equal(await read(page, 'countRequests'), 1);
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForFunction(() => Reflect.get(window, 'harness').countRequests === 2);
+    await page.clock.fastForward(60_000);
+    await page.waitForFunction(() => Reflect.get(window, 'harness').countRequests === 3);
+});
