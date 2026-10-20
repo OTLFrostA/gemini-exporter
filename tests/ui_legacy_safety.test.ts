@@ -37,7 +37,13 @@ test('list UI blocks javascript and data URLs from source fields',async()=>{
     await open({indexes:['javascript:alert(1)','data:text/html,<script>alert(1)</script>','https://gemini.google.com/app/safe'].map((url,i)=>({key:{accountId:A,conversationId:`safe_${i}`},title:'Safe title',url}))});await page.locator('#list .item').first().waitFor();assert.equal(await page.locator('#list script').count(),0);assert.equal(await page.locator('#list .item').count(),3);assert.deepEqual(await page.locator('#list a').evaluateAll(items=>items.map(item=>(item as HTMLAnchorElement).origin)),['https://gemini.google.com','https://gemini.google.com','https://gemini.google.com']);
 });
 test('list UI prevents attribute breakout from source titles and URLs',async()=>{
-    await open({indexes:[{key:{accountId:A,conversationId:'test_xss'},title:'\" onclick=\"alert(1)',url:'https://gemini.google.com/app/test\" onclick=\"alert(1)'}]});await page.locator('#list .item').waitFor();assert.equal(await page.locator('#list [onclick],#list a').count(),0);assert.equal(await page.locator('#list span').textContent(),'\" onclick=\"alert(1)');
+    await open({indexes:[{key:{accountId:A,conversationId:'test_xss'},title:'\" onclick=\"alert(1)',url:'https://gemini.google.com/app/test\" onclick=\"alert(1)'}]});await page.locator('#list .item').waitFor();assert.equal(await page.locator('#list [onclick]').count(), 0, 'source must not inject handler attributes');
+    const link = page.locator('#list a.open-link');
+    assert.equal(await link.count(), 1, 'v2 intentionally offers a canonical conversation link');
+    assert.equal(await link.getAttribute('href'), 'https://gemini.google.com/app/test_xss',
+        'untrusted source URL cannot change the fixed-origin destination');
+    assert.equal(await link.getAttribute('target'), '_blank');
+    assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');assert.equal(await page.locator('#list span').textContent(),'\" onclick=\"alert(1)');
 });
 test('D7: Tour connection errors and absent Tabs API never advance to a connected state',async()=>{
     for(const missing of [false,true]){
