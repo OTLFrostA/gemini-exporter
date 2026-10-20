@@ -1,10 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { mockAccount, givenReadonlyDomain, composeDomainDocument } from './helpers/l3bUnitHarness.js';
 import { assertDocumentAst, assertDocumentAsts } from './helpers/assertDocumentAst.js';
-import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 const valid = () => ({
@@ -28,8 +26,8 @@ test('all visual and parity fixtures satisfy the canonical DocumentAst TypeScrip
     }
     for (const file of readdirSync('tests/fixtures/document-domain').filter(file => file.endsWith('.json'))) {
         const input: DomainConversationWithDetail = JSON.parse(readFileSync('tests/fixtures/document-domain/' + file, 'utf8'));
-        const domain = validateParserDomain(input);
-        entries.push({ value: composeDomainDocument(domain, fixtureAccountFor(domain)), context: file });
+        const domain = givenReadonlyDomain(input);
+        entries.push({ value: composeDomainDocument(domain, mockAccount('example', domain.index.key.accountId)), context: file });
     }
     assertDocumentAsts(entries);
 });
