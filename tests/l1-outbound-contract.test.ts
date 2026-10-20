@@ -43,9 +43,13 @@ type Contract = [
     Assert<Equal<ReturnType<Takeout>, Promise<TakeoutParseResult>>>,
     Assert<Equal<TakeoutParseResult, { imported: number; status: 'ok' | 'partial' }>>,
 ];
-const verified: Contract = Array(22).fill(true) as Contract;
+const verified: Contract = [
+    true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true,
+];
 
-test('L1 exposed Client, Sniffer, Parser-adjacent and Takeout types match frozen public contracts', () => {
-    assert.equal(verified.length, 22);
+test('L1 exposed Client, Sniffer and Takeout types match frozen public contracts', () => {
+    assert.equal(verified.length, 23);
     assert.ok(verified.every(Boolean));
 });
