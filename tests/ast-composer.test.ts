@@ -85,6 +85,34 @@ test('Citation numbering follows message-local citation arrays, including unrefe
     ]);
 });
 
+test('Citation source labels skip whitespace-only titles and URLs without inventing links', () => {
+    const raw = input();
+    raw.detail.messages = [{
+        role: 'assistant',
+        citations: [
+            { id: 'untitled', title: '  ', url: 'https://example.test/fallback' },
+            { id: 'unlinked', title: '', url: ' \t ' },
+            { id: 'named', title: 'Article', url: 'https://example.test/article' },
+        ],
+        content: [{ type: 'paragraph', children: [
+            { type: 'citationRef', citationId: 'untitled' },
+            { type: 'citationRef', citationId: 'unlinked', label: 'As authored' },
+            { type: 'citationRef', citationId: 'named' },
+        ] }],
+    }];
+    const [message] = composeDomainDocument(validateParserDomain(raw), account).messages;
+    assert.deepEqual(message.sources, [
+        { id: 'untitled', number: 1, label: 'https://example.test/fallback', href: 'https://example.test/fallback' },
+        { id: 'unlinked', number: 2, label: '' },
+        { id: 'named', number: 3, label: 'Article', href: 'https://example.test/article' },
+    ]);
+    assert.deepEqual(message.blocks, [{ type: 'paragraph', children: [
+        { type: 'citation', id: 'untitled', label: '[1]', href: 'https://example.test/fallback' },
+        { type: 'citation', id: 'unlinked', label: 'As authored' },
+        { type: 'citation', id: 'named', label: '[3]', href: 'https://example.test/article' },
+    ] }]);
+});
+
 test('Reasoning, content and explicitly attached resources retain their source order', () => {
     const raw = input();
     raw.detail.assets = [
@@ -181,6 +209,21 @@ test('Authored rich text, alt, caption and File description survive projection u
         {type:'image',resourceId:'image',alt:'Authored block alt',caption:[{type:'emphasis',children:[{type:'text',text:'Original caption'}]}]},
         {type:'file',resourceId:'file',label:'Original label',kind:'file',description:[{type:'text',text:'Original description'}]},
         {type:'unsupported',sourceType:'widget',text:'Original unsupported text'},
+    ]);
+});
+
+test('File projections retain provided optional metadata without changing attachment semantics', () => {
+    const raw = input();
+    raw.detail.assets = [{ id: 'file', kind: 'file', mediaType: '', byteLength: 0 }];
+    raw.detail.messages = [{
+        role: 'assistant',
+        content: [{ type: 'file', assetId: 'file' }],
+        attachmentIds: ['file'],
+    }];
+    const document = composeDomainDocument(validateParserDomain(raw), account);
+    assert.deepEqual(document.messages[0].blocks, [
+        { type: 'file', resourceId: 'file', label: 'Attachment', kind: 'file', mediaType: '', byteLength: 0 },
+        { type: 'file', resourceId: 'file', label: 'Attachment', kind: 'file', mediaType: '', byteLength: 0 },
     ]);
 });
 
