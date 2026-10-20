@@ -62,7 +62,8 @@ test('L2 forwards committed page evidence only after the Index decision and bind
 
 test('L2 never grants Coverage for mismatched page identities or default Takeout-only Accounts', async () => {
     await ingestIndexes(ACCOUNT.id, [index('c')], evidence([{ id: 'not-c', time: 100 }]));
-    assert.equal(coverageFor('recent'), undefined);
+    // A first rejected observation may initialize the empty Coverage row, but cannot certify a range.
+    assert.deepEqual(coverageFor('recent'), { range: null });
     await ingestIndexes(DEFAULT_ACCOUNT.id, [index('c')], evidence([{ id: 'c', time: 100 }]));
     assert.equal(calls.coverageUpdates.length, 1);
 });
