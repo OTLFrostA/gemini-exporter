@@ -12,7 +12,7 @@ const detailFact = { messages: [], assets: [], quality: { status: 'unknown' as c
 const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.google.com/app' };
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
-    const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
+    const ports = { 'src/application/conversations/refreshConversation.js': { refreshConversation: () => assert.fail('Unexpected source refresh') }, 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;

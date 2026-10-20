@@ -32,23 +32,23 @@ async function geminiSource(context: import('@playwright/test').BrowserContext) 
     await source.waitForFunction(() => Boolean(Reflect.get(window, '__gemExporterHookInstalled')));
     return source;
 }
-async function remoteDelete(source: import('@playwright/test').Page, replyId: string) {
+async function remoteDelete(source: import('@playwright/test').Page, replyId: string, nativeVoid = false) {
     await source.route('**/batchexecute*', route => route.fulfill({
         status: 200, contentType: 'application/json',
-        body: JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([null, 'c_' + replyId])]]),
+        body: JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify(nativeVoid ? [] : [null, 'c_' + replyId])]]),
     }));
     await source.evaluate(async conversationId => {
         await fetch('/_/BardChatUi/data/batchexecute?rpcids=GzXR5e', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
             body: new URLSearchParams({ 'f.req': JSON.stringify([[[
-                'GzXR5e', JSON.stringify([null, 'c_' + conversationId]), null, 'generic',
+                'GzXR5e', JSON.stringify(['c_' + conversationId]), null, 'generic',
             ]]]) }),
         });
     }, targetId);
 }
 
-test('real MAIN deletion RPC -> isolated L1 -> Background L2 atomically removes only confirmed v2 conversation facts', async ({ context, extensionId }) => {
+for (const nativeVoid of [false, true]) test(`real MAIN ${nativeVoid ? 'native void' : 'echoed'} deletion RPC -> isolated L1 -> Background L2 atomically removes only confirmed v2 conversation facts`, async ({ context, extensionId }) => {
     const options = await openOptions(context, extensionId);
     await seedConversations(options, [
         { id: targetId, title: 'Delete target', body: 'Durable target body' },
@@ -62,7 +62,7 @@ test('real MAIN deletion RPC -> isolated L1 -> Background L2 atomically removes 
     expect(before.targetRecord?.status).toBe('ok');
 
     const source = await geminiSource(context);
-    await remoteDelete(source, targetId);
+    await remoteDelete(source, targetId, nativeVoid);
     await expect.poll(async () => (await read(options)).targetIndex).toBeNull();
     const after = await read(options);
     expect(after.targetDetail).toBeNull();

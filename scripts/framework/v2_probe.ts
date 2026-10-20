@@ -8,6 +8,8 @@ import { getSettings, updateSettings } from '../../src/application/settings/inde
 import * as storage from '../../src/l3a/storageService.js';
 import { ensureV2Ready } from '../../src/runtime/api/runtimeReady.js';
 import { parseGeminiTakeoutZipArchive, readTakeoutBytes } from '../../src/l1/imports/takeout/readArchive.js';
+import { shouldSkipExport } from '../../src/application/export/runExport.js';
+import { refreshConversation } from '../../src/application/conversations/refreshConversation.js';
 import { readConversation } from '../../src/l2/readConversation.js';
 
 export function accountId(): string {
@@ -31,6 +33,19 @@ export async function storedConversation(input: ConversationKey) {
         storage.getIndex(key), storage.getDetail(key), storage.getExportRecord(key),
     ]);
     return { index, detail, exportRecord };
+}
+/** The harness must use the same Skip predicate as the Application export. */
+export async function skipEligibleIds() {
+    const state = await snapshot();
+    const settings = await getSettings();
+    return state.rows.filter(row => shouldSkipExport(state.records[row.key.conversationId] ?? null,
+        row.updatedAt, { keys: [row.key], format: settings.defaultFormat, delivery: 'browserDownload',
+            includeAssets: settings.includeAssets, skipUnchanged: true })).map(row => row.key.conversationId);
+}
+/** Acquire current source facts in this Options context before auditing the cached export. */
+export async function refreshForNativeAudit(ids: string[]) {
+    const state = await snapshot();
+    for (const conversationId of ids) await refreshConversation({ accountId: state.accountId, conversationId });
 }
 export async function conversations(ids: string[]) {
     const state = await snapshot();
@@ -101,7 +116,7 @@ export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
     }
     return {ids:parsed.map(result => result.conversationId), sourceFacts:Object.fromEntries(parsed.map(result => [result.conversationId, result.conversation])), resources, mediaDigests};
 }
-Object.assign(globalThis, { __tier2V2: { accountId, snapshot, conversations, storedConversation, l3Contracts, clearScanRecords, inspectTakeout,
+Object.assign(globalThis, { __tier2V2: { accountId, snapshot, skipEligibleIds, refreshForNativeAudit, conversations, storedConversation, l3Contracts, clearScanRecords, inspectTakeout,
     getAccount: storage.getAccount, listAccounts: storage.listAccounts,
     getSettings, updateSettings,
     setDirectoryHandle: storage.setDirectoryHandle } });
