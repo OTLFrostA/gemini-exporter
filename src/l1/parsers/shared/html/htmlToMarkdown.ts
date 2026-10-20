@@ -15,14 +15,6 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table)[\s>]/i.test(html)) return html;
 
     let res = html;
-    res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match: string, lang: string | undefined, code: string) => {
-        const cleanCode = unescapeHtml(code);
-        return `\n\`\`\`${lang || ''}\n${cleanCode.trim()}\n\`\`\`\n`;
-    });
-    res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match: string, code: string) => {
-        return `\`${unescapeHtml(code)}\``;
-    });
-    // Protect fenced and inline code blocks before processing HTML tags
     const __codeSpans: string[] = [];
     const __stashCode = (code: string): string => {
         __codeSpans.push(code);
@@ -30,7 +22,52 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     };
     const __restoreCode = (str: string): string =>
         str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m: string, i: string) => __codeSpans[Number(i)]);
-    res = res.replace(/```[\s\S]*?```/g, __stashCode).replace(/`[^`\n]+`/g, __stashCode);
+    // Existing fenced Markdown is authored code, even when it contains HTML-like tags.
+    // Recognize both CommonMark fence styles before interpreting real HTML tags.
+    const lines = res.match(/[^\n]*(?:\n|$)/g) ?? [];
+    let outside = '';
+    let pending = '';
+    let opened: { marker: string; length: number } | null = null;
+    let inHtmlPre = false;
+    for (const line of lines) {
+        if (!line) continue;
+        const content = line.replace(/\r?\n$/, '');
+        if (opened) {
+            pending += line;
+            const closing = /^ {0,3}(`+|~+)[ \t]*$/.exec(content);
+            if (closing && closing[1][0] === opened.marker && closing[1].length >= opened.length) {
+                outside += __stashCode(pending);
+                pending = '';
+                opened = null;
+            }
+        } else {
+            // Backticks inside a real HTML <pre> are content, not Markdown delimiters.
+            if (/<pre(?:\s|>)/i.test(content)) inHtmlPre = true;
+            const opening = inHtmlPre ? null : /^ {0,3}(`{3,}|~{3,})[^\r\n]*$/.exec(content);
+            if (opening) {
+                opened = { marker: opening[1][0], length: opening[1].length };
+                pending = line;
+            } else outside += line;
+            if (/<\/pre\s*>/i.test(content)) inHtmlPre = false;
+        }
+    }
+    res = outside + (pending ? __stashCode(pending) : '');
+
+    const backticks = (content: string, min: number): string => {
+        const longest = (content.match(/`+/g) ?? []).reduce((count, run) => Math.max(count, run.length), 0);
+        return '`'.repeat(Math.max(min, longest + 1));
+    };
+    res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match: string, lang: string | undefined, code: string) => {
+        const cleanCode = unescapeHtml(code).trim();
+        const fence = backticks(cleanCode, 3);
+        return __stashCode(`\n${fence}${lang || ''}\n${cleanCode}\n${fence}\n`);
+    });
+    res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match: string, code: string) => {
+        const content = unescapeHtml(code);
+        const fence = backticks(content, 1);
+        const pad = /^`|`$|^ .* $/.test(content) ? ' ' : '';
+        return __stashCode(`${fence}${pad}${content}${pad}${fence}`);
+    });
     res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
     res = res.replace(/<(strong|b)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
     res = res.replace(/<(em|i)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');

@@ -220,7 +220,13 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
             case 'math': return math(node.source, true);
             case 'table': {
                 const row = (cells: typeof node.rows[number], tag: 'th' | 'td') => `<tr>${cells.map(cell => `<${tag}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${node.columnAlignments[cell.column] && node.columnAlignments[cell.column] !== 'default' ? ` style="text-align:${node.columnAlignments[cell.column]}"` : ''}>${inlines(cell.children)}</${tag}>`).join('')}</tr>`;
-                return `<div class="gem-table-wrapper"><table class="gem-table">${node.caption ? `<caption class="gem-table-caption">${inlines(node.caption)}</caption>` : ''}${node.headerRows.length ? `<thead>${node.headerRows.map(cells => row(cells, 'th')).join('')}</thead>` : ''}<tbody>${node.rows.map(cells => row(cells, 'td')).join('')}</tbody></table></div>`;
+                const crossesHeaderBoundary = node.rows.length > 0 && node.headerRows.some((cells, index) =>
+                    cells.some(cell => index + cell.rowSpan > node.headerRows.length));
+                const headerRows = node.headerRows.map(cells => row(cells, 'th')).join('');
+                const bodyRows = node.rows.map(cells => row(cells, 'td')).join('');
+                const tableRows = crossesHeaderBoundary ? `<tbody>${headerRows}${bodyRows}</tbody>`
+                    : `${headerRows ? `<thead>${headerRows}</thead>` : ''}<tbody>${bodyRows}</tbody>`;
+                return `<div class="gem-table-wrapper"><table class="gem-table">${node.caption ? `<caption class="gem-table-caption">${inlines(node.caption)}</caption>` : ''}${tableRows}</table></div>`;
             }
             case 'image':
                 if (!available(node.resourceId)) { missing(node.resourceId); return `<div class="gem-missing-asset">${escapeHtml(unavailableText('image', node.alt))}${node.caption ? `<div>${inlines(node.caption)}</div>` : ''}</div>`; }
