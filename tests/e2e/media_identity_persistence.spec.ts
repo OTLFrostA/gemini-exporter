@@ -1,142 +1,217 @@
+/**
+ * V2 media: L1 native Takeout/online -> L2 admission -> L3a durable Domain ->
+ * L3b Document -> Application resource acquisition -> L4 Markdown/HTML/PDF.
+ * Bytes live in an export task's SourceResourceContext, never an IDB media cache.
+ */
 import { test, expect, seedRegistryAccounts } from './fixtures';
+import { openOptions, accountId } from './uiFixture';
 import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
-
-test.beforeEach(async ({ context, extensionId }) => {
-    void extensionId;
-    await seedRegistryAccounts(context);
-});
 
 let bundle: string;
 test.beforeAll(async () => {
-    const result = await build({ stdin: { contents: `
-        import * as store from './src/l3a/domain/domainStore.ts';
-        import { admitFixture, readFixture, removeFixture } from './tests/helpers/admitFixture.ts';
-        import * as resources from './src/l3a/domain/resourceContext.ts';
-        import * as fixtures from './tests/helpers/mediaSourceFixture.ts';
-        import { bindFixture } from './tests/helpers/domainFixture.ts';
-        import { ingestIndexes } from './src/l2/ingestion.ts';
-        import { getDomainConversationResult } from './src/l3a/domain/nativePersistence.ts';
-        import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
-        import { planExportResources } from './src/l4/format/resources/planExportResources.ts';
-        import { formatMarkdownDocument, formatHtmlDocument } from './src/core/engine/chatFormatter.ts';
-        import { preparePdfItem, PdfExporter } from './src/l4/format/pdf/pdfExporter.ts';
-        import { resourceStage } from './src/l4/format/pdf/pipeline/resourceStage.ts';
-        import { encodeBytes } from './src/l3a/domain/transport.ts';
-        globalThis.mediaProbe = { ...store, ...resources, admitFixture, readFixture, removeFixture, ...fixtures, bindFixture, ingestIndexes, getDomainConversationResult, AssetPipeline,
-            planExportResources, formatMarkdownDocument, formatHtmlDocument, preparePdfItem, PdfExporter, resourceStage, encodeBytes };
-    `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
-    bundle = result.outputFiles[0].text;
+    const modules = [
+        "import { mediaSources, mediaBytes } from './tests/helpers/mediaSourceFixture.ts';",
+        "import { importTakeout } from './src/l1/imports/takeout/importTakeout.ts';",
+        "import { createSourceResourceContext } from './src/l1/resources/sourceResources.ts';",
+        "import { ingestDetail } from './src/l2/ingestion.ts';",
+        "import { readConversation } from './src/l2/readConversation.ts';",
+        "import { getDetail, getIndex } from './src/l3a/storageService.ts';",
+        "import { composeDomainDocument } from './src/l3b/compose/composeDomainDocument.ts';",
+        "import { collectDocumentResources } from './src/l3b/ast/resourceReferences.ts';",
+        "import { prepareExportResources } from './src/application/export/prepareExportResources.ts';",
+        "import { planExportPaths, buildExportFiles } from './src/l4/packaging/index.ts';",
+        "import { renderDocumentMarkdown } from './src/l4/format/markdown/renderMarkdown.ts';",
+        "import { renderDocumentHtml } from './src/l4/format/html/renderHtml.ts';",
+        "import { compileDocumentPdf } from './src/l4/format/pdf/compileDocumentPdf.ts';",
+        "import { TypstSandboxCompiler } from './src/l4/format/pdf/typst/typstSandboxCompiler.ts';",
+        'globalThis.mediaProbeV2 = { mediaSources, mediaBytes, importTakeout, createSourceResourceContext, ingestDetail, readConversation, getDetail, getIndex, composeDomainDocument, collectDocumentResources, prepareExportResources, planExportPaths, buildExportFiles, renderDocumentMarkdown, renderDocumentHtml, compileDocumentPdf, TypstSandboxCompiler };',
+    ];
+    const built = await build({ stdin: {
+        resolveDir: path.resolve(__dirname, '../..'), loader: 'ts', contents: modules.join('\n'),
+    }, bundle: true, write: false, format: 'iife', platform: 'browser', conditions: ['worker', 'browser'] });
+    bundle = built.outputFiles[0].text;
 });
-async function install(page: import('@playwright/test').Page, extensionId: string) {
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await page.evaluate(bundle);
-    await page.evaluate(async () => { await chrome.storage.local.set({ gemini_schema_version: 3, gemini_tour_completed: true }); });
-}
+test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
+const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
 for (const order of ['online-first', 'takeout-first'] as const) {
-    test(`real extension IDB ${order}: source admission, offline Markdown/HTML/PDF deliver identical image bytes`, async ({ context, extensionId }) => {
-        test.setTimeout(90000);
-        const page = await context.newPage();
-        await install(page, extensionId);
-        const before = await page.evaluate(async order => {
-            const api = Reflect.get(globalThis, 'mediaProbe');
-            const { online, offline, resources } = api.mediaSources();
-            const importArchive = () => api.admitFixture(offline.account.id, offline, resources);
-            if (order === 'online-first') await api.admitFixture('10000000-0000-4000-8000-000000000001', online);
-            await importArchive();
-            if (order === 'takeout-first') await api.admitFixture('10000000-0000-4000-8000-000000000001', online);
-            await importArchive();
-            // Raw body transactions are audited above; commit source Index before an Application consumer reads it.
-            const { key, ...fields } = online.conversation.index;
-            await api.ingestIndexes(online.account.id, [{ conversationId: key.conversationId, fields }]);
-            return { conversation: online.conversation, image: [...api.mediaBytes] };
-        }, order);
-        await context.setOffline(true);
-        const exported = await page.evaluate(async () => {
-            const api = Reflect.get(globalThis, 'mediaProbe');
-            const parsed = await api.getDomainConversationResult('10000000-0000-4000-8000-000000000001', api.mediaChatId);
-            const files: Record<string, number[] | string> = {};
-            let downloads = 0;
-            const pipeline = new api.AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', fetchAsset: async () => {
-                downloads++; throw new Error('Network is offline');
-            }, writeFileDirect: async (name: string, bytes: Uint8Array) => { files[name] = [...bytes]; } });
-            const plan = await api.planExportResources(parsed);
-            const receipts = [];
-            for (const asset of plan.assets) {
-                const saved = await pipeline.processAsset(asset.item, { id: api.mediaChatId }, { isImage: true, maxRetries: 0 });
-                if (!saved.ok) throw new Error(saved.reason);
-                receipts.push(saved);
-            }
-            files['conversation.md'] = (await api.formatMarkdownDocument(plan.result, { resourceResults: receipts })).content;
-            files['conversation.html'] = (await api.formatHtmlDocument(plan.result, { resourceResults: receipts })).content;
-            const pdf = await api.preparePdfItem(parsed, { accountId: '10000000-0000-4000-8000-000000000001', assetPipeline: pipeline });
-            if (!pdf.ok) throw new Error(pdf.error);
-            const mounted = await api.resourceStage({ document: pdf.document, resources: pdf.resources }, {
-                signal: new AbortController().signal, log() {}, reportProgress() {} });
-            const compiler = new api.PdfExporter();
-            let delivered;
-            try {
-                delivered = await compiler.run({ accountId: '10000000-0000-4000-8000-000000000001', selected: [parsed], assetPipeline: pipeline, locale: 'en', useZip: false,
-                    writer: { type: 'directory', async writeFile(_name: string, bytes: Uint8Array) { files['conversation.pdf'] = [...bytes]; return 'conversation.pdf'; } } });
-            } finally { compiler.dispose(); }
-            const db = await api.openDomainDB();
-            const disk = await new Promise<Record<string, unknown[]>>((resolve, reject) => {
-                const tx = db.transaction(['details'], 'readonly');
-                const rows: Record<string, unknown[]> = {};
-                for (const name of ['details']) {
-                    const get = tx.objectStore(name).getAll(); get.onsuccess = () => { rows[name] = get.result; };
+    test('v2 ' + order + ': a complete native snapshot owns task bytes for MD, HTML and PDF without persistent media cache',
+    async ({ context, extensionId }) => {
+        test.setTimeout(120000);
+        const page = await openOptions(context, extensionId);
+        await page.evaluate(bundle);
+        const output = await page.evaluate(async ({ accountId, order }) => {
+            const api = Reflect.get(globalThis, 'mediaProbeV2');
+            const { online } = api.mediaSources();
+            const id: string = online.conversationId;
+            const key = { accountId, conversationId: id };
+            const png: Uint8Array = api.mediaBytes;
+            const image = online.conversation.detail.assets.find((asset: {kind:string}) => asset.kind === 'image');
+            if (!image) throw new Error('L1 Gemini parser did not preserve image facts');
+            const source = { ...online, acquisitionHints: {
+                ...online.acquisitionHints,
+                [image.id]: { dataBase64: btoa(String.fromCharCode(...png)) },
+            } };
+            const resources = api.createSourceResourceContext();
+            const priorFetch = globalThis.fetch;
+            let networkRequests = 0;
+            globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+                const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+                if (/^https?:\/\//.test(url)) {
+                    networkRequests++;
+                    throw new Error('Unexpected remote media request');
                 }
-                tx.oncomplete = () => resolve(rows); tx.onabort = tx.onerror = () => reject(tx.error);
-            }); db.close();
-            return { conversation: parsed.conversation, downloads, files, receipts, delivered,
-                mounts: mounted.output.mounts.map((mount: { bytes: Uint8Array }) => [...mount.bytes]), disk };
-        });
-        expect(exported.conversation.detail).toEqual(before.conversation.detail);
-        expect(exported.conversation.index).toMatchObject({ ...before.conversation.index, updatedAt: 1788350400000 });
-        expect(exported.conversation.detail.messages).toHaveLength(20);
-        expect(exported.downloads).toBe(0);
-        expect(exported.disk.details).toHaveLength(1);
-        expect(exported.delivered.succeeded).toBe(1);
-        expect(exported.delivered.failed).toEqual([]);
-        const assetPath = exported.receipts[0].value.path;
-        expect(exported.files['conversation.md']).toContain(assetPath);
-        expect(exported.files['conversation.html']).toContain(assetPath);
-        expect(exported.mounts).toEqual([before.image]);
-        const output = path.resolve('tests/output/media_identity', order);
-        mkdirSync(output, { recursive: true });
-        for (const [name, content] of Object.entries(exported.files)) {
-            const target = path.join(output, name); mkdirSync(path.dirname(target), { recursive: true });
-            writeFileSync(target, typeof content === 'string' ? content : Uint8Array.from(content as number[]));
-        }
-        const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-        expect(hash(readFileSync(path.join(output, assetPath)))).toBe(hash(Uint8Array.from(before.image)));
-        expect(readFileSync(path.join(output, 'conversation.pdf')).subarray(0, 5).toString()).toBe('%PDF-');
-        writeFileSync(path.join(output, 'audit.json'), JSON.stringify({ imageSha256: hash(Uint8Array.from(before.image)),
-            imagePath: assetPath, downloads: exported.downloads, messages: exported.conversation.detail.messages.length }, null, 2));
+                return priorFetch(input, init);
+            }) as typeof fetch;
+            const activity = '<div class="outer-cell"><a href="https://gemini.google.com/app/c_' + id +
+                '">Chat</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">' +
+                'Prompted Draw a diagram of a green bridge<br>2026-09-02T12:00:00Z<br>' +
+                '<p>Takeout image <img src="archive-0.png"></p></div>1 generated image</div>';
+            const archive = { file() {}, files: {
+                'Takeout/Gemini Apps/MyActivity.html': {
+                    _data: { uncompressedSize: activity.length }, async: async () => activity,
+                },
+                'Takeout/Gemini Apps/archive-0.png': {
+                    _data: { uncompressedSize: png.length }, async: async () => png.slice(),
+                },
+            } };
+            const onlineAdmission = async () => {
+                const result = await api.ingestDetail(accountId, id, source.conversation.detail, source.conversation.index);
+                if (result.accepted) resources.retainParsed(key, source);
+            };
+            try {
+                if (order === 'online-first') await onlineAdmission();
+                const takeout = await api.importTakeout(archive, accountId, undefined, resources);
+                if (order === 'takeout-first') await onlineAdmission();
+                const conversation = await api.readConversation(key);
+                if (!conversation) throw new Error('No selected v2 Domain conversation');
+                const account = { id: accountId, providerId: 'gemini', providerAccountId: '10000000001' };
+                const document = api.composeDomainDocument(conversation, account);
+                const needed = api.collectDocumentResources(document);
+                const prepared = await api.prepareExportResources(conversation.detail.assets, needed.referencedIds,
+                    (asset: unknown, signal?: AbortSignal) => resources.acquire(key, asset, signal));
+                const current = prepared.get(image.id);
+                if (!current?.ok) throw new Error('Selected media source bytes are missing');
+                const input = [{ conversation, prepared, fileIds: needed.fileIds }];
+                const [mdPlan] = api.planExportPaths(input, 'markdown');
+                const [htmlPlan] = api.planExportPaths(input, 'html');
+                const [pdfPlan] = api.planExportPaths(input, 'pdf');
+                const markdown: string = api.renderDocumentMarkdown(document, mdPlan.resources);
+                const html: string = api.renderDocumentHtml(document, htmlPlan.resources).html;
+                const binary = (files: Array<{fileName:string;content:string|Uint8Array}>) =>
+                    files.filter(file => file.fileName.startsWith('assets/')).map(file => ({
+                        path: file.fileName, bytes: [...(file.content as Uint8Array)],
+                    }));
+                const mdFiles = binary(api.buildExportFiles('markdown', mdPlan, markdown, prepared));
+                const htmlFiles = binary(api.buildExportFiles('html', htmlPlan, html, prepared));
+                const compiler = new api.TypstSandboxCompiler();
+                let pdf: {pdfBytes:Uint8Array};
+                try {
+                    pdf = await api.compileDocumentPdf(document, pdfPlan.resources, prepared, compiler,
+                        { signal: new AbortController().signal, reportProgress() {} });
+                } finally { compiler.dispose(); }
+                const db = await new Promise<IDBDatabase>((resolve, reject) => {
+                    const request = indexedDB.open('gemini_exporter_v2');
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+                const stores = [...db.objectStoreNames];
+                db.close();
+                const detail = await api.getDetail(key);
+                resources.release();
+                let released = false;
+                try { await resources.acquire(key, image); } catch (error) {
+                    released = /Resource context released/.test(String(error));
+                }
+                return {
+                    id, takeout, status: conversation.detail.quality.status,
+                    messageCount: conversation.detail.messages.length,
+                    indexSaved: !!await api.getIndex(key), detail: JSON.stringify(detail),
+                    original: [...png], acquired: [...current.value.bytes], md: markdown, html,
+                    mdFiles, htmlFiles, pdfMagic: String.fromCharCode(...pdf.pdfBytes.subarray(0, 5)),
+                    pdfLength: pdf.pdfBytes.length, stores, released, networkRequests,
+                };
+            } finally {
+                resources.release();
+                globalThis.fetch = priorFetch;
+            }
+        }, { accountId, order });
+        expect(output.id).toBe('source-media');
+        expect(output.takeout).toMatchObject({ imported: 1, status: 'partial' });
+        expect(output.status).toBe('complete');
+        expect(output.messageCount).toBeGreaterThan(0);
+        expect(output.indexSaved).toBe(true);
+        expect(output.detail).not.toContain('dataBase64');
+        expect(output.stores).toContain('details');
+        expect(output.stores).not.toContain('resource_bytes');
+        expect(output.networkRequests).toBe(0);
+        expect(output.released).toBe(true);
+        expect(output.mdFiles).toHaveLength(1);
+        expect(output.htmlFiles).toHaveLength(1);
+        const original = Uint8Array.from(output.original);
+        expect(sha256(Uint8Array.from(output.acquired))).toBe(sha256(original));
+        expect(sha256(Uint8Array.from(output.mdFiles[0].bytes))).toBe(sha256(original));
+        expect(sha256(Uint8Array.from(output.htmlFiles[0].bytes))).toBe(sha256(original));
+        expect(output.md).toContain(output.mdFiles[0].path);
+        expect(output.html).toContain(output.htmlFiles[0].path);
+        expect(output.pdfMagic).toBe('%PDF-');
+        expect(output.pdfLength).toBeGreaterThan(1000);
+
+        await page.reload();
+        await page.evaluate(bundle);
+        const stored = await page.evaluate(async ({ accountId, id }) => {
+            const api = Reflect.get(globalThis, 'mediaProbeV2');
+            const detail = await api.getDetail({ accountId, conversationId: id });
+            return { present: !!detail, status: detail?.quality.status, serialized: JSON.stringify(detail) };
+        }, { accountId, id: output.id });
+        expect(stored.present).toBe(true);
+        expect(stored.status).toBe('complete');
+        expect(stored.serialized).not.toContain('dataBase64');
     });
 }
 
-test('real extension IDB rejects ambiguity and stale cache writes, isolates accounts and cleans rebound bytes', async ({ context, extensionId }) => {
-    const page = await context.newPage(); await install(page, extensionId);
-    const result = await page.evaluate(async () => {
-        const api = Reflect.get(globalThis, 'mediaProbe'); const { online, offline, resources } = api.mediaSources();
-        await api.admitFixture('10000000-0000-4000-8000-000000000001', online);
-        const ambiguous = api.mediaSources({ duplicate: true });
-        await api.admitFixture('10000000-0000-4000-8000-000000000001', ambiguous.offline, ambiguous.resources);
-        const identity = api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', api.mediaChatId);
-        const unknown = await api.getDomainResource(identity, online.conversation.detail.assets[0].id);
-        await api.admitFixture('10000000-0000-4000-8000-000000000002', api.bindFixture(online, '10000000-0000-4000-8000-000000000002'));
-        await api.admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
-        const other = await api.getDomainResource(api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000002', api.mediaChatId), online.conversation.detail.assets[0].id);
-        await api.cacheDomainResource(identity, online.conversation.detail.assets[0].id, 'https://invalid.test/stale', new Uint8Array([9]));
-        const correct = await api.getDomainResource(identity, online.conversation.detail.assets[0].id);
-        await api.removeFixture(identity);
-        await api.admitFixture('10000000-0000-4000-8000-000000000001', online);
-        return { unknown, other, correct: [...correct], after: await api.getDomainResource(identity, online.conversation.detail.assets[0].id) };
+test('v2 source readers are scoped by Account UUID and invalidated on task replacement and release', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await page.evaluate(bundle);
+    const result = await page.evaluate(async accountId => {
+        const api = Reflect.get(globalThis, 'mediaProbeV2');
+        const other = '10000000-0000-4000-8000-000000000002', id = 'cross-account-media';
+        const asset = { id: 'shared-image', kind: 'image', mediaType: 'image/png' };
+        const detail = { quality: { status: 'complete' }, assets: [asset],
+            messages: [{ role: 'assistant', content: [{ type: 'image', assetId: asset.id }] }] };
+        await api.ingestDetail(accountId, id, detail, { title: 'A', titleSource: 'provider' });
+        await api.ingestDetail(other, id, detail, { title: 'B', titleSource: 'provider' });
+        const a = { accountId, conversationId: id }, b = { accountId: other, conversationId: id };
+        const resources = api.createSourceResourceContext();
+        resources.retain(a, asset.id, async () => ({ bytes: Uint8Array.of(1, 2, 3) }));
+        resources.retain(b, asset.id, async () => ({ bytes: Uint8Array.of(9, 8, 7) }));
+        const initialA = [...(await resources.acquire(a, asset)).bytes];
+        const initialB = [...(await resources.acquire(b, asset)).bytes];
+        resources.retainParsed(a, { conversationId: id, acquisitionHints: {},
+            conversation: { index: {}, detail } });
+        let staleRejected = false;
+        try { await resources.acquire(a, asset); } catch (error) {
+            staleRejected = /No supported source locator/.test(String(error));
+        }
+        const stillB = [...(await resources.acquire(b, asset)).bytes];
+        resources.releaseConversation(b);
+        let releasedB = false;
+        try { await resources.acquire(b, asset); } catch (error) {
+            releasedB = /No supported source locator/.test(String(error));
+        }
+        resources.release();
+        let closed = false;
+        try { await resources.acquire(a, asset); } catch (error) {
+            closed = /Resource context released/.test(String(error));
+        }
+        return { initialA, initialB, stillB, staleRejected, releasedB, closed,
+            titleA: (await api.readConversation(a))?.index.title,
+            titleB: (await api.readConversation(b))?.index.title };
+    }, accountId);
+    expect(result).toEqual({
+        initialA: [1, 2, 3], initialB: [9, 8, 7], stillB: [9, 8, 7],
+        staleRejected: true, releasedB: true, closed: true, titleA: 'A', titleB: 'B',
     });
-    expect(result.unknown).toBeNull(); expect(result.other).toBeNull(); expect(result.after).toBeNull();
-    expect(result.correct).toHaveLength(68);
 });
