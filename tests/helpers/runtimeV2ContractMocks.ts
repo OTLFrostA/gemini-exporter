@@ -1,16 +1,19 @@
+import type { GlobalSettings } from '../../src/application/settings/index.js';
+import type { DomainConversationIndex } from '../../src/l2/conversationIndex.js';
+
 /**
  * Runtime unit tests must treat L2 as a contract, not load L2's real validators.
  * These tiny ports accept only test fixture Accounts and ConversationKeys; the
  * real L2 validation/merge/selection is covered by L2's own tests.
  */
-export function mockAccountRegistry(knownAccountIds: readonly string[]) {
+export function mockAccountRegistry(knownAccountIds: readonly string[]): Pick<typeof import('../../src/l2/accountRegistry.js'), 'isAccountId'> {
     return {
         isAccountId: (value: unknown): value is string =>
             typeof value === 'string' && knownAccountIds.includes(value),
     };
 }
 
-export function mockConversationKey(knownAccountIds: readonly string[]) {
+export function mockConversationKey(knownAccountIds: readonly string[]): Pick<typeof import('../../src/l2/conversationKey.js'), 'readConversationKey'> {
     return {
         readConversationKey: (value: unknown) => {
             if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -37,7 +40,7 @@ export function assertRuntimeUnitBoundary(resolvedPath: string, root: string): v
 }
 
 // Frozen Application Settings defaults; tests supply only scenario-specific patches.
-export const v2Settings = {
+export const v2Settings: GlobalSettings = {
     defaultFormat: 'markdown' as const,
     skipExported: true,
     includeAssets: true,
@@ -46,7 +49,7 @@ export const v2Settings = {
 };
 
 // Frozen L2 Index DTO shape; Runtime Count only uses the returned array length.
-export function v2IndexFixtures(accountId: string) {
+export function v2IndexFixtures(accountId: string): DomainConversationIndex[] {
     return ['first', 'second'].map((conversationId, index) => ({
         key: { accountId, conversationId }, title: conversationId,
         titleSource: 'provider' as const, updatedAt: 1700000000000 + index,
