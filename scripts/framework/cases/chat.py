@@ -42,7 +42,7 @@ def read_initial_export_markdown(download_path: str, chat_id: str) -> str:
     if not content.startswith('---\n'):
         raise ValueError("初始导出 Markdown 缺少 Frontmatter")
     metadata = content[4:].split('\n---\n', 1)[0]
-    matched_id = re.search(r'(?m)^id:\s*["\x27]?([^"\x27\s]+)', metadata)
+    matched_id = re.search(r"""(?m)^id:\s*["']?([^"'\s]+)""", metadata)
     if not matched_id or matched_id.group(1).removeprefix('c_') != conversation_id:
         raise ValueError("初始导出 Markdown 会话 ID 不匹配")
     return content
@@ -186,7 +186,8 @@ description: "Dynamically created test attachment to verify multi-format user up
                             if not CDPActions.select_workbench_item(cdp_opt_init, session.chat_id, True):
                                 return False, "会话 1 初始导出目标未找到", None
                             baseline_file = CDPActions.trigger_export_zip(
-                                cdp_opt_init, ctx.output_dir, max_wait=30, allow_standalone=True)
+                                cdp_opt_init, ctx.output_dir, max_wait=30,
+                                format_type='markdown', allow_standalone=True)
                             if not baseline_file or not os.path.isfile(baseline_file):
                                 return False, "会话 1 初始 Markdown/ZIP 导出未落盘，无法建立真实基线", None
                             baseline_text = read_initial_export_markdown(baseline_file, session.chat_id)
