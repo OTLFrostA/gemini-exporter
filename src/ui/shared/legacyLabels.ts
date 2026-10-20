@@ -120,7 +120,7 @@ export const UI_COPY: Record<'en' | 'zh', Record<string, string>> = {
     "includeAssets": "下载附件",
     "includeAssetsTip": "下载对话中的图片与文件附件",
     "liveSaveDisk": "实时落盘本地",
-    "liveSaveDiskTip": "仅捕获的正文真实更新时，才自动保存 Markdown 到已授权文件夹。非 Markdown 格式或目录失权只是暂停，切回 Markdown 且恢复授权后会按此前开启意图继续。"
+    "liveSaveDiskTip": "仅捕获的正文真实更新时，才自动保存 Markdown 到已授权文件夹。非 Markdown 格式或目录失权只是暂停，切回 Markdown 且恢复授权后会按此前开启意图继续。",
     "logFilterPlaceholder": "过滤关键字 (-排除)",
     "logLevelAll": "全部日志",
     "logLevelError": "仅错误",
