@@ -6,7 +6,7 @@ import { MAX_ASSET_BYTES } from '../src/core/export/assets/imageContent.js';
 import { missingResource, type ResourceFailure, type ResourceBytes } from '../src/core/resources/resourceResult.js';
 import type { DocumentAst } from '../src/core/document/ast/ast.js';
 async function mount(resources: Record<string, ResourceBytes | ResourceFailure>, ids = Object.keys(resources)) {
-    const document: DocumentAst = { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'Image matrix', providerLabel: 'test', messageCount: 1 }, messages: [{ type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
+    const document: DocumentAst = { title: 'Image matrix', metadata: { id: 'fixture', provider: 'test' }, messages: [{ role: 'assistant', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
     const before = JSON.stringify(document);
     const prepared = new Map(Object.entries(resources).map(([resourceId, value]) => [resourceId, 'ok' in value ? value : { ok: true as const, resourceId, value }]));
     const bindings = Object.fromEntries(ids.map(id => [id, `assets/${id}.fixture`]));

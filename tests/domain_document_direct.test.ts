@@ -12,7 +12,7 @@ import { composeDomainDocument } from '../src/core/document/compose/composeDomai
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 const prepareDomainResources = async (results: Awaited<ReturnType<typeof fixtureResourceResults>>) => Object.fromEntries(results.map(result => [result.resourceId, result.value.path]));
-async function exportDomainMarkdown(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: string; locale?: 'en' | 'zh' } = {}) {
+async function exportDomainMarkdown(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: number; locale?: 'en' | 'zh' } = {}) {
     return renderDocumentMarkdown(composeDomainDocument(domain, account), await prepareDomainResources(options.resourceResults ?? []), options);
 }
 async function exportDomainHtml(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: string; locale?: 'en' | 'zh' } = {}) {
@@ -69,7 +69,7 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
     const restored = JSON.parse(JSON.stringify(domain));
     assert.deepEqual(composeDomainDocument(domain, fixtureAccountFor(domain)), composeDomainDocument(restored, fixtureAccountFor(restored)));
     assert.deepEqual(await prepareDomainResources(await fixtureResourceResults(domain)), await prepareDomainResources(await fixtureResourceResults(restored)));
-    const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceResults: await fixtureResourceResults(domain, historicalFixture(raw).resourceHints) };
+    const options = { exportedAt: Date.parse('2026-10-06T00:00:00Z'), locale: 'en' as const, resourceResults: await fixtureResourceResults(domain, historicalFixture(raw).resourceHints) };
     assert.equal(await exportDomainMarkdown(domain, fixtureAccountFor(domain), options), await exportDomainMarkdown(restored, fixtureAccountFor(restored), options));
     assert.equal(await exportDomainHtml(domain, fixtureAccountFor(domain), options), await exportDomainHtml(restored, fixtureAccountFor(restored), options));
 });
@@ -79,9 +79,9 @@ test('AST: composer trusts literal Domain content and does not reinterpret Markd
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal** [1] [cite:2] ![pic](url)' }] }],
             citations: [{ id: 'source', url: 'https://example.test' }] },
     ] } };
-    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)), { documentLanguage: 'zh' });
-    assert.equal(ast.header.providerLabel, 'custom');
-    assert.equal(ast.documentLanguage, 'zh');
+    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)));
+    assert.equal(ast.metadata.provider, 'custom');
+    assert.ok(!('documentLanguage' in ast));
     assert.deepEqual(ast.messages[0].blocks, domain.detail.messages[0].content);
 });
 
@@ -91,7 +91,7 @@ test('AST: reasoning placement prevents another attachment copy and dangling cit
             { role: 'user', content: [], attachmentIds: ['shared'] },
         ] } };
     const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)));
-    assert.equal(ast.messages[0].blocks.length, 1);
+    assert.equal(ast.messages[0].blocks.length, 2, 'explicit attachment remains after reasoning');
     assert.equal(ast.messages[1].blocks.length, 1);
     const broken = structuredClone(domain);
     broken.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'unknown' }] }];
@@ -155,15 +155,15 @@ test('citation numbering is conversation-wide in body, reasoning and Sources, in
     const document = composeDomainDocument(domain, fixtureAccountFor(domain));
     const first = document.messages[0].blocks[0];
     assert.ok(first.type === 'paragraph');
-    assert.deepEqual(first.children, [{ type: 'citation', id: 'msg-0:same', label: '[1]', href: 'https://example.test/one' }]);
+    assert.deepEqual(first.children, [{ type: 'citation', id: 'same', label: '[1]', href: 'https://example.test/one' }]);
     const second = document.messages[1].blocks[1];
     assert.ok(second.type === 'paragraph');
-    assert.deepEqual(second.children, [{ type: 'citation', id: 'msg-1:same', label: '[2]' }]);
+    assert.deepEqual(second.children, [{ type: 'citation', id: 'same', label: '[2]' }]);
     const reasoning = document.messages[1].blocks[0];
     assert.ok(reasoning.type === 'disclosure');
     assert.deepEqual(reasoning.blocks, [{ type: 'paragraph', children: second.children }]);
-    assert.equal(document.messages[0].sources?.items[0].number, 1);
-    assert.equal(document.messages[1].sources?.items[0].number, 2);
+    assert.equal(document.messages[0].sources?.[0].number, 1);
+    assert.equal(document.messages[1].sources?.[0].number, 2);
     const markdown = await exportDomainMarkdown(domain, fixtureAccountFor(domain));
     assert.ok(markdown.includes('[2]'));
     assert.ok(markdown.includes('Offline source'));

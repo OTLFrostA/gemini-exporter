@@ -189,7 +189,7 @@ for (const providerId of ['openai', 'anthropic', 'custom-provider']) {
         const domain = historicalFixtureDomain({ ...metadata, source: 'openai-import', messages: [{ role: 'assistant', content: '![missing](missing.png)' }] }, { providerId });
         assert.equal(fixtureAccountFor(domain).providerId, providerId);
         const result = await composeFixture(domain);
-        assert.equal(result.document.header.providerLabel, providerId);
+        assert.equal(result.document.metadata.provider, providerId);
         const parsed = historicalFixture({ ...metadata, messages: [{ role: 'tool', content: 42 }] }, { providerId });
         assert.equal(fixtureAccountFor(parsed.conversation).providerId, providerId);
         assert.ok(parsed.diagnostics.some(d => d.code === 'UNKNOWN_ROLE'));
