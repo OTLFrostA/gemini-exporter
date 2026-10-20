@@ -41,33 +41,45 @@ test('UI v2: Options can toggle Light and Dark, persisting a shared preference',
 });
 
 
-test('UI v2: Dev label is on the ON side and reflects enabled state', async ({ page }) => {
+test('UI v2: Dev switch uses left ON and right OFF beside its left label in both themes', async ({ page }) => {
     await mount(page, 'options', { settings: { theme: 'light', developerMode: false } });
     const toggle = page.locator('#devToggle');
     const label = page.locator('#labelDevMode');
-    // The switch moves right when enabled; the "Dev" label belongs on that side.
+    const knobX = () => toggle.evaluate(input =>
+        Math.round(new DOMMatrixReadOnly(getComputedStyle(input, '::after').transform).m41));
+
+    // Only Dev is inverted: the label remains on the left next to the checked knob.
     expect(await label.evaluate(el => {
         const input = document.getElementById('devToggle');
-        return !!input && el.getBoundingClientRect().left >= input.getBoundingClientRect().right;
+        return !!input && el.getBoundingClientRect().right <= input.getBoundingClientRect().left;
     })).toBe(true);
     await expect(toggle).toHaveAccessibleName('Dev');
-    await expect(toggle).not.toBeChecked();
-    await expect(toggle).toHaveCSS('background-color', 'rgb(203, 213, 225)');
-    await expect(toggle).toHaveCSS('background-image', 'none');
-    await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
 
-    await label.click();
-    await expect(toggle).toBeChecked();
-    await expect(toggle).toHaveCSS('background-image', /linear-gradient/);
-    await expect(page.locator('body')).toHaveClass(/dev-mode/);
-    await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(true);
+    for (const theme of ['light', 'dark']) {
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        await expect(toggle).not.toBeChecked();
+        await expect.poll(knobX).toBe(14); // OFF: knob on right.
+        await expect(toggle).toHaveCSS('background-image', 'none');
+        await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
 
-    await label.click();
-    await expect(toggle).not.toBeChecked();
-    await expect(toggle).toHaveCSS('background-color', 'rgb(203, 213, 225)');
-    await expect(toggle).toHaveCSS('background-image', 'none');
-    await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
-    await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(false);
+        await label.click();
+        await expect(toggle).toBeChecked();
+        await expect.poll(knobX).toBe(0); // ON: knob moves left, towards Dev.
+        await expect(toggle).toHaveCSS('background-image', /linear-gradient/);
+        await expect(page.locator('body')).toHaveClass(/dev-mode/);
+        await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(true);
+
+        await label.click();
+        await expect(toggle).not.toBeChecked();
+        await expect.poll(knobX).toBe(14);
+        await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
+        await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(false);
+
+        if (theme === 'light') {
+            await expect(toggle).toHaveCSS('background-color', 'rgb(203, 213, 225)');
+            await page.locator('#btnThemeToggle').click();
+        }
+    }
 });
 
 test('UI v2: Popup loads the shared Light preference and can switch to Dark', async ({ page }) => {
