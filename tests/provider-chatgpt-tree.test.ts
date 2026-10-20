@@ -258,7 +258,7 @@ test('Detail submits image identities; bytes are acquired on demand without chan
         fetchFn: (url) => {
             const u = String(url);
             if (u.endsWith('/api/auth/session')) {
-                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } }), { status: 200 }));
+                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok' }), { status: 200 }));
             }
             if (u.includes('/files/download/file_cat')) {
                 return Promise.resolve(new Response(JSON.stringify({
