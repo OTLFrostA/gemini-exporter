@@ -55,5 +55,9 @@ export function readOne<T>(store: string, key: IDBValidKey): Promise<T | null> {
     });
 }
 export function putOne(store: string, value: unknown, key?: IDBValidKey): Promise<void> {
-    return inStore(store, 'readwrite', table => { table.put(value, key); });
+    return inStore(store, 'readwrite', table => {
+        // In-line keyPath stores require a value-only put; out-of-line stores use an explicit key.
+        if (key === undefined) table.put(value);
+        else table.put(value, key);
+    });
 }
