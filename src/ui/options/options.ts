@@ -51,8 +51,10 @@ export async function initWorkbench(): Promise<void> {
     };
     const progress = (current: number, total: number, message: string) => {
         el('progText').textContent = message;
-        el<HTMLElement>('progWrap').style.display = 'block';
-        el<HTMLElement>('bar').style.width = total ? `${Math.round(current / total * 100)}%` : '0%';
+        const wrapper = el<HTMLElement>('progWrap');
+        wrapper.style.display = 'block';
+        wrapper.classList.toggle('indeterminate', action === 'scan');
+        el<HTMLElement>('bar').style.width = action === 'scan' ? '30%' : total ? `${Math.round(current / total * 100)}%` : '0%';
         el('status').textContent = message;
     };
     const showFailures = () => {
@@ -88,6 +90,10 @@ export async function initWorkbench(): Promise<void> {
         const account = state.accounts.find(a => a.id === state.accountId);
         const name = account?.displayName || account?.email || account?.providerAccountId || text('No local account', '暂无本地账户');
         el('accountName').textContent = state.accounts.length < 2 ? name : '';
+        el('takeoutAccountName').textContent = state.accountId
+            ? account?.providerId === 'gemini' ? `→ ${name}` : text('Select Gemini', '请选择 Gemini')
+            : text('First import', '首次导入');
+        el('takeoutAccountName').title = state.accountId ? name : text('Creates a default Gemini account after choosing a ZIP', '选定 ZIP 后创建 Gemini 默认账户');
         selector.title = name;
         el('ver').textContent = chrome.runtime.getManifest().version;
         el('syncCount').textContent = text(`${state.indexes.length} indexed`, `已收录 ${state.indexes.length} 条`);
@@ -115,6 +121,7 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLElement>('btnCancel').style.display = action === 'export' && !!controller ? 'inline-flex' : 'none';
         el<HTMLElement>('btnStopScan').style.display = action === 'scan' && !!controller ? 'inline-flex' : 'none';
         el<HTMLElement>('progWrap').style.display = busy && !!controller ? 'block' : 'none';
+        el<HTMLElement>('progWrap').classList.toggle('indeterminate', action === 'scan');
         renderList(state, busy);
         el<HTMLButtonElement>('btnExport').disabled ||= !settings;
         showFailures();
@@ -136,7 +143,7 @@ export async function initWorkbench(): Promise<void> {
     };
     const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async () => {
         lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
-        failed = []; failureReasons.clear(); dismissedFailures = false; state.failed.clear(); render();
+        failed = []; failureReasons.clear(); dismissedFailures = false; render();
         await fonts;
         if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
             throw new Error(text('Authorize a folder first', '请先授权文件夹'));
@@ -144,8 +151,7 @@ export async function initWorkbench(): Promise<void> {
             onProgress: p => progress(p.current, p.total, text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
             onFailure: (key, message) => { failureReasons.set(key.conversationId, message); }
         });
-        failed = result.failed;
-        for (const key of failed) state.failed.add(key.conversationId);
+        failed = [...result.failed];
         status(text(`Delivery initiated: ${result.exported}; partial: ${result.partial}; skipped: ${result.skipped}; failed: ${failed.length}${result.aborted ? '; cancelled' : ''}`,
             `已发起交付 ${result.exported}；部分缺失 ${result.partial}；跳过 ${result.skipped}；失败 ${failed.length}${result.aborted ? '；已取消' : ''}`),
             failed.length || result.aborted ? 'warn' : 'info');
@@ -166,21 +172,14 @@ export async function initWorkbench(): Promise<void> {
             aborted: text('Scan cancelled', '扫描已取消'), error: text('Scan failed', '扫描失败')
         };
         status(`${reasons[result.reason ?? result.status] ?? result.reason ?? result.status} · ${result.pagesFetched} / ${result.conversationsFetched}`);
-        el('lastSync').textContent = new Date().toLocaleTimeString();
         settings = await readSettings();
-        if (result.reason === 'provider_limit' && !settings.takeoutPromptCompleted) openModal('takeoutLimitModal');
+        if (result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
+            TourGuide.showTakeoutPrompt(result.conversationsFetched,
+                () => { void updateSettings({ takeoutPromptCompleted: true }).catch(e => status(errorText(e), 'error')); },
+                () => { fileInput.click(); },
+                () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); });
+        }
     }, true);
-    const openModal = (id: string) => {
-        if (id === 'takeoutLimitModal') el('takeoutLimitPromptText').textContent = text(
-            'Gemini confirmed an online history access limit. Import your Google Takeout ZIP to recover older conversations.',
-            'Gemini 已确认在线历史访问范围受限。可以导入 Google Takeout ZIP 补全更早的会话。');
-        el<HTMLElement>(id).style.display = 'flex';
-    };
-    const closeModal = (id: string) => { el<HTMLElement>(id).style.display = 'none'; };
-    const acknowledgeTakeout = () => {
-        closeModal('takeoutLimitModal');
-        void updateSettings({ takeoutPromptCompleted: true }).catch(e => status(errorText(e), 'error'));
-    };
     el('btnSyncAll').addEventListener('click', () => { void scan(); });
     el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scan(true); });
     const cancel = () => { controller?.abort(); status(text('Cancelling…', '正在取消…'), 'warn'); };
@@ -214,40 +213,31 @@ export async function initWorkbench(): Promise<void> {
     });
     el('delivery').addEventListener('change', render);
     const fileInput = el<HTMLInputElement>('takeoutFileInput');
-    el('btnImportTakeout').addEventListener('click', () => openModal('takeoutImportModal'));
-    el('btnTakeoutSelectFile').addEventListener('click', () => fileInput.click());
-    el('btnTakeoutImportClose').addEventListener('click', () => closeModal('takeoutImportModal'));
+    el('btnImportTakeout').addEventListener('click', () => { if (!busy) fileInput.click(); });
     const importFile = (file: File) => perform('takeout', async () => {
         try {
-            closeModal('takeoutImportModal');
             const result = await handleTakeoutImport(file, state.accountId, { onTarget: select,
                 onProgress: percent => progress(percent, 100, text(`Importing ${percent}%`, `正在导入 ${percent}%`)) });
             status(text(`Imported ${result.imported} conversations (${result.status})`, `已提交 ${result.imported} 条对话（${result.status}）`));
         } finally { fileInput.value = ''; }
     });
     fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; if (file) void importFile(file); });
-    el('takeoutDropZone').addEventListener('click', event => {
-        if (!(event.target as HTMLElement).closest('button') && !busy) fileInput.click();
-    });
-    el('takeoutDropZone').addEventListener('dragover', event => event.preventDefault());
-    el('takeoutDropZone').addEventListener('drop', event => {
+    el('btnImportTakeout').addEventListener('dragover', event => event.preventDefault());
+    el('btnImportTakeout').addEventListener('drop', event => {
         event.preventDefault();
         const file = (event as DragEvent).dataTransfer?.files[0];
         if (file && !busy) void importFile(file);
     });
-    el('btnTakeoutLimitClose').addEventListener('click', acknowledgeTakeout);
-    el('btnModalDismissTakeout').addEventListener('click', acknowledgeTakeout);
-    el('btnModalImportTakeout').addEventListener('click', () => { acknowledgeTakeout(); openModal('takeoutImportModal'); });
     for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const)
         el(id).addEventListener('click', () => {
             const accountId = state.accountId;
             if (!accountId || busy || !window.confirm(scanRecords
-                ? text('Clear scan coverage and export records? Conversations and files are kept.', '清除扫描覆盖及导出记录？保留对话和文件。')
+                ? text('Clear scan coverage and export records? Conversations and files stay. The next scan will retry history within source and local limits.', '清除扫描覆盖及导出记录？保留对话和磁盘文件。下次扫描将在来源范围和本地预算内重新尝试历史。')
                 : text('Clear export records? Conversations and files are kept.', '清除导出记录？保留对话和文件。'))) return;
             void perform('cleanup', async () => {
                 if (scanRecords) await Cleanup.clearLocalScanRecords(accountId);
                 else await Cleanup.clearLocalExportRecords(accountId);
-                state.failed.clear(); failed = []; failureReasons.clear();
+                failed = []; failureReasons.clear(); dismissedFailures = false;
                 status(text('Records cleared', '记录已清除'));
             });
         });
