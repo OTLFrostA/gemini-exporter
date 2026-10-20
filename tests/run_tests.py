@@ -659,174 +659,104 @@ def test_takeout_limit_modal_and_wall_detection():
     print("  ✓ Takeout guidance uses Application counters, current Settings and File import")
 
 
+
 def test_stage1_architecture_ssot_and_state_isolation():
-    # 1. Verify per-slot aborts in background.ts/js (or modular src/runtime/background/)
-    bg_dir = os.path.join(BASE_DIR, "src/runtime/background")
-    if os.path.isdir(bg_dir):
-        bg_code = ""
-        for bf_name in sorted(os.listdir(bg_dir)):
-            if bf_name.endswith(".ts") or bf_name.endswith(".js"):
-                with open(os.path.join(bg_dir, bf_name), "r", encoding="utf-8") as bf:
-                    bg_code += bf.read() + "\n"
-    else:
-        bg_ts = os.path.join(BASE_DIR, "src/runtime/background/background.ts")
-        bg_js_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/runtime/background/background.js")
-        with open(bg_js_path, "r", encoding="utf-8") as f:
-            bg_code = f.read()
-    assert "__bgAborts" in bg_code and "Map" in bg_code, "background.js must isolate abort flags per account slot using Map"
-    assert not re.search(r'let\s+__bgAborted\s*=\s*(?:false|true);', bg_code), "background.js must not contain mutable global __bgAborted"
-    assert "isSlotAborted" in bg_code and "setSlotAborted" in bg_code, "background.js must provide slot-aware abort helpers"
+    """V2 ownership: source admission at L1, trusted merge at L2, passive Storage."""
+    def source(path):
+        with open(os.path.join(BASE_DIR, path), encoding="utf-8") as f:
+            return f.read()
 
-    # 2. Verify per-slot Takeout cache in takeoutEngine
-    takeout_ts = os.path.join(BASE_DIR, "src/l1/imports/takeoutEngine.ts")
-    takeout_path = takeout_ts if os.path.isfile(takeout_ts) else os.path.join(BASE_DIR, "src/l1/imports/takeoutEngine.js")
-    with open(takeout_path, "r", encoding="utf-8") as f:
-        takeout_code = f.read()
-    assert "__accountTakeouts" in takeout_code and "Map" in takeout_code, "takeoutEngine must isolate takeout dictionaries per account slot"
-    assert "getStore" in takeout_code, "takeoutEngine must route through getStore(slot)"
+    client = source("src/l1/client/gemini/geminiProvider.ts")
+    ingestion = source("src/l2/ingestion.ts")
+    storage = source("src/l3a/storageService.ts")
+    importer = source("src/l1/imports/takeoutEngine.ts")
+    options = source("src/ui/options/options.ts")
+    exporter = source("src/application/export/runExport.ts")
 
-    # 3. Verify SSoT compareConversations in syncEngine.ts and options.js
-    sync_ts = os.path.join(BASE_DIR, "src/runtime/content/syncEngine.ts")
-    sync_js_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/runtime/content/syncEngine.js")
-    with open(sync_js_path, "r", encoding="utf-8") as f:
-        sync_code = f.read()
-    assert "compareConversations" in sync_code, "syncEngine.js upsertConversations must use compareConversations SSoT"
+    assert all(name in client for name in ("ingestIndexes", "ingestDetail", "fetchConversationDetail")), (
+        "L1 Gemini Client must submit parsed source facts directly to L2")
+    assert all(name in ingestion for name in ("mergeConversationIndex", "selectConversationDetail",
+                                              "updateIndexesAtomically", "updateConversationAtomically")), (
+        "L2 must own Index merge and Detail selection under Storage's atomic ports")
+    assert "getExportRecord" in storage and "putExportRecord" in storage, (
+        "Storage must expose per-ConversationKey latest export records")
+    assert "importTakeout" in importer, "Takeout must share L1's existing import entry"
+    assert "runExport" in options and "startSync" in options, (
+        "Options must delegate Scan/Export rather than duplicating ownership")
+    assert "createSourceResourceContext" in exporter and "prepareExportResources" in exporter, (
+        "Task-owned resource bytes must not become a durable Domain cache")
+    assert all(name in exporter for name in ("startBrowserDownload", "writeToFolder", "putExportRecord")), (
+        "One Export flow must keep Delivery and ExportRecord in the same task")
+    for legacy in ("compareConversations", "LAST_EXPORT_SESSION", "SessionRecovery",
+                   "attachmentQueue", "__accountTakeouts"):
+        assert legacy not in exporter and legacy not in options, (
+            f"V1 control or persistence path leaked into Application/Options: {legacy}")
+    print("  ✓ V2 L1→L2→Storage, task resources and unified Export ownership verified")
 
-    options_ts = os.path.join(BASE_DIR, "src/ui/options/options.ts")
-    options_js_path = options_ts if os.path.isfile(options_ts) else os.path.join(BASE_DIR, "src/ui/options/options.js")
-    with open(options_js_path, "r", encoding="utf-8") as f:
-        options_code = f.read()
-    assert "compareConversations" in options_code, "options.js loadStore must use compareConversations SSoT"
-
-    # 4. Verify SSoT sanitizeFileName and cleanTitle delegation in exportEngine
-    export_ts = os.path.join(BASE_DIR, "src/application/exportEngine.ts")
-    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/application/exportEngine.js")
-    with open(export_path, "r", encoding="utf-8") as f:
-        export_code = f.read()
-    assert "sanitizeFileName" in export_code, "exportEngine sanitizeFileName must delegate to GeminiUtils SSoT"
-
-    print("  ✓ Stage 1 Architecture: SSoT consolidation and per-slot state isolation verified")
 
 def test_storage_keys_and_constants_ssot():
-    constants_path = os.path.join(BASE_DIR, "src/shared/utils/constants.ts")
-    with open(constants_path, "r", encoding="utf-8") as f:
-        constants_code = f.read()
+    """V2 persistence must have one Storage owner; obsolete session keys are not contracts."""
+    def source(path):
+        with open(os.path.join(BASE_DIR, path), encoding="utf-8") as f:
+            return f.read()
 
-    # 1. Verify STORAGE_KEYS completeness in constants.ts
-    required_keys = [
-        "FORMAT", "ZIP", "DEV_MODE", "LANG", "PENDING_TAKEOUT_PROMPT",
-        "SUPPRESS_DIRECT_WRITE_PROMPT", "CREDENTIALS_MAP", "CREDENTIALS",
-        "LAST_SYNC_DIAGNOSTICS", "LAST_EXPORT_SESSION",
-        "LIVE_SAVE_CONFIG", "HAS_COMPLETED_TOUR", "LAST_SEEN_FEATURE_VERSION",
-        "BADGE_POS", "HAS_COMPLETED_TAKEOUT_PROMPT", "HAS_IMPORTED_TAKEOUT"
-    ]
-    for k in required_keys:
-        assert f"{k}:" in constants_code, f"STORAGE_KEYS in constants.ts must define {k}"
+    storage = source("src/l3a/storageService.ts")
+    settings = source("src/application/settings/index.ts")
+    exporter = source("src/application/export/runExport.ts")
+    constants = source("src/shared/utils/constants.ts")
 
-    assert "DEFAULT_EXPORT_FOLDER_NAME" in constants_code, "constants.ts must define DEFAULT_EXPORT_FOLDER_NAME"
-    assert "IDB_DATABASES" in constants_code, "constants.ts must define IDB_DATABASES"
+    for name in ("getIndex", "getDetail", "updateConversationAtomically",
+                 "getCoverage", "updateCoverageAtomically",
+                 "getExportRecord", "putExportRecord", "getStoredSettings", "patchStoredSettings"):
+        assert name in storage, f"V2 Storage missing declared boundary: {name}"
+    for name in ("defaultFormat", "skipExported", "includeAssets", "enabledDisk",
+                 "developerMode", "lastSeenFeatureVersion", "takeoutPromptCompleted"):
+        assert name in settings, f"V2 Settings missing frozen field: {name}"
+    assert "putExportRecord" in exporter and "getExportRecord" in exporter
+    assert "LAST_EXPORT_SESSION" not in exporter, "Export must not use persistent V1 sessions"
+    assert "IDB_DATABASES" in constants, "Canonical IDB settings still require one constants owner"
 
-    # 2. Verify build.js supports --pack and package script exists in package.json
-    build_path = os.path.join(BASE_DIR, "build.js")
-    with open(build_path, "r", encoding="utf-8") as f:
-        build_code = f.read()
-    assert "--pack" in build_code, "build.js must implement --pack packaging support"
+    build = source("build.js")
+    package = source("package.json")
+    assert "--pack" in build, "Build must support packaging"
+    assert '"package":' in package, "package.json must expose packaging"
+    print("  ✓ V2 Storage/Settings/ExportRecord contracts and build packaging verified")
 
-    pkg_path = os.path.join(BASE_DIR, "package.json")
-    with open(pkg_path, "r", encoding="utf-8") as f:
-        pkg_code = f.read()
-    assert '"package":' in pkg_code, 'package.json must declare "package" script'
-
-    # 3. Static Linter: ensure no raw string literals in src/ bypass STORAGE_KEYS
-    forbidden_literals = [
-        ("gemini_dev_mode", "STORAGE_KEYS.DEV_MODE"),
-        ("gemini_export_zip", "STORAGE_KEYS.ZIP"),
-        ("gemini_export_format", "STORAGE_KEYS.FORMAT"),
-        ("gemini_account_slots", "STORAGE_KEYS.ACCOUNT_SLOTS"),
-        ("gemini_last_sync_diagnostics", "STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS"),
-        ("gemini_export_badge_pos", "STORAGE_KEYS.BADGE_POS"),
-        ("has_completed_tour", "STORAGE_KEYS.HAS_COMPLETED_TOUR"),
-        ("last_seen_feature_version", "STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION"),
-        ("has_completed_takeout_prompt", "STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT"),
-        ("has_imported_takeout", "STORAGE_KEYS.HAS_IMPORTED_TAKEOUT")
-    ]
-
-    src_dir = os.path.join(BASE_DIR, "src")
-    violations = []
-    for root, _, files in os.walk(src_dir):
-        for f in files:
-            if f.endswith(".ts") and f != "constants.ts":
-                full_p = os.path.join(root, f)
-                with open(full_p, "r", encoding="utf-8") as fp:
-                    content = fp.read()
-                rel_p = os.path.relpath(full_p, BASE_DIR).replace("\\", "/")
-                for lit, s_key in forbidden_literals:
-                    if f"'{lit}'" in content or f'"{lit}"' in content:
-                        violations.append(f"{rel_p}: contains raw literal '{lit}', must use {s_key}")
-
-    assert not violations, "SSoT Storage Key Violations found:\n" + "\n".join(violations)
-    print("  ✓ Storage Keys and Constants SSoT integrity verified (0 raw literals in src/)")
 
 def test_stage2_architecture_improvements():
-    # 1. Verify sanitizeRelativePath in utils, zipWriter, fsWriter, and exportEngine
-    utils_ts = os.path.join(BASE_DIR, "src/shared/utils/utils.ts")
-    utils_path = utils_ts if os.path.isfile(utils_ts) else os.path.join(BASE_DIR, "src/shared/utils/utils.js")
-    with open(utils_path, "r", encoding="utf-8") as f:
-        utils_code = f.read()
-    assert "sanitizeRelativePath" in utils_code, "utils must implement and export sanitizeRelativePath"
+    """Retain valid path, Provider and sender-safety contracts across V2 modules."""
+    def source(path):
+        with open(os.path.join(BASE_DIR, path), encoding="utf-8") as f:
+            return f.read()
 
-    zip_writer_ts = os.path.join(BASE_DIR, "src/l4/packaging/writers/zipWriter.ts")
-    zip_writer_path = zip_writer_ts if os.path.isfile(zip_writer_ts) else os.path.join(BASE_DIR, "src/l4/packaging/writers/zipWriter.js")
-    with open(zip_writer_path, "r", encoding="utf-8") as f:
-        zip_code = f.read()
-    assert "sanitizeRelativePath" in zip_code or "sanitizePath" in zip_code, "zipWriter must use sanitizeRelativePath"
+    planner = source("src/l4/packaging/index.ts")
+    zip_writer = source("src/l4/packaging/writers/zipWriter.ts")
+    folder_writer = source("src/l4/delivery/writers/fsWriter.ts")
+    export = source("src/application/export/runExport.ts")
+    hook = source("src/l1/sniffer/gemini/hookCredentials.ts")
+    client = source("src/l1/client/gemini/geminiClient.ts")
+    background = source("src/runtime/background/background.ts")
 
-    fs_writer_ts = os.path.join(BASE_DIR, "src/l4/delivery/writers/fsWriter.ts")
-    fs_writer_path = fs_writer_ts if os.path.isfile(fs_writer_ts) else os.path.join(BASE_DIR, "src/l4/delivery/writers/fsWriter.js")
-    with open(fs_writer_path, "r", encoding="utf-8") as f:
-        fs_code = f.read()
-    assert "sanitizeRelativePath" in fs_code, "fsWriter must use sanitizeRelativePath"
-    assert "ensureSubDir" in fs_code and "writeFile" in fs_code, "fsWriter must support flexible path writing"
-
-    # 2. Verify export orchestrator AsyncQueue and elimination of busy-polling
-    export_ts = os.path.join(BASE_DIR, "src/core/engine/export/exportOrchestrator.ts")
-    if not os.path.isfile(export_ts):
-        export_ts = os.path.join(BASE_DIR, "src/application/exportEngine.ts")
-    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/application/exportEngine.js")
-    with open(export_path, "r", encoding="utf-8") as f:
-        export_code = f.read()
-    assert "AsyncQueue" in export_code, "exportEngine must implement event-driven AsyncQueue"
-    assert not re.search(r'setTimeout\s*\(\s*\w+\s*,\s*100\s*\)', export_code), "exportEngine must not use busy-polling setTimeout(r, 100)"
-    assert "attachmentQueue" in export_code, "exportEngine must properly manage attachmentQueue"
-    assert "writeFileDirect" in export_code, "exportEngine must have writeFileDirect"
-
-    # 3. Verify hookCredentials.js error sandboxing
-    hook_ts = os.path.join(BASE_DIR, "src/l1/sniffer/gemini/hookCredentials.ts")
-    hook_path = hook_ts if os.path.isfile(hook_ts) else os.path.join(BASE_DIR, "src/l1/sniffer/gemini/hookCredentials.js")
-    with open(hook_path, "r", encoding="utf-8") as f:
-        hook_code = f.read()
-    assert "origFetch" in hook_code, "hookCredentials.js must guard origFetch"
-    assert "origOpen" in hook_code and "origSend" in hook_code, "hookCredentials.js must guard origOpen and origSend"
-    assert "RegExp.$1" not in hook_code, "hookCredentials.js must not use deprecated RegExp.$1"
-
-    # 4. Verify geminiClient.js dynamic credential refresh on HTTP 400
-    client_ts = os.path.join(BASE_DIR, "src/l1/client/gemini/geminiClient.ts")
-    client_path = client_ts if os.path.isfile(client_ts) else os.path.join(BASE_DIR, "src/l1/client/gemini/geminiClient.js")
-    with open(client_path, "r", encoding="utf-8") as f:
-        client_code = f.read()
-    assert "cachedCredentials" not in client_code, "geminiClient must not reference undefined cachedCredentials"
-    assert "_retried" in client_code, "geminiClient must support automatic retry on 400 with fresh credentials"
-    assert re.search(r'async\s+function\s+resolveCred\s*\(', client_code) or "resolveCred" in client_code, "geminiClient resolveCred must accept credential overrides"
-
-    # 5. Verify background.ts/js MV3 keepalive
-    bg_ts = os.path.join(BASE_DIR, "src/runtime/background/background.ts")
-    bg_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/runtime/background/background.js")
-    with open(bg_path, "r", encoding="utf-8") as f:
-        bg_code = f.read()
-    assert re.search(r'function\s+startKeepAlive\s*\(', bg_code) or "startKeepAlive" in bg_code, "background.js must implement startKeepAlive"
-    assert "stopKeepAlive" in bg_code, "background.js must invoke and clean up keepalive in long-running jobs"
-
-    print("  ✓ Stage 2 Architecture: Pipeline decoupling, event-driven AsyncQueue, and path sanitization verified")
+    assert "sanitizeFileName" in planner and "assertExportPath" in planner, (
+        "L4 must sanitize and validate planned export names")
+    assert "assertExportPath" in zip_writer and "assertExportPath" in folder_writer, (
+        "ZIP and Folder writers must both reject unsafe relative paths")
+    assert "writeFile" in folder_writer and "ensureSubDir" in folder_writer, (
+        "Folder writer must support checked nested paths")
+    assert "createExportPathPlanner" in export and "packageExportFiles" in export, (
+        "Unified Export must use L4 Packaging rather than V1 per-format delivery")
+    assert "prepareExportResources" in export and "runExport" in export, (
+        "Resource acquisition and execution share the same Application task")
+    assert not re.search(r'setTimeout\s*\(\s*\w+\s*,\s*100\s*\)', export), (
+        "Unified Export must not busy-poll")
+    for name in ("origFetch", "origOpen", "origSend"):
+        assert name in hook, f"Sniffer must preserve and wrap native {name}"
+    assert "RegExp.$1" not in hook, "Do not restore legacy RegExp static captures"
+    assert "resolveCred" in client and "postBatchexecute" in client, (
+        "Gemini Client owns credential resolution and source RPC")
+    assert "assertExtensionSender" in background and "assertContentSender" in background, (
+        "Runtime must verify sender before cross-context operations")
+    print("  ✓ V2 path safety, unified Export, Provider capture and Runtime sender guards verified")
 
 def test_serial_pipeline_suite():
     import subprocess
