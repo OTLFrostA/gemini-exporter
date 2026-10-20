@@ -628,8 +628,13 @@ def test_tour_status_indicator_styling():
     # The current Spotlight uses a cutout and dialog, not old connection lamps.
     with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.css"), encoding="utf-8") as f:
         css = f.read()
-    # The v2 Tour's final scoped rule overrides the earlier generic overlay rule.\n    # Check the effective CSS cascade, not the first matching declaration.\n    container = re.findall(r'\.tour-overlay-container\s*\{([^}]+)', css)[-1]
-    popover = re.search(r'\.tour-popover\s*\{([^}]+)', css).group(1)
+    # The final v2 cutout CSS rule overrides the earlier generic overlay rule.
+    # Inspect the effective cascade; popover attributes span two rule blocks.
+    containers = re.findall(r'\.tour-overlay-container\s*\{([^}]+)', css)
+    popovers = re.findall(r'\.tour-popover\s*\{([^}]+)', css)
+    assert containers and popovers, 'Tour overlay and popover CSS must exist'
+    container = containers[-1]
+    popover = ''.join(popovers)
     assert "pointer-events:none" in container.replace(" ", ""), "Cutout must pass business clicks to its target"
     assert "pointer-events:auto" in popover.replace(" ", ""), "Popover controls must stay operable"
     assert "max-height:" in popover and "overflow:auto" in popover.replace(" ", ""), "Small viewports must retain all Tour actions"
