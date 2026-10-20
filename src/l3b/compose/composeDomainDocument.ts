@@ -19,6 +19,9 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
         const citations = (message.citations ?? []).map(citation => ({
             citation,
             number: ++nextCitationNumber,
+            href: citation.url?.trim() ? citation.url : undefined,
+            label: (citation.title?.trim() ? citation.title : undefined)
+                ?? (citation.url?.trim() ? citation.url : undefined) ?? '',
         }));
         const byId = new Map(citations.map(item => [item.citation.id, item]));
         const source = (id: string, explicit?: string) => {
@@ -27,7 +30,7 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
             return {
                 id,
                 label: explicit?.trim() ? explicit : '[' + item.number + ']',
-                ...(item.citation.url !== undefined ? { href: item.citation.url } : {}),
+                ...(item.href !== undefined ? { href: item.href } : {}),
             };
         };
         const compose = contentComposer(assets, source);
@@ -43,10 +46,10 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
                 : []),
             ...compose([...message.content, ...attachments]),
         ];
-        const sources: SourceItem[] = citations.map(({ citation, number }) => ({
+        const sources: SourceItem[] = citations.map(({ citation, number, href, label }) => ({
             id: citation.id,
-            label: citation.title || citation.url || '',
-            ...(citation.url !== undefined ? { href: citation.url } : {}),
+            label,
+            ...(href !== undefined ? { href } : {}),
             number,
         }));
         return {

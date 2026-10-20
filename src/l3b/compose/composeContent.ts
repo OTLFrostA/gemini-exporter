@@ -47,7 +47,7 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
             case 'file': {
                 const asset = assets.get(node.assetId)!, name = label(node.assetId, node.label, 'file');
                 const description = node.description ? inlines(node.description) : undefined;
-                return { type: 'file', resourceId: node.assetId, label: name, kind: asset.kind, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.byteLength !== undefined ? { byteLength: asset.byteLength } : {}), ...(description ? { description } : {}) };
+                return { type: 'file', resourceId: node.assetId, label: name, kind: asset.kind, ...(asset.mediaType !== undefined ? { mediaType: asset.mediaType } : {}), ...(asset.byteLength !== undefined ? { byteLength: asset.byteLength } : {}), ...(description ? { description } : {}) };
             }
             case 'thematicBreak': return { type: 'thematicBreak' };
             case 'unknown': return { type: 'unsupported', sourceType: node.sourceType, text: node.text };
