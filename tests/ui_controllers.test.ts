@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ExportRequest, ExportResult } from '../src/application/export/types.js';
-import { A, B, exportPort, installUiV2Mocks, mockRunExport } from './helpers/uiV2Mocks.js';
+import { A, B, assertUiNodeIsolation, exportPort, installUiV2Mocks, mockRunExport } from './helpers/uiV2Mocks.js';
 
 // Only load UI code after replacing the Application/Runtime/L1/Storage modules
 // with their v2 public ports. No Application Export engine is executed here.
@@ -14,6 +14,7 @@ const { handleTakeoutImport } = require('../src/ui/options/controllers/takeoutCo
     typeof import('../src/ui/options/controllers/takeoutController.js');
 const { errorText } = require('../src/ui/shared/settings.js') as
     typeof import('../src/ui/shared/settings.js');
+assertUiNodeIsolation();
 
 const key = (conversationId: string) => ({ accountId: A, conversationId });
 const request: ExportRequest = {
