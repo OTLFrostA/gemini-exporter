@@ -4,7 +4,7 @@ import { readConversationKey, type ConversationKey } from '../../../l2/conversat
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
 import type { ResourceBytes } from '../../../shared/resources/resourceResult.js';
-import type { ListEnd } from '../aiProvider.js';
+import type { ListEnd, PageEvidence } from '../aiProvider.js';
 import { ingestIndexes, ingestDetail } from '../../../l2/ingestion.js';
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
 /**
@@ -117,35 +117,82 @@ export class ChatGPTProvider implements AIProvider {
 
     async listConversations(options: ProviderListOptions): Promise<ListEnd> {
         if (options.streamId !== 'recent') throw new TypeError('Unknown ChatGPT stream');
+        options.signal?.throwIfAborted();
         const account = await this.context(options.accountId);
         let totalObserved = 0;
+        let expectedTotal: number | undefined;
+        let sentHead = false;
+        const seen = new Set<string>();
+        let lastTime = Infinity;
         for (let page = 1; page <= 20; page++) {
             options.signal?.throwIfAborted();
             const offset = (page - 1) * 100;
+            const requestedAt = Date.now();
             const result = parseChatGPTList(await this.authedGet<unknown>(`/conversations?offset=${offset}&limit=100`, account, options.signal));
             options.signal?.throwIfAborted();
+            const count = result.conversations.length;
+            const sourceEnd = result.total !== undefined && offset + count === result.total;
+            // These are request/response facts, not a second Domain or Coverage model.
+            // An absent cursor by itself cannot prove source exhaustion.
+            const valid = result.total !== undefined && result.total >= offset + count
+                && result.offset === offset && result.limit === 100
+                && result.hasMissingConversations === false
+                && count <= 100 && (sourceEnd || count === 100)
+                && (expectedTotal === undefined || expectedTotal === result.total);
+            expectedTotal ??= result.total;
+            const keys = result.conversations.flatMap(item => item.updatedAt === undefined
+                ? [] : [{ id: item.id, time: item.updatedAt }]);
+            // A trustworthy source chain cannot repeat an ID or move forward
+            // in source activity time across two consecutive pages.
+            const ordered = valid && keys.length === count
+                && keys.every((key, i) => Number.isSafeInteger(key.time) && key.time > 0
+                    && !seen.has(key.id) && (i === 0 ? key.time <= lastTime : keys[i - 1].time >= key.time))
+                && new Set(keys.map(key => key.id)).size === keys.length;
+            if (ordered) {
+                keys.forEach(key => seen.add(key.id));
+                if (keys.length) lastTime = keys[keys.length - 1].time;
+            }
+            const evidence: PageEvidence = {
+                streamId: options.streamId,
+                requestCursor: page === 1 ? null : String(offset),
+                nextCursor: sourceEnd ? null : String(offset + 100),
+                requestedAt, requestKnown: true, valid, ordered, keys,
+            };
+            // Keep individually parsed Index rows even when source-page evidence is
+            // insufficient for trusted Coverage. Never report such a run complete.
             await ingestIndexes(account.id, result.conversations.map(item => ({ conversationId: item.id, fields: {
                 ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
                 ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}),
-                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) } })));
+                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) } })),
+                account.providerAccountId === 'default' ? undefined : evidence);
             options.signal?.throwIfAborted();
-            totalObserved += result.conversations.length;
-            const stop = await options.onPageCommitted?.({ page, totalObserved });
-            if (result.conversations.length === 0 || (result.total === undefined && result.nextCursor === null)
-                || (result.total !== undefined && offset + 100 >= result.total)) return 'source_end';
+            totalObserved += count;
+            const trustedHead = !sentHead && page === 1 && valid && ordered && account.providerAccountId !== 'default';
+            if (trustedHead) sentHead = true;
+            const stop = await options.onPageCommitted?.({ page, totalObserved,
+                ...(trustedHead ? { scanHead: evidence } : {}) });
+            if (!valid || !ordered || account.providerAccountId === 'default')
+                throw new Error('Unverified ChatGPT list page');
+            if (sourceEnd) return 'source_end';
             if (stop) return 'stopped';
         }
         return 'max_pages';
     }
     async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal): Promise<void> {
         const account = await this.context(accountId);
-        const raw = await this.authedGet<Omit<ChatGPTApiConversationWithId, 'id'>>(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
-        const conversation = { ...raw, id: conversationId };
+        const raw = await this.authedGet<unknown>(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new TypeError('Invalid ChatGPT Detail payload');
+        const sourceId = Reflect.get(raw, 'id');
+        // Some endpoint versions omit the ID; an explicit different ID can
+        // never be silently relabeled as the requested conversation.
+        if (sourceId !== undefined && (typeof sourceId !== 'string' || sourceId !== conversationId))
+            throw new TypeError('ChatGPT Detail identity mismatch');
+        const conversation = { ...raw, id: conversationId } as ChatGPTApiConversationWithId;
         const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
         signal?.throwIfAborted();
         const index = parsed.conversation.index;
-        await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
-        this.resources?.retainParsed({ accountId, conversationId }, parsed);
+        const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
+        if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
         signal?.throwIfAborted();

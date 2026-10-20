@@ -87,7 +87,9 @@ export function extractChatGPTLinearNodes(
 ): ChatGPTConversationNode[] {
     const result: ChatGPTConversationNode[] = [];
     let currentId: string | undefined = startNodeId;
-    while (currentId) {
+    const visited = new Set<string>();
+    while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
         const node: ChatGPTConversationNode | undefined = mapping[currentId];
         if (!node || node.parent === undefined) break;
         const role = node.message?.author.role;

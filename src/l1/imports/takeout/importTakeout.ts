@@ -41,14 +41,16 @@ export async function importTakeout(file: File, accountId: Account['id'], onProg
     let resourceFailure = false;
     for (const [resultIndex, result] of results.entries()) {
         const id = result.conversationId;
-        await ingestDetail(accountId, id, result.conversation.detail, result.conversation.index);
-        resources?.retainParsed({ accountId, conversationId: id }, result);
-        for (const [assetId, bound] of Object.entries(result.archiveResources)) {
-            resources?.retain({ accountId, conversationId: id }, assetId, async () => {
-                const bytes = await readTakeoutBytes(bound.entry);
-                if (!bytes?.byteLength) throw new Error('Empty Takeout resource');
-                return { bytes };
-            });
+        const admission = await ingestDetail(accountId, id, result.conversation.detail, result.conversation.index);
+        if (admission.accepted && resources) {
+            resources.retainParsed({ accountId, conversationId: id }, result);
+            for (const [assetId, bound] of Object.entries(result.archiveResources)) {
+                resources.retain({ accountId, conversationId: id }, assetId, async () => {
+                    const bytes = await readTakeoutBytes(bound.entry);
+                    if (!bytes?.byteLength) throw new Error('Empty Takeout resource');
+                    return { bytes };
+                });
+            }
         }
         for (const asset of result.conversation.detail.assets) {
             if (!result.archiveResources[asset.id] && ![asset.sourceUri, result.acquisitionHints[asset.id]?.url, result.acquisitionHints[asset.id]?.sourceUrl].some(uri => /^(?:https?:\/\/|\/\/|data:)/i.test(uri ?? ''))

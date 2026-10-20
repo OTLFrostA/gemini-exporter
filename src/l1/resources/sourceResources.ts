@@ -22,21 +22,28 @@ export function createSourceResourceContext() {
             }
             conversationReaders.set(assetId, read);
         },
+        /** Called only after L2 accepts this entire Detail candidate. Replace, never
+         * merge, previous readers: the same assetId may mean different bytes in a
+         * later selected snapshot. ZIP-specific readers can be appended with retain(). */
         retainParsed(key: ConversationKey, parsed: SourceConversationParseResult) {
+            readConversationKey(key);
+            if (released) throw new Error('Resource context released');
             if (key.conversationId !== parsed.conversationId) throw new TypeError('Resource conversation mismatch');
+            const selected = new Map<string, ResourceReader>();
             for (const asset of parsed.conversation.detail.assets) {
                 const hint = parsed.acquisitionHints[asset.id];
                 if (!hint) continue;
                 const locator = [hint.url, hint.sourceUrl, hint.resolvedUrl, hint.src].find(uri => uri && /^(https:\/\/|data:)/i.test(uri));
                 if (hint.dataBase64 !== undefined) {
                     const encoded = hint.dataBase64;
-                    this.retain(key, asset.id, async () => {
+                    selected.set(asset.id, async () => {
                         const raw = encoded.startsWith('data:') ? encoded.slice(encoded.indexOf(',') + 1) : encoded;
                         const bytes = Uint8Array.from(atob(raw), character => character.charCodeAt(0));
                         return { bytes, mediaType: asset.mediaType ?? hint.mimeType ?? hint.mime };
                     });
-                } else if (locator) this.retain(key, asset.id, signal => acquireSourceResource({ ...asset, sourceUri: locator }, signal));
+                } else if (locator) selected.set(asset.id, signal => acquireSourceResource({ ...asset, sourceUri: locator }, signal));
             }
+            readers.set(conversationIdentity(key), selected);
         },
         async acquire(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, remote?: ResourceReader): Promise<ResourceBytes> {
             readConversationKey(key);
