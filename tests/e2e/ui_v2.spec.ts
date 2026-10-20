@@ -220,7 +220,7 @@ test('UI v2: Takeout prompts at 151 committed records regardless of Scan reason'
     await expect(page.locator('.tour-popover')).toHaveCount(0);
 });
 test('UI v2: settings preserve Live Save intent, record cleanup never deletes conversations', async ({ page }) => {
-    await mount(page,'options', { directoryName: 'MyVault' }); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
+    await mount(page,'options', { directoryName: 'MyVault', settings: { exportDelivery: 'folderWriter' } }); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
     await page.locator('#format').selectOption('pdf');
     await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
     await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
