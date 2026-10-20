@@ -92,7 +92,7 @@ export const B = '22222222-2222-4222-8222-222222222222';
 export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', patch: Record<string, unknown> = {}, query = '') {
     page.setDefaultTimeout(5000);
     const root = process.cwd();
-    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; globalThis.testUi = {tour,settings};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
+    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; globalThis.testUi = {tour,settings};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, metafile: true, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
         build.onResolve({ filter: /accountContext\.js$/ }, args => ({path:args.path,namespace:'account-mock'}));
         build.onLoad({filter:/.*/,namespace:'account-mock'},()=>({contents:`export const getAccountContext=()=>({accountId:globalThis.harness.source,providerId:'gemini'});export const resolveCurrentAccount=async()=>getAccountContext();`,loader:'js'}));
         build.onResolve({ filter: /^\./ }, args => {
@@ -104,6 +104,13 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
         });
         build.onLoad({ filter: /.*/, namespace: 'ui-mock' }, () => ({ contents: mock, loader: 'js' }));
     } }] });
+    for (const input of Object.keys(bundle.metafile?.inputs ?? {})) {
+        const normalized = input.replace(/\\/g, '/');
+        const srcAt = normalized.indexOf('src/');
+        if (srcAt !== -1 && !normalized.slice(srcAt + 4).startsWith('ui/')) {
+            throw new Error(`UI mock harness bundled non-UI production owner: ${input}`);
+        }
+    }
     await page.route('https://ui.test/**', route => route.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.join(root, `src/ui/${kind === 'badge' ? 'options' : kind}/${kind === 'badge' ? 'options' : kind}.html`), 'utf8').replace(/<script[^>]*><\/script>/g, '').replace(/<link[^>]*>/g, '') }));
     await page.addInitScript(({ A, B, patch }) => {
         const w = window as any;
