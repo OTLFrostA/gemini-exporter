@@ -1,135 +1,177 @@
-import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/l2/runtimeValidation.js';
-import { test } from 'node:test';
+/**
+ * V2 Takeout media lookup is an L1 source-resolver/task-reader contract.
+ * Archive bytes belong to SourceResourceContext, while L2/L3a retain only
+ * identity and source locators. L4 owns output paths, not the Takeout parser.
+ * No durable media cache or deleted v1 AssetPipeline is involved.
+ */
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
-import type { ResourceRequest } from '../src/l1/resources/resourceAcquisition.js';
-import { TakeoutEngine } from '../src/l1/imports/takeoutEngine.js';
-import { commitTakeoutData, clearTakeoutData } from '../src/shared/resources/takeout/mediaIndex.js';
-import { planExportResources } from '../src/l4/format/resources/planExportResources.js';
-import type { ResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
-import type { DomainAsset } from '../src/l2/conversationDetail.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { activityHtml, takeoutArchive } from './helpers/l1SourceFixture.js';
+import { createTakeoutResourceResolver } from '../src/l1/parsers/gemini/takeout/archiveResources.js';
+import { parseGeminiTakeoutConversation } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
+import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
+import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
+import { planExportPaths, buildExportFiles } from '../src/l4/packaging/index.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import type { TakeoutSourceFile } from '../src/l1/parsers/gemini/takeout/archiveResources.js';
 
-const chatId = 'lookup-regression';
-const generation = { generationOrdinal: 2, time: 1700000000123, prompt: 'Draw a diagram', imageCount: 2 };
-const source = (id: string, ordinal?: number): DomainAsset => ({ id, kind: 'image', name: 'diagram.png',
-    sourceUri: `Takeout/Gemini Apps/${id}.png`, generation: { ...generation, imageOrdinal: ordinal } });
-const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({ account: fixtureAccount(),
-    sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { key: fixtureKey(String(chatId), 'gemini'),   titleSource: "derived",   title: 'Lookup' }, detail: { key: fixtureKey(String(chatId), 'gemini'), quality: { status: 'partial' }, messages: [], assets } }),
-    diagnostics: [], acquisitionHints: {}, resourceHints: Object.fromEntries(assets.map(asset =>
-        [asset.id, { archivePath: asset.sourceUri!! }])),
-});
-
-async function recover(assets: DomainAsset[], item: ResourceRequest, options: { localOnly?: boolean } = {}) {
-    const slot = '10000000-0000-4000-8000-000000000001';
-    let downloads = 0;
-    const written: Array<{ path: string; bytes: Uint8Array }> = [];
-    // Populate only the Takeout index: the persistent resource cache is empty.
-    commitTakeoutData(slot, { convCache: { [chatId]: native(assets) }, globalMedia: Object.fromEntries(assets.map((asset, i) =>
-        [asset.sourceUri!!, { async: async () => new Uint8Array([i + 1, 42]) }])), mediaMap: {} });
-    try {
-        const pipeline = new AssetPipeline({ accountId: slot, takeoutEngine: TakeoutEngine,
-            fetchAsset: async () => { downloads++; return { success: false, error: 'network unavailable' }; },
-            writeFileDirect: async (path, bytes) => { written.push({ path, bytes }); } });
-        const result = await pipeline.processAsset(item, { id: chatId }, { isImage: true, maxRetries: 0, ...options });
-        return { result, written, downloads };
-    } finally { clearTakeoutData(slot); }
+useIndexStorage();
+const account = fixtureAccount('gemini');
+const activityPath = 'Takeout/Gemini/MyActivity.html';
+const key = (conversationId: string) => ({ accountId: account.id, conversationId });
+const path = (name: string) => 'Takeout/Gemini/' + name;
+function entry(bytes: Uint8Array): TakeoutSourceFile {
+    return { _data: { uncompressedSize: bytes.byteLength },
+        async: async (type: string) => type === 'uint8array' ? bytes.slice() : new TextDecoder().decode(bytes) };
+}
+function imageActivity(id: string, uri: string, generated = false): string {
+    const body = '<p>Takeout answer <img src="' + uri + '"></p>';
+    return activityHtml(body, id) + (generated ? '1 generated image' : '');
+}
+function files(entries: Record<string, Uint8Array>) {
+    return Object.fromEntries(Object.entries(entries).map(([name, bytes]) => [name, entry(bytes)]));
 }
 
-test('Takeout lookup through AssetPipeline preserves source identity when export planning renames the file', async () => {
-    const asset: DomainAsset = { id: 'original-resource', kind: 'image', name: 'diagram.png', sourceUri: 'Takeout/Gemini Apps/diagram.png' };
-    const plan = await planExportResources(native([asset]));
-    const item = { ...plan.assets[0].item, resolvedUrl: 'https://offline.test/diagram.png' };
-    assert.notEqual(item.localName, asset.sourceUri!);
-    const recovered = await recover([asset], item);
-    assert.equal(recovered.downloads, 1);
-    assert.equal(recovered.result.ok, true);
-    assert.deepEqual(recovered.written, [{ path: item.localName, bytes: new Uint8Array([1, 42]) }]);
-    if (!recovered.result.ok) throw new Error('expected offline recovery');
-    assert.equal(recovered.result.resourceId, item.assetId, 'recovery must retain requested Domain identity');
-    assert.equal(recovered.result.value.path, item.localName, 'writer path must match the planned export destination');
-
-    const offlineOnly = await recover([asset], item, { localOnly: true });
-    assert.equal(offlineOnly.downloads, 0, 'offline exports must never attempt a remote download');
-    assert.equal(offlineOnly.result.ok, true);
-    assert.deepEqual(offlineOnly.written, [{ path: item.localName, bytes: new Uint8Array([1, 42]) }]);
+test('Takeout source resolver prefers the exact archive URI over duplicate basenames', () => {
+    const selected = entry(Uint8Array.of(1, 2));
+    const other = entry(Uint8Array.of(3, 4));
+    const resolve = createTakeoutResourceResolver({
+        [path('archive-0.png')]: selected,
+        [path('older/archive-0.png')]: other,
+    }, activityPath);
+    const result = resolve(path('archive-0.png'));
+    assert.equal(result.status, 'resolved');
+    if (result.status !== 'resolved') return;
+    assert.equal(result.method, 'archive-path');
+    assert.equal(result.resource.path, path('archive-0.png'));
+    assert.strictEqual(result.resource.entry, selected);
 });
 
-test('Takeout lookup through AssetPipeline uses the exact source URI when asset IDs differ', async () => {
-    const asset = { ...source('takeout-id'), generation: undefined };
-    const recovered = await recover([asset], { assetId: 'online-id', sourceUrl: asset.sourceUri!,
-        resolvedUrl: 'https://offline.test/image.png', localName: 'assets/abcdef_diagram.png' });
-    assert.equal(recovered.result.ok, true);
-    assert.deepEqual(recovered.written, [{ path: 'assets/abcdef_diagram.png', bytes: new Uint8Array([1, 42]) }]);
-    if (!recovered.result.ok) throw new Error('expected source-URI recovery');
-    assert.equal(recovered.result.resourceId, 'online-id',
-        'the Takeout source identity must not replace the requested Domain asset identity');
+test('Takeout reference relative to activity HTML takes priority over an unrelated duplicate filename', () => {
+    const selected = entry(Uint8Array.of(10)), other = entry(Uint8Array.of(20));
+    const resolve = createTakeoutResourceResolver({
+        [path('assets/diagram.png')]: selected,
+        [path('backup/assets/diagram.png')]: other,
+    }, activityPath);
+    const result = resolve('assets/diagram.png');
+    assert.equal(result.status, 'resolved');
+    if (result.status !== 'resolved') return;
+    assert.equal(result.method, 'relative-path');
+    assert.strictEqual(result.resource.entry, selected);
 });
 
-test('Takeout lookup through AssetPipeline links different IDs by a unique generation event and image ordinal', async () => {
-    const recovered = await recover([source('takeout-0', 0), source('takeout-1', 1)], {
-        assetId: 'online-1', sourceUrl: 'https://offline.test/online.png', localName: 'assets/abcdef_diagram.png',
-        generation: { ...generation, time: 1700000000999, imageOrdinal: 1 } });
-    assert.equal(recovered.downloads, 1);
-    assert.equal(recovered.result.ok, true);
-    assert.deepEqual(recovered.written[0].bytes, new Uint8Array([2, 42]));
+test('unique basename or normalized Takeout wrapper may resolve, but duplicate candidates never pick arbitrary bytes', () => {
+    const one = entry(Uint8Array.of(1)), two = entry(Uint8Array.of(2));
+    const single = createTakeoutResourceResolver({ [path('images/graph.png')]: one }, activityPath);
+    const unique = single('graph.png');
+    assert.equal(unique.status, 'resolved');
+    if (unique.status === 'resolved') assert.strictEqual(unique.resource.entry, one);
+    const wrapped = createTakeoutResourceResolver({ [path('images/graph.png.synced')]: one }, activityPath);
+    const normalized = wrapped('graph.png');
+    assert.equal(normalized.status, 'resolved');
+    if (normalized.status === 'resolved') assert.strictEqual(normalized.resource.entry, one);
+    const duplicate = createTakeoutResourceResolver({
+        [path('images/graph.png')]: one, [path('other/graph.png')]: two,
+    }, activityPath);
+    assert.equal(duplicate('graph.png').status, 'ambiguous');
+    assert.equal(duplicate('unobserved.png').status, 'missing');
 });
 
-test('Takeout lookup through AssetPipeline refuses ambiguous images, missing ordinals, and weak filename evidence', async () => {
-    for (const assets of [[source('one', 0), source('two', 0)], [source('one'), source('two', 1)], [source('one'), source('two', 0)]]) {
-        const recovered = await recover(assets, { assetId: 'online', sourceUrl: 'https://offline.test/image.png',
-            localName: 'assets/abcdef_diagram.png', generation: { ...generation, imageOrdinal: 0 } });
-        assert.equal(recovered.result.ok, false);
-        assert.deepEqual(recovered.written, []);
-    }
-    const recovered = await recover([{ ...source('one'), generation: undefined }], {
-        assetId: 'online', sourceUrl: 'https://offline.test/one.png', localName: 'Takeout/Gemini Apps/one.png' });
-    assert.equal(recovered.result.ok, false, 'neither output path nor URI basename establishes ownership');
-    assert.deepEqual(recovered.written, []);
-});
-
-test('Takeout lookup through AssetPipeline rejects conflicting source and generation evidence', async () => {
-    const assets = [source('takeout-0', 0), source('takeout-1', 1)];
-    const base = { assetId: 'takeout-0', sourceUrl: 'https://offline.test/image.png', localName: 'assets/diagram.png' };
-    for (const item of [
-        { ...base, sourceUrl: assets[1].sourceUri! },
-        { ...base, generation: { ...generation, imageOrdinal: 1 } },
-        { ...base, generation: { ...generation, imageOrdinal: 0, prompt: 'Another prompt' } },
-        { ...base, assetId: 'online', generation },
-    ]) {
-        const recovered = await recover(assets, item);
-        assert.equal(recovered.result.ok, false);
-        assert.deepEqual(recovered.written, []);
+test('percent-encoded Takeout reference selects the literal archive filename without renaming its source identity', () => {
+    const original = entry(Uint8Array.of(77));
+    const resolve = createTakeoutResourceResolver({ [path('image name.png')]: original }, activityPath);
+    const match = resolve('image%20name.png');
+    assert.equal(match.status, 'resolved');
+    if (match.status === 'resolved') {
+        assert.strictEqual(match.resource.entry, original);
+        assert.equal(match.resource.path, path('image name.png'));
     }
 });
 
-test('Takeout lookup through AssetPipeline requires a unique event before selecting its image ordinal', async () => {
-    const assets = [
-        { ...source('event-a', 0), generation: { ...generation, imageOrdinal: 0, providerRequestId: 'request-a' } },
-        { ...source('event-b', 1), generation: { ...generation, imageOrdinal: 1, providerRequestId: 'request-b' } },
-    ];
-    const item = { assetId: 'online', sourceUrl: 'https://offline.test/image.png', localName: 'assets/diagram.png',
-        generation: { ...generation, imageOrdinal: 1 } };
-    const ambiguous = await recover(assets, item);
-    assert.equal(ambiguous.result.ok, false);
-    assert.deepEqual(ambiguous.written, []);
-    const exactRequest = await recover(assets, { ...item, generation: { ...item.generation, providerRequestId: 'request-b' } });
-    assert.equal(exactRequest.result.ok, true);
-    assert.deepEqual(exactRequest.written[0].bytes, new Uint8Array([2, 42]));
+test('L1 Takeout -> L2/L3a -> Application resource preparation -> L3b/L4 preserves exact archive bytes', async t => {
+    const id = 'takeout-byte-01', raw = Uint8Array.of(137, 80, 78, 71, 10, 21, 32);
+    const archivePath = path('archive-0.png');
+    const archive = takeoutArchive(imageActivity(id, 'archive-0.png', true), {
+        [archivePath]: entry(raw) as { async: (type: string) => Promise<unknown>; _data: { uncompressedSize: number } },
+    });
+    const resources = createSourceResourceContext();
+    t.after(() => resources.release());
+    const result = await importTakeout(archive, account.id, undefined, resources);
+    assert.equal(result.imported, 1);
+    assert.equal(result.status, 'partial', 'Takeout cannot certify complete conversation history');
+    const conversation = await readConversation(key(id));
+    assert.ok(conversation);
+    assert.equal(conversation.detail.quality.status, 'partial');
+    const media = conversation.detail.assets.find(item => item.kind === 'image');
+    assert.ok(media);
+    const retained = await resources.acquire(key(id), media);
+    assert.deepEqual(retained.bytes, raw, 'Task resource reader must return original ZIP bytes');
+
+    const document = composeDomainDocument(conversation, account);
+    const required = collectDocumentResources(document);
+    assert.ok(required.referencedIds.has(media.id));
+    const prepared = await prepareExportResources(conversation.detail.assets, required.referencedIds,
+        (asset, signal) => resources.acquire(key(id), asset, signal));
+    const selected = prepared.get(media.id);
+    assert.ok(selected?.ok);
+    assert.deepEqual(selected.value.bytes, raw);
+    const [plan] = planExportPaths([{ conversation, prepared, fileIds: required.fileIds }], 'markdown');
+    const markdown = renderDocumentMarkdown(document, plan.resources);
+    const packaged = buildExportFiles('markdown', plan, markdown, prepared);
+    const binary = packaged.find(file => file.fileName === plan.resources[media.id]);
+    assert.ok(binary);
+    assert.deepEqual(binary.content, raw);
+    assert.match(binary.fileName, /^assets\//);
+    assert.ok(markdown.includes(binary.fileName));
+    assert.notEqual(binary.fileName, media.sourceUri, 'L4 destination is not a source identity');
+    assert.ok(!JSON.stringify(conversation.detail).includes('dataBase64'));
+    assert.ok(!JSON.stringify(conversation.detail).includes('_data'));
+    assert.ok(!JSON.stringify(conversation.detail).includes('archiveResources'));
+    resources.release();
+    await assert.rejects(resources.acquire(key(id), media), /Resource context released/);
 });
 
-test('Takeout lookup through AssetPipeline allows exact identity without inferring an unknown image ordinal', async () => {
-    const asset = source('takeout-id');
-    const recovered = await recover([asset], { assetId: asset.id, sourceUrl: asset.sourceUri!,
-        resolvedUrl: 'https://offline.test/image.png', localName: 'assets/diagram.png', generation });
-    assert.equal(recovered.result.ok, true);
-    assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));
+test('rejected or empty Takeout ZIP bytes remain partial and never produce a fabricated image sidecar', async t => {
+    const id = 'takeout-empty-02', uri = 'missing-data.png';
+    const archive = takeoutArchive(imageActivity(id, uri), { [path(uri)]: entry(new Uint8Array()) as {
+        async: (type: string) => Promise<unknown>; _data: { uncompressedSize: number };
+    } });
+    const resources = createSourceResourceContext();
+    t.after(() => resources.release());
+    assert.equal((await importTakeout(archive, account.id, undefined, resources)).imported, 1);
+    const conversation = await readConversation(key(id));
+    assert.ok(conversation);
+    const document = composeDomainDocument(conversation, account);
+    const refs = collectDocumentResources(document);
+    assert.ok(refs.referencedIds.size > 0);
+    const prepared = await prepareExportResources(conversation.detail.assets, refs.referencedIds,
+        (asset, signal) => resources.acquire(key(id), asset, signal));
+    assert.ok([...prepared.values()].some(value => !value.ok));
+    const [plan] = planExportPaths([{ conversation, prepared, fileIds: refs.fileIds }], 'markdown');
+    const markdown = renderDocumentMarkdown(document, plan.resources);
+    const artifacts = buildExportFiles('markdown', plan, markdown, prepared);
+    assert.equal(artifacts.length, 1, 'no unverified ZIP bytes can become a sidecar');
+    assert.match(markdown, /Takeout answer/);
+    assert.doesNotMatch(markdown, /\]\(assets\/[^)]*missing-data\.png\)/);
 });
 
-test('Takeout lookup through AssetPipeline resolves a unique single-image event without explicit ordinals', async () => {
-    const asset = { ...source('takeout-id'), generation: { ...generation, imageCount: 1 } };
-    const recovered = await recover([asset], { assetId: 'online-id', sourceUrl: 'https://offline.test/image.png',
-        localName: 'assets/diagram.png', generation: { ...generation, imageCount: 1 } });
-    assert.equal(recovered.result.ok, true);
-    assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));
+test('Takeout parser binds explicitly referenced generated media, not a guessed generation sibling', () => {
+    const id = 'takeout-generated-03', first = path('first.png'), sibling = path('second.png');
+    const html = imageActivity(id, 'first.png', true);
+    const parsed = parseGeminiTakeoutConversation({
+        htmlText: html, activityPath,
+        archiveFiles: files({ [first]: Uint8Array.of(1), [sibling]: Uint8Array.of(2) }),
+    }, { providerId: 'gemini', account });
+    const selected = parsed.conversation.detail.assets.filter(asset => asset.kind === 'image');
+    assert.equal(selected.length, 1);
+    assert.equal(Object.keys(parsed.archiveResources).length, 1);
+    assert.equal(Object.values(parsed.archiveResources)[0].path, first);
+    assert.equal(selected[0].generation?.imageCount, 1);
+    assert.equal(selected[0].generation?.imageOrdinal, 0);
 });
