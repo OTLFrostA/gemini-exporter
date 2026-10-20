@@ -307,7 +307,7 @@ test('Live Save Content sends only the changed key and suppresses stale reinject
         'src/runtime/content/accountContext.js': { getAccountContext: () => context },
     });
     let feedback = 0;
-    const badge = { showLiveSaveFeedback: () => { feedback++; } };
+    const badge = { showLiveSaveResult: () => { feedback++; } };
     coordinator.init({ badge });
     const pending = coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' });
     await Promise.resolve();
@@ -316,6 +316,11 @@ test('Live Save Content sends only the changed key and suppresses stale reinject
     reply({ ok: true, result: { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false } });
     await pending;
     assert.equal(feedback, 0);
+    const committed = { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false };
+    global.chrome.runtime.sendMessage = (async () => ({ ok: true, result: committed })) as any;
+    assert.strictEqual(await coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' }), committed);
+    assert.equal(feedback, 1, 'the live v2 Badge callback receives committed ExportResult');
+    coordinator.cleanup();
 });
 
 test('lifecycle initializes Settings after readiness and opens Options only on installation', async () => {
