@@ -33,7 +33,7 @@ Verdict 定义：
 | `resolveProvider()` | KEEP-contract | `syncEngine` / `liveSaveCoordinator` / `messageRouter` 共用。 |
 | `GeminiProvider` | KEEP（production 实现） | 命名诚实。`GeminiProviderContract` 承接完整 Gemini detail/list 证据，W2-04 逐字段映射并兼容中性 `AIProvider`。注册表与 resolver 保持中性；content 层暂用具名 `ApplicationProvider` 兼容边界，待消费者迁移。 |
 | ChatGPT / Claude / Grok adapters | planned | Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. |
-| `GeminiProviderContract` / `ApplicationProvider`（`geminiContracts.ts` / `content/providerCompatibility.ts`） | GEMINI-SPECIFIC | W2-03 已移除仓内无外部引用的 Gemini pipeline 重导出；生产证据复用 W2-01/02 类型，迁移条件见 [W2-03 报告](docs/audits/wave2-provider-contract.md)。 |
+| `GeminiProviderContract` / `ApplicationProvider`（`geminiContracts.ts` / `content/providerCompatibility.ts`） | GEMINI-SPECIFIC | W2-03 已移除仓内无外部引用的 Gemini pipeline 重导出；生产证据复用 W2-01/02 类型，迁移条件见 [W2-03 报告](https://github.com/OTLFrostA/gemini-exporter/blob/7999e2ca7f9c4681e59c91eda8af3f5e5bc4a232/docs/audits/wave2-provider-contract.md)。 |
 | `getAITab` / `sendToAITab`（`tabService.ts`） | KEEP-contract | provider→tab 路由契约。当前无 production caller（仅测试）——这是 planned architecture 的预期状态，不是死代码。 |
 
 ### `scripts/framework/`（Python Tier-2/3 测试框架——与上独立的另一套概念）
@@ -46,7 +46,7 @@ Verdict 定义：
 
 ### 已知非 verdict 的跟进点（不属本 PR scope）
 
-- W2-05 已将 `syncEngine.ts` 的 Provider 列表获取接到冻结类型并改用 `items`；存储、DOM 与混合摄入仍有无关 `any`，整文件暂不具备 zero-any 门禁条件，见 [验收报告](docs/audits/wave2-sync-provider-consumer.md)。
+- W2-05 已将 `syncEngine.ts` 的 Provider 列表获取接到冻结类型并改用 `items`；存储、DOM 与混合摄入仍有无关 `any`，整文件暂不具备 zero-any 门禁条件，见 [验收报告](https://github.com/OTLFrostA/gemini-exporter/blob/7999e2ca7f9c4681e59c91eda8af3f5e5bc4a232/docs/audits/wave2-sync-provider-consumer.md)。
 - Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified.
 
 ## `scripts/framework/` 平台层级 audit（PR12，2026-09-27）
@@ -71,7 +71,7 @@ Content detail responses now distinguish Gemini companion evidence, DOM observat
 and deletion/empty diagnostics in `src/runtime/types/detailTransport.ts`. Router detail
 responses and live-save acquisition use these types; flat wire payloads and fallback
 precedence remain unchanged. Broad runtime/asset/export transport and cancellation
-remain deferred. See [W2-06 report](docs/audits/wave2-detail-transport-consumer.md).
+remain deferred. See [W2-06 report](https://github.com/OTLFrostA/gemini-exporter/blob/7999e2ca7f9c4681e59c91eda8af3f5e5bc4a232/docs/audits/wave2-detail-transport-consumer.md).
 
 ## Wave 2 namespace status (W2-07)
 
@@ -79,7 +79,7 @@ Current-main recheck confirms `Conversation`, `ChatMessage`, `Attachment` and
 `TitleSources` remain absent from both the neutral Provider module and its barrel,
 with zero repository imports through either surface. W2-03 already removed them;
 W2-07 preserves the planned Provider/asset/routing seams and clarifies barrel
-comments. See [W2-07 report](docs/audits/wave2-provider-namespace-cleanup.md).
+comments. See [W2-07 report](https://github.com/OTLFrostA/gemini-exporter/blob/7999e2ca7f9c4681e59c91eda8af3f5e5bc4a232/docs/audits/wave2-provider-namespace-cleanup.md).
 
 ## Wave 2 integration status (W2-08)
 
@@ -89,7 +89,7 @@ string fields, with no method-bivariance shortcut. Pagination negative budgets,
 NO_INNER_STR and partial AbortError results are incomplete and cannot reconcile.
 The permanent explicit-any gate covers 14 whole production files listed in
 `scripts/zero-any-files.json`; broad mixed consumer/export/raw-wire files remain
-explicitly outside this gate. See [W2-08 closeout](docs/audits/wave2-integration-closeout.md)
+explicitly outside this gate. See [W2-08 closeout](https://github.com/OTLFrostA/gemini-exporter/blob/7999e2ca7f9c4681e59c91eda8af3f5e5bc4a232/docs/audits/wave2-integration-closeout.md)
 for the final chain, debt disposition and validation evidence.
 
 ## Wave 3 shared type foundations (W3-01)
@@ -100,7 +100,7 @@ browser transport remains opaque (`unknown`), and nullable directory state is
 explicit. Direct producer/view signatures adopt the contracts; downstream raw
 transport, storage decoding and export internals remain separate boundary work.
 The scoped gate now covers 18 whole production files, including these four shared
-files. See [W3-01 audit](docs/audits/wave3-shared-type-foundations.md) for the narrow
+files. See [W3-01 audit](https://github.com/OTLFrostA/gemini-exporter/blob/7999e2ca7f9c4681e59c91eda8af3f5e5bc4a232/docs/audits/wave3-shared-type-foundations.md) for the narrow
 runtime adaptation, exact compile-time regression and deferred categories.
 
 ## Wave 3 message transport boundaries (W3-02)
@@ -110,7 +110,7 @@ the discriminant. Scan and popup validate their consumed reply fields before
 successful completion/export; malformed replies release their UI running state.
 Valid rich detail stays intact, with deeper formatter/parser data still opaque.
 The scoped gate covers 22 whole production files, adding both transport utilities,
-the response checks and scan controller. See [W3-02 audit](docs/audits/wave3-message-transport-boundaries.md)
+the response checks and scan controller. See [W3-02 audit](https://github.com/OTLFrostA/gemini-exporter/blob/7999e2ca7f9c4681e59c91eda8af3f5e5bc4a232/docs/audits/wave3-message-transport-boundaries.md)
 for exact type/runtime regressions and remaining batch/listener/detail debt.
 
 ## Maintenance Convergence Status
