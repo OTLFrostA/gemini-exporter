@@ -68,13 +68,13 @@ test('ingestion preserves Detail and Index facts; reports L2 errors', async () =
     assert.equal(handle({ action: 'domainStorage' }, sender, () => assert.fail()), false);
 });
 
-test('Background returns Detail changed only after L2 admission commits', async () => {
+test('Background returns the full Detail admission result only after L2 commits', async () => {
     global.chrome = chromeBase() as any;
     let finish!: () => void;
     const gate = new Promise<void>(resolve => { finish = resolve; });
     const handle = load('src/runtime/background/domainStorageHandler.ts', {
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
-        'src/l2/ingestion.js': { ingestDetail: async () => { await gate; return false; } },
+        'src/l2/ingestion.js': { ingestDetail: async () => { await gate; return { accepted: true, changed: false }; } },
     }).handleDomainIngestionMessage;
     let returned = false;
     const response = invoke(handle, { action: 'domainIngest', operation: 'detail',
@@ -82,7 +82,7 @@ test('Background returns Detail changed only after L2 admission commits', async 
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(returned, false);
     finish();
-    assert.deepEqual(await response, { ok: true, changed: false });
+    assert.deepEqual(await response, { ok: true, result: { accepted: true, changed: false } });
 });
 
 test('Background deletion awaits L2 commit, rejects default identity and propagates failure', async () => {
@@ -142,24 +142,28 @@ test('Content ingestion sends only JSON facts and propagates worker failure', as
     assert.deepEqual(JSON.parse(JSON.stringify(sent)), { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [] });
 });
 
-test('Content ingestion preserves committed changed results from the worker', async () => {
+test('Content ingestion preserves the full accepted/changed result from the worker', async () => {
     global.location = { protocol: 'https:' } as any;
-    global.chrome = { runtime: { sendMessage: async () => ({ ok: true, changed: true }) } } as any;
+    global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: true, changed: true } }) } } as any;
     const api = load('src/runtime/api/domainIngestion.ts', { 'src/l2/ingestion.js': {},
         'src/runtime/api/runtimeReady.js': ready });
-    assert.equal(await api.ingestDetail(uuid, 'abc', {}), true);
-    global.chrome = { runtime: { sendMessage: async () => ({ ok: true }) } } as any;
-    await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /changed/);
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: true, changed: true });
+    global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: false, changed: false } }) } } as any;
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: false, changed: false });
+    global.chrome = { runtime: { sendMessage: async () => ({ ok: true, changed: true }) } } as any;
+    await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /Invalid committed/);
+    global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: false, changed: true } }) } } as any;
+    await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /Invalid committed/);
 });
 
 test('Extension ingestion calls the same L2 function after readiness', async () => {
     global.location = { protocol: 'chrome-extension:' } as any;
     const order: string[] = [];
     const api = load('src/runtime/api/domainIngestion.ts', {
-        'src/l2/ingestion.js': { ingestDetail: async () => { order.push('L2'); return true; } },
+        'src/l2/ingestion.js': { ingestDetail: async () => { order.push('L2'); return { accepted: true, changed: true }; } },
         'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => { order.push('ready'); } },
     });
-    await api.ingestDetail(uuid, 'abc', {});
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: true, changed: true });
     assert.deepEqual(order, ['ready', 'L2']);
 });
 
@@ -315,8 +319,10 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
     assert.equal(Object.hasOwn(order[1] as object, 'tour' + 'AutoHandled'), false);
 });
 
-test('Background count uses Index query, propagates Live Save result, and declines retired actions', async () => {
+test('Background count, Badge position and Live Save follow their public IPC contracts', async () => {
     let listener!: Function;
+    let badgePatch: unknown;
+    let badgeWrites = 0;
     global.chrome = { ...chromeBase(), runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; } } } } as any;
     load('src/runtime/background/background.ts', {
         'src/runtime/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
@@ -325,9 +331,17 @@ test('Background count uses Index query, propagates Live Save result, and declin
         'src/runtime/background/tabAction.js': { initTabActionListeners: () => {} },
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
         'src/l3a/storageService.js': { listIndexes: async (id: string) => { assert.equal(id, uuid); return [{}, {}]; } },
+        'src/application/settings/index.js': { updateSettings: async (patch: unknown) => { badgePatch = patch; badgeWrites++; } },
         'src/runtime/background/liveSaveHandler.js': { runLiveSave: async () => null },
     });
     assert.deepEqual(await invoke(listener, { action: 'getLocalIndexCount', accountId: uuid }), { ok: true, count: 2 });
+    assert.deepEqual(await invoke(listener, { action: 'updateBadgePosition', position: { left: 12, top: 34 } }), { ok: true });
+    assert.deepEqual(badgePatch, { badgePosition: { left: 12, top: 34 } });
+    for (const position of [{ left: Infinity, top: 0 }, { left: 10, top: NaN }, { left: '1', top: 2 }, { left: 1, top: 2, enabledDisk: true }]) {
+        assert.equal((await invoke(listener, { action: 'updateBadgePosition', position })).ok, false);
+    }
+    assert.equal((await invoke(listener, { action: 'updateBadgePosition', position: { left: 1, top: 2 } }, { ...sender, url: 'https://evil.test/' })).ok, false);
+    assert.equal(badgeWrites, 1);
     assert.deepEqual(await invoke(listener, { action: 'runLiveSave', key: { accountId: uuid, conversationId: 'abc' } }), { ok: true, result: null });
     assert.equal((await invoke(listener, { action: 'getLocalIndexCount', accountId: uuid }, { ...sender, url: 'https://evil.test/' })).ok, false);
     for (const action of ['fetchBatch', 'cancelExport', 'deepScan', 'stopDeepScan', 'abortSync', 'liveSaveViaHandle', 'domainStorage']) assert.equal(listener({ action }, sender, () => assert.fail()), false);
