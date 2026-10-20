@@ -76,6 +76,15 @@ test('malformed pages and cursor loops remain errors without reconciliation',asy
         assert.ok((await listIndexes(ACCOUNT_UUID)).some(i=>i.key.conversationId==='offline'));
     }
 }));
+test('a Recent list with untrusted ordering never reports source_end',async()=>fixture(async(_env,provider)=>{
+    const unordered=sourceList(['unordered']);unordered.pageEvidence.ordered=false;
+    provider([unordered]);
+    const result=await scanAll({accountId:ACCOUNT_UUID,forceFull:true});
+    assert.equal(result.status,'error');
+    assert.equal(result.pagesFetched,1);
+    assert.ok((await listIndexes(ACCOUNT_UUID)).some(i=>i.key.conversationId==='unordered'));
+    assert.equal(await getCoverage(ACCOUNT_UUID,'recent'),null);
+}));
 test('ordinary request failures cannot manufacture a provider limit or reusable boundary',async()=>fixture(async(_env,provider)=>{
     provider([sourceList(['first'],'tC_next'),new Error('HTTP 500')]);
     assert.equal((await scanAll({accountId:ACCOUNT_UUID,forceFull:true})).status,'error');
