@@ -21,7 +21,6 @@ export const getOrCreateAccount = async () => {h.events.push('create');return h.
 export const isAccountId = id => typeof id==='string' && id.length===36;
 export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
  if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
- if(h.failExport)for(const key of request.keys)options.onFailure?.(key,'Injected export failure');
  return {exported:options.signal?.aborted?0:1,partial:h.partial?1:0,skipped:0,failed:h.failExport?request.keys:[],aborted:!!options.signal?.aborted};};
 export const resolveScanTarget = async () => h.source;
 export const sendTabMessage = (tabId,message) => chrome.tabs.sendMessage(tabId,message);
