@@ -20,7 +20,8 @@ export function collectDocumentResources(document: DocumentAst): {
     };
     const blocks = (nodes: DisplayBlock[]): void => {
         for (const node of nodes) {
-            if ('resourceId' in node && node.resourceId) reference(node.resourceId, node.type === 'image');
+            if (node.type === 'image') reference(node.resourceId, true);
+            if (node.type === 'file') reference(node.resourceId, false);
             if ('children' in node) inlines(node.children);
             if ('caption' in node) inlines(node.caption);
             if ('description' in node) inlines(node.description);
