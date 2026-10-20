@@ -101,7 +101,8 @@ const accountRegistry: Pick<typeof import('../../src/runtime/api/accountRegistry
     },
 };
 const accountContext: Pick<typeof import('../../src/runtime/content/accountContext.js'),
-    'resolveRequestAccount' | 'resolveCurrentAccount' | 'getAccountContext'> = {
+    'resolveRequestAccount' | 'resolveCurrentAccount' | 'getAccountContext' | 'matchesCurrentAccount'
+    | 'isCurrentAccount' | 'invalidateAccountContext' | 'setAccountChangedHandler'> = {
     async resolveRequestAccount(observation, slot) {
         if (observation === undefined || typeof slot !== 'string' || !/^u\d+$/.test(slot)) return null;
         if (observation !== null && (typeof observation !== 'object' || Array.isArray(observation))) return null;
@@ -114,6 +115,15 @@ const accountContext: Pick<typeof import('../../src/runtime/content/accountConte
     },
     async resolveCurrentAccount() { return ports.current ? { ...ports.current } : null; },
     getAccountContext() { return ports.current ? { ...ports.current } : null; },
+    matchesCurrentAccount(observation) {
+        const current = ports.current && ports.accounts.get(ports.current.accountId);
+        return !!current && current.providerId === observation.providerId
+            && current.providerAccountId === observation.providerAccountId;
+    },
+    isCurrentAccount(context) { return !!ports.current && context.accountId === ports.current.accountId
+        && context.providerId === ports.current.providerId && context.slot === ports.current.slot; },
+    invalidateAccountContext() { ports.current = null; },
+    setAccountChangedHandler() {},
 };
 
 const keyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -218,8 +228,27 @@ export function installL1V2Mocks(): void {
             if (request.endsWith('/runtime/api/accountRegistry.js')) return accountRegistry;
             if (request.endsWith('/runtime/content/accountContext.js')) return accountContext;
             if (request.endsWith('/runtime/content/cleanupRegistry.js')) return { registerCleanup: () => () => {} };
-            if (request.endsWith('/l2/conversationKey.js')) return { readConversationKey };
-            if (request.endsWith('/l2/time.js')) return { normalizeTimestamp };
+            if (request.endsWith('/l2/conversationKey.js')) return {
+                readConversationKey,
+                conversationKey: (accountId: string, conversationId: string) =>
+                    readConversationKey({ accountId, conversationId }),
+                sameConversationKey: (a: ConversationKey, b: ConversationKey) =>
+                    a.accountId === b.accountId && a.conversationId === b.conversationId,
+            };
+            if (request.endsWith('/l2/time.js')) return {
+                normalizeTimestamp,
+                normalizeConversationTimes: (source: { createdAt?: unknown; updatedAt?: unknown }) => {
+                    const createdAt = normalizeTimestamp(source.createdAt), updatedAt = normalizeTimestamp(source.updatedAt);
+                    return { ...(createdAt !== undefined ? { createdAt } : {}),
+                        ...(updatedAt !== undefined ? { updatedAt } : {}) };
+                },
+                toIso: (value: unknown) => {
+                    const ms = normalizeTimestamp(value);
+                    if (ms === undefined) return undefined;
+                    const date = new Date(ms);
+                    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+                },
+            };
             if (request.endsWith('/l2/content/unknownFallback.js')) return unknownPayloadPort;
             if (request.endsWith('/l2/content/assetReferences.js')) return assetReferencePort;
             if (request.endsWith('/l2/sourceUri.js')) return sourceUriPort;
