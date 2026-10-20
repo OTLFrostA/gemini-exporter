@@ -8,7 +8,7 @@ import { startSync } from '../controllers/syncController.js';
 import { handleTakeoutImport } from '../controllers/takeoutController.js';
 import * as Directory from '../controllers/dirHandleController.js';
 import { renderList } from '../views/listView.js';
-import { readSettings, observeSettings, labelPage, text, errorText } from '../utils/settings.js';
+import { readSettings, observeSettings, useSettings, labelPage, text, errorText } from '../utils/settings.js';
 import { TourGuide, consumeTourIntent } from '../tour/tourGuide.js';
 import { getLatestEligibleFeature } from '../tour/featureReleases.js';
 
@@ -276,7 +276,12 @@ export async function initWorkbench(): Promise<void> {
     });
     el<HTMLInputElement>('langToggle').addEventListener('change', () => {
         const language = el<HTMLInputElement>('langToggle').checked ? 'en' : 'zh';
-        void perform('cleanup', async () => { await updateSettings({ language }); settings = await readSettings(); });
+        const prior = settings;
+        settings = { ...settings, language }; useSettings(settings);
+        void perform('cleanup', async () => {
+            try { await updateSettings({ language }); settings = await readSettings(); }
+            catch (error) { settings = prior; useSettings(prior); throw error; }
+        });
     });
     el('logFilter').addEventListener('input', renderLog);
     el('logLevel').addEventListener('change', renderLog);
