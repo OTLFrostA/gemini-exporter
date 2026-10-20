@@ -227,6 +227,66 @@ test('File projections retain provided optional metadata without changing attach
     ]);
 });
 
+test('Audio, video, other and document attachments remain typed File nodes without previewing source documents', () => {
+    const raw = input();
+    raw.detail.assets = [
+        { id: 'audio', kind: 'audio', name: 'Recording', mediaType: 'audio/mpeg', byteLength: 12 },
+        { id: 'video', kind: 'video', name: 'Clip', mediaType: 'video/mp4', byteLength: 0 },
+        { id: 'other', kind: 'other' },
+        { id: 'document', kind: 'file', name: 'Research.md', mediaType: 'text/markdown', document: { contentMarkdown: '# PRIVATE_DOCUMENT_BODY' } },
+    ];
+    raw.detail.messages = [{ role: 'assistant', content: [], attachmentIds: ['audio', 'video', 'other', 'document'] }];
+    const domain = validateParserDomain(raw), before = JSON.stringify(domain);
+    const document = composeDomainDocument(domain, account);
+    assert.deepEqual(document.messages[0].blocks, [
+        { type: 'file', resourceId: 'audio', label: 'Recording', kind: 'audio', mediaType: 'audio/mpeg', byteLength: 12 },
+        { type: 'file', resourceId: 'video', label: 'Clip', kind: 'video', mediaType: 'video/mp4', byteLength: 0 },
+        { type: 'file', resourceId: 'other', label: 'Attachment', kind: 'other' },
+        { type: 'file', resourceId: 'document', label: 'Research.md', kind: 'file', mediaType: 'text/markdown' },
+    ]);
+    assert.doesNotMatch(JSON.stringify(document), /PRIVATE_DOCUMENT_BODY|contentMarkdown/);
+    const refs = collectDocumentResources(document);
+    assert.deepEqual([...refs.imageIds], []);
+    assert.deepEqual([...refs.fileIds], ['audio', 'video', 'other', 'document']);
+    assert.deepEqual([...refs.referencedIds], [...refs.fileIds]);
+    assert.equal(JSON.stringify(domain), before);
+});
+
+test('Blank authored resource names and metadata use the same L3b fallback in every placement', () => {
+    const raw = input();
+    raw.detail.assets = [{ id: 'image', kind: 'image', name: '  ' }, { id: 'file', kind: 'file', name: '\n' }];
+    raw.detail.messages = [{ role: 'user', content: [
+        { type: 'paragraph', children: [{ type: 'image', assetId: 'image', alt: '\t' }] },
+        { type: 'image', assetId: 'image', alt: ' ' },
+        { type: 'file', assetId: 'file', label: '\t' },
+    ], attachmentIds: ['image', 'file'] }];
+    const document = composeDomainDocument(validateParserDomain(raw), account);
+    assert.deepEqual(document.messages[0].blocks, [
+        { type: 'paragraph', children: [{ type: 'image', resourceId: 'image', alt: 'Image' }] },
+        { type: 'image', resourceId: 'image', alt: 'Image' },
+        { type: 'file', resourceId: 'file', label: 'Attachment', kind: 'file' },
+        { type: 'image', resourceId: 'image', alt: 'Image' },
+        { type: 'file', resourceId: 'file', label: 'Attachment', kind: 'file' },
+    ]);
+});
+
+test('Resource lookup follows nested File blocks as well as Image inlines without modifying the AST', () => {
+    const document: DocumentAst = { title: 'T', metadata: { id: 'x', provider: 'test' }, messages: [{
+        role: 'assistant', blocks: [{ type: 'disclosure', kind: 'reasoning', title: 'Thinking Process', blocks: [{
+            type: 'quote', blocks: [{ type: 'list', ordered: true, items: [{ blocks: [
+                { type: 'file', resourceId: 'shared', label: 'File use', kind: 'file', description: [{ type: 'image', resourceId: 'caption-image', alt: 'Caption' }] },
+                { type: 'image', resourceId: 'shared', alt: 'Image use' },
+            ] }] }],
+        }] }],
+    }] };
+    freeze(document);
+    const before = JSON.stringify(document), refs = collectDocumentResources(document);
+    assert.deepEqual(refs.fileIds, new Set(['shared']));
+    assert.deepEqual(refs.imageIds, new Set(['caption-image', 'shared']));
+    assert.deepEqual(refs.referencedIds, new Set(['shared', 'caption-image']));
+    assert.equal(JSON.stringify(document), before);
+});
+
 test('all accepted roles keep their identity and message-level timestamps', () => {
     const raw=input();raw.detail.messages=['user','assistant','system','developer','unknown'].map(role=>({
         role:role as 'user'|'assistant'|'system'|'developer'|'unknown',timestamp:123456789,content:[],
