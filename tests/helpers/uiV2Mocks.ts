@@ -50,11 +50,11 @@ function stub(relativePath: string, exports: object): void {
 
 /** Verify no cross-module implementation was loaded transitively by any UI module. */
 export function assertUiNodeIsolation(): void {
+    const root = process.cwd().replace(/\\/g, '/') + '/src/';
     for (const filename of Object.keys(require.cache)) {
         const normalized = filename.replace(/\\/g, '/');
-        const root = normalized.lastIndexOf('/src/');
-        if (root < 0) continue;
-        const owner = normalized.slice(root + 5);
+        if (!normalized.startsWith(root)) continue;
+        const owner = normalized.slice(root.length);
         if (!owner.startsWith('ui/') && !mockedFiles.has(filename)) {
             throw new Error(`Unmocked non-UI production import: ${owner}`);
         }
