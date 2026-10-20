@@ -42,7 +42,7 @@ export const references = new Map<string, { referencedIds: string[]; imageIds: s
 export const state = {
     failRead: false, failSettingsRead: false, failSettingsWrite: false,
     failRecord: '', failDelivery: 0, failDelete: '', failPackage: false,
-    failRender: '' as RenderFormat | '',
+    failRender: '' as RenderFormat | '', failRenderKey: '' as string,
     directory: {} as FileSystemDirectoryHandle | null,
     onDelivery: undefined as (() => void) | undefined,
     sourceContext: undefined as SourceResourceContext | undefined,
@@ -171,8 +171,8 @@ stubModule('../../src/l3b/ast/resourceReferences.js', {
 // L4 mocks return opaque format and packaging artifacts. The assertions are about
 // how Application calls L4, never L4's serialized bytes or path-naming algorithm.
 function recordRender(format: RenderFormat, document: DocumentAst, bindings: ResourceBindings, locale?: 'zh' | 'en'): string {
-    if (state.failRender === format) throw new Error('Mock format failed');
     const id = fixtureId(document);
+    if (state.failRender === format && (!state.failRenderKey || state.failRenderKey === id)) throw new Error('Mock format failed');
     state.rendererCalls.push({ format, key: id, locale, bindings });
     return 'mock-' + format + '-' + id;
 }
@@ -188,7 +188,9 @@ stubModule('../../src/l4/format/html/renderHtml.js', {
 });
 stubModule('../../src/l4/format/json/serializeDomainJson.js', {
     serializeDomainJson(conversation: ReadonlyDomain, _account: Account, bindings: ResourceBindings) {
-        if (state.failRender === 'json') throw new Error('Mock format failed');
+        if (state.failRender === 'json' && (!state.failRenderKey || state.failRenderKey === conversation.index.key.conversationId)) {
+            throw new Error('Mock format failed');
+        }
         state.jsonInputs.push(conversation);
         state.rendererCalls.push({ format: 'json', key: conversation.index.key.conversationId, bindings });
         return 'mock-json-' + conversation.index.key.conversationId;
@@ -296,7 +298,7 @@ export function reset(): void {
     events.length = 0; deliveries.length = 0; contexts.length = 0; settings = {};
     Object.assign(state, {
         failRead: false, failSettingsRead: false, failSettingsWrite: false,
-        failRecord: '', failDelivery: 0, failDelete: '', failPackage: false, failRender: '',
+        failRecord: '', failDelivery: 0, failDelete: '', failPackage: false, failRender: '', failRenderKey: '',
         directory: {}, onDelivery: undefined, sourceContext: undefined,
         releasedKeys: [], releasedContexts: 0,
         pdfPrepared: [], pdfBindings: {}, pdfDiagnostics: [], htmlDiagnostics: [],
