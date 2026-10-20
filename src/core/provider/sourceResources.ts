@@ -4,17 +4,23 @@ import type { SourceConversationParseResult } from '../parsers/parsingResult.js'
 import type { ResourceBytes } from '../resources/resourceResult.js';
 
 type ResourceReader = (signal?: AbortSignal) => Promise<ResourceBytes>;
-const identity = (key: ConversationKey, assetId: string) => JSON.stringify([key.accountId, key.conversationId, assetId]);
+const conversationIdentity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
 
 /** One acquisition/export task owns this context. Release it in the task's finally block. */
 export function createSourceResourceContext() {
-    const readers = new Map<string, ResourceReader>();
+    const readers = new Map<string, Map<string, ResourceReader>>();
     let released = false;
     return {
         retain(key: ConversationKey, assetId: string, read: ResourceReader) {
             readConversationKey(key);
             if (released) throw new Error('Resource context released');
-            readers.set(identity(key, assetId), read);
+            const id = conversationIdentity(key);
+            let conversationReaders = readers.get(id);
+            if (!conversationReaders) {
+                conversationReaders = new Map();
+                readers.set(id, conversationReaders);
+            }
+            conversationReaders.set(assetId, read);
         },
         retainParsed(key: ConversationKey, parsed: SourceConversationParseResult) {
             if (key.conversationId !== parsed.conversationId) throw new TypeError('Resource conversation mismatch');
@@ -36,7 +42,7 @@ export function createSourceResourceContext() {
             readConversationKey(key);
             signal?.throwIfAborted();
             if (released) throw new Error('Resource context released');
-            const read = readers.get(identity(key, asset.id));
+            const read = readers.get(conversationIdentity(key))?.get(asset.id);
             let result: ResourceBytes | undefined;
             if (read) {
                 try { result = await read(signal); } catch { signal?.throwIfAborted(); }
@@ -47,6 +53,11 @@ export function createSourceResourceContext() {
             if (!result.bytes.byteLength) throw new Error('Empty source resource');
             const mediaType = result.mediaType ?? asset.mediaType, name = result.name ?? asset.name;
             return { ...result, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
+        },
+        /** Folder exports discard already-delivered conversation readers immediately. */
+        releaseConversation(key: ConversationKey) {
+            readConversationKey(key);
+            readers.delete(conversationIdentity(key));
         },
         release() { readers.clear(); released = true; },
     };
