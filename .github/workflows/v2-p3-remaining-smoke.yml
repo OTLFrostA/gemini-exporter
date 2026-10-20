@@ -1,0 +1,47 @@
+name: V2 P3 remaining smoke verification
+on:
+  pull_request:
+    branches: [dev/v2]
+  push:
+    branches: [test/v2-p3-remaining-smoke-20261020]
+jobs:
+  targeted-v2-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run remaining target tests independently
+        shell: bash
+        run: |
+          set +e
+          echo "::group::tests/pdf_resource_acquisition.test.ts"
+          node -r ./tests/ts_register.js --test tests/pdf_resource_acquisition.test.ts
+          rc_0=$?
+          echo "::endgroup::"
+          echo "::group::tests/pdf_domain_direct.test.ts"
+          node -r ./tests/ts_register.js --test tests/pdf_domain_direct.test.ts
+          rc_1=$?
+          echo "::endgroup::"
+          echo "::group::tests/resource-delivery.test.ts"
+          node -r ./tests/ts_register.js --test tests/resource-delivery.test.ts
+          rc_2=$?
+          echo "::endgroup::"
+          echo "::group::tests/write_failure_semantics.test.ts"
+          node -r ./tests/ts_register.js --test tests/write_failure_semantics.test.ts
+          rc_3=$?
+          echo "::endgroup::"
+          echo "::group::tests/v2_export_provider_harness.test.ts"
+          node -r ./tests/ts_register.js --test tests/v2_export_provider_harness.test.ts
+          rc_4=$?
+          echo "::endgroup::"
+          echo "tests/pdf_resource_acquisition.test.ts: ${rc_0}"
+          echo "tests/pdf_domain_direct.test.ts: ${rc_1}"
+          echo "tests/resource-delivery.test.ts: ${rc_2}"
+          echo "tests/write_failure_semantics.test.ts: ${rc_3}"
+          echo "tests/v2_export_provider_harness.test.ts: ${rc_4}"
+          if [ "$rc_0" -ne 0 ] || [ "$rc_1" -ne 0 ] || [ "$rc_2" -ne 0 ] || [ "$rc_3" -ne 0 ] || [ "$rc_4" -ne 0 ]; then exit 1; fi
