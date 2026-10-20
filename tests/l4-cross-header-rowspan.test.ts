@@ -24,11 +24,13 @@ test('HTML and Markdown keep a header rowspan crossing the first body row in one
     }
 });
 
-test('normal grouped tables retain separate thead and tbody output', () => {
+test('ordinary HTML tables retain separate rowgroups while Markdown keeps GFM output', () => {
     const ordinary = { ...table, headerRows: table.headerRows.map(row => row.map(cell => ({ ...cell, rowSpan: 1 }))) };
     const doc = v2Document([ordinary]);
-    for (const output of [renderDocumentHtml(doc, {}).html, renderDocumentMarkdown(doc, {})]) {
-        assert.match(output, /<thead>\s*<tr><th>Group<\/th><th>Label<\/th><\/tr>\s*<\/thead>/);
-        assert.match(output, /<tbody>\s*<tr><td>Value<\/td><\/tr>\s*<\/tbody>/);
-    }
+    const html = renderDocumentHtml(doc, {}).html;
+    assert.match(html, /<thead>\s*<tr><th>Group<\/th><th>Label<\/th><\/tr>\s*<\/thead>/);
+    assert.match(html, /<tbody>\s*<tr><td>Value<\/td><\/tr>\s*<\/tbody>/);
+    const markdown = renderDocumentMarkdown(doc, {});
+    assert.doesNotMatch(markdown, /<thead>|<tbody>/);
+    assert.match(markdown, /\| Group \| Label \|\n\| --- \| --- \|\n\|  \| Value \|/);
 });
