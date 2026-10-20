@@ -202,3 +202,24 @@ test('Detail admission compares semantic JSON facts, not object property inserti
         assert.equal((await getDetail(key))?.savedAt, 11);
     } finally { env.restore(); }
 });
+
+test('rejected partial Detail never grafts its resources onto a retained complete snapshot', async () => {
+    const env = indexStorage(), key = fixtureKey('rejected-resource-graph');
+    try {
+        const original = { savedAt: 10, quality: { status: 'complete' as const },
+            assets: [{ id: 'old-image', kind: 'image' as const }],
+            messages: [{ role: 'assistant' as const, content: [{ type: 'image' as const, assetId: 'old-image' }] }] };
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, original,
+            { title: 'Original', titleSource: 'provider' }), { accepted: true, changed: true });
+        const partial = { savedAt: 20, quality: { status: 'partial' as const },
+            assets: [{ id: 'untrusted-image', kind: 'image' as const }],
+            messages: [{ role: 'assistant' as const, content: [{ type: 'image' as const, assetId: 'untrusted-image' }] }] };
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, partial,
+            { title: 'Refreshed', titleSource: 'provider', updatedAt: 20 }),
+            { accepted: false, changed: false });
+        assert.deepEqual(await getDetail(key), { ...original, key });
+        assert.deepEqual((await getDetail(key))?.assets.map(asset => asset.id), ['old-image']);
+        assert.equal((await getIndex(key))?.title, 'Refreshed', 'Index still accepts new metadata');
+        assert.equal((await getIndex(key))?.updatedAt, 20);
+    } finally { env.restore(); }
+});
