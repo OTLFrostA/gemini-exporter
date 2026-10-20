@@ -31,6 +31,7 @@ const suites = {
     runtime: ['scripts/test-unit.cjs', ...runtime],
     ui: ['scripts/test-unit.cjs', ...manifest('tests/ui-tier1.json')],
     migration: ['-r', './tests/ts_register.js', '--test', 'tests/migration-v2-mocked.test.ts'],
+    shared: ['-r', './tests/ts_register.js', '--test', 'tests/retry_utils.test.ts'],
 };
 const requested = process.argv.slice(2);
 if (requested.some(owner => !(owner in suites))) {
