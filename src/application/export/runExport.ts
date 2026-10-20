@@ -47,8 +47,6 @@ interface ExportGroup { key: ConversationKey; record: ExportRecord; files: Expor
 /** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
 export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
-    /** Optional ephemeral error detail for interactive consumers; never persisted. */
-    onFailure?: (key: ConversationKey, message: string) => void;
     signal?: AbortSignal;
 } = {}): Promise<ExportResult> {
     const failed: ConversationKey[] = [];
@@ -64,7 +62,6 @@ export async function runExport(request: ExportRequest, options: {
         for (const key of keys) {
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);
-                options.onFailure?.(key, message);
             }
         }
     };
