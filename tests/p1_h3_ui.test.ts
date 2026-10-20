@@ -1,153 +1,33 @@
-/**
- * P1-H3 UI regressions.
- * Prefer observable DOM / callback behavior over checking production source.
- * Keep the few bootstrapping/modal source guards until an integration harness
- * covers those entire user-interaction flows.
- */
-export {};
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-
-const SRC = (p: string): string =>
-    fs.readFileSync(path.join(__dirname, '..', 'src', p), 'utf8');
-
-function replaceGlobal(key: string, value: unknown): () => void {
-    const previous = Object.getOwnPropertyDescriptor(globalThis, key);
-    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
-    return () => {
-        if (previous) Object.defineProperty(globalThis, key, previous);
-        else Reflect.deleteProperty(globalThis, key);
-    };
-}
-
-test('P1-118: list status update escapes dynamic IDs before querying the DOM', () => {
-    const values: string[] = [];
-    let query = '';
-    const restoreCSS = replaceGlobal('CSS', {
-        escape(value: string) {
-            values.push(value);
-            return `escaped:${value}`;
-        }
-    });
-    const restoreDoc = replaceGlobal('document', {
-        getElementById: () => null,
-        querySelector(selector: string) { query = selector; return null; }
-    });
-    try {
-        const view = require('../src/ui/views/listView.js');
-        view.updateItemExportStatus('c_chat:with[brackets]');
-        assert.ok(values.includes('chat:with[brackets]'), 'the normalized ID was escaped');
-        assert.match(query, /escaped:chat:with\[brackets\]/, 'escaped ID reaches the DOM selector');
-    } finally {
-        restoreDoc();
-        restoreCSS();
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { chromium, type Browser, type Page } from 'playwright';
+import { mount, read, A } from './helpers/uiPortHarness.js';
+let browser:Browser,page:Page;
+test.before(async()=>{browser=await chromium.launch({headless:true});});test.afterEach(async()=>{await page?.close();});test.after(async()=>{await browser?.close();});
+async function open(kind:'popup'|'options'='options',patch:Record<string,unknown>={}){page=await browser.newPage();await mount(page,kind,patch);}
+test('P1-118: dynamic IDs and title updates stay literal and cannot escape into DOM selectors or markup',async()=>{
+    const id='chat:with[brackets]';await open('options',{indexes:[{key:{accountId:A,conversationId:id},title:'<img src=x onerror=alert(1)>'}]});await page.locator('#list input').check();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+    assert.equal(await page.locator('#list img').count(),0);assert.equal((await read(page,'exports'))[0].keys[0].conversationId,id);
+});
+test('P1-120: File input resets after success and failure so the same archive can be selected again',async()=>{
+    for(const failImport of [false,true]){
+        await open('options',{failImport});for(let i=0;i<2;i++) {await page.locator('#takeoutFileInput').setInputFiles({name:'original.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')});await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal(await page.locator('#takeoutFileInput').inputValue(),'');assert.equal((await read(page,'imports')).length,i+1);}
+        assert.match(await page.locator('#status').textContent()??'',failImport?/Invalid ZIP/:/Imported 2/);await page.close();
     }
 });
-
-test('P1-119: permission prompt is never requested without user activation', async () => {
-    const dh = require('../src/ui/controllers/dirHandleController.js');
-    let requested = false;
-    const handle = {
-        queryPermission: async () => 'prompt',
-        requestPermission: async () => { requested = true; return 'granted'; },
-        keys: async function* () {}
-    };
-    assert.equal(await dh.verifyDirPermission(handle), false);
-    assert.equal(requested, false);
+test('P1-121: failed focus refresh reports its original error in the workbench status',async()=>{
+    await open();await page.locator('#list input').waitFor();await page.evaluate(()=>{Reflect.get(window,'harness').failRead=true;window.dispatchEvent(new Event('focus'));});await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Injected load failure');
+    assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);
 });
-// P1-119 stored handle preservation is exercised in the runtime test
-// live_save_permission_deadlock.test.ts; deleted duplicate source assertion.
-
-test('P1-120: Takeout file input resets after success and error callbacks', () => {
-    const { __setModuleOverride, __getModuleOverride } =
-        require('../src/core/utils/moduleOverrides.js');
-    const takeout = require('../src/ui/options/modules/optionsTakeout.js');
-    const previousCtrl = __getModuleOverride('TakeoutController');
-    const restoreDoc = replaceGlobal('document', { getElementById: () => null });
-    const input = { value: 'original.zip' };
-    try {
-        __setModuleOverride('TakeoutController', {
-            handleTakeoutImport: (_file: unknown, callbacks: any) => {
-                callbacks.onFinished({ message: 'done' });
-                return Promise.resolve();
-            }
-        });
-        takeout.processTakeoutImport({ name: 'original.zip' } as File, input as HTMLInputElement);
-        assert.equal(input.value, '', 'successful import must let the same ZIP be selected again');
-        assert.equal(takeout.isImporting(), false);
-
-        input.value = 'original.zip';
-        __setModuleOverride('TakeoutController', {
-            handleTakeoutImport: (_file: unknown, callbacks: any) => {
-                callbacks.onError(new Error('invalid zip'));
-                return Promise.resolve();
-            }
-        });
-        takeout.processTakeoutImport({ name: 'original.zip' } as File, input as HTMLInputElement);
-        assert.equal(input.value, '', 'failed import must also clear the input');
-        assert.equal(takeout.isImporting(), false);
-    } finally {
-        __setModuleOverride('TakeoutController', previousCtrl);
-        restoreDoc();
-    }
+test('P1-122: both UI entry points report readiness failures without unhandled startup rejections',async()=>{
+    for(const kind of ['options','popup'] as const){await open(kind,{failReady:true});await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Injected readiness failure');assert.equal(await page.locator(kind==='popup'?'#btnCurrent':'#btnExport').isDisabled(),true);await page.close();}
 });
-
-test('P1-121: loadStore rejection reports an error through the UI log', async () => {
-    const { __setModuleOverride, __getModuleOverride } =
-        require('../src/core/utils/moduleOverrides.js');
-    const previousStore = __getModuleOverride('ConversationsStore');
-    const previousLog = __getModuleOverride('LogView');
-    const reported: Array<{ message: string; level: string }> = [];
-    __setModuleOverride('ConversationsStore', {
-        getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001',
-        getConversations: () => [],
-        loadStore: async () => { throw new Error('synthetic load failure'); }
-    });
-    __setModuleOverride('LogView', {
-        log: (message: string, level: string) => reported.push({ message, level })
-    });
-    try {
-        await require('../src/ui/options/modules/optionsInit.js').loadStore();
-        assert.equal(reported.length, 1);
-        assert.equal(reported[0].level, 'error');
-        assert.ok(reported[0].message, 'UI log should contain an error message');
-    } finally {
-        __setModuleOverride('ConversationsStore', previousStore);
-        __setModuleOverride('LogView', previousLog);
-    }
+test('P1-123: current Settings language changes refresh Popup labels and keep current format',async()=>{
+    await open('popup');await page.locator('#btnCurrent').waitFor();await page.evaluate(()=>{const h=Reflect.get(window,'harness');h.settings.language='zh';h.settings.defaultFormat='html';h.fireSettingsChange();});await page.waitForFunction(()=>document.getElementById('btnCurrent')?.textContent?.includes('导出当前对话'));assert.equal(await page.locator('[data-format="html"]').getAttribute('aria-pressed'),'true');
 });
-
-test('P1-122: workbench startup is guarded in both entry paths (source guard)', () => {
-    const src = SRC('ui/options/options.ts');
-    assert.ok(src.includes('startWorkbench'));
-    assert.ok(src.includes('.catch('));
-    assert.ok(src.includes("addEventListener('DOMContentLoaded', startWorkbench)"));
+test('P1-121/123: processing feedback and terminal results render in both languages',async()=>{
+    for(const language of ['en','zh']){await open('options',{holdExport:true,settings:{language}});await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();assert.match(await page.locator('#status').textContent()??'',language==='en'?/Processing 1\/1/:/正在处理 1\/1/);await page.evaluate(()=>Reflect.get(window,'harness').finishExport());await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.match(await page.locator('#status').textContent()??'',language==='en'?/Delivery initiated/:/已发起交付/);await page.close();}
 });
-
-test('P1-123: popup language change refreshes its controls (source guard)', () => {
-    const src = SRC('ui/popup/popup.ts');
-    assert.ok(src.includes('i18n.applyI18n()'));
-    assert.ok(src.includes('applyLangToggleUI()'));
-    assert.ok(src.includes('await updateCount()'));
-});
-// Popup export guard release is separately checked in seam_s3_ui_timeout.test.ts.
-
-test('P1-121/123: user-facing error and busy messages exist in both locales', () => {
-    const en = require('../src/core/utils/locales/en.js');
-    const zh = require('../src/core/utils/locales/zh.js');
-    for (const key of ['popupExportBusy', 'loadStoreFailed']) {
-        assert.ok(typeof en[key] === 'string' && en[key].length > 0, `missing English ${key}`);
-        assert.ok(typeof zh[key] === 'string' && zh[key].length > 0, `missing Chinese ${key}`);
-    }
-});
-
-test('direct-write: modal observer does not override a user decision (source guard)', () => {
-    const src = SRC('ui/options/modules/optionsExport.ts');
-    assert.ok(src.includes('decisionMade'));
-    assert.ok(/!decisionMade\)\s*settleDecision\(\)/.test(src));
-    const choice = src.indexOf('async () => {\n                        decisionMade = true;');
-    assert.ok(choice >= 0, 'folder choice synchronously locks its decision');
-    assert.ok(src.includes('await decisionPromise'));
+test('direct-write: the explicitly chosen delivery reaches Application once without a competing prompt decision',async()=>{
+    await open('options',{directoryName:'exports'});await page.locator('#delivery').selectOption('folderWriter');await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');const requests=await read(page,'exports');assert.equal(requests.length,1);assert.equal(requests[0].delivery,'folderWriter');assert.equal(await page.locator('#directWriteModal').count(),0);
 });

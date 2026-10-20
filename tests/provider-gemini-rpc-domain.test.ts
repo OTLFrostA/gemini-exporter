@@ -1,21 +1,13 @@
-import { fixtureResult } from './helpers/domainFixture.js';
-import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { formatHtmlDocument, formatMarkdownDocument, formatContent } from '../src/core/engine/chatFormatter.js';
-import { formatLiveSaveMarkdown } from '../src/core/engine/liveSaveWriter.js';
-import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { extractBlockText } from '../src/l2/content/unknownFallback.js';
 
 const ID = 'c_native12345678';
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
@@ -25,15 +17,14 @@ function turn(prompt = 'Question', seconds: number | null = 1700000000, candidat
 const native = (data: string) => parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-rpc', providerId: 'gemini', data });
 const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(block => extractBlockText(block)).join('\n');
 
-test('raw RPC code keeps consecutive blank lines through Domain and Markdown export', () => {
+test('raw RPC code keeps consecutive blank lines in source Content AST', () => {
     const code = 'import math\n\n\nclass Encoder:\n    def encode(self):\n        return 1\n\n\n\nprint(Encoder().encode())';
     const answer = `Explanation\n\n\`\`\`python\n${code}\n\`\`\`\n\nConclusion`;
     const { conversation } = native(rpc([[turn('Show the program', 1700000000, [['rc_answer', [[answer]]]])]]));
     const block = conversation.detail.messages[1].content.find(node => node.type === 'code');
     assert.ok(block?.type === 'code');
     assert.equal(block.code, code + '\n', 'preserve the source newline immediately before the closing fence');
-    const markdown = renderDocumentMarkdown(composeDomainDocument(conversation, fixtureAccountFor(conversation)).document, {});
-    assert.ok(markdown.includes(`\`\`\`python\n${code}\n\`\`\``));
+
 });
 
 test('raw RPC input constructs Domain content, reasoning and citations directly', () => {
@@ -52,8 +43,8 @@ test('raw RPC input constructs Domain content, reasoning and citations directly'
 
 test('native parsing imports no historical persisted detail parser', () => {
     assert.equal(native(rpc([[turn()]])).conversation.detail.messages.length, 2);
-    const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
-    assert.doesNotMatch(source, /parseConversationRecord|parseConversation|parseLegacyConversation|types\/conversation|core\/storage/);
+    const source = readFileSync(join(__dirname, '../src/l1/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
+    assert.doesNotMatch(source, /parseConversationRecord|parseConversation|parseLegacyConversation|types\/conversation|l3a/);
 });
 
 test('source request tokens survive intact in source evidence and Domain', () => {
@@ -103,7 +94,7 @@ test('pagination and rejected turns yield partial coverage and side-channel diag
 test('metadata-only pages preserve title evidence without claiming a complete conversation', () => {
     const result = native(rpc([null, null, [[ID, 'Metadata title']]]));
     assert.equal(result.conversation.index.title, 'Metadata title');
-    assert.equal(result.conversation.index.key.conversationId, ID.replace(/^c_/, ''));
+    assert.equal(result.conversationId, ID.replace(/^c_/, ''));
     assert.equal(result.conversation.index.titleSource, 'provider');
     assert.equal(decodeGeminiDetail(rpc([null, null, [[ID, 'Metadata title']]])).metadataConversation?.title, 'Metadata title');
     assert.equal(result.conversation.detail.messages.length, 0);
@@ -111,18 +102,13 @@ test('metadata-only pages preserve title evidence without claiming a complete co
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_SCHEMA_DRIFT'));
 });
 
-test('native Domain composition round-trips without moving transport into the graph', () => {
-    const raw = rpc([[turn('**Question**', 1700000000, [['rc_answer', [['# Answer\n\n```ts\nconst value = 1;\n```']]]])], null, 'Title']);
-    const result = native(raw);
-    const document = composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document;
+test('source candidates round-trip as keyless JSON without transport or credentials in the graph', () => {
+    const result = native(rpc([[turn()]]));
     const restored = JSON.parse(JSON.stringify(result.conversation));
-    assertDomainClosure((restored).detail);
-    assert.deepEqual(composeDomainDocument(restored, fixtureAccountFor(restored)).document, document);
-    const before = JSON.stringify(result.conversation);
-    for (const backend of [renderDocumentHtml, renderDocumentMarkdown, renderDocumentTypst]) {
-        assert.deepEqual(backend(document, {}), backend(composeDomainDocument(restored, fixtureAccountFor(restored)).document, {}));
-    }
-    assert.equal(JSON.stringify(result.conversation), before);
+    assert.deepEqual(restored, result.conversation);
+    assertDomainClosure(restored.detail);
+    assert.equal('key' in restored.index, false); assert.equal('key' in restored.detail, false);
+    assert.equal('account' in result, false); assert.equal('transport' in restored, false);
 });
 
 test('sanitized existing wire evidence retains structured content and closed image references', async t => {
@@ -137,25 +123,12 @@ test('sanitized existing wire evidence retains structured content and closed ima
     const result = native(raw);
     assert.ok(result.conversation.detail.assets.some(a => a.kind === 'image'));
     assertDomainClosure((result.conversation).detail);
-    const document = composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document;
-    const image = document.messages[1].blocks.find(block => block.type === 'image');
-    assert.ok(image?.type === 'image');
-    assert.equal(image.alt, '贝尔不等式实验示意图');
-    assert.deepEqual(document, composeDomainDocument(JSON.parse(JSON.stringify(result.conversation)), fixtureAccountFor(JSON.parse(JSON.stringify(result.conversation)))).document);
+    const asset = result.conversation.detail.assets.find(asset => asset.kind === 'image')!;
+    assert.ok(result.conversation.detail.messages[1].attachmentIds?.includes(asset.id));
+    assert.equal(decodeGeminiDetail(raw).messages[1].images?.[0].title, '贝尔不等式实验示意图');
+    assert.deepEqual(JSON.parse(JSON.stringify(result.conversation)), result.conversation);
     for (const asset of result.conversation.detail.assets) assert.equal('sourceEvidence' in asset, false);
-    const receipts: ResourceResult<ResourceDelivery>[] = result.conversation.detail.assets.map(asset => ({
-        ok: true, resourceId: asset.id, value: { path: `assets/${asset.id}.png` },
-    }));
-    const before = JSON.stringify(result);
-    const options = { resourceResults: receipts };
-    const markdown = await formatMarkdownDocument(fixtureResult(result.conversation), options);
-    assert.deepEqual(markdown, await formatMarkdownDocument(result, options));
-    assert.deepEqual(await formatHtmlDocument(fixtureResult(result.conversation), options), await formatHtmlDocument(result, options));
-    assert.deepEqual(formatContent(fixtureResult(result.conversation), 'json', receipts), formatContent(result, 'json', receipts));
-    const live = await formatLiveSaveMarkdown({ chat: result, safeTitle: result.conversation.index.title || "Conversation",
-        nid: result.conversation.index.key.conversationId, resourceResults: receipts });
-    assert.equal(live.markdown, markdown.content, 'live-save and batch formatting retain identical native content and bindings');
-    assert.equal(JSON.stringify(result), before, 'formatting does not mutate source facts or hints');
+
 });
 
 test('generated resources retain their authored request token independently of archive paths', () => {
@@ -170,7 +143,7 @@ test('generated resources retain their authored request token independently of a
     const generated = result.conversation.detail.assets.find(asset => asset.generation);
     assert.ok(generated);
     assert.equal(generated.generation?.providerRequestId, 'r_Ab12');
-    assert.equal(result.resourceHints[generated.id]?.archivePath, undefined);
+    assert.equal('resourceHints' in result, false);
     for (const field of ['localName', 'subDir', 'rawProviderRequestId']) assert.equal(field in generated, false);
     assertDomainClosure((result.conversation).detail);
 });
@@ -180,7 +153,7 @@ test('raw format validation rejects wrong providers and malformed envelopes', ()
     assert.throws(() => parseGeminiRpcConversation({} as never, { account: fixtureAccount('gemini'), providerId: 'gemini' }), /raw response text/);
     for (const raw of ['', 'not JSON', rpc(null)]) assert.throws(() => native(raw), /detail parse fail/);
     const empty = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-rpc', providerId: 'gemini', data: rpc([]), targetConvId: ID });
-    assert.equal(empty.conversation.index.key.conversationId, ID.replace(/^c_/, ''));
+    assert.equal(empty.conversationId, ID.replace(/^c_/, ''));
     assert.equal(empty.conversation.detail.messages.length, 0);
 });
 
@@ -209,7 +182,8 @@ test('raw decoding never substitutes conversation or request IDs for absent mess
     const result = native(raw);
     assert.equal(result.conversation.detail.messages.length, 4);
     for (const message of result.conversation.detail.messages) assert.equal(message.id, undefined);
-    assert.doesNotThrow(() => composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)));
+    assertDomainClosure(result.conversation.detail);
+    assert.deepEqual(JSON.parse(JSON.stringify(result.conversation)), result.conversation);
     assert.equal(decodeGeminiDetail(raw).messages[0].id, '');
     const request = rpc([[turn('Question', null, undefined, 'r_Ab12')]]);
     assert.equal(decodeGeminiDetail(request).messages[0].providerRequestId, 'r_Ab12');

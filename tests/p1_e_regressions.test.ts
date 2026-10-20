@@ -1,4 +1,4 @@
-import { highResVariant } from '../src/core/resources/geminiImageUrl.js';
+import { highResVariant } from '../src/l1/client/gemini/geminiImageUrl.js';
 /**
  * P1-E 回归测试 —— 2026-09-15 代码审查 E 组「解析器：形态识别误判与静默丢数据」
  * P1-061 ~ P1-074，共 30 个用例。
@@ -16,9 +16,9 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const parseListMod = require('../src/core/parsers/gemini/rpc/parseList.js');
-const extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
+const detailDecoder = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const parseListMod = require('../src/l1/parsers/gemini/rpc/parseList.js');
+const extractors = require('../src/l1/parsers/gemini/rpc/extractors.js');
 const attachments = require('./helpers/recordFixture/attachments.js');
 
 // ---------------------------------------------------------------- helpers
@@ -62,7 +62,7 @@ function userMessageOf(res: any): any {
 
 // ---------------------------------------------------------------- P1-061
 test('P1-061a: rc_ 清洗正则使用真正的 \\s（源码级锁定，旧正则匹配字面反斜杠+s 是死代码）', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../src/core/parsers/gemini/rpc/detailDecoder.ts'), 'utf8');
+    const src = fs.readFileSync(path.join(__dirname, '../src/l1/parsers/gemini/rpc/detailDecoder.ts'), 'utf8');
     assert.ok(src.includes('/^rc_[a-z0-9_]{10,}\\s*/i'), 'rc_ 清洗正则必须使用单反斜杠 \\s');
     assert.ok(!src.includes('/^rc_[a-z0-9_]{10,}\\\\s*/i'), '不应残留双重转义 \\\\s');
 });

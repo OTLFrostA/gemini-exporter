@@ -1,74 +1,27 @@
-import { withRegistry } from './helpers/registryMock.js';
-import { indexFixture } from './helpers/indexFixture.js';
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-const StorageService = require('../src/core/storage/storageService.js');
-const SchemaMigration = require('../src/core/storage/schemaMigration.js');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as storage from '../src/l3a/storageService.js';
+import { useStorageUnitEnvironment as useIndexStorage } from './helpers/l3aStorageUnitEnvironment.js';
+import { fixtureKey } from './helpers/domainFixture.js';
 
-test('storage_service requires UUIDs and partitions storage without a global fallback', () => {
-    const first = '10000000-0000-4000-8000-000000000001';
-    const second = '10000000-0000-4000-8000-000000000002';
-    assert.strictEqual(StorageService.getStorageKeys(first).convKey, `conversations_${first}`);
-    assert.strictEqual(StorageService.getStorageKeys(first).expKey, `exported_${first}`);
-    assert.notStrictEqual(StorageService.getStorageKeys(first).convKey, StorageService.getStorageKeys(second).convKey);
-    for (const invalid of [null, '', 'default', 'u0', 'u1', 'alice@example.com']) assert.throws(() => StorageService.getStorageKeys(invalid));
+useIndexStorage();
+test('compound storage keys partition identical provider IDs by Account UUID', async () => {
+    const key = fixtureKey('same'), other = { ...key, accountId: '20000000-0000-4000-8000-000000000002' };
+    await storage.putIndexes([{ key, title: 'First', titleSource: 'provider' }, { key: other, title: 'Second', titleSource: 'provider' }]);
+    assert.equal((await storage.getIndex(key))?.title, 'First');
+    assert.equal((await storage.listIndexes(other.accountId))[0].title, 'Second');
 });
-
-test('storage_service - reconcileConversations retains all local entries when cloud history changes', async () => {
-    const mockStorage: Record<string, any> = {};
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = withRegistry({
-        storage: {
-            local: {
-                get: async (keys: any) => {
-                    if (keys === null) return { ...mockStorage };
-                    if (typeof keys === 'string') keys = [keys];
-                    const res: Record<string, any> = {};
-                    for (const k of (keys || [])) {
-                        if (k in mockStorage) res[k] = mockStorage[k];
-                    }
-                    return res;
-                },
-                set: async (obj: any) => {
-                    Object.assign(mockStorage, obj);
-                },
-                remove: async (keys: any) => {
-                    if (typeof keys === 'string') keys = [keys];
-                    for (const k of (keys || [])) delete mockStorage[k];
-                }
-            }
-        }
-    });
-
-    try {
-        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', [
-            { id: 'chat_active_1', title: 'Active Chat 1', source: 'network-list', timestamp: 1700000000000 },
-            { id: 'chat_deleted', title: 'Deleted Cloud Chat', source: 'network-list', timestamp: 1700000000000 },
-            { id: 'chat_takeout_only', title: 'Takeout Imported Chat', source: 'takeout', isTakeoutOnly: true, timestamp: 1700000000000 }
-        ].map(indexFixture));
-
-        const activeCloud = [{ id: 'chat_active_1', title: 'Active Chat 1' }];
-        const result = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', activeCloud);
-        assert.strictEqual(result.kept, 3, 'should keep active chat and takeout chat');
-        assert.strictEqual(result.removed, 0, 'should remove deleted cloud chat');
-        assert.deepStrictEqual(result.removedIds, []);
-
-        const remaining = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-        assert.strictEqual(remaining.length, 3);
-        assert.ok(remaining.some((c: any) => c.key.conversationId === 'chat_active_1'));
-        assert.ok(remaining.some((c: any) => c.key.conversationId === 'chat_takeout_only'));
-    } finally {
-        (global as any).chrome = origChrome;
-    }
+test('storage never infers deletions from an incoming page or migration batch', async () => {
+    const key = fixtureKey('older'), next = fixtureKey('newer');
+    await storage.putIndexes([{ key }]);
+    await storage.putIndexes([{ key: next }]);
+    await storage.putIndexes([]);
+    assert.equal((await storage.listIndexes(key.accountId)).length, 2);
 });
-
-test('format_store - normalizeFormat validates against allowed formats', () => {
-    const FormatStore = require('../src/core/storage/formatStore.js');
-    assert.strictEqual(FormatStore.normalizeFormat('markdown'), 'markdown');
-    assert.strictEqual(FormatStore.normalizeFormat('json_openai'), 'markdown');
-    assert.strictEqual(FormatStore.normalizeFormat('unknown_format'), 'markdown');
-
-    assert.strictEqual(FormatStore.normalizeFormat('json_raw'), 'markdown');
+test('Settings patches persist exactly the caller-supplied v2 values', async () => {
+    assert.deepEqual(await storage.getStoredSettings(), {});
+    await storage.patchStoredSettings({ defaultFormat: 'markdown', skipExported: false });
+    assert.deepEqual(await storage.getStoredSettings(), { defaultFormat: 'markdown', skipExported: false });
+    await storage.patchStoredSettings({ defaultFormat: 'pdf' });
+    assert.deepEqual(await storage.getStoredSettings(), { defaultFormat: 'pdf', skipExported: false });
 });
-

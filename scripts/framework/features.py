@@ -100,8 +100,8 @@ class FeatureRegistry:
         self.register(Feature(
             id="feat_updated_badge_display",
             domain=FeatureDomain.LIFECYCLE,
-            name="「已更新」徽章与智能勾选",
-            description="已导出过的会话检测到新提问后，渲染琥珀色「已更新」徽章并被默认自动勾选",
+            name="来源更新时间与导出记录",
+            description="追加提问后验证来源更新时间晚于已有导出记录；v2 保持显式选择",
             critical=True,
             prerequisites=["feat_continued_chat_promotion"]
         ))
@@ -117,7 +117,7 @@ class FeatureRegistry:
             id="feat_ephemeral_chat_pruning",
             domain=FeatureDomain.LIFECYCLE,
             name="瞬态会话网页端删除实时剥离",
-            description="在网页端侧边栏删除会话，Options 列表与 Storage 在无需刷新情况下平滑剥离该项",
+            description="核验请求绑定的删除确认，同 Key Index/Detail/ExportRecord 原子删除，其他会话保留，Options 无刷新移除",
             critical=True
         ))
         self.register(Feature(
@@ -135,14 +135,14 @@ class FeatureRegistry:
             id="feat_takeout_zip_import",
             domain=FeatureDomain.TAKEOUT,
             name="离线 Takeout ZIP 导入",
-            description="导入预置纯净 Takeout ZIP，离线附件池建立，初始提问前缀临时标题生效",
+            description="导入预置 Takeout ZIP，验证来源事实接纳、Asset 引用闭合及源归档字节；不创建持久附件池",
             critical=True
         ))
         self.register(Feature(
             id="feat_deep_scan_pagination",
             domain=FeatureDomain.TAKEOUT,
             name="全量拉取历史分页同步",
-            description="点击【全量拉取历史】按钮，分页拉取所有云端会话，进度条正常推进至 100%",
+            description="点击 Scan All，验证实际 Recent 扫描结果和持久化 Coverage",
             critical=True
         ))
         self.register(Feature(
@@ -201,7 +201,7 @@ class FeatureRegistry:
             id="feat_tour_guide_interactive",
             domain=FeatureDomain.WORKBENCH,
             name="新手向导交互与 0 遮挡防撞",
-            description="推进向导步骤，气泡与高亮目标 0 遮挡重叠，完成后写入 Storage 持久化标记",
+            description="推进 v2 向导、验证目标无碰撞及 URL 启动意图消费，不依赖持久化标记",
             critical=False
         ))
 
@@ -227,7 +227,7 @@ class FeatureRegistry:
             id="feat_multimodal_spec_assertion",
             domain=FeatureDomain.EXPORT_DISK,
             name="4 大黄金分类规范断言",
-            description="解压导出的 ZIP，严格断言 Frontmatter 7 键、附件非空、AI Imagen 模型归属",
+            description="解压导出的 ZIP，按 v2 Frontmatter 检查附件、来源事实与 Imagen 模型归属",
             critical=True,
             prerequisites=["feat_zip_export_download"]
         ))

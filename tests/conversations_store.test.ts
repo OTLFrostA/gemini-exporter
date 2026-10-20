@@ -1,150 +1,79 @@
-import { withRegistry } from './helpers/registryMock.js';
-import { indexFixture } from './helpers/indexFixture.js';
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
+import { normId } from '../src/shared/utils/pathUtils.js';
+import { conversationKey } from '../src/l2/conversationKey.js';
+import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
+import type { ExportRecord } from '../src/application/export/types.js';
 
-const ConversationsStore = require('../src/ui/state/conversationsStore.js');
+const A = '10000000-0000-4000-8000-000000000001';
+const B = '10000000-0000-4000-8000-000000000002';
+const accounts = [A, B].map(id => ({ id, providerId: 'gemini', providerAccountId: id }));
+const row = (id: string, accountId = A, updatedAt = 10): DomainConversationIndex => ({ key: conversationKey(accountId, id), title: id, updatedAt });
+function view(rows = [row('one')], records: Record<string, ExportRecord> = {}) {
+    return new ConversationViewState({ listAccounts: async () => accounts,
+        listIndexes: async id => rows.filter(row => row.key.accountId === id), listExportRecords: async () => records });
+}
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 
-// This module owns singleton UI state; one case must not seed another.
-let previousConversations: any[];
-let previousExportedIds: Record<string, any>;
-let previousSlot: string;
-let previousChrome: typeof chrome;
-test.beforeEach(() => {
-    previousChrome = globalThis.chrome; globalThis.chrome = withRegistry({}) as typeof chrome;
-    previousConversations = ConversationsStore.getConversations();
-    previousExportedIds = ConversationsStore.getExportedIds();
-    previousSlot = ConversationsStore.getCurrentAccountId();
+test('conversationsStore - canonical keys retain source identity; UI does not normalize provider IDs', () => {
+    assert.equal(normId('c_12345678'), '12345678'); assert.equal(normId('12345678'), '12345678');
+    assert.equal(normId(''), ''); assert.equal(normId(null), '');
+    const state = view(); state.indexes = [row('c_12345678'), row('12345678')];
+    state.selectVisible();
+    assert.deepEqual(state.keys(), [conversationKey(A, 'c_12345678'), conversationKey(A, '12345678')]);
+    assert.throws(() => conversationKey(A, ' '), /Invalid conversation key/);
 });
-test.afterEach(() => {
-    globalThis.chrome = previousChrome;
-    ConversationsStore.setConversations(previousConversations);
-    ConversationsStore.setExportedIds(previousExportedIds);
-    ConversationsStore.setCurrentAccountId(previousSlot);
+test('conversationsStore - in-memory view state is per instance and account changes clear selection', async () => {
+    const first = view(), second = view(); await first.refresh();
+    first.selectVisible(); assert.equal(first.selected.size, 1); assert.equal(second.selected.size, 0);
+    first.selectAccount(B); assert.equal(first.accountId, B); assert.deepEqual(first.indexes, []);
+    assert.deepEqual(first.records, {}); assert.equal(first.selected.size, 0);
 });
-
-test('conversationsStore - normId', () => {
-    assert.strictEqual(ConversationsStore.normId('c_12345678'), '12345678');
-    assert.strictEqual(ConversationsStore.normId('12345678'), '12345678');
-    assert.strictEqual(ConversationsStore.normId(''), '');
-    assert.strictEqual(ConversationsStore.normId(null), '');
+test('conversationsStore - export records use exact current Conversation IDs', async () => {
+    const record: ExportRecord = { format: 'markdown', exportedAt: 5000, status: 'ok' };
+    const state = view([row('123'), row('c_123')], { '123': record }); await state.refresh();
+    state.filter = 'has_record'; assert.deepEqual(state.visible().map(r => r.key.conversationId), ['123']);
+    state.filter = 'no_record'; assert.deepEqual(state.visible().map(r => r.key.conversationId), ['c_123']);
 });
-
-test('conversationsStore - in-memory get and set', () => {
-    const list: any[] = [{ id: '1', title: 'Chat 1' }, { id: '2', title: 'Chat 2' }];
-    const canonicalList = list.map(indexFixture);
-    ConversationsStore.setConversations(canonicalList);
-    assert.strictEqual(ConversationsStore.getConversations(), canonicalList, 'the UI store must keep the supplied canonical list');
-
-    const expMap = { '1': { exportedAt: 1000 } };
-    ConversationsStore.setExportedIds(expMap);
-    assert.deepStrictEqual(ConversationsStore.getExportedIds(), expMap);
-
-    ConversationsStore.setCurrentAccountId('10000000-0000-4000-8000-000000000002');
-    assert.strictEqual(ConversationsStore.getCurrentAccountId(), '10000000-0000-4000-8000-000000000002');
+test('conversationsStore - refresh publishes changed titles and identities without a signature cache', async () => {
+    let rows = [row('a')]; const state = new ConversationViewState({ listAccounts: async () => accounts,
+        listIndexes: async () => rows, listExportRecords: async () => ({}) });
+    await state.refresh(); assert.deepEqual(state.indexes, rows);
+    rows = [{ ...row('b'), title: 'Real title' }]; await state.refresh();
+    assert.deepEqual(state.indexes, rows); assert.equal(state.visible()[0].title, 'Real title');
 });
-
-test('conversationsStore - getExportedRecord normalization', () => {
-    ConversationsStore.setExportedIds({
-        'c_123': { exportedAt: 5000 },
-        '456': { exportedAt: 6000 }
-    });
-
-    assert.ok(ConversationsStore.getExportedRecord('123'));
-    assert.strictEqual(ConversationsStore.getExportedRecord('123').exportedAt, 5000);
-    assert.ok(ConversationsStore.getExportedRecord('c_123'));
-
-    assert.ok(ConversationsStore.getExportedRecord('456'));
-    assert.strictEqual(ConversationsStore.getExportedRecord('456').exportedAt, 6000);
-    assert.ok(ConversationsStore.getExportedRecord('c_456'));
-
-    assert.strictEqual(ConversationsStore.getExportedRecord('non_existent'), null);
-    assert.strictEqual(ConversationsStore.getExportedRecord(null), null);
+test('conversationsStore retains canonical Index facts without introducing legacy flags', async () => {
+    const rows = [{ ...row('imported'), title: 'Renamed online', titleSource: 'provider' as const }];
+    const state = view(rows); await state.refresh();
+    assert.deepEqual(state.indexes, rows); assert.equal(Object.hasOwn(state.indexes[0], 'hasTakeoutImport'), false);
 });
-
-test('conversationsStore - getSignature', () => {
-    const sigEmpty = ConversationsStore.getSignature([]);
-    assert.strictEqual(sigEmpty, 'empty');
-
-    const sigA = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'b', title: 'Title 2' }]);
-    const sigB = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'b', title: 'Title 2' }]);
-    assert.strictEqual(sigA, sigB);
-
-    const sigC = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'c', title: 'Title 2' }]);
-    assert.ok(sigA !== sigC);
-
-    const sigD = ConversationsStore.getSignature([{ id: 'a', title: 'Real Title' }, { id: 'b', title: 'Title 2' }]);
-    assert.ok(sigA !== sigD);
+test('conversationsStore consumes canonical indexes without rewriting them', async () => {
+    const rows = [row('abc123')], state = view(rows); const snapshot = structuredClone(rows);
+    await state.refresh(); state.search = 'abc'; state.visible();
+    assert.deepEqual(rows, snapshot); assert.strictEqual(state.indexes[0], rows[0]);
 });
-
-test('conversationsStore retains only canonical Index facts', () => {
-    const list = [indexFixture({ id: 'imported', title: 'Renamed online', titleSource: 'rpc', hasTakeoutImport: true })];
-    ConversationsStore.setConversations(list);
-    assert.equal(Object.hasOwn(ConversationsStore.getConversations()[0], 'hasTakeoutImport'), false);
-    assert.equal(ConversationsStore.getConversations()[0].titleSource, 'provider');
+test('conversationsStore refresh observes activity changes without a title or identity change', async () => {
+    let rows = [row('first', A, 10), row('second', A, 20)];
+    const state = new ConversationViewState({ listAccounts: async () => accounts, listIndexes: async () => rows, listExportRecords: async () => ({}) });
+    await state.refresh(); assert.equal(state.visible()[0].key.conversationId, 'second');
+    rows = [{ ...rows[0], updatedAt: 30 }, rows[1]]; await state.refresh();
+    assert.equal(state.visible()[0].key.conversationId, 'first');
 });
-
-test('conversationsStore consumes canonical indexes without rewriting them', () => {
-    const list = [indexFixture({ id: 'abc123', title: 'Research', titleSource: 'rpc', updatedAt: 42 })];
-    ConversationsStore.setConversations(list);
-    assert.strictEqual(ConversationsStore.getConversations(), list);
-});
-
-
-test('conversationsStore signature observes activity changes without a title or order change', () => {
-    const original = Array.from({ length: 8 }, (_, i) => indexFixture({ id: `signature-${i}`, title: 'Same title', updatedAt: 10 }));
-    const changed = original.map((row, i) => i === 4 ? { ...row, updatedAt: 20 } : row);
-    assert.notStrictEqual(ConversationsStore.getSignature(original), ConversationsStore.getSignature(changed));
-});
-
 for (const switchAccount of [false, true]) test(`a delayed account load cannot replace a newer ${switchAccount ? 'account selection' : 'snapshot'}`, async () => {
-    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
-    const firstId = '10000000-0000-4000-8000-000000000001';
-    const nextId = switchAccount ? '10000000-0000-4000-8000-000000000002' : firstId;
-    let release!: (rows: ReturnType<typeof indexFixture>[]) => void;
-    const held = new Promise<ReturnType<typeof indexFixture>[]>(resolve => { release = resolve; });
-    let arrived!: () => void;
-    const pendingRead = new Promise<void>(resolve => { arrived = resolve; });
-    let reads = 0;
-    __setModuleOverride('StorageService', {
-        listAccounts: async () => [firstId, '10000000-0000-4000-8000-000000000002'].map((id, i) => ({ id, providerId: 'gemini', providerAccountId: 'gaia-' + i })),
-        getConversations: async () => { if (reads++ === 0) { arrived(); return held; } return [indexFixture({ id: 'newer', title: 'Newer snapshot' })]; },
-        getExportedIds: async () => ({}),
-    });
-    try {
-        ConversationsStore.setCurrentAccountId(firstId);
-        const older = ConversationsStore.loadStore(firstId);
-        await pendingRead;
-        ConversationsStore.setCurrentAccountId(nextId);
-        await ConversationsStore.loadStore(nextId);
-        release([indexFixture({ id: 'older', title: 'Older snapshot' })]);
-        await older;
-        assert.strictEqual(ConversationsStore.getCurrentAccountId(), nextId);
-        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { key: { conversationId: string } }) => row.key.conversationId), ['newer']);
-    } finally { release([]); __clearModuleOverrides(); }
+    const held = deferred<DomainConversationIndex[]>(), started = deferred<void>(); let reads = 0;
+    const state = new ConversationViewState({ listAccounts: async () => accounts, listExportRecords: async () => ({}),
+        listIndexes: async id => { if (reads++ === 0) { started.resolve(); return held.promise; } return [row('newer', id)]; } });
+    state.selectAccount(A); const old = state.refresh(); await started.promise;
+    const next = switchAccount ? B : A; state.selectAccount(next); await state.refresh();
+    held.resolve([row('older')]); await old;
+    assert.equal(state.accountId, next); assert.deepEqual(state.indexes.map(r => r.key), [conversationKey(next, 'newer')]);
 });
-
-for (const operation of ['remove']) test(`completion of ${operation} in A cannot remove the same conversation from the visible B account`, async () => {
-    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
-    const firstId = '10000000-0000-4000-8000-000000000001';
-    const nextId = '10000000-0000-4000-8000-000000000002';
-    let release!: () => void;
-    const held = new Promise<void>(resolve => { release = resolve; });
-    let arrived!: () => void;
-    const pendingWrite = new Promise<void>(resolve => { arrived = resolve; });
-    __setModuleOverride('StorageService', {
-        removeConversation: async (id: string) => { assert.strictEqual(id, firstId); arrived(); await held; return true; },
-        reconcileConversations: async (id: string) => { assert.strictEqual(id, firstId); arrived(); await held; return { kept: 0, removed: 1, removedIds: ['shared'] }; },
-    });
-    try {
-        ConversationsStore.setCurrentAccountId(firstId);
-        const pending = operation === 'remove' ? ConversationsStore.removeConversation('shared') : ConversationsStore.reconcileWithCloud([]);
-        await pendingWrite;
-        ConversationsStore.setCurrentAccountId(nextId);
-        ConversationsStore.setConversations([indexFixture({ id: 'shared', title: 'B keeps this conversation' })]);
-        release(); await pending;
-        assert.strictEqual(ConversationsStore.getCurrentAccountId(), nextId);
-        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { key: { conversationId: string } }) => row.key.conversationId), ['shared']);
-    } finally { release(); __clearModuleOverrides(); }
+test('completion of an old account refresh cannot remove the same conversation from visible account B', async () => {
+    const held = deferred<DomainConversationIndex[]>(), started = deferred<void>();
+    const state = new ConversationViewState({ listAccounts: async () => accounts, listExportRecords: async () => ({}),
+        listIndexes: async id => { if (id === A) { started.resolve(); return held.promise; } return [row('shared', B)]; } });
+    state.selectAccount(A); const pending = state.refresh(); await started.promise;
+    state.selectAccount(B); await state.refresh(); state.selected.add('shared'); held.resolve([]); await pending;
+    assert.deepEqual(state.keys(), [conversationKey(B, 'shared')]);
 });

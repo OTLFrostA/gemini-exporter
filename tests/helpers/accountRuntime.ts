@@ -1,8 +1,8 @@
 import { beforeEach, afterEach } from 'node:test';
-import { invalidateAccountContext } from '../../src/content/accountContext.js';
+import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
+export { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
+import { invalidateAccountContext } from '../../src/runtime/content/accountContext.js';
 
-export const ACCOUNT_UUID = '10000000-0000-4000-8000-000000000001';
-export const OTHER_ACCOUNT_UUID = '10000000-0000-4000-8000-000000000002';
 export const ACCOUNT_OBSERVATION = { providerId: 'gemini', providerAccountId: '10000000001' };
 
 /** Exercise the actual resolver with a MAIN observation bridge and committed Registry receipt. */
@@ -11,7 +11,7 @@ export function accountRuntime(slot = 'u0') {
     if (!originalLocation) Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: `https://gemini.google.com/u/${slot.slice(1)}/app`, origin: 'https://gemini.google.com' } });
     const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
     const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    if (!originalChrome) Object.defineProperty(globalThis, 'chrome', { configurable: true, writable: true, value: {} });
+    if (!globalThis.chrome) Object.defineProperty(globalThis, 'chrome', { configurable: true, writable: true, value: {} });
     const runtime = chrome.runtime ?? (chrome.runtime = {} as typeof chrome.runtime);
     const sendMessage = runtime.sendMessage;
     const state = { observation: { ...ACCOUNT_OBSERVATION } as typeof ACCOUNT_OBSERVATION | null };
@@ -31,6 +31,7 @@ export function accountRuntime(slot = 'u0') {
     };
     Object.defineProperty(globalThis, 'window', { configurable: true, value: windowMock });
     runtime.sendMessage = (async (message: { action: string; command?: string; accountId?: string; providerId?: string; providerAccountId?: string; email?: string; displayName?: string }) => {
+        if (message.action === 'ensureV2Ready') return { ok: true };
         if (message.action === 'accountRegistry' && (message.command === 'get' || message.command === 'list')) {
             const accounts = [
                 { id: ACCOUNT_UUID, ...ACCOUNT_OBSERVATION },
@@ -48,7 +49,7 @@ export function accountRuntime(slot = 'u0') {
     invalidateAccountContext();
     return { state, restore() {
         invalidateAccountContext(); runtime.sendMessage = sendMessage;
-        if (!originalChrome) Reflect.deleteProperty(globalThis, 'chrome');
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome); else Reflect.deleteProperty(globalThis, 'chrome');
         if (!originalLocation) Reflect.deleteProperty(globalThis, 'location');
         if (original) Object.defineProperty(globalThis, 'window', original); else Reflect.deleteProperty(globalThis, 'window');
     } };

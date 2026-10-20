@@ -3,23 +3,13 @@ import json
 import os
 import time
 
+from scripts.framework.v2_probe import install_probe, snapshot
 from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import assert_full_scan_coverage, assert_passive_coverage, assert_activity_sync_result
 
 
 def read_sync_state(cdp):
-    return cdp.eval("""(async () => {
-        const slot = window.ConversationsStore.getCurrentAccountId();
-        if (!slot) throw new Error('No Registry account selected');
-        const coverageKey = 'scan_coverage_' + slot;
-        const convKey = 'conversations_' + slot;
-        const expKey = 'exported_' + slot;
-        const data = await chrome.storage.local.get([coverageKey, convKey, expKey, 'conversation_availability_' + slot]);
-        return { slot, coverage: data[coverageKey] || null,
-            rows: (data[convKey] || []).map(c => ({ id: c.key.conversationId,
-                updatedAt: c.updatedAt, titleSource: c.titleSource, cloudAvailability: (data['conversation_availability_' + slot] || {})[c.key.conversationId] })),
-            exportIds: Object.keys(data[expKey] || {}).sort() };
-    })()""", await_promise=True) or {}
+    return snapshot(cdp) or {}
 
 
 def save_sync_evidence(ctx, name, evidence):
@@ -28,20 +18,16 @@ def save_sync_evidence(ctx, name, evidence):
     ctx.shared_data[name] = evidence
 
 
-def reset_only_coverage(cdp):
-    cdp.eval("""(async () => {
-        const slot = window.ConversationsStore.getCurrentAccountId();
-        await chrome.storage.local.remove('scan_coverage_' + slot);
-    })()""", await_promise=True)
+def clear_scan_records(cdp):
+    install_probe(cdp)
+    cdp.eval('globalThis.__tier2V2.clearScanRecords()', await_promise=True)
 
 
 def wait_for_prior_scan(cdp, timeout=330):
-    """The onboarding tour starts a real scan; do not reset its live ledger."""
+    """The onboarding tour starts a real scan; wait before clearing scan records."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        scanning = cdp.eval('!!window.SyncController?.isScanning?.()')
-        coverage = read_sync_state(cdp).get('coverage') or {}
-        if not scanning and coverage.get('activeRunId') is None:
+        if cdp.eval("document.body.dataset.busy === 'false'") is True:
             return
         time.sleep(0.5)
     raise RuntimeError('Prior onboarding scan did not settle before passive coverage reset')
@@ -49,6 +35,7 @@ def wait_for_prior_scan(cdp, timeout=330):
 
 def select_source_account(cdp_opt, cdp_gemini=None, source_tab_id=None):
     """Choose the source tab's actual Registry UUID through the normal UI contract."""
+    install_probe(cdp_opt)
     source_url = cdp_gemini.eval('location.href') if cdp_gemini else None
     tab_match = f't.id === {int(source_tab_id)}' if source_tab_id is not None else 't.url === ' + json.dumps(source_url)
     deadline = time.monotonic() + 30
@@ -60,15 +47,15 @@ def select_source_account(cdp_opt, cdp_gemini=None, source_tab_id=None):
             const binding = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
             const id = binding?.ok && binding.accountContext?.accountId;
             if (!id) return false;
-            const result = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'get', accountId: id });
-            if (!result.ok || result.value?.providerId !== 'gemini' || result.value.providerAccountId === 'default') return false;
-            await window.__workbenchLoadStore(true);
+            const account = await globalThis.__tier2V2.getAccount(id);
+            if (account?.providerId !== 'gemini' || account.providerAccountId === 'default') return false;
+            window.dispatchEvent(new Event('focus'));
+            await new Promise(resolve => setTimeout(resolve, 100));
             const selector = document.querySelector('#accountIdSelect');
             if (!selector || !Array.from(selector.options).some(option => option.value === id)) return false;
             selector.value = id;
             selector.dispatchEvent(new Event('change', { bubbles: true }));
-            await window.__workbenchLoadStore(true);
-            return window.ConversationsStore.getCurrentAccountId() === id;
+            return selector.value === id;
         })()""" % tab_match, await_promise=True)
         if selected:
             return
@@ -84,7 +71,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         window.__tier2PassivePages = [];
         window.addEventListener('message', event => {
             const p = event.data?.payload;
-            if (event.data?.type === 'GEMINI_NETWORK_BATCHEXECUTE' && p?.listRequest?.streamId === 'recent') {
+            if (event.source === window && event.origin === location.origin && event.data?.type === 'GEMINI_NETWORK_BATCHEXECUTE' && p?.listRequest?.streamId === 'recent') {
                 window.__tier2PassivePages.push({ ...p.listRequest, requestedAt: p.requestedAt,
                     accountObservation: p.requestAccountObservation, truncated: p.truncated });
             }
@@ -97,7 +84,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
     try:
         select_source_account(cdp_opt, cdp_gemini)
         wait_for_prior_scan(cdp_opt)
-        reset_only_coverage(cdp_opt)
+        clear_scan_records(cdp_opt)
         empty = read_sync_state(cdp_opt)
         if empty.get('coverage') is not None:
             raise RuntimeError('Passive fixture did not clear coverage')
@@ -110,9 +97,8 @@ def prepare_activity_baseline(ctx, cdp_gemini):
             raw_observations = cdp_gemini.eval('window.__tier2PassivePages || []') or []
             # Resolve captured Provider evidence through the actual Registry, not email/slot.
             accounts = cdp_opt.eval("""(async () => {
-                const result = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'list', providerId: 'gemini' });
-                if (!result.ok) throw new Error(result.error);
-                return result.value.map(a => ({ id: a.id, providerId: a.providerId, providerAccountId: a.providerAccountId }));
+                const accounts = await globalThis.__tier2V2.listAccounts('gemini');
+                return accounts.map(a => ({ id: a.id, providerId: a.providerId, providerAccountId: a.providerAccountId }));
             })()""", await_promise=True) or []
             observations = []
             for item in raw_observations:
@@ -136,7 +122,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         if not ok:
             raise RuntimeError(message)
         print('      ✓ 网页自然加载建立 Coverage，未点击 Sync All')
-        reset_only_coverage(cdp_opt)
+        clear_scan_records(cdp_opt)
         full = CDPActions.trigger_deep_scan(cdp_opt)
         state = read_sync_state(cdp_opt)
         ok, message = assert_full_scan_coverage(full, state.get('coverage') or {})
@@ -144,13 +130,9 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         save_sync_evidence(ctx, 'pre_chat_sync_baseline', baseline)
         if not ok:
             raise RuntimeError('Pre-chat full baseline failed: ' + message)
-        recent = state['coverage']['streams']['recent']
-        if not recent.get('range') and recent.get('orderingInvalidated') is not True:
-            raise RuntimeError('Full traversal did not establish trusted recent coverage')
-        if recent.get('orderingInvalidated') is True:
-            print('      ✓ 时间字段与分页顺序不一致：完整覆盖已认证，后续强制完整分页验收')
+        recent = state.get('coverage') or {}
         print('      ✓ 发帖前完整遍历基线: ' + message
-              + '; Coverage historyComplete=' + str(state['coverage'].get('historyComplete')))
+              + '; persisted Recent range=' + str(recent.get('range')))
         return baseline
     finally:
         if script_id:

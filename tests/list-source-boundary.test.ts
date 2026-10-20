@@ -2,13 +2,17 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
-import { parseChatGPTList } from '../src/core/parsers/chatgpt/parseList.js';
-import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
-import { getAllConversations } from '../src/core/api/client/pagination.js';
-import { parseGeminiDomList, parseGeminiDomIndex } from '../src/core/parsers/gemini/dom/parseIndex.js';
+import { restoreConversationIndex } from '../src/l2/conversationIndex.js';
+import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
+import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
+import { sourceDetail } from './helpers/l1SourceFixture.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { parseGeminiDomList, parseGeminiDomIndex } from '../src/l1/parsers/gemini/dom/parseIndex.js';
 
 test('ChatGPT lists emit exact Domain indexes with source times and no invented fallback facts', () => {
     const page = parseChatGPTList({ items: [
@@ -36,26 +40,31 @@ test('malformed ChatGPT pages cannot masquerade as empty exhausted history', asy
         { items: [], total: -1 }, { items: [], cursor: 3 }]) {
         assert.throws(() => parseChatGPTList(value), TypeError);
     }
+    const account = await getOrCreateAccount('chatgpt', 'default');
     let progress = 0;
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
         url.includes('/api/auth/session') ? { accessToken: 'test-token' } : { items: 'schema drift' }
     )) });
-    await assert.rejects(provider.listConversations({ onProgress: () => { progress++; } }), TypeError);
+    await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent', onPageCommitted: async () => { progress++; return false; } }), TypeError);
     assert.equal(progress, 0);
 });
 
 test('provider commits indexes before progress and exposes control facts only', async () => {
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
-        url.includes('/api/auth/session') ? { accessToken: 'test-token' }
-            : { items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }], total: 1 }
+        url.includes('/api/auth/session') ? { accessToken: 'test-token', user: { id: 'u-index' }, account: { id: 'w-index' } }
+            : { items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }],
+                total: 1, offset: 0, limit: 100, has_missing_conversations: false }
     )) });
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-index', 'w-index']));
     let observed: unknown;
-    const page = await provider.listConversations({ onProgress: info => { observed = Reflect.get(info, 'batch')?.[0]; } });
-    assert.equal(observed, undefined);
-    assert.equal(Object.hasOwn(page.items[0], 'key'), false);
-    assert.equal(Reflect.get(page.items[0] ?? {}, 'providerId'), undefined);
-    assert.equal(page.items[0].updatedAt, 1700000060000);
-    assert.equal(page.exhaustive, true);
+    const result = await provider.listConversations({ accountId: account.id, streamId: 'recent', onPageCommitted: async info => {
+        observed = info; assert.equal((await getConversations(account.id)).length, 1); return false;
+    } });
+    assert.equal(result, 'source_end');
+    assert.equal((observed as { page: number; totalObserved: number }).page, 1);
+    assert.equal((observed as { page: number; totalObserved: number }).totalObserved, 1);
+    assert.deepEqual((observed as { scanHead: { keys: unknown[] } }).scanHead.keys, [{ id: 'listed', time: 1700000060000 }]);
+
 });
 
 test('Gemini observations and pagination consume parsed evidence without reading decoded payloads', async () => {
@@ -67,19 +76,36 @@ test('Gemini observations and pagination consume parsed evidence without reading
     assert.equal(observation.valid, true);
     assert.equal(observation.ordered, true);
     assert.deepEqual(observation.keys, [{ id: 'boundary123', time: 1700000060000 }]);
-    const page = await getAllConversations({ async getConversationList() { return parsed; } });
-    assert.equal(page.exhaustive, true);
-    assert.equal(page.conversations[0].updatedAt, 1700000060000);
+    const provider = new GeminiProvider({ getConversationList: async () => parsed, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent' }), 'source_end');
+    assert.equal((await getConversations(ACCOUNT_UUID))[0].updatedAt, 1700000060000);
 });
 
 test('Gemini parser rejects incomplete row coverage and unknown layouts as exhaustion evidence', () => {
     for (const inner of [[null, null, [null]], [null, { unexpected: true }],
-        [null, 'tC_cursor', []], [null, null, [['c_unknown', 'Invalid identity']]],
+        [null, null, [['c_unknown', 'Invalid identity']]],
         [null, null, [['c_settings', 'Reserved route']]]]) {
         const parsed = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(inner)]]));
         assert.equal(parsed.pageEvidence.valid, false, JSON.stringify(inner));
         assert.equal(parsed.pageEvidence.ordered, false);
     }
+});
+
+test('an empty Gemini continuation page preserves its cursor instead of claiming exhaustion', () => {
+    const parsed = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, 'tC_cursor', []])]]));
+    assert.equal(parsed.pageEvidence.valid, true);
+    assert.equal(parsed.nextPageToken, 'tC_cursor');
+    assert.deepEqual(parsed.conversations, []);
+});
+
+test('Gemini list requires an explicit natural-terminal cursor, not an unrecognized slot', () => {
+    const row = ['c_boundary123', 'Title', null, null, null, [1700000060, 0]];
+    const explicit = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [row]])]]));
+    const ambiguous = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, { cursor: 'unrecognized' }, [row]])]]));
+    assert.equal(explicit.pageEvidence.valid, true);
+    assert.equal(ambiguous.nextPageToken, null);
+    assert.equal(ambiguous.pageEvidence.valid, false);
+    assert.equal(ambiguous.pageEvidence.ordered, false);
 });
 
 test('DOM metadata preserves title precedence and keeps UI labels and observation clocks out of Domain', () => {

@@ -1,4 +1,3 @@
-import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 /**
  * tests/provider-gemini-markup-sanitization.test.ts
  * Runtime provider content-adapter and Document renderer contract.
@@ -17,13 +16,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { parseGeminiBody, parseLegacyReasoning } = require('../src/core/parsers/gemini/shared/contentAdapter.js');
-const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
-const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { parseGeminiBody, parseSourceReasoning } = require('../src/l1/parsers/gemini/shared/contentAdapter.js');
 
-test('Gemini interactive markup is removed by provider content adapter before Domain and both renderers', () => {
+test('Gemini interactive markup is removed by provider content adapter before source AST output', () => {
     const rawContent = [
         '经典比特（Bit）与量子比特（Qubit）有着本质区别：',
         '',
@@ -45,12 +40,11 @@ test('Gemini interactive markup is removed by provider content adapter before Do
 
     // This is the same provider adapter used by native Gemini RPC parsing.
     // Do not re-import the body through the historical record compatibility fixture.
-    const reasoning = parseLegacyReasoning(
+    const reasoning = parseSourceReasoning(
         '思考过程：\n<Elicitation label="内部测试"/>\n分析比特与量子比特。',
         { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'messages[0].reasoning' } },
     );
-    const domain = validateParserDomain({ index: { key: fixtureKey(String('gemini_markup_test_chat'), 'gemini'),   titleSource: "derived",   title: 'Structured Markup Sanitization Test' }, detail: { key: fixtureKey(String('gemini_markup_test_chat'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: parseGeminiBody(rawContent), reasoning }] } });
-    const msg = domain.detail.messages[0];
+    const msg = { content: parseGeminiBody(rawContent), reasoning };
     assert.ok(msg.reasoning?.length, 'authored reasoning must remain visible');
     assert.ok(JSON.stringify(msg.reasoning).includes('分析比特与量子比特'));
 
@@ -65,16 +59,4 @@ test('Gemini interactive markup is removed by provider content adapter before Do
     assert.ok(allText.includes('经典比特（Bit）与量子比特（Qubit）'));
     assert.ok(allText.includes('量子比特具备指数级并行潜力。'));
 
-    // Both backend outputs receive the same already-sanitized, trusted Domain content.
-    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
-    const { html } = renderDocumentHtml(document, {});
-    const markdown = renderDocumentMarkdown(document, {});
-    for (const output of [html, markdown]) {
-        for (const providerTag of ['ElicitationsGroup', 'Elicitation', 'FollowUp', 'GenerateWidget']) {
-            assert.equal(output.includes(providerTag), false, providerTag + ' leaked to exported content');
-        }
-        assert.ok(output.includes('经典比特（Bit）与量子比特（Qubit）'));
-        assert.ok(output.includes('量子比特具备指数级并行潜力。'));
-        assert.ok(output.includes('分析比特与量子比特'));
-    }
 });

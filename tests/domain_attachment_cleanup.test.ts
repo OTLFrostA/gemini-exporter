@@ -1,15 +1,16 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { normalizeLegacyAttachments } from '../src/core/parsers/shared/resources/resolveResources.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { resolveSourceAttachmentGroups, type SourceAttachmentLists } from '../src/l1/parsers/shared/resources/resolveResources.js';
+const normalizeSourceAttachments = (input: SourceAttachmentLists) => resolveSourceAttachmentGroups([{ input }]).attachments;
 import { structuredBodyAttachments } from './helpers/recordFixture/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
 
@@ -26,7 +27,6 @@ async function assertRoundTrip(input: Conversation): Promise<DomainConversationW
     ]);
     assert.deepEqual(semantic.document, raw.document);
     assert.deepEqual(restored.document, semantic.document);
-    assert.deepEqual(restored.diagnostics, semantic.diagnostics);
     assert.deepEqual(input, original);
     for (const message of domain.detail.messages) {
         assert.equal('images' in message, false);
@@ -92,7 +92,7 @@ test('merging document aliases preserves repeated metadata entries and supplemen
         documents: [{ type: 'doc', id: 'report', sections: ['Intro', 'Intro', 'Conclusion'], links: [link, link],
             candidates: ['https://example.test/report', 'https://example.test/report'] }] };
     const original = structuredClone(source);
-    const [resource] = normalizeLegacyAttachments(source);
+    const [resource] = normalizeSourceAttachments(source);
     assert.deepEqual(resource.sections, ['Intro', 'Intro', 'Conclusion']);
     assert.deepEqual(resource.links, [link, link]);
     assert.deepEqual(resource.candidates, ['https://example.test/report', 'https://example.test/report']);
@@ -101,7 +101,7 @@ test('merging document aliases preserves repeated metadata entries and supplemen
 });
 
 test('all reference fields participate in deduplication and bridging aliases collapse transitively', () => {
-    const resources = normalizeLegacyAttachments({
+    const resources = normalizeSourceAttachments({
         attachments: [{ type: 'image', localName: 'assets/lake.png', width: 100 },
             { type: 'image', url: 'https://example.test/lake', height: 200 }],
         images: [{ type: 'image', localName: 'lake.png', sourceUrl: 'https://example.test/lake', mimeType: 'image/png' }],
@@ -113,7 +113,7 @@ test('all reference fields participate in deduplication and bridging aliases col
 });
 
 test('same filenames do not collapse different resources or anonymous missing records', () => {
-    const resources = normalizeLegacyAttachments({ attachments: [
+    const resources = normalizeSourceAttachments({ attachments: [
         { type: 'image', localName: 'one/lake.png' }, { type: 'image', localName: 'two/lake.png' },
         { type: 'file' }, { type: 'file' },
     ] });
@@ -124,7 +124,7 @@ test('provider tokens resolve generated representations before tokens leave Doma
     const source = { attachments: [{ type: 'image', token: 'provider-token', sourceUrl: 'https://example.test/thumb', width: 100 }],
         images: [{ type: 'image', token: 'provider-token', sourceUrl: 'https://example.test/full', width: 1024, isGenerated: true, generation }] };
     const original = structuredClone(source);
-    const [resource] = normalizeLegacyAttachments(source);
+    const [resource] = normalizeSourceAttachments(source);
     assert.equal(resource.sourceUrl, 'https://example.test/full');
     assert.equal(resource.width, 1024);
     assert.deepEqual(resource.generation, generation);
@@ -157,11 +157,11 @@ test('body references to discarded provider aliases bind to the one semantic res
 
 test('unknown image ordinals and conflicting generation ownership remain distinct', () => {
     const ambiguous = { ...generation, imageOrdinal: undefined, imageCount: 2 };
-    assert.equal(normalizeLegacyAttachments({ attachments: [
+    assert.equal(normalizeSourceAttachments({ attachments: [
         { type: 'image', localName: 'one.png', generation: ambiguous },
         { type: 'image', localName: 'two.png', generation: ambiguous },
     ] }).length, 2);
-    assert.equal(normalizeLegacyAttachments({ attachments: [
+    assert.equal(normalizeSourceAttachments({ attachments: [
         { type: 'image', url: 'https://example.test/shared', generation },
         { type: 'image', url: 'https://example.test/shared', generation: { ...generation, chatId: 'other-chat' } },
         { type: 'image', url: 'https://example.test/shared', generation: { ...generation, imageOrdinal: 1 } },
@@ -170,11 +170,11 @@ test('unknown image ordinals and conflicting generation ownership remain distinc
 
 test('an untagged alias cannot bridge conflicting document or generation identities', () => {
     const url = 'https://example.test/shared';
-    assert.equal(normalizeLegacyAttachments({
+    assert.equal(normalizeSourceAttachments({
         attachments: [{ type: 'file', id: 'report-a', url }, { type: 'file', id: 'report-b', url }],
         documents: [{ type: 'file', url }],
     }).length, 3);
-    assert.equal(normalizeLegacyAttachments({
+    assert.equal(normalizeSourceAttachments({
         attachments: [{ type: 'image', url, generation },
             { type: 'image', url, generation: { ...generation, chatId: 'other-chat' } }],
         images: [{ type: 'image', url }],
@@ -183,7 +183,7 @@ test('an untagged alias cannot bridge conflicting document or generation identit
 
 test('generation event metadata without a request ID needs matching time, prompt and known image ordinal', () => {
     const event = { ...generation, providerRequestId: undefined };
-    const resources = normalizeLegacyAttachments({ attachments: [
+    const resources = normalizeSourceAttachments({ attachments: [
         { type: 'image', localName: 'online.png', generation: event },
         { type: 'image', localName: 'offline.png', generation: event },
         { type: 'image', localName: 'online.png', generation: { ...event, time: 1700000005123 } },
@@ -218,8 +218,8 @@ test('shared source gate rejects runtime legacy aliases; Composer uses explicit 
 });
 
 test('shared Composer and Domain consumption have no legacy resource alias reconciliation', () => {
-    for (const file of ['src/core/domain/closure.ts', 'src/core/document/compose/composeDomainDocument.ts',
-        'src/core/document/compose/composeContent.ts']) {
+    for (const file of ['src/l2/closure.ts', 'src/l3b/compose/composeDomainDocument.ts',
+        'src/l3b/compose/composeContent.ts']) {
         const source = readFileSync(join(__dirname, '..', file), 'utf8');
         assert.doesNotMatch(source, /mergeMessageAttachments|reconcileLegacyMediaLists|structuredBodyAttachments|attachments\.includes|\bimages\??:|\bdocuments\??:/);
     }

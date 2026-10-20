@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fileBadge } from '../src/core/renderers/shared/backendPresentation.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import type { DocumentAst, DisplayBlock } from '../src/core/document/ast/ast.js';
+import { fileBadge } from '../src/l4/format/shared/backendPresentation.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import type { DocumentAst, DisplayBlock } from '../src/l3b/ast/ast.js';
 
 test('file badge maps office/media types to short labels and safely falls back', () => {
     const cases = [
@@ -18,12 +18,12 @@ test('file badge maps office/media types to short labels and safely falls back',
     ];
     const blocks: Extract<DisplayBlock, { type: 'file' }>[] = cases.map(([mediaType]) => ({ type: 'file', resourceId: 'f', label: 'misleading.exe', kind: 'file', mediaType }));
     assert.deepEqual(blocks.map(fileBadge), cases.map(([, badge]) => badge));
-    assert.equal(fileBadge({ ...blocks[0], kind: 'XLSX', mediaType: undefined }), 'XLSX');
-    for (const [kind, expected] of [['image', 'IMAGE'], ['audio', 'AUDIO'], ['video', 'VIDEO'], ['other', 'FILE'], ['__proto__', 'FILE'], ['constructor', 'FILE'], ['invented-arbitrarily-long', 'FILE']]) {
+    assert.equal(fileBadge({ ...blocks[0], kind: 'file', mediaType: undefined }), 'FILE');
+    for (const [kind, expected] of [['image', 'IMAGE'], ['audio', 'AUDIO'], ['video', 'VIDEO'], ['other', 'FILE']] as const) {
         assert.equal(fileBadge({ ...blocks[0], kind, mediaType: 'application/unknown' }), expected);
     }
     assert.equal(fileBadge({ ...blocks[0], kind: 'other', mediaType: 'image/unknown' }), 'IMAGE');
-    const document: DocumentAst = { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'Badges', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', blocks }] };
+    const document: DocumentAst = { title: 'Badges', metadata: { id: 'fixture', provider: 'test' }, messages: [{ role: 'assistant', blocks }] };
     const html = renderDocumentHtml(document, { f: 'assets/f' }).html;
     const pdf = renderDocumentTypst(document, {});
     assert.deepEqual([...html.matchAll(/gem-att-badge">([^<]+)</g)].map(match => match[1]), cases.map(([, badge]) => badge));

@@ -1,15 +1,18 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
+useIndexStorage();
 /**
  * tests/p1_i_regressions.test.ts
  * I 组「协议层与 provider 契约收尾」P1-075~080, P1-084, P1-088/089 回归测试。
  */
-import type { GeminiLiveSaveTriggerPayload } from '../src/core/protocol/events.js';
+import type { GeminiLiveSaveTriggerPayload } from '../src/l1/protocol/gemini/events.js';
 
 const test = require('node:test');
 const assert = require('node:assert');
 
-const Proto = require('../src/core/protocol/protocol.js');
-const { ProviderRegistryClass } = require('../src/core/provider/providerRegistry.js');
-const { GeminiProvider } = require('../src/core/provider/gemini/geminiProvider.js');
+const Proto = require('../src/l1/protocol/gemini/protocol.js');
+const { ProviderRegistryClass } = require('../src/l1/client/providerRegistry.js');
+const { GeminiProvider } = require('../src/l1/client/gemini/geminiProvider.js');
 
 function fakeProvider(id: string, opts: { matchesUrl?: (u: string) => boolean; hostPatterns?: string[] } = {}) {
     const p: any = { id, name: id, hostPatterns: opts.hostPatterns || [] };
@@ -122,13 +125,13 @@ void rejectedLiveSaveTrigger;
 // ---------------------------------------------------------------- P1-088
 test('P1-088 - checkReadiness never passes the slot id off as the account name', async () => {
     // Runtime: stub credential resolution to force the ready:true branch.
-    const credMgr = require('../src/core/api/client/credentialManager.js').default;
+    const credMgr = require('../src/l1/client/gemini/api/credentialManager.js').default;
     const orig = credMgr.resolveCred;
-    credMgr.resolveCred = async () => ({ sid: 's', at: 'a', bl: 'b', accountSlot: '10000000-0000-4000-8000-000000000001' });
+    credMgr.resolveCred = async () => ({ sid: 's', at: 'a', bl: 'b', accountSlot: 'u0' });
     try {
-        const readiness = await new GeminiProvider().checkReadiness({ accountSlot: '10000000-0000-4000-8000-000000000001' });
+        const readiness = await new GeminiProvider(undefined, async () => 'u0').checkReadiness(ACCOUNT_UUID);
         assert.strictEqual(readiness.ready, true);
-        assert.strictEqual(readiness.accountSlot, '10000000-0000-4000-8000-000000000001');
+        assert.equal('accountSlot' in readiness, false);
         assert.ok(
             readiness.accountName === undefined || readiness.accountName === null,
             `accountName must be absent/null, got: ${readiness.accountName}`

@@ -1,10 +1,10 @@
-import type { Account } from '../../../src/core/domain/accountRegistry.js';
-import { semanticTitleSource, parseIndexMetadata } from '../../../src/core/parsers/shared/parseIndexMetadata.js';
-import { restoreConversationIndex, type DomainConversationIndex } from '../../../src/core/domain/conversationIndex.js';
-import { normalizeTimestamp } from '../../../src/core/domain/time.js';
-import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../src/core/utils/titleUtils.js';
-import { isTitleSource, resolveTitle, type TitleCandidate } from '../../../src/core/domain/titleAuthority.js';
-import { normId, isReservedRoute } from '../../../src/core/utils/pathUtils.js';
+import type { Account } from '../../../src/l2/accountRegistry.js';
+import { semanticTitleSource, parseIndexMetadata } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
+import { restoreConversationIndex, type DomainConversationIndex } from '../../../src/l2/conversationIndex.js';
+import { normalizeTimestamp } from '../../../src/l2/time.js';
+import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../src/shared/utils/titleText.js';
+import { isTitleSource, resolveTitle, type TitleCandidate } from '../../../src/l2/titleAuthority.js';
+import { normId, isReservedRoute } from '../../../src/shared/utils/pathUtils.js';
 
 function object(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid index source record');
@@ -28,7 +28,8 @@ export function parseLegacyConversationIndex(value: unknown, account: Account): 
         if (typeof value === 'string' && !isBrandPlaceholderTitle(value)) candidates.push({ value: cleanTitle(value), source: semanticTitleSource(source) });
     }
     const title = resolveTitle(candidates);
-    return parseIndexMetadata({ account, providerId: account.providerId, id: String(row.id),
+    const conversationId = account.providerId === 'gemini' ? normId(String(row.id)) : String(row.id);
+    return restoreConversationIndex({ key: { accountId: account.id, conversationId }, ...parseIndexMetadata({ providerId: account.providerId, id: String(row.id),
         title: title?.value ?? '', titleSource: title?.source,
-        createdAt: legacyTime(row.createdAt), updatedAt: legacyTime(row.updatedAt) ?? legacyTime(row.timestamp) ?? legacyTime(row.chatTime) });
+        createdAt: legacyTime(row.createdAt), updatedAt: legacyTime(row.updatedAt) ?? legacyTime(row.timestamp) ?? legacyTime(row.chatTime) }) });
 }

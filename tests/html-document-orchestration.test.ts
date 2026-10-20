@@ -1,22 +1,15 @@
-import { fixtureResourceResults } from './helpers/documentFixture.js';
-import { historicalFixture } from './helpers/nativeFixture.js';
 /** Public HTML orchestration and the pure Document AST backend. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { ChatExportInput } from '../src/core/engine/chatFormatter.js';
-import { formatHtmlDocument } from '../src/core/engine/chatFormatter.js';
 import { parseFixture } from './helpers/documentFixture.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 test('HTML export returns the delivery contract and uses prepared offline destinations', async () => {
     const raw = { id: 'html', title: 'HTML export', messages: [{ role: 'user', content: 'look at this', attachments: [{ type: 'image', localName: 'assets/x.png', name: 'x.png' }] }] };
-    const native = historicalFixture(raw);
-    const result = await formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
-    assert.equal(result.mime, 'text/html');
-    assert.equal(result.ext, 'html');
-    assert.ok(result.content.startsWith('<!DOCTYPE html>'));
-    assert.ok(result.content.includes('assets/x.png'));
     const { domain, document, resources } = await parseFixture(raw);
+    const result = renderDocumentHtml(document, resources);
+    assert.ok(result.html.startsWith('<!DOCTYPE html>'));
+    assert.ok(result.html.includes('assets/x.png'));
     assert.deepEqual([...collectDocumentResources(document).referencedIds], [domain.detail.assets[0].id]);
     assert.equal(resources[domain.detail.assets[0].id], 'assets/x.png');
     assert.ok(!JSON.stringify(domain).includes('assets/x.png'));

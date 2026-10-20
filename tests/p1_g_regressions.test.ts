@@ -9,9 +9,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { ChatMessage, Attachment } from '../src/types/conversation.js';
-import type { MessageAction, LiveSaveViaHandlePayload } from '../src/types/messages.js';
-import type { BackgroundMessage, BackgroundResponse } from '../src/types/entrypoints.js';
+import type { ChatMessage, Attachment } from './helpers/historicalConversation.js';
+import type { MessageAction } from '../src/runtime/types/messages.js';
 
 // P1-090, 091, 092, 093, 098, 099, 100 are type-check contracts.
 // The @ts-expect-error directives fail compilation if forbidden types
@@ -46,32 +45,13 @@ function typecheckContracts(): void {
     // P1-092: supported actions remain valid without freezing the total
     // number of actions when ChatGPT/Claude support is added.
     const actions: MessageAction[] = [
-        'syncUpdate', 'scanProgress', 'openOptions', 'getConversationDetail',
-        'fetchBatch', 'fetchChat', 'cancelExport', 'downloadAssetDirect',
-        'abortSync', 'deepScan', 'stopDeepScan', 'exportProgress', 'ping',
-        'openGeminiPage', 'reloadGeminiTab', 'liveSaveViaHandle',
-        'getScrollContainer', 'getFileBlob', 'getImageBlob',
+        'openOptions', 'getAccountContext', 'getFileBlob', 'getImageBlob',
+        'ensureV2Ready', 'domainIngest', 'getLocalIndexCount', 'runLiveSave',
     ];
     // @ts-expect-error - the deleted ghost action cannot be reintroduced
     const invalidAction: MessageAction = 'startExport';
 
-    // P1-093: assets are accepted by the message payload contract.
-    const payload: LiveSaveViaHandlePayload = {
-        chat: historicalFixture({ id: 'c_1', title: 't', timestamp: 1 }),
-        safeTitle: 't', nid: 'n1',
-        assets: [{ fileName: 'a.png', subDir: 'assets', base64: 'eA==' }]
-    };
-
-    // P1-098: unknown actions and any-typed payloads stay prohibited.
-    // @ts-expect-error - BackgroundMessage is not an open action string
-    const invalidMessage: BackgroundMessage = { action: 'bogusAction' };
     type IsAny<T> = 0 extends (1 & T) ? true : false;
-    // @ts-expect-error - data must be unknown, not any
-    const dataAny: IsAny<BackgroundResponse['data']> = true;
-    // @ts-expect-error - payload must be unknown, not any
-    const payloadAny: IsAny<BackgroundMessage['payload']> = true;
-    // @ts-expect-error - results must not be any[]
-    const resultsAny: IsAny<BackgroundResponse['results']> = true;
 
     // P1-099: removed ambient globals must stay gone and the one retained
     // global API client declaration must not revert to any.
@@ -81,20 +61,20 @@ function typecheckContracts(): void {
 
     // P1-100: these model types must not reappear in the public API.
     // @ts-expect-error - deleted public type
-    type _NoThoughtBlock = import('../src/types/conversation.js').ThoughtBlock;
+    type _NoThoughtBlock = import('./helpers/historicalConversation.js').ThoughtBlock;
     // @ts-expect-error - deleted public type
-    type _NoCitationSource = import('../src/types/conversation.js').CitationSource;
+    type _NoCitationSource = import('./helpers/historicalConversation.js').CitationSource;
 
     void fromParser; void fromOtherProvider;
     void message; void conversation; void attachment; void actions;
-    void invalidAction; void payload; void invalidMessage;
-    void dataAny; void payloadAny; void resultsAny; void clientMustBeTyped;
+    void invalidAction;
+    void clientMustBeTyped;
 }
 void typecheckContracts;
 
 // P1-094 is a real runtime invariant: consumers rely on this hierarchy.
 test('P1-094: live error subclasses extend GeminiError and dead class stays absent', () => {
-    const errors = require('../src/types/errors.js');
+    const errors = require('../src/shared/types/errors.js');
     assert.equal(errors.GeminiRpcError, undefined);
     assert.equal(typeof errors.GeminiError, 'function');
     for (const name of ['ExportPipelineError', 'TakeoutParseError', 'StorageError']) {

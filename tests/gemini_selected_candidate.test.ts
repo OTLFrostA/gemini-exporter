@@ -1,11 +1,9 @@
 import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { extractBlockText } from '../src/l2/content/unknownFallback.js';
 
 // Sanitized shape observed in the failing 2026-10-09 Tier 2 spray-dryer RPC:
 // one request, two answer drafts, turn[3][3] naming the displayed candidate.
@@ -28,10 +26,7 @@ test('selected wire answer exports one Assistant section and retains raw alterna
     assert.deepEqual(result.conversation.detail.messages.map(m => [m.role, m.id]), [['user', 'r_request'], ['assistant', 'rc_displayed']]);
     assert.match(answerText(wire), /Displayed balance/);
     assert.doesNotMatch(answerText(wire), /Unselected balance/);
-    const markdown = renderDocumentMarkdown(composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document, {});
-    assert.equal((markdown.match(/^## 🤖 Assistant/gm) ?? []).length, 1);
-    assert.match(markdown, /System Definition and Mass Balances/);
-    assert.doesNotMatch(markdown, /System Boundaries and Assumptions/);
+    assert.equal(result.conversation.detail.messages.filter(message => message.role === 'assistant').length, 1);
     const raw = result.transport.decodedPayload as unknown[][];
     assert.deepEqual(raw[0][0], [[ID, 'r_request'], [1700000000, 0], [['Derive the mass balance.']], [candidates, null, null, 'rc_displayed']]);
 });

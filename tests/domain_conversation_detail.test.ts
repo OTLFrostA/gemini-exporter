@@ -1,5 +1,5 @@
 import { fixtureKey } from './helpers/domainFixture.js';
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
+const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 const { messageAssets } = require('./helpers/domainAssets.js');
 export {};
 const test = require('node:test');
@@ -425,7 +425,7 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
             if (expected) {
                 assert.notEqual(domain.detail.messages[0].citations, expected);
                 const canonical = await composeFixture(domain);
-                assert.deepEqual(canonical.document.messages[0].sources.items.map((source: { href: string; label: string }, index: number) => ({ url: source.href, ...('title' in expected[index] ? { title: source.label } : {}) })), expected);
+                assert.deepEqual(canonical.document.messages[0].sources.map((source: { href: string; label: string }, index: number) => ({ url: source.href, ...('title' in expected[index] ? { title: source.label } : {}) })), expected);
             }
         }
     });
@@ -437,7 +437,7 @@ test('source validation rejects reasoning/citation aliases before document compo
     await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
     const document = (await composeFixture(clean)).document;
     assert.equal(document.messages[0].blocks[0].type, 'disclosure');
-    assert.equal(document.messages[0].sources.items[0].href, 'https://example.com');
+    assert.equal(document.messages[0].sources[0].href, 'https://example.com');
     const absent = { index: { key: fixtureKey(String(base.id), 'gemini'),   titleSource: "derived",  title: base.title,  }, detail: { key: fixtureKey(String(base.id), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] } };
     const aliasesOnly = { index: { ...absent.index }, detail: {   ...absent.detail, messages: [{ ...absent.detail.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] } };
     await assert.rejects(composeFixture(aliasesOnly), /Invalid persisted Domain contract: messages/);

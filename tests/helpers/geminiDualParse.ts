@@ -1,11 +1,11 @@
 import { fixtureAccount } from './domainFixture.js';
 /** Test-only differential audit. Never imported into the extension. */
-import type { BlockNode } from '../../src/core/domain/content/blocks.js';
-import type { InlineNode } from '../../src/core/domain/content/inline.js';
-import type { DomainAsset, DomainMessage } from '../../src/core/domain/conversationDetail.js';
-import type { GeminiDetailEvidence } from '../../src/core/parsers/gemini/rpc/detailEvidence.js';
-import { decodeGeminiDetail } from '../../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { parseGeminiDetailEvidence } from '../../src/core/parsers/gemini/rpc/parseConversation.js';
+import type { BlockNode } from '../../src/l2/content/blocks.js';
+import type { InlineNode } from '../../src/l2/content/inline.js';
+import type { DomainAsset, DomainMessage } from '../../src/l2/conversationDetail.js';
+import type { GeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/detailEvidence.js';
+import { decodeGeminiDetail } from '../../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { parseGeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/parseConversation.js';
 
 export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
 export interface Difference { path: string; structured?: Value; markdown?: Value }
@@ -167,15 +167,39 @@ function object(value: unknown): Record<string, unknown> {
 export function readGeminiAuditInput(input: string, kind: 'raw_rpc' | 'native_envelope') {
     if (kind === 'raw_rpc') return { evidence: decodeGeminiDetail(input), provenance: kind, expectedMessages: null };
     const envelope = object(JSON.parse(input));
+    if (envelope.source === 'raw_rpc_pages') {
+        if (envelope.schemaVersion !== 1 || typeof envelope.conversationId !== 'string'
+            || !Array.isArray(envelope.pages) || !envelope.pages.length) throw new Error('Missing native RPC pages');
+        const expectedId = envelope.conversationId.replace(/^c_/, '');
+        const seenCursors = new Set<string | null>();
+        const seenMessages = new Set<string>();
+        let cursor: string | null = null;
+        let merged: GeminiDetailEvidence | undefined;
+        for (const raw of envelope.pages) {
+            const page = object(raw);
+            if (page.requestCursor !== cursor || seenCursors.has(cursor) || typeof page.text !== 'string') throw new Error('Broken native RPC cursor chain');
+            seenCursors.add(cursor);
+            const evidence = decodeGeminiDetail(page.text, expectedId);
+            if (evidence.id.replace(/^c_/, '') !== expectedId || evidence.turnsRejected || !evidence.messages.length) throw new Error('Invalid native Detail page');
+            const fresh = evidence.messages.filter(message => {
+                if (!message.id) throw new Error('Native message identity missing');
+                if (seenMessages.has(message.id)) return false;
+                seenMessages.add(message.id); return true;
+            });
+            merged = { ...evidence, messages: [...fresh, ...(merged?.messages ?? [])] };
+            cursor = evidence.nextPageToken ?? null;
+        }
+        if (!merged || cursor !== null) throw new Error('Native RPC pagination incomplete');
+        return { evidence: merged, provenance: 'captured_raw_rpc_pages', expectedMessages: null };
+    }
     if (envelope.success !== true || envelope.source !== 'batchexecute') throw new Error('Only successful native batchexecute evidence is accepted; DOM/cache is not a differential source');
     const data = object(envelope.data), transport = object(data.transport);
     if (!Array.isArray(transport.decodedPayload)) throw new Error('Missing native decodedPayload');
     const conversation = object(data.conversation), index = object(conversation.index), detail = object(conversation.detail);
-    const account = object(data.account), key = object(index.key);
-    if (account.providerId !== 'gemini' || typeof key.conversationId !== 'string' || !Array.isArray(detail.messages)) throw new Error('Not a Gemini native detail');
+    if (typeof data.conversationId !== 'string' || 'key' in index || 'key' in detail || 'account' in data || !Array.isArray(detail.messages)) throw new Error('Not a keyless Gemini source detail');
     // Historical captures retain the exact inner payload, not the original HTTP framing.
     // Reconstitute only its transport wrapper, explicitly label this provenance in the report.
     const wrapper = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(transport.decodedPayload)]]);
-    return { evidence: decodeGeminiDetail(wrapper, key.conversationId), provenance: 'captured_decoded_payload',
+    return { evidence: decodeGeminiDetail(wrapper, data.conversationId), provenance: 'captured_decoded_payload',
         expectedMessages: detail.messages.map(item => { const message = object(item); return { id: message.id, role: message.role === 'assistant' ? 'model' : message.role }; }) };
 }

@@ -1,10 +1,10 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normalizeTableMathPipes, preprocessGeminiMarkdown } from '../src/core/parsers/gemini/shared/markdownCompatibility.js';
-import { parseMarkdownAst } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
+import { normalizeTableMathPipes, preprocessGeminiMarkdown } from '../src/l1/parsers/gemini/shared/markdownCompatibility.js';
+import { parseMarkdownAst } from '../src/l1/parsers/shared/markdown/parseMarkdown.js';
 
 test('captured Gemini table keeps eight columns and complete absolute-value formulas', () => {
     const original = readFileSync('tests/fixtures/provider/math/gm_md_002_evidence.md', 'utf8');
@@ -25,16 +25,16 @@ test('table compatibility excludes prose, code, escaped bars, unmatched math and
     }
 });
 
-import { parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { parseMarkdownToBlocks } from '../src/l1/parsers/shared/markdown/parseMarkdown.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 test('Domain and serialized Markdown preserve the captured numeric row and all eight headers', () => {
     const raw = readFileSync('tests/fixtures/provider/math/gm_md_002_evidence.md', 'utf8');
     const blocks = parseMarkdownToBlocks(preprocessGeminiMarkdown(raw), 'live', { sourceRef: { providerId: 'gemini', locator: 'live.5' }, diagnostics: [] });
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('live'), 'gemini'),   titleSource: "derived",   title: 'Live' }, detail: { key: fixtureKey(String('live'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content: blocks }] } };
-    const output = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document, {});
+    const output = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))), {});
     const table = parseMarkdownAst(output).children.find(node => node.type === 'table');
     assert.ok(table?.type === 'table');
     const content = (node: { value?: string; children?: unknown[] }): string => node.value ?? (node.children ?? []).map(child => content(child as typeof node)).join('');
@@ -47,9 +47,9 @@ test('Domain and serialized Markdown preserve the captured numeric row and all e
     assert.equal(content(table.children[0].children[5]), String.raw`Numerical Error \vert{}\beta - \beta^*\vert{} [^\circ]`);
 });
 
-import { decodeGeminiStructuredNode } from '../src/core/parsers/gemini/rpc/structuredContent.js';
-import { geminiStructuredToContent } from '../src/core/parsers/gemini/shared/structuredContentAdapter.js';
-import type { BlockNode } from '../src/core/domain/content/blocks.js';
+import { decodeGeminiStructuredNode } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { geminiStructuredToContent } from '../src/l1/parsers/gemini/shared/structuredContentAdapter.js';
+import type { BlockNode } from '../src/l2/content/blocks.js';
 
 const liveTables = JSON.parse(readFileSync('tests/fixtures/provider/math/gemini_table_display_math.json', 'utf8')) as { displayTable: unknown; normTable: unknown };
 function renderCapturedTable(wire: unknown): { blocks: BlockNode[]; output: string } {
@@ -58,7 +58,7 @@ function renderCapturedTable(wire: unknown): { blocks: BlockNode[]; output: stri
     const blocks = geminiStructuredToContent({ children: [node] });
     assert.ok(blocks, 'all native table children must remain supported');
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('captured'), 'gemini'),   titleSource: "derived",   title: 'Captured' }, detail: { key: fixtureKey(String('captured'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content: blocks }] } };
-    return { blocks, output: renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document, {}) };
+    return { blocks, output: renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))), {}) };
 }
 
 test('native display math inside a captured table does not reinterpret neighboring literal TeX', () => {

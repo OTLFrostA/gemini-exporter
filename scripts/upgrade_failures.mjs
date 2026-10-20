@@ -11,8 +11,6 @@ export class NativeExportFailure extends Error {
 // Concrete errors from the body recovery / disconnected fetch paths. Do not
 // accept arbitrary messages containing "offline", "missing", or "fetch".
 const offlineReasons = new Set([
-  'Conversation body is unavailable; fetch or migrate its source before exporting',
-  'Cloud conversation deleted; local metadata has no recoverable body',
   'Failed to fetch',
   'fetch failed: Failed to fetch',
   'net::ERR_INTERNET_DISCONNECTED',

@@ -73,7 +73,7 @@ THE SOFTWARE.
 
 - **Components**:
   - `@myriaddreamin/typst.ts` v0.7.0 — JS glue bundled into `dist/ui/sandbox/typst-compile.js`
-  - `@myriaddreamin/typst-ts-web-compiler` v0.7.0 — WebAssembly compiler binary, vendored byte-identical from npm at `src/ui/sandbox/vendor/typst_ts_web_compiler_bg.wasm` (sha256 `1fc968438a672366dfec39c96c842c26ed29caff4eb1bcaab19a6c60867de5fd`; provenance recorded in `src/ui/sandbox/vendor/README.md`)
+  - `@myriaddreamin/typst-ts-web-compiler` v0.7.0 — WebAssembly compiler binary, vendored byte-identical from npm at `src/l4/format/pdf/sandbox/vendor/typst_ts_web_compiler_bg.wasm` (sha256 `1fc968438a672366dfec39c96c842c26ed29caff4eb1bcaab19a6c60867de5fd`; provenance recorded in `src/l4/format/pdf/sandbox/vendor/README.md`)
   - `@myriaddreamin/typst-ts-renderer` v0.7.0 — declared npm dependency; its code/WASM is **not** included in the shipped extension
 - **Upstream**: <https://github.com/Myriad-Dreamin/typst.ts> (packages the Typst compiler, <https://typst.app>, also Apache-2.0)
 - **Copyright**: Copyright 2023-2025 Myriad-Dreamin
@@ -289,10 +289,10 @@ THE SOFTWARE.
 
 ### 4. NewCMMath-Regular.otf (math fallback font for the PDF sandbox)
 
-- **Component**: `NewCMMath-Regular.otf` (1.2 MiB) at `src/ui/sandbox/fonts/`
+- **Component**: `NewCMMath-Regular.otf` (1.2 MiB) at `src/l4/format/pdf/sandbox/fonts/`
 - **Source**: the `newcomputermodern` package on CTAN (`fonts/newcomputermodern/otf/`), downloaded 2026-09-26
-- **License**: GUST Font License v1.0 (2009-06-22) — the work is distributed under the LaTeX Project Public License (LPPL) v1.3c or later, plus a rename request for derived works. The full license text ships with the font at `src/ui/sandbox/fonts/GUST-FONT-LICENSE.txt`.
-- **Modification**: renamed from upstream `NewComputerModernMath` to `NewCMMath` (name IDs 1/4/16 + CFF TopDict FullName/FamilyName) via fontTools so Typst matches the pinned `font-math` stack in `src/core/renderers/typst/templates/theme.typ`. No glyphs were altered; the OpenType MATH table is intact. The rename satisfies clause 1 of the GUST Font License. Provenance recorded in `src/ui/sandbox/fonts/README.md`.
+- **License**: GUST Font License v1.0 (2009-06-22) — the work is distributed under the LaTeX Project Public License (LPPL) v1.3c or later, plus a rename request for derived works. The full license text ships with the font at `src/l4/format/pdf/sandbox/fonts/GUST-FONT-LICENSE.txt`.
+- **Modification**: renamed from upstream `NewComputerModernMath` to `NewCMMath` (name IDs 1/4/16 + CFF TopDict FullName/FamilyName) via fontTools so Typst matches the pinned `font-math` stack in `src/l4/format/typst/templates/theme.typ`. No glyphs were altered; the OpenType MATH table is intact. The rename satisfies clause 1 of the GUST Font License. Provenance recorded in `src/l4/format/pdf/sandbox/fonts/README.md`.
 
 #### GUST Font License Text (shipped verbatim with the font):
 
@@ -336,9 +336,9 @@ THE SOFTWARE.
 - **Source**: <https://github.com/mitex-rs/mitex>
 - **License**: `Apache-2.0` (Apache License, Version 2.0)
 - **Provenance**:
-  - WASM & JS glue (`src/core/renderers/typst/mitex/vendor/`): vendored from third-party npm build `mitex-wasm@0.2.5` (`https://registry.npmjs.org/mitex-wasm/-/mitex-wasm-0.2.5.tgz`). `mitex_wasm_bg.wasm` SHA256: `7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf`.
-  - Typst scope (`src/core/renderers/typst/templates/mitex-scope.typ`): consolidated from `@preview/mitex:0.2.5` (`specs/prelude.typ` and `specs/latex/standard.typ`) with `#let mitex-scope = scope` appended and no LaTeX command mapping modifications.
-  - Full provenance and policy recorded in `src/core/renderers/typst/mitex/vendor/README.md`.
+  - WASM & JS glue (`src/l4/format/typst/mitex/vendor/`): vendored from third-party npm build `mitex-wasm@0.2.5` (`https://registry.npmjs.org/mitex-wasm/-/mitex-wasm-0.2.5.tgz`). `mitex_wasm_bg.wasm` SHA256: `7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf`.
+  - Typst scope (`src/l4/format/typst/templates/mitex-scope.typ`): consolidated from `@preview/mitex:0.2.5` (`specs/prelude.typ` and `specs/latex/standard.typ`) with `#let mitex-scope = scope` appended and no LaTeX command mapping modifications.
+  - Full provenance and policy recorded in `src/l4/format/typst/mitex/vendor/README.md`.
 - **License Text**: Licensed under the Apache License, Version 2.0. The full license text is reproduced in Section 3 above.
 
 

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
-import { normalizeEscapedDollarMath } from '../src/core/parsers/gemini/shared/markdownCompatibility.js';
-import { parseMarkdownAst } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
-import { inlineMathMarkdown } from '../src/core/utils/markdownMath.js';
+import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
+import { normalizeEscapedDollarMath } from '../src/l1/parsers/gemini/shared/markdownCompatibility.js';
+import { parseMarkdownAst } from '../src/l1/parsers/shared/markdown/parseMarkdown.js';
+import { inlineMathMarkdown } from '../src/shared/utils/markdownMath.js';
 
 test('captured escaped-dollar formulas retain their TeX sources and neighboring prose', () => {
     const raw = readFileSync('tests/fixtures/provider/math/gm_md_003_evidence.md', 'utf8').split('-->')[1].trim();

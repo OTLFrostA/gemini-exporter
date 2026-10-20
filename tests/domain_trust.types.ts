@@ -1,5 +1,5 @@
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { validateParserDomain, restoreDomainSnapshot, type TrustedDomain } from '../src/core/domain/runtimeValidation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { validateParserDomain, restoreDomainSnapshot, type TrustedDomain } from '../src/l2/runtimeValidation.js';
 function typeContract(domain: DomainConversationWithDetail, raw: unknown): void {
     // @ts-expect-error An ordinary builder cannot manufacture trust.
     const forged: TrustedDomain = domain;
@@ -12,12 +12,16 @@ function typeContract(domain: DomainConversationWithDetail, raw: unknown): void 
 }
 void typeContract;
 
-import type { GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import type { GeminiDomParseResult } from '../src/core/parsers/gemini/dom/parseConversation.js';
-import type { GeminiTakeoutParseResult } from '../src/core/parsers/gemini/takeout/parseConversation.js';
-import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
-function parserOutputs(rpc: GeminiRpcParseResult, dom: GeminiDomParseResult, takeout: GeminiTakeoutParseResult, legacy: ResourceConversationParseResult): void {
-    const all: TrustedDomain[] = [rpc.conversation, dom.conversation, takeout.conversation, legacy.conversation];
-    void all;
+import type { GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import type { GeminiDomParseResult } from '../src/l1/parsers/gemini/dom/parseConversation.js';
+import type { GeminiTakeoutParseResult } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
+function parserOutputs(rpc: GeminiRpcParseResult, dom: GeminiDomParseResult, takeout: GeminiTakeoutParseResult): void {
+    // @ts-expect-error L1 RPC candidates need L2 key binding and validation.
+    const trustedRpc: TrustedDomain = rpc.conversation;
+    // @ts-expect-error DOM cannot grant trust or construct a local Key.
+    const trustedDom: TrustedDomain = dom.conversation;
+    // @ts-expect-error Pure Takeout output is a source candidate, not stored Domain.
+    const trustedTakeout: TrustedDomain = takeout.conversation;
+    void [trustedRpc, trustedDom, trustedTakeout];
 }
 void parserOutputs;

@@ -1,207 +1,213 @@
+/**
+ * V2 cloud deletion isolation, exercised in a real extension page and IndexedDB.
+ *
+ * Only the authenticated L1 Provider source response / route is mocked. L1
+ * GeminiProvider, L2 admission, L3a atomic Storage, Application Export and
+ * browser reload all use their real v2 implementations. Unlike v1 there are
+ * no retained Domain blobs, media byte caches, availability flags, or legacy
+ * ExportOrchestrator/BatchWorker/AssetPipeline facades.
+ */
 import { test, expect, seedRegistryAccounts } from './fixtures';
+import type { Page } from '@playwright/test';
 import { build } from 'esbuild';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 
-const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+const accountId = '10000000-0000-4000-8000-000000000001';
+const otherAccountId = '10000000-0000-4000-8000-000000000002';
+const id = 'deletion-isolation';
+let bundle: string;
 
+test.beforeAll(async () => {
+    const output = await build({
+        stdin: { contents: [
+            "import * as storage from './src/l3a/storageService.ts';",
+            "import { ingestDetail, ingestIndexes } from './src/l2/ingestion.ts';",
+            "import { readConversation } from './src/l2/readConversation.ts';",
+            "import { runExport } from './src/application/export/runExport.ts';",
+            "import { GeminiProvider } from './src/l1/client/gemini/geminiProvider.ts';",
+            "import { ConfirmedGeminiConversationNotFound } from './src/l1/client/gemini/geminiClient.ts';",
+            "globalThis.deletionProbe = { ...storage, ingestDetail, ingestIndexes, readConversation, runExport, GeminiProvider, ConfirmedGeminiConversationNotFound };",
+        ].join('\n'), resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' },
+        bundle: true, write: false, platform: 'browser', format: 'iife',
+        conditions: ['worker', 'browser'], logLevel: 'silent',
+        define: { __EXT_VERSION__: '"2.0.0"' },
+    });
+    bundle = output.outputFiles[0].text;
+});
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
-let bundle: string;
-test.beforeAll(async () => {
-    const result = await build({ stdin: { contents: `
-        import { init } from './src/content/messageRouter.ts';
-        import { SyncEngine } from './src/content/syncEngine.ts';
-        import { ProviderRegistry } from './src/core/provider/providerRegistry.ts';
-        import { StorageService } from './src/core/storage/storageService.ts';
-        import { BatchWorker } from './src/core/engine/export/batchWorker.ts';
-        import { ExportOrchestrator } from './src/core/engine/export/exportOrchestrator.ts';
-        import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
-        import * as domain from './src/core/storage/domain/domainStore.ts';
-        import { saveDomainConversation } from './src/core/domain/snapshotAdmission.ts';
-        import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
-        import { indexFixture } from './tests/helpers/indexFixture.ts';
-        import { historicalFixture } from './tests/helpers/nativeFixture.ts';
-        import { __setModuleOverride, __clearModuleOverrides } from './src/core/utils/moduleOverrides.ts';
-        globalThis.deletionProbe = { ...domain, getDomainConversationResult, async run(scenario) {
-            const id = 'deletion-isolation';
-            const source = historicalFixture({ id, title: 'Retained archive', messages: [{ role: 'model', content: 'Saved local answer', images: [
-                { url: 'https://lh3.googleusercontent.com/deletion-domain.png', fileName: 'domain.png' },
-                { url: 'https://lh3.googleusercontent.com/deletion-takeout.png', fileName: 'takeout.png' },
-                { url: 'https://lh3.googleusercontent.com/deletion-missing.png', fileName: 'missing.png' }
-            ] }] });
-            const [cached, takeout] = source.conversation.detail.assets;
-            await saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
-            const list = scenario.noList ? [] : [indexFixture({ id, title: source.conversation.index.title, timestamp: 1, cloudAvailability: 'unlisted' })];
-            await StorageService.setConversations('10000000-0000-4000-8000-000000000001', list);
-            await StorageService.setConversationAvailability('10000000-0000-4000-8000-000000000001', id, 'unlisted');
-            let writeFailures = 0, remoteCalls = 0, domCalls = 0;
-            const order = [], warnings = [], logs = [], replies = [];
-            const storage = { ...StorageService, setConversationAvailability: async (slot, cid, state) => {
-                if (state === 'deleted') {
-                    order.push('storage');
-                    if (scenario.writeFailure) { writeFailures++; throw new Error('Injected deletion persistence failure'); }
-                }
-                return StorageService.setConversationAvailability(slot, cid, state);
-            } };
-            const provider = ProviderRegistry.getDefault();
-            const originalFetch = provider.fetchConversationDetail;
-            provider.fetchConversationDetail = async () => {
-                if (scenario.route === 'rpc') throw new Error('rpc error (BardErrorInfo: 1167)');
-                throw new Error('HTTP 503');
-            };
-            const originalAdd = chrome.runtime.onMessage.addListener;
-            const originalWarn = console.warn;
-            let listener;
-            console.warn = (...args) => { warnings.push(args.map(String).join(' ')); };
-            chrome.runtime.onMessage.addListener = fn => { listener = fn; };
-            init({ storage, assets: null,
-                syncEngine: { ...SyncEngine, markConfirmedDeleted: (slot, cid) => {
-                    order.push('memory'); SyncEngine.markConfirmedDeleted(slot, cid);
-                } },
-                scraper: { contentFetchChatDetail: async () => {
-                    domCalls++;
-                    return { id, error: scenario.route === 'network' ? 'HTTP 503' : 'Not found',
-                        isDeleted: scenario.route !== 'network',
-                        _debug: { isNotFound: scenario.route === 'network' } };
-                } }
-            });
-            chrome.runtime.onMessage.addListener = originalAdd;
-            __setModuleOverride('StorageService', storage);
-            // Control the transport only; fetchChatDetail invokes the real content router.
-            __setModuleOverride('TabService', { sendToGeminiTab: message => new Promise(resolve => {
-                listener(message, {}, response => { replies.push(response); resolve(response); });
-            }) });
-            __setModuleOverride('AssetPipeline', class extends AssetPipeline {
-                constructor(options) { super({ ...options, fetchAsset: async ({ url }) => {
-                    remoteCalls++;
-                    const response = await fetch(url);
-                    const bytes = new Uint8Array(await response.arrayBuffer());
-                    return { success: true, dataBase64: btoa(String.fromCharCode(...bytes)) };
-                } }); }
-            });
-            try {
-                const result = await new ExportOrchestrator().run({ selected: [{ id }], conversations: list,
-                    accountId: '10000000-0000-4000-8000-000000000001', worker: BatchWorker, useZip: true,
-                    takeoutEngine: { getTakeoutOfflineChat: () => null, getTakeoutMediaForChat: () => [],
-                        getTakeoutFallbackMedia: async (_id, lookup) => lookup.assetId === takeout.id ? new Uint8Array([4, 5, 6]) : null },
-                    downloadHandler: blob => {
-                        const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
-                        link.download = 'deletion-isolation.zip'; link.click();
-                    }
-                }, { onLog: message => logs.push(message) });
-                return { result, remoteCalls, domCalls, writeFailures, order, warnings, logs, replies,
-                    availability: (await StorageService.getConversationAvailability('10000000-0000-4000-8000-000000000001'))[id],
-                    persistedList: await StorageService.getConversations('10000000-0000-4000-8000-000000000001'),
-                    records: await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001'),
-                    savedConversation: await StorageService.conversationRepository({ providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001' }).getConversation(id),
-                    conversation: source.conversation, assetId: cached.id };
-            } finally {
-                provider.fetchConversationDetail = originalFetch;
-                console.warn = originalWarn;
-                __clearModuleOverrides();
-            }
+async function openProbe(context: import('@playwright/test').BrowserContext, extensionId: string): Promise<Page> {
+    const page = await context.newPage();
+    await page.goto('chrome-extension://' + extensionId + '/src/ui/options/options.html?notour=1');
+    await page.evaluate(bundle);
+    return page;
+}
+async function seed(page: Page, includePeer = true): Promise<void> {
+    await page.evaluate(async ({ accountId, otherAccountId, id, includePeer }) => {
+        const api = Reflect.get(globalThis, 'deletionProbe');
+        const detail = {
+            savedAt: 100, quality: { status: 'complete' }, assets: [],
+            messages: [{ role: 'assistant', content: [{
+                type: 'paragraph', children: [{ type: 'text', text: 'Saved local answer from archive' }],
+            }] }],
+        };
+        const metadata = { title: 'Retained archive', titleSource: 'provider', updatedAt: 100 };
+        for (const owner of includePeer ? [accountId, otherAccountId] : [accountId]) {
+            await api.ingestDetail(owner, id, detail, metadata);
+            await api.putExportRecord({ accountId: owner, conversationId: id },
+                { exportedAt: 200, format: 'markdown', status: 'ok', chatTime: 100 });
+        }
+        await api.patchStoredSettings({ language: 'en', lastSeenFeatureVersion: '999.0.0' });
+    }, { accountId, otherAccountId, id, includePeer });
+}
+async function snapshot(page: Page) {
+    return page.evaluate(async ({ accountId, otherAccountId, id }) => {
+        const api = Reflect.get(globalThis, 'deletionProbe');
+        const key = (accountId: string) => ({ accountId, conversationId: id });
+        const current = key(accountId), peer = key(otherAccountId);
+        return {
+            index: await api.getIndex(current), detail: await api.getDetail(current),
+            record: await api.getExportRecord(current), conversation: await api.readConversation(current),
+            peerIndex: await api.getIndex(peer), peerDetail: await api.getDetail(peer),
+            peerRecord: await api.getExportRecord(peer), peerConversation: await api.readConversation(peer),
+        };
+    }, { accountId, otherAccountId, id });
+}
+async function sourceRequest(page: Page, kind: 'confirmed' | 'network' | 'misleading' | 'wrong-id'
+    | 'route-change' | 'aborted' | 'storage-failure') {
+    return page.evaluate(async ({ kind, accountId, id }) => {
+        const api = Reflect.get(globalThis, 'deletionProbe');
+        const controller = new AbortController();
+        const sourceIds: string[] = [];
+        let routeCalls = 0;
+        const client = { async getConversationDetail(conversationId: string) {
+            sourceIds.push(conversationId);
+            if (kind === 'network') throw new Error('HTTP 503');
+            if (kind === 'misleading') throw new Error('BardErrorInfo: 1167 (unverified)');
+            if (kind === 'wrong-id') throw new api.ConfirmedGeminiConversationNotFound('c_unrelated');
+            if (kind === 'aborted') controller.abort();
+            throw new api.ConfirmedGeminiConversationNotFound('c_' + conversationId);
         } };
-    `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false,
-        platform: 'browser', format: 'iife' });
-    bundle = result.outputFiles[0].text;
+        const provider = new api.GeminiProvider(client, async (_id: string) => {
+            routeCalls++;
+            return kind === 'route-change' && routeCalls > 1 ? 'u1' : 'u0';
+        });
+        const originalDelete = IDBObjectStore.prototype.delete;
+        if (kind === 'storage-failure') {
+            IDBObjectStore.prototype.delete = function (key: IDBValidKey | IDBKeyRange) {
+                if (this.name === 'details') throw new Error('Injected deletion transaction failure');
+                return originalDelete.call(this, key);
+            };
+        }
+        let errorName = '', errorMessage = '';
+        try {
+            await provider.fetchConversationDetail(accountId, id, controller.signal);
+        } catch (error) {
+            errorName = error instanceof Error ? error.name : typeof error;
+            errorMessage = error instanceof Error ? error.message : String(error);
+        } finally {
+            IDBObjectStore.prototype.delete = originalDelete;
+        }
+        return { errorName, errorMessage, sourceIds, routeCalls };
+    }, { kind, accountId, id });
+}
+
+test('confirmed L1 cloud deletion atomically removes only that account Index, Detail and ExportRecord', async ({ context, extensionId }) => {
+    const page = await openProbe(context, extensionId);
+    await seed(page);
+    const before = await snapshot(page);
+    expect(before.index).toBeTruthy();
+    expect(before.detail).toBeTruthy();
+    expect(before.record?.format).toBe('markdown');
+    const request = await sourceRequest(page, 'confirmed');
+    expect(request.errorMessage).toBe('conversation_not_found');
+    expect(request.sourceIds).toEqual([id]);
+    expect(request.routeCalls).toBe(2);
+    const after = await snapshot(page);
+    expect(after.index).toBeNull();
+    expect(after.detail).toBeNull();
+    expect(after.record).toBeNull();
+    expect(after.conversation).toBeNull();
+    expect(after.peerConversation).toEqual(before.peerConversation);
+    expect(after.peerRecord).toEqual(before.peerRecord);
+    await page.reload();
+    await page.evaluate(bundle);
+    const persisted = await snapshot(page);
+    expect(persisted.index).toBeNull();
+    expect(persisted.detail).toBeNull();
+    expect(persisted.record).toBeNull();
+    expect(persisted.peerConversation).toEqual(before.peerConversation);
 });
 
-const scenarios = [
-    { name: 'RPC deletion', route: 'rpc', writeFailure: false, noList: false },
-    { name: 'DOM deletion', route: 'dom', writeFailure: false, noList: false },
-    { name: 'RPC deletion with failed persistence', route: 'rpc', writeFailure: true, noList: false },
-    { name: 'DOM deletion with failed persistence', route: 'dom', writeFailure: true, noList: false },
-    { name: 'RPC deletion without list metadata and failed persistence', route: 'rpc', writeFailure: true, noList: true },
-    { name: 'DOM deletion without list metadata and failed persistence', route: 'dom', writeFailure: true, noList: true },
-    { name: 'ordinary network failure remains unlisted', route: 'network', writeFailure: true, noList: false }
-];
-
-for (const scenario of scenarios) {
-    test(`cloud deletion isolation: ${scenario.name}`, async ({ context, extensionId }, testInfo) => {
-        const page = await context.newPage();
-        const assetRequests: string[] = [];
-        page.on('request', request => {
-            if (request.url().includes('googleusercontent.com/deletion-')) assetRequests.push(request.url());
-        });
-        await page.route('https://lh3.googleusercontent.com/deletion-*.png', route => route.fulfill({
-            status: 200, contentType: 'image/png', body: Buffer.from([7, 8, 9])
-        }));
-        await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-        await page.evaluate(() => {
-            // The router runs in this extension document; supply explicit MAIN identity evidence.
-            window.addEventListener('message', event => {
-                if (event.source !== window || event.data?.type !== 'GEMINI_ACCOUNT_REQUESTED') return;
-                window.postMessage({ type: 'GEMINI_ACCOUNT_OBSERVED', payload: {
-                    requestId: event.data.payload.requestId, slot: 'u0',
-                    observation: { providerId: 'gemini', providerAccountId: '10000000001' }
-                } }, location.origin);
-            });
-        });
+for (const scenario of [
+    { kind: 'network' as const, error: 'HTTP 503' },
+    { kind: 'misleading' as const, error: 'BardErrorInfo: 1167 (unverified)' },
+    { kind: 'wrong-id' as const, error: 'Confirmed Gemini Detail not found' },
+    { kind: 'route-change' as const, error: 'Gemini account route changed' },
+    { kind: 'aborted' as const, error: 'aborted' },
+]) {
+    test('cloud deletion requires verified identity and source outcome: ' + scenario.kind, async ({ context, extensionId }) => {
+        const page = await openProbe(context, extensionId);
+        await seed(page);
+        const before = await snapshot(page);
+        const request = await sourceRequest(page, scenario.kind);
+        expect(request.errorMessage.toLowerCase()).toContain(scenario.error.toLowerCase());
+        expect(request.sourceIds).toEqual([id]);
+        const after = await snapshot(page);
+        expect(after.conversation).toEqual(before.conversation);
+        expect(after.record).toEqual(before.record);
+        expect(after.peerConversation).toEqual(before.peerConversation);
+        await page.reload();
         await page.evaluate(bundle);
-        const download = scenario.noList ? null : page.waitForEvent('download');
-        const observed = await page.evaluate(scenario => Reflect.get(globalThis, 'deletionProbe').run(scenario), scenario);
-        if (scenario.noList) {
-            // Detail alone is not a conversation: absent Index blocks archive export.
-            expect(observed.savedConversation).toBeNull();
-            expect(observed.result.landedChats).toBe(0);
-            expect(observed.result.failedChats).toHaveLength(1);
-            expect(observed.result.failedChats[0].isDeleted).toBe(true);
-            expect(observed.records['deletion-isolation']).toBeUndefined();
-            expect(observed.persistedList).toEqual([]);
-            expect(observed.remoteCalls).toBe(0);
-            expect(assetRequests).toEqual([]);
-            expect(observed.writeFailures).toBe(2);
-            return;
-        }
-        const archive = await download!;
-        const archivePath = testInfo.outputPath('deletion-isolation.zip');
-        await archive.saveAs(archivePath);
-        const zip = await JSZip.loadAsync(readFileSync(archivePath));
-        const files = Object.keys(zip.files).filter(name => !zip.files[name].dir);
-        const markdown = (await Promise.all(files.filter(name => name.endsWith('.md')).map(name => zip.files[name].async('string')))).join('\n');
-        expect(markdown).toContain('Saved local answer');
-        const contents = await Promise.all(files.map(async name => [...await zip.files[name].async('uint8array')]));
-        expect(contents).toContainEqual([1, 2, 3]);
-        expect(observed.replies).toHaveLength(1);
-        expect(observed.result.landedChats).toBe(1);
-        expect(observed.result.failedChats).toEqual([]);
-        expect(observed.records['deletion-isolation'].status).toBe('partial');
-        if (scenario.route === 'network') {
-            expect(observed.replies[0].data.isDeleted).toBe(false);
-            expect(observed.availability).toBe('unlisted');
-            expect(observed.availability).toBe('unlisted');
-            expect(observed.writeFailures).toBe(0);
-            expect(observed.remoteCalls).toBe(2);
-            expect(assetRequests).toHaveLength(2);
-            expect(observed.result.failedAttachments).toEqual([]);
-        } else {
-            expect(observed.replies[0].success).toBe(true);
-            expect(observed.replies[0].data.isDeleted).toBe(true);
-            expect(observed.remoteCalls).toBe(0);
-            expect(assetRequests).toEqual([]);
-            expect(observed.domCalls).toBe(scenario.route === 'rpc' ? 0 : 1);
-            expect(observed.result.downloadedAssets).toBe(2);
-            expect(observed.result.failedAttachments).toHaveLength(1);
-            expect(observed.result.failedAttachments[0].error).toMatch(/local/i);
-            expect(contents).toContainEqual([4, 5, 6]);
-            expect(observed.logs.join(' ')).not.toMatch(/后重试|backoff/);
-            expect(observed.order.slice(0, 2)).toEqual(['memory', 'storage']);
-            expect(observed.persistedList[0]).not.toHaveProperty('cloudAvailability');
-            if (scenario.writeFailure) {
-                expect(observed.writeFailures).toBe(2);
-                expect(observed.warnings.join(' ')).toContain('Injected deletion persistence failure');
-                if (!scenario.noList) expect(observed.availability).toBe('unlisted');
-            } else expect(observed.availability).toBe('deleted');
-        }
-        // Reload proves the archive body and cached bytes survived on disk.
-        await page.reload(); await page.evaluate(bundle);
-        const retained = await page.evaluate(async assetId => {
-            const api = Reflect.get(globalThis, 'deletionProbe');
-            return { body: (await api.getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'deletion-isolation')).conversation,
-                bytes: [...await api.getDomainResource(api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'deletion-isolation'), assetId)] };
-        }, observed.assetId);
-        expect(retained.body).toEqual(observed.conversation);
-        expect(retained.bytes).toEqual([1, 2, 3]);
+        expect((await snapshot(page)).conversation).toEqual(before.conversation);
     });
 }
+
+test('unverified network failure leaves local Detail available for real v2 Markdown export', async ({ context, extensionId }, testInfo) => {
+    const page = await openProbe(context, extensionId);
+    await seed(page, false);
+    const rejected = await sourceRequest(page, 'network');
+    expect(rejected.errorMessage).toBe('HTTP 503');
+    const download = page.waitForEvent('download');
+    const result = await page.evaluate(async ({ accountId, id }) =>
+        Reflect.get(globalThis, 'deletionProbe').runExport({
+            keys: [{ accountId, conversationId: id }], format: 'markdown',
+            delivery: 'browserDownload', includeAssets: false, skipUnchanged: false,
+        }), { accountId, id });
+    expect(result.exported).toBe(1);
+    expect(result.failed).toEqual([]);
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/\.md$/);
+    const filePath = testInfo.outputPath('retained-on-network-error.md');
+    await file.saveAs(filePath);
+    expect(await readFile(filePath, 'utf8')).toContain('Saved local answer from archive');
+    const persisted = await snapshot(page);
+    expect(persisted.record?.status).toBe('ok');
+    expect(persisted.detail?.messages[0].content[0].children[0].text).toBe('Saved local answer from archive');
+});
+
+test('storage failure aborts the entire three-store deletion; no tombstone or partial erase', async ({ context, extensionId }) => {
+    const page = await openProbe(context, extensionId);
+    await seed(page);
+    const before = await snapshot(page);
+    const request = await sourceRequest(page, 'storage-failure');
+    expect(request.errorMessage).toContain('Injected deletion transaction failure');
+    const after = await snapshot(page);
+    expect(after.index).toEqual(before.index);
+    expect(after.detail).toEqual(before.detail);
+    expect(after.record).toEqual(before.record);
+    expect(after.peerConversation).toEqual(before.peerConversation);
+    await page.reload();
+    await page.evaluate(bundle);
+    expect(await snapshot(page)).toEqual(before);
+});
+
+test('missing from a later Index scan is not reliable evidence of deletion', async ({ context, extensionId }) => {
+    const page = await openProbe(context, extensionId);
+    await seed(page);
+    const before = await snapshot(page);
+    await page.evaluate(async accountId =>
+        Reflect.get(globalThis, 'deletionProbe').ingestIndexes(accountId, []), accountId);
+    expect(await snapshot(page)).toEqual(before);
+});

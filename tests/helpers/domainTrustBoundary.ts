@@ -4,30 +4,30 @@ import { type Node, type SourceFile, isIdentifier, isPropertyAccessExpression, i
     isTypeAliasDeclaration, isCallExpression, isAsExpression, isTypeAssertion, isTypePredicateNode,
     isFunctionDeclaration, isReturnStatement, isObjectLiteralExpression, isPropertyAssignment, isArrowFunction, isFunctionExpression } from 'typescript/unstable/ast';
 
-const validator = 'core/domain/runtimeValidation.ts';
-const parserOwners = new Set(['core/parsers/gemini/rpc/parseConversation.ts', 'core/parsers/gemini/dom/parseConversation.ts',
-    'core/parsers/gemini/takeout/parseConversation.ts', 'core/parsers/gemini/rpc/mergePages.ts', 'core/parsers/chatgpt/parseConversation.ts']);
+const validator = 'l2/runtimeValidation.ts';
+const parserOwners = new Set(['l1/parsers/gemini/rpc/parseConversation.ts', 'l1/parsers/gemini/dom/parseConversation.ts',
+    'l1/parsers/gemini/takeout/parseConversation.ts', 'l1/parsers/gemini/rpc/mergePages.ts', 'l1/parsers/chatgpt/parseConversation.ts']);
 // Source builders finalize new graphs; only the repository restores disk/write snapshots.
 const entries = new Map<string, Set<string>>([
     ['assertSchema', new Set([validator])], ['assertDomainClosure', new Set([validator])],
-    ['validateParserDomain', new Set([...parserOwners, 'core/domain/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['core/storage/domain/validate.ts', 'core/domain/snapshotAdmission.ts'])],
-    ['readStorageDomain', new Set(['core/storage/domain/domainStore.ts'])],
-    ['requestNativeDetail', new Set(['background/batchFetcher.ts', 'core/engine/export/batchWorker.ts', 'ui/popup/popup.ts'])],
-    ['requestNativeBatch', new Set(['core/engine/export/batchWorker.ts'])],
-    ['callDomainBroker', new Set(['core/storage/domain/domainStore.ts', 'core/storage/schemaMigration.ts'])],
+    ['validateParserDomain', new Set([...parserOwners, 'l2/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['l2/readConversation.ts'])],
+    ['restoreDomainDetail', new Set(['l2/ingestion.ts'])],
+    ['requestNativeDetail', new Set()],
+    ['requestNativeBatch', new Set()],
+    ['callDomainBroker', new Set()],
 ]);
 const trustedTypes = new Set(['TrustedDomain', 'ConversationParseResult', 'ResourceConversationParseResult',
-    'GeminiRpcParseResult', 'GeminiDomParseResult', 'GeminiTakeoutParseResult', 'TrustedDomainStorageRecord',
-    'DomainStorageWireRecord', 'NativeConversationInput', 'WorkerChatResolveInput', 'ChatExportInput', 'PopupExportInput']);
+    'GeminiRpcParseResult', 'GeminiDomParseResult', 'GeminiTakeoutParseResult', 'TrustedDomainBody', 'NativeConversationInput', 'WorkerChatResolveInput', 'ChatExportInput', 'PopupExportInput']);
 // The brand is confined to the validator. Only current-version authenticated transport adapters
 // reattach the publisher's existing trust after Chrome serialization; neither is a raw/page reader.
 const castOwners = new Map<string, Set<string>>([
     ['TrustedDomain', new Set([validator])],
-    ['ResourceConversationParseResult', new Set(['core/utils/nativeDetailTransport.ts'])],
-    ['DomainStorageWireRecord', new Set(['core/storage/domain/transport.ts'])],
+    ['DomainConversationDetail', new Set([validator])],
+    ['ResourceConversationParseResult', new Set()],
+    ['TrustedDomainBody', new Set([validator])],
 ]);
 const castFunctions = new Map([['TrustedDomain', new Set(['validateParserDomain', 'restoreDomainSnapshot'])],
-    ['ResourceConversationParseResult', new Set(['nativeResult'])], ['DomainStorageWireRecord', new Set(['callDomainBroker'])]]);
+    ['DomainConversationDetail', new Set(['acceptDetailFacts', 'restoreDomainDetail'])], ['ResourceConversationParseResult', new Set(['nativeResult'])], ['TrustedDomainBody', new Set(['acceptDetailFacts', 'restoreDomainDetail'])]]);
 function walk(node: Node, visit: (node: Node) => void): void { visit(node); node.forEachChild(child => { walk(child, visit); }); }
 
 /** Inspect real compiler nodes, retaining aliases and excluding comment/string contents. */
@@ -92,7 +92,7 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
             const types = typeNames(node.type);
             if ([...types].some(name => trustedTypes.has(name) || name === 'DomainConversationDetail')) {
                 const parent = node.parent;
-                const internal = owner === 'core/parsers/parsingResult.ts' && parent && isFunctionDeclaration(parent)
+                const internal = owner === 'l1/parsers/parsingResult.ts' && parent && isFunctionDeclaration(parent)
                     && parent.name?.text === 'isResourceConversationParseResult'
                     && parent.parameters[0]?.type?.getText() === 'NativeConversationInput';
                 const schema = owner === validator && parent && isFunctionDeclaration(parent) && parent.name?.text === 'assertSchema' && types.has('DomainConversationDetail');

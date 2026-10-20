@@ -14,7 +14,12 @@
     "test:gemini-dual": "node -r ./tests/ts_register.js scripts/check_gemini_dual_parse.ts",
     "test:tier2": "python3 scripts/test_live_chat_and_export.py",
     "test:upgrade": "node scripts/test_upgrade_profile.mjs",
-    "release": "gh workflow run release.yml --ref main"
+    "release": "gh workflow run release.yml --ref main",
+    "test:v2-modules": "node scripts/test-v2-modules.cjs",
+    "test:l2:unit": "node scripts/test-l2.cjs --unit-only",
+    "test:l3b:unit": "node scripts/test-l3b.cjs",
+    "test:v2:unit-isolation": "node scripts/test-v2-unit-isolation.cjs",
+    "test:v2:unit-ports": "node scripts/typecheck-v2-unit-ports.cjs"
   },
   "keywords": [
     "gemini",
@@ -32,6 +37,7 @@
     "@types/katex": "^0.16.8",
     "@types/node": "^26.5.0",
     "esbuild": "^0.28.2",
+    "fake-indexeddb": "^6.2.6",
     "oxlint": "^1.85.0",
     "oxlint-tsgolint": "^7.0.2002",
     "typescript": "^7.0.2"

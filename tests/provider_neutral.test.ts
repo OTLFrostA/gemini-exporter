@@ -1,112 +1,34 @@
-import { historicalFixture, rpcFixture } from './helpers/nativeFixture.js';
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { fixtureAccount, bindFixture, sourceIndex as asSource } from './helpers/domainFixture.js';
+import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import type { CommittedListPage } from '../src/l1/client/aiProvider.js';
 useIndexStorage();
-import { indexFixture } from './helpers/indexFixture.js';
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
 
-const { GeminiProvider } = require('../src/core/provider/gemini/geminiProvider.js');
-
-function makeGeminiClient() {
-    return {
-        getAllConversations: async (_opts: any) => ({
-            conversations: ([{
-                id: 'c1', title: 'T1', titleSource: 'rpc', titles: { rpc: 'T1' },
-                createdAt: 1, updatedAt: 2, chatTime: 2, timestamp: 2, messageCount: 3, url: 'u'
-            }]).map(indexFixture).map(asSource),
-            total: 1, stoppedEarly: true, diagnostics: { d: 1 }, hitGoogleLimit: false
-        }),
-        getConversationDetail: async (id: string, _sid: any, account: any) => bindFixture(rpcFixture({ id, title: 'DT', messages: [{ role: 'user', content: 'hi' }] }), account)
-
-    };
-}
-
-test('provider-neutral - GeminiProvider.listConversations maps to ProviderPageResult', async () => {
-    const gp = new GeminiProvider(makeGeminiClient() as any);
-    const page = await gp.listConversations({ maxPages: 5 });
-    assert.strictEqual(page.items.length, 1);
-    assert.strictEqual(page.items[0].id, 'c1');
-    assert.strictEqual(page.items[0].title, 'T1');
-    assert.strictEqual(page.total, 1);
-    assert.strictEqual(page.hasMore, true); // stoppedEarly=true -> more may exist
-    assert.strictEqual(page.nextCursor, null);
-    assert.deepStrictEqual(page.diagnostics, { d: 1 });
-
-    const gp2 = new GeminiProvider({
-        getAllConversations: async () => ({ conversations: [], total: 0, stoppedEarly: false, diagnostics: null, hitGoogleLimit: false })
-    } as any);
-    const page2 = await gp2.listConversations();
-    assert.strictEqual(page2.hasMore, false); // exhausted -> no more
-    assert.strictEqual(page2.items.length, 0);
+test('neutral listing returns ListEnd and callbacks contain committed progress only', async () => {
+    const pages = [sourceList(['one'], 'tC_more'), sourceList(['two'])];
+    const provider = new GeminiProvider({ getConversationList: async () => pages.shift()!, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    const seen: CommittedListPage[] = [];
+    const result = await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', onPageCommitted: async info => {
+        seen.push(info); assert.equal((await getConversations(ACCOUNT_UUID)).length, info.totalObserved); return false;
+    } });
+    assert.equal(result, 'source_end'); assert.deepEqual(seen.map(p => p.totalObserved), [1, 2]);
+    assert.equal('items' in seen[0], false); assert.equal('nextCursor' in seen[0], false);
 });
-
-test('provider-neutral - GeminiProvider.fetchConversationDetail guarantees id/title/messages', async () => {
-    const gp = new GeminiProvider(makeGeminiClient() as any);
-    const det = await gp.fetchConversationDetail('c9', { slot: '10000000-0000-4000-8000-000000000002' });
-    assert.strictEqual(det.conversation.index.key.conversationId, 'c9');
-    assert.strictEqual(det.conversation.index.title, 'DT');
-    assert.strictEqual(det.conversation.detail.messages.length, 1);
-    assert.strictEqual(det.transport.nextPageToken, null); // declared Gemini companion fields are preserved
+test('neutral Detail has explicit Account/Conversation and routes internally', async () => {
+    const routed: string[] = [];
+    const provider = new GeminiProvider({ getConversationList: async () => sourceList(), getConversationDetail: async (id, slot, account) => {
+        assert.equal(account?.id, ACCOUNT_UUID); routed.push(slot!); return sourceDetail({ id });
+    } }, async accountId => { assert.equal(accountId, ACCOUNT_UUID); return 'u3'; });
+    assert.equal(await provider.fetchConversationDetail(ACCOUNT_UUID, 'conversation9'), undefined);
+    assert.deepEqual(routed, ['u3']);
 });
-
-test('provider-neutral - listing preserves sync completeness evidence and callback control', async () => {
-    const batch = [{ id: 'audit-chat', title: 'Audit', timestamp: null }];
-    const diagnostics = { hitGoogleLimit: true, stopReason: 'window limit' };
-    const options = {
-        maxPages: 3,
-        onPageBatch: async (info: { page: number; hasMore: boolean; count: number }) => {
-            assert.deepStrictEqual(info, { page: 1, hasMore: true, count: 1 });
-            return { shouldStop: true, reason: 'watermark' };
-        }
-    };
-    let observedDecision: unknown;
-    const gp = new GeminiProvider({
-        getAllConversations: async (received: import('../src/core/api/client/pagination.js').PaginationOptions) => {
-            assert.strictEqual(received.maxPages, options.maxPages);
-            observedDecision = await received.onPageBatch?.(batch, { page: 1, hasMore: true });
-            return {
-                conversations: batch, total: 1, stoppedEarly: true,
-                exhaustive: false, completionReason: 'hit_google_limit',
-                hitGoogleLimit: true, diagnostics
-            };
-        }
-    } as any);
-    const page = await gp.listConversations(options);
-    assert.deepStrictEqual(observedDecision, { shouldStop: true, reason: 'watermark' });
-    assert.strictEqual(page.items, batch);
-    assert.strictEqual(page.conversations, batch);
-    assert.strictEqual(page.exhaustive, false);
-    assert.strictEqual(page.completionReason, 'hit_google_limit');
-    assert.strictEqual(page.hitGoogleLimit, true);
-    assert.strictEqual(page.diagnostics, diagnostics);
-});
-
-test('provider-neutral - detail keeps export evidence and targetSid precedence', async () => {
-    const messages = [{ role: 'model', content: 'Report', documents: [{ contentMarkdown: '# Report' }] }];
-    const raw = [null, ['wire evidence']];
-    const detail = {
-        id: 'audit-chat', title: 'Audit', messages, timestamp: null,
-        createdAt: null, updatedAt: null, chatTime: null, messageCount: 1,
-        url: 'https://gemini.google.com/app/audit-chat', nextPageToken: null, attachmentCount: 0,
-        titleSource: 'rpc', titles: { rpc: 'Audit' }, _raw: raw,
-        schemaDrift: ['unknown turn'], turnsRejected: 1,
-        truncated: true, isTruncated: true, truncateReason: 'token_loop'
-    };
-    const slots: Array<string | null> = [];
-    const gp = new GeminiProvider({
-        getConversationDetail: async (id: string, sid: string | null, account: any) => {
-            assert.strictEqual(id, detail.id);
-            slots.push(sid);
-            return bindFixture(rpcFixture(detail, { decodedPayload: raw }), account);
-        }
-    } as any);
-    const result = await gp.fetchConversationDetail(detail.id, { targetSid: '10000000-0000-4000-8000-000000000003', slot: '10000000-0000-4000-8000-000000000002' });
-    await gp.fetchConversationDetail(detail.id, { slot: '10000000-0000-4000-8000-000000000002' });
-    await gp.fetchConversationDetail(detail.id);
-    assert.deepStrictEqual(slots, ['10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000002', null]);
-    assert.equal(result.conversation.index.title, detail.title);
-    assert.equal(result.conversation.detail.messages.length, messages.length);
-    assert.deepEqual(result.transport.decodedPayload, raw);
+test('neutral callback requests stop using a boolean after admission', async () => {
+    let calls = 0;
+    const provider = new GeminiProvider({ getConversationList: async () => { calls++; return sourceList(['one'], 'tC_more'); }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', onPageCommitted: async () => true }), 'stopped');
+    assert.equal(calls, 1); assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
 });

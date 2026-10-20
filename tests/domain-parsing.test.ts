@@ -2,11 +2,11 @@ import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
 import type { ConversationRecordInput } from './helpers/recordFixture/conversationRecord.js';
-import type { ConversationParseResult } from '../src/core/parsers/contracts.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import type { DomainFixture } from './helpers/domainFixture.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 
 const parse = (data: ConversationRecordInput) => historicalFixture(data, { providerId: 'gemini' });
 
@@ -43,7 +43,7 @@ test('source provenance and explicit completeness survive JSON without leaking t
     assertDomainClosure((conversation).detail);
     assert.equal('nextPageToken' in conversation, false);
     assert.equal('source' in conversation, false);
-    const document = composeDomainDocument(conversation, fixtureAccountFor(conversation)).document;
+    const document = composeDomainDocument(conversation, fixtureAccountFor(conversation));
     assert.equal(document.messages[0].modelLabel, 'Model A');
     assert.equal('provenance' in document, false);
     assert.equal('completeness' in document, false);
@@ -109,7 +109,7 @@ test('shared parse result keeps diagnostics and preparation evidence outside a c
         attachments: [{ localName: 'assets/archive.png', mimeType: 'image/png', url: 'https://example.test/picture.png' }] }] };
     const original = structuredClone(data);
     const result = parse(data);
-    const semanticResult: ConversationParseResult = result;
+    const semanticResult: DomainFixture = result;
     assert.ok(semanticResult.diagnostics.some(d => d.code === 'UNKNOWN_ROLE'));
     assert.equal(result.conversation.detail.assets.length, 1);
     assert.ok(Object.keys(result.resourceHints).includes(result.conversation.detail.assets[0].id));

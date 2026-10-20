@@ -2,7 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { shortId, shortScope, buildExportFileName } = require('../src/core/utils/pathUtils.js');
+const { shortId, shortScope, buildExportFileName } = require('../src/shared/utils/pathUtils.js');
 
 test('shortId - extracts 6-character short identifier', () => {
     // 1. Standard conversation ID with c_ prefix

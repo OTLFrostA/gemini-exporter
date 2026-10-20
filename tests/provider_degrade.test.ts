@@ -2,14 +2,14 @@
  * tests/provider_degrade.test.ts
  * PR1 subtraction 后保留的真实 provider 测试：
  * - manifest content_scripts 无 ChatGPT 域名匹配
- * - 三处 resolveProvider 收口到 src/core/provider/providerResolver.ts
+ * - 三处 resolveProvider 收口到 src/l1/client/providerResolver.ts
  */
 import test from 'node:test';
 import assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { resolveProvider } from '../src/core/provider/providerResolver.js';
+import { resolveProvider } from '../src/l1/client/providerResolver.js';
 
 test('Phase E: content-script matches are scoped to explicit HTTPS provider hosts', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
@@ -24,18 +24,15 @@ test('Phase E: content-script matches are scoped to explicit HTTPS provider host
     // Other explicitly supported providers may be added without rewriting this test.
 });
 
-test('Phase E: 三处 resolveProvider 收口到共享 helper', () => {
-    const files = [
-        'src/content/syncEngine.ts',
-        'src/content/messageRouter.ts',
-        'src/content/liveSaveCoordinator.ts'
-    ];
-    for (const f of files) {
-        const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-        assert.ok(src.includes("from '../core/provider/providerResolver.js'"),
-            `${f} 应从 providerResolver 导入 resolveProvider`);
-        assert.ok(!/^\s*(const|function)\s+resolveProvider\s*\(/m.test(src),
-            `${f} 不应再有本地 resolveProvider 定义`);
+test('Phase E: provider resolution follows current source URL and defaults when unmatched', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    try {
+        Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'https://gemini.google.com/app' } });
+        assert.equal(resolveProvider()?.id, 'gemini');
+        Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'https://unknown.test/' } });
+        assert.equal(resolveProvider()?.id, 'gemini');
+    } finally {
+        if (descriptor) Object.defineProperty(globalThis, 'location', descriptor); else Reflect.deleteProperty(globalThis, 'location');
     }
 });
 

@@ -1,10 +1,11 @@
 import { accountRuntime } from './helpers/accountRuntime.js';
+import { startSync } from '../src/ui/options/controllers/syncController.js';
 import test from 'node:test';
 import assert from 'node:assert';
-import type { ActiveClientContract } from '../src/content/contentContext.js';
-import { ContentContext, contentContext } from '../src/content/contentContext.js';
-import { runCleanups } from '../src/content/cleanupRegistry.js';
-import { init as initMessageRouter } from '../src/content/messageRouter.js';
+import type { ActiveClientContract } from '../src/runtime/content/contentContext.js';
+import { ContentContext, contentContext } from '../src/runtime/content/contentContext.js';
+import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
+import { init as initMessageRouter } from '../src/runtime/content/messageRouter.js';
 
 // --------------------------------------------------------------------------
 // 1. Compile-time regression:
@@ -38,7 +39,6 @@ type Dispatch = (msg: any) => Promise<any>;
 
 async function withMessageRouter<T>(
     execute: (dispatch: Dispatch, mockWindow: any) => Promise<T>,
-    deps: Parameters<typeof initMessageRouter>[0] = {},
 ): Promise<T> {
     const g = globalThis as any;
     const originalChrome = Object.getOwnPropertyDescriptor(g, 'chrome');
@@ -64,12 +64,12 @@ async function withMessageRouter<T>(
     try {
         contentContext.setActiveClient(null);
         contentContext.setAborted(false);
-        initMessageRouter(deps);
+        initMessageRouter();
         assert.equal(listeners.size, 1, 'test must exercise the actual registered router');
         const dispatch: Dispatch = (msg) => new Promise((resolve, reject) => {
             const listener = [...listeners][0];
             if (!listener) return reject(new Error('No message listener registered'));
-            try { listener(msg, {}, resolve); }
+            try { if (listener(msg, {}, resolve) === false) resolve({ unhandled: true }); }
             catch (error) { reject(error); }
         });
         return await execute(dispatch, window);
@@ -108,55 +108,31 @@ test('ActiveClient contract - ContentContext.abort behavior with and without abo
     assert.strictEqual(ctx3.isAborted(), true, 'abort state must survive an exception in client.abort()');
 });
 
-test('ActiveClient contract - messageRouter stopDeepScan and abortSync handle optional and throwing abort', async () => {
-    await withMessageRouter(async (dispatch, mockWindow) => {
-        let abortCalls = 0;
-        mockWindow.__gemExporterActiveClient = { abort: () => { abortCalls++; } };
-        const res1 = await dispatch({ action: 'stopDeepScan' });
-        assert.strictEqual(res1.ok, true);
-        assert.strictEqual(res1.aborted, true);
-        assert.strictEqual(abortCalls, 1, 'the window client must actually receive abort');
-        assert.strictEqual(contentContext.isAborted(), true);
-
-        contentContext.setAborted(false);
-        mockWindow.__gemExporterActiveClient = clientWithoutAbort;
-        const res2 = await dispatch({ action: 'stopDeepScan' });
-        assert.strictEqual(res2.ok, true);
-        assert.strictEqual(res2.aborted, true);
-        assert.strictEqual(contentContext.isAborted(), true);
-
-        contentContext.setAborted(false);
-        mockWindow.__gemExporterActiveClient = { abort: () => { throw new Error('Simulated abort crash'); } };
-        const res3 = await dispatch({ action: 'abortSync' });
-        assert.strictEqual(res3.ok, true);
-        assert.strictEqual(res3.aborted, true);
-        assert.strictEqual(contentContext.isAborted(), true);
+test('ActiveClient contract - Scan cancellation uses invocation signals rather than retired router abort commands', async () => {
+    await withMessageRouter(async dispatch => {
+        for (const action of ['stopDeepScan', 'abortSync', 'deepScan']) assert.deepEqual(await dispatch({ action }), { unhandled: true });
     });
+    const a = new AbortController(), b = new AbortController(); let dispatched = 0;
+    const options = (signal: AbortSignal) => ({ signal, onTarget: async () => {} });
+    const ports = { resolveScanTarget: async () => '10000000-0000-4000-8000-000000000001',
+        scanAll: async (_request: unknown, runtime?: { signal?: AbortSignal }) => {
+            dispatched++; assert.strictEqual(runtime?.signal, b.signal);
+            return { status: 'complete' as const, pagesFetched: 1, conversationsFetched: 3 };
+        } };
+    a.abort(); await assert.rejects(startSync(undefined, options(a.signal), ports), { name: 'AbortError' });
+    assert.equal((await startSync(undefined, options(b.signal), ports)).status, 'complete'); assert.equal(dispatched, 1);
 });
 
-test('scan failures, limit, cancellation and completion return an explicit router status', async () => {
-    let mode = 'complete';
-    const syncEngine = {
-        syncConversations: async () => {
-            contentContext.setAborted(mode === 'aborted');
-            if (mode === 'complete' || mode === 'up_to_date') return { status: mode, count: 3 };
-            throw new Error(mode === 'partial_limit' ? 'HTTP 429 rate limit' : 'Injected failure');
-        },
-    };
-    await withMessageRouter(async (dispatch) => {
-        for (const status of ['complete', 'up_to_date']) {
-            mode = status;
-            const response = await dispatch({ action: 'deepScan' });
-            assert.strictEqual(response.success, true);
-            assert.strictEqual(response.status, status);
-            assert.strictEqual(response.count, 3);
-        }
-        for (const status of ['error', 'aborted', 'partial_limit']) {
-            mode = status;
-            const response = await dispatch({ action: 'deepScan' });
-            assert.strictEqual(response.success, false);
-            assert.strictEqual(response.status, status);
-            assert.strictEqual(response.hitGoogleLimit, status === 'partial_limit');
-        }
-    }, { syncEngine: syncEngine as never });
+test('scan failures, limits, cancellation and completion keep the explicit Application result or rejection', async () => {
+    for (const status of ['complete', 'up_to_date', 'partial_limit', 'aborted', 'error'] as const) {
+        const expected = { status, pagesFetched: 2, conversationsFetched: 3 };
+        const result = await startSync(undefined, { signal: new AbortController().signal, onTarget: async () => {} }, {
+            resolveScanTarget: async () => '10000000-0000-4000-8000-000000000001', scanAll: async () => expected,
+        });
+        assert.strictEqual(result, expected);
+    }
+    const error = Error('HTTP 429 rate limit');
+    await assert.rejects(startSync(undefined, { signal: new AbortController().signal, onTarget: async () => {} }, {
+        resolveScanTarget: async () => '10000000-0000-4000-8000-000000000001', scanAll: async () => { throw error; },
+    }), actual => actual === error);
 });

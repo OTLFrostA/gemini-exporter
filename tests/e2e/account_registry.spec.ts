@@ -1,12 +1,12 @@
 import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 
+const registryBundle = require('esbuild').buildSync({ stdin: { resolveDir: require('node:path').resolve(__dirname, '../..'), loader: 'ts', contents: `
+    import * as registry from './src/runtime/api/accountRegistry.ts'; globalThis.accountProbe = registry;
+` }, bundle: true, write: false, format: 'iife', logLevel: 'silent' }).outputFiles[0].text;
 async function accounts(page: Page) {
-    return page.evaluate(async () => {
-        const response = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'list' });
-        if (!response.ok) throw new Error(response.error);
-        return (response.value as { id: string; providerId: string; providerAccountId: string; email?: string }[]).filter(a => a.providerAccountId !== 'default');
-    });
+    await page.evaluate(registryBundle);
+    return page.evaluate(async () => (await Reflect.get(globalThis, 'accountProbe').listAccounts() as {id:string;providerId:string;providerAccountId:string;email?:string}[]).filter(a => a.providerAccountId !== 'default'));
 }
 async function tabContext(page: Page, url: string) {
     return page.evaluate(async url => {
@@ -53,7 +53,7 @@ test('same-tab SPA Gaia switching survives a wrong DOM email, same-email identit
     await page.evaluate(() => { window._WIZ_global_data!.qDCSke = ''; });
     const fallback = await tabContext(options, url);
     expect(fallback.accountId).not.toBe(first.id);
-    expect(await options.evaluate(async id => (await chrome.runtime.sendMessage({action:'accountRegistry',command:'get',accountId:id})).value, fallback.accountId)).toEqual({id:fallback.accountId,providerId:'gemini',providerAccountId:'default'});
+    expect(await options.evaluate(async id => await Reflect.get(globalThis, 'accountProbe').getAccount(id), fallback.accountId)).toEqual({id:fallback.accountId,providerId:'gemini',providerAccountId:'default'});
     expect(await accounts(options)).toHaveLength(2);
 });
 
@@ -94,8 +94,14 @@ test('real MAIN → isolated → background discovery deduplicates across slots 
 test('concurrent real IDB admission, provider isolation, email updates and invalid identity rejection', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    await page.evaluate(registryBundle);
     const result = await page.evaluate(async () => {
-        const observe = (observation: unknown) => chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'getOrCreate', ...(observation as object) });
+        const api = Reflect.get(globalThis, 'accountProbe');
+        const observe = async (observation: unknown) => {
+            const value = observation as {providerId:string;providerAccountId:string;email?:string;displayName?:string};
+            try { return { ok: true, value: await api.getOrCreateAccount(value.providerId, value.providerAccountId, value.email, value.displayName) }; }
+            catch { return { ok: false, value: null }; }
+        };
         const observation = { providerId: 'gemini', providerAccountId: 'same-subject', email: 'shared@example.com' };
         const receipts = await Promise.all(Array.from({ length: 12 }, () => observe(observation)));
         const uuid = receipts[0].value.id;
@@ -104,8 +110,8 @@ test('concurrent real IDB admission, provider isolation, email updates and inval
         const other = await observe({ ...observation, providerAccountId: 'other-subject' });
         const provider = await observe({ ...observation, providerId: 'claude' });
         const invalid = await observe({ providerId: 'gemini', email: 'shared@example.com', slot: 'u0' });
-        const read = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'get', accountId: uuid });
-        const filtered = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'list', providerId: 'claude' });
+        const read = { value: await api.getAccount(uuid) };
+        const filtered = { value: await api.listAccounts('claude') };
         return { receipts, uuid, renamed, sparse, other, provider, invalid, read, filtered };
     });
     expect(new Set(result.receipts.map(receipt => receipt.value.id)).size).toBe(1);

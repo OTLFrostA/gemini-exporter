@@ -1,94 +1,116 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+import { openOptions, accountId } from './uiFixture';
 
-for (const transport of ['fetch', 'xhr'] as const) {
-  for (const kind of ['list', 'detail'] as const) {
-    test(`${transport} ${kind} captures identity at send time and persists each response under its captured UUID after a same-slot Gaia switch`, async ({ context, extensionId }) => {
-      const page = await context.newPage();
-      await page.route('https://gemini.google.com/app', route => route.fulfill({ contentType: 'text/html', body:
-        `<script>window.WIZ_global_data={qDCSke:'10000000001',oPEP7c:'same@example.com'}</script><body>Fixture</body>` }));
-      const options = await context.newPage();
-      await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-      await page.goto('https://gemini.google.com/app');
-      const binding = () => options.evaluate(async () => {
+test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
+
+async function sourcePage(context: import('@playwright/test').BrowserContext, email = 'same@example.com') {
+    const source = await context.newPage();
+    await source.route('https://gemini.google.com/app', route => route.fulfill({
+        contentType: 'text/html',
+        body: '<script>window.WIZ_global_data={qDCSke:"10000000001",oPEP7c:"' + email + '"}</script><body>Fixture</body>',
+    }));
+    await source.goto('https://gemini.google.com/app');
+    await expect(source.locator('#geminiExportBadge')).toBeVisible();
+    return source;
+}
+function capturedContext(options: import('@playwright/test').Page) {
+    return options.evaluate(async () => {
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         return (await chrome.tabs.sendMessage(tabs[0].id!, { action: 'getAccountContext' })).accountContext;
-      });
-      const original = await binding();
-      expect(original?.accountId).toMatch(/^[0-9a-f-]{36}$/);
-      let release!: () => void;
-      const held = new Promise<void>(resolve => { release = resolve; });
-      let arrived!: () => void;
-      const requestArrived = new Promise<void>(resolve => { arrived = resolve; });
-      let round = 0;
-      const rpc = kind === 'list' ? 'MaZiqc' : 'hNvQHb';
-      await page.route('**/batchexecute*', async route => {
-        const index = round++;
-        if (index === 0) { arrived(); await held; }
-        const id = index === 0 ? 'staleuuid123' : 'currentuuid123';
-        const data = kind === 'list'
-          ? [null, [[`c_${id}`, 'Source title', null, null, null, [1700000000, 0]]], null]
-          : [[[[`c_${id}`, 'r_turn'], [1700000000, 0], [['Question']], [['rc_turn', [['Answer']]]]]], null, 'Source title'];
-        await route.fulfill({ contentType: 'application/json', body: JSON.stringify([['wrb.fr', rpc, JSON.stringify(data)]]) });
-      });
-      const send = () => page.evaluate(async ({ transport, rpc }) => {
-        const url = '/_/BardChatUi/data/batchexecute';
-        const body = new URLSearchParams({ 'f.req': JSON.stringify([[[rpc, JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]) }).toString();
-        if (transport === 'fetch') { await fetch(url, { method: 'POST', body }); }
-        else await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest(); xhr.open('POST', url);
-          xhr.onload = () => resolve(); xhr.onerror = () => reject(new Error('XHR failed')); xhr.send(body);
-        });
-      }, { transport, rpc });
-      const pending = send();
-      await requestArrived;
-      await page.evaluate(() => { (window as unknown as { WIZ_global_data: { qDCSke: string } }).WIZ_global_data.qDCSke = '10000000002'; });
-      const current = await binding();
-      expect(current.accountId).not.toBe(original.accountId);
-      release(); await pending;
-      // A valid response under B provides a positive completion check for the same pipeline.
-      await send();
-      const rows = (accountId: string) => options.evaluate(async accountId => {
-        const key = `conversations_${accountId}`;
-        return (await chrome.storage.local.get<Record<string, {key:{conversationId:string}}[]>>(key))[key] || [];
-      }, accountId);
-      await expect.poll(async () => (await rows(current.accountId)).some(row => row.key.conversationId === 'currentuuid123')).toBe(true);
-      await expect.poll(async () => (await rows(original.accountId)).some(row => row.key.conversationId === 'staleuuid123')).toBe(true);
-      expect((await rows(current.accountId)).some(row => row.key.conversationId === 'staleuuid123')).toBe(false);
-      expect((await rows(original.accountId)).some(row => row.key.conversationId === 'currentuuid123')).toBe(false);
     });
-  }
+}
+async function readIndexes(options: import('@playwright/test').Page, id: string) {
+    return options.evaluate(async accountId => Reflect.get(globalThis, 'uiFixture').listIndexes(accountId), id) as Promise<Array<{ key: { conversationId: string } }>>;
+}
+async function send(source: import('@playwright/test').Page, transport: 'fetch' | 'xhr',
+    rpc: 'MaZiqc' | 'hNvQHb', id: string) {
+    await source.evaluate(async ({ transport, rpc, id }) => {
+        const args = rpc === 'MaZiqc'
+            ? [20, null, [0, null, 1]]
+            : ['c_' + id, 10, null, 1, [1], [4], null, 1];
+        const body = new URLSearchParams({
+            'f.req': JSON.stringify([[[rpc, JSON.stringify(args), null, 'generic']]]),
+        }).toString();
+        const url = '/_/BardChatUi/data/batchexecute';
+        if (transport === 'fetch') await fetch(url, { method: 'POST', body });
+        else await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url);
+            xhr.onload = () => resolve();
+            xhr.onerror = () => reject(new Error('XHR failed'));
+            xhr.send(body);
+        });
+    }, { transport, rpc, id });
 }
 
-test('a delayed response retains its UUID without reverting a newer email on the same Gaia', async ({ context, extensionId }) => {
-    const source = await context.newPage();
-    await source.route('https://gemini.google.com/app', route => route.fulfill({ contentType: 'text/html', body:
-        `<script>window.WIZ_global_data={qDCSke:'10000000001',oPEP7c:'old@example.com'}</script>` }));
-    const options = await context.newPage();
-    await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await source.goto('https://gemini.google.com/app');
-    const current = () => options.evaluate(async () => {
-        const [tab] = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-        return (await chrome.tabs.sendMessage(tab.id!, { action: 'getAccountContext' })).accountContext;
-    });
-    const first = await current();
+for (const transport of ['fetch', 'xhr'] as const) {
+    for (const kind of ['list', 'detail'] as const) {
+        test(transport + ' ' + kind + ' binds delayed source evidence to the request UUID after a same-slot Gaia switch', async ({ context, extensionId }) => {
+            const options = await openOptions(context, extensionId);
+            const source = await sourcePage(context);
+            const original = await capturedContext(options);
+            expect(original.accountId).toBe(accountId);
+            let release!: () => void;
+            const held = new Promise<void>(resolve => { release = resolve; });
+            let arrived!: () => void;
+            const requestArrived = new Promise<void>(resolve => { arrived = resolve; });
+            let index = 0;
+            const rpc = kind === 'list' ? 'MaZiqc' : 'hNvQHb';
+            await source.route('**/batchexecute*', async route => {
+                const current = index++;
+                if (current === 0) { arrived(); await held; }
+                const id = current === 0 ? 'staleuuid123' : 'currentuuid123';
+                const turn = [['c_' + id, 'r_turn'], [1700000000, 0],
+                    [['Question']], [[['rc_turn', [['Answer']]]]]];
+                const payload = kind === 'list'
+                    ? [null, [['c_' + id, 'Source title', null, null, null, [1700000000, 0]]], null]
+                    : [[turn], null, 'Source title'];
+                await route.fulfill({ contentType: 'application/json',
+                    body: JSON.stringify([['wrb.fr', rpc, JSON.stringify(payload)]]) });
+            });
+            const pending = send(source, transport, rpc, 'staleuuid123');
+            await requestArrived;
+            await source.evaluate(() => { (window as unknown as { WIZ_global_data: { qDCSke: string } }).WIZ_global_data.qDCSke = '10000000002'; });
+            await expect.poll(async () => (await capturedContext(options)).accountId).toBe('10000000-0000-4000-8000-000000000002');
+            release();
+            await pending;
+            await send(source, transport, rpc, 'currentuuid123');
+            const other = '10000000-0000-4000-8000-000000000002';
+            await expect.poll(async () => (await readIndexes(options, other)).some(row =>
+                row.key.conversationId === 'currentuuid123')).toBe(true);
+            await expect.poll(async () => (await readIndexes(options, accountId)).some(row =>
+                row.key.conversationId === 'staleuuid123')).toBe(true);
+            expect((await readIndexes(options, other)).some(row => row.key.conversationId === 'staleuuid123')).toBe(false);
+            expect((await readIndexes(options, accountId)).some(row => row.key.conversationId === 'currentuuid123')).toBe(false);
+        });
+    }
+}
+
+test('delayed response keeps original v2 Account UUID without rolling back a newer display email', async ({ context, extensionId }) => {
+    const options = await openOptions(context, extensionId);
+    const source = await sourcePage(context, 'old@example.com');
+    const original = await capturedContext(options);
+    expect(original.accountId).toBe(accountId);
     let release!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; });
     let arrived!: () => void;
     const requestArrived = new Promise<void>(resolve => { arrived = resolve; });
     await source.route('**/batchexecute*', async route => {
         arrived(); await held;
-        const data = [null, [['c_profile_delay', 'Profile delay', null, null, null, [1700000000, 0]]], null];
-        await route.fulfill({ contentType: 'application/json', body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(data)]]) });
+        await route.fulfill({ contentType: 'application/json',
+            body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null,
+                [['c_profile_delay', 'Profile delay', null, null, null, [1700000000, 0]]], null])]]) });
     });
-    const pending = source.evaluate(() => fetch('/_/BardChatUi/data/batchexecute', { method: 'POST' }).then(response => response.text()));
+    const pending = send(source, 'fetch', 'MaZiqc', 'profile_delay');
     await requestArrived;
     await source.evaluate(() => { (window as unknown as { WIZ_global_data: { oPEP7c: string } }).WIZ_global_data.oPEP7c = 'new@example.com'; });
-    expect((await current()).accountId).toBe(first.accountId);
-    release(); await pending;
-    await expect.poll(async () => options.evaluate(async id => {
-        const key = 'conversations_' + id;
-        return (await chrome.storage.local.get<Record<string, { key: { conversationId: string } }[]>>(key))[key]?.some(row => row.key.conversationId === 'profile_delay');
-    }, first.accountId)).toBe(true);
-    const account = await options.evaluate(async id => (await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'get', accountId: id })).value, first.accountId);
+    await expect.poll(async () => (await options.evaluate(async id =>
+        Reflect.get(globalThis, 'uiFixture').getAccount(id), accountId))?.email).toBe('new@example.com');
+    expect((await capturedContext(options)).accountId).toBe(original.accountId);
+    release();
+    await pending;
+    await expect.poll(async () => (await readIndexes(options, original.accountId)).some(row =>
+        row.key.conversationId === 'profile_delay')).toBe(true);
+    const account = await options.evaluate(async id => Reflect.get(globalThis, 'uiFixture').getAccount(id), original.accountId);
     expect(account.email).toBe('new@example.com');
 });

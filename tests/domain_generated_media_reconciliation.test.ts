@@ -1,20 +1,20 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { ChatMessage } from '../src/types/conversation.js';
-import type { DomainGeneratedMediaIdentity } from '../src/core/domain/conversationDetail.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import type { ChatMessage } from './helpers/historicalConversation.js';
+import type { DomainGeneratedMediaIdentity } from '../src/l2/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import { composeFixture } from './helpers/documentFixture.js';
 import { supplementLegacyGeneratedMedia } from './helpers/recordFixture/generatedMediaReconciliation.js';
 
 const metadata = { id: 'media-chat', title: 'Generated media', timestamp: 1700000000123 };
 const requestId = 'abcd1234abcd1234';
-const generation: import('../src/types/conversation.js').GeneratedMediaIdentity = {
+const generation: import('./helpers/historicalConversation.js').GeneratedMediaIdentity = {
     chatId: metadata.id, providerRequestId: requestId, time: metadata.timestamp,
     prompt: 'Draw a cat', generationOrdinal: 0, imageCount: 1, imageOrdinal: 0,
 };

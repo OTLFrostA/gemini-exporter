@@ -1,7 +1,7 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { DomainAsset, DomainMessage, DomainMessageRole } from '../src/core/domain/conversationDetail.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import type { DomainAsset, DomainMessage, DomainMessageRole } from '../src/l2/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import { historicalFixtureDomain } from './helpers/nativeFixture.js';
 
 const legacyConversation: Conversation = {
@@ -19,7 +19,7 @@ const typedDomainResult: DomainConversationWithDetail = domainConversation;
 void acceptedLegacyInput;
 void typedDomainResult;
 
-import type { BlockNode } from '../src/core/domain/content/blocks.js';
+import type { BlockNode } from '../src/l2/content/blocks.js';
 const body = (text: string): BlockNode[] => text ? [{ type: 'paragraph', children: [{ type: 'text', text }] }] : [];
 
 // The Domain boundary accepts provider-neutral roles only.
@@ -116,10 +116,10 @@ const generationEvent: DomainMessage = { role: 'assistant', content: body(''), g
 void generationEvent;
 
 // Normalized resource consumers cannot widen their time contract for a legacy producer.
-import type { ResourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
-import type { ResourceEvidence } from '../src/core/parsers/shared/resources/resourceEvidence.js';
-import type { ResourceAcquisitionHint } from '../src/core/resources/resourceAcquisition.js';
-import type { TakeoutResourceLookup } from '../src/core/resources/takeout/mediaIndex.js';
+import type { ResourceIdentity } from '../src/l1/parsers/shared/resources/resourceIdentity.js';
+import type { ResourceEvidence } from '../src/l1/parsers/shared/resources/resourceEvidence.js';
+import type { ResourceAcquisitionHint } from '../src/l1/resources/resourceAcquisition.js';
+import type { DomainAsset as TakeoutResourceLookup } from '../src/l2/conversationDetail.js';
 // @ts-expect-error Core resource identity never accepts legacy null times.
 const nullResourceIdentity: ResourceIdentity = { assetId: 'x', sourceUris: [], generation: { time: null } };
 // @ts-expect-error Resolved evidence has already crossed the source normalization boundary.
@@ -127,7 +127,7 @@ const nullResourceEvidence: ResourceEvidence = { type: 'file', createdAt: null }
 // @ts-expect-error Acquisition hints carry normalized identity rather than legacy media metadata.
 const nullAcquisitionHint: ResourceAcquisitionHint = { generation: { generationOrdinal: 0, time: null } };
 // @ts-expect-error Domain resource lookups cannot inherit nullable times from the old media map.
-const nullTakeoutLookup: TakeoutResourceLookup = { assetId: 'x', generation: { time: null } };
+const nullTakeoutLookup: TakeoutResourceLookup = { id: 'x', kind: 'image', generation: { time: null } };
 void nullResourceIdentity;
 void nullResourceEvidence;
 void nullAcquisitionHint;
@@ -136,7 +136,7 @@ void nullTakeoutLookup;
 // @ts-expect-error Acquisition failures belong to ResourceResult, never Domain.
 const failedAsset: DomainAsset = { id: 'image', kind: 'image', failureReason: 'HTTP 404' };
 // @ts-expect-error Citation numbering belongs to Document composition.
-const numberedCitation: import('../src/core/domain/conversationDetail.js').DomainCitation = { id: 'cite', number: 1 };
+const numberedCitation: import('../src/l2/conversationDetail.js').DomainCitation = { id: 'cite', number: 1 };
 // @ts-expect-error Unknown title sources must be normalized before Domain.
 const unknownTitleSource: DomainConversationWithDetail = { index: { ...domainConversation.index, titleSource: 'unknown-source' }, detail: { key: domainConversation.index.key,  ...domainConversation.detail } };
 void failedAsset; void numberedCitation; void unknownTitleSource;

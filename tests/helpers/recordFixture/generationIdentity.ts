@@ -1,5 +1,5 @@
-import type { LegacyAttachmentInput } from '../../../src/core/parsers/shared/resources/resolveResources.js';
-type GenerationIdentity = NonNullable<LegacyAttachmentInput['generation']>;
+import type { SourceAttachmentInput } from '../../../src/l1/parsers/shared/resources/resolveResources.js';
+type GenerationIdentity = NonNullable<SourceAttachmentInput['generation']>;
 
 export type GenerationAttachment = {
     type?: string;
@@ -30,7 +30,7 @@ export type GenerationMessage = {
     attachments?: GenerationAttachment[] | null;
 };
 
-import { sameGenerationEvent, normalizeRequestId, normalizeChatId, eventSecond } from '../../../src/core/parsers/shared/resources/generationEvent.js';
+import { sameGenerationEvent, normalizeRequestId, normalizeChatId, eventSecond } from '../../../src/l1/parsers/shared/resources/generationEvent.js';
 
 /** Resolve only a unique prompt/time event and its sole response, never a first/last turn guess. */
 export function findGenerationModelMessage<T extends GenerationMessage>(chat: { id?: string; messages?: T[] }, generation: GenerationIdentity): T | null {

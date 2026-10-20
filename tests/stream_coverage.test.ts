@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CoverageSession, emptyStream } from '../src/core/domain/streamCoverage.js';
-import type { PageObservation } from '../src/core/domain/pageObservation.js';
+import { CoverageSession, emptyStream, readStreamCoverage } from '../src/l2/streamCoverage.js';
+import type { PageObservation } from '../src/l2/pageObservation.js';
 function page(times: number[], requestCursor: string | null = null, nextCursor: string | null = null): PageObservation<unknown> {
     return { providerId: 'other-provider', accountId: 'a', streamId: 'activity', items: [], requestCursor, nextCursor,
         requestKnown: true, requestedAt: 1, valid: true, ordered: true, keys: times.map(time => ({ id: 'id' + time, time })) };
@@ -56,10 +56,43 @@ test('complete disjoint snapshots replace the old boundary; empty history retain
     assert.deepEqual(new CoverageSession().observe(prior, page([200, 150])), { range: { head: { id: 'id200', time: 200 }, tail: { id: 'id150', time: 150 } } });
     assert.deepEqual(new CoverageSession().observe(prior, page([])), emptyStream());
 });
-test('time inversions do not create a persistent invalidation state', () => {
+test('unordered source rows never certify Coverage or a trusted early-stop boundary', () => {
     const s = new CoverageSession();
-    s.observe(emptyStream(), { ...page([100, 60, 90], null, 'tail'), ordered: false });
-    const current = s.observe(emptyStream(), page([80, 50], 'tail'));
-    assert.deepEqual(Object.keys(current), ['range']);
-    assert.ok(current.range);
+    assert.deepEqual(s.observe(emptyStream(), { ...page([100, 60, 90], null, 'tail'), ordered: false }), emptyStream());
+    assert.deepEqual(s.observe(emptyStream(), page([80, 50], 'tail')), emptyStream());
+    assert.equal(s.exhausted(), false);
+});
+test('a cursor link cannot stitch pages of different accounts, streams or acquisition order', () => {
+    for (const patch of [{ accountId: 'other' }, { streamId: 'other' }, { providerId: 'other' }, { requestedAt: 0 }]) {
+        const s = new CoverageSession(), head = page([100], null, 'next');
+        s.observe(emptyStream(), head);
+        assert.deepEqual(s.observe(emptyStream(), { ...page([90], 'next'), ...patch }), emptyStream());
+        assert.equal(s.exhausted(), false);
+    }
+    const crossPageTime = new CoverageSession();
+    crossPageTime.observe(emptyStream(), page([100], null, 'next'));
+    assert.deepEqual(crossPageTime.observe(emptyStream(), page([110], 'next')), emptyStream());
+});
+
+test('Coverage facts require safe-integer Unix milliseconds, not merely finite numbers', () => {
+    for (const time of [0.5, Number.MAX_SAFE_INTEGER + 1]) {
+        const invalid = { range: { head: { id: 'head', time }, tail: { id: 'tail', time: 0 } } };
+        assert.equal(readStreamCoverage(invalid), null);
+        const session = new CoverageSession();
+        assert.deepEqual(session.observe(emptyStream(), page([time])), emptyStream());
+        assert.equal(session.exhausted(), false);
+        assert.deepEqual(session.observe(emptyStream(), { ...page([100]), requestedAt: time }), emptyStream());
+    }
+    assert.deepEqual(readStreamCoverage({ range: { head: { id: 'head', time: 100 }, tail: { id: 'tail', time: 0 } } }),
+        { range: { head: { id: 'head', time: 100 }, tail: { id: 'tail', time: 0 } } });
+});
+
+test('replayed Coverage observations identify keys by ID and source time, not object property order', () => {
+    const s = new CoverageSession();
+    const head = page([100], null, 'next');
+    assert.deepEqual(s.observe(emptyStream(), head), emptyStream());
+    const replay = { ...head, keys: [{ time: 100, id: 'id100' }] };
+    assert.deepEqual(s.observe(emptyStream(), replay), emptyStream());
+    const tail = page([80], 'next');
+    assert.deepEqual(s.observe(emptyStream(), tail), { range: { head: head.keys[0], tail: tail.keys[0] } });
 });

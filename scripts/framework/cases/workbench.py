@@ -5,6 +5,7 @@ from typing import Tuple, Optional, Dict, Any
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
+from scripts.framework.v2_probe import snapshot
 from scripts.framework.assertions import CDPAssertions
 from scripts.framework.selectors import WorkbenchSelectors
 
@@ -97,13 +98,8 @@ class SearchClearCase(FeatureTestCase):
             CDPActions.select_workbench_item(cdp_opt, target_search_id, True)
             restored_count = CDPActions.clear_search_workbench(cdp_opt)
             # 以独立 Store 数据为全量预期；Store 不可访问时明确 FAIL，不用 DOM 数量替代
-            total_store = cdp_opt.eval("""
-            (() => {
-                const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
-                if (!s || typeof s.getConversations !== 'function') return null;
-                return s.getConversations().length;
-            })()
-            """)
+            state = snapshot(cdp_opt)
+            total_store = len(state['rows']) if isinstance(state, dict) and isinstance(state.get('rows'), list) else None
             is_still_checked = bool(cdp_opt.eval(f"""
             (() => {{
                 const item = document.querySelector('{WorkbenchSelectors.item_by_chat_id(target_search_id)}');

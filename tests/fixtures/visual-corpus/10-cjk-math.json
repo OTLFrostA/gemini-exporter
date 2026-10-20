@@ -25,19 +25,8 @@
     ]
   },
   "document": {
-    "schemaVersion": 2,
-    "header": {
-      "title": "质能方程解释",
-      "providerLabel": "gemini",
-      "date": "2026-09-26",
-      "messageCount": 2
-    },
     "messages": [
       {
-        "type": "message",
-        "id": "m1",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -48,13 +37,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "m2",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -153,13 +139,16 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       }
     ],
     "metadata": {
       "id": "10-cjk-math",
-      "provider": "gemini"
-    }
+      "provider": "gemini",
+      "updatedAt": 1790380800000
+    },
+    "title": "质能方程解释"
   },
   "resourceIds": []
 }

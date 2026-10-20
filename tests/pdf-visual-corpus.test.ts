@@ -36,10 +36,10 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { assertDocumentAsts } = require('./helpers/assertDocumentAst.js');
-const { convertMath } = require('../src/core/renderers/typst/mathConverter.js');
+const { convertMath } = require('../src/l4/format/typst/mathConverter.js');
 const {
     RealWasmSandboxHost,
     repoRoot,
@@ -96,7 +96,7 @@ test('visual corpus manifest: exactly the 12 fixed fixtures with stable ids', ()
         EXPECTED_IDS,
     );
     for (const { item } of entries) {
-        assert.ok(item.document && item.document.schemaVersion === 2, `${item.id}: missing Document AST`);
+        assert.ok(item.document && typeof item.document.title === 'string', `${item.id}: missing Document AST`);
         assert.ok(item.expect && typeof item.expect.minPages === 'number', `${item.id}: missing expect.minPages`);
     }
 });
@@ -149,8 +149,8 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
         store[aid] = new Uint8Array(Buffer.from(b64 as string, 'base64'));
     }
     const display = item.document;
-    assert.strictEqual(typeof display.header.title, 'string', `${item.id}: fixture titles follow the current semantic contract`);
-    const { payload: document, diagnostics: payloadDiagnostics } = renderTypstFixture(display, Object.fromEntries(item.resourceIds.map((id: string) => [id, `/assets/${id}`])), {
+    assert.strictEqual(typeof display.title, 'string', `${item.id}: fixture titles follow the current semantic contract`);
+    const { payload: document, diagnostics: payloadDiagnostics } = renderTypstFixture(display, Object.fromEntries(item.resourceIds.map((id: string) => [id, `assets/${id}`])), {
         convertMath,
         locale: 'zh',
     });
@@ -169,7 +169,7 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
             rendererSchemaVersion: 1,
 
             document,
-            assetPaths: new Map(assetIds.map((id: string) => [id, `/assets/${id}`])),
+            assetPaths: new Map(assetIds.map((id: string) => [id, `assets/${id}`])),
         } as never,
         context as never,
     );
@@ -326,7 +326,7 @@ test('visual corpus: real Typst WASM compile + programmatic checks (all 12)', as
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({
         host,
-        fontPaths: ['src/ui/sandbox/fonts/NewCMMath-Regular.otf', cjkFont],
+        fontPaths: ['src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf', cjkFont],
     });
     const reviewDir = process.env.PDF_VISUAL_REVIEW_DIR;
     const results: FixtureResult[] = [];

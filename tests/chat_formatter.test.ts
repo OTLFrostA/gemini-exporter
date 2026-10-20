@@ -3,9 +3,15 @@ useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
-const test = require('node:test');
+import test from 'node:test';
 const assert = require('node:assert');
-const ChatFormatter = require('../src/core/engine/chatFormatter.js');
+import { composeFixture } from './helpers/documentFixture.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
+import { convertHtmlToMarkdown } from '../src/l1/parsers/shared/html/htmlToMarkdown.js';
+import { runExport } from '../src/application/export/runExport.js';
+import { v2ExportHost, exportRequest, exportKey, seedExportConversation } from './helpers/v2ExportHost.js';
+import { getExportRecord } from '../src/l3a/storageService.js';
 
 test('chat_formatter - formatMarkdownDocument', async () => {
     const mockChat = {
@@ -19,22 +25,22 @@ test('chat_formatter - formatMarkdownDocument', async () => {
         ]
     };
 
-    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat));
-    assert.strictEqual(res.ext, 'md');
+    const { document, resources } = await composeFixture(historicalFixture(mockChat).conversation);
+    const markdown = renderDocumentMarkdown(document, resources);
     // Frontmatter structure assertions
-    assert.ok(res.content.startsWith('---\n'), 'Markdown must start with YAML frontmatter delimiter');
-    assert.ok(res.content.includes('\n---\n\n'), 'YAML frontmatter must close with --- delimiter');
-    assert.ok(res.content.includes('title: "Quantum Physics Guide"'), 'Frontmatter must contain title key');
-    assert.ok(res.content.includes('id: "12345678"'), 'Frontmatter must contain id key');
-    assert.ok(!/^url:/m.test(res.content), 'Composer does not synthesize a source URL');
-    assert.ok(res.content.includes('tags:\n  - gemini-export'), 'Frontmatter must contain gemini-export tag');
+    assert.ok(markdown.startsWith('---\n'), 'Markdown must start with YAML frontmatter delimiter');
+    assert.ok(markdown.includes('\n---\n\n'), 'YAML frontmatter must close with --- delimiter');
+    assert.ok(markdown.includes('title: "Quantum Physics Guide"'), 'Frontmatter must contain title key');
+    assert.ok(markdown.includes('id: "12345678"'), 'Frontmatter must contain id key');
+    assert.ok(!/^url:/m.test(markdown), 'Composer does not synthesize a source URL');
+    assert.ok(markdown.includes('tags:\n  - gemini-export'), 'Frontmatter must contain gemini-export tag');
     // Heading and content assertions
-    assert.ok(res.content.includes('# Quantum Physics Guide'), 'Must render H1 title');
-    assert.ok(res.content.includes('What is superposition?'), 'Must contain user message');
-    assert.ok(res.content.includes('Superposition is a fundamental principle'), 'Must contain model message');
+    assert.ok(markdown.includes('# Quantum Physics Guide'), 'Must render H1 title');
+    assert.ok(markdown.includes('What is superposition?'), 'Must contain user message');
+    assert.ok(markdown.includes('Superposition is a fundamental principle'), 'Must contain model message');
     // Role ordering assertion
-    const userIdx = res.content.search(/## 👤/);
-    const modelIdx = res.content.search(/## 🤖/);
+    const userIdx = markdown.search(/## 👤/);
+    const modelIdx = markdown.search(/## 🤖/);
     assert.ok(userIdx !== -1 && modelIdx !== -1, 'Must include both user and model role headings');
     assert.ok(userIdx < modelIdx, 'User heading must precede model heading');
 });
@@ -42,7 +48,7 @@ test('chat_formatter - formatMarkdownDocument', async () => {
 
 test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () => {
     const rawHtml = '<p>Here is a code snippet:</p><pre><code class="language-js">console.log(&quot;hello&quot;);</code></pre><p>And some <b>bold</b> and <i>italic</i> text with <br/>break.</p>';
-    const md = ChatFormatter.convertHtmlToMarkdown(rawHtml);
+    const md = convertHtmlToMarkdown(rawHtml);
     assert.ok(md.includes('```js'), 'Code block should have language');
     assert.ok(md.includes('console.log("hello");'), 'Entities should be unescaped');
     assert.ok(md.includes('**bold**'), 'Bold should be markdown');
@@ -52,80 +58,49 @@ test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () 
 });
 
 test('htmlConverter preserves emphasis on strong and em tags with attributes', () => {
-    const { convertHtmlToMarkdown } = require('../src/core/parsers/shared/html/htmlToMarkdown.js');
+    const { convertHtmlToMarkdown } = require('../src/l1/parsers/shared/html/htmlToMarkdown.js');
     assert.strictEqual(convertHtmlToMarkdown('<strong class="x">bold</strong>'), '**bold**');
     assert.strictEqual(convertHtmlToMarkdown('<em data-x="1">italics</em>'), '*italics*');
 });
 
 test('chat_formatter - convertHtmlToMarkdown converts html tables to GFM tables', () => {
     const tableHtml = '<table><thead><tr><th align="left">维度</th><th align="left">经典</th><th align="left">量子</th></tr></thead><tbody><tr><td>状态</td><td>0 或 1</td><td>叠加态<br>|psi></td></tr></tbody></table>';
-    const md = ChatFormatter.convertHtmlToMarkdown(tableHtml);
+    const md = convertHtmlToMarkdown(tableHtml);
     assert.ok(md.includes('| 维度 | 经典 | 量子 |'), 'Table header should be converted');
     assert.ok(md.includes('| --- | --- | --- |'), 'Table separator should be present');
     assert.ok(md.includes('| 状态 | 0 或 1 | 叠加态<br>\\|psi> |'), 'Table cells with pipe and br should be properly formatted');
     assert.ok(/\|\s*:?-{3,}:?\s*\|/.test(md), 'Matches table markdown regex');
 });
 
-test('engine - AsyncQueue supports concurrent queueing, abort signals, and closing', async () => {
-    const { AsyncQueue } = require('../src/core/engine/export/exportOrchestrator.js');
-    const q = new AsyncQueue();
-    assert.strictEqual(q.length, 0);
-
-    const popPromise1 = q.pop();
-    q.push('item1');
-    const res1 = await popPromise1;
-    assert.strictEqual(res1, 'item1');
-
-    const ac = new AbortController();
-    const popPromise2 = q.pop(ac.signal);
-    ac.abort();
-    const res2 = await popPromise2;
-    assert.strictEqual(res2, null, 'Aborted pop must resolve to null');
-
-    const popPromise3 = q.pop();
-    q.close();
-    const res3 = await popPromise3;
-    assert.strictEqual(res3, null, 'Closing queue must resolve waiters to null');
-    assert.strictEqual(await q.pop(), null, 'Pop on closed queue must return null');
+test('engine - unified export processes a batch, honors abort and completes an empty batch', async t => {
+    const host = v2ExportHost(t);
+    for (const id of ['queue-one', 'queue-two']) await seedExportConversation(id);
+    const controller = new AbortController(); controller.abort();
+    assert.equal((await runExport(exportRequest(['queue-one']), { signal: controller.signal })).aborted, true);
+    assert.equal(host.clicks(), 0);
+    assert.equal((await runExport(exportRequest([]))).exported, 0);
+    assert.equal(host.clicks(), 0);
+    const result = await runExport(exportRequest(['queue-one']));
+    assert.equal(result.exported, 1); assert.equal(host.clicks(), 1);
 });
 
-test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user sniff', async () => {
-    const BatchWorker = require('../src/core/engine/export/batchWorker.js');
-    const chat = {
-        id: 'test_123',
-        title: 'Google Gemini',
-        titles: { rpc: 'Google Gemini', sniff: '如何设计微服务架构' },
-        titleSource: 'sniff', messages: [{ role: 'user', content: 'Question' }]
-    };
-    const listConv = {
-        id: 'test_123',
-        title: '如何设计微服务架构',
-        titles: { rpc: 'Google Gemini', sniff: '如何设计微服务架构' },
-        titleSource: 'sniff'
-    };
-
-    await require('../src/core/storage/storageService.js').setConversations('10000000-0000-4000-8000-000000000001', [indexFixture(listConv)]);
-    await require('../src/core/domain/ingestion.js').ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
-    const resolved = await BatchWorker.resolveChat(
-        historicalFixture(chat),
-        { id: 'test_123', title: '如何设计微服务架构' },
-        indexFixture(listConv as any),
-        null,
-        '10000000-0000-4000-8000-000000000001',
-        () => {},
-        () => {}
-    );
-
-    assert.strictEqual(resolved.isError, false);
-    assert.notStrictEqual(resolved.chat.conversation.index.title, 'Google Gemini');
-    assert.strictEqual(resolved.chat.conversation.index.title, '如何设计微服务架构');
+test('engine - L1 rejects a brand placeholder while L2 preserves the derived user question title', async () => {
+    const { ingestIndexes } = require('../src/l2/ingestion.js');
+    const { getIndex } = require('../src/l3a/storageService.js');
+    const { parseGeminiIndexObservation } = require('../src/l1/parsers/gemini/parseIndexObservation.js');
+    const key = exportKey('test_123');
+    await ingestIndexes(key.accountId, [{ conversationId: key.conversationId,
+        fields: { title: '如何设计微服务架构', titleSource: 'derived' } }]);
+    await ingestIndexes(key.accountId, [parseGeminiIndexObservation({ id: key.conversationId,
+        title: 'Google Gemini', titleSource: 'rpc' }, 'rpc-list')]);
+    assert.equal((await getIndex(key))?.title, '如何设计微服务架构');
 });
 
 test('engine - RateLimiter detects 429 status and calculates backoff with jitter', () => {
-    const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
+    const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/l1/client/rateLimiter.js');
     assert.strictEqual(isRateLimited({ status: 429 }), true);
-    assert.strictEqual(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), true);
-    assert.strictEqual(isRateLimited({ error: 'Too many requests, quota exceeded' }), true);
+    assert.strictEqual(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), false);
+    assert.strictEqual(isRateLimited({ error: 'Too many requests, quota exceeded' }), false);
     assert.strictEqual(isRateLimited({ success: true } as any), false);
     assert.strictEqual(isRateLimited({ status: 200 }), false);
     assert.strictEqual(isRateLimited(null), false);
@@ -141,34 +116,16 @@ test('engine - RateLimiter detects 429 status and calculates backoff with jitter
     assert.strictEqual(manager.rateLimitCooldownUntil, 0);
 });
 
-test('engine - SessionRecovery.updateSessionStatus updates chrome.storage.local safely', async () => {
-    const SessionRecovery = require('../src/core/engine/export/sessionRecovery.js');
-    assert.strictEqual(typeof SessionRecovery.updateSessionStatus, 'function');
-
-    const origChrome = (global as any).chrome;
-    let storedSession: any = { status: 'running', slot: '10000000-0000-4000-8000-000000000001', current: 1 };
-    (global as any).chrome = {
-        ...globalThis.chrome,
-        storage: {
-            local: {
-                get: async (_keys: any) => ({ gemini_last_export_session: storedSession }),
-                set: async (obj: any) => {
-                    if (obj.gemini_last_export_session) {
-                        storedSession = obj.gemini_last_export_session;
-                    }
-                }
-            }
-        }
-    };
-
-    try {
-        await SessionRecovery.updateSessionStatus({ current: 2, status: 'completed' });
-        assert.strictEqual(storedSession.current, 2);
-        assert.strictEqual(storedSession.status, 'completed');
-        assert.ok(typeof storedSession.updatedAt === 'number');
-    } finally {
-        (global as any).chrome = origChrome;
-    }
+test('engine - completion persists the delivered source version without a recovery session', async t => {
+    const host = v2ExportHost(t);
+    await seedExportConversation('completion', 100);
+    const result = await runExport(exportRequest(['completion']));
+    assert.equal(result.exported, 1); assert.equal(host.clicks(), 1);
+    const record = await getExportRecord(exportKey('completion'));
+    assert.equal(record?.chatTime, 100); assert.equal(record?.status, 'ok');
+    assert.equal(Number.isSafeInteger(record?.exportedAt), true);
+    const local = await chrome.storage.local.get(null);
+    assert.equal(Object.hasOwn(local, 'gemini_last_export_session'), false);
 });
 
 test('chat_formatter - natural language prompt > 400 chars with code keywords is never mangled into javascript fence', async () => {
@@ -182,23 +139,16 @@ test('chat_formatter - natural language prompt > 400 chars with code keywords is
             { role: 'model', content: 'Here is the detailed explanation of const vs var.' }
         ]
     };
-    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat));
-    assert.ok(!res.content.includes('```javascript\nPlease explain'), 'Natural language prompt must not be wrapped in javascript code block');
-    assert.ok(res.content.includes('Please explain the following architectural concepts'), 'Prompt content must remain plain text');
+    const { document, resources } = await composeFixture(historicalFixture(mockChat).conversation);
+    const markdown = renderDocumentMarkdown(document, resources);
+    assert.ok(!markdown.includes('```javascript\nPlease explain'), 'Natural language prompt must not be wrapped in javascript code block');
+    assert.ok(markdown.includes('Please explain the following architectural concepts'), 'Prompt content must remain plain text');
 });
 
-test('chat_formatter - decoupled formatters export valid focused functions', async () => {
-    const { toJsonStandard } = require('../src/core/engine/formatters/jsonFormatter.js');
-    const { convertHtmlToMarkdown } = require('../src/core/parsers/shared/html/htmlToMarkdown.js');
-
-    assert.strictEqual(typeof toJsonStandard, 'function');
-    assert.strictEqual(typeof convertHtmlToMarkdown, 'function');
-
-    const testChat = { id: 'c1', title: 'Test', messages: [{ role: 'user', content: 'hello' }] };
-    assert.ok((await ChatFormatter.formatMarkdownDocument(historicalFixture(testChat))).content.includes('title: "Test"'));
-    assert.throws(() => ChatFormatter.formatContent(historicalFixture(testChat), 'markdown'), /unsupported format/);
-    assert.ok(toJsonStandard(historicalFixture(testChat)).includes('"conversationId": "c1"'));
+test('focused formatters consume their declared inputs: Document AST for Markdown and trusted Domain for JSON', async () => {
+    const parsed = historicalFixture({ id: 'c1', title: 'Test', messages: [{ role: 'user', content: 'hello' }] });
+    const { document, resources } = await composeFixture(parsed.conversation);
+    assert.ok(renderDocumentMarkdown(document, resources).includes('title: "Test"'));
+    assert.ok(serializeDomainJson(parsed.conversation, parsed.account, {}).includes('"conversationId": "c1"'));
     assert.ok(convertHtmlToMarkdown('<b>bold</b>').includes('**bold**'));
 });
-
-

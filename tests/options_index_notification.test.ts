@@ -1,36 +1,17 @@
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
-import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { indexStorage } from './helpers/indexStorage.js';
-import { historicalFixture } from './helpers/nativeFixture.js';
-import { StorageService } from '../src/core/storage/storageService.js';
-import { init } from '../src/ui/options/modules/optionsSync.js';
-import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
+import { chromium } from 'playwright';
+import { mount, A, B } from './helpers/uiPortHarness.js';
 
-test('Options observes accepted Index writes even when acquisition emits no syncUpdate message', async () => {
-    const env = indexStorage();
-    const previousDocument = Reflect.get(globalThis, 'document');
-    let listener: Parameters<typeof chrome.storage.onChanged.addListener>[0] | undefined;
-    let refreshed = 0;
-    Reflect.set(globalThis, 'document', { getElementById: () => null });
-    Reflect.set(chrome.storage, 'onChanged', { addListener: (fn: typeof listener) => { listener = fn; } });
-    __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001' });
-    try {
-        await init({ loadStore: async () => { refreshed++; } });
-        assert.ok(listener);
-        const originalSet = chrome.storage.local.set;
-        chrome.storage.local.set = async values => {
-            await originalSet(values);
-            listener!(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { newValue: value }])), 'local');
-        };
-        await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture({ id: 'chat', title: 'Fresh', messages: [{ role: 'user', content: 'Question' }] }));
-        assert.equal(refreshed, 1);
-        await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000002', historicalFixture({ id: 'chat', title: 'Other account', messages: [{ role: 'user', content: 'Question' }] }, { account: fixtureAccount('gemini', '10000000-0000-4000-8000-000000000002') }));
-        assert.equal(refreshed, 1);
-    } finally {
-        if (previousDocument === undefined) Reflect.deleteProperty(globalThis, 'document');
-        else Reflect.set(globalThis, 'document', previousDocument);
-        __clearModuleOverrides(); env.restore();
-    }
+test('Options refreshes accepted current-account Index facts on focus without legacy syncUpdate IPC', async () => {
+    const browser = await chromium.launch({ headless: true }); try {
+        const page = await browser.newPage(); await mount(page, 'options'); await page.locator('#list .item').waitFor();
+        await page.evaluate(({ A, B }) => { const h = Reflect.get(window, 'harness');
+            h.indexes.push({ key: { accountId: A, conversationId: 'fresh' }, title: 'Accepted current account', updatedAt: 10 },
+                { key: { accountId: B, conversationId: 'foreign' }, title: 'Other account', updatedAt: 20 });
+            window.dispatchEvent(new Event('focus'));
+        }, { A, B });
+        await page.locator('[data-chat-id=fresh]').waitFor(); assert.equal(await page.locator('[data-chat-id=foreign]').count(), 0);
+        assert.equal(await page.locator('#list .item').count(), 2);
+    } finally { await browser.close(); }
 });

@@ -1,154 +1,86 @@
-// tests/batch_fetcher_abort.test.ts
-// B2: sendToGeminiTabCancellable 的 AbortSignal race —— mock slot abort，断言在途请求即时被取消，
-// 不再依赖 50ms 轮询；settled 后 controller 被清理，且重建的 signal 与 boolean 旗标保持同步。
-import { historicalFixture } from './helpers/nativeFixture.js';
-const test = require('node:test');
-const assert = require('node:assert');
+/**
+ * V2 Runtime routing regressions replacing removed batchFetcher/abortManager.
+ * The trusted execution target is an Account UUID verified by Content IPC,
+ * never a caller-provided slot. Cancellation is tested on L1's AbortSignal.
+ * Real Runtime TabService and L3a Account store; only Chrome tabs are mocked.
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { putAccount } from '../src/l3a/storageService.js';
+import { resolveAccountTab, getGeminiTab, sendToGeminiTab, sendTabMessage, sendToAITab } from '../src/runtime/capabilities/tabService.js';
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-        return await Promise.race([
-            promise,
-            new Promise<never>((_resolve, reject) => {
-                timer = setTimeout(() => reject(new Error(message)), ms);
-            })
-        ]);
-    } finally {
-        if (timer) clearTimeout(timer);
-    }
+useIndexStorage();
+const selected = fixtureAccount('gemini');
+const foreign = '10000000-0000-4000-8000-000000000002';
+
+function installTabs(t: { after(fn: () => void): void }, tabs: Array<{ id: number; active?: boolean }>,
+    onMessage: (tabId: number, message: Record<string, unknown>, reply: (value: unknown) => void) => void) {
+    const chromeHost = globalThis.chrome;
+    const previous = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
+    const observations: Array<{ tabId: number; message: Record<string, unknown> }> = [];
+    Object.defineProperty(chromeHost, 'tabs', { configurable: true, value: {
+        query: async () => tabs.map(tab => ({ ...tab, url: 'https://gemini.google.com/app' })),
+        sendMessage: (tabId: number, message: Record<string, unknown>, reply: (value: unknown) => void) => {
+            observations.push({ tabId, message });
+            onMessage(tabId, message, reply);
+        },
+    } });
+    t.after(() => {
+        if (previous) Object.defineProperty(chromeHost, 'tabs', previous);
+        else Reflect.deleteProperty(chromeHost, 'tabs');
+    });
+    return observations;
 }
 
-test('batchFetcher - slot abort wins the race while sendToGeminiTab is in-flight', async () => {
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = {
-        runtime: {
-            sendMessage: (_msg: any) => Promise.resolve()
-        },
-        storage: {
-            session: {
-                get: async (_keys: any) => ({}),
-                set: async (_obj: any) => {},
-                remove: async (_keys: any) => {}
-            }
-        }
-    };
-
-    const { TabService } = require('../src/core/utils/tabService.js');
-    const {
-        setSlotAborted,
-        clearAllAborts,
-        getSlotAbortSignal,
-        __bgControllers
-    } = require('../src/background/abortManager.js');
-    const { fetchBatch } = require('../src/background/batchFetcher.js');
-
-    clearAllAborts();
-    const origGet = TabService.getGeminiTab;
-    const origSend = TabService.sendToGeminiTab;
-    // tab 存在；send 永不 resolve（模拟在途请求）
-    TabService.getGeminiTab = async () => ({ id: 123 });
-    let sendCalls = 0;
-    let signalStarted!: () => void;
-    const sendStarted = new Promise<void>(resolve => { signalStarted = resolve; });
-    TabService.sendToGeminiTab = (..._args: any[]) => {
-        sendCalls++;
-        signalStarted();
-        return new Promise(() => {});
-    };
-
-    try {
-        const slot = '10000000-0000-4000-8000-000000000001';
-        let response: any = null;
-        const done = fetchBatch(
-            [{ id: 'chat1', title: 't1' }],
-            'markdown',
-            false,
-            (r: any) => { response = r; },
-            0,
-            1,
-            slot
-        );
-        // Wait for the actual tab request instead of guessing with a 60ms sleep.
-        await withTimeout(sendStarted, 3000, 'tab request never became in-flight');
-        await setSlotAborted(slot, true);
-        // The abort must settle the in-flight request, without leaving a test timer alive.
-        await withTimeout(done, 3000, 'race did not settle promptly after abort');
-
-        assert.ok(response, 'portSendResponse must be called');
-        assert.strictEqual(response.aborted, true, 'response must carry aborted:true');
-        assert.strictEqual(response.success, false, 'aborted batch must not report success');
-        assert.strictEqual(sendCalls, 1, 'exactly one in-flight send was raced');
-        assert.strictEqual(
-            __bgControllers.has(slot), false,
-            'controller must be cleaned up after the race settles'
-        );
-        // 旗标同步：清理后重建的 signal 仍为 aborted（boolean 旗标未清）
-        assert.strictEqual(
-            getSlotAbortSignal(slot).aborted, true,
-            'recreated signal must follow the still-set boolean flag'
-        );
-    } finally {
-        TabService.getGeminiTab = origGet;
-        TabService.sendToGeminiTab = origSend;
-        clearAllAborts();
-        (global as any).chrome = origChrome;
-    }
+test('v2 Runtime bypasses an active foreign Gemini tab and sends to the verified Account only', async t => {
+    await putAccount(selected);
+    const messages = installTabs(t, [{ id: 11, active: true }, { id: 22, active: false }],
+        (tabId, message, reply) => {
+            if (message.action === 'getAccountContext') return reply({
+                ok: true, accountContext: { providerId: 'gemini',
+                    accountId: tabId === 11 ? foreign : selected.id, slot: 'u0' },
+            });
+            return reply({ ok: true, received: message });
+        });
+    const result = await sendToGeminiTab({ action: 'fetchDetail', conversationId: 'source-only' }, selected.id);
+    assert.deepEqual(result, {
+        ok: true, received: { action: 'fetchDetail', conversationId: 'source-only', accountId: selected.id },
+    });
+    assert.deepEqual(messages.map(({ tabId, message }) => [tabId, message.action]), [
+        [11, 'getAccountContext'], [22, 'getAccountContext'], [22, 'fetchDetail'],
+    ]);
+    const resolved = await resolveAccountTab(selected.id);
+    assert.equal(resolved.id, 22);
 });
 
-test('batchFetcher - no abort: sendToGeminiTab result passes through, timer released', async () => {
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = {
-        runtime: {
-            sendMessage: (_msg: any) => Promise.resolve()
-        },
-        storage: {
-            session: {
-                get: async (_keys: any) => ({}),
-                set: async (_obj: any) => {},
-                remove: async (_keys: any) => {}
-            }
-        }
-    };
+test('v2 Runtime fails closed when no tab has the requested Account UUID', async t => {
+    await putAccount(selected);
+    const calls = installTabs(t, [{ id: 30, active: true }, { id: 40, active: false }],
+        (_id, message, reply) => {
+            assert.equal(message.action, 'getAccountContext', 'no unverified business message is sent');
+            reply({ ok: true, accountContext: { accountId: foreign, providerId: 'gemini', slot: 'u0' } });
+        });
+    await assert.rejects(getGeminiTab(selected.id), /No open Provider Tab matches this Account/);
+    await assert.rejects(sendToGeminiTab({ action: 'fetchDetail' }, selected.id), /No open Provider Tab matches this Account/);
+    assert.ok(calls.length >= 2);
+    assert.ok(calls.every(call => call.message.action === 'getAccountContext'));
+});
 
-    const { TabService } = require('../src/core/utils/tabService.js');
-    const { clearAllAborts, __bgControllers } = require('../src/background/abortManager.js');
-    const { fetchBatch } = require('../src/background/batchFetcher.js');
+test('v2 Runtime tab IPC timeout settles once and ignores a late browser callback', async t => {
+    let delayedReply: ((value: unknown) => void) | undefined;
+    installTabs(t, [{ id: 55 }], (_id, _message, reply) => { delayedReply = reply; });
+    await assert.rejects(sendTabMessage(55, { action: 'getAccountContext' }, 10), /timed out/);
+    assert.equal(typeof delayedReply, 'function');
+    delayedReply!({ ok: true, accountContext: { accountId: selected.id } });
+});
 
-    clearAllAborts();
-    const origGet = TabService.getGeminiTab;
-    const origSend = TabService.sendToGeminiTab;
-    TabService.getGeminiTab = async () => ({ id: 123 });
-    TabService.sendToGeminiTab = async (msg: any, _slot?: string) => ({
-        success: true, domainEnvelopeVersion: 3,
-        data: historicalFixture({ id: msg.conversationId, title: 'ok-chat', messages: [] })
-    });
-
-    try {
-        const slot = '10000000-0000-4000-8000-000000000001';
-        let response: any = null;
-        await fetchBatch(
-            [{ id: 'chat1', title: 't1' }],
-            'markdown',
-            false,
-            (r: any) => { response = r; },
-            0,
-            1,
-            slot
-        );
-        assert.ok(response, 'portSendResponse must be called');
-        assert.strictEqual(response.success, true, 'non-aborted batch reports success');
-        assert.strictEqual(response.aborted, false);
-        assert.strictEqual(response.results.length, 1);
-        assert.strictEqual(response.results[0].conversation.index.key.conversationId, 'chat1');
-        assert.strictEqual(
-            __bgControllers.has(slot), false,
-            'controller must be cleaned up after settle even without abort'
-        );
-    } finally {
-        TabService.getGeminiTab = origGet;
-        TabService.sendToGeminiTab = origSend;
-        clearAllAborts();
-        (global as any).chrome = origChrome;
-    }
+test('v2 Runtime rejects non-UUID targets and unsupported Content providers without falling back to a slot', async t => {
+    await putAccount(selected);
+    const observations = installTabs(t, [{ id: 1 }], () => { throw new Error('Must not be called'); });
+    await assert.rejects(sendToGeminiTab({ action: 'fetchDetail' }, 'u0'), /Account UUID/);
+    await assert.rejects(sendToAITab('chatgpt', { action: 'fetchDetail' }, selected.id),
+        /Provider has no production Content Script/);
+    assert.deepEqual(observations, []);
 });

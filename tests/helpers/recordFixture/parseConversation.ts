@@ -1,8 +1,8 @@
 import { parseConversationRecord } from './parseRecord.js';
 import type { ConversationRecordInput } from './conversationRecord.js';
-import type { ResourceConversationParseResult } from '../../../src/core/parsers/parsingResult.js';
+import type { DomainFixture } from '../domainFixture.js';
 import type { ConversationRecordParseContext } from './parseRecord.js';
-import { normId } from '../../../src/core/utils/pathUtils.js';
+import { normId } from '../../../src/shared/utils/pathUtils.js';
 
 export interface LegacyStorageRaw { metadata: unknown; detail?: unknown }
 function record(value: unknown): Record<string, unknown> {
@@ -12,7 +12,7 @@ function record(value: unknown): Record<string, unknown> {
 function length(value: Record<string, unknown>): number { return Math.max(Array.isArray(value.messages) ? value.messages.length : 0, Array.isArray(value.turns) ? value.turns.length : 0); }
 
 /** The old disk schema is a source format. It never writes storage or synthesizes raw RPC. */
-export function parseLegacyStorageConversation(raw: LegacyStorageRaw, context: ConversationRecordParseContext): ResourceConversationParseResult {
+export function parseLegacyStorageConversation(raw: LegacyStorageRaw, context: ConversationRecordParseContext): DomainFixture {
     const metadata = record(raw.metadata);
     if (typeof metadata.id !== 'string' && typeof metadata.id !== 'number') throw new TypeError('Legacy stored conversation has no identity');
     const id = context.providerId === 'gemini' ? normId(String(metadata.id)) : String(metadata.id);

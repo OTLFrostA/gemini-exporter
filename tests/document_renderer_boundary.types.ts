@@ -1,11 +1,11 @@
-import type { DocumentAst } from '../src/core/document/ast/ast.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import type { DocumentAst } from '../src/l3b/ast/ast.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import type { PdfCompileContext, TypstRenderPayload } from '../src/core/export/pdf/pdfCompiler.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import type { PdfCompileContext, TypstRenderPayload } from '../src/l4/format/pdf/pdfCompiler.js';
 
 function rendererBoundary(semantic: DomainConversationWithDetail): void {
     // @ts-expect-error A semantic conversation cannot be sent to the rendering backend.
@@ -48,29 +48,33 @@ function neutralContract(document: DocumentAst): void {
 void neutralContract;
 
 
-import type { ResourceStageInput, PayloadStageInput, CompileStageInput } from '../src/core/export/pdf/pipeline/types.js';
-function pdfPipelineBoundary(domain: DomainConversationWithDetail): void {
-    // @ts-expect-error PDF resources must receive an already composed Document AST.
-    const resources: ResourceStageInput = { document: domain, resources: new Map() };
-    // @ts-expect-error PDF payload generation cannot reinterpret Domain content.
-    const payload: PayloadStageInput = { document: domain, pathMap: new Map(), locale: 'en' };
-    // @ts-expect-error Compile stage no longer accepts a source conversation.
-    const compile: CompileStageInput = { bundle: domain };
-    void resources; void payload; void compile;
+import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
+function pdfFormatBoundary(domain: DomainConversationWithDetail): void {
+    // @ts-expect-error PDF Format receives an already composed document, never Domain.
+    compileDocumentPdf(domain, {}, new Map(), {} as never, {} as never);
 }
-void pdfPipelineBoundary;
+void pdfFormatBoundary;
 
 // @ts-expect-error Diagnostic types live in the independent diagnostics module.
-import type { Diagnostic } from '../src/core/document/ast/ast.js';
+import type { Diagnostic } from '../src/l3b/ast/ast.js';
 void (null as unknown as Diagnostic);
 
-import type { MarkdownRenderOptions } from '../src/core/renderers/shared/renderOptions.js';
-// @ts-expect-error Renderer options cannot supply metadata that bypasses Document AST.
-const metadataBypass: MarkdownRenderOptions = { frontMatter: [{ key: 'title', value: 'stale' }] };
-void metadataBypass;
+import type { RendererOptions } from '../src/l4/format/shared/renderOptions.js';
+const localeOnly: RendererOptions = { locale: 'zh' };
+void localeOnly;
+// @ts-expect-error Front Matter is always authored by L4 Format, never supplied by callers.
+renderDocumentMarkdown({} as DocumentAst, {}, { includeFrontMatter: false });
+// @ts-expect-error PDF technical options cannot leak through the public Typst Renderer.
+renderDocumentTypst({} as DocumentAst, {}, { convertMath: () => 'x' });
+// @ts-expect-error HTML presentation defaults cannot be changed by a public theme knob.
+renderDocumentHtml({} as DocumentAst, {}, { theme: 'light' });
+// @ts-expect-error The shared locale permits only the frozen two languages.
+const invalidLocale: RendererOptions = { locale: 'fr' };
+void invalidLocale;
 
 
-import type { ResolveExportRecordStatusOptions } from '../src/core/engine/export/exportCompletion.js';
+import type { DomainConversationDetail } from '../src/l2/conversationDetail.js';
+type ResolveExportRecordStatusOptions = Pick<DomainConversationDetail, 'quality'>;
 // @ts-expect-error Diagnostic descriptions are reporting data, not export-integrity evidence.
 const diagnosticStatusInput: ResolveExportRecordStatusOptions = { quality: { status: 'unknown', diagnostics: ['warning'] } };
 void diagnosticStatusInput;

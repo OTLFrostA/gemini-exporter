@@ -1,4 +1,7 @@
-import { getDomainResource, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { getDetail } from '../src/l3a/storageService.js';
+import { storageIdentity } from './helpers/admitFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { fixtureAccount } from './helpers/domainFixture.js';
@@ -10,32 +13,32 @@ import {
     mergeChatGPTContinuations,
     processChatGPTMapping,
     shouldSkipChatGPTMessage,
-} from '../src/core/parsers/chatgpt/conversationTree.js';
+} from '../src/l1/parsers/chatgpt/conversationTree.js';
 import {
     arrayBufferToBase64,
     fileIdFromPointer,
     parseFileDownloadPayload,
-} from '../src/core/provider/chatgpt/imageAssets.js';
+} from '../src/l1/client/chatgpt/imageAssets.js';
 import {
     applyChatGPTHead,
     citationsOfChatGPTNode,
     collectChatGPTThinking,
     refreshChatGPTList,
     uploadedFilesOfChatGPTNode,
-} from '../src/core/parsers/chatgpt/conversationDetail.js';
-import { parseChatGPTConversation } from '../src/core/parsers/chatgpt/parseConversation.js';
-import { preprocessChatGPTMarkdown } from '../src/core/parsers/chatgpt/markdownCompatibility.js';
+} from '../src/l1/parsers/chatgpt/conversationDetail.js';
+import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
+import { preprocessChatGPTMarkdown } from '../src/l1/parsers/chatgpt/markdownCompatibility.js';
 import {
     ensureChatGPTRegistered,
     hasChatGPTAccess,
     requestChatGPTAccess,
-} from '../src/core/provider/chatgpt/chatgptAccess.js';
-import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
-import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
+} from '../src/l1/client/chatgpt/chatgptAccess.js';
+import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type {
     ChatGPTApiConversationWithId,
     ChatGPTConversationNode,
-} from '../src/core/parsers/chatgpt/chatgptTypes.js';
+} from '../src/l1/parsers/chatgpt/chatgptTypes.js';
 
 function textNode(
     id: string,
@@ -76,6 +79,25 @@ test('system and empty assistant turns are skipped, user turns kept in order', (
     const linear = extractChatGPTLinearNodes(mapping, 'd');
     assert.deepEqual(linear.map((n) => n.id), ['b', 'd']);
     assert.equal(shouldSkipChatGPTMessage(mapping.c.message), true);
+});
+
+test('missing ChatGPT ancestors and cyclic mappings never claim complete Detail or loop', () => {
+    const root = { id: 'root', children: ['a'] } as ChatGPTConversationNode;
+    const broken: Record<string, ChatGPTConversationNode> = {
+        root, a: textNode('a', 'missing', 'user', 'known body'),
+    };
+    const cyclic: Record<string, ChatGPTConversationNode> = {
+        a: textNode('a', 'b', 'user', 'question'),
+        b: textNode('b', 'a', 'assistant', 'answer'),
+    };
+    for (const mapping of [broken, cyclic]) {
+        const parsed = parseChatGPTConversation({
+            conversation: { id: 'conv-partial', title: 'Partial', create_time: 1, update_time: 2,
+                current_node: 'a', mapping, is_archived: false },
+            assetsByNode: new Map(),
+        });
+        assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    }
 });
 
 test('consecutive assistant turns merge into one node', () => {
@@ -141,7 +163,7 @@ test('ChatGPTProvider checkReadiness reports logged-out session', async () => {
             );
         },
     });
-    const readiness = await provider.checkReadiness();
+    const readiness = await provider.checkReadiness(fixtureAccount('chatgpt').id);
     assert.equal(readiness.ready, false);
     assert.equal(seenCredentials, 'include');
 });
@@ -193,7 +215,7 @@ test('files/download helpers narrow payloads and encode bytes', () => {
     assert.equal(arrayBufferToBase64(new Uint8Array([104, 105]).buffer), 'aGk=');
 });
 
-test('fetchConversationDetail downloads image pointers into Domain assets', async () => {
+test('Detail submits image identities; bytes are acquired on demand without changing body quality', async () => {
     const pngBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
     const mapping: Record<string, ChatGPTConversationNode> = {
         root: { id: 'root', children: ['u1'] },
@@ -260,27 +282,26 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
             return Promise.resolve(new Response('nope', { status: 404 }));
         },
     });
-    const detail = await provider.fetchConversationDetail('conv-img');
-    assert.equal(detail.sourceVersion, 1700000060000);
-    assert.equal(detail.conversation.index.createdAt, 1700000000000);
-    assert.equal(Object.hasOwn(detail.conversation, 'updatedAt'), false);
-    assert.equal(detail.conversation.detail.assets.length, 2);
-    assert.equal(detail.conversation.detail.assets[0]?.kind, 'image');
-    assert.equal(detail.conversation.detail.assets[0]?.sourceUri, 'sediment://file_cat');
-    assert.equal(detail.conversation.detail.assets[0]?.mediaType, 'image/png');
-    const resource = await getDomainResource(storageIdentity(detail.account.providerId, detail.account.id, 'conv-img'), detail.conversation.detail.assets[0].id);
-    assert.deepEqual(resource, pngBytes);
-    // In-place order preserved: text -> image -> text
-    const userMsg = detail.conversation.detail.messages.find((m) => m.id === 'u1');
-    assert.deepEqual(userMsg?.content.map((b) => b.type), ['paragraph', 'image', 'paragraph']);
-    // Failed download preserves placeholder asset + image block + partial completeness + diagnostic
-    assert.equal(detail.conversation.detail.assets[1]?.sourceUri, 'sediment://file_missing');
-    assert.equal(detail.acquisitionHints[detail.conversation.detail.assets[1].id]?.dataBase64, undefined);
-    const toolMsg = detail.conversation.detail.messages.find((m) => m.id === 't1');
-    assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.detail.assets[1]?.id]);
-    assert.ok(toolMsg?.content.some((b) => b.type === 'image'));
-    assert.equal(detail.conversation.detail.quality.status, 'partial');
-    assert.ok(detail.diagnostics.some((d) => d.code === 'CHATGPT_IMAGE_ASSET_UNAVAILABLE'));
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    assert.equal(await provider.fetchConversationDetail(account.id, 'conv-img'), undefined);
+    const stored = await getDetail(storageIdentity('chatgpt', account.id, 'conv-img'));
+    assert.ok(stored);
+    const detail = stored;
+    assert.equal(detail.savedAt, 1700000060000);
+    assert.equal((await getConversations(account.id))[0].createdAt, 1700000000000);
+    assert.equal(detail.assets.length, 2);
+    assert.equal(detail.assets[0].sourceUri, 'sediment://file_cat');
+    const key = { accountId: account.id, conversationId: 'conv-img' };
+    assert.deepEqual((await provider.acquireResource(key, detail.assets[0])).bytes, pngBytes);
+    await assert.rejects(provider.acquireResource(key, detail.assets[1]), /404/);
+    assert.equal(detail.quality.status, 'complete');
+    const after = await getDetail(storageIdentity('chatgpt', account.id, 'conv-img'));
+    assert.deepEqual(after?.quality, detail.quality);
+    const userMsg = detail.messages.find(m => m.id === 'u1');
+    assert.deepEqual(userMsg?.content.map(b => b.type), ['paragraph', 'image', 'paragraph']);
+    const toolMsg = detail.messages.find(m => m.id === 't1');
+    assert.deepEqual(toolMsg?.attachmentIds, [detail.assets[1].id]);
+
 });
 
 test('thinking walk attaches hidden reasoning to the following assistant node', () => {
@@ -500,26 +521,54 @@ test('listConversations paginates until the reported total is reached', async ()
         fetchFn: (url) => {
             const u = String(url);
             if (u.endsWith('/api/auth/session')) {
-                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok' }), { status: 200 }));
+                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } }), { status: 200 }));
             }
             calls.push(u);
             const items = [
                 { id: 'a', title: 'A', create_time: 1, update_time: 2 },
-                { id: 'b', title: 'B', create_time: 1 },
-                { id: 'c', title: 'C', create_time: 1 },
+                { id: 'b', title: 'B', create_time: 1, update_time: 1 },
+                { id: 'c', title: 'C', create_time: 1, update_time: 0.5 },
             ];
             return Promise.resolve(new Response(JSON.stringify({
                 items, total: 3, limit: 100, offset: 0, has_missing_conversations: false,
             }), { status: 200 }));
         },
     });
-    const page = await provider.listConversations({ maxPages: 5 });
-    assert.deepEqual(page.items.map((i) => i.id), ['a', 'b', 'c']);
-    assert.equal(page.items[0]?.createdAt, 1000);
-    assert.equal(page.items[0]?.updatedAt, 2000);
-    assert.equal(page.exhaustive, true);
-    assert.equal(page.total, 3);
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
+    assert.equal(await provider.listConversations({ accountId: account.id, streamId: 'recent' }), 'source_end');
+    const indexes = await getConversations(account.id);
+    assert.deepEqual(indexes.map(i => i.key.conversationId), ['a', 'b', 'c']);
+    assert.equal(indexes[0].createdAt, 1000); assert.equal(indexes[0].updatedAt, 2000);
     assert.equal(calls.length, 1);
+
+});
+
+test('ChatGPT Detail never relabels a foreign source conversation ID', async () => {
+    const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
+        String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : { id: 'other-conversation' },
+    ), { status: 200 })) });
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    await assert.rejects(provider.fetchConversationDetail(account.id, 'requested-conversation'),
+        /Detail identity mismatch/);
+    assert.equal(await getDetail(storageIdentity('chatgpt', account.id, 'requested-conversation')), null);
+});
+
+test('ChatGPT list refuses source_end when pagination, ordering or completeness is unverified', async () => {
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
+    const session = { accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } };
+    const cases = [
+        { items: [{ id: 'missing-time', title: 'Missing time' }], total: 1, limit: 100, offset: 0, has_missing_conversations: false },
+        { items: [{ id: 'missing-row', title: 'Incomplete', update_time: 2 }], total: 1, limit: 100, offset: 0, has_missing_conversations: true },
+        { items: [{ id: 'wrong-offset', title: 'Wrong offset', update_time: 2 }], total: 1, limit: 100, offset: 100, has_missing_conversations: false },
+        { items: [{ id: 'missing-total', title: 'Missing total', update_time: 2 }], limit: 100, offset: 0, has_missing_conversations: false },
+    ];
+    for (const page of cases) {
+        const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
+            String(url).endsWith('/api/auth/session') ? session : page,
+        ), { status: 200 })) });
+        await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent' }),
+            /Unverified ChatGPT list page/);
+    }
 });
 
 test('optional access helper never prompts and registers only on grant', async () => {

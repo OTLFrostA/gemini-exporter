@@ -1,18 +1,7 @@
 {
   "document": {
-    "schemaVersion": 2,
-    "header": {
-      "title": "长表格：模型指标对比",
-      "providerLabel": "gemini",
-      "date": "2026-09-26",
-      "messageCount": 2
-    },
     "messages": [
       {
-        "type": "message",
-        "id": "u1",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -36,13 +25,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a1",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -87,7 +73,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -99,7 +84,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -111,7 +95,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -123,7 +106,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -135,7 +117,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -151,7 +132,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -163,7 +143,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -175,7 +154,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -187,7 +165,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -199,7 +176,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -213,7 +189,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -225,7 +200,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -237,7 +211,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -249,7 +222,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -261,7 +233,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -275,7 +246,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -287,7 +257,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -299,7 +268,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -311,7 +279,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -323,7 +290,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -337,7 +303,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -349,7 +314,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -361,7 +325,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -373,7 +336,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -385,7 +347,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -399,7 +360,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -411,7 +371,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -423,7 +382,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -435,7 +393,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -447,7 +404,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -461,7 +417,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -473,7 +428,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -485,7 +439,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -497,7 +450,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -509,7 +461,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -523,7 +474,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -535,7 +485,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -547,7 +496,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -559,7 +507,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -571,7 +518,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -585,7 +531,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -597,7 +542,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -609,7 +553,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -621,7 +564,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -633,7 +575,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -647,7 +588,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -659,7 +599,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -671,7 +610,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -683,7 +621,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -695,7 +632,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -709,7 +645,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -721,7 +656,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -733,7 +667,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -745,7 +678,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -757,7 +689,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -771,7 +702,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -783,7 +713,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -795,7 +724,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -807,7 +735,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -819,7 +746,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -833,7 +759,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -845,7 +770,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -857,7 +781,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -869,7 +792,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -881,7 +803,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -895,7 +816,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -907,7 +827,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -919,7 +838,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -931,7 +849,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -943,7 +860,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -957,7 +873,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -969,7 +884,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -981,7 +895,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -993,7 +906,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -1005,7 +917,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -1019,7 +930,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -1031,7 +941,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -1043,7 +952,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -1055,7 +963,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -1067,7 +974,6 @@
                   "column": 4,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "center",
                   "children": [
                     {
                       "type": "text",
@@ -1087,13 +993,16 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       }
     ],
     "metadata": {
       "id": "long-table",
-      "provider": "gemini"
-    }
+      "provider": "gemini",
+      "updatedAt": 1790380800000
+    },
+    "title": "长表格：模型指标对比"
   },
   "resourceIds": []
 }

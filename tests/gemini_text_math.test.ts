@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import katex from 'katex';
-import { normalizeTextUnderscores } from '../src/core/utils/latexCompatibility.js';
-import { parseGeminiBody, parseGeminiPrompt } from '../src/core/parsers/gemini/shared/contentAdapter.js';
+import { normalizeTextUnderscores } from '../src/shared/utils/latexCompatibility.js';
+import { parseGeminiBody, parseGeminiPrompt } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 
 test('captured text identifiers match Gemini display and render as valid MathML', () => {
     const source = readFileSync('tests/fixtures/provider/math/gm_tex_002_evidence.tex', 'utf8').split('\n')[2];

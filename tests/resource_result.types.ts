@@ -1,5 +1,5 @@
-import type { ResourceRequest } from '../src/core/resources/resourceAcquisition.js';
-import type { ResourceBytes, ResourceDelivery, ResourceResult } from '../src/core/resources/resourceResult.js';
+import type { ResourceRequest } from '../src/l1/resources/resourceAcquisition.js';
+import type { ResourceBytes, ResourceDelivery, ResourceResult } from '../src/shared/resources/resourceResult.js';
 
 // @ts-expect-error Runtime resource identity must be a Domain asset ID, never just a URL.
 const anonymous: ResourceRequest = { url: 'https://example.test/image.png' };

@@ -1,6 +1,6 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
-const { rpcFixture } = require('./helpers/nativeFixture.js');
-const { parseGeminiRpcConversation } = require('../src/core/parsers/gemini/rpc/parseConversation.js');
+const { sourceDetail, sourceMessage } = require('./helpers/l1SourceFixture.js');
+const { parseGeminiRpcConversation } = require('../src/l1/parsers/gemini/rpc/parseConversation.js');
 /**
  * Phase C 规格测试 —— 解析可观测 (P1-8 / P1-9)
  * red-by-design: 修复前失败、修复后通过。
@@ -11,11 +11,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const attachments = require('./helpers/recordFixture/attachments.js');
-const pagination = require('../src/core/api/client/pagination.js');
-const { resolveExportRecordStatus } = require('../src/core/engine/export/exportCompletion.js');
-const { contentQuality } = require('../src/core/parsers/qualityEvidence.js');
+const detailDecoder = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const attachments = require('../src/l1/parsers/gemini/rpc/sourceAttachments.js');
+const pagination = require('../src/l1/client/gemini/api/pagination.js');
+const { contentQuality } = require('../src/l1/parsers/qualityEvidence.js');
 
 // ---------------------------------------------------------------- helpers
 function makeDetailRpc(inner: unknown): string {
@@ -68,24 +67,24 @@ test('P1-8c: parser 统一质量状态，拒识内容判 partial', () => {
     assert.strictEqual(result.evidence?.rejectedTurns, 1);
     assert.ok(result.diagnostics.some((d: { code: string }) => d.code === 'GEMINI_TURNS_REJECTED'));
     assert.deepEqual(result.evidence?.heuristicDocumentIds ?? [], []);
-    assert.strictEqual(resolveExportRecordStatus({ quality }).status, 'partial', 'turnsRejected>0 必须标 partial，不能是 ok');
+    assert.strictEqual(quality.status, 'partial', 'turnsRejected>0 必须标 partial，不能是 ok');
 });
 
 test('P1-8d: 无漂移时状态保持 ok；heuristic 文档也判 partial', () => {
     const clean = contentQuality({ status: 'unknown' });
-    assert.strictEqual(resolveExportRecordStatus({ quality: clean }).status, 'ok');
+    assert.strictEqual(clean.status, 'unknown');
     const heur = contentQuality({ status: 'unknown', heuristicDocumentIds: ['doc'] });
-    assert.strictEqual(resolveExportRecordStatus({ quality: heur }).status, 'partial', 'heuristic 文档链必须标 partial');
+    assert.strictEqual(heur.status, 'partial', 'heuristic 文档链必须标 partial');
 });
 
 test('P1-8e: pagination 跨页合并 turnsRejected 与 schemaDrift（去重）', async () => {
-    const pages: any[] = [
-        { id: "c_x", messages: [{ id: "m1" }], schemaDrift: ["drift-a"], turnsRejected: 1, nextPageToken: "t2" },
-        { id: "c_x", messages: [{ id: "m2" }], schemaDrift: ["drift-b", "drift-a"], turnsRejected: 2, nextPageToken: null }
+    const pages = [
+        sourceDetail({ id: 'source_chat_123', messages: [sourceMessage('new')], schemaDrift: ['drift-a'], turnsRejected: 1, nextPageToken: 'tC_older' }),
+        sourceDetail({ id: 'source_chat_123', messages: [sourceMessage('old')], schemaDrift: ['drift-b', 'drift-a'], turnsRejected: 2 }),
     ];
     let calls = 0;
-    const client = { fetchConversationPage: async () => { const page = pages[calls++]; return rpcFixture(page, { nextPageToken: page.nextPageToken, schemaDrift: page.schemaDrift, turnsRejected: page.turnsRejected }); } };
-    const res = await pagination.getConversationDetail(client, "c_x");
+    const client = { fetchConversationPage: async () => pages[calls++] };
+    const res = await pagination.getConversationDetail(client, "source_chat_123");
     assert.strictEqual(res.evidence?.rejectedTurns, 3, 'turnsRejected 应跨页累加');
     assert.deepStrictEqual([...new Set(res.diagnostics.filter((d: { code: string }) => d.code === 'GEMINI_SCHEMA_DRIFT').map((d: { message: string }) => d.message))].sort(), ["drift-a", "drift-b"], 'schemaDrift 应跨页合并去重');
 });

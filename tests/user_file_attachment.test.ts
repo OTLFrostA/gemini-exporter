@@ -1,10 +1,10 @@
-import { fixtureResourceResults } from './helpers/documentFixture.js';
+import { composeFixture } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const attachments = require('./helpers/recordFixture/attachments.js');
-const ChatFormatter = require('../src/core/engine/chatFormatter.js');
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 
 test('user_file_attachment: itemMatchesFilename correctly identifies valid filenames and rejects URLs', () => {
     // Valid filenames with standard and custom extensions
@@ -101,7 +101,7 @@ test('user_file_attachment: extractUserFiles supports multiple diverse extension
     assert.strictEqual(extracted[2].fileName, 'dataset_random.custom');
 });
 
-test('user_file_attachment: ChatFormatter renders clean attachment link without URL leakage', async () => {
+test('user_file_attachment: Markdown renderer renders clean attachment link without URL leakage', async () => {
     const mockChat = {
         id: '273175',
         title: 'Gemini 架构设计评估报告',
@@ -134,14 +134,15 @@ test('user_file_attachment: ChatFormatter renders clean attachment link without 
     };
 
     const parsed = historicalFixture(mockChat);
-    const res = await ChatFormatter.formatMarkdownDocument(parsed, { resourceResults: await fixtureResourceResults(parsed.conversation, parsed.resourceHints) });
-    assert.ok(res.content.includes('[architecture.md](files/273175_architecture.md)'), 'Must render clean Markdown link for architecture.md');
-    assert.ok(res.content.includes('[custom\\_data.xyz](files/273175_custom_data.xyz)'), 'Must render clean Markdown link for custom_data.xyz');
-    assert.ok(!res.content.includes('https___contribution'), 'Must NOT contain sanitized URL artifacts in Markdown');
-    assert.ok(!res.content.includes('[https://'), 'Must NOT render URL as link title');
+    const { document, resources } = await composeFixture(parsed.conversation, parsed.resourceHints);
+    const markdown = renderDocumentMarkdown(document, resources);
+    assert.ok(markdown.includes('[architecture.md](files/273175_architecture.md)'), 'Must render clean Markdown link for architecture.md');
+    assert.ok(markdown.includes('[custom\\_data.xyz](files/273175_custom_data.xyz)'), 'Must render clean Markdown link for custom_data.xyz');
+    assert.ok(!markdown.includes('https___contribution'), 'Must NOT contain sanitized URL artifacts in Markdown');
+    assert.ok(!markdown.includes('[https://'), 'Must NOT render URL as link title');
 });
 
-test('user_file_attachment: ChatFormatter protects against accidentally leaked URL in title', async () => {
+test('user_file_attachment: Markdown renderer preserves a supplied resource label without inferring one from its destination', async () => {
     const mockChat = {
         id: '273175',
         title: 'Leaked URL Title Test',
@@ -161,10 +162,12 @@ test('user_file_attachment: ChatFormatter protects against accidentally leaked U
     };
 
     const parsed = historicalFixture(mockChat);
-    const res = await ChatFormatter.formatMarkdownDocument(parsed, { resourceResults: await fixtureResourceResults(parsed.conversation, parsed.resourceHints) });
-    assert.ok(!res.content.includes('[https://'), 'Leaked URL must be sanitized out of link text');
-    assert.ok(res.content.includes('files/273175_leaked.json'), 'Must keep localName path');
-    assert.ok(res.content.includes('[Attachment](files/273175_leaked.json)'), 'Destination basename is not a semantic file label');
+    const { document, resources } = await composeFixture(parsed.conversation, parsed.resourceHints);
+    const markdown = renderDocumentMarkdown(document, resources);
+    assert.ok(markdown.includes('[https://contribution.usercontent.google.com/download?c=123&amp;filename=leaked.json]'),
+        'Composer preserves a supplied nonempty source name; it cannot reinterpret it as missing');
+    assert.ok(markdown.includes('files/273175_leaked.json'), 'Must keep localName path');
+    assert.ok(!markdown.includes('[leaked.json]'), 'Destination basename cannot replace a supplied source label');
 });
 
 

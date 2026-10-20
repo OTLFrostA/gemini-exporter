@@ -1,67 +1,40 @@
-import { useIndexStorage } from './helpers/indexStorage.js';
-useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { historicalFixture } from './helpers/nativeFixture.js';
-import { makeTestWorker } from './helpers/makeTestWorker.js';
-import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
-import { __clearModuleOverrides, __setModuleOverride } from '../src/core/utils/moduleOverrides.js';
+import { runExport } from '../src/application/export/runExport.js';
+import { getExportRecord } from '../src/l3a/storageService.js';
+import { v2ExportHost, exportKey, exportRequest, seedExportConversation, seedExportIndexOnly } from './helpers/v2ExportHost.js';
 
-// A worker rejection must fail only its own conversation; the next chat still exports.
-test('P1-011: a worker rejection records one failure and does not stop the next chat', async () => {
-    const fetchedIds: string[] = [];
-    const savedIds: string[] = [];
-    const notifiedIds: string[] = [];
-    let downloads = 0;
+/**
+ * P1-011 on the shipped v2 pipeline. A failed L1 Detail acquisition must
+ * not prevent Application from exporting a later healthy L2/L3a conversation.
+ * There is no ExportOrchestrator, BatchWorker, or legacy export session.
+ */
+test('P1-011: failed L1 acquisition affects only its key; the next v2 Domain exports and commits', async t => {
+    const host = v2ExportHost(t);
+    await seedExportIndexOnly('broken');
+    await seedExportConversation('healthy');
 
-    __setModuleOverride('JSZip', class {
-        folder() { return { file: () => {} }; }
-        async generateAsync() { return new Blob(['test zip'], { type: 'application/zip' }); }
-    });
-    __setModuleOverride('StorageService', {
-        getExportedIds: async () => ({}),
-        saveExportRecord: async (_slot: string, id: string) => {
-            savedIds.push(id);
-            return {};
-        }
+    const progress: string[] = [];
+    const result = await runExport(exportRequest(['broken', 'healthy']), {
+        onProgress: item => progress.push(item.key.conversationId),
     });
 
-    try {
-        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
-            selected: [{ id: 'broken', title: 'Broken' }, { id: 'healthy', title: 'Healthy' }],
-            concurrency: 1,
-            format: 'markdown',
-            useZip: true,
-            includeAssets: false,
-            downloadHandler: async () => { downloads++; },
-            worker: makeTestWorker({
-                fetchChatDetail: async (item) => {
-                    fetchedIds.push(item.id);
-                    if (item.id === 'broken') throw new Error('injected worker rejection');
-                    return {
-                        success: true,
-                        chat: historicalFixture({
-                            id: item.id,
-                            title: 'Healthy',
-                            messages: [{ role: 'user', content: 'Still exported' }]
-                        })
-                    };
-                }
-            })
-        }) }, {
-            onItemExported: (id) => { notifiedIds.push(id); }
-        });
+    assert.deepEqual(progress, ['broken', 'healthy']);
+    assert.equal(result.aborted, false);
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 0);
+    assert.deepEqual(result.failed, [exportKey('broken')]);
+    assert.equal(result.skipped, 0);
+    assert.equal(host.clicks(), 1);
+    assert.match(host.filenames[0], /\.md$/);
+    assert.equal(host.blobs.length, 1);
+    assert.match(await host.blobs[0].text(), /Answer for healthy/);
+    assert.doesNotMatch(await host.blobs[0].text(), /Unavailable broken/);
 
-        assert.deepEqual(fetchedIds, ['broken', 'healthy']);
-        assert.equal(result.aborted, false);
-        assert.equal(result.landedChats, 1);
-        assert.equal(result.failedChats.length, 1);
-        assert.equal(result.failedChats[0].id, 'broken');
-        assert.equal(result.failedChats[0].error, 'injected worker rejection');
-        assert.equal(downloads, 1);
-        assert.deepEqual(savedIds, ['healthy']);
-        assert.deepEqual(notifiedIds, ['healthy']);
-    } finally {
-        __clearModuleOverrides();
-    }
+    assert.equal(await getExportRecord(exportKey('broken')), null);
+    const healthy = await getExportRecord(exportKey('healthy'));
+    assert.ok(healthy);
+    assert.equal(healthy.format, 'markdown');
+    assert.equal(healthy.status, 'ok');
+    assert.equal(healthy.chatTime, 100);
 });

@@ -1,7 +1,9 @@
-import { acquiredReply } from './helpers/acquisitionFixture.js';
-import { useIndexStorage } from './helpers/indexStorage.js';
-useIndexStorage();
-import { indexFixture } from './helpers/indexFixture.js';
+import { v2LiveSaveHost } from './helpers/v2LiveSaveHost.js';
+import { exportRequest } from './helpers/v2ExportHost.js';
+import { ingestDetail } from '../src/l2/ingestion.js';
+import { runExport } from '../src/application/export/runExport.js';
+import { listExportRecords } from '../src/l3a/storageService.js';
+import { buildExportFileName } from '../src/shared/utils/pathUtils.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-stress-gates.test.ts
@@ -33,8 +35,7 @@ const { parseFixture } = require('./helpers/documentFixture.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 // §5 全链路门禁的依赖（真编译器 + 文本提取）。§1–§4 不需要它们。
-const { PdfExporter } = require('../src/core/export/pdf/index.js');
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
 const {
     RealWasmSandboxHost,
     repoRoot,
@@ -403,161 +404,39 @@ function makeFullConversation(n: number, msgCount: number): any {
     };
 }
 
-test('stress: full-pipeline release stress with real Typst compile (Item 4)', async () => {
-    const N = RELEASE_STRESS ? 100 : 2;
-    const MSG_PER_CONV = 20;
-    const totalMessages = N * MSG_PER_CONV;
-    const conversations = Array.from({ length: N }, (_, n) => makeFullConversation(n, MSG_PER_CONV));
-    assert.strictEqual(
-        conversations.reduce((s, c) => s + c.messages.length, 0),
-        totalMessages,
-        'synthetic input must carry the expected message count',
-    );
-
-    const cjkFont = resolveLocalCjkFont();
-    const fontPaths = cjkFont
-        ? ['src/ui/sandbox/fonts/NewCMMath-Regular.otf', cjkFont]
-        : undefined;
-
-    const host = new RealWasmSandboxHost(repoRoot());
-    const compiler = new TypstSandboxCompiler({ host, ...(fontPaths ? { fontPaths } : {}) });
-
-    // in-memory writer：delivery stage 的落盘断言目标（useZip: false 只走 writeFile）。
-    const files: Array<{ name: string; bytes: Uint8Array }> = [];
-    const writer = {
-        async writeFile(relativePath: string, content: any) {
-            const bytes =
-                content instanceof Uint8Array ? content : new TextEncoder().encode(String(content));
-            files.push({ name: relativePath, bytes });
-            return relativePath;
-        },
-    };
-
-    const exported: Array<{ id: string; record: any }> = [];
-    const errorLogs: string[] = [];
-    const exporter = new PdfExporter(compiler); // 真编译器（非 stub）
-
-    const heapStart = process.memoryUsage().heapUsed;
-    let heapPeak = heapStart;
-    const sampleHeap = () => {
-        const h = process.memoryUsage().heapUsed;
-        if (h > heapPeak) heapPeak = h;
-    };
-
-    let crash: unknown = null;
-    let result: any = null;
-    const t0 = Date.now();
-    try {
-        result = await exporter.run(
-            { accountId: '10000000-0000-4000-8000-000000000001', ...({
-                selected: conversations.map((c) => ({ id: c.id, title: c.title })),
-                conversations: conversations.map(indexFixture),
-                fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
-                useZip: false,
-                writer,
-            }) },
-            {
-                onItemExported: (id: string, record: any) => {
-                    exported.push({ id, record });
-                    sampleHeap();
-                },
-                onLog: (msg: string, level?: string) => {
-                    if (level === 'error') errorLogs.push(msg);
-                },
-            },
-        );
-    } catch (e) {
-        crash = e;
-    } finally {
-        // compiler 是外部注入的（PdfExporter 不拥有），这里负责 dispose。
-        compiler.dispose();
+test('stress: full-pipeline release stress with real Typst compile (Item 4)', async (t: import('node:test').TestContext) => {
+    const N=RELEASE_STRESS?100:2, MSG_PER_CONV=20;
+    const conversations=Array.from({length:N},(_,n)=>makeFullConversation(n,MSG_PER_CONV));
+    assert.strictEqual(conversations.reduce((s,c)=>s+c.messages.length,0),N*MSG_PER_CONV);
+    const h=v2LiveSaveHost(t),ids:string[]=[];
+    for(const raw of conversations){
+        const {conversation:{index,detail}}=historicalFixture(raw);
+        await ingestDetail(index.key.accountId,index.key.conversationId,detail,index);ids.push(index.key.conversationId);
     }
-    const elapsedMs = Date.now() - t0;
-    const heapEnd = process.memoryUsage().heapUsed;
-    sampleHeap();
-
-    const mib = (b: number) => (b / 1048576).toFixed(1);
-    console.log(
-        `  Item4 stress: mode=${RELEASE_STRESS ? 'FULL' : 'smoke'}, N=${N}, ` +
-        `messages=${totalMessages}, cjkFont=${cjkFont ? 'injected' : 'absent (known degradation)'}, ` +
-        `succeeded=${result?.succeeded ?? 'CRASH'}, failed=${result?.failed?.length ?? 'CRASH'}, ` +
-        `elapsed=${(elapsedMs / 1000).toFixed(1)}s, ` +
-        `heap start=${mib(heapStart)}MiB peak=${mib(heapPeak)}MiB end=${mib(heapEnd)}MiB` +
-        (errorLogs.length ? `, errorLogs=${errorLogs.length}` : ''),
-    );
-
-    // Gate a) 0 crash
-    assert.strictEqual(
-        crash, null,
-        `exporter.run threw: ${(crash as Error)?.stack ?? String(crash)}`,
-    );
-    assert.ok(result, 'result must be present when nothing crashed');
-    assert.strictEqual(result.aborted, false, 'run must not report aborted');
-    assert.strictEqual(result.total, N, 'result.total must equal the input conversation count');
-
-    // Gate d) all conversations accounted for —— 先算账，再谈别的
-    const inputIds = new Set(conversations.map((c) => c.id.replace(/^c_/, '')));
-    const exportedIds = exported.map((e) => e.id);
-    const failedIds = result.failed.map((f: any) => f.id);
-    assert.strictEqual(
-        result.succeeded + result.failed.length, N,
-        'succeeded + failed must equal N',
-    );
-    assert.strictEqual(
-        new Set([...exportedIds, ...failedIds]).size, N,
-        'every input id must appear exactly once across exported + failed',
-    );
-    for (const id of inputIds) {
-        assert.ok(
-            exportedIds.includes(id) || failedIds.includes(id),
-            `conversation ${id} is unaccounted for`,
-        );
+    const cjkFont=resolveLocalCjkFont();
+    const real=new TypstSandboxCompiler({host:new RealWasmSandboxHost(repoRoot()),...(cjkFont?{fontPaths:['src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf',cjkFont]}:{})});
+    // Adapt only the browser sandbox platform. Every compile still invokes real
+    // Typst WASM; the task's default compiler keeps its normal ownership.
+    const original=TypstSandboxCompiler.prototype.compile;
+    let compiles=0;
+    t.mock.method(TypstSandboxCompiler.prototype,'compile',async (payload:unknown,context:unknown)=>{
+        compiles++;return original.call(real,payload,context);
+    });
+    const start=Date.now(),heapStart=process.memoryUsage().heapUsed;let heapPeak=heapStart;
+    let result;try{
+        result=await runExport(exportRequest(ids,{format:'pdf',delivery:'folderWriter',includeAssets:true}),{onProgress:()=>{heapPeak=Math.max(heapPeak,process.memoryUsage().heapUsed);}});
+    }finally{real.dispose();}
+    const elapsed=Date.now()-start;
+    console.log(`Item4 stress: mode=${RELEASE_STRESS?'FULL':'smoke'}, N=${N}, messages=${N*MSG_PER_CONV}, exported=${result.exported}, failed=${result.failed.length}, compiles=${compiles}, elapsed=${elapsed}ms, heapGrowthMiB=${((heapPeak-heapStart)/1048576).toFixed(1)}`);
+    assert.strictEqual(result.aborted,false);assert.deepStrictEqual(result.failed,[]);assert.strictEqual(result.exported,N);assert.strictEqual(result.partial,N);assert.strictEqual(compiles,N);
+    const records=await listExportRecords(exportRequest(ids).keys[0].accountId);assert.deepStrictEqual(Object.keys(records).sort(),ids.slice().sort());
+    const files=[...h.files].filter(([name])=>name.endsWith('.pdf'));assert.strictEqual(files.length,N);
+    for(const [i,id] of ids.entries()){
+        assert.strictEqual(records[id].status,'partial');
+        const expected=buildExportFileName(conversations[i].title,id,'pdf');
+        const bytes=h.files.get(expected);if(!(bytes instanceof Uint8Array))throw Error(`record ${id} must have a delivered file at ${expected}`);
+        assert.ok(bytes.byteLength>0);assert.strictEqual(Buffer.from(bytes.subarray(0,5)).toString(),'%PDF-');
+        const extracted=extractPdfText(bytes);assert.ok(extracted.pageCount>=1);assert.ok(extracted.text.trim().length>0);
     }
-
-    // Gate c) 0 false success：failed 必须为空；每条成功记录 1:1 对应真实落盘字节
-    assert.deepStrictEqual(
-        result.failed.map((f: any) => ({ id: f.id, error: f.error })),
-        [],
-        `stress gate allows 0 failures; got ${result.failed.length}`,
-    );
-    assert.strictEqual(exported.length, result.succeeded, 'onItemExported count must match succeeded');
-    assert.strictEqual(
-        files.length, exported.length,
-        'written files must match exported records 1:1 (no orphan file, no missing file)',
-    );
-    const filesByName = new Map(files.map((f) => [f.name, f.bytes]));
-    for (const { id, record } of exported) {
-        assert.strictEqual(record.status, 'partial', `record ${id} must report unavailable image resources`);
-        const bytes = filesByName.get(record.fileName);
-        if (bytes === undefined) {
-            // assert.ok 在此仓库的 @types/node 下不收窄类型，用 throw 保证类型安全；
-            // node:test 中 throw 即测试失败，信息同样明确。
-            throw new Error(
-                `record ${id} points at ${record.fileName} which was never written (false success)`,
-            );
-        }
-        assert.ok(bytes.length > 0, `record ${id}: written PDF is empty (false success)`);
-        assert.strictEqual(
-            bytes.length, record.bytesWritten,
-            `record ${id}: bytesWritten mismatch (false success)`,
-        );
-        assert.strictEqual(
-            Buffer.from(bytes.slice(0, 5)).toString('latin1'), '%PDF-',
-            `record ${id}: missing %PDF- magic (false success)`,
-        );
-    }
-
-    // Gate b) 0 blank PDF：每份 PDF 至少 1 页且可提取文本非空
-    const blank: string[] = [];
-    for (const f of files) {
-        const ex = extractPdfText(f.bytes);
-        if (!(ex.pageCount >= 1 && ex.text.trim().length > 0)) blank.push(f.name);
-    }
-    assert.deepStrictEqual(blank, [], `blank PDFs detected: ${blank.slice(0, 5).join(', ')}`);
-
-    // Gate e) < 10 分钟（全量口径；冒烟天然远小于此）
-    assert.ok(
-        elapsedMs < 600_000,
-        `full-pipeline stress took ${(elapsedMs / 1000).toFixed(1)}s, over the 10-minute budget`,
-    );
+    assert.ok(elapsed<600_000,`full-pipeline stress exceeded 10min: ${elapsed}ms`);
 });

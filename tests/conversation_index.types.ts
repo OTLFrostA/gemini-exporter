@@ -1,6 +1,6 @@
 import { fixtureKey } from './helpers/domainFixture.js';
-import type { DomainConversationIndex, ConversationIndexPatch } from '../src/core/domain/conversationIndex.js';
-import { StorageService } from '../src/core/storage/storageService.js';
+import type { DomainConversationIndex, ConversationIndexPatch } from '../src/l2/conversationIndex.js';
+import { putIndexes } from '../src/l3a/storageService.js';
 
 const index: DomainConversationIndex = { key: fixtureKey(String('chat'), 'gemini'),   title: '', titleSource: "derived",
       };
@@ -19,5 +19,5 @@ const badMessageTime: DomainConversationIndex = { ...index, lastMessageAt: 10 };
 // @ts-expect-error Identity cannot be changed by an index patch.
 const patch: ConversationIndexPatch = { id: 'replacement' };
 // @ts-expect-error Raw provider IDs require explicit UUID binding before storage.
-const badWrite = () => StorageService.setConversations('u0', [{ id: 'chat', title: 'Title' }]);
+const badWrite = () => putIndexes([{ id: 'chat', title: 'Title' }]);
 void [badMessageTime, count, source, alias, candidates, body, undated, patch, badWrite];

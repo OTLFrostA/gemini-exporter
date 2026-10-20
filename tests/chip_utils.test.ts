@@ -2,7 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { isInternalChipUrl, stripInternalChipMarkdown } = require('../src/core/utils/chipUtils.js');
+const { isInternalChipUrl, stripInternalChipMarkdown } = require('../src/l1/parsers/shared/chipUtils.js');
 
 test('chipUtils - isInternalChipUrl detects all Google internal chip URLs', () => {
     // Both long and short variants

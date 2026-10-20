@@ -14,8 +14,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 // Mirrors the #636 Tier 2 gate: LaTeX macro followed by <em> means the parser
 // shattered a formula (e.g. \hat{H}<em>{JC}, \omega<em>a).
@@ -36,7 +36,7 @@ test('full pipeline keeps LaTeX-like underscores and file names intact', async (
         messages: [{ id: 'm1', role: 'user', content }],
     };
     const { conversation: domain } = await historicalFixture(chat, { providerId: 'gemini' });
-    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {}, { locale: 'zh' });
+    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)), {}, { locale: 'zh' });
 
     for (const c of CASES) {
         assert.ok(html.includes(c), `expected verbatim output to contain ${JSON.stringify(c)}`);
@@ -54,7 +54,7 @@ test('legit underscore emphasis still renders in HTML', async () => {
         messages: [{ id: 'm1', role: 'user', content: 'word _italic_ word and __strong__ here' }],
     };
     const { conversation: domain } = await historicalFixture(chat, { providerId: 'gemini' });
-    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {}, { locale: 'zh' });
+    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)), {}, { locale: 'zh' });
     assert.ok(html.includes('<em>italic</em>'), 'legit _italic_ renders');
     assert.ok(html.includes('<strong>strong</strong>'), 'legit __strong__ renders');
 });

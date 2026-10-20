@@ -1,5 +1,7 @@
 # PDF 导出专项执行方案：Block AST → Typst v8 视觉 → PDF
 
+> 历史方案：本文记录早期实现，不作为 v2 L1/L2 接口或 schema 规范。当前以冻结的 Notion 设计及 [L1/L2 清理记录](l1-l2-freeze-repair.md) 为准；旧字符串会话模型仅供测试 fixture 使用。
+
 > Status: SUPERSEDED
 >
 > This maintenance/implementation plan has been completed/re-audited.
@@ -28,12 +30,12 @@
 
 | 现有位置 | 当前行为 | 本方案要改的边界 |
 | --- | --- | --- |
-| `src/types/conversation.ts` | 消息正文主要是 `content: string`；附件又分布在 `attachments/images/documents` | 保留旧字段兼容读取；增加来源格式标记和导出时生成的语义结构，不在第一批 PR 中重写全部旧库 |
-| `src/core/renderers/html/htmlTemplate.ts` | 自己解析 Markdown 并生成 HTML | 渐进改为消费共享 Block AST；保留现有 HTML 视觉与交互合同 |
+| 历史会话 fixture（`tests/helpers/historicalConversation.ts`） | 消息正文主要是 `content: string`；附件又分布在 `attachments/images/documents` | 保留旧字段兼容读取；增加来源格式标记和导出时生成的语义结构，不在第一批 PR 中重写全部旧库 |
+| `src/l4/format/html/htmlTemplate.ts` | 自己解析 Markdown 并生成 HTML | 渐进改为消费共享 Block AST；保留现有 HTML 视觉与交互合同 |
 | `src/core/engine/chatFormatter.ts` | `formatContent` 同步返回字符串 | 为 HTML/PDF 提供异步二进制 `ExportArtifact` 路径；旧格式可由适配器继续工作 |
 | `src/core/engine/assetPipeline.ts` | 下载后直接写入 Writer | 提炼可复用的资源字节获取能力；PDF 编译前即可取得图片，同一资源不重复抓取 |
 | `src/core/engine/export/exportOrchestrator.ts` | 主文件先写，附件随后异步排队 | PDF 分支须先准备待嵌入资源、再编译、再写入、最后更新记录 |
-| `src/core/engine/writers/writerInterface.ts` | 已接受 `Uint8Array`、`ArrayBuffer`、`Blob` | 复用；验证实际 ZIP 与文件夹的 PDF 二进制写入 |
+| `src/l4/delivery/writers/writerInterface.ts` | 已接受 `Uint8Array`、`ArrayBuffer`、`Blob` | 复用；验证实际 ZIP 与文件夹的 PDF 二进制写入 |
 | `build.js`、`manifest.json` | 五个 IIFE bundle；未包含 PDF Worker/WASM/字体 | 将新运行资源纳入构建、打包和 MV3 CSP 验收 |
 
 ## 3. 真实数据契约

@@ -1,392 +1,84 @@
-import { sourceIndex } from './helpers/domainFixture.js';
-import { contentQuality } from '../src/core/parsers/qualityEvidence.js';
-import { listFixture } from './helpers/listFixture.js';
-import { indexFixture } from './helpers/indexFixture.js';
-import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
-import { test } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getAllConversations, getConversationDetail, isPaginationExhaustive } from '../src/core/api/client/pagination.js';
-import type { GeminiPaginationListClient, GeminiPaginationDetailClient, PaginationOptions, PaginationResult, PaginationProgressInfo, PaginatedDetailResult, GeminiPaginationDiagnostics } from '../src/core/api/client/pagination.js';
-import type { ConversationListItem, ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
-import type { DetailParseResult } from '../src/core/api/client/detailTypes.js';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseList.js';
-import type { GeminiAPIClient } from '../src/core/api/geminiClient.js';
-
-function item(id: string): ConversationListItem {
-    return sourceIndex(indexFixture({ id, title: id, titleSource: 'rpc', titles: { rpc: id },
-        createdAt: null, updatedAt: null, chatTime: null, timestamp: null,
-        messageCount: 0, url: `https://gemini.google.com/app/${id}` }));
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { sourceDetail, sourceList, sourceMessage } from './helpers/l1SourceFixture.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { getConversationDetail, type GeminiPaginationDetailClient } from '../src/l1/client/gemini/api/pagination.js';
+import type { GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { getCoverage } from '../src/l2/coverageAdmission.js';
+useIndexStorage();
+function listProvider(pages: (ListParseResult | Error)[]) {
+    return new GeminiProvider({ async getConversationList() { const p = pages.shift(); if (p instanceof Error) throw p; assert.ok(p); return p; },
+        getConversationDetail: async () => sourceDetail() }, async () => 'u0');
 }
-function page(ids: string[], nextPageToken: string | null = null): ListParseResult {
-    return listFixture(ids.map(item), nextPageToken);
+function detailClient(pages: GeminiRpcParseResult[]): GeminiPaginationDetailClient {
+    return { async fetchConversationPage() { const page = pages.shift(); assert.ok(page); return page; } };
 }
-function listClient(pages: (ListParseResult | Error)[]): GeminiPaginationListClient & { calls: number } {
-    return { aborted: false, calls: 0, async getConversationList() {
-        const result = pages[this.calls++];
-        if (result instanceof Error) throw result;
-        assert.ok(result, 'unexpected extra page request');
-        return result;
-    } };
-}
-function detailPage(ids: string[], nextPageToken: string | null = null): DetailParseResult {
-    return rpcFixture({ id: 'test', title: 'Typed detail', titleSource: 'rpc', titles: { rpc: 'Typed detail' },
-        messages: ids.map(id => ({ id, role: 'model', content: id, timestamp: 1700000000000 })),
-        createdAt: null, chatTime: null, timestamp: null, updatedAt: null,
-        url: 'https://gemini.google.com/app/test', nextPageToken }, { nextPageToken, decodedPayload: undefined, schemaDrift: undefined, turnsRejected: undefined });
-}
-function detailClient(pages: DetailParseResult[]): GeminiPaginationDetailClient {
-    let calls = 0;
-    return { async fetchConversationPage() {
-        const result = pages[calls++];
-        assert.ok(result, 'unexpected extra detail request');
-        return result;
-    } };
-}
-
-// Keep the producer's required completeness/diagnostic contracts from widening
-// when the provider adapter is migrated. The legacy guard intentionally accepts {}.
-type Assert<T extends true> = T;
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
-type RequiredField<T, K extends keyof T> = {} extends Pick<T, K> ? false : true;
-type TypeContracts = [
-    Assert<RequiredField<PaginationResult, 'exhaustive'>>,
-    Assert<RequiredField<PaginationResult, 'completionReason'>>,
-    Assert<Equal<PaginationResult['diagnostics'], GeminiPaginationDiagnostics>>,
-    Assert<Equal<PaginationResult['diagnostics']['pageHistory'][number]['debugInfo'], ListParseDiagnostics | null>>,
-    Assert<Equal<Parameters<NonNullable<PaginationOptions['onPageBatch']>>[0], ConversationListItem[]>>,
-    Assert<Equal<Parameters<NonNullable<PaginationOptions['onProgress']>>[0], PaginationProgressInfo>>,
-    Assert<GeminiAPIClient extends GeminiPaginationListClient & GeminiPaginationDetailClient ? true : false>,
-    Assert<Equal<Awaited<ReturnType<GeminiAPIClient['getAllConversations']>>, PaginationResult>>,
-    Assert<Equal<Awaited<ReturnType<GeminiAPIClient['getConversationDetail']>>, PaginatedDetailResult>>,
-    Assert<Equal<Awaited<ReturnType<typeof getAllConversations>>, PaginationResult>>,
-    Assert<Equal<Awaited<ReturnType<typeof getConversationDetail>>, PaginatedDetailResult>>
-];
-const typeContracts: TypeContracts = [true, true, true, true, true, true, true, true, true, true, true];
-
-test('list: empty page and terminal populated page are naturally exhaustive', async () => {
-    assert.ok(typeContracts.every(Boolean));
-    for (const terminal of [page([]), page(['one'])]) {
-        const result = await getAllConversations(listClient([terminal]), { incremental: true });
-        assert.equal(result.exhaustive, true);
-        assert.equal(result.completionReason, 'natural_exhaustion');
-        assert.equal(result.stoppedEarly, undefined);
-        assert.equal(result.hitGoogleLimit, false);
-        assert.equal(result.total, terminal.conversations.length);
-        assert.equal(isPaginationExhaustive(result), true);
+const options = { accountId: ACCOUNT_UUID, streamId: 'recent' };
+for (const ids of [[], ['one']]) test(`list: terminal ${ids.length} rows commit before natural end`, async () => {
+    assert.equal(await listProvider([sourceList(ids)]).listConversations(options), 'source_end');
+    assert.equal((await getConversations(ACCOUNT_UUID)).length, ids.length);
+    if (ids.length) assert.ok((await getCoverage(ACCOUNT_UUID, 'recent'))?.range);
+});
+test('list: invalid populated page saves valid rows but throws and cannot certify coverage', async () => {
+    const invalid = sourceList(['two']); invalid.pageEvidence.valid = false;
+    const progress: number[] = [];
+    await assert.rejects(listProvider([sourceList(['one'], 'tC_next'), invalid]).listConversations({ ...options, onPageCommitted: async p => { progress.push(p.totalObserved); return false; } }), /Unverified Gemini list page/);
+    assert.deepEqual((await getConversations(ACCOUNT_UUID)).map(i => i.key.conversationId).sort(), ['one', 'two']);
+    assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range, null);
+    assert.deepEqual(progress, [1, 2]);
+});
+test('list: loop and ordinary errors propagate after committed progress', async () => {
+    for (const last of [sourceList(['two'], 'tC_loop'), new Error('HTTP 429')]) {
+        await assert.rejects(listProvider([sourceList(['one'], 'tC_loop'), last]).listConversations(options), /loop|429/);
     }
 });
-
-test('list: invalid populated transport preserves dedupe, persisted batches and diagnostics without announcing completion', async () => {
-    const debug: NonNullable<ListParseResult['_debug']> = {
-        error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'raw', topParsed: null
-    };
-    const second = { ...page(['one', 'two']), pageEvidence: { valid: false, ordered: false, keys: [] }, _debug: debug, _raw: { unvalidated: true } };
-    const client = listClient([page(['one'], 'tC_cursor'), second]);
-    const progress: PaginationProgressInfo[] = [];
-    const batches: { ids: string[]; page: number; hasMore: boolean }[] = [];
-    const result = await getAllConversations(client, { incremental: true,
-        onProgress: info => { progress.push(info); },
-        onPageBatch: async (batch, info) => { batches.push({ ids: batch.map(c => c.id), ...info }); }
-    });
-    assert.deepEqual(result.conversations.map(c => c.id), ['one', 'two']);
-    assert.deepEqual(batches.map(({ observation, ...batch }: any) => batch), [{ ids: ['one'], page: 1, hasMore: true }, { ids: ['one', 'two'], page: 2, hasMore: false }]);
-    assert.deepEqual(progress.map(({ page, added, total, hasMore }) => ({ page, added, total, hasMore })),
-        [{ page: 1, added: 1, total: 1, hasMore: true }]);
-    assert.equal(result.completionReason, 'error');
-    assert.equal(result.exhaustive, false);
-    assert.deepEqual(result.diagnostics.pageHistory[1].requestedToken, { len: 9, preview: 'tC_cursor...' });
-    assert.strictEqual(result.diagnostics.pageHistory[1].debugInfo, debug);
-    assert.equal(result.diagnostics.totalPagesFetched, 2);
-    assert.equal(result.diagnostics.totalConversations, 2);
-    assert.ok(result.diagnostics.startTime);
-    assert.ok(result.diagnostics.endTime);
+test('list: safety budget is internal and reports max_pages without coverage', async () => {
+    let pages = 0;
+    const provider = new GeminiProvider({ getConversationList: async () => sourceList(['page_' + ++pages], 'tC_' + pages), getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    assert.equal(await provider.listConversations(options), 'max_pages'); assert.equal(pages, 2000);
+    assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range, null);
 });
-
-test('list: watermark and arbitrary callback stops both map to unchanged_boundary even without a cursor', async () => {
-    for (const reason of [undefined, 'explicit user callback', '历史水位线']) {
-        const progress: PaginationProgressInfo[] = [];
-        const client = listClient([page(['one'])]);
-        const result = await getAllConversations(client, { incremental: true,
-            onPageBatch: async () => ({ shouldStop: true, reason }),
-            onProgress: info => { progress.push(info); }
-        });
-        assert.equal(result.completionReason, 'unchanged_boundary');
-        assert.equal(result.exhaustive, false);
-        assert.equal(result.stoppedEarly, true);
-        assert.equal(isPaginationExhaustive(result), false);
-        assert.equal(result.diagnostics.stopReason, reason || '已与历史水位线闭环咬合，早退终止');
-        assert.equal(progress[0].reason, reason || '增量同步完成');
-        assert.equal(progress[0].hasMore, false);
-        assert.equal(progress[0].stoppedEarly, true);
-    }
-});
-
-test('list: token loops and max-page stops preserve fetched partial data and block reconciliation', async () => {
-    const loop = await getAllConversations(listClient([page(['one'], 'tC_loop'), page(['two'], 'tC_loop')]), { incremental: true });
-    const max = await getAllConversations(listClient([page(['one'], 'tC_more')]), { maxPages: 1, incremental: true });
-    for (const [result, reason, total] of [[loop, 'token_loop', 2], [max, 'max_pages', 1]] as const) {
-        assert.equal(result.completionReason, reason);
-        assert.equal(result.total, total);
-        assert.equal(result.exhaustive, false);
-        assert.equal(result.stoppedEarly, true);
-        assert.equal(isPaginationExhaustive(result), false);
-    }
-});
-
-test('list: explicit Bard boundaries prompt Takeout while HTTP 429 remains a transient error', async () => {
-    for (const last of [
-        { ...page([]), failure: 'hit_google_limit' as const, _debug: { error: 'BARD_ERROR_INFO' as const, bardError: '["BardErrorInfo",1096]', textLen: 0, rawPreview: '', topParsed: null } },
-        new Error('HTTP 429 Too Many Requests')
-    ]) {
-        const result = await getAllConversations(listClient([page(['one'], 'tC_more'), last]), { incremental: true });
-        const boundary = !(last instanceof Error);
-        assert.equal(result.completionReason, boundary ? 'hit_google_limit' : 'error');
-        assert.equal(result.hitGoogleLimit, boundary);
-        assert.equal(result.diagnostics.hitGoogleLimit, boundary);
-        assert.equal(result.exhaustive, false);
-        assert.equal(isPaginationExhaustive(result), false);
-        assert.equal(result.total, 1);
-    }
-});
-
-test('list: a later fetch error returns partial data, first-page and callback errors reject', async () => {
-    const error = new Error('fixture network failure');
-    const result = await getAllConversations(listClient([page(['one'], 'tC_more'), error]), { incremental: true });
-    assert.equal(result.completionReason, 'error');
-    assert.equal(result.exhaustive, false);
-    assert.equal(result.stoppedEarly, true);
-    assert.equal(result.diagnostics.totalPagesFetched, 1);
-    assert.equal(result.diagnostics.stopReason, '网络或服务异常: fixture network failure');
-    assert.equal(isPaginationExhaustive(result), false);
-    await assert.rejects(getAllConversations(listClient([error])), value => value === error);
-    await assert.rejects(getAllConversations(listClient([page(['one'])]), {
-        onPageBatch: async () => { throw error; }
-    }), value => value === error);
-});
-
-test('list: client and signal pre-aborts do not fetch or reset cancellation', async () => {
-    const controller = new AbortController();
-    controller.abort();
-    for (const byClient of [false, true]) {
-        const client = listClient([]);
-        client.aborted = byClient;
-        const result = await getAllConversations(client, { signal: byClient ? undefined : controller.signal });
-        assert.equal(client.calls, 0);
-        assert.equal(client.aborted, byClient);
-        assert.equal(result.completionReason, 'aborted');
-        assert.equal(result.exhaustive, false);
-        assert.equal(result.total, 0);
-        assert.equal(result.diagnostics.totalPagesFetched, 0);
-    }
-});
-
-test('list: signal cancellation after a batch preserves partial data as aborted', async () => {
-    const controller = new AbortController();
-    const client = listClient([page(['one'], 'tC_more')]);
-    const result = await getAllConversations(client, { incremental: true, signal: controller.signal,
-        onProgress: () => { controller.abort(); }
-    });
-    assert.equal(client.calls, 1);
-    assert.equal(result.completionReason, 'aborted');
-    assert.equal(result.total, 1);
-    assert.equal(result.exhaustive, false);
-    assert.equal(result.stoppedEarly, true);
-});
-
-test('list: object options take precedence over positional callbacks and targetSid', async () => {
-    let calls = 0;
-    let objectProgress = 0;
-    const client: GeminiPaginationListClient = { async getConversationList(token, sid, filter, opts) {
-        calls++;
-        assert.equal(token, null);
-        assert.equal(sid, 'u2');
-        assert.equal(filter, undefined);
-        assert.equal(opts?.signal, undefined);
-        return page(['one']);
-    } };
-    const result = await getAllConversations(client, { maxPages: 1, targetSid: 'u2', onProgress: () => { objectProgress++; } },
-        () => { assert.fail('positional callback must be overridden'); }, 'u1');
-    assert.equal(calls, 1);
-    assert.equal(objectProgress, 1);
-    assert.equal(result.diagnostics.maxPages, 1);
-    assert.equal(result.completionReason, 'natural_exhaustion');
-});
-
-test('completeness guard preserves legacy absence semantics and rejects each explicit incomplete flag', () => {
-    assert.equal(isPaginationExhaustive({}), true);
-    assert.equal(isPaginationExhaustive(null), false);
-    for (const evidence of [{ stoppedEarly: true }, { exhaustive: false }, { hitGoogleLimit: true },
-        { completionReason: 'future_incomplete_reason' }]) {
-        assert.equal(isPaginationExhaustive(evidence), false);
-    }
-    assert.equal(isPaginationExhaustive({ stoppedEarly: false, exhaustive: true, completionReason: 'natural_exhaustion' }), true);
-});
-
-test('detail: typed aggregation preserves reverse page order, dedupe, diagnostics and raw evidence', async () => {
-    const first = detailPage(['new'], 'tC_more'); first.transport.decodedPayload = { evidence: 'not validated' };
-    const second = detailPage(['old', 'new']);
-    first.conversation.detail.quality = contentQuality({ status: 'unknown' });
-    first.evidence = { rejectedTurns: 1, truncation: 'pagination_pending' };
-    second.conversation.detail.quality = contentQuality({ status: 'unknown' });
-    second.evidence = { rejectedTurns: 2 };
-    first.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'drift one' }];
-    second.diagnostics = ['drift one', 'drift two'].map(message => ({ severity: 'warning', code: 'DRIFT', message }));
-    const result: PaginatedDetailResult = await getConversationDetail(detailClient([first, second]), 'c_test');
-    assert.equal(result.conversation.index.key.conversationId, 'test');
+test('Detail: complete source chain reverses pages, keeps source version and exposes no Account/Key', async () => {
+    const newer = sourceDetail({ messages: [sourceMessage('new')], nextPageToken: 'next' });
+    const older = sourceDetail({ messages: [sourceMessage('old')], nextPageToken: null });
+    const result = await getConversationDetail(detailClient([newer, older]), 'source_chat_123');
     assert.deepEqual(result.conversation.detail.messages.map(m => m.id), ['old', 'new']);
-    assert.equal(result.conversation.detail.messages.length, 2);
-    assert.equal(result.evidence?.rejectedTurns, 3);
-    assert.deepEqual([...new Set(result.diagnostics.map(d => d.message))], ['drift one', 'drift two']);
-    assert.strictEqual(result.transport.decodedPayload, first.transport.decodedPayload);
-    assert.equal(Boolean(result.evidence?.truncation), false);
-    assert.equal(result.evidence?.truncation, undefined);
+    assert.equal(result.conversation.detail.quality.status, 'complete');
+    assert.equal(result.conversation.detail.savedAt, 1700000000000);
+    assert.equal('account' in result, false); assert.equal('key' in result.conversation.detail, false);
 });
-
-test('detail: token loop and 20-page cap retain exact truncation reasons', async () => {
-    const loop = await getConversationDetail(detailClient([detailPage(['one'], 'tC_loop'), detailPage(['two'], 'tC_loop')]), 'test');
-    assert.equal(loop.evidence?.truncation, 'token_loop');
-    assert.equal(Boolean(loop.evidence?.truncation), true);
-    const max = await getConversationDetail(detailClient(Array.from({ length: 20 }, (_, i) => detailPage([`m${i}`], `tC_${i}`))), 'test');
-    assert.equal(max.conversation.detail.messages.length, 20);
-    assert.equal(max.evidence?.truncation, 'max_turns_page_limit_20');
-    assert.equal(Boolean(max.evidence?.truncation), true);
+test('Detail: token loop and twenty-page safety limit keep partial quality', async () => {
+    const looping = sourceDetail({ nextPageToken: 'loop' });
+    const loop = await getConversationDetail(detailClient([looping, looping]), 'source_chat_123');
+    assert.equal(loop.conversation.detail.quality.status, 'partial');
+    const pages = Array.from({ length: 20 }, (_, i) => sourceDetail({ messages: [sourceMessage('m' + i)], nextPageToken: 'next' + i }));
+    const limit = await getConversationDetail(detailClient(pages), 'source_chat_123');
+    assert.equal(limit.conversation.detail.messages.length, 20); assert.equal(limit.conversation.detail.quality.status, 'partial');
 });
-
-test('list: first-page Bard limit returns an incomplete empty result; first-page HTTP limit rejects', async () => {
-    const limited = { ...page([]), failure: 'hit_google_limit' as const, _debug: { error: 'BARD_ERROR_INFO' as const,
-        bardError: '["BardErrorInfo",1096]', textLen: 0, rawPreview: '', topParsed: null } };
-    const result = await getAllConversations(listClient([limited]));
-    assert.equal(result.total, 0);
-    assert.equal(result.exhaustive, false);
-    assert.equal(result.completionReason, 'hit_google_limit');
-    assert.equal(result.diagnostics.totalPagesFetched, 1);
-    const error = new Error('HTTP 429 Too Many Requests');
-    await assert.rejects(getAllConversations(listClient([error])), value => value === error);
+test('Detail: identity mismatch and transport errors reject instead of inventing completion', async () => {
+    await assert.rejects(getConversationDetail(detailClient([sourceDetail({ id: 'other' })]), 'source_chat_123'), /identity/);
+    await assert.rejects(getConversationDetail({ fetchConversationPage: async () => { throw new Error('offline'); } }, 'source_chat_123'), /offline/);
 });
-
-test('list: global abort fallback is observed before the first fetch and preserves the cancellation result', async () => {
-    const flags = globalThis as typeof globalThis & { __gemExporterAborted?: unknown };
-    const before = flags.__gemExporterAborted;
-    try {
-        flags.__gemExporterAborted = true;
-        const client = listClient([]);
-        const result = await getAllConversations(client);
-        assert.equal(client.calls, 0);
-        assert.equal(result.completionReason, 'aborted');
-        assert.equal(result.exhaustive, false);
-        assert.equal(isPaginationExhaustive(result), false);
-    } finally {
-        if (before === undefined) delete flags.__gemExporterAborted;
-        else flags.__gemExporterAborted = before;
-    }
+test('Detail: abort between pages prevents another request', async () => {
+    const controller = new AbortController(); let calls = 0;
+    await assert.rejects(getConversationDetail({ fetchConversationPage: async () => { calls++; controller.abort(); return sourceDetail({ nextPageToken: 'next' }); } }, 'source_chat_123', 'u0', undefined, controller.signal), { name: 'AbortError' });
+    assert.equal(calls, 1);
 });
-
-test('list: zero maxPages keeps its default fallback and negative maxPages is an incomplete budget stop', async () => {
-    const zero = await getAllConversations(listClient([page([])]), { maxPages: 0 });
-    assert.equal(zero.diagnostics.maxPages, 2000);
-    assert.equal(zero.completionReason, 'natural_exhaustion');
-    const client = listClient([]);
-    const negative = await getAllConversations(client, { maxPages: -1 });
-    assert.equal(client.calls, 0);
-    assert.equal(negative.diagnostics.maxPages, -1);
-    assert.equal(negative.diagnostics.totalPagesFetched, 0);
-    assert.equal(negative.exhaustive, false);
-    assert.equal(negative.completionReason, 'max_pages');
-    assert.equal(negative.stoppedEarly, true);
-    assert.equal(isPaginationExhaustive(negative), false);
+test('Detail: metadata-only fallback follows the replacement chain and remains source-bound', async () => {
+    const metadata = sourceDetail({ messages: [], _raw: [null, null, [['c_source_chat_123']]] });
+    const requested: unknown[] = [];
+    const pages = [metadata, sourceDetail({ nextPageToken: 'retry-next' }), sourceDetail({ messages: [sourceMessage('old')] })];
+    const result = await getConversationDetail({ fetchConversationPage: async (_id, cursor, _slot, opts) => { requested.push([cursor, opts?.altParams]); return pages.shift()!; } }, 'source_chat_123');
+    assert.equal(result.conversation.detail.quality.status, 'complete');
+    assert.deepEqual(requested, [[null, undefined], [null, true], ['retry-next', true]]);
 });
-
-test('detail: metadata-only retry flags and authoritative primary title remain unchanged', async () => {
-    const first = detailPage([]);
-    first.conversation.index.title = 'Authoritative metadata title';
-    first.transport.decodedPayload = [null, null, [['c_test', 'metadata title']]];
-    first.conversation.detail.quality = contentQuality({ status: 'unknown' });
-    first.evidence = { rejectedTurns: 1 };
-    first.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'initial drift' }];
-    const retry = detailPage(['answer']); retry.conversation.index.title = 'Prompt fallback'; retry.conversation.index.titleSource = "derived";
-    retry.conversation.detail.quality = contentQuality({ status: 'unknown' });
-    retry.evidence = { rejectedTurns: 2 };
-    retry.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'retry drift' }];
+test('Detail: empty source and failed metadata fallback never claim complete', async () => {
+    const metadata = sourceDetail({ messages: [], _raw: [null, null, [['c_source_chat_123']]] });
     let calls = 0;
-    const client: GeminiPaginationDetailClient = { async fetchConversationPage(id, token, sid, opts) {
-        assert.equal(id, 'c_test');
-        assert.equal(token, null);
-        assert.equal(sid, 'u2');
-        if (calls++ === 0) {
-            assert.equal(opts, undefined);
-            return first;
-        }
-        assert.deepEqual(opts, { detailOnly: true, altParams: true });
-        return retry;
-    } };
-    const result = await getConversationDetail(client, 'c_test', 'u2');
-    assert.equal(calls, 2);
-    assert.equal(result.conversation.index.title, 'Authoritative metadata title');
-    assert.equal(result.conversation.index.titleSource, 'provider');
-    assert.equal(Object.hasOwn(result.conversation, 'titles'), false);
-    assert.deepEqual(result.conversation.detail.messages.map(m => m.id), ['answer']);
-    assert.equal(result.evidence?.rejectedTurns, 3);
-    assert.deepEqual([...new Set(result.diagnostics.map(d => d.message))], ['initial drift', 'retry drift']);
-});
-
-test('list: an empty NO_INNER_STR parser result is incomplete', async () => {
-    const result = await getAllConversations(listClient([{ ...page([]), failure: 'invalid_response', _debug: {
-        error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'raw', topParsed: null
-    } }]));
-    assert.equal(result.exhaustive, false);
-    assert.equal(result.completionReason, 'error');
-    assert.equal(isPaginationExhaustive(result), false);
-    assert.equal(result.hitGoogleLimit, false);
-    assert.equal(result.diagnostics.pageHistory[0].debugInfo?.error, 'NO_INNER_STR');
-});
-
-test('list: an in-flight AbortError preserves partial data as aborted', async () => {
-    const aborted = new Error('fixture request aborted');
-    aborted.name = 'AbortError';
-    const result = await getAllConversations(listClient([page(['one'], 'tC_more'), aborted]), { incremental: true });
-    assert.equal(result.completionReason, 'aborted');
-    assert.equal(result.exhaustive, false);
-    assert.equal(result.stoppedEarly, true);
-    assert.equal(result.total, 1);
-    assert.equal(isPaginationExhaustive(result), false);
-});
-
-test('list: actual empty/malformed NO_INNER_STR responses cannot exhaust a partially fetched account', async () => {
-    for (const text of ['', 'not JSON', '{}', '[null]']) {
-        const malformed = parseList(text);
-        assert.equal(malformed._debug?.error, 'NO_INNER_STR');
-        const result = await getAllConversations(listClient([page(['one'], 'tC_more'), malformed]), { incremental: true });
-        assert.equal(result.completionReason, 'error', text);
-        assert.equal(result.exhaustive, false, text);
-        assert.equal(result.stoppedEarly, true, text);
-        assert.equal(result.total, 1);
-        assert.equal(isPaginationExhaustive(result), false);
-    }
-});
-
-
-test('scan completeness ignores conflicting diagnostic reports', () => {
-    const complete = { exhaustive: true, completionReason: 'natural_exhaustion', hitGoogleLimit: false,
-        diagnostics: { hitGoogleLimit: true } };
-    assert.equal(isPaginationExhaustive(complete), true);
-    const limited = { exhaustive: false, completionReason: 'hit_google_limit', hitGoogleLimit: true,
-        diagnostics: { hitGoogleLimit: false } };
-    assert.equal(isPaginationExhaustive(limited), false);
-});
-
-test('list source outcomes survive cleared or contradictory parser diagnostics', async () => {
-    const limited = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['generic', 'BardErrorInfo: cursor expired']]]));
-    assert.equal(limited.failure, 'hit_google_limit');
-    const malformed = parseList('not JSON');
-    assert.equal(malformed.failure, 'invalid_response');
-    const healthy = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']]));
-    for (const [input, expected] of [[healthy, 'natural_exhaustion'], [limited, 'hit_google_limit'], [malformed, 'error']] as const) {
-        for (const _debug of [undefined, limited._debug, malformed._debug]) {
-            const result = await getAllConversations(listClient([{ ...input, _debug }]));
-            assert.equal(result.completionReason, expected);
-            assert.equal(result.hitGoogleLimit, expected === 'hit_google_limit');
-            assert.equal(result.exhaustive, expected === 'natural_exhaustion');
-        }
-    }
+    const result = await getConversationDetail({ fetchConversationPage: async () => { if (calls++) throw new Error('no alternate'); return metadata; } }, 'source_chat_123');
+    assert.equal(result.conversation.detail.messages.length, 0); assert.equal(result.conversation.detail.quality.status, 'unknown');
 });

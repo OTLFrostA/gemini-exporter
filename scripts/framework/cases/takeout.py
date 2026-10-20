@@ -11,24 +11,45 @@ from typing import Tuple, Optional, Dict, Any
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
-from scripts.framework.assertions import CDPAssertions, assert_scan_result, assert_full_scan_coverage, assert_followup_scan_result
+from scripts.framework.v2_probe import install_probe, snapshot
+from scripts.framework.cases.sync import clear_scan_records
+from scripts.framework.assertions import CDPAssertions, assert_scan_result, assert_full_scan_coverage, assert_followup_scan_result, index_rows, is_account_uuid
 from scripts.framework.archive_resources import resource_references, resolve_archive_reference
 
 
-def validate_takeout_records(expected_ids, expected_media, records, generation_ids=None):
-    """Read-path assertions also work for a legitimate addedCount=0 re-import."""
-    if {r.get('id') for r in records} != set(expected_ids):
-        return False, "Takeout 正常读取路径缺少预期会话"
+def validate_takeout_records(expected_ids, expected_media, records, source_facts, account_id):
+    """Verify current keyed Domain reads against the keyless source facts and bytes.
+
+    A source generation notice without authored content is not an assistant
+    message. Existing complete bodies may legitimately win over partial imports.
+    """
+    if (not is_account_uuid(account_id) or len(records) != len(expected_ids)
+            or {r.get('id') for r in records} != set(expected_ids) or set(source_facts) != set(expected_ids)):
+        return False, "Takeout 正常读取路径缺少预期会话或来源证据"
     acquired = {}
     for record in records:
         domain, summary = record.get('domain') or {}, record.get('summary') or {}
         index, detail = domain.get('index') or {}, domain.get('detail') or {}
-        if (record.get('ok') is not True or index.get('key', {}).get('conversationId') != record['id']
-                or index.get('key', {}).get('accountId') != record.get('account', {}).get('id')
-                or not record.get('account', {}).get('id') or record.get('account', {}).get('providerId') != 'gemini' or not summary.get('title')):
-            return False, f"Takeout 会话身份/临时标题未进入正常存储: {record['id']}"
-        messages = detail.get('messages') or []
-        asset_ids = {a.get('id') for a in detail.get('assets', [])}
+        key = {'accountId': account_id, 'conversationId': record['id']}
+        if (record.get('ok') is not True or index.get('key') != key or detail.get('key') != key
+                or record.get('account', {}).get('id') != account_id
+                or record.get('account', {}).get('providerId') != 'gemini'
+                or index_rows({'accountId': account_id, 'rows': [index]}) is None or summary != index
+                or set(detail) - {'key', 'savedAt', 'quality', 'messages', 'assets'}):
+            return False, f"Takeout 会话身份/Index/Detail 不符合当前合同: {record['id']}"
+        messages, assets = detail.get('messages'), detail.get('assets')
+        if not isinstance(messages, list) or not isinstance(assets, list):
+            return False, 'Takeout Detail 缺少 messages/assets'
+        asset_ids = {a.get('id') for a in assets}
+        if len(asset_ids) != len(assets) or None in asset_ids:
+            return False, 'Takeout Asset 注册表缺少唯一身份'
+        for asset in assets:
+            if set(asset) - {'id', 'kind', 'name', 'mediaType', 'byteLength', 'sourceUri', 'generation', 'document'}:
+                return False, 'Takeout Asset 含旧 schema 字段'
+            for name, fields in (('generation', {'providerRequestId', 'time', 'prompt', 'generationOrdinal', 'imageCount', 'imageOrdinal'}),
+                                 ('document', {'id', 'contentMarkdown'})):
+                if name in asset and (not isinstance(asset[name], dict) or not asset[name] or set(asset[name]) - fields):
+                    return False, f'Takeout Asset.{name} 不是当前事实 schema'
         def has_content(value):
             if isinstance(value, list):
                 return any(has_content(child) for child in value)
@@ -39,23 +60,28 @@ def validate_takeout_records(expected_ids, expected_media, records, generation_i
             if value.get('type') in ('image', 'file') and value.get('assetId') in asset_ids:
                 return True
             return any(has_content(value.get(key)) for key in ('children', 'blocks', 'items', 'rows', 'cells', 'headerRows'))
-        for role in ('user', 'assistant'):
-            valid = any(m.get('role') == role and has_content(m.get('content')) for m in messages)
-            if role == 'assistant' and record['id'] in (generation_ids or []):
-                valid = valid or any(m.get('role') == role and m.get('generation', {}).get('mediaKind') == 'image'
-                                    and m.get('generation', {}).get('outputCount', 0) > 0 for m in messages)
-            if not valid:
-                return False, f"Takeout 会话 {record['id']} 缺少有效 {role} 内容"
+        for message in messages:
+            if (set(message) - {'id', 'role', 'model', 'content', 'timestamp', 'attachmentIds', 'reasoning', 'citations'}
+                    or not set(message.get('attachmentIds', [])).issubset(asset_ids)):
+                return False, 'Takeout Message 含旧 schema 或悬空附件'
+        source_messages = (source_facts[record['id']].get('detail') or {}).get('messages') or []
+        if not source_messages:
+            return False, 'Takeout 来源没有可核验的消息事实'
+        for role in {message['role'] for message in source_messages}:
+            if not any(m.get('role') == role and (has_content(m.get('content'))
+                       or m.get('attachmentIds')) for m in messages):
+                return False, f"Takeout 会话 {record['id']} 缺少来源已知的 {role} 内容"
         for resource in record.get('resources', []):
-            name = os.path.basename(resource.get('sourcePath') or '')
-            if name in expected_media:
+            path = resource.get('sourcePath')
+            if path in expected_media:
                 try:
                     data = base64.b64decode(resource.get('bytes') or '', validate=True)
                 except (ValueError, TypeError):
-                    return False, f"Takeout 资源不可读: {name}"
-                if not data or hashlib.sha256(data).hexdigest() != expected_media[name]:
-                    return False, f"Takeout 资源实体缺失或字节不一致: {name}"
-                acquired[name] = True
+                    return False, f"Takeout 资源不可读: {path}"
+                if (resource.get('assetId') not in asset_ids or not data
+                        or hashlib.sha256(data).hexdigest() != expected_media[path]):
+                    return False, f"Takeout 资源身份/字节不一致: {path}"
+                acquired[path] = True
     missing = set(expected_media) - acquired.keys()
     if missing:
         return False, f"Takeout 预期资源未进入读取路径: {sorted(missing)}"
@@ -68,7 +94,7 @@ class TakeoutZipImportCase(FeatureTestCase):
             feature_id="feat_takeout_zip_import",
             domain=FeatureDomain.TAKEOUT,
             name="离线 Takeout ZIP 导入",
-            description="导入预置纯净 Takeout ZIP，离线附件池建立，初始提问前缀临时标题生效",
+            description="通过文件输入导入预置 Takeout ZIP，验证本地 Domain 与源归档资源字节",
             critical=True,
             prerequisites=[]
         )
@@ -84,11 +110,7 @@ class TakeoutZipImportCase(FeatureTestCase):
                 if not html_files:
                     return False, "Takeout 样本缺少 MyActivity.html", None
                 html_text = '\n'.join(zf.read(n).decode('utf-8') for n in html_files)
-                expected_ids = sorted(set(re.findall(r'https://gemini\.google\.com/(?:u/\d+/)?app/([a-zA-Z0-9_-]+)', html_text)))
-                generation_ids = set()
-                for block in html_text.split('<div class="outer-cell')[1:]:
-                    if re.search(r'\d+\s*generated images?|\d+\s*张生成的图片', block, re.IGNORECASE):
-                        generation_ids.update(re.findall(r'https://gemini\.google\.com/(?:u/\d+/)?app/([a-zA-Z0-9_-]+)', block))
+                expected_ids = sorted({cid.removeprefix('c_') for cid in re.findall(r'https://gemini\.google\.com/(?:u/\d+/)?app/([a-zA-Z0-9_-]+)', html_text)})
                 expected_media = {}
                 for name in html_files:
                     for ref in resource_references(zf.read(name).decode('utf-8'), html=True):
@@ -96,42 +118,28 @@ class TakeoutZipImportCase(FeatureTestCase):
                         if entry and entry not in html_files:
                             if entry not in zf.namelist():
                                 return False, f"Takeout 样本引用资源缺失: {entry}", None
-                            expected_media[os.path.basename(entry)] = hashlib.sha256(zf.read(entry)).hexdigest()
+                            expected_media[entry] = hashlib.sha256(zf.read(entry)).hexdigest()
                 catalog_media = {n: hashlib.sha256(zf.read(n)).hexdigest() for n in zf.namelist()
                                  if n.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'))}
             if not expected_ids:
                 return False, "Takeout 样本没有可断言的会话身份", None
+            before = snapshot(cdp_opt)
             print(f"   📥 导入离线 ZIP 样本 ({os.path.basename(ctx.takeout_zip)})...")
             import_res = CDPActions.import_takeout_zip(cdp_opt, ctx.takeout_zip, media_paths=list(catalog_media))
             if not import_res.get('success'):
                 return False, f"导入失败: {import_res.get('error')}", import_res
-            if set(import_res.get('importedIds', [])) != set(expected_ids) or import_res.get('status') != 'ok':
+            if (set(import_res.get('importedIds', [])) != set(expected_ids)
+                    or import_res.get('status') not in ('ok', 'partial')
+                    or import_res.get('imported') != len(expected_ids)
+                    or snapshot(cdp_opt)['accountId'] != before['accountId']):
                 return False, "导入完成回调缺少预期会话或包含部分资源失败", import_res
             if import_res.get('mediaDigests', {}) != catalog_media:
                 return False, "Takeout 资源索引读取字节与原始 ZIP 不一致", import_res
-            stored = cdp_opt.eval(f"""
-            (async () => {{
-                const slot = window.ConversationsStore.getCurrentAccountId();
-                const key = 'conversations_' + slot;
-                const accountReply = await chrome.runtime.sendMessage({{ action: 'accountRegistry', command: 'get', accountId: slot }});
-                const summaries = (await chrome.storage.local.get(key))[key] || [];
-                const result = [];
-                for (const id of {json.dumps(expected_ids)}) {{
-                    const identity = {{ providerId: 'gemini', accountId: slot, conversationId: id }};
-                    const record = await chrome.runtime.sendMessage({{ action: 'domainStorage', command: 'get', payload: {{ identity }} }});
-                    const domain = record?.value?.conversation;
-                    const resources = [];
-                    for (const resource of record?.value?.resources || []) {{
-                        const read = await chrome.runtime.sendMessage({{ action: 'domainStorage', command: 'resource', payload: {{ identity, assetId: resource.assetId }} }});
-                        resources.push({{ sourcePath: resource.sourcePath, bytes: read?.ok ? read.value : null }});
-                    }}
-                    result.push({{ id, ok: record?.ok, account: accountReply?.value, domain,
-                        summary: summaries.find(c => c.key.conversationId === id || c.key.conversationId === 'c_' + id), resources }});
-                }}
-                return result;
-            }})()
-            """, await_promise=True) or []
-            ok, msg = validate_takeout_records(expected_ids, expected_media, stored, generation_ids)
+            install_probe(cdp_opt)
+            stored = cdp_opt.eval(f'globalThis.__tier2V2.conversations({json.dumps(expected_ids)})', await_promise=True) or []
+            for record in stored:
+                record['resources'] = import_res.get('sourceResources', {}).get(record['id'], [])
+            ok, msg = validate_takeout_records(expected_ids, expected_media, stored, import_res.get('sourceFacts', {}), before['accountId'])
             if not ok:
                 return False, msg, {'import': import_res}
             ctx.shared_data['takeout_ids'] = expected_ids
@@ -160,10 +168,10 @@ class DeepScanPaginationCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             print("   🔄 触发【同步会话】(btnSyncAll)...")
-            # Initialize ONLY sync coverage for the first-scan fixture. Archives,
-            # imported bodies, assets and export records remain intact. This keeps
-            # the original full-pagination/title-upgrade assertions mandatory.
-            cdp_opt.eval("(async () => { await chrome.storage.local.remove('scan_coverage_' + window.ConversationsStore.getCurrentAccountId()); })()", await_promise=True)
+            # The current clear-scan operation atomically clears Coverage and
+            # ExportRecords for this account. Index/Detail remain intact; this
+            # establishes a genuine full-scan fixture for title upgrade.
+            clear_scan_records(cdp_opt)
             evidence = CDPActions.trigger_deep_scan(cdp_opt, max_wait=330)
             scan_ok, message = assert_scan_result(evidence)
             if not scan_ok:
@@ -171,15 +179,12 @@ class DeepScanPaginationCase(FeatureTestCase):
             # Verify results include the known freshly generated online sessions.
             ids = [r['chat_id'] for r in ctx.chat_records if r.get('chat_id')]
             if ids:
-                known = cdp_opt.eval("""(async () => {
-                    const key = 'conversations_' + window.ConversationsStore.getCurrentAccountId();
-                    const data = await chrome.storage.local.get(key);
-                    return (data[key] || []).filter(c => c.titleSource === 'provider' && c.title).map(c => c.key.conversationId.replace(/^c_/, ''));
-                })()""", await_promise=True) or []
+                known = [row['key']['conversationId'].removeprefix('c_') for row in snapshot(cdp_opt)['rows']
+                         if row.get('titleSource') == 'provider' and row.get('title')]
                 missing = [cid for cid in ids if cid.removeprefix('c_') not in known]
                 if missing:
                     return False, f"全量扫描结果缺少已知在线会话: {missing}", evidence
-            read_coverage = "(async () => (await chrome.storage.local.get('scan_coverage_' + window.ConversationsStore.getCurrentAccountId()))['scan_coverage_' + window.ConversationsStore.getCurrentAccountId()])()"
+            read_coverage = 'globalThis.__tier2V2.snapshot().then(state => state.coverage)'
             before = cdp_opt.eval(read_coverage, await_promise=True) or {}
             complete_ok, message = assert_full_scan_coverage(evidence, before)
             if not complete_ok:

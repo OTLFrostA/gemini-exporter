@@ -12,9 +12,9 @@ export {};
 const test = require('node:test');
 import assert from 'node:assert/strict';
 
-const { assertDomainClosure } = require('../src/core/domain/closure.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { assertDomainClosure } = require('../src/l2/closure.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 async function norm(content: string, extra?: Record<string, unknown>) {
     const raw: any = {
@@ -153,7 +153,7 @@ test('image with no source remains a semantic asset and the backend reports unav
     assert.ok(asset, 'asset registered');
     assert.ok(!asset.sourceUri);
     assert.doesNotThrow(() => assertDomainClosure((domain).detail));
-    const rendered = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {});
+    const rendered = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)), {});
     assert.ok(rendered.diagnostics.some((d: any) => d.code === 'HTML_ASSET_UNRESOLVED'));
     assert.ok(rendered.html.includes('gem-missing-asset'));
 });

@@ -1,11 +1,11 @@
-import { fixtureResourceResults } from './helpers/documentFixture.js';
+import { composeFixture } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { extractImages } = require('./helpers/recordFixture/attachments.js');
 export {};
 
 const test = require('node:test');
 const assert = require('node:assert');
-const ChatFormatter = require('../src/core/engine/chatFormatter.js');
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 
 test('geminiParser - extracts Imagen generated image node (Pattern 2)', () => {
     const imagenNode = [
@@ -122,7 +122,8 @@ test('chatFormatter - formats generated image as markdown and cleans placeholder
     };
 
     const parsed = historicalFixture(mockChat);
-    const { content: res } = await ChatFormatter.formatMarkdownDocument(parsed, { resourceResults: await fixtureResourceResults(parsed.conversation, parsed.resourceHints) });
+    const { document, resources } = await composeFixture(parsed.conversation, parsed.resourceHints);
+    const res = renderDocumentMarkdown(document, resources);
     // 必须包含 Markdown 图片引用 ![]
     assert.ok(res.includes('!['));
     assert.ok(res.includes('assets/b800f3_watermarked_img_16704480932994645752.jpg'));
@@ -131,7 +132,7 @@ test('chatFormatter - formats generated image as markdown and cleans placeholder
 });
 
 test('assetFetcher - ensureAlr appends or preserves alr=yes parameter', () => {
-    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
     const ensureAlr = AssetFetcher.ensureAlr || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.ensureAlr);
 
     assert.strictEqual(ensureAlr('https://lh3.googleusercontent.com/gg/abc'), 'https://lh3.googleusercontent.com/gg/abc?alr=yes');
@@ -141,7 +142,7 @@ test('assetFetcher - ensureAlr appends or preserves alr=yes parameter', () => {
 });
 
 test('assetFetcher - extractLh3 parses lh3-lh6 and unescapes json characters', () => {
-    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
     const extractLh3 = AssetFetcher.extractLh3 || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.extractLh3);
 
     const normal = 'https://lh3.google.com/rd-gg/abc123=s512?alr=yes';
@@ -152,7 +153,7 @@ test('assetFetcher - extractLh3 parses lh3-lh6 and unescapes json characters', (
 });
 
 test('assetFetcher - fetchGgChain follows multi-hop ALR text redirects to final image', async () => {
-    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
     const fetchGgChain = AssetFetcher.fetchGgChain || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.fetchGgChain);
 
     const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');

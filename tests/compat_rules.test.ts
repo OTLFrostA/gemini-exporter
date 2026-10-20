@@ -19,7 +19,7 @@ const {
     preprocessGeminiMarkdown,
     preprocessGeminiLatex,
     GM_MD_004_LINE_START_DISPLAY,
-} = require('../src/core/parsers/gemini/shared/markdownCompatibility.js');
+} = require('../src/l1/parsers/gemini/shared/markdownCompatibility.js');
 
 test('Compatibility Rules: every admitted rule has immutable, unique provenance evidence', () => {
     assert.ok(Object.isFrozen(GEMINI_MARKDOWN_COMPAT_RULES));

@@ -52,31 +52,35 @@ IMPORT_PATTERN = re.compile(
 
 # 组件与 E2E Spec 映射表
 COMPONENT_E2E_MAP = {
-    "src/ui/options": [
-        "tests/e2e/workbench_ui.spec.ts",
-        "tests/e2e/export_flow.spec.ts",
-        "tests/e2e/export_zip.spec.ts",
-        "tests/e2e/json_export.spec.ts",
-        "tests/e2e/legacy_data_healing.spec.ts",
-        "tests/e2e/multi_tier_title_arbitration.spec.ts",
-        "tests/e2e/scan_flow.spec.ts",
-        "tests/e2e/takeout_limit_prompt.spec.ts",
-        "tests/e2e/visual_inspector.spec.ts",
-        "tests/e2e/export_session_recovery.spec.ts"
-    ],
-    "src/content": [
-        "tests/e2e/page_sync.spec.ts",
-        "tests/e2e/realtime_delete.spec.ts",
-        "tests/e2e/direct_write_prompt.spec.ts",
-        "tests/e2e/live_save.spec.ts"
-    ],
-    "src/background": [
-        "tests/e2e/live_save.spec.ts",
-        "tests/e2e/export_flow.spec.ts",
-        "tests/e2e/export_zip.spec.ts",
-        "tests/e2e/realtime_delete.spec.ts"
-    ]
+    "src/ui": ["tests/e2e/ui_v2.spec.ts", "tests/e2e/production_v2.spec.ts", "tests/e2e/tier2_v2_probes.spec.ts"],
+    "scripts/framework": ["tests/e2e/tier2_v2_probes.spec.ts"],
+    "src/runtime/content": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts", "tests/e2e/ui_v2.spec.ts"],
+    "src/runtime/background": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts"],
 }
+# Browser/Runtime tests deliberately load production entries as bundles or VM scripts.
+COMPONENT_UNIT_MAP = {
+    "src/ui": ["tests/ui_v2.test.ts"],
+    "src/runtime/content": ["tests/browser_runtime_v2.test.ts", "tests/ui_v2.test.ts"],
+    "src/runtime/background": ["tests/browser_runtime_v2.test.ts"],
+}
+
+
+# These source groups were formerly src/content; keep their implicit entry coverage.
+_CONTENT_PREFIXES = ("src/l1/sniffer/", "src/l1/client/gemini/bootstrap.ts",
+                     "src/l1/parsers/gemini/dom/accountSniffer.ts", "src/ui/badge/",
+                     "src/runtime/capabilities/assetFetcher.ts")
+for _prefix in _CONTENT_PREFIXES:
+    COMPONENT_E2E_MAP[_prefix] = COMPONENT_E2E_MAP["src/runtime/content"]
+    COMPONENT_UNIT_MAP[_prefix] = COMPONENT_UNIT_MAP["src/runtime/content"]
+# Sandbox compilation and directory selection were formerly under src/ui.
+for _prefix in ("src/l4/format/pdf/sandbox/", "src/runtime/capabilities/dirHandleController.ts"):
+    COMPONENT_E2E_MAP[_prefix] = COMPONENT_E2E_MAP["src/ui"]
+    COMPONENT_UNIT_MAP[_prefix] = COMPONENT_UNIT_MAP["src/ui"]
+_CORE_PREFIXES = ("src/l1/", "src/l2/", "src/l3a/", "src/l3b/", "src/l4/",
+                  "src/application/", "src/migration/", "src/shared/", "src/runtime/api/",
+                  "src/runtime/ipc/", "src/runtime/diagnostics/", "src/runtime/devMode.ts",
+                  "src/runtime/environment.ts", "src/runtime/capabilities/directoryHandle.ts",
+                  "src/runtime/capabilities/tabService.ts", "src/ui/shared/progressUtils.ts")
 
 
 def normalize_repo_path(path: str, base_dir: str = REPO_DIR) -> str:
@@ -240,8 +244,11 @@ class ImpactAnalysisResult:
             # 1. 传递闭包直接命中测试文件
             unit_set = set()
             for f in self.affected_files:
-                if f.startswith("tests/") and (f.endswith(".test.ts") or f.endswith(".test.js")):
+                if f.startswith("tests/") and (f.endswith(".test.ts") or f.endswith((".test.js", ".test.cjs"))):
                     unit_set.add(f)
+            for prefix, suites in COMPONENT_UNIT_MAP.items():
+                if any(f.startswith(prefix) for f in self.affected_files):
+                    unit_set.update(suite for suite in suites if suite in self.all_unit_tests)
             self.target_unit_tests = sorted(unit_set)
 
             # 2. E2E 规格测试判定
@@ -252,7 +259,7 @@ class ImpactAnalysisResult:
                     e2e_set.add(f)
 
             # 如果影响到 core 模块，则所有 E2E 均可能受影响
-            if any(f.startswith("src/core/") for f in self.affected_files):
+            if any(f.startswith(_CORE_PREFIXES) and not f.startswith((*_CONTENT_PREFIXES, "src/l4/format/pdf/sandbox/")) for f in self.affected_files):
                 e2e_set.update(self.all_e2e_specs)
             else:
                 # 检查特定组件映射
@@ -293,7 +300,7 @@ def analyze_impact(
             p = normalize_repo_path(os.path.join(root, f), base_dir)
             if p.startswith("tests/e2e/") and p.endswith(".spec.ts"):
                 all_e2e_specs.append(p)
-            elif p.startswith("tests/") and not p.startswith("tests/e2e/") and (p.endswith(".test.ts") or p.endswith(".test.js")):
+            elif p.startswith("tests/") and not p.startswith("tests/e2e/") and (p.endswith(".test.ts") or p.endswith((".test.js", ".test.cjs"))):
                 all_unit_tests.append(p)
 
     norm_changed = {normalize_repo_path(f, base_dir) for f in changed_files if f}

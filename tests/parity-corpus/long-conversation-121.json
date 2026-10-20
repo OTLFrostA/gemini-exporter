@@ -1,18 +1,7 @@
 {
   "document": {
-    "schemaVersion": 2,
-    "header": {
-      "title": "长会话：121 消息 parity 语料",
-      "providerLabel": "gemini",
-      "date": "2026-09-26",
-      "messageCount": 121
-    },
     "messages": [
       {
-        "type": "message",
-        "id": "u1",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -23,13 +12,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a1",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -40,13 +26,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u2",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -57,13 +40,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a2",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -74,13 +54,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u3",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -91,13 +68,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a3",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -108,13 +82,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u4",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -125,13 +96,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a4",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -142,13 +110,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u5",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -159,13 +124,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a5",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -176,13 +138,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u6",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -193,13 +152,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a6",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -210,13 +166,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u7",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -266,13 +219,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a7",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -283,13 +233,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u8",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -300,13 +247,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a8",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -317,13 +261,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u9",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -334,13 +275,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a9",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -351,13 +289,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u10",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -368,13 +303,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a10",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -390,13 +322,10 @@
             "code": "def round_5():\n    return 'parity-check-5'\n",
             "language": "python"
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u11",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -407,13 +336,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a11",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -424,13 +350,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u12",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -441,13 +364,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a12",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -458,13 +378,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u13",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -475,13 +392,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a13",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -492,13 +406,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u14",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -548,13 +459,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a14",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -565,13 +473,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u15",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -582,13 +487,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a15",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -611,7 +513,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -623,7 +524,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -639,7 +539,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -651,7 +550,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -662,13 +560,10 @@
               ]
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u16",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -679,13 +574,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a16",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -696,13 +588,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u17",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -713,13 +602,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a17",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -730,13 +616,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u18",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -747,13 +630,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a18",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -764,13 +644,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u19",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -781,13 +658,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a19",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -798,13 +672,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u20",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -815,13 +686,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a20",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -837,13 +705,10 @@
             "code": "def round_10():\n    return 'parity-check-10'\n",
             "language": "python"
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u21",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -893,13 +758,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a21",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -914,13 +776,10 @@
             "type": "math",
             "source": "\\sum_{i=1}^{11} i = 66"
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u22",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -931,13 +790,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a22",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -948,13 +804,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u23",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -965,13 +818,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a23",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -982,13 +832,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u24",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -999,13 +846,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a24",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1016,13 +860,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u25",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1033,13 +874,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a25",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1050,13 +888,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u26",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1067,13 +902,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a26",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1084,13 +916,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u27",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1101,13 +930,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a27",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1118,13 +944,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u28",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1174,13 +997,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a28",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1191,13 +1011,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u29",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1208,13 +1025,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a29",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1225,13 +1039,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u30",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1242,13 +1053,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a30",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1276,7 +1084,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -1288,7 +1095,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -1304,7 +1110,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -1316,7 +1121,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -1327,13 +1131,10 @@
               ]
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u31",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1344,13 +1145,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a31",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1361,13 +1159,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u32",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1378,13 +1173,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a32",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1395,13 +1187,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u33",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1412,13 +1201,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a33",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1429,13 +1215,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u34",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1446,13 +1229,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a34",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1463,13 +1243,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u35",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1519,13 +1296,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a35",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1536,13 +1310,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u36",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1553,13 +1324,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a36",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1570,13 +1338,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u37",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1587,13 +1352,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a37",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1604,13 +1366,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u38",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1621,13 +1380,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a38",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1638,13 +1394,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u39",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1655,13 +1408,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a39",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1672,13 +1422,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u40",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1689,13 +1436,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a40",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1711,13 +1455,10 @@
             "code": "def round_20():\n    return 'parity-check-20'\n",
             "language": "python"
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u41",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1728,13 +1469,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a41",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1745,13 +1483,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u42",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1801,13 +1536,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a42",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1822,13 +1554,10 @@
             "type": "math",
             "source": "\\sum_{i=1}^{21} i = 231"
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u43",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1839,13 +1568,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a43",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1856,13 +1582,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u44",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1873,13 +1596,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a44",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1890,13 +1610,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u45",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1907,13 +1624,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a45",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1936,7 +1650,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -1948,7 +1661,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -1964,7 +1676,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -1976,7 +1687,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -1987,13 +1697,10 @@
               ]
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u46",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2004,13 +1711,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a46",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2021,13 +1725,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u47",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2038,13 +1739,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a47",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2055,13 +1753,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u48",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2072,13 +1767,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a48",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2089,13 +1781,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u49",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2145,13 +1834,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a49",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2162,13 +1848,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u50",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2179,13 +1862,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a50",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2201,13 +1881,10 @@
             "code": "def round_25():\n    return 'parity-check-25'\n",
             "language": "python"
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u51",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2218,13 +1895,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a51",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2235,13 +1909,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u52",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2252,13 +1923,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a52",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2269,13 +1937,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u53",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2286,13 +1951,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a53",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2303,13 +1965,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u54",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2320,13 +1979,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a54",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2337,13 +1993,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u55",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2354,13 +2007,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a55",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2371,13 +2021,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u56",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2427,13 +2074,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a56",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2444,13 +2088,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u57",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2461,13 +2102,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a57",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2478,13 +2116,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u58",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2495,13 +2130,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a58",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2512,13 +2144,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u59",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2529,13 +2158,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a59",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2546,13 +2172,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u60",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2563,13 +2186,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a60",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2597,7 +2217,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -2609,7 +2228,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -2625,7 +2243,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "left",
                   "children": [
                     {
                       "type": "text",
@@ -2637,7 +2254,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "right",
                   "children": [
                     {
                       "type": "text",
@@ -2648,13 +2264,10 @@
               ]
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u61",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2665,13 +2278,16 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       }
     ],
     "metadata": {
       "id": "long-conversation-121",
-      "provider": "gemini"
-    }
+      "provider": "gemini",
+      "updatedAt": 1790380800000
+    },
+    "title": "长会话：121 消息 parity 语料"
   },
   "resourceIds": []
 }

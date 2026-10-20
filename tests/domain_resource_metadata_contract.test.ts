@@ -1,11 +1,11 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { closeDomainResources } from '../src/core/parsers/shared/resources/domainResourceAdapter.js';
-import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
-import type { DomainAsset } from '../src/core/domain/conversationDetail.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { closeDomainResources } from '../src/l1/parsers/shared/resources/domainResourceAdapter.js';
+import { findResourceMatch, resourceIdentity } from '../src/l1/parsers/shared/resources/resourceIdentity.js';
+import type { DomainAsset } from '../src/l2/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 const base = (assets: DomainAsset[] = []): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('chat'), 'custom'),   titleSource: "derived",   title: 'Resources' }, detail: { key: fixtureKey(String('chat'), 'custom'), quality: { status: 'unknown' }, assets, messages: [] } });
 test('source metadata stays outside Domain and canonical report body retains authored sections and links', () => {
     const result = closeDomainResources('custom', [], [{ input: { attachments: [{ type: 'file', id: 'report', url: 'https://example.test/report', createdAt: 1, chipUrl: 'https://example.test/chip', width: 100, height: 80, source: 'source', sections: ['# Report', 'Evidence'], links: [{ title: 'Reference', url: 'https://example.test/reference' }], candidates: ['https://example.test/download'] }] } }]);
@@ -39,4 +39,20 @@ test('parent context prevents cross-conversation resource matches even with iden
 test('canonical report body keeps independent sections and links', () => {
     const result = closeDomainResources('custom', [], [{ input: { attachments: [{ type: 'file', contentMarkdown: '# Canonical', sections: ['# Canonical', 'Unique section'], links: [{ title: 'Evidence', url: 'https://example.test/evidence' }] }] } }]);
     assert.equal(result.assets[0].document?.contentMarkdown, '# Canonical\n\nUnique section\n\n[Evidence](https://example.test/evidence)');
+});
+
+test('L2 never admits ephemeral signed resource locators or invalid byte counts', () => {
+    for (const sourceUri of [
+        '', 'data:image/png;base64,AQID', 'blob:https://example.test/a',
+        'https://example.test/image?X-Amz-Date=20261019T120000Z&X-Amz-Signature=abc',
+        'https://example.test/image?X-Goog-Credential=abc&X-Goog-Signature=abc',
+        'https://example.test/file?Expires=123&Signature=abc&Key-Pair-Id=key',
+        'https://example.test/image?token=temporary',
+        'archive/images/photo.png?token=temporary',
+    ]) assert.throws(() => validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri }])), TypeError, sourceUri);
+    for (const byteLength of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1])
+        assert.throws(() => validateParserDomain(base([{ id: 'image', kind: 'image', byteLength }])), TypeError);
+    validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'https://example.test/image?id=stable', byteLength: 0 }]));
+    validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'provider-stable-resource-id' }]));
+    validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'archive/photo.png' }]));
 });

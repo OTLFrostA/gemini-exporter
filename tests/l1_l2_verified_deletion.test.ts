@@ -1,0 +1,165 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { IDBObjectStore } from 'fake-indexeddb';
+import { indexStorage } from './helpers/indexStorage.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { ingestDetail, ingestDeletedConversation } from '../src/l2/ingestion.js';
+import { getDetail, getIndex, getExportRecord, putExportRecord, getCoverage, updateCoverageAtomically } from '../src/l3a/storageService.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import type { GeminiProviderClient } from '../src/l1/client/gemini/geminiContracts.js';
+import { ConfirmedGeminiConversationNotFound } from '../src/l1/client/gemini/geminiClient.js';
+import { getConversationDetail } from '../src/l1/client/gemini/api/pagination.js';
+import { sourceDetail } from './helpers/l1SourceFixture.js';
+import { parseConfirmedGeminiDeletion, isConfirmedGeminiDetailNotFound } from '../src/l1/parsers/gemini/rpc/parseDeletion.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
+import { GeminiProtocol } from '../src/l1/protocol/gemini/protocol.js';
+
+const account = fixtureAccount(), otherAccount = fixtureAccount('chatgpt'), conversationId = 'deadbeef00112233';
+const makeKey = (accountId = account.id) => ({ accountId, conversationId });
+const detail = {
+    quality: { status: 'complete' as const }, assets: [],
+    messages: [{ role: 'assistant' as const, content: [{ type: 'paragraph' as const,
+        children: [{ type: 'text' as const, text: 'archived body' }] }] }]
+};
+async function seed(accountId = account.id) {
+    const key = makeKey(accountId);
+    await ingestDetail(key.accountId, key.conversationId, detail);
+    await putExportRecord(key, { format: 'markdown', status: 'ok', exportedAt: 100, chatTime: 100 });
+    return key;
+}
+
+test('L2 confirmed remote deletion atomically removes one key but preserves Coverage and other accounts', async () => {
+    const env = indexStorage();
+    try {
+        const key = await seed(), other = await seed(otherAccount.id);
+        await updateCoverageAtomically(account.id, 'recent', () => ({ next: { range: {
+            head: { id: conversationId, time: 100 }, tail: { id: conversationId, time: 100 }
+        } }, result: undefined }));
+        await ingestDeletedConversation(account.id, conversationId);
+        assert.equal(await getIndex(key), null);
+        assert.equal(await getDetail(key), null);
+        assert.equal(await getExportRecord(key), null);
+        assert.ok((await getCoverage(account.id, 'recent'))?.range);
+        assert.ok(await getIndex(other));
+        assert.ok(await getDetail(other));
+        assert.ok(await getExportRecord(other));
+        await ingestDeletedConversation(account.id, conversationId); // idempotent
+        await assert.rejects(ingestDeletedConversation('10000000-0000-4000-8000-000000000099', conversationId), /account does not exist/);
+    } finally { env.restore(); }
+});
+
+test('L2 rejected physical delete aborts all three stores, including ExportRecord', async () => {
+    const env = indexStorage(), priorDelete = IDBObjectStore.prototype.delete;
+    try {
+        const key = await seed();
+        IDBObjectStore.prototype.delete = function(k: IDBValidKey) {
+            if (this.name === 'details') throw new Error('simulated delete failure');
+            return priorDelete.call(this, k);
+        };
+        await assert.rejects(ingestDeletedConversation(account.id, conversationId), /simulated delete failure/);
+        assert.ok(await getIndex(key));
+        assert.ok(await getDetail(key));
+        assert.ok(await getExportRecord(key));
+    } finally { IDBObjectStore.prototype.delete = priorDelete; env.restore(); }
+});
+
+test('L1 Detail only deletes after typed, target-bound Gemini 1167; generic 404 remains recoverable', async () => {
+    const env = indexStorage();
+    try {
+        const key = await seed(), route = async () => 'u0';
+        const client = (failure: Error) => ({
+            getConversationDetail: async () => { throw failure; },
+            getConversationList: async () => { throw new Error('unneeded'); }
+        }) as unknown as GeminiProviderClient;
+        const generic = new GeminiProvider(client(new Error('HTTP 404')), route);
+        await assert.rejects(generic.fetchConversationDetail(account.id, conversationId), /HTTP 404/);
+        assert.ok(await getDetail(key), 'a generic 404 does not delete local facts');
+        const wrong = new GeminiProvider(client(new ConfirmedGeminiConversationNotFound('c_other')), route);
+        await assert.rejects(wrong.fetchConversationDetail(account.id, conversationId), /Confirmed Gemini/);
+        assert.ok(await getDetail(key), 'another conversation cannot delete this key');
+        const confirmed = new GeminiProvider(client(new ConfirmedGeminiConversationNotFound('c_' + conversationId)), route);
+        await assert.rejects(confirmed.fetchConversationDetail(account.id, conversationId), /conversation_not_found/);
+        assert.equal(await getIndex(key), null);
+        assert.equal(await getDetail(key), null);
+        assert.equal(await getExportRecord(key), null);
+    } finally { env.restore(); }
+});
+
+test('Detail not-found classifier refuses HTTP status alone and unrelated error codes', () => {
+    assert.equal(GeminiProtocol.isConfirmedDeletedError('HTTP 404', 404), false);
+    assert.equal(GeminiProtocol.isConfirmedDeletedError('HTTP 404'), false);
+    assert.equal(GeminiProtocol.isConfirmedDeletedError('["BardErrorInfo",11167]', 200), false);
+    assert.equal(GeminiProtocol.isConfirmedDeletedError('["BardErrorInfo",1167]', 200), true);
+    assert.equal(GeminiProtocol.isConfirmedDeletedError('["BardErrorInfo",1167]', 429), false);
+});
+
+test('Detail 1167 must belong to target hNvQHb RPC, not a simultaneous list or arbitrary HTTP response', () => {
+    const frame = (rpc: string, error: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', rpc, null, null, null, error]])}`;
+    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.DETAIL, ['BardErrorInfo', 1167])), true);
+    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 1167])), false);
+    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.DETAIL, ['BardErrorInfo', 1096])), false);
+    assert.equal(isConfirmedGeminiDetailNotFound('HTTP 404'), false);
+});
+
+test('L1 delete parsing needs a matching acknowledged DELETE RPC, not the outgoing request alone', () => {
+    const id = 'c_' + conversationId, other = 'c_beefcafe12341234';
+    const body = (requestId: string) => new URLSearchParams({ 'f.req':
+        JSON.stringify([[[GeminiProtocol.RPCS.DELETE, JSON.stringify([null, requestId]), null, 'generic']]]) }).toString();
+    const ack = (rpc: string, target: string) =>
+        `)]}'\n\n${JSON.stringify([['wrb.fr', rpc, JSON.stringify([null, target])]])}`;
+    assert.equal(parseConfirmedGeminiDeletion(body(id), ack(GeminiProtocol.RPCS.DELETE, id)), conversationId);
+    assert.equal(parseConfirmedGeminiDeletion(body(id), ''), null);
+    assert.equal(parseConfirmedGeminiDeletion(body(id), ack(GeminiProtocol.RPCS.LIST, id)), null);
+    assert.equal(parseConfirmedGeminiDeletion(body(id), ack(GeminiProtocol.RPCS.DELETE, other)), null);
+    assert.equal(parseConfirmedGeminiDeletion(body(id), '["BardErrorInfo",1167]'), null);
+    assert.equal(parseConfirmedGeminiDeletion(body(id), `)]}'\n\n${JSON.stringify([['wrb.fr', GeminiProtocol.RPCS.DELETE, JSON.stringify([null, id]), null, null, ['BardErrorInfo', 1096]]])}`), null);
+});
+
+test('Gemini list limit requires LIST-specific 1096 plus a bound Recent continuation', () => {
+    const raw = (rpc: string, value: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', rpc, null, null, null, value]])}`;
+    const valid = parseList(raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 1096]));
+    assert.equal(valid.failure, 'hit_google_limit');
+    const observation = geminiListObservation(valid, { streamId: 'recent', requestCursor: 'page1' }, account.id);
+    assert.equal(observation.terminal, 'provider_limit');
+    assert.equal(observation.valid, true);
+    assert.deepEqual(observation.keys, []);
+    for (const ctx of [{ streamId: 'recent' as const, requestCursor: null },
+        { streamId: 'pinned' as const, requestCursor: 'page1' }]) {
+        assert.equal(geminiListObservation(valid, ctx, account.id).terminal, undefined);
+    }
+    for (const error of [
+        raw(GeminiProtocol.RPCS.DETAIL, ['BardErrorInfo', 1096]),
+        raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 10961]),
+        raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 429]),
+        raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', '1096'])
+    ]) assert.equal(parseList(error).failure, 'invalid_response');
+});
+
+test('Metadata-only Detail retry propagates confirmed NotFound instead of accepting stale metadata', async () => {
+    const first = sourceDetail({ messages: [] });
+    first.transport.decodedPayload = [null, null, [['c_source_chat_123', 'Source title']]];
+    let calls = 0;
+    await assert.rejects(getConversationDetail({
+        async fetchConversationPage() {
+            if (++calls === 1) return first;
+            throw new ConfirmedGeminiConversationNotFound('c_source_chat_123');
+        },
+    }, 'source_chat_123'), error => error instanceof ConfirmedGeminiConversationNotFound);
+    assert.equal(calls, 2);
+});
+
+test('Metadata-only Detail still tolerates non-NotFound retry failures', async () => {
+    const first = sourceDetail({ messages: [] });
+    first.transport.decodedPayload = [null, null, [['c_source_chat_123', 'Source title']]];
+    let calls = 0;
+    const result = await getConversationDetail({
+        async fetchConversationPage() {
+            if (++calls === 1) return first;
+            throw new Error('transient metadata retry failure');
+        },
+    }, 'source_chat_123');
+    assert.equal(calls, 2);
+    assert.equal(result.conversationId, 'source_chat_123');
+    assert.equal(result.conversation.detail.messages.length, 0);
+});

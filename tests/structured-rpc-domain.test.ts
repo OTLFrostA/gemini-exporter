@@ -1,6 +1,4 @@
-import { fixtureAccountFor } from './helpers/domainFixture.js';
-const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
+import { sourceConversation } from './helpers/l1SourceFixture.js';
 /**
  * tests/structured-rpc-domain.test.ts
  *
@@ -25,20 +23,29 @@ import assert from 'node:assert/strict';
 const fs = require('fs');
 const path = require('path');
 
-const { assertDomainClosure } = require('../src/core/domain/closure.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { assertDomainClosure } = require('../src/l2/closure.js');
 const {
     convertGeminiInlines,
-} = require('../src/core/parsers/gemini/shared/structuredContentAdapter.js');
+} = require('../src/l1/parsers/gemini/shared/structuredContentAdapter.js');
 const {
     decodeGeminiAnnotation,
     decodeGeminiStructuredNode,
     decodeGeminiStructuredPayload,
     extractStructuredContent,
-} = require('../src/core/parsers/gemini/rpc/structuredContent.js');
-const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const { extractImages } = require('./helpers/recordFixture/attachments.js');
+} = require('../src/l1/parsers/gemini/rpc/structuredContent.js');
+const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const { extractImageEvidence: extractImages } = require('../src/l1/parsers/gemini/rpc/sourceAttachments.js');
+
+import type { BlockNode } from '../src/l2/content/blocks.js';
+import type { InlineNode } from '../src/l2/content/inline.js';
+function firstText(block: BlockNode): string {
+    assert.ok(block.type === 'paragraph');
+    return inlineText(block.children[0]);
+}
+function inlineText(inline: InlineNode): string {
+    assert.ok(inline.type === 'text');
+    return inline.text;
+}
 
 const fixturesDir = path.join(__dirname, 'fixtures', 'provider', 'structured_rpc');
 
@@ -80,7 +87,7 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
         ],
     };
 
-    const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const { conversation: domain, diagnostics } = await sourceConversation(conv as any);
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
     const modelMsg = domain.detail.messages.find((m: any) => m.id === 'm2');
@@ -98,7 +105,7 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
     const strongInline = p.children.find((c: any) => c.type === 'strong');
     assert.ok(strongInline?.type === 'strong');
     assert.ok(strongInline, 'Strong inline exists from annotation');
-    assert.strictEqual(strongInline.children[0].text, 'structured');
+    assert.strictEqual(inlineText(strongInline.children[0]), 'structured');
 
     // Check math block:
     const math = modelMsg.content[1];
@@ -141,7 +148,7 @@ test('#705 Divergence Case: Display Math directly to Canonical math block', asyn
         ],
     };
 
-    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const { conversation: domain } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 3);
     assert.strictEqual(msg.content[0].type, 'paragraph');
@@ -176,12 +183,13 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
         ],
     };
 
-    const { conversation: domainAlpha } = await historicalFixture(convAlpha as any, { providerId: 'gemini' });
+    const { conversation: domainAlpha } = await sourceConversation(convAlpha as any);
     const msgAlpha = domainAlpha.detail.messages[0];
     const tableBlockAlpha = msgAlpha.content.find((b: any) => b.type === 'table');
     assert.ok(tableBlockAlpha?.type === 'table');
     assert.ok(tableBlockAlpha, 'Table block exists for Case C-alpha');
 
+    assert.ok(tableBlockAlpha.headerRows);
     // Header row should have exactly 5 cells
     assert.strictEqual(tableBlockAlpha.headerRows.length, 1);
     assert.strictEqual(tableBlockAlpha.headerRows[0].cells.length, 5);
@@ -213,12 +221,13 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
         ],
     };
 
-    const { conversation: domainPsi } = await historicalFixture(convPsi as any, { providerId: 'gemini' });
+    const { conversation: domainPsi } = await sourceConversation(convPsi as any);
     const msgPsi = domainPsi.detail.messages[0];
     const tableBlockPsi = msgPsi.content.find((b: any) => b.type === 'table');
     assert.ok(tableBlockPsi?.type === 'table');
     assert.ok(tableBlockPsi, 'Table block exists for Case C-psi');
 
+    assert.ok(tableBlockPsi.headerRows);
     // Header row should have exactly 3 cells
     assert.strictEqual(tableBlockPsi.headerRows[0].cells.length, 3);
     for (let r = 0; r < tableBlockPsi.rows.length; r++) {
@@ -244,7 +253,7 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
         title: 'Case A Multiline Display',
         messages: [{ id: 'm1', role: 'model', content: 'raw', structuredContent: aStack }],
     };
-    const resA = await historicalFixture(convA as any, { providerId: 'gemini' });
+    const resA = await sourceConversation(convA as any);
     assert.doesNotThrow(() => assertDomainClosure((resA.conversation).detail));
 
     // Case B: 49 root nodes
@@ -254,7 +263,7 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
         title: 'Case B Display After Text',
         messages: [{ id: 'm1', role: 'model', content: 'raw', structuredContent: bStack }],
     };
-    const resB = await historicalFixture(convB as any, { providerId: 'gemini' });
+    const resB = await sourceConversation(convB as any);
     assert.doesNotThrow(() => assertDomainClosure((resB.conversation).detail));
 });
 
@@ -336,9 +345,9 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
         ],
     };
 
-    const resList = await historicalFixture(listConv as any, { providerId: 'gemini' });
+    const resList = await sourceConversation(listConv as any);
     assert.strictEqual(
-        resList.conversation.detail.messages[0].content[0].children[0].text,
+        firstText(resList.conversation.detail.messages[0].content[0]),
         'Raw list markdown fallback',
         'List with unknown child must fail closed to markdown without silent item dropping'
     );
@@ -371,9 +380,9 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
         ],
     };
 
-    const resTable = await historicalFixture(tableConv as any, { providerId: 'gemini' });
+    const resTable = await sourceConversation(tableConv as any);
     assert.strictEqual(
-        resTable.conversation.detail.messages[0].content[0].children[0].text,
+        firstText(resTable.conversation.detail.messages[0].content[0]),
         'Raw table markdown fallback',
         'Table with unknown cell child must fail closed to markdown'
     );
@@ -402,9 +411,9 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
         ],
     };
 
-    const resBq = await historicalFixture(bqConv as any, { providerId: 'gemini' });
+    const resBq = await sourceConversation(bqConv as any);
     assert.strictEqual(
-        resBq.conversation.detail.messages[0].content[0].children[0].text,
+        firstText(resBq.conversation.detail.messages[0].content[0]),
         'Raw bq markdown fallback',
         'Blockquote with unknown child must fail closed to markdown'
     );
@@ -440,10 +449,10 @@ test('Unknown annotation shape/type fails closed and is never coerced to bold', 
         ],
     };
 
-    const res = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const res = await sourceConversation(conv as any);
     const msg = res.conversation.detail.messages[0];
     assert.strictEqual(
-        msg.content[0].children[0].text,
+        firstText(msg.content[0]),
         'Raw markdown fallback for unknown annotation',
         'Unknown annotation must trigger Markdown fallback instead of guessing as bold'
     );
@@ -509,7 +518,7 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
         ],
     };
 
-    const res = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const res = await sourceConversation(conv as any);
     const msg0 = res.conversation.detail.messages[0];
     const msg1 = res.conversation.detail.messages[1];
 
@@ -525,7 +534,7 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     const strong1 = msg1.content[0].children.find((c: any) => c.type === 'strong');
     assert.ok(strong1?.type === 'strong');
     assert.ok(strong1, 'Candidate 1 used markdown parser for bold');
-    assert.strictEqual(strong1.children[0].text, 'bold from markdown');
+    assert.strictEqual(inlineText(strong1.children[0]), 'bold from markdown');
 });
 
 test('Wire JSPB decoding in Gemini parser layer', () => {
@@ -580,7 +589,7 @@ test('Fallback: missing structuredContent falls back to existing Markdown parser
         ],
     };
 
-    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const { conversation: domain } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 2);
     assert.strictEqual(msg.content[0].type, 'heading');
@@ -612,12 +621,12 @@ test('Fallback: unknown nodeType triggers complete fallback to Markdown parser',
         ],
     };
 
-    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const { conversation: domain } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 1);
     assert.strictEqual(msg.content[0].type, 'paragraph');
     assert.ok(msg.content[0]?.type === 'paragraph');
-    assert.strictEqual(msg.content[0].children[0].text, 'Fallback to markdown text when structured has unknown nodeType.');
+    assert.strictEqual(firstText(msg.content[0]), 'Fallback to markdown text when structured has unknown nodeType.');
 });
 
 test('Fallback: crossing overlap annotations trigger fallback to Markdown parser', async () => {
@@ -645,10 +654,10 @@ test('Fallback: crossing overlap annotations trigger fallback to Markdown parser
         ],
     };
 
-    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const { conversation: domain } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 1);
-    assert.strictEqual(msg.content[0].children[0].text, 'Fallback text on crossing overlap.');
+    assert.strictEqual(firstText(msg.content[0]), 'Fallback text on crossing overlap.');
 });
 
 test('Fallback: empty structured document with non-empty raw markdown triggers fallback', async () => {
@@ -667,13 +676,13 @@ test('Fallback: empty structured document with non-empty raw markdown triggers f
         ],
     };
 
-    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const { conversation: domain } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 1);
-    assert.strictEqual(msg.content[0].children[0].text, 'Non-empty raw markdown should not be lost if structured is empty.');
+    assert.strictEqual(firstText(msg.content[0]), 'Non-empty raw markdown should not be lost if structured is empty.');
 });
 
-test('Generic HTML renderer renders Domain content from structured path cleanly', async () => {
+test('structured source AST retains headings, math, code and lists', async () => {
     const conv = {
         id: 'c_html_compat',
         title: 'HTML Compat Test',
@@ -701,14 +710,9 @@ test('Generic HTML renderer renders Domain content from structured path cleanly'
         ],
     };
 
-    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {});
-    assert.ok(html.includes('<h2'), 'Heading 2 rendered');
-    assert.ok(html.includes('Heading 2 Title'), 'Heading text rendered');
-    assert.ok(html.includes('language-python'), 'Code block rendered with language');
-    assert.ok(html.includes('print(&quot;hello&quot;)'), 'Code rendered');
-    assert.ok(html.includes('<ul'), 'Unordered list rendered');
-    assert.ok(html.includes('<li>'), 'List item rendered');
+    const { conversation: domain } = await sourceConversation(conv as any);
+    assert.deepEqual(domain.detail.messages[0].content.map((block: any) => block.type), ['heading', 'paragraph', 'math', 'code', 'list']);
+    assertDomainClosure(domain.detail);
 });
 
 test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) preserved via existing asset pipeline without duplication', async () => {
@@ -718,14 +722,14 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     // 1. extractImages extracts the image attachment from both wire and runtime representations
     const wireImages = extractImages(bWire);
     assert.strictEqual(wireImages.length, 1, 'Wire fixture yields 1 image attachment');
-    assert.strictEqual(wireImages[0].fileName, '贝尔测试实验示意图.png');
+    assert.strictEqual(wireImages[0].title, '贝尔测试实验示意图');
     assert.strictEqual(wireImages[0].width, 700);
     assert.strictEqual(wireImages[0].height, 280);
     assert.ok(wireImages[0].sourceUrl.startsWith('https://encrypted-tbn0.gstatic.com'), 'Uses whitelisted Google media host');
 
     const runtimeImages = extractImages(bRuntime);
     assert.strictEqual(runtimeImages.length, 1, 'Runtime fixture yields 1 image attachment');
-    assert.strictEqual(runtimeImages[0].fileName, '贝尔测试实验示意图.png');
+    assert.strictEqual(runtimeImages[0].title, '贝尔测试实验示意图');
     assert.strictEqual(runtimeImages[0].width, 700);
     assert.strictEqual(runtimeImages[0].height, 280);
     assert.strictEqual(runtimeImages[0].sourceUrl, wireImages[0].sourceUrl, 'Source URLs match between wire and runtime');
@@ -744,22 +748,22 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
         ],
     };
 
-    const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const { conversation: domain, diagnostics } = await sourceConversation(conv as any);
     const errorDiags = diagnostics.filter((d: any) => d.severity === 'error');
     assert.strictEqual(errorDiags.length, 0, 'No error diagnostics during normalization');
 
     const msg = domain.detail.messages[0];
-    const imageBlocks = composeDomainDocument(domain, fixtureAccountFor(domain)).document.messages[0].blocks.filter((b: any) => b.type === 'image');
+    const imageBlocks = domain.detail.messages[0].attachmentIds ?? [];
     assert.strictEqual(imageBlocks.length, 1, 'Exactly 1 image block placed in Domain message');
-    assert.strictEqual(imageBlocks[0].alt, '贝尔测试实验示意图.png');
+    assert.equal(domain.detail.assets[0].name, '贝尔测试实验示意图');
 
     // Exactly 1 asset in bundle (no duplicate)
     assert.strictEqual(domain.detail.assets.length, 1, 'Exactly 1 asset in bundle');
     const asset = domain.detail.assets[0];
     assert.strictEqual(asset.kind, 'image');
-    assert.strictEqual(asset.name, '贝尔测试实验示意图.png');
+    assert.strictEqual(asset.name, '贝尔测试实验示意图');
     assert.equal(Object.hasOwn(asset, 'dimensions'), false);
-    assert.strictEqual(asset.id, imageBlocks[0].resourceId, 'Block assetId links to bundle asset ID');
+    assert.strictEqual(asset.id, imageBlocks[0], 'Block assetId links to bundle asset ID');
 
     // Validate the canonical bundle
     assert.doesNotThrow(() => assertDomainClosure((domain).detail));
@@ -791,9 +795,9 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
         ],
     };
 
-    const resStructured = await historicalFixture(convStructured as any, { providerId: 'gemini' });
+    const resStructured = await sourceConversation(convStructured as any);
     const msgStructured = resStructured.conversation.detail.messages[0];
-    const imgBlocksStructured = composeDomainDocument(resStructured.conversation, fixtureAccountFor(resStructured.conversation)).document.messages[0].blocks.filter((b: any) => b.type === 'image');
+    const imgBlocksStructured = resStructured.conversation.detail.messages[0].attachmentIds ?? [];
     assert.strictEqual(imgBlocksStructured.length, 1, 'Structured path has exactly 1 image block');
     assert.strictEqual(resStructured.conversation.detail.assets.length, 1, 'Structured path has exactly 1 asset');
 
@@ -811,9 +815,9 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
         ],
     };
 
-    const resFallback = await historicalFixture(convFallback as any, { providerId: 'gemini' });
+    const resFallback = await sourceConversation(convFallback as any);
     const msgFallback = resFallback.conversation.detail.messages[0];
-    const imgBlocksFallback = composeDomainDocument(resFallback.conversation, fixtureAccountFor(resFallback.conversation)).document.messages[0].blocks.filter((b: any) => b.type === 'image');
+    const imgBlocksFallback = resFallback.conversation.detail.messages[0].attachmentIds ?? [];
     assert.strictEqual(imgBlocksFallback.length, 1, 'Fallback path has exactly 1 image block');
     assert.strictEqual(resFallback.conversation.detail.assets.length, 1, 'Fallback path has exactly 1 asset');
 });
@@ -839,9 +843,9 @@ test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to
         ],
     };
 
-    const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
+    const { conversation: domain, diagnostics } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
-    const imageBlocks = composeDomainDocument(domain, fixtureAccountFor(domain)).document.messages[0].blocks.filter((b: any) => b.type === 'image');
+    const imageBlocks = domain.detail.messages[0].attachmentIds ?? [];
     assert.strictEqual(imageBlocks.length, 0, 'UI chips create 0 image blocks');
     assert.strictEqual(domain.detail.assets.length, 0, 'UI chips create 0 assets');
 

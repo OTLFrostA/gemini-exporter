@@ -1,58 +1,63 @@
-import { fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
+import { mockAccount, givenReadonlyDomain, composeDomainDocument } from './helpers/l3bUnitHarness.js';
 import { assertDocumentAst, assertDocumentAsts } from './helpers/assertDocumentAst.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
-const valid = () => ({ schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'T', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', modelLabel: 'Model', blocks: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'i', alt: 'Image' }] }] }] }] });
+const valid = () => ({
+    title: 'T',
+    metadata: { id: 'fixture', provider: 'test', createdAt: 0 },
+    messages: [{ role: 'assistant', timestamp: 1000, modelLabel: 'Model',
+        blocks: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'i', alt: 'Image' }] }] }],
+        sources: [{ id: 'c', label: 'Article', number: 1 }],
+    }],
+});
 
-test('every visual/parity corpus fixture satisfies the exact current DocumentAst definition', () => {
+test('all visual and parity fixtures satisfy the canonical DocumentAst TypeScript contract', () => {
     const entries: Array<{ value: unknown; context: string }> = [];
     for (const directory of ['tests/fixtures/visual-corpus', 'tests/parity-corpus']) {
         const files = readdirSync(directory).filter(file => file.endsWith('.json'));
-        assert.ok(files.length > 0, `${directory} must contain contract fixtures`);
+        assert.ok(files.length, directory);
         for (const file of files) {
-            const fixture = JSON.parse(readFileSync(`${directory}/${file}`, 'utf8'));
-            entries.push({ value: fixture.document, context: `${directory}/${file}.document` });
+            const fixture = JSON.parse(readFileSync(directory + '/' + file, 'utf8'));
+            entries.push({ value: fixture.document, context: directory + '/' + file });
         }
     }
-    const domainFixtures = readdirSync('tests/fixtures/document-domain').filter(file => file.endsWith('.json'));
-    assert.ok(domainFixtures.length > 0, 'document-domain must contain contract fixtures');
-    for (const file of domainFixtures) {
-        const input: DomainConversationWithDetail = JSON.parse(readFileSync(`tests/fixtures/document-domain/${file}`, 'utf8'));
-        entries.push({ value: composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document, context: file });
+    for (const file of readdirSync('tests/fixtures/document-domain').filter(file => file.endsWith('.json'))) {
+        const input: DomainConversationWithDetail = JSON.parse(readFileSync('tests/fixtures/document-domain/' + file, 'utf8'));
+        const domain = givenReadonlyDomain(input);
+        entries.push({ value: composeDomainDocument(domain, mockAccount('example', domain.index.key.accountId)), context: file });
     }
     assertDocumentAsts(entries);
 });
 
-test('contract rejects stale fields, nested extras, missing fields, wrong types and discriminants', () => {
+test('contract rejects stale fields, bad types and a second sources wrapper', () => {
     assertDocumentAst(valid());
-    const mutations: Array<(value: ReturnType<typeof valid>) => void> = [
-        value => Object.assign(value.messages[0], { anchor: 'legacy' }),
+    const mutate: Array<(value: ReturnType<typeof valid>) => void> = [
+        value => Object.assign(value, { schemaVersion: 2 }),
+        value => Object.assign(value, { header: { title: 'Legacy' } }),
+        value => Object.assign(value, { documentLanguage: 'en' }),
+        value => Object.assign(value.metadata, { url: 'https://obsolete.example' }),
+        value => Object.assign(value.metadata, { createdAt: '2026-01-01T00:00:00Z' }),
+        value => Object.assign(value.messages[0], { type: 'message' }),
+        value => Object.assign(value.messages[0], { id: 'msg-0' }),
+        value => Object.assign(value.messages[0], { variant: 'flow' }),
+        value => Object.assign(value.messages[0], { label: 'you' }),
+        value => Object.assign(value.messages[0], { role: 'model' }),
+        value => Object.assign(value.messages[0], { timestamp: '2026-01-01' }),
+        value => Object.assign(value.messages[0], { sources: { items: [] } }),
+        value => Object.assign(value.messages[0], { sources: [{ id: 'c', label: 'Unnumbered' }] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'placeholder', kind: 'file', text: 'Absent' }] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'file', resourceId: 'f', label: 'Attachment' }] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'image', resourceId: 'i' }] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'paragraph', children: [{ type: 'citation', id: 'c' }] }] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'table', columnAlignments: ['default'], headerRows: [], rows: [[{ column: 0, colSpan: 1, rowSpan: 1, align: 'left', children: [] }]] }] }),
         value => Object.assign(value, { diagnostics: [] }),
-        value => Object.assign(value.messages[0].blocks[0].children[0].children[0], { assetId: 'legacy' }),
-        value => Object.assign(value.messages[0].blocks[0].children[0].children[0], { alt: 123 }),
-        value => { Reflect.deleteProperty(value.messages[0], 'id'); },
-        value => Object.assign(value.messages[0].blocks[0], { type: 'note' }),
-        value => Object.assign(value.messages[0], { label: 'model' }),
-        value => Object.assign(value.header, { messageCount: '1' }),
-        value => Object.assign(value, { schemaVersion: 1 }),
-        value => Object.assign(value.messages[0], { modelLabel: 42 }),
-        value => Object.assign(value.messages[0], { blocks: {} }),
-        value => Object.assign(value.messages[0], { sources: { type: 'sources', items: [], anchor: 'legacy' } }),
-        value => { Reflect.deleteProperty(value, 'metadata'); },
-        value => Object.assign(value, { emptyNotice: 'legacy' }),
-        value => Object.assign(value.messages[0], { heading: { level: 2, text: 'legacy' } }),
-        value => Object.assign(value.messages[0], { sources: { type: 'sources', heading: [], items: [] } }),
-        value => Object.assign(value.messages[0], { sources: { type: 'sources', items: [{ id: 's', label: 'Unnumbered' }] } }),
-        value => Object.assign(value.messages[0], { blocks: [{ type: 'code', code: 'x', showHeader: true }] }),
-        value => Object.assign(value.messages[0], { blocks: [{ type: 'disclosure', kind: 'reasoning', blocks: [], initiallyCollapsed: false }] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'disclosure', kind: 'reasoning', blocks: [] }] }),
     ];
-    for (const mutate of mutations) {
-        const value = valid(); mutate(value);
+    for (const change of mutate) {
+        const value = valid(); change(value);
         assert.throws(() => assertDocumentAst(value), TypeError);
     }
 });

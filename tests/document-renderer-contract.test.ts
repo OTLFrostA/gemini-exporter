@@ -1,5 +1,5 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 /**
  * tests/document-renderer-contract.test.ts
  *
@@ -19,8 +19,8 @@ const assert = require('node:assert');
 const path = require('path');
 const { execSync } = require('node:child_process');
 
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -46,8 +46,8 @@ const TYPST_OPTS = {};
 
 function renderBoth(blocks: any[], extra: any = {}) {
     const b = domainFixture(blocks, extra);
-    const { html, diagnostics: htmlDiags } = renderDocumentHtml(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}`])), HTML_OPTS);
-    const { payload, diagnostics: typstDiags } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), TYPST_OPTS);
+    const { html, diagnostics: htmlDiags } = renderDocumentHtml(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}`])), HTML_OPTS);
+    const { payload, diagnostics: typstDiags } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), TYPST_OPTS);
     return { html: html as string, htmlDiags: htmlDiags as any[], payload: payload as any, typstDiags: typstDiags as any[] };
 }
 
@@ -251,7 +251,7 @@ test('shared collectReferencedAssetIds sees inline images everywhere', () => {
         },
         { type: 'image', assetId: 'img-block', alt: 'b' },
     ];
-    const ids = require('../src/core/domain/content/collectAssetReferences.js').collectReferencedAssetIds(blocks);
+    const ids = require('../src/l2/content/collectAssetReferences.js').collectReferencedAssetIds(blocks);
     assert.deepStrictEqual(
         [...ids].sort(),
         ['img-block', 'img-cell', 'img-heading', 'img-para'],
@@ -260,8 +260,8 @@ test('shared collectReferencedAssetIds sees inline images everywhere', () => {
 
 test('inline HTML resource references are collected from the Document AST and use supplied bindings', () => {
     const domain = domainFixture([{ type: 'paragraph', children: [txt('diagram: '), { type: 'image', assetId: 'img-1', alt: 'architecture' }] }], { assets: [imgAsset('img-1', 'diagram.png')] });
-    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
-    const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain));
+    const { collectDocumentResources } = require('../src/l3b/ast/resourceReferences.js');
     assert.deepEqual([...collectDocumentResources(document).referencedIds], ['img-1']);
     const result = renderDocumentHtml(document, { 'img-1': 'assets/img-1.png' });
     assert.ok(result.html.includes('<img'));
@@ -270,6 +270,6 @@ test('inline HTML resource references are collected from the Document AST and us
 });
 test('HTML renders all messages in authoritative source order', () => {
     const domain = { index: { key: fixtureKey(String('order'), 'gemini'),   titleSource: "derived",   title: 'Order' }, detail: { key: fixtureKey(String('order'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: ['second', 'first'].map(id => ({ id, role: 'user', content: [para(id)] })) } };
-    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {});
+    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)), {});
     assert.ok(html.indexOf('second') < html.indexOf('first'));
 });

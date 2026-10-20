@@ -47,15 +47,8 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
   <div style="display:flex;align-items:center;gap:6px">
     <b style="font-size:13px;">Gemini Exporter</b>
-    <span id="countBadge" class="badge">0</span>
   </div>
-  <div style="display:flex;align-items:center;gap:6px">
-    <div id="langTogglePill" style="display:inline-flex;align-items:center;gap:4px;user-select:none;background:#141624;border:1px solid var(--border);padding:2px 6px;border-radius:14px;cursor:pointer;" title="Switch Language / 切换语言">
-      <span id="labelLangZh" style="font-size:10px;font-weight:600;color:var(--text);transition:color .2s;cursor:pointer;">中</span>
-      <input type="checkbox" id="langToggle" class="toggle">
-      <span id="labelLangEn" style="font-size:10px;font-weight:600;color:var(--muted);transition:color .2s;cursor:pointer;">EN</span>
-    </div>
-  </div>
+
 </div>
 
 <!-- Card 1: Active Chat Awareness -->
@@ -65,11 +58,7 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   </div>
   <div id="currentChatContent">
     <div id="currentChatTitle" style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px;" data-i18n="detectingChat">正在识别当前会话...</div>
-    <div style="display:flex;align-items:center;gap:6px;">
-      <span id="chatTurnBadge" class="badge" style="background:#0e0f17;font-size:9px;" data-i18n="chatNoMessages">新会话</span>
-    </div>
   </div>
-  <div id="notGeminiNotice" style="display:none;font-size:11px;line-height:1.5;color:var(--muted);" data-i18n="popupNotGeminiDesc">当前标签不是 gemini.google.com。在 Gemini 页面打开即可导出当前对话。</div>
 </div>
 
 <!-- Card 2: Export Options & Actions -->
@@ -80,18 +69,11 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
     <span id="activeFormatLabel" style="font-size:10px;color:var(--accent2);font-weight:600;">Markdown</span>
   </div>
   <div id="formatTabs" class="tab-group" role="tablist">
-    <button type="button" class="tab-btn active" data-value="markdown" data-i18n="fmtMarkdownTab">Markdown</button>
-    <button type="button" class="tab-btn" data-value="pdf" data-i18n="fmtPdfTab">PDF</button>
-    <button type="button" class="tab-btn" data-value="html" data-i18n="fmtHtmlTab">HTML</button>
-    <button type="button" class="tab-btn" data-value="json" data-i18n="fmtJsonStandardTab">JSON (标准)</button>
+    <button type="button" class="tab-btn active" data-value="markdown" data-format="markdown" data-i18n="fmtMarkdownTab">Markdown</button>
+    <button type="button" class="tab-btn" data-value="pdf" data-format="pdf" data-i18n="fmtPdfTab">PDF</button>
+    <button type="button" class="tab-btn" data-value="html" data-format="html" data-i18n="fmtHtmlTab">HTML</button>
+    <button type="button" class="tab-btn" data-value="json" data-format="json" data-i18n="fmtJsonStandardTab">JSON (标准)</button>
   </div>
-
-  <!-- Fallback/Sync select element -->
-  <select id="format" style="display:none;">
-    <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (.md)</option>
-    <option value="html" data-i18n="fmtHtml">HTML 独立网页 (.html)</option>
-    <option value="json" data-i18n="fmtJsonStandard">JSON (插件标准)</option>
-  </select>
 
   <!-- Row 1: Export Current Page & Open Console Batch Export -->
   <div class="row" style="margin-bottom:0px;">
@@ -99,8 +81,7 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
     <button id="btnOptions" class="primary" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnOptions">去控制台批量导出 ↗</button>
   </div>
 
-  <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
-  <div id="log" class="log" style="display:none"></div>
+  <p id="status" class="log" role="status" aria-live="polite" style="margin:6px 0 0;min-height:15px;"></p>
 </div>
 
 <script src="/dist/ui/popup.js"></script>

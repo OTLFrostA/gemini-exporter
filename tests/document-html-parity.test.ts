@@ -23,7 +23,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 const chat: any = {
     id: 'parity_chat_001',
@@ -169,7 +169,7 @@ test('parity: long prompt collapses', () => {
 
 test('parity: thoughts accordion, code copy, attachments kept', () => {
     assert.ok(newHtml.includes('gem-thoughts'), 'thoughts accordion kept');
-    assert.ok(newHtml.includes('思考过程'), 'thoughts title kept');
+    assert.ok(newHtml.includes('Thinking Process'), 'thoughts title kept');
     assert.ok(newHtml.includes('The user wants binary search explained'), 'thought text kept');
     assert.ok(newHtml.includes('gem-code-block'), 'code block kept');
     assert.ok(newHtml.includes('copyCode(this)'), 'code copy button kept');
@@ -208,18 +208,11 @@ test('offline: no remote asset URLs leak into output', () => {
 
 test('inline image (#555 contract): renders inline <img>, never dropped', () => {
     const document = {
-        "schemaVersion": 2,
-        "header": {
-            "title": "Inline img",
-            "providerLabel": "gemini",
-            "messageCount": 1
-        },
+        title: "Inline img",
+        metadata: { id: "inline", provider: "gemini" },
         "messages": [
             {
-                "type": "message",
-                "id": "m1",
-                "variant": "bubble",
-                "label": "you",
+                role: "user",
                 "blocks": [
                     {
                         "type": "paragraph",
@@ -254,18 +247,11 @@ test('inline image (#555 contract): renders inline <img>, never dropped', () => 
 
 test('inline image with missing asset: visible placeholder + diagnostic', () => {
     const document = {
-        "schemaVersion": 2,
-        "header": {
-            "title": "Inline img missing",
-            "providerLabel": "gemini",
-            "messageCount": 1
-        },
+        title: "Inline img missing",
+        metadata: { id: "inline-missing", provider: "gemini" },
         "messages": [
             {
-                "type": "message",
-                "id": "m1",
-                "variant": "bubble",
-                "label": "you",
+                role: "user",
                 "blocks": [
                     {
                         "type": "paragraph",

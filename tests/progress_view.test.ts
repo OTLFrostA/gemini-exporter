@@ -1,115 +1,31 @@
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { mount } from './helpers/uiPortHarness.js';
+import { errorText } from '../src/ui/shared/settings.js';
 
-const ProgressView = require('../src/ui/views/progressView.js');
-
-test('ProgressView - safe fallback when document is undefined or elements missing', () => {
-    assert.ok(ProgressView);
-    assert.strictEqual(typeof ProgressView.show, 'function');
-    assert.strictEqual(typeof ProgressView.update, 'function');
-    assert.strictEqual(typeof ProgressView.complete, 'function');
-    assert.strictEqual(typeof ProgressView.reset, 'function');
-    assert.strictEqual(typeof ProgressView.hide, 'function');
-
-    // Safe execution without DOM
-    assert.doesNotThrow(() => {
-        ProgressView.show(10, 'Testing');
-        ProgressView.update(50, 'Halfway');
-        ProgressView.complete('Done');
-        ProgressView.reset();
-        ProgressView.hide();
-    });
+test('headless UI status helpers preserve errors without requiring a DOM', () => {
+    assert.equal(errorText(new Error('Offline')), 'Offline'); assert.equal(errorText('Aborted'), 'Aborted');
 });
-
-test('ProgressView - updates DOM styles, text content and bounds clamping', () => {
-    const mockWrap = { id: 'progWrap', style: { display: 'none' } };
-    const mockBar = { id: 'bar', style: { width: '0%' } };
-    const mockText = { id: 'progText', textContent: '' };
-
-    const oldDoc = (globalThis as any).document;
-    try {
-        (globalThis as any).document = {
-            getElementById: (id: string) => {
-                if (id === 'progWrap') return mockWrap;
-                if (id === 'bar') return mockBar;
-                if (id === 'progText') return mockText;
-                return null;
-            }
-        };
-
-        // 1. show
-        ProgressView.show(5, 'Starting...');
-        assert.strictEqual(mockWrap.style.display, 'block');
-        assert.strictEqual(mockBar.style.width, '5%');
-        assert.strictEqual(mockText.textContent, 'Starting...');
-
-        // 2. update within bounds
-        ProgressView.update(45, 'Processing item 45');
-        assert.strictEqual(mockBar.style.width, '45%');
-        assert.strictEqual(mockText.textContent, 'Processing item 45');
-
-        // 3. update clamping (> 100)
-        ProgressView.update(120);
-        assert.strictEqual(mockBar.style.width, '100%');
-
-        // 4. update clamping (< 0)
-        ProgressView.update(-10);
-        assert.strictEqual(mockBar.style.width, '0%');
-
-        // 5. complete
-        ProgressView.complete('All done!');
-        assert.strictEqual(mockBar.style.width, '100%');
-        assert.strictEqual(mockText.textContent, 'All done!');
-
-        // 6. reset
-        ProgressView.reset();
-        assert.strictEqual(mockBar.style.width, '0%');
-        assert.strictEqual(mockText.textContent, '');
-
-        // 7. immediate hide
-        mockWrap.style.display = 'block';
-        ProgressView.hide(0);
-        assert.strictEqual(mockWrap.style.display, 'none');
-        assert.strictEqual(mockBar.style.width, '0%');
-    } finally {
-        (globalThis as any).document = oldDoc;
-    }
+test('current progress status displays committed counts, final result and clears busy controls', async () => {
+    const browser = await chromium.launch({ headless: true }); try {
+        const page = await browser.newPage(); await mount(page, 'options', { holdScan: true });
+        await page.locator('#btnSyncAll').click(); await page.waitForFunction(() => document.body.dataset.busy === 'true');
+        assert.equal(await page.locator('#status').textContent(), 'Committed 2 pages, 150 source entries');
+        assert.equal(await page.locator('#status').getAttribute('aria-live'), 'polite');
+        assert.equal(await page.locator('#progWrap').isVisible(), true);
+        assert.match(await page.locator('#progWrap').getAttribute('class') ?? '', /indeterminate/);
+        assert.doesNotMatch(await page.locator('#status').textContent() ?? '', /%/);
+        await page.evaluate(() => Reflect.get(window, 'harness').finishScan()); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+        assert.match(await page.locator('#status').textContent() ?? '', /Local page budget reached/); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
+        assert.equal(await page.locator('#progWrap').isVisible(), false);
+    } finally { await browser.close(); }
 });
-
-test('ProgressView - new progress cancels delayed hide and a later hide resets the visible UI', (t: any) => {
-    const priorDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    const wrap = { style: { display: 'none' } };
-    const bar = { style: { width: '0%' } };
-    const label = { textContent: '' };
-    const elements: Record<string, unknown> = { progWrap: wrap, bar, progText: label };
-    Object.defineProperty(globalThis, 'document', {
-        configurable: true,
-        value: { getElementById: (id: string) => elements[id] ?? null }
-    });
-    t.mock.timers.enable({ apis: ['setTimeout'] });
-
-    try {
-        ProgressView.show(10, 'Preparing');
-        ProgressView.hide(500);
-        t.mock.timers.tick(200);
-        ProgressView.update(55, 'Still exporting');
-        t.mock.timers.tick(500);
-        assert.strictEqual(wrap.style.display, 'block', 'stale hide must not erase new progress');
-        assert.strictEqual(bar.style.width, '55%');
-        assert.strictEqual(label.textContent, 'Still exporting');
-
-        ProgressView.hide(500);
-        t.mock.timers.tick(499);
-        assert.strictEqual(wrap.style.display, 'block', 'active hide must respect its delay');
-        t.mock.timers.tick(1);
-        assert.strictEqual(wrap.style.display, 'none');
-        assert.strictEqual(bar.style.width, '0%');
-        assert.strictEqual(label.textContent, '');
-    } finally {
-        ProgressView.reset();
-        t.mock.timers.reset();
-        if (priorDocument) Object.defineProperty(globalThis, 'document', priorDocument);
-        else Reflect.deleteProperty(globalThis, 'document');
-    }
+test('a subsequent operation keeps its current progress after the previous task completes; no stale delayed hide erases it', async () => {
+    const browser = await chromium.launch({headless:true});try{
+        const page=await browser.newPage();await page.clock.install();await mount(page,'options',{holdScan:true});
+        await page.locator('#btnSyncAll').click();await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+        await page.locator('#btnSyncAll').click();await page.clock.fastForward(1000);assert.equal(await page.locator('#status').textContent(),'Committed 2 pages, 150 source entries');assert.equal(await page.locator('#btnStopScan').isVisible(),true);
+        await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal(await page.locator('#btnStopScan').isVisible(),false);
+    }finally{await browser.close();}
 });

@@ -1,202 +1,77 @@
-import test from 'node:test';
-import assert from 'node:assert';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as I18n from '../src/core/utils/i18n.js';
-import { applyI18n, applyLangToggleUI } from '../src/ui/utils/domI18n.js';
-import zh from '../src/core/utils/locales/zh.js';
-import en from '../src/core/utils/locales/en.js';
+import test, { before, after, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { chromium, type Browser, type Page } from 'playwright';
+import { readFileSync } from 'node:fs';
+import { mount, read } from './helpers/uiPortHarness.js';
+import { UI_COPY } from '../src/ui/shared/legacyLabels.js';
+let browser: Browser, page: Page;
+before(async () => { browser = await chromium.launch({ headless: true }); });
+afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });
+async function open(kind: 'options' | 'popup' = 'options') { page = await browser.newPage(); await mount(page, kind); await page.locator(kind === 'options' ? '#accountIdSelect' : '#currentChatTitle').waitFor(); }
 
-test('i18n - check dictionary parity between zh and en', () => {
-    const zhKeys = Object.keys(I18n.LOCALES.zh);
-    const enKeys = Object.keys(I18n.LOCALES.en);
-
-    assert.ok(zhKeys.length > 0, 'zh dictionary must be non-empty');
-    assert.ok(enKeys.length > 0, 'en dictionary must be non-empty');
-
-    for (const k of zhKeys) {
-        assert.ok(k in I18n.LOCALES.en, `Key '${k}' in zh locale is missing in en locale`);
-    }
-    for (const k of enKeys) {
-        assert.ok(k in I18n.LOCALES.zh, `Key '${k}' in en locale is missing in zh locale`);
-    }
-});
-
-test('i18n - check all HTML data-i18n attributes are present in i18n.js', () => {
-    for (const htmlFile of ['src/ui/options/options.html', 'src/ui/popup/popup.html']) {
-        const htmlPath = path.join(__dirname, '..', htmlFile);
-        const htmlContent = fs.readFileSync(htmlPath, 'utf8');
-        const matches = htmlContent.matchAll(/data-i18n(?:-title|-placeholder|-html)?=["']([^"']+)["']/g);
-        for (const m of matches) {
-            const key = m[1];
-            assert.ok(key in I18n.LOCALES.zh, `Key '${key}' used in ${htmlFile} missing in zh locale`);
-            assert.ok(key in I18n.LOCALES.en, `Key '${key}' used in ${htmlFile} missing in en locale`);
-        }
+test('i18n - every current inline UI label has nonempty English and Chinese text', async () => {
+    for (const kind of ['options', 'popup'] as const) {
+        await open(kind);
+        const labels = await page.locator('[data-en], [data-zh]').evaluateAll(nodes => nodes.map(node => [node.getAttribute('data-en'), node.getAttribute('data-zh')]));
+        const keys = await page.locator('[data-i18n]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-i18n')!));
+        assert.ok(labels.length + keys.length > 0);
+        for (const key of keys) labels.push([UI_COPY.en[key], UI_COPY.zh[key]]);
+        for (const pair of labels) assert.ok(pair.every(text => typeof text === 'string' && text.length > 0), JSON.stringify(pair));
+        await page.close();
     }
 });
-
-test('i18n - check all HTML title and placeholder attributes have data-i18n attributes', () => {
-    for (const htmlFile of ['src/ui/options/options.html', 'src/ui/popup/popup.html']) {
-        const htmlPath = path.join(__dirname, '..', htmlFile);
-        const htmlContent = fs.readFileSync(htmlPath, 'utf8');
-        const titleRegex = /<([a-zA-Z0-9]+)\s+([^>]*?\s)title=["']([^"']+)["']([^>]*)>/g;
-        let m;
-        while ((m = titleRegex.exec(htmlContent)) !== null) {
-            const [, tag, pre, titleVal, post] = m;
-            const attrs = pre + ' ' + post;
-            if (titleVal.includes('Switch Language') || titleVal.includes('Developer Mode')) continue;
-            assert.ok(attrs.includes('data-i18n-title'), `Missing data-i18n-title on <${tag}> in ${htmlFile} with title="${titleVal}"`);
-        }
-
-        const phRegex = /<([a-zA-Z0-9]+)\s+([^>]*?\s)placeholder=["']([^"']+)["']([^>]*)>/g;
-        while ((m = phRegex.exec(htmlContent)) !== null) {
-            const [, tag, pre, phVal, post] = m;
-            const attrs = pre + ' ' + post;
-            assert.ok(attrs.includes('data-i18n-placeholder'), `Missing data-i18n-placeholder on <${tag}> in ${htmlFile} with placeholder="${phVal}"`);
-        }
+test('i18n - all declared inline labels render their selected language', async () => {
+    await open(); await page.locator('#langToggle').setChecked(false); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    const labels = await page.locator('[data-en][data-zh]').evaluateAll(nodes => nodes.map(node => [node.textContent, node.getAttribute('data-zh')]));
+    for (const [actual, expected] of labels) assert.equal(actual, expected);
+});
+test('i18n - visible current controls have accessible names, including search and account selectors', async () => {
+    await open(); assert.equal(await page.locator('#chatSearchInput').getAttribute('aria-label'), 'Search title or ID');
+    assert.equal(await page.locator('#accountIdSelect').getAttribute('aria-label'), 'Account');
+    for (const button of await page.locator('button:visible').all()) assert.ok((await button.textContent())?.trim());
+});
+test('i18n - parametric scan counts render through the selected UI language', async () => {
+    await open(); await page.locator('#langToggle').setChecked(false); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    await page.evaluate(() => { Reflect.get(window, 'harness').holdScan = true; }); await page.locator('#btnSyncAll').click();
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已接纳 2 页、150 条来源记录');
+    await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
+});
+test('i18n - Settings observer handles local changes and removes its listener on cleanup', async () => {
+    await open();
+    const calls = await page.evaluate(() => {
+        const settings = Reflect.get(window, 'testUi').settings, h = Reflect.get(window, 'harness'); let count = 0;
+        const stop = settings.observeSettings(() => count++); h.fireSettingsChange('sync'); assertCount(0);
+        h.fireSettingsChange('local'); assertCount(1); stop(); h.fireSettingsChange('local'); return count;
+        function assertCount(expected: number) { if (count !== expected) throw Error('Unexpected observer calls'); }
+    }); assert.equal(calls, 1);
+});
+test('i18n - inline language attributes are not duplicated within a source element', () => {
+    for (const kind of ['options', 'popup']) {
+        const source = readFileSync(`src/ui/${kind}/${kind}.html`, 'utf8');
+        for (const tag of source.match(/<[^>]+>/g) ?? []) for (const attr of ['data-en', 'data-zh']) assert.ok((tag.match(new RegExp(`\\b${attr}=`, 'g')) ?? []).length <= 1, tag);
     }
 });
-
-test('i18n - parametric interpolation and language switching', async () => {
-    await I18n.setLang('zh');
-    assert.strictEqual(I18n.getLang(), 'zh');
-    assert.strictEqual(I18n.t('syncedBadge', 42), '已同步 42 条');
-    assert.strictEqual(I18n.t('exportFinished', 10, 2, 12), '导出完成！成功: 10，失败: 2，总计: 12');
-
-    await I18n.setLang('en');
-    assert.strictEqual(I18n.getLang(), 'en');
-    assert.strictEqual(I18n.t('syncedBadge', 42), '42 synced');
-    assert.strictEqual(I18n.t('exportFinished', 10, 2, 12), 'Export completed! Success: 10, Failed: 2, Total: 12');
+test('i18n - current labels recover when switching back from Chinese to English', async () => {
+    await open(); await page.locator('#langToggle').setChecked(false); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    await page.locator('#langToggle').setChecked(true); await page.waitForFunction(() => document.documentElement.lang === 'en');
+    assert.equal(await page.locator('#btnSyncAll').textContent(), 'Sync All'); assert.equal(await page.locator('#btnSelectAll').textContent(), 'All');
 });
-
-test('i18n - language change event listener', async () => {
-    let triggeredLang: string | null = null;
-    I18n.onLanguageChange((lang) => {
-        triggeredLang = lang;
-    });
-
-    await I18n.setLang('zh');
-    assert.strictEqual(triggeredLang, 'zh');
-
-    await I18n.setLang('en');
-    assert.strictEqual(triggeredLang, 'en');
+test('i18n - labelPage translates descendants as text without interpreting translation markup', async () => {
+    await open(); const result = await page.evaluate(() => {
+        const root = document.createElement('div'), child = document.createElement('span');
+        root.dataset.en = '<img src=x onerror=alert(1)>'; root.dataset.zh = '安全'; child.dataset.en = 'Child'; child.dataset.zh = '子元素';
+        // Root and descendant are separate entries. Root text replacement must never execute HTML.
+        document.body.append(root, child); Reflect.get(window, 'testUi').settings.labelPage();
+        return { text: root.textContent, child: child.textContent, images: root.querySelectorAll('img').length };
+    }); assert.deepEqual(result, { text: '<img src=x onerror=alert(1)>', child: 'Child', images: 0 });
 });
-
-test('i18n - ensure no duplicate object literal keys in locale sources', () => {
-    for (const lang of ['zh', 'en']) {
-        const tsPath = path.join(__dirname, '..', 'src', 'core', 'utils', 'locales', lang + '.ts');
-        const jsPath = path.join(__dirname, '..', 'src', 'core', 'utils', 'locales', lang + '.js');
-        const localePath = fs.existsSync(tsPath) ? tsPath : jsPath;
-        const content = fs.readFileSync(localePath, 'utf8');
-        const bodyMatch = content.match(/return \{([\s\S]*)\n\s*\};/);
-        assert.ok(bodyMatch, lang + ' dictionary body should exist');
-        const block = bodyMatch![1];
-        const keyMatches = [...block.matchAll(/^\s*([a-zA-Z0-9_]+):/gm)].map(m => m[1]);
-        const counts: Record<string, number> = {};
-        for (const k of keyMatches) {
-            counts[k] = (counts[k] || 0) + 1;
-        }
-        const duplicates = Object.entries(counts).filter(([_, c]) => c > 1).map(([k]) => k);
-        assert.deepStrictEqual(duplicates, [], `Found duplicate keys in ${lang} dictionary: ${duplicates.join(', ')}`);
-    }
+test('i18n - language selector updates the single Settings owner and document language', async () => {
+    await open(); await page.locator('#langToggle').setChecked(false); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    assert.ok((await read(page, 'patches')).some((patch: { language?: string }) => patch.language === 'zh'));
+    assert.equal(await page.locator('#langToggle').isChecked(), false);
 });
-
-test('i18n - dynamic dictionary recovery via ensureLocales and direct locale exports', () => {
-    assert.ok(zh && (zh as any).extName, 'zh locale export should be valid');
-    assert.ok(en && (en as any).extName, 'en locale export should be valid');
-    assert.strictEqual(I18n.t('extName'), 'Gemini Exporter');
+test('i18n - business Settings stays independent from DOM translation and document labeling', () => {
+    const source = readFileSync('src/application/settings/index.ts', 'utf8');
+    assert.doesNotMatch(source, /\b(?:document|HTMLElement|querySelector|createElement|navigator)\b/);
+    assert.match(readFileSync('src/ui/shared/settings.ts', 'utf8'), /export function labelPage/);
 });
-
-
-test('i18n - applyI18n translates root element and descendants safely', async () => {
-    await I18n.setLang('zh');
-
-    class MockElement {
-        attrs: Record<string, any>;
-        textContent: string = '';
-        title: string = '';
-        placeholder: string = '';
-        children: MockElement[] = [];
-        nodeType: number = 1;
-
-        constructor(attrs: Record<string, any> = {}) {
-            this.attrs = attrs;
-        }
-        getAttribute(name: string) {
-            return this.attrs[name] || null;
-        }
-        appendChild(child: MockElement) {
-            this.children.push(child);
-        }
-        querySelectorAll(_selector: string) {
-            const results: MockElement[] = [];
-            const walk = (el: MockElement) => {
-                for (const c of el.children) {
-                    if (c.attrs['data-i18n'] || c.attrs['data-i18n-html'] || c.attrs['data-i18n-title'] || c.attrs['data-i18n-placeholder']) {
-                        results.push(c);
-                    }
-                    walk(c);
-                }
-            };
-            walk(this);
-            return results;
-        }
-    }
-
-    const rootEl = new MockElement({ 'data-i18n': 'extName' });
-    const childEl = new MockElement({ 'data-i18n-title': 'btnSetDir', 'data-i18n-placeholder': 'searchPlaceholder' });
-    rootEl.children.push(childEl);
-
-    // Mock global document if needed
-    const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    (global as any).document = {
-        createElement: () => new MockElement(),
-        createTextNode: (text: string) => ({ textContent: text })
-    };
-
-    try {
-        applyI18n(rootEl as any);
-        assert.strictEqual(rootEl.textContent, 'Gemini Exporter', 'Root element data-i18n should be translated');
-        assert.strictEqual(childEl.title, '设置目录...', 'Child element data-i18n-title should be translated');
-        assert.strictEqual(childEl.placeholder, '搜索标题 / ID...', 'Child element data-i18n-placeholder should be translated');
-    } finally {
-        if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
-        else delete (global as any).document;
-    }
-});
-
-test('i18n - applyLangToggleUI operates with injected elements without DOM coupling', async () => {
-    await I18n.setLang('zh');
-    const mockToggle = { checked: true };
-    const mockZh = { style: { opacity: '' } };
-    const mockEn = { style: { opacity: '' } };
-
-    applyLangToggleUI({
-        toggle: mockToggle as any,
-        labelZh: mockZh as any,
-        labelEn: mockEn as any
-    });
-
-    assert.strictEqual(mockToggle.checked, false, 'zh language should have toggle unchecked');
-    assert.strictEqual(mockZh.style.opacity, '1', 'zh label should be full opacity');
-    assert.strictEqual(mockEn.style.opacity, '0.6', 'en label should be muted opacity');
-
-    await I18n.setLang('en');
-    applyLangToggleUI({
-        toggle: mockToggle as any,
-        labelZh: mockZh as any,
-        labelEn: mockEn as any
-    });
-    assert.strictEqual(mockToggle.checked, true, 'en language should have toggle checked');
-    assert.strictEqual(mockEn.style.opacity, '1', 'en label should be full opacity');
-    assert.strictEqual(mockZh.style.opacity, '0.6', 'zh label should be muted opacity');
-});
-
-test('i18n - core module must remain zero DOM without leaked UI methods', () => {
-    assert.strictEqual((I18n as any).applyI18n, undefined, 'Core I18n should not contain applyI18n');
-    assert.strictEqual((I18n as any).applyLangToggleUI, undefined, 'Core I18n should not contain applyLangToggleUI');
-});
-
-
-
-

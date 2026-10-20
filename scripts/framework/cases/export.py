@@ -17,7 +17,9 @@ from scripts.framework.assertions import CDPAssertions, assert_archive_targets, 
 from scripts.framework.pdf_evidence import assert_pdf_turn_content
 from scripts.framework.html_evidence import assert_html_turn_content
 from scripts.framework.selectors import WorkbenchSelectors
-from scripts.framework.cases.sync import wait_for_prior_scan, reset_only_coverage, select_source_account
+from scripts.framework.l3_contracts import audit_l3_contracts
+from scripts.framework.v2_probe import install_probe
+from scripts.framework.cases.sync import wait_for_prior_scan, clear_scan_records, select_source_account
 
 DESIGNATED_HISTORICAL_CHATS = [
     {
@@ -67,6 +69,11 @@ def select_format_targets(cdp_opt, ctx, format_type):
     required = [r['chat_id'] for r in ctx.chat_records if r.get('chat_id')]
     required += [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if not h.get('optional')]
     optional = [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if h.get('optional')]
+    # The v2 Options controller maintains its own Settings mirror. Drive its
+    # real change handlers, then verify both UI and persisted Application values.
+    configured = CDPActions.configure_export_controls(cdp_opt, format_type, False)
+    if not configured.get('ok'):
+        raise RuntimeError(f"v2 export settings were not committed: {configured}")
     result = cdp_opt.eval(f"""
     (() => {{
         const required = {json.dumps(required)}, optional = {json.dumps(optional)};
@@ -74,8 +81,8 @@ def select_format_targets(cdp_opt, ctx, format_type):
         const items = Array.from(document.querySelectorAll('#list .item'));
         const skip = document.getElementById('skipExported'), format = document.getElementById('format');
         if (!skip || !format) return {{ error: 'Missing format/skip controls' }};
-        skip.checked = false; skip.dispatchEvent(new Event('change', {{ bubbles: true }}));
-        format.value = {json.dumps(format_type)}; format.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        if (format.value !== {json.dumps(format_type)} || skip.checked || document.body.dataset.busy !== 'false')
+            return {{error:'v2 export controls changed before selection'}};
         const matched = [];
         for (const item of items) {{
             const cid = normalize(item.dataset.chatId), cb = item.querySelector('input[type=checkbox]');
@@ -131,7 +138,7 @@ class LiveSaveNewChatCase(FeatureTestCase):
             if not disk_ok:
                 return False, f"场景一物理磁盘落盘断言失败: {disk_msg}", disk_data
 
-            # 3. Options 工作台状态标签断言：会话 2 刚生成且已落盘，直接呈现「已导出」(.badge-exported) 且未被勾选
+            # 3. Options 展示实际完成后的 ExportRecord；选择保持显式
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.5)
             badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s2_id, "exported")
@@ -227,7 +234,7 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
             if not disk_ok:
                 return False, f"场景二物理磁盘落盘断言失败: {disk_msg}", disk_data
 
-            # 5. Options 工作台状态标签断言：会话 1 状态必须由之前的「已更新」跃迁回「已导出」(.badge-exported) 且取消自动勾选
+            # 5. Options 展示追加内容导出后的实际 ExportRecord
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.5)
             badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s1_id, "exported")
@@ -258,15 +265,6 @@ class ZipExportDownloadCase(FeatureTestCase):
         try:
             # 确保搜索框已彻底清空并恢复全量工作台项目
             CDPActions.clear_search_workbench(cdp_opt)
-            cdp_opt.eval("""
-            (() => {
-                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    chrome.storage.local.set({ gemini_suppress_direct_write_prompt: true });
-                }
-            })()
-            """)
-            time.sleep(0.5)
-
             # 与 FastSkip 用例解耦：若残留【跳过已导出】开启状态，显式关闭，
             # 保证手动勾选导出不受其他用例的开关状态影响。
             cdp_opt.eval("""
@@ -295,6 +293,7 @@ class ZipExportDownloadCase(FeatureTestCase):
                 ctx.shared_data['gemini_dual_capture'] = finish_capture(
                     cdp_opt, os.path.join(ctx.output_dir, 'gemini_dual_parse', 'native'), check_res['matched'])
             if downloaded_zip and os.path.isfile(downloaded_zip) and os.path.getsize(downloaded_zip) > 0:
+                audit_l3_contracts(cdp_opt, check_res['matched'])
                 ctx.shared_data["downloaded_zip"] = downloaded_zip
                 size = os.path.getsize(downloaded_zip)
                 return True, f"ZIP 导出成功落盘: {os.path.basename(downloaded_zip)} ({size} bytes)", {"zip_path": downloaded_zip, "size": size}
@@ -309,7 +308,7 @@ class MultimodalSpecCase(FeatureTestCase):
             feature_id="feat_multimodal_spec_assertion",
             domain=FeatureDomain.EXPORT_DISK,
             name="4 大黄金分类规范断言",
-            description="解压导出的 ZIP，严格断言 Frontmatter 7 键、附件非空、AI Imagen 模型归属",
+            description="解压导出的 ZIP，按 v2 Frontmatter 检查附件、来源事实与 Imagen 模型归属",
             critical=True,
             prerequisites=["feat_zip_export_download"]
         )
@@ -452,10 +451,10 @@ class StaleTabImageExportCase(FeatureTestCase):
                 # Reinstall removes the historical index. Natural sidebar loading
                 # only observes a recent page, so an older target is not guaranteed
                 # to exist until a real paginated sync finishes.
-                cdp_opt.eval("document.getElementById('tourSkipBtn')?.click()")
+                cdp_opt.eval("document.querySelector('.tour-popover button')?.click()")
                 select_source_account(cdp_opt, source_tab_id=setup['freshId'])
                 wait_for_prior_scan(cdp_opt)
-                reset_only_coverage(cdp_opt)
+                clear_scan_records(cdp_opt)
                 scan = CDPActions.trigger_deep_scan(cdp_opt)
                 scan_ok, message = assert_scan_result(scan)
                 setup['historyScan'] = scan
@@ -484,7 +483,7 @@ class StaleTabImageExportCase(FeatureTestCase):
                             .find(el => el.dataset.chatId === '{image_chat['id']}');
                         const cb = item?.querySelector('input[type=checkbox]');
                         if (cb) {{
-                            document.getElementById('tourSkipBtn')?.click();
+                            document.querySelector('.tour-popover button')?.click();
                             document.getElementById('btnSelectNone')?.click();
                             cb.checked = true;
                             cb.dispatchEvent(new Event('change', {{bubbles: true}}));
@@ -534,7 +533,7 @@ class FastSkipExportedCase(FeatureTestCase):
             feature_id="feat_fast_skip_exported",
             domain=FeatureDomain.EXPORT_DISK,
             name="跳过已导出会话前置极速过滤",
-            description="勾选【跳过已导出】时，已导出会话前置分流瞬间跳过（防空 ZIP 保护），含新会话时精准分流导出",
+            description="勾选【跳过已导出】时，已导出会话前置分流且不会产生下载文件；含新会话时精准导出",
             critical=True,
             # Six exported records require both live conversations and the historical ZIP batch.
             prerequisites=["feat_chat_generation", "feat_zip_export_download"]
@@ -544,23 +543,30 @@ class FastSkipExportedCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             CDPActions.clear_search_workbench(cdp_opt)
+            install_probe(cdp_opt)
+            settings = CDPActions.configure_export_controls(cdp_opt, 'markdown', True)
+            if not settings.get('ok'):
+                return False, f"v2 Skip 设置未提交: {settings}", settings
             prep = cdp_opt.eval("""
-            (() => {
+            (async () => {
                 const items = Array.from(document.querySelectorAll('#list .item'));
-                const exported = items.filter(it => it.querySelector('.badge-exported'));
+                const state = await globalThis.__tier2V2.snapshot();
+                const exported = items.filter(it => {
+                    const record = state.records[it.dataset.chatId];
+                    const index = state.rows.find(row => row.key.conversationId === it.dataset.chatId);
+                    return record?.status === 'ok' && record.format === 'markdown' && Number.isFinite(record.chatTime)
+                        && Number.isFinite(index?.updatedAt) && record.chatTime >= index.updatedAt;
+                });
                 const skip = document.getElementById('skipExported');
-                const zip = document.getElementById('includeZip');
                 const btn = document.getElementById('btnExport');
-                if (!skip || !zip || !btn || btn.disabled) return { error: 'Export controls unavailable' };
+                if (!skip || !btn || !skip.checked) return { error: 'v2 Skip controls unavailable' };
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');
                     if (cb) { cb.checked = exported.includes(it); cb.dispatchEvent(new Event('change', { bubbles: true })); }
                 }
-                skip.checked = true; skip.dispatchEvent(new Event('change', { bubbles: true }));
-                zip.checked = true; zip.dispatchEvent(new Event('change', { bubbles: true }));
-                return { count: exported.length, log: document.getElementById('log')?.textContent || '' };
+                return { count: exported.length, log: document.getElementById('status')?.textContent || '' };
             })()
-            """) or {}
+            """, await_promise=True) or {}
             if prep.get('error') or prep.get('count', 0) < 6:
                 return False, f"全量跳过准备不足: {prep}", prep
             start = time.monotonic()
@@ -577,58 +583,70 @@ class FastSkipExportedCase(FeatureTestCase):
             while time.monotonic() - start < 6:
                 status = cdp_opt.eval("""(() => ({
                     busy: !!document.getElementById('btnExport')?.disabled,
-                    log: document.getElementById('log')?.textContent || ''
+                    log: document.getElementById('status')?.textContent || ''
                 }))()""") or {}
                 previous = prep.get('log', '')
                 current = status.get('log', '')
                 fresh = current[len(previous):] if current.startswith(previous) else current if current != previous else ''
-                if not status.get('busy') and re.search(r'跳过|skipped|无需生成 ZIP', fresh, re.IGNORECASE):
-                    completed = True
+                result = re.fullmatch(r'Delivery initiated: (\d+); partial: (\d+); skipped: (\d+); failed: (\d+)', fresh)
+                result = result or re.fullmatch(r'已发起交付 (\d+)；部分缺失 (\d+)；跳过 (\d+)；失败 (\d+)', fresh)
+                if not status.get('busy') and result:
+                    completed = tuple(map(int, result.groups())) == (0, 0, prep['count'], 0)
                     break
                 time.sleep(0.25)
             duration = time.monotonic() - start
             if not completed:
                 return False, "没有本次导出的全量跳过完成证据", status
-            new_zips = [f for f in set(os.listdir(ctx.output_dir)) - existing_files if f.endswith('.zip')]
-            if new_zips:
-                return False, f"全量跳过异常生成 ZIP: {new_zips}", status
+            new_files = sorted(
+                name for name in set(os.listdir(ctx.output_dir)) - existing_files
+                if os.path.isfile(os.path.join(ctx.output_dir, name))
+            )
+            if new_files:
+                return False, f"全量跳过异常生成文件: {new_files}", status
 
             partial = cdp_opt.eval("""
             (async () => {
                 const items = Array.from(document.querySelectorAll('#list .item'));
-                const store = window.ConversationsStore;
-                if (!store || typeof store.getConversations !== 'function') return { error: 'Missing canonical index store' };
-                const normalize = id => (id || '').replace(/^c_/, '');
-                const key = 'conversation_availability_' + store.getCurrentAccountId();
-                const availability = (await chrome.storage.local.get(key))[key] || {};
-                const available = new Set(store.getConversations()
-                    .filter(index => availability[index.key.conversationId] === 'available').map(index => normalize(index.key.conversationId)));
-                const exported = items.find(it => it.querySelector('.badge-exported'));
-                const unexported = items.find(it => !it.querySelector('.badge-exported') && available.has(normalize(it.dataset.chatId)));
+                const state = await globalThis.__tier2V2.snapshot();
+                const available = new Set(state.rows.filter(row => row.updatedAt !== undefined && row.titleSource === 'provider').map(row => row.key.conversationId));
+                const exported = items.find(it => state.records[it.dataset.chatId]);
+                const unexported = items.find(it => !state.records[it.dataset.chatId] && available.has(it.dataset.chatId));
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');
                     if (cb) { cb.checked = it === exported || it === unexported; cb.dispatchEvent(new Event('change', { bubbles: true })); }
                 }
                 return { exportedId: exported?.dataset.chatId, unexportedId: unexported?.dataset.chatId,
-                         unexportedCloudAvailability: unexported ? 'available' : null };
+                         unexportedSourceVerified: !!unexported };
             })()
             """, await_promise=True) or {}
-            if not partial.get('exportedId') or not partial.get('unexportedId') or partial.get('unexportedCloudAvailability') != 'available':
+            if not partial.get('exportedId') or not partial.get('unexportedId') or partial.get('unexportedSourceVerified') is not True:
                 return False, "部分跳过需要真实已导出会话与云端可用的未导出会话，准备不足", partial
-            partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True)
-            if not partial_zip or not os.path.isfile(partial_zip):
-                return False, "部分跳过没有生成 ZIP", partial
-            with zipfile.ZipFile(partial_zip) as zf:
-                ok, msg = assert_archive_targets(zf.namelist(), [partial['unexportedId']], '.md', [partial['exportedId']])
-                if not ok:
-                    return False, msg, partial
-                name = next(n for n in zf.namelist() if n.endswith('.md') and not os.path.basename(n).startswith('.'))
-                text = zf.read(name).decode('utf-8')
-                match = re.search(r'^id:\s*["\']?([^"\'\s]+)', text, re.MULTILINE)
-                if not match or match.group(1).removeprefix('c_') != partial['unexportedId'].removeprefix('c_'):
-                    return False, "部分跳过 ZIP 正文的会话 ID 不匹配", partial
-            return True, f"全量跳过与部分跳过均验证，ZIP 只含未导出目标 (全量耗时 {duration:.2f}s)", {
-                'all_skip_duration': duration, 'partial_prep': partial, 'zip_path': partial_zip
+            # V2 L4 packages a ZIP only for multiple physical files. One
+            # Markdown document without assets is delivered directly as .md.
+            partial_file = CDPActions.trigger_export_zip(
+                cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True, allow_standalone=True
+            )
+            if not partial_file or not os.path.isfile(partial_file):
+                return False, "部分跳过没有生成 v2 Markdown/ZIP 文件", partial
+            if partial_file.lower().endswith('.zip'):
+                with zipfile.ZipFile(partial_file) as zf:
+                    ok, msg = assert_archive_targets(zf.namelist(), [partial['unexportedId']],
+                                                     '.md', [partial['exportedId']])
+                    if not ok:
+                        return False, msg, partial
+                    name = next(n for n in zf.namelist()
+                                if n.endswith('.md') and not os.path.basename(n).startswith('.'))
+                    text = zf.read(name).decode('utf-8')
+            elif partial_file.lower().endswith('.md'):
+                with open(partial_file, encoding='utf-8') as exported:
+                    text = exported.read()
+            else:
+                return False, f"v2 Partial Skip 交付了意外格式: {partial_file}", partial
+            match = re.search(r'^id:\s*["\']?([^"\'\s]+)', text, re.MULTILINE)
+            if not match or match.group(1).removeprefix('c_') != partial['unexportedId'].removeprefix('c_'):
+                return False, "部分跳过正文的会话 ID 不匹配", partial
+            return True, f"全量跳过与部分跳过均验证，交付只含未导出目标 (全量耗时 {duration:.2f}s)", {
+                'all_skip_duration': duration, 'partial_prep': partial, 'download_path': partial_file
             }
         finally:
             cdp_opt.close()
@@ -739,6 +757,7 @@ class HtmlExportDownloadCase(FeatureTestCase):
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 HTML 文件", None
 
+            audit_l3_contracts(cdp_opt, check_res['matched'])
             return True, f"HTML 独立网页导出成功落盘并解压验证通过 (HTML文件数: {len(html_files)}, ZIP大小: {zip_size} bytes, 规范结构与 {verified_turns} 轮真实内容核验)", {
                 "zip_path": downloaded_zip,
                 "html_count": len(html_files),
@@ -928,6 +947,7 @@ class PdfExportDownloadCase(FeatureTestCase):
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 PDF 文件", None
 
+            audit_l3_contracts(cdp_opt, check_res['matched'])
             return True, f"PDF 真实编译导出成功落盘并解压验证通过 (PDF文件数: {len(pdf_files)}, ZIP大小: {zip_size} bytes, 二进制与 {verified_turns} 轮真实内容核验)", {
                 "zip_path": downloaded_zip,
                 "pdf_count": len(pdf_files),

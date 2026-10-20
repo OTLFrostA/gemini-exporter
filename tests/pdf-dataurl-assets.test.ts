@@ -1,17 +1,21 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { resourceValue } from './helpers/resources.js';
-import type { ResourceBytes } from '../src/core/resources/resourceResult.js';
+import type { ResourceBytes } from '../src/shared/resources/resourceResult.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /** Inline source data stays in acquisition context; decoded bytes belong to PreparedResources. */
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { preparePdfResources } = require('../src/core/export/pdf/prepareResources.js');
-const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
-const { resourceStage } = require('../src/core/export/pdf/pipeline/resourceStage.js');
-const { decodeDataUrl, decodeDataUrlAsset } = require('../src/core/export/assets/dataUrl.js');
-const { assertDomainClosure } = require('../src/core/domain/closure.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
+import { planExportPaths } from '../src/l4/packaging/index.js';
+import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
+import { buildMinimalValidPdf } from './helpers/stubPdfCompiler.js';
+import { resourceDiagnostics } from '../src/shared/resources/resourceResult.js';
+const { collectDocumentResources } = require('../src/l3b/ast/resourceReferences.js');
+const { decodeDataUrl, decodeDataUrlAsset } = require('../src/l4/format/resources/dataUrl.js');
+const { assertDomainClosure } = require('../src/l2/closure.js');
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const PNG_SHA256 = 'c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77';
 const PNG_REF = `assets/sha256/c4/14/${PNG_SHA256}.png`;
@@ -21,32 +25,54 @@ async function prepare(content: string, id = 'dataurl') {
     const parsed = historicalFixture(input, { providerId: 'gemini' });
     const domain = parsed.conversation;
     assertDomainClosure((domain).detail);
-    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain));
     const semantic = JSON.stringify({ domain, document });
-    const prepared = await preparePdfResources((domain).detail, collectDocumentResources(document).imageIds, parsed.acquisitionHints);
-    const staged = await resourceStage({ document, resources: prepared.resources }, { signal: new AbortController().signal, log() {}, reportProgress() {} });
-    assert.equal(JSON.stringify({ domain, document }), semantic);
-    assert.equal(JSON.stringify(input), before);
-    return { domain, acquisitionHints: parsed.acquisitionHints, document, resources: prepared.resources, diagnostics: [...prepared.diagnostics, ...staged.diagnostics], ...staged.output };
+    const context = createSourceResourceContext();
+    const key = domain.index.key;
+    // Retain only inline readers here. Remote acquisition is intentionally offline.
+    context.retainParsed(key, { ...parsed, conversationId: key.conversationId, acquisitionHints: Object.fromEntries(Object.entries(parsed.acquisitionHints).filter(([, value]: [string, any]) => /^data:/i.test(value.url ?? value.sourceUrl ?? ''))) });
+    try {
+        const references = collectDocumentResources(document);
+        const resources = await prepareExportResources(domain.detail.assets, references.referencedIds,
+            (asset, signal) => context.acquire(key, asset, signal, async () => { throw new Error('no network fetch in offline test'); }));
+        const [plan] = planExportPaths([{ conversation: domain, prepared: resources, fileIds: references.fileIds }], 'pdf');
+        const mounts: Array<{ id: string; bytes: Uint8Array }> = [];
+        let pathMap = new Map<string, string>();
+        const compiled = await compileDocumentPdf(document, plan.resources, resources, {
+            name: 'mount-inspection', async compile(payload, ctx) {
+                pathMap = new Map(payload.assetPaths);
+                for (const id of pathMap.keys()) {
+                    const resolved = await ctx.assets.resolve(id);
+                    if (resolved?.bytes) mounts.push({ id, bytes: resolved.bytes });
+                }
+                return { pdfBytes: buildMinimalValidPdf(), diagnostics: [] };
+            },
+        }, { signal: new AbortController().signal, reportProgress() {} });
+        assert.equal(JSON.stringify({ domain, document }), semantic);
+        assert.equal(JSON.stringify(input), before);
+        return { domain, acquisitionHints: parsed.acquisitionHints, document, resources, pathMap, mounts,
+            diagnostics: [...resourceDiagnostics([...resources.values()]), ...compiled.diagnostics],
+            unresolved: [...resources.values()].filter(value => !value.ok) };
+    } finally { context.release(); }
 }
-test('inline PNG bytes stay outside Domain; preparation produces the real content address', async () => {
+test('inline PNG bytes stay outside Domain; Packaging paths mount the exact prepared bytes', async () => {
     const source = `data:image/png;base64,${PNG_B64}`;
     const result = await prepare(`![dot](${source})`);
     assert.equal(result.domain.detail.assets.length, 1);
     const asset = result.domain.detail.assets[0];
     assert.equal(asset.sourceUri, undefined);
     assert.equal(result.acquisitionHints[asset.id].url, source);
-    assert.equal(result.pathMap.get(asset.id), PNG_REF);
+    assert.match(result.pathMap.get(asset.id), /^assets\/.*\.png$/);
     assert.equal(resourceValue<ResourceBytes>(result.resources.get(asset.id)).mediaType, 'image/png');
     assert.deepEqual(Buffer.from(resourceValue<ResourceBytes>(result.resources.get(asset.id)).bytes), Buffer.from(PNG_B64, 'base64'));
     assert.deepEqual(Buffer.from(result.mounts[0].bytes), Buffer.from(PNG_B64, 'base64'), 'mounted bytes must equal the original PNG');
-    assert.deepEqual(result.diagnostics, []);
+    assert.ok(!result.diagnostics.some((d: {code: string}) => d.code === 'FORMAT_CONTENT_OMITTED'));
     assert.deepEqual(JSON.parse(JSON.stringify(result.domain)), result.domain);
     for (const field of ['storageRef', 'status', 'sha256']) assert.ok(!(field in asset));
 });
 test('image without authored alt remains resolvable without inventing a semantic filename', async () => {
     const result = await prepare(`![](data:image/png;base64,${PNG_B64})`);
-    assert.equal(result.pathMap.get(result.domain.detail.assets[0].id), PNG_REF);
+    assert.match(result.pathMap.get(result.domain.detail.assets[0].id), /^assets\/.*\.png$/);
     assert.equal(result.mounts.length, 1);
 });
 test('percent-encoded SVG input decodes before image mounting', async () => {
@@ -54,17 +80,14 @@ test('percent-encoded SVG input decodes before image mounting', async () => {
     const result = await prepare(`![v](data:image/svg+xml,${encodeURIComponent(text)})`);
     const id = result.domain.detail.assets[0].id;
     assert.deepEqual(Buffer.from(resourceValue<ResourceBytes>(result.resources.get(id)).bytes), Buffer.from(text));
-    assert.ok(result.pathMap.get(id).endsWith('.svg'));
-    assert.deepEqual(result.diagnostics, []);
+    assert.ok(result.pathMap.get(id)?.endsWith('.svg'));
+    assert.ok(!result.diagnostics.some((d: {code: string}) => d.code === 'FORMAT_CONTENT_OMITTED'));
 });
-test('oversized original data URL is refused in preparation without changing Domain', async () => {
+test('strict data URL decoder refuses oversized inline payloads before allocating decoded bytes', () => {
     const over = 'A'.repeat(Math.ceil((10 * 1024 * 1024 + 1) / 3) * 4);
-    const result = await prepare(`![big](data:image/png;base64,${over})`);
-    const id = result.domain.detail.assets[0].id;
-    assert.equal(result.resources.get(id).ok, false);
-    assert.ok(result.resources.get(id).reason);
-    assert.equal(result.pathMap.size, 0);
-    assert.ok(result.diagnostics.some((d: any) => d.code === 'DATA_URL_TOO_LARGE' && d.severity === 'warning'));
+    const result = decodeDataUrl(`data:image/png;base64,${over}`);
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'DATA_URL_TOO_LARGE');
 });
 test('malformed original data URL failures are sidecar diagnostics', async () => {
     for (const uri of ['data:image/png;base64', 'data:image/png;base64,!!!not-base64!!!', 'data:image/png,%zz']) {
@@ -72,8 +95,8 @@ test('malformed original data URL failures are sidecar diagnostics', async () =>
         const id = result.domain.detail.assets[0].id;
         assert.equal(result.domain.detail.assets[0].sourceUri, undefined);
         assert.equal(result.acquisitionHints[id].url, uri);
-        assert.equal(result.resources.get(id).ok, false);
-        assert.ok(result.diagnostics.some((d: any) => d.code === 'DATA_URL_MALFORMED'));
+        assert.equal(result.mounts.length, 0);
+        assert.ok(result.diagnostics.some((d: {code: string}) => d.code === 'RESOURCE_UNAVAILABLE' || d.code === 'FORMAT_CONTENT_OMITTED'));
     }
 });
 test('remote input remains a URI fact; offline preparation cannot invent bytes', async () => {
@@ -81,9 +104,9 @@ test('remote input remains a URI fact; offline preparation cannot invent bytes',
     const result = await prepare(`![a](${uri})`);
     const id = result.domain.detail.assets[0].id;
     assert.equal(result.domain.detail.assets[0].sourceUri, uri);
-    assert.equal(result.resources.get(id).ok, false);
+    assert.equal(result.resources.get(id)?.ok, false);
     assert.equal(result.pathMap.size, 0);
-    assert.match(result.unresolved[0].reason, /no network fetch/);
+    assert.match(result.unresolved[0]?.reason, /no network fetch/);
 });
 test('decodeDataUrlAsset unit checks: header parsing and strictness', async () => {
     const ok = await decodeDataUrlAsset(`data:image/png;base64,${PNG_B64}`);

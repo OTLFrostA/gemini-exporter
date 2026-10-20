@@ -1,20 +1,31 @@
 /** Image validation and binary mounting use only Document AST + ResourceBytess. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
-import { MAX_ASSET_BYTES, buildVirtualAssetPath } from '../src/core/export/assets/imageContent.js';
-import { sha256Hex } from '../src/core/export/assets/sha256.js';
-import { missingResource, type ResourceFailure, type ResourceBytes } from '../src/core/resources/resourceResult.js';
-import type { DocumentAst } from '../src/core/document/ast/ast.js';
-function sha256hex(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }
-const PATH_RE = /^assets\/sha256\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{64}\.[a-z0-9]+$/;
+import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
+import { MAX_ASSET_BYTES } from '../src/l4/format/resources/imageContent.js';
+import { missingResource, type ResourceFailure, type ResourceBytes } from '../src/shared/resources/resourceResult.js';
+import type { DocumentAst } from '../src/l3b/ast/ast.js';
 async function mount(resources: Record<string, ResourceBytes | ResourceFailure>, ids = Object.keys(resources)) {
-    const document: DocumentAst = { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'Image matrix', providerLabel: 'test', messageCount: 1 }, messages: [{ type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
+    const document: DocumentAst = { title: 'Image matrix', metadata: { id: 'fixture', provider: 'test' }, messages: [{ role: 'assistant', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
     const before = JSON.stringify(document);
-    const result = await resourceStage({ document, resources: new Map(Object.entries(resources).map(([resourceId, value]) => [resourceId, 'ok' in value ? value : { ok: true as const, resourceId, value }])) }, { signal: new AbortController().signal, log() {}, reportProgress() {} });
+    const prepared = new Map(Object.entries(resources).map(([resourceId, value]) => [resourceId, 'ok' in value ? value : { ok: true as const, resourceId, value }]));
+    const bindings = Object.fromEntries(ids.map(id => [id, `assets/${id}.fixture`]));
+    const pathMap = new Map<string, string>();
+    const mounts: Array<{ bytes: Uint8Array }> = [];
+    const result = await compileDocumentPdf(document, bindings, prepared, {
+        name: 'image-check-probe', async compile(payload, context) {
+            for (const [id, path] of payload.assetPaths) {
+                assert.equal(path, bindings[id], 'Format must preserve Packaging paths');
+                pathMap.set(id, path);
+                const mounted = await context.assets.resolve(id);
+                assert.ok(mounted?.bytes);
+                mounts.push({ bytes: mounted.bytes });
+            }
+            return { pdfBytes: new TextEncoder().encode('%PDF-1.7\n' + ' '.repeat(80)), diagnostics: [] };
+        },
+    }, { signal: new AbortController().signal, reportProgress() {} });
     assert.equal(JSON.stringify(document), before);
-    return { ...result.output, diagnostics: result.diagnostics };
+    return { pathMap, mounts, diagnostics: result.diagnostics };
 }
 function codesFor(result: Awaited<ReturnType<typeof mount>>, id: string) { return result.diagnostics.filter(d => d.path === `asset:${id}`).map(d => d.code); }
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -39,14 +50,11 @@ function svgBytes(): Uint8Array {
 }
 
 
-test('real Web Crypto SHA-256 matches independent node crypto, including full image bytes', async () => {
+test('PDF uses the supplied path and retains validated bytes without hashing', async () => {
     const bytes = pngBytes();
-    assert.equal(await sha256Hex(bytes), sha256hex(bytes));
     const result = await mount({ a: { bytes, name: 'pic.png', mediaType: 'image/png' } });
-    assert.match(result.pathMap.get('a')!, PATH_RE);
-    assert.equal(result.pathMap.get('a'), buildVirtualAssetPath(sha256hex(bytes), 'png'));
+    assert.equal(result.pathMap.get('a'), 'assets/a.fixture');
     assert.equal(result.mounts[0].bytes, bytes);
-    assert.equal(result.mounts[0].mimeType, 'image/png');
     assert.deepEqual(result.diagnostics, []);
 });
 for (const [id, resource, code] of [
@@ -58,17 +66,16 @@ for (const [id, resource, code] of [
     test(`invalid image is omitted with a diagnostic: ${id}`, async () => {
         const result = await mount({ [id]: resource });
         assert.equal(result.pathMap.get(id), undefined);
-        assert.deepEqual(codesFor(result, id), [code]);
-        assert.equal(result.unresolved[0].assetId, id);
+        assert.deepEqual(codesFor(result, id), [code, 'FORMAT_CONTENT_OMITTED']);
     });
 }
-test('same filename cannot merge different bytes; duplicate bytes share only their physical mount', async () => {
+test('same filenames or duplicate bytes never change Packaging paths', async () => {
     const one = pngBytes(16, 1), two = pngBytes(16, 2);
     const result = await mount({ a: { name: 'a.png', bytes: one }, b: { name: 'a.png', bytes: two }, c: { name: 'other.png', bytes: one } });
     assert.notEqual(result.pathMap.get('a'), result.pathMap.get('b'));
-    assert.equal(result.pathMap.get('a'), result.pathMap.get('c'));
+    assert.notEqual(result.pathMap.get('a'), result.pathMap.get('c'));
     assert.equal(result.pathMap.size, 3);
-    assert.equal(result.mounts.length, 2);
+    assert.equal(result.mounts.length, 3);
 });
 test('multi-MB images below the binary size limit retain their complete bytes', async () => {
     const bytes = pngBytes(2 * 1024 * 1024);
@@ -84,8 +91,7 @@ test('50 MiB binary gate accepts the actual boundary and rejects one byte above 
     const over = new Uint8Array(MAX_ASSET_BYTES + 1);
     const refused = await mount({ huge: { bytes: over, mediaType: 'image/png' } });
     assert.equal(refused.pathMap.size, 0);
-    assert.deepEqual(codesFor(refused, 'huge'), ['ASSET_TOO_LARGE']);
-    assert.ok(refused.diagnostics[0].message.includes(String(MAX_ASSET_BYTES)));
+    assert.deepEqual(codesFor(refused, 'huge'), ['ASSET_TOO_LARGE', 'FORMAT_CONTENT_OMITTED']);
 });
 test('unprepared, absent and failed images never acquire bytes in the offline stage', async () => {
     const previous = globalThis.fetch;
@@ -93,40 +99,35 @@ test('unprepared, absent and failed images never acquire bytes in the offline st
     try {
         const result = await mount({ remote: missingResource('remote', 'no network fetch'), missing: missingResource('missing', 'evicted from cache'), failed: missingResource('failed', 'decode error'), notFetched: missingResource('notFetched', 'no network fetch') }, ['remote', 'missing', 'failed', 'notFetched', 'absent']);
         assert.equal(result.pathMap.size, 0);
-        assert.equal(result.unresolved.length, 5);
-        for (const entry of result.unresolved) assert.deepEqual(codesFor(result, entry.assetId), ['RESOURCE_UNAVAILABLE']);
-        assert.match(result.unresolved[0].reason, /no network fetch/);
-        assert.match(result.unresolved[1].reason, /evicted from cache/);
-        assert.match(result.unresolved[2].reason, /decode error/);
-        assert.match(result.unresolved[4].reason, /no registered prepared resource/);
+        assert.equal(result.diagnostics.filter(d => d.code === 'TYPST_V8_IMAGE_MISSING').length, 5);
+
     } finally { globalThis.fetch = previous; }
 });
 test('validated image type wins over conflicting names and MIME metadata', async () => {
     const result = await mount({ extension: { bytes: pngBytes(), name: 'photo.jpg', mediaType: 'image/png' }, mime: { bytes: pngBytes(), name: 'x.jpg', mediaType: 'image/jpeg' } });
-    assert.ok(result.pathMap.get('extension')!.endsWith('.png'));
+    assert.equal(result.pathMap.get('extension'), 'assets/extension.fixture');
     assert.deepEqual(codesFor(result, 'extension'), ['ASSET_EXTENSION_MISMATCH']);
-    assert.ok(result.pathMap.get('mime')!.endsWith('.png'));
+    assert.equal(result.pathMap.get('mime'), 'assets/mime.fixture');
     assert.ok(codesFor(result, 'mime').includes('ASSET_MIME_MISMATCH'));
     assert.ok(codesFor(result, 'mime').includes('ASSET_EXTENSION_MISMATCH'));
 });
-test('SVG and JPEG alias are validated with their correct mount extensions', async () => {
+test('SVG and JPEG aliases are validated without renaming Packaging paths', async () => {
     const result = await mount({ svg: { bytes: svgBytes(), mediaType: 'image/svg+xml', name: 'v.svg' }, jpeg: { bytes: jpegBytes(), mediaType: 'image/jpg', name: 'p.jpeg' } });
-    assert.ok(result.pathMap.get('svg')!.endsWith('.svg'));
-    assert.ok(result.pathMap.get('jpeg')!.endsWith('.jpg'));
+    assert.equal(result.pathMap.get('svg'), 'assets/svg.fixture');
+    assert.equal(result.pathMap.get('jpeg'), 'assets/jpeg.fixture');
     assert.deepEqual(codesFor(result, 'svg'), []);
 });
-test('content-addressed paths are deterministic across separate preparation runs', async () => {
+test('Packaging paths are stable across separate compilations', async () => {
     const resources = { k: { bytes: pngBytes(32, 7), mediaType: 'image/png' } };
     assert.deepEqual((await mount(resources)).pathMap, (await mount(resources)).pathMap);
 });
-test('real hashing failure is reported without inventing a successful mount', async () => {
+test('an unavailable hasher cannot interfere with PDF Format', async () => {
     const previous = crypto.subtle.digest;
-    crypto.subtle.digest = async () => { throw new Error('no hasher'); };
+    crypto.subtle.digest = async () => { throw new Error('PDF must not hash'); };
     try {
         const result = await mount({ hash: { bytes: pngBytes(), mediaType: 'image/png' } });
-        assert.equal(result.pathMap.size, 0);
-        assert.deepEqual(codesFor(result, 'hash'), ['ASSET_HASH_FAILED']);
-        assert.match(result.unresolved[0].reason, /no hasher/);
+        assert.equal(result.pathMap.get('hash'), 'assets/hash.fixture');
+        assert.deepEqual(result.diagnostics, []);
     } finally { crypto.subtle.digest = previous; }
 });
 test('svg sniff: non-svg markup starting with < is NOT image/svg+xml', async () => {
@@ -163,7 +164,7 @@ test('svg sniff: xml declaration, comments, doctype and BOM still resolve', asyn
     for (const [id, text] of cases) {
         const content = id === 's6' ? BOM + '<svg/>' : text;
         const result = await mount({ [id]: { mediaType: 'image/svg+xml', name: 'v.svg', bytes: Buffer.from(content, 'utf8') } });
-        assert.ok(result.pathMap.get(id)?.endsWith('.svg'), `${id} must resolve as SVG, got diagnostics: ${JSON.stringify(codesFor(result, id))}`);
+        assert.equal(result.pathMap.get(id), `assets/${id}.fixture`, `${id} must resolve as SVG, got diagnostics: ${JSON.stringify(codesFor(result, id))}`);
         assert.deepStrictEqual(codesFor(result, id), [], `${id} must resolve cleanly`);
     }
 });

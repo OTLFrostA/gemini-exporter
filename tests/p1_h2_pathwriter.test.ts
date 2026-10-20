@@ -3,11 +3,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const pathUtils = require('../src/core/utils/pathUtils.js');
-const titleUtils = require('../src/core/utils/titleUtils.js');
-const { mergeConversation } = require('../src/core/domain/indexCollection.js');
-const progressUtils = require('../src/core/utils/progressUtils.js');
-const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
+const pathUtils = require('../src/shared/utils/pathUtils.js');
+const titleUtils = require('../src/shared/utils/titleUtils.js');
+const { mergeConversation } = require('../src/l2/indexCollection.js');
+const progressUtils = require('../src/ui/shared/progressUtils.js');
 
 test('p1_h2 - P1-102: con.md is rewritten, not left as a reserved name', () => {
     const out = pathUtils.sanitizeFileName('con.md');
@@ -98,7 +97,8 @@ test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
     const html = '<pre><code class="language-html">&lt;div&gt;hi&lt;/div&gt;</code></pre>'
         + '<p>real <b>bold</b> text</p>'
         + '<p>sample <code>List&lt;String&gt;</code> and <code>&lt;h1&gt;t&lt;/h1&gt;</code></p>';
-    const out = ChatFormatter.convertHtmlToMarkdown(html);
+    const { convertHtmlToMarkdown } = require('../src/l1/parsers/shared/html/htmlToMarkdown.js');
+    const out = convertHtmlToMarkdown(html);
     assert.ok(out.includes('<div>hi</div>'), 'fenced code content must survive');
     assert.ok(out.includes('`List<String>`'), 'inline code generic must survive');
     assert.ok(out.includes('`<h1>t</h1>`'), 'inline code must not be rewritten by heading pass');
@@ -110,8 +110,8 @@ test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
 test('p1_h2 - P1-115: ZipWriter refuses beyond safe budget instead of warning', async () => {
     (globalThis as any).self = (globalThis as any).self || {};
     (globalThis as any).self.JSZip = (globalThis as any).self.JSZip || require('../lib/jszip.min.js');
-    const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
-    const w = new ZipWriter('test');
+    const { ZipWriter } = require('../src/l4/packaging/writers/zipWriter.js');
+    const w = new ZipWriter();
     assert.throws(
         () => w.writeFile('big.bin', { byteLength: 300 * 1024 * 1024 } as any),
         /200MB/
@@ -120,7 +120,7 @@ test('p1_h2 - P1-115: ZipWriter refuses beyond safe budget instead of warning', 
 
 // ---------- P1-116: FsWriter serializes same-path writes ----------
 test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', async () => {
-    const { FsWriter } = require('../src/core/engine/writers/fsWriter.js');
+    const { FsWriter } = require('../src/l4/delivery/writers/fsWriter.js');
     const events: string[] = [];
     const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
     // Tag writables by creation order to observe interleaving.
@@ -137,7 +137,7 @@ test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', a
             }
         })
     };
-    const w = new FsWriter(dirHandle2, 'batch');
+    const w = new FsWriter(dirHandle2);
     await Promise.all([w.writeFile('same.txt', 'aaa'), w.writeFile('same.txt', 'bbb')]);
     const i0s = events.indexOf('w1:start'), i0e = events.indexOf('w1:end');
     const i1s = events.indexOf('w2:start'), i1e = events.indexOf('w2:end');
@@ -147,7 +147,7 @@ test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', a
 });
 
 test('p1_h2 - review fix (c): writeChains map does not grow without bound', async () => {
-    const { FsWriter } = require('../src/core/engine/writers/fsWriter.js');
+    const { FsWriter } = require('../src/l4/delivery/writers/fsWriter.js');
     const written: string[] = [];
     const fakeFile = () => ({
         createWritable: async () => ({
@@ -159,7 +159,7 @@ test('p1_h2 - review fix (c): writeChains map does not grow without bound', asyn
         name: 'gemini_export',
         getFileHandle: async () => fakeFile()
     };
-    const w = new FsWriter(fakeDir, 'gemini_export');
+    const w = new FsWriter(fakeDir);
     // concurrent writes to the same path must serialize and leave no chain residue
     await Promise.all([
         w.writeFile('same.md', 'one'),

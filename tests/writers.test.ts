@@ -2,10 +2,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { FsWriter, ensureSubDir, sanitizeFileName } = require('../src/core/engine/writers/fsWriter.js');
-const { ZipWriter, isPrecompressedAsset } = require('../src/core/engine/writers/zipWriter.js');
-const WriterInterface = require('../src/core/engine/writers/writerInterface.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { FsWriter, ensureSubDir, sanitizeFileName } = require('../src/l4/delivery/writers/fsWriter.js');
+const { ZipWriter, isPrecompressedAsset } = require('../src/l4/packaging/writers/zipWriter.js');
+const WriterInterface = require('../src/l4/delivery/writers/writerInterface.js');
+const { __setModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
 // FsWriter
@@ -63,9 +63,10 @@ test('zipWriter - exports, instantiation, and sanitization', () => {
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder(_name: string) {
+        file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
+        legacyFolder(_name: string) {
             return {
-                file: (path: string, content: any) => { this.files[path] = content; }
+                file: (path: string, content: any, _options?: unknown) => { this.files[path] = content; }
             };
         }
         async generateAsync(_options?: any, cb?: (p: { percent: number }) => void) {
@@ -74,16 +75,16 @@ test('zipWriter - exports, instantiation, and sanitization', () => {
         }
     });
 
-    const writer = new ZipWriter('test_folder');
+    const writer = new ZipWriter();
     assert.ok(writer);
     assert.strictEqual(typeof writer.writeFile, 'function');
     assert.strictEqual(typeof writer.generateBlob, 'function');
     assert.strictEqual(typeof writer.sanitizePath, 'function');
-    assert.strictEqual(writer.sanitizePath('foo/../bar/test.md'), 'foo/_/bar/test.md');
+    assert.throws(() => writer.sanitizePath('foo/../bar/test.md'), /Unsafe|Noncanonical/);
 });
 
 test('zipWriter - writeFile and generateBlob', async () => {
-    const writer = new ZipWriter('my_export');
+    const writer = new ZipWriter();
     writer.writeFile('test.txt', 'Hello world');
     assert.strictEqual(writer.getTotalBytes(), 11);
     let progressReported = null;
@@ -95,7 +96,7 @@ test('zipWriter - writeFile and generateBlob', async () => {
 });
 
 test('zipWriter counts Blob bytes toward the safety limit', () => {
-    const writer = new ZipWriter('blob_limit');
+    const writer = new ZipWriter();
     writer.MAX_SAFE_ZIP_BYTES = 10;
     writer.writeFile('small.bin', new Blob([new Uint8Array(8)]));
     assert.strictEqual(writer.getTotalBytes(), 8);
@@ -117,11 +118,12 @@ test('writerInterface - isWriter and createWriter factory', () => {
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder(_name: string) { return { file: (_p: string, _c: any) => {} }; }
+        file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
+        legacyFolder(_name: string) { return { file: (_p: string, _c: any, _options?: unknown) => {} }; }
         async generateAsync(_opts?: any) { return new Blob(['']); }
     });
 
-    const zipWriter = WriterInterface.createWriter('zip', { folderName: 'test_export' });
+    const zipWriter = WriterInterface.createWriter('zip');
     assert.ok(zipWriter);
     assert.strictEqual(WriterInterface.isWriter(zipWriter), true);
 
@@ -155,7 +157,7 @@ test('fsWriter - rejects invalid or empty plain object content before touching f
         }
     };
 
-    const writer = new FsWriter(mockDirHandle, 'gemini_export');
+    const writer = new FsWriter(mockDirHandle);
     await writer.init();
 
     // Plain empty object from broken JSON serialization must throw and not create file handle
@@ -197,7 +199,8 @@ test('zipWriter - selective compression uses STORE for media and DEFLATE for tex
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder(_name: string) {
+        file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
+        legacyFolder(_name: string) {
             return {
                 file: (path: string, content: any, opts: any) => {
                     this.files[path] = content;
@@ -208,7 +211,7 @@ test('zipWriter - selective compression uses STORE for media and DEFLATE for tex
         async generateAsync() { return new Blob(['']); }
     });
 
-    const writer = new ZipWriter('export_selective');
+    const writer = new ZipWriter();
     writer.writeFile('assets/picture.png', 'png_bytes');
     writer.writeFile('conversation.md', '# Chat content');
 
@@ -221,8 +224,9 @@ test('zipWriter - generateBlob uses generateInternalStream when available', asyn
     let asyncUsed = false;
 
     __setModuleOverride('JSZip', class MockJSZipWithStream {
-        folder(_name: string) {
-            return { file: () => {} };
+        file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
+        legacyFolder(_name: string) {
+            return { file: (_path?: string, _content?: unknown, _options?: unknown) => {} };
         }
         generateInternalStream(opts: any) {
             internalStreamUsed = true;
@@ -240,7 +244,7 @@ test('zipWriter - generateBlob uses generateInternalStream when available', asyn
         }
     });
 
-    const writer = new ZipWriter('export_stream');
+    const writer = new ZipWriter();
     let pctReceived = 0;
     const blob = await writer.generateBlob((pct: number) => { pctReceived = pct; });
 
@@ -258,7 +262,8 @@ test('zipWriter - passes (path, content, options) through to JSZip file()', () =
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder(_name: string) {
+        file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
+        legacyFolder(_name: string) {
             return {
                 file: (p: string, c: any, o: any) => {
                     capturedPath = p;
@@ -270,7 +275,7 @@ test('zipWriter - passes (path, content, options) through to JSZip file()', () =
         async generateAsync() { return new Blob(['']); }
     });
 
-    const writer = new ZipWriter('my_export');
+    const writer = new ZipWriter();
 
     // Case 1: (path, content, options) where content is string (base64)
     writer.writeFile('files/config.json', 'eyJuYW1lIjoidGVzdCJ9', { base64: true });
@@ -308,7 +313,7 @@ test('fsWriter - writes via relativePath and decodes base64 correctly', async ()
         }
     };
 
-    const writer = new FsWriter(mockDirHandle, 'gemini_export');
+    const writer = new FsWriter(mockDirHandle);
     await writer.init();
 
     // Base64 string for "hello" is "aGVsbG8="

@@ -1,8 +1,8 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { acceptDetailFacts, validateParserDomain, restoreDomainSnapshot, withSourceVersion } from '../src/l2/runtimeValidation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 function valid(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('independent'), 'future'),   titleSource: "derived",   title: 'Fixture' }, detail: { key: fixtureKey(String('independent'), 'future'), quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
@@ -10,20 +10,16 @@ function valid(): DomainConversationWithDetail {
             content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }, { type: 'citationRef', citationId: 'cite' }] },
                 { type: 'unknown', sourceType: 'future', text: 'preserved' }] }] } };
 }
-test('parser validation preserves identity; recovery isolates all nested objects without brand fields', () => {
+test('parser validation and recovery validate without redundant JSON copies', () => {
     const input = valid();
     const json = JSON.stringify(input);
     assert.equal(validateParserDomain(input), input);
     const restored = restoreDomainSnapshot(input);
     assert.deepEqual(restored, input);
-    assert.notEqual(restored.detail.messages, input.detail.messages);
+    assert.equal(restored.detail.messages, input.detail.messages);
     assert.equal(JSON.stringify(restored), json);
     assert.deepEqual(Object.getOwnPropertySymbols(restored), []);
-    restored.detail.assets[0].id = 'changed';
-    assert.equal(input.detail.assets[0].id, 'image');
-    restored.detail.messages[0].citations![0].url = 'https://changed.test';
-    assert.equal(input.detail.messages[0].citations![0].url, 'https://example.test',
-        'a snapshot must deep-clone message-local citations, not just its top-level arrays');
+    assert.equal(restored.detail.messages[0].citations, input.detail.messages[0].citations);
 });
 test('both entry points reject independent malformed graphs and nonportable values', () => {
     const negatives: unknown[] = [
@@ -105,10 +101,10 @@ test('both entry points reject holes and undefined elements throughout nested Do
 });
 
 test('parser and recovery reject nonintegral, out-of-range, and over-wide table grids before composition', () => {
-    const withTable = (table: import('../src/core/domain/content/blocks.js').TableBlock) => {
+    const withTable = (table: import('../src/l2/content/blocks.js').TableBlock) => {
         const value = valid(); value.detail.messages[0].content = [table]; return value;
     };
-    const invalidTables: import('../src/core/domain/content/blocks.js').TableBlock[] = [];
+    const invalidTables: import('../src/l2/content/blocks.js').TableBlock[] = [];
     for (const span of [0, -1, 1.5, 4294967296, Number.MAX_VALUE]) {
         invalidTables.push({ type: 'table', rows: [{ cells: [{ children: [], colSpan: span }] }] });
         invalidTables.push({ type: 'table', rows: [{ cells: [{ children: [], rowSpan: span }] }] });
@@ -138,4 +134,21 @@ test('parser and recovery reject nonintegral, out-of-range, and over-wide table 
         assert.equal(validateParserDomain(value), value);
         assert.deepEqual(restoreDomainSnapshot(value), value);
     }
+});
+
+
+test('trusted parser bodies are reused internally but copied IPC facts must pass full validation', () => {
+    const parsed = validateParserDomain(valid());
+    assert.equal(acceptDetailFacts(parsed.detail.key, parsed.detail), parsed.detail);
+    const received = structuredClone(parsed.detail);
+    received.assets = [];
+    assert.throws(() => acceptDetailFacts(parsed.detail.key, received), TypeError);
+    assert.throws(() => acceptDetailFacts({ ...parsed.detail.key, conversationId: 'other' }, parsed.detail), TypeError);
+});
+
+test('withSourceVersion rejects unsafe or fractional source timestamps', () => {
+    const trusted = validateParserDomain(valid());
+    for (const savedAt of [0.5, Number.MAX_SAFE_INTEGER + 1, Infinity])
+        assert.throws(() => withSourceVersion(trusted, savedAt), TypeError);
+    assert.equal(withSourceVersion(trusted, 0).detail.savedAt, 0);
 });

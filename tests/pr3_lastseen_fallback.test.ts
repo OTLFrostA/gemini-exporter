@@ -5,15 +5,14 @@
  * 契约：
  *   1. 只有 lastSeen、无服务端时间戳的会话 → getEffectiveTimestamp 返回 0
  *      （lastSeen 是客户端观察到的时间，可能是 seed，不可当作服务端权威时间）。
- *   2. checkIsUpdated 对 lastSeen-only 会话不再误判为 updated（客户端 lastSeen
- *      推进超过导出时间也不能触发"有更新"）。
+ *   2. 未知来源版本不能根据客户端观察时间跳过导出。
  *
  * 运行: node -r ./tests/ts_register.js --test tests/pr3_lastseen_fallback.test.ts
  */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { getEffectiveTimestamp, checkIsUpdated } = require('../src/core/utils/titleUtils.js');
+const { getEffectiveTimestamp } = require('../src/shared/utils/titleUtils.js');
 
 // Case 1: lastSeen-only 会话返回 0，不再返回 lastSeen。
 test('getEffectiveTimestamp: lastSeen-only chat returns 0', () => {
@@ -30,18 +29,12 @@ test('getEffectiveTimestamp: lastSeen-only chat returns 0', () => {
     }), serverUpdatedAt);
 });
 
-// Case 2: checkIsUpdated 不再因客户端 lastSeen 推进而误判 updated。
-test('checkIsUpdated: lastSeen-only chat is not flagged updated by client clock', () => {
-    const rec = {
-        id: 'c_lastseen_only',
-        exportedAt: 1788000000000, // 导出时间
-        messageCount: 4,
-    };
-    // 会话只有客户端 lastSeen（比导出时间更晚），没有服务端时间戳和消息数变化
-    const chat = {
-        id: 'c_lastseen_only',
-        lastSeen: 1788100000000,
-        messageCount: 4,
-    };
-    assert.strictEqual(checkIsUpdated(chat, rec), false, 'client-observed lastSeen must not mark export stale');
+// Unknown source versions must remain eligible for export regardless of local observation time.
+test('lastSeen-only chats cannot authorize skipping an export with unknown source version', () => {
+    const { shouldSkipExport } = require('../src/application/export/runExport.js');
+    const record = { exportedAt: 1788000000000, chatTime: 1788000000000, format: 'markdown', status: 'ok' };
+    const request = { skipUnchanged: true, format: 'markdown' };
+    assert.equal(shouldSkipExport(record, undefined, request), false);
+    assert.equal(shouldSkipExport(record, 1788000000000, request), true);
+    assert.equal(shouldSkipExport(record, 1788100000000, request), false);
 });

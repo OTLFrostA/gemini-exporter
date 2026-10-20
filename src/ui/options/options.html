@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gemini Exporter</title>
-<link rel="stylesheet" href="/src/ui/tour/tourGuide.css">
+<link rel="stylesheet" href="/src/ui/guidance/tourGuide.css">
 <style>
   :root{
     --bg:#090a10;
@@ -138,6 +138,8 @@
   .item .meta{font-size:11px;color:var(--muted)}
   .progress{height:8px;background:#161824;border-radius:99px;overflow:hidden;margin:10px 0;display:none}
   .bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
+  .progress.indeterminate .bar{width:30% !important;animation:ui-scan-loading 1.5s linear infinite;transition:none}
+  @keyframes ui-scan-loading{from{transform:translateX(-100%)}to{transform:translateX(350%)}}
   .log{font-size:12px;color:var(--muted);white-space:pre-wrap;max-height:160px;overflow:auto;background:var(--card-inner);border:1px solid var(--border);border-radius:8px;padding:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
   .badge{display:inline-block;background:#171929;border:1px solid var(--border);color:#a5b4fc;padding:2px 8px;border-radius:99px;font-size:11px;margin-left:6px}
   select{background:var(--card-inner);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px}
@@ -146,6 +148,13 @@
   a{color:var(--accent2);text-decoration:none}
   a:hover{text-decoration:underline}
   body:not(.dev-mode) .dev-only { display: none !important; }
+  [hidden] { display:none !important; }
+  #list .open-link { padding:0 6px;color:var(--muted);flex:none;text-decoration:none; }
+  #list .open-link:hover { color:var(--accent2); }
+  #list .status-tag {font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border-focus);margin-left:6px;}
+  #list .status-exported {color:#34d399;border-color:#165846;background:#11362f;}
+  #list .status-partial {color:#fca5a5;border-color:#713b3b;background:#351b23;}
+  #list .meta {font-size:11px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -154,6 +163,7 @@
     <h1>Gemini Exporter <span id="ver" class="badge"></span> <span id="syncCount" class="badge"></span></h1>
     <select id="accountIdSelect" style="display:none; font-size:11px; padding:3px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer;">
     </select>
+    <span id="accountName" class="stat" style="font-size:11px;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
   </div>
   <div style="display:flex; align-items:center; gap:8px;">
     <button id="btnTourGuide" class="ghost small" style="padding:2px 10px; font-size:11px; height:26px; border-radius:20px; gap:4px; display:inline-flex; align-items:center; cursor:pointer;" title="新手教程 / Onboarding Tour" data-i18n-title="tourBtnGuideTip">
@@ -187,22 +197,18 @@
           <option value="json" data-i18n="fmtJsonStandard">JSON (插件标准)</option>
         </select>
       </label>
-      <div style="display:flex; gap:6px; align-items:center; font-size:12px; height:24px; white-space:nowrap; overflow:hidden;">
-        <label style="display:flex; gap:6px; align-items:center; cursor:pointer; overflow:hidden; min-width:0;">
-          <input type="checkbox" id="skipExported" class="toggle" checked>
-          <span data-i18n="skipExported" style="overflow:hidden; text-overflow:ellipsis;">跳过已导出</span>
-        </label>
-        <button type="button" id="btnClearExported" class="ghost" style="padding:1px 6px; font-size:10px; height:20px; line-height:18px; margin-left:auto; border-radius:4px; flex:none;" data-i18n="btnClearExported" data-i18n-title="btnClearExportedTip" title="清除历史导出标记，允许重新导出全部">清除</button>
-      </div>
-      <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeAssetsTip" title="下载对话中的图片与文件附件">
-        <input type="checkbox" id="includeAssets" class="toggle" checked>
-        <span data-i18n="includeAssets">下载附件</span>
+      <label style="grid-column:1/-1; display:flex; gap:6px; align-items:center; font-size:12px; height:24px; white-space:nowrap; cursor:pointer;" data-i18n-title="skipExportedTip" title="跳过已完整导出且未更新的同格式对话">
+        <input type="checkbox" id="skipExported" class="toggle" checked>
+        <span data-i18n="skipExported">跳过已完整导出且未更新的同格式对话</span>
       </label>
-      <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeZipTip" title="打包为 ZIP 文件下载">
-        <input type="checkbox" id="includeZip" class="toggle" checked>
-        <span data-i18n="includeZip">打包成 ZIP</span>
+      <label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer;min-width:0;" title="Export destination">
+        <span data-ui-en="Deliver to" data-ui-zh="保存到" style="flex:none">保存到</span>
+        <select id="delivery" aria-label="Export destination" style="min-width:0;flex:1;padding:3px 4px;font-size:11px;">
+          <option value="browserDownload" data-ui-en="Browser download" data-ui-zh="浏览器下载">浏览器下载</option>
+          <option value="folderWriter" data-ui-en="Authorized folder" data-ui-zh="已授权文件夹">已授权文件夹</option>
+        </select>
       </label>
-      <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDiskTip" title="每轮对话完成后自动调用本地文件写入器，将单篇 Markdown 直接同步写入指定文件夹">
+      <label id="liveSaveControls" style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDiskTip" title="每轮对话完成后自动调用本地文件写入器，将单篇 Markdown 直接同步写入指定文件夹">
         <input type="checkbox" id="liveSaveDiskToggle" class="toggle">
         <span data-i18n="liveSaveDisk">实时落盘本地</span>
       </label>
@@ -213,9 +219,9 @@
       <div id="dirLabel" class="stat" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;" title="当前目录" data-i18n="dirNotSet" data-i18n-title="dirCurrentTip">未设置目录</div>
     </div>
 
+    <small id="liveSaveStatus" style="display:block;font-size:11px;color:var(--muted);min-height:12px;"></small>
     <div style="display:flex; gap:10px; margin-top:4px; height:40px;">
-      <button id="btnExport" class="primary" style="flex:1; height:40px; padding:0;" data-i18n="btnExportZip">导出选中 → ZIP</button>
-      <button id="btnExportJson" class="ghost dev-only" style="flex:1; height:40px; padding:0;" data-i18n="btnOnlyJson">仅导列表 JSON</button>
+      <button id="btnExport" class="primary" style="flex:1; height:40px; padding:0;" data-ui-en="Export selected" data-ui-zh="导出选中">导出选中</button>
     </div>
     
     <div style="text-align:center; min-height:28px;">
@@ -223,7 +229,8 @@
     </div>
     
     <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
-    <div id="progText" class="stat" style="text-align:center; min-height:20px; line-height:1.5; word-break:break-word; padding:2px 0;"></div>
+    <div id="progText" class="stat" role="status" aria-live="polite" style="display:none;text-align:center;min-height:20px;line-height:1.5;word-break:break-word;padding:2px 0;"></div>
+    <p id="status" role="status" aria-live="polite" class="stat" style="margin:0;text-align:center;min-height:20px;line-height:1.5;overflow-wrap:anywhere;padding:2px 0;"></p>
 
     <div id="exportFailureCard" style="display:none; margin-top:6px; padding:8px 10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:8px; font-size:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
@@ -238,6 +245,10 @@
     </div>
 
     <div id="logSection" class="dev-only" style="display:flex; flex-direction:column; gap:8px; flex:1; overflow:hidden; margin-top:4px;">
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:12px;flex:none" data-i18n-title="includeAssetsTip" title="Download images and file attachments">
+        <input type="checkbox" id="includeAssets" class="toggle" checked>
+        <span data-i18n="includeAssets">下载附件</span>
+      </label>
       <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:none;">
         <select id="logLevel" title="级别" data-i18n-title="logLevelTitle" style="font-size:11px; padding:4px 6px; border-radius:6px; background:var(--card-inner);">
           <option value="all" data-i18n="logLevelAll">全部日志</option>
@@ -268,10 +279,8 @@
         <span style="display:flex; align-items:center; white-space:nowrap; flex:none;"><span data-i18n="titleConversations" style="font-weight:700;">会话列表</span></span>
         <select id="chatFilterSelect" data-i18n-title="filterSelectTip" title="按导出状态筛选会话" style="height:26px; font-size:11px; padding:2px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer; flex:none;">
           <option value="all" data-i18n="filterAll">全部</option>
-          <option value="unexported" data-i18n="filterUnexported">未导出</option>
-          <option value="failed" data-i18n="filterFailed">导出失败</option>
-          <option value="unexported_or_failed" data-i18n="filterUnexportedOrFailed">未导出 + 失败</option>
-          <option value="exported" data-i18n="filterExported">已导出</option>
+          <option value="no_record" data-i18n="filterNoRecord">无导出记录</option>
+          <option value="has_record" data-i18n="filterHasRecord">有导出记录</option>
         </select>
         <div style="display:flex; gap:6px; align-items:center; flex:1; min-width:110px; max-width:260px; margin:0 4px;">
           <input id="chatSearchInput" type="text" placeholder="搜索标题 / ID..." data-i18n-placeholder="searchPlaceholder" style="width:100%; min-width:0; height:26px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:2px 8px; font-size:11px; outline:none;">
@@ -286,77 +295,18 @@
         <button id="btnSyncAll" class="primary small" style="padding:3px 8px; font-size:11.5px;" data-i18n="btnSyncAll" data-i18n-title="btnSyncAllTip" title="扫描并同步 Gemini 网页端可访问的会话">同步会话</button>
         <button id="btnImportTakeout" class="ghost small" style="padding:3px 8px; font-size:11.5px;" data-i18n="btnImportTakeout" data-i18n-title="btnImportTakeoutTip" title="读取 Google Takeout 压缩包，自动补全历史无法扫描的远古对话，并加载离线附件兜底池">📥 导入 Takeout</button>
         <input type="file" id="takeoutFileInput" accept=".zip" style="display:none;">
+        <span id="takeoutAccountName" class="stat" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Takeout import target"></span>
         <button id="btnStopScan" class="ghost small" style="display:none; color:#ff8a8a; border-color:#5a2a2a; padding:3px 8px; font-size:11.5px;" data-i18n="btnStopScan" data-i18n-title="btnStopScanTip" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
-        <span class="stat" id="lastSync" style="margin-left:auto; margin-right:4px; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;"></span>
-        <button id="btnClearAll" class="ghost small" style="color:#ff8a8a; flex:none; padding:3px 8px; font-size:11.5px;" data-i18n="btnClearAll" data-i18n-title="btnClearAllTip" title="清空本地所有会话数据">清空全部</button>
+        <div id="localDataControls" style="display:flex;gap:4px;align-items:center;margin-left:auto;" aria-label="Local records">
+          <button id="btnClearExported" class="ghost small" style="flex:none;padding:3px 8px;font-size:11.5px;" data-ui-en="Clear export records" data-ui-zh="清除导出记录" title="Clears export records only; keeps conversations and files">清除导出记录</button>
+          <button id="btnClearScan" class="ghost small" style="color:#ff8a8a;flex:none;padding:3px 8px;font-size:11.5px;" data-ui-en="Clear scan records" data-ui-zh="清除扫描记录" title="Clears scan coverage and export records; keeps conversations and files">清除扫描记录</button>
+        </div>
+        <button id="btnForceFullScan" class="ghost small dev-only" style="padding:3px 8px;font-size:11.5px;" data-ui-en="Force full scan" data-ui-zh="强制完整扫描">强制完整扫描</button>
       </div>
     </div>
-    <!-- 导出状态与中断恢复横幅 (Export Session Recovery Banner) -->
-    <div id="exportSessionBanner" style="display:none; background:var(--card-inner); border:1px solid #3b4066; border-radius:10px; padding:10px 14px; margin-bottom:10px; align-items:center; justify-content:space-between; gap:12px; font-size:12px; flex:none;">
-      <div id="exportSessionText" style="color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis;"></div>
-      <div style="display:flex; gap:8px; align-items:center; flex:none;">
-        <button id="btnResumeExport" class="primary small" style="padding:3px 10px; font-size:11px;" data-i18n="btnResumeExport">▶️ 继续导出未完成项</button>
-        <button id="btnDismissExportBanner" class="ghost small" style="padding:3px 8px; font-size:11px;" data-i18n="btnDismissBanner">✕ 关闭</button>
-      </div>
-    </div>
-    <div id="archiveNotice" hidden style="padding:10px; border:1px solid var(--border); border-radius:8px; font-size:12px; margin-bottom:8px;"></div>
     <div id="list" class="list" style="flex:1; margin:0; overflow-y:auto; padding-right:4px;"></div>
   </div>
 </div>
-
-<!-- 大批量导出模式建议弹窗 (Direct Write Suggestion Modal) -->
-<div id="directWriteModal" style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px);">
-  <div style="background:var(--card); border:1px solid var(--border-focus); border-radius:14px; width:450px; max-width:92vw; padding:20px; box-shadow:0 12px 36px rgba(0,0,0,0.5); color:var(--text); display:flex; flex-direction:column; gap:14px; position:relative; box-sizing:border-box;">
-    <button id="btnDirectWriteClose" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:4px; line-height:1;" title="Close" data-i18n-title="btnCloseTip">✕</button>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <span style="font-size:15px; font-weight:700;" data-i18n="directWritePromptTitle">💡 批量导出模式建议</span>
-    </div>
-    <div id="directWritePromptText" style="font-size:13px; line-height:1.6; color:var(--muted);" data-i18n="directWritePromptDesc">
-      检测到您当前勾选了较多会话。由于大批量导出包含大量附件图片，在浏览器内存中打包 ZIP 可能会消耗较多资源；推荐切换至【本地目录直写】模式：每个会话与图片抓取后即刻写入电脑本地硬盘，零内存堆积，更加稳定安全。
-    </div>
-    <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-      <button id="btnModalSwitchFolder" class="primary" style="height:36px; font-size:13px;" data-i18n="btnSwitchToFolder">📁 选择本地目录并开始导出</button>
-      <button id="btnModalContinueZip" class="ghost" style="height:36px; font-size:13px;" data-i18n="btnContinueZip">继续使用 ZIP 导出</button>
-    </div>
-  </div>
-</div>
-
-<!-- Google 600条上限提示与 Takeout 导入建议弹窗 (Takeout Suggestion Modal on Google Limit) -->
-<div id="takeoutLimitModal" style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px);">
-  <div style="background:var(--card); border:1px solid var(--border-focus); border-radius:14px; width:480px; max-width:92vw; padding:20px; box-shadow:0 12px 36px rgba(0,0,0,0.5); color:var(--text); display:flex; flex-direction:column; gap:14px; position:relative; box-sizing:border-box;">
-    <button id="btnTakeoutLimitClose" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:4px; line-height:1;" title="Close" data-i18n-title="btnCloseTip">✕</button>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <span id="takeoutLimitPromptTitle" style="font-size:15px; font-weight:700;" data-i18n="takeoutLimitPromptTitle">⚠️ 达到 Google 云端拉取上限</span>
-    </div>
-    <div id="takeoutLimitPromptText" style="font-size:13px; line-height:1.6; color:var(--muted);"></div>
-    <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-      <button id="btnModalImportTakeout" class="primary" style="height:36px; font-size:13px;" data-i18n="btnModalImportTakeout">📥 选择 Takeout ZIP 导入全部历史</button>
-      <a id="btnModalOpenTakeoutWeb" href="https://takeout.google.com/settings/takeout/custom/gemini" target="_blank" class="ghost" style="height:36px; font-size:13px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; gap:6px;" data-i18n="btnModalOpenTakeoutWeb">🌐 前往 Google Takeout (已自动勾选 Gemini)</a>
-      <button id="btnModalDismissTakeout" class="ghost" style="height:36px; font-size:13px;" data-i18n="btnModalDismissTakeout">我知道了，不再提示</button>
-    </div>
-  </div>
-</div>
-
-<div id="takeoutImportModal" style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px);">
-  <div style="background:var(--card); border:1px solid var(--border-focus); border-radius:14px; width:480px; max-width:92vw; padding:20px; box-shadow:0 12px 36px rgba(0,0,0,0.5); color:var(--text); display:flex; flex-direction:column; gap:14px; position:relative; box-sizing:border-box;">
-    <button id="btnTakeoutImportClose" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:4px; line-height:1;" title="Close" data-i18n-title="btnCloseTip">✕</button>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <span style="font-size:15px; font-weight:700;" data-i18n="takeoutImportModalTitle">📥 导入 Google Takeout 归档数据</span>
-    </div>
-    <div style="font-size:13px; line-height:1.6; color:var(--muted);" data-i18n="takeoutImportModalDesc">
-      支持导入 Google Takeout 导出的原始 .zip 压缩包（无需手动解压）。导入后将自动补全云端 API 上限遗漏的历史会话，并建立离线多模态附件池。
-    </div>
-    <div id="takeoutDropZone" style="border:2px dashed var(--border); border-radius:10px; padding:24px 16px; text-align:center; background:var(--card-inner); cursor:pointer; transition:border-color 0.2s, background 0.2s; display:flex; flex-direction:column; align-items:center; gap:8px;">
-      <span style="font-size:28px;">📦</span>
-      <span style="font-size:13px; color:var(--text);" data-i18n="takeoutDropZoneText">将 Takeout ZIP 压缩包拖拽至此处，或者</span>
-      <button id="btnTakeoutSelectFile" class="primary" style="height:32px; padding:0 16px; font-size:12px; margin-top:4px;" data-i18n="btnTakeoutSelectFile">📁 选择本地 ZIP 文件</button>
-    </div>
-    <div style="display:flex; flex-direction:column; gap:8px; margin-top:2px;">
-      <a id="btnTakeoutGoWeb" href="https://takeout.google.com/settings/takeout/custom/gemini" target="_blank" class="ghost" style="height:34px; font-size:12px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; gap:6px;" data-i18n="btnModalOpenTakeoutWeb">🌐 前往 Google Takeout (已自动勾选 Gemini)</a>
-    </div>
-  </div>
-</div>
-
 <!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->
 <script src="/lib/jszip.min.js"></script>
 <script src="/dist/ui/options.js"></script>

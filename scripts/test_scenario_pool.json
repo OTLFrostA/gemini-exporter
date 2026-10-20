@@ -1,89 +1,5 @@
 [
   {
-    "id": "coastal_wetland_sediment_elevation_budget",
-    "title": "Tidal wetlands: sediment budgets and elevation resilience",
-    "domain": "hydrology_coastal_wetland_sediment",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an actual original image using Imagen: an educational cross-section of a fictional tidal salt marsh, showing a creek, suspended sediment entering on flood tide, settling onto a vegetated platform, erosion at the edge and rising mean sea level. Include a compact legend and identify it as a conceptual illustration, not a real coastal engineering design.",
-      "Derive a hypothetical marsh elevation and sediment-mass budget in LaTeX with explicit units. Distinguish mineral deposition, organic accumulation, compaction, edge erosion and relative sea-level rise; state which processes conserve sediment and which exchange mass with the external estuary.",
-      "Write complete runnable standard-library Python for the fictional budget with periodic tidal inundation and a step change in sediment supply. Track external sediment input, deposition, resuspension and remaining suspended mass; include assertions for zero sediment supply, no inundation, nonnegative mass and convergence under timestep refinement.",
-      "Present a Markdown sensitivity table for low, medium and high sediment supply combined with two sea-level-rise rates. Separate computed hypothetical results from qualitative expectations and report elevation change, deposition and sediment balance residuals with units.",
-      "Write a detailed bilingual English-Chinese reproducibility note connecting the illustration, equations and code. Discuss feedback between plant growth and inundation, parameter identifiability, uncertainty, mass-conservation checks and the limitations of this educational model."
-    ]
-  },
-  {
-    "id": "adaptive_quadrature_endpoint_singularity_audit",
-    "title": "Adaptive quadrature: error control and endpoint singularities",
-    "domain": "numerical_analysis_adaptive_quadrature",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Derive an adaptive Simpson quadrature method in LaTeX, explaining the local error estimate, Richardson correction and allocation of an absolute error budget to child intervals. State the smoothness assumptions needed for the estimate.",
-      "Write complete runnable standard-library Python with cached function evaluations, an explicit work stack, absolute and relative tolerances, a maximum evaluation budget and a result object reporting value, estimated error, evaluation count and termination reason.",
-      "Add meaningful tests for a constant, a quartic with a known integral, a narrow smooth peak, reversed bounds and a zero-width interval. Demonstrate that exhausting the evaluation budget returns an explicit incomplete result rather than a false success.",
-      "Analyze the integral of x to the power minus one half over the unit interval. Show why a naive endpoint evaluation fails, derive a substitution that removes the singularity and implement the transformed integral without sampling an undefined value.",
-      "Use a Markdown table to compare composite trapezoidal, fixed Simpson and adaptive Simpson methods on the same smooth and transformed problems. Report actual error separately from estimated error and label any results that have not been executed.",
-      "Construct a counterexample involving a narrow oscillation or localized feature that the initial samples can miss. Explain why an adaptive error estimate is conditional evidence, not a universal proof of accuracy.",
-      "Discuss floating-point cancellation, summation order, near-identical subdivision endpoints and interval stagnation. Add safeguards and diagnostics while keeping the implementation readable and reproducible.",
-      "Produce a detailed technical report combining equations, fenced Python code, a method-selection table and a reproducibility checklist. Explain when a variable substitution or domain-specific quadrature rule is more useful than tightening the same adaptive tolerance."
-    ]
-  },
-  {
-    "id": "geodesy_trilateration_range_uncertainty",
-    "title": "Trilateration: range geometry and uncertainty audit",
-    "domain": "geodesy_range_localization",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational image showing three survey beacons and intersecting range circles on a synthetic planar map. Label coordinates and distance units, show an ambiguous two-beacon intersection, and distinguish schematic artwork from measured survey evidence.",
-      "Derive planar trilateration from squared range equations in LaTeX. State identifiability assumptions and explain collinear beacons, coordinate translation, inconsistent noisy ranges and why subtracting equations changes the noise structure.",
-      "Write complete runnable standard-library Python solving a synthetic three-beacon problem and refining noisy ranges with a damped least-squares iteration. Include assertions for exact recovery, rigid translation, rank deficiency and invalid or negative distances. Specify convergence and singularity handling.",
-      "Use a Markdown table comparing well-spread and nearly collinear beacon geometries under the same fixed-seed range perturbations. Report coordinate error, range residuals and a defined conditioning diagnostic, distinguishing empirical sensitivity from a statistical confidence interval.",
-      "Write a detailed reproducibility report connecting the illustration, equations, solver and independent forward-range checks. Discuss uncertainty propagation, outliers, distance bias, local coordinate assumptions and limits of extrapolating a planar model to Earth-scale surveys. Include a Chinese-English glossary."
-    ]
-  },
-  {
-    "id": "operations_research_min_cost_flow_duality",
-    "title": "Minimum-cost flow: residual paths and dual certificates",
-    "domain": "operations_research_network_flow_duality",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a small fictional capacitated transport network with integer costs, supplies and demands. Define the minimum-cost flow linear program in LaTeX and state a consistent sign convention for node balances.",
-      "Derive the residual graph including reverse arcs and explain flow conservation, augmenting paths and why ignoring reverse arcs can trap a greedy allocation in a suboptimal state.",
-      "Give a concrete numerical example where a cheapest-first allocation fails. Show every augmentation and its effect on feasibility and total cost in a Markdown table.",
-      "Write complete runnable standard-library Python solving the small bounded integer instance using residual augmentations. Handle unreachable demand, parallel arcs, zero capacity and negative residual costs explicitly; justify the shortest-path algorithm used.",
-      "Implement an independent exhaustive enumeration oracle for tiny capacities and compare its optimum with the residual solver over deterministic generated feasible cases. Include assertions for balance conservation, capacity limits and total-cost accounting.",
-      "Derive reduced costs and complementary slackness for the chosen sign convention. Compute node potentials for the example and present a dual optimality certificate, clearly addressing saturated and unused arcs.",
-      "Use a Markdown table comparing changed supply, a capacity bottleneck and a cost perturbation. Report feasibility, optimum, oracle agreement and certificate checks. Explain when an infeasibility cut is more informative than a missing path.",
-      "Write a long reproducibility report containing the model, complete code, oracle and certificates. Discuss integral solutions, negative cycles, complexity, degeneracy and limitations of tiny enumeration as evidence for general solver correctness. Include a Chinese-English glossary."
-    ]
-  },
-  {
     "id": "oceanography_gravity_wave_dispersion_group_velocity",
     "title": "Ocean waves: dispersion and wave-packet verification",
     "domain": "oceanography_surface_wave_dispersion",
@@ -420,6 +336,90 @@
       "Derive and implement zero-padding for the same samples. Demonstrate that it interpolates the spectrum but does not improve the ability to resolve two nearby tones.",
       "Add a seeded noise experiment and compare spectral estimates across repeated observations. Report uncertainty with explicit units and separate stochastic variation from deterministic leakage.",
       "Write a long English-Chinese reproducibility audit including normalization conventions, phase, endpoint conventions, numerical tolerances, signal identifiability and limitations of interpolation. Include the final runnable Python and a concise validation table."
+    ]
+  },
+  {
+    "id": "optical_microscopy_point_spread_deconvolution",
+    "title": "Microscopy: point spread functions and image reconstruction",
+    "domain": "optics_microscopy_inverse_imaging",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational image using Imagen showing a fictional fluorescence microscope, two nearby fluorescent beads, the ideal bead positions and their blurred image on a detector. Label illumination, objective, sample and detector; show the overlap of their point spread functions in a separate inset.",
+      "Derive a two-dimensional Gaussian point spread function and the discrete convolution image model in LaTeX. Distinguish optical blur, pixel integration, shot noise and background; state the units and normalization that preserve total photon count.",
+      "Write complete runnable standard-library Python that synthesizes two beads on a small grid, convolves them with a normalized Gaussian kernel and reconstructs a nonnegative source using projected gradient descent. Report the objective and photon-count balance; test a single bead, zero signal, noise-free recovery and the boundary convention.",
+      "Create a Markdown comparison table for three bead separations and two blur widths. Report peak overlap, reconstruction residual and resolution limits; explicitly distinguish computed values from predictions when execution is unavailable.",
+      "Produce a detailed bilingual English-Chinese reproducibility report connecting the image, forward model and reconstruction code. Explain ill-conditioning, noise amplification, regularization, stopping criteria and why a small residual does not prove that fine structure was recovered."
+    ]
+  },
+  {
+    "id": "stable_matching_preferences_and_certificates",
+    "title": "Stable matching: preference profiles and stability certificates",
+    "domain": "combinatorics_stable_matching",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define one-to-one stable matching with complete strict preferences in LaTeX. Give a concrete four-by-four preference profile and distinguish a blocking pair from a participant who simply prefers another assignment.",
+      "Write complete runnable standard-library Python implementing proposer-oriented deferred acceptance. Return the matching, proposal trace and proposal count; validate that each preference list is a permutation of the opposite side.",
+      "Implement an independent stability checker that enumerates blocking pairs. Test the supplied profile, a deliberately unstable matching, a one-pair instance, an empty instance and malformed preference lists.",
+      "Prove termination and stability using the monotone improvement of receivers and the fact that each pair receives at most one proposal. Express the proposal bound and running time in LaTeX.",
+      "Run deferred acceptance with the two sides swapped and present both matchings in a Markdown table. Compare participant preference ranks and explain proposer optimality without claiming both sides can improve simultaneously.",
+      "Write a small exhaustive enumerator for all matchings with at most five participants per side. Use it as an independent oracle for stability and proposer optimality; separate experimental evidence from the general proof.",
+      "Extend the discussion to incomplete lists and ties. State which definitions change, distinguish weak and strong stability and explain why arbitrarily breaking ties does not establish every stronger guarantee.",
+      "Produce a detailed English-Chinese technical report with the preference profile, code, traces, independent certificates, complexity argument and limitations. State explicitly whether tables were computed or illustrative."
+    ]
+  },
+  {
+    "id": "music_acoustics_string_modes_spectrogram",
+    "title": "String acoustics: standing waves and spectral evidence",
+    "domain": "music_acoustics_normal_modes",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational image of a fictional monochord laboratory. Show a plucked string fixed at both ends, its first three standing-wave modes, a microphone and a time-frequency spectrogram inset. Label displacement and frequency axes without suggesting that sound travels along the plotted frequency axis.",
+      "Derive the fixed-end string eigenfrequencies and sinusoidal mode shapes in LaTeX. Explain tension, linear density, wave speed, units, and which idealizations exclude damping and stiffness.",
+      "Write runnable standard-library Python synthesizing a plucked-string signal as a finite mode sum with mode-dependent damping. Implement a direct discrete Fourier transform for a short signal and test zero amplitude, one mode, sampling rate and Nyquist constraints.",
+      "Create a Markdown table comparing three pluck positions and their predicted modal amplitudes. Distinguish exact zeros from numerical leakage and mark whether each value was calculated by execution or derived analytically.",
+      "Write a detailed bilingual English-Chinese report linking the illustration, boundary conditions, synthesized waveform and spectrum. Discuss finite windows, tuning uncertainty, inharmonicity, and why a missing spectral peak alone does not prove an absent mode."
+    ]
+  },
+  {
+    "id": "distributed_systems_vector_clock_causality",
+    "title": "Vector clocks: causality and concurrent event certificates",
+    "domain": "distributed_systems_logical_clocks",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define happened-before and vector clocks for three processes using LaTeX. Give a concrete trace with local events, two messages and a concurrent event pair. State exactly when a send or receive increments the local component.",
+      "Write runnable standard-library Python to replay that trace, validate message identifiers, and attach vector timestamps. Reject receives before the corresponding send and duplicate receives.",
+      "Implement a vector comparator returning before, after, equal or concurrent. Provide tests covering reflexivity, antisymmetry of the strict order, transitivity, and incomparable timestamps.",
+      "Construct an independent directed acyclic event graph from program order and message edges. Compute reachability and compare it against the vector timestamp order for every event pair.",
+      "Present the trace and all timestamps in a Markdown table, plus a separate table of concurrent pairs. Explain why equal scalar Lamport timestamps are insufficient to establish concurrency.",
+      "Extend the replay with a delayed message and an idle process. Show that wall-clock timestamps and message arrival delays do not change the causal ordering, and state the limits of the model.",
+      "Analyze time and space complexity in LaTeX for vector construction, pairwise comparison and the independent reachability oracle. Discuss process membership changes without inventing a fixed-size solution for arbitrary dynamic membership.",
+      "Produce a detailed English-Chinese technical report containing the event trace, executable code, validation failures, independent certificates and limitations. Clearly distinguish executed output from illustrative output."
     ]
   }
 ]

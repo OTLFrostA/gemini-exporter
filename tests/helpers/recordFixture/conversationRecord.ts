@@ -1,8 +1,8 @@
 /** Historical disk record grammar, accepted only by the legacy-storage parser. */
 
-import type { GeneratedMediaIdentity } from '../../../src/types/conversation.js';
-import type { LegacyAttachmentInput as ConversationRecordAttachment } from '../../../src/core/parsers/shared/resources/resolveResources.js';
-export type { LegacyAttachmentInput as ConversationRecordAttachment } from '../../../src/core/parsers/shared/resources/resolveResources.js';
+import type { GeneratedMediaIdentity } from '../historicalConversation.js';
+import type { SourceAttachmentInput as ConversationRecordAttachment } from '../../../src/l1/parsers/shared/resources/resolveResources.js';
+export type { SourceAttachmentInput as ConversationRecordAttachment } from '../../../src/l1/parsers/shared/resources/resolveResources.js';
 
 export interface ConversationRecordMessage {
     id?: string;

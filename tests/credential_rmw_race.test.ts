@@ -1,7 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
+const { handleHttp400 } = require('../src/l1/client/gemini/api/retryPolicy.js');
 
 test('concurrent credential refreshes preserve updates to both SIDs', async () => {
     const originalChrome = (global as any).chrome;

@@ -23,7 +23,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 
 // ------------------------------------------------------------------ fixtures
 
@@ -159,7 +159,7 @@ function collectAllStrings(o: any): string[] {
 // ------------------------------------------------------------------ gate (a)
 
 test('P0 gate (a): math travels as TEXT in the payload, never an image placeholder', () => {
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())).document, {}, opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())), {}, opts);
     assert.strictEqual(payload.messages.length, 2);
 
     const maths = collectMathNodes(payload);
@@ -198,7 +198,7 @@ test('P0 gate (a): math travels as TEXT in the payload, never an image placehold
 // ------------------------------------------------------------------ gate (b)
 
 test('P0 gate (b): 2000+ char Chinese text survives byte-identical', () => {
-    const { payload } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())).document, {}, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())), {}, opts);
     assert.strictEqual(payload.messages.length, 2);
 
     // 用户消息段落: text 节点拼接必须与输入逐字相等。
@@ -231,7 +231,7 @@ test('P0 gate (b): 2000+ char Chinese text survives byte-identical', () => {
 // ------------------------------------------------------------------ gate (c)
 
 test('P0 gate (c): unconvertible formula degrades to visible source fallback, never silently dropped', () => {
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())).document, {}, opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())), {}, opts);
 
     const maths = collectMathNodes(payload);
     const failed = maths.find((m: any) => m.latex === DISPLAY_LATEX_UNCONVERTIBLE);
@@ -260,7 +260,7 @@ test('P0 gate (c2): formula node count reconciles against bundle input (no silen
             .flatMap((blk: any) => blk.children ?? [])
             .filter((n: any) => n.type === 'inlineMath').length;
     assert.strictEqual(inputMathCount, 3);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     assert.strictEqual(collectMathNodes(payload).length, inputMathCount,
         'payload math node count must equal bundle math node count');
 });

@@ -11,8 +11,8 @@ const assert = require('node:assert');
 //    e.g. 'not-a-date' as the authoritative timestamp.)
 // 2. The two previously scattered storage keys live in STORAGE_KEYS.
 
-const { mergeConversation } = require('../src/core/domain/indexCollection.js');
-const { STORAGE_KEYS } = require('../src/core/utils/constants.js');
+const { mergeConversation } = require('../src/l2/indexCollection.js');
+const { STORAGE_KEYS } = require('../src/shared/utils/constants.js');
 
 function conv(over: any = {}) {
     return { id: 'c_hygiene_4242', title: 'hygiene probe', titles: {}, ...over };

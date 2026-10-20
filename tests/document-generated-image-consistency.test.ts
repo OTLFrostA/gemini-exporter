@@ -14,7 +14,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 test('PR 3 - 1: Single generated image on model turn renders 1 inline figure and no companion cards', async () => {
     const raw: any = {
@@ -157,7 +157,7 @@ test('PR 3 - 3: User uploaded image attachment renders 1 inline figure and no co
     assert.ok(!userTurn.includes('gem-carousel'), 'No carousel in user turn');
 });
 
-test('PR 3 - 4: Generated image with explicit markdown embed does not produce duplicate cards', async () => {
+test('PR 3 - 4: Generated image retains both content and explicit attachment placements', async () => {
     const raw: any = {
         id: 'c_markdown_dedup',
         title: 'Markdown Embed Dedup Test',
@@ -192,8 +192,8 @@ test('PR 3 - 4: Generated image with explicit markdown embed does not produce du
     assert.ok(!html.includes('gem-carousel'), 'No carousel should be rendered');
 
     // Image path appears exactly once
-    const count = html.split('assets/generated_preview.png').length - 1;
-    assert.strictEqual(count, 1, 'Path must appear exactly once in HTML');
+    const count = html.split('src="assets/generated_preview.png"').length - 1;
+    assert.strictEqual(count, 2, 'Both source placements must render as images');
 });
 
 test('PR 3 - 5: Real-world 040ffd Imagen regression shape (model text + 6 generated images)', async () => {

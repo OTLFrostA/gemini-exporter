@@ -4,10 +4,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { convertMath } = require('../src/core/renderers/typst/mathConverter.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { validateParserDomain } = require('../src/l2/runtimeValidation.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
+const { convertMath } = require('../src/l4/format/typst/mathConverter.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
     RealWasmSandboxHost,
@@ -40,7 +40,7 @@ const headerlessTable = {
 
 test('headerless table keeps empty headers and full body rows', async () => {
     const b = domainFixture([msg('m1', 'assistant', [headerlessTable])]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'table');
     assert.deepStrictEqual(node.headers, []);
@@ -52,7 +52,7 @@ test('headerless table keeps empty headers and full body rows', async () => {
 
 test('thematicBreak becomes a native divider node, not an em-dash paragraph', async () => {
     const b = domainFixture([msg('m1', 'assistant', [{ type: 'thematicBreak' }])]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.deepStrictEqual(node, { type: 'thematicBreak', layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
 });
@@ -61,7 +61,7 @@ async function compileOnce(domain: any) {
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
     const resources = Object.fromEntries(domain.detail.assets.map((asset: { id: string }) => [asset.id, `/assets/${asset.id}.png`]));
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, resources, { convertMath });
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)), resources, { convertMath });
     const context = {
 
         assets: {

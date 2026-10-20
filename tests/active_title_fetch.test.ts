@@ -1,70 +1,43 @@
-import { accountRuntime } from './helpers/accountRuntime.js';
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
-import { indexFixture } from './helpers/indexFixture.js';
-export {};
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
-const { scheduleActiveChatDetailFetch } = require('../src/content/syncEngine.js');
-const { ProviderRegistry } = require('../src/core/provider/providerRegistry.js');
-const { rpcFixture } = require('./helpers/nativeFixture.js');
+import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
+import { listIndexes } from '../src/l3a/storageService.js';
+import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 
-test('active detail fetch retries unresolved or undated titles, but skips timestamped RPC titles', async (t: any) => {
-    const store = indexStorage();
-    const runtime = accountRuntime();
-    const original = ProviderRegistry.getDefault();
-    assert.ok(original, 'Gemini provider must be registered');
-    const fetched: string[] = [];
-    t.mock.timers.enable({ apis: ['setTimeout'] });
+// V2 retires title-driven active detail fetching. The passive source observation
+// upgrades titles through L2 without starting network acquisition or inventing time.
+test('passive RPC titles upgrade unresolved, derived and undated titles without active fetches', async t => {
+    const store = indexStorage(), runtime = accountRuntime('u2');
+    const fetch = t.mock.method(globalThis, 'fetch', async () => { throw new Error('Passive ingestion must not fetch'); });
+    const ids = ['generic_title_01', 'sniff_title_01', 'resolved_title_01', 'undated_rpc_01'];
     try {
-        ProviderRegistry.register({
-            ...original,
-            id: 'gemini',
-            matchesUrl: () => true,
-            fetchConversationDetail: async (id: string) => {
-                fetched.push(id);
-                // A valid parser-shaped detail without a source timestamp:
-                // the scheduler is under test, not downstream storage writes.
-                return rpcFixture({ id, title: 'Fetched detail', messages: [] });
-            }
-        });
-        __setModuleOverride('StorageService', { getConversations: async () => ([
-            { id: 'generic_title_01', title: 'Gemini', titleSource: 'default', timestamp: 1700000000000 },
-            { id: 'sniff_title_01', title: 'Initial question', titleSource: 'sniff', timestamp: 1700000000000 },
-            { id: 'resolved_title_01', title: 'A resolved conversation title', titleSource: 'rpc', timestamp: 1700000000000 },
-            { id: 'undated_rpc_01', title: 'RPC title without server time', titleSource: 'rpc' }
-        ]).map(indexFixture) });
-
-        for (const id of ['generic_title_01', 'sniff_title_01', 'resolved_title_01', 'undated_rpc_01']) {
-            scheduleActiveChatDetailFetch(id);
+        await ingestIndexes(ACCOUNT_UUID, [
+            { conversationId: ids[0], fields: {} },
+            { conversationId: ids[1], fields: { title: 'Initial question', titleSource: 'derived', updatedAt: 1700000000000 } },
+            { conversationId: ids[2], fields: { title: 'Resolved title', titleSource: 'provider', updatedAt: 1700000000000 } },
+            { conversationId: ids[3], fields: { title: 'Undated title', titleSource: 'provider' } },
+        ]);
+        const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            ids.map(id => ['c_' + id, 'Observed ' + id, null, null, null,
+                id === ids[3] ? null : [1700000000, 0]])])]]);
+        const capture = () => ({ origin: location.origin, source: window, data: {
+            type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2',
+                requestAccountObservation: ACCOUNT_OBSERVATION, truncated: false, requestedAt: 1,
+                url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute',
+                listRequest: { streamId: 'recent', requestCursor: null } },
+        } }) as unknown as MessageEvent;
+        init(); await handleWindowMessage(capture());
+        const indexes = await listIndexes(ACCOUNT_UUID);
+        for (const id of ids) {
+            const index = indexes.find(index => index.key.conversationId === id);
+            assert.equal(index?.title, 'Observed ' + id);
+            assert.equal(index?.titleSource, 'provider');
+            assert.equal(index?.updatedAt, id === ids[3] ? undefined : 1700000000000);
         }
-        scheduleActiveChatDetailFetch('generic_title_01'); // duplicate before dispatch
-
-        t.mock.timers.tick(200);
-        await new Promise<void>(resolve => setImmediate(resolve));
-        assert.deepEqual(fetched.slice().sort(), ['generic_title_01', 'sniff_title_01', 'undated_rpc_01'],
-            'default/sniff and undated RPC titles need refresh; timestamped RPC titles do not');
-
-        // Force bypasses the resolved-title guard; an in-flight ID remains deduplicated otherwise.
-        scheduleActiveChatDetailFetch('resolved_title_01', { force: true });
-        scheduleActiveChatDetailFetch('generic_title_01');
-        t.mock.timers.tick(200);
-        await new Promise<void>(resolve => setImmediate(resolve));
-        assert.equal(fetched.filter(id => id === 'resolved_title_01').length, 1);
-        assert.equal(fetched.filter(id => id === 'generic_title_01').length, 1);
-
-        // The 10-second deduplication window must eventually expire.
-        t.mock.timers.tick(10_000);
-        scheduleActiveChatDetailFetch('generic_title_01');
-        t.mock.timers.tick(200);
-        await new Promise<void>(resolve => setImmediate(resolve));
-        assert.equal(fetched.filter(id => id === 'generic_title_01').length, 2);
-    } finally {
-        // Let scheduled deduplication expiry callbacks run before restoring timers.
-        t.mock.timers.tick(10_000);
-        t.mock.timers.reset();
-        __setModuleOverride('StorageService', null);
-        ProviderRegistry.register(original);
-        runtime.restore(); store.restore();
-    }
+        await handleWindowMessage(capture());
+        assert.deepEqual(await listIndexes(ACCOUNT_UUID), indexes, 'duplicate passive observations remain idempotent');
+        assert.equal(fetch.mock.callCount(), 0);
+    } finally { runtime.restore(); store.restore(); }
 });

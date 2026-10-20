@@ -1,110 +1,192 @@
-import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
-import { useIndexStorage } from './helpers/indexStorage.js';
-useIndexStorage();
-import { historicalFixture } from './helpers/nativeFixture.js';
-import { test } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
-import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
-import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
+import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
+import { resourceValue } from './helpers/resources.js';
+import { buildMinimalValidPdf } from './helpers/stubPdfCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
-import type { TypstConversationRenderPayload } from '../src/core/renderers/typst/transport.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { BlockNode } from '../src/l2/content/blocks.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
+import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
+import { createExportPathPlanner, buildExportFiles } from '../src/l4/packaging/index.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
+import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
+import { TypstSandboxCompiler } from '../src/l4/format/pdf/typst/typstSandboxCompiler.js';
 
-const ctx = { signal: new AbortController().signal, log() {}, reportProgress() {} };
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const secondPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/nB0AAAAASUVORK5CYII=';
-const fixture = () => ({ id: 'direct-pdf', title: 'Direct PDF boundary', timestamp: 1700000000000, updatedAt: 1700000000000, messages: [
-    { id: 'user', role: 'user', content: 'Explain the pipeline.' },
-    { id: 'model', role: 'model', thoughts: 'Check **every** relation.', content: '# Results\n\n**Strong** text and [source](https://example.test).\n\n> A quoted result.\n\n1. First\n2. Second\n\n```ts filename=pipeline.ts\nconst layers = 2;\n```\n\n$$\\frac{a}{b}$$\n\n| Item | Value |\n|---|---:|\n| Result | 42 |\n\n![Sample](assets/sample.png)\n\n' + Array.from({ length: 100 }, (_, i) => `Paragraph ${i}: This detailed explanation exercises physical page breaks and flowing text.`).join('\n\n'),
-        attachments: [{ type: 'image', name: 'Sample', localName: 'assets/sample.png', sourceUrl: 'https://example.test/sample.png', dataBase64: png, mimeType: 'image/png' }, { type: 'file', name: 'report.pdf', mimeType: 'application/pdf', size: 1234567 }],
-    },
-] });
+const imageBytes = new Uint8Array(Buffer.from(png, 'base64'));
+const otherBytes = new Uint8Array(Buffer.from(secondPng, 'base64'));
+const paragraph = (body: string): BlockNode => ({ type: 'paragraph', children: [{ type: 'text', text: body }] });
+const context = () => ({ signal: new AbortController().signal, reportProgress() {} });
 
-test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips preserve meaning', async () => {
-    const raw = fixture(), before = structuredClone(raw);
-    const parsed = historicalFixture(raw, { providerId: 'gemini' });
-    const domain = structuredClone(parsed.conversation);
-    const roundTrip = JSON.parse(JSON.stringify(domain)) as typeof domain;
-    assert.deepEqual(composeDomainDocument(roundTrip, fixtureAccountFor(roundTrip)), composeDomainDocument(domain, fixtureAccountFor(domain)));
-    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
-    assert.ok(prepared.ok);
-    assert.deepEqual(prepared.document, composeDomainDocument({ index: { ...domain.index,  }, detail: {   ...domain.detail } }, fixtureAccountFor({ index: { ...domain.index, url: `https://gemini.google.com/app/${domain.index.key.conversationId}` }, detail: {  ...domain.detail } })).document);
-    assert.deepEqual(JSON.parse(JSON.stringify(prepared.document)), prepared.document);
-    assert.ok(!('bundle' in prepared) && !('byteStore' in prepared));
-    assert.deepEqual(parsed.conversation, domain);
-    assert.deepEqual(raw, before);
-});
+/** V2 starts at the trusted L2 schema, not the removed PDF-specific parser/item pipeline. */
+function fixture(): DomainConversationWithDetail {
+    const key = fixtureKey('direct-pdf');
+    return {
+        index: { key, title: 'Direct PDF boundary', titleSource: 'provider',
+            createdAt: 1700000000000, updatedAt: 1700000000000 },
+        detail: {
+            key, savedAt: 1700000000000, quality: { status: 'complete' },
+            assets: [
+                { id: 'sample', kind: 'image', name: 'Sample', mediaType: 'image/png',
+                    sourceUri: 'https://example.test/sample.png' },
+                { id: 'report', kind: 'file', name: 'report.pdf', mediaType: 'application/pdf', byteLength: 1234567 },
+            ],
+            messages: [
+                { role: 'user', content: [paragraph('Explain the pipeline.')] },
+                { role: 'assistant', reasoning: [paragraph('Check every relation.')], content: [
+                    { type: 'heading', level: 1, children: [{ type: 'text', text: 'Results' }] },
+                    { type: 'paragraph', children: [
+                        { type: 'strong', children: [{ type: 'text', text: 'Strong' }] },
+                        { type: 'text', text: ' text and ' },
+                        { type: 'link', href: 'https://example.test', children: [{ type: 'text', text: 'source' }] },
+                    ] },
+                    { type: 'quote', blocks: [paragraph('A quoted result.')] },
+                    { type: 'list', ordered: true, start: 1,
+                        items: [{ blocks: [paragraph('First')] }, { blocks: [paragraph('Second')] }] },
+                    { type: 'code', language: 'ts', meta: 'filename=pipeline.ts', code: 'const layers = 2;' },
+                    { type: 'math', source: '\\frac{a}{b}' },
+                    { type: 'table', columns: [{}, { align: 'right' }],
+                        headerRows: [{ cells: [{ children: [{ type: 'text', text: 'Item' }] },
+                            { children: [{ type: 'text', text: 'Value' }] }] }],
+                        rows: [{ cells: [{ children: [{ type: 'text', text: 'Result' }] },
+                            { children: [{ type: 'text', text: '42' }] }] }] },
+                    { type: 'image', assetId: 'sample', alt: 'Sample' },
+                    ...Array.from({ length: 100 }, (_, i) =>
+                        paragraph('Paragraph ' + i + ': This detailed explanation exercises physical page breaks and flowing text.')),
+                ], attachmentIds: ['report'] },
+            ],
+        },
+    };
+}
 
-test('intrinsic file size and unknown role survive parser and JSON without output formatting', () => {
-    const raw = { id: 'file', messages: [{ role: 'historical-tool', content: 'Answer', attachments: [{ type: 'file', name: 'note.txt', dataBuffer: new Uint8Array([65, 66, 67]) }] }] };
-    const parsed = historicalFixture(raw, { providerId: 'gemini' }).conversation;
-    assert.equal(parsed.detail.assets[0].byteLength, 3);
-    assert.equal(parsed.detail.messages[0].role, 'unknown');
-    assert.equal(Object.hasOwn(parsed.detail.messages[0], 'provenance'), false);
-    const restored = JSON.parse(JSON.stringify(parsed)) as typeof parsed;
-    assert.deepEqual(composeDomainDocument(restored, fixtureAccountFor(restored)), composeDomainDocument(parsed, fixtureAccountFor(parsed)));
-    const file = composeDomainDocument(parsed, fixtureAccountFor(parsed)).document.messages[0].blocks.find(block => block.type === 'file');
-    assert.ok(file && file.type === 'file');
-    assert.equal(file.byteLength, 3);
-    assert.equal(file.label, 'note.txt');
-});
-
-test('PDF hydration cannot conflate two sources sharing an export destination', async () => {
-    const urls: string[] = [];
-    const raw = { id: 'collision', messages: [{ role: 'model', content: 'Two images', images: [
-        { type: 'image', localName: 'assets/same.png', url: 'https://example.test/one' },
-        { type: 'image', localName: 'assets/same.png', url: 'https://example.test/two' },
-    ] }] };
-    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ fetchAsset: async request => {
-        const url = typeof request === 'string' ? request : request.url ?? '';
-        urls.push(url);
-        return { success: true, mime: 'image/png', dataBase64: url.endsWith('/one') ? png : secondPng };
-    } }) });
-    assert.ok(prepared.ok);
-    assert.deepEqual(urls, ['https://example.test/one', 'https://example.test/two']);
-    assert.equal(prepared.resources.size, 2);
-    const imageIds = prepared.document.messages[0].blocks
-        .filter(block => block.type === 'image')
-        .map(block => block.type === 'image' ? block.resourceId : '');
-    assert.equal(new Set(imageIds).size, 2, 'source images sharing an export name must remain separate Domain assets');
-    const recoveredBytes = imageIds.map(id => {
-        const outcome = prepared.resources.get(id);
-        assert.ok(outcome?.ok, `missing prepared resource for ${id}`);
-        return Buffer.from(outcome.value.bytes).toString('base64');
-    });
-    assert.deepEqual(recoveredBytes, [png, secondPng],
-        'each prepared resource must retain its OWN source bytes, not just exist in a two-entry map');
-});
-
-test('PDF transport matches reference and real compiled pages contain source-authored text', async () => {
+test('trusted Domain and Document AST JSON round-trips preserve reasoning, content and resource identity', () => {
     const raw = fixture();
-    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
-    assert.ok(prepared.ok);
-    const resolved = await resourceStage(prepared, ctx);
-    const direct = await payloadStage({ document: prepared.document, pathMap: resolved.output.pathMap, locale: 'en' }, ctx);
-    const reference: TypstConversationRenderPayload = JSON.parse(readFileSync('tests/fixtures/pdf-domain-direct-reference.json', 'utf8'));
-    // Engine transport should match independently of the source identity namespace.
-    assert.deepEqual(direct.output.payload, reference);
-    const host = new RealWasmSandboxHost(repoRoot());
-    const compiler = new TypstSandboxCompiler({ host });
+    const original = structuredClone(raw);
+    const domain = validateParserDomain(raw);
+    const restored = validateParserDomain(JSON.parse(JSON.stringify(domain)));
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain));
+    assert.deepEqual(composeDomainDocument(restored, fixtureAccountFor(restored)), document);
+    assert.deepEqual(JSON.parse(JSON.stringify(document)), document);
+
+    assert.equal(document.metadata.id, domain.index.key.conversationId);
+    assert.equal(document.metadata.provider, fixtureAccountFor(domain).providerId);
+    assert.equal(document.metadata.updatedAt, 1700000000000);
+    assert.equal(document.messages[1].blocks[0].type, 'disclosure', 'reasoning appears before content');
+    assert.equal(document.messages[1].blocks[1].type, 'heading');
+    const attachment = document.messages[1].blocks.at(-1);
+    assert.ok(attachment && attachment.type === 'file');
+    assert.equal(attachment.resourceId, 'report');
+    assert.equal(attachment.byteLength, 1234567);
+    const refs = collectDocumentResources(document);
+    assert.deepEqual([...refs.imageIds], ['sample']);
+    assert.deepEqual([...refs.fileIds], ['report']);
+    assert.deepEqual([...refs.referencedIds], ['sample', 'report']);
+
+    assert.ok(!('resources' in document) && !('byteStore' in document));
+    assert.ok(!JSON.stringify(document).includes('dataBase64'));
+    assert.deepEqual(raw, original);
+});
+
+test('unknown message roles and intrinsic file sizes survive v2 Domain JSON without formatter metadata', () => {
+    const key = fixtureKey('file-facts');
+    const domain = validateParserDomain({
+        index: { key },
+        detail: { key, quality: { status: 'complete' },
+            assets: [{ id: 'note', kind: 'file', name: 'note.txt', byteLength: 3 }],
+            messages: [{ role: 'unknown', content: [], attachmentIds: ['note'] }] },
+    });
+    assert.equal(domain.detail.assets[0].byteLength, 3);
+    assert.equal(domain.detail.messages[0].role, 'unknown');
+    assert.equal(Object.hasOwn(domain.detail.messages[0], 'provenance'), false);
+    const restored = validateParserDomain(JSON.parse(JSON.stringify(domain)));
+    const document = composeDomainDocument(restored, fixtureAccountFor(restored));
+    assert.deepEqual(document, composeDomainDocument(domain, fixtureAccountFor(domain)));
+    const file = document.messages[0].blocks[0];
+    assert.equal(file.type, 'file');
+    if (file.type === 'file') {
+        assert.equal(file.resourceId, 'note');
+        assert.equal(file.byteLength, 3);
+        assert.equal(file.label, 'note.txt');
+    }
+});
+
+test('PDF acquisition and Packaging cannot conflate two image sources sharing an export name', async () => {
+    const key = fixtureKey('collision');
+    const domain = validateParserDomain({
+        index: { key, title: 'Images', titleSource: 'provider' },
+        detail: { key, quality: { status: 'complete' },
+            assets: [
+                { id: 'one', kind: 'image', name: 'same.png', mediaType: 'image/png', sourceUri: 'https://example.test/one' },
+                { id: 'two', kind: 'image', name: 'same.png', mediaType: 'image/png', sourceUri: 'https://example.test/two' },
+            ],
+            messages: [{ role: 'assistant', content: [
+                { type: 'image', assetId: 'one' }, { type: 'image', assetId: 'two' },
+            ] }] },
+    });
+    const before = JSON.stringify(domain);
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain));
+    const refs = collectDocumentResources(document);
+    const urls: string[] = [];
+    const prepared = await prepareExportResources(domain.detail.assets, refs.referencedIds, async asset => {
+        urls.push(asset.sourceUri!);
+        return { bytes: asset.id === 'one' ? imageBytes : otherBytes, mediaType: 'image/png' };
+    });
+    assert.deepEqual(urls, ['https://example.test/one', 'https://example.test/two']);
+    assert.deepEqual(resourceValue(prepared.get('one')).bytes, imageBytes);
+    assert.deepEqual(resourceValue(prepared.get('two')).bytes, otherBytes);
+
+    const plan = createExportPathPlanner('pdf')(domain, prepared, refs.fileIds);
+    assert.ok(plan.resources.one && plan.resources.two);
+    assert.notEqual(plan.resources.one, plan.resources.two, 'Packaging must reserve separate paths for the same file name');
+    assert.deepEqual([...plan.externalResourceIds], [], 'image-only PDF resources are embedded, not exported again');
+
+    let compiled = 0;
+    const compiler: IPdfCompiler = { name: 'capture-pdf-bindings', async compile(payload, ctx) {
+        compiled++;
+        assert.deepEqual([...payload.assetPaths], [['one', plan.resources.one], ['two', plan.resources.two]]);
+        assert.deepEqual(await ctx.assets.resolve('one'), { bytes: imageBytes });
+        assert.deepEqual(await ctx.assets.resolve('two'), { bytes: otherBytes });
+        const blocks = payload.document.messages[0].blocks;
+        assert.deepEqual(blocks.filter(block => block.type === 'image').map(block =>
+            block.type === 'image' ? block.asset : ''), [plan.resources.one, plan.resources.two]);
+        return { pdfBytes: buildMinimalValidPdf(), diagnostics: [] };
+    } };
+    const result = await compileDocumentPdf(document, plan.resources, prepared, compiler, context());
+    assert.equal(compiled, 1);
+    assert.equal(result.diagnostics.some(d => d.code === 'FORMAT_CONTENT_OMITTED'), false);
+    assert.equal(buildExportFiles('pdf', plan, result.pdfBytes, prepared).length, 1);
+    assert.equal(JSON.stringify(domain), before);
+});
+
+test('v2 PDF transport and real WASM compilation retain authored text across physical pages', async () => {
+    const domain = validateParserDomain(fixture());
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain));
+    const transport = renderDocumentTypst(document, {}, { locale: 'en' });
+    assert.equal(transport.schemaVersion, 1);
+    assert.equal(transport.profile.id, 'pdf');
+    assert.equal(transport.title, 'Direct PDF boundary');
+    assert.equal(transport.messages.length, 2);
+    assert.match(JSON.stringify(transport.messages[1]), /const layers = 2/);
+    assert.match(JSON.stringify(transport.messages[1]), /report\.pdf/);
+
+    const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
     try {
-        const rendered = (await compiler.compile(
-            { rendererSchemaVersion: 1, document: direct.output.payload, assetPaths: resolved.output.pathMap },
-            { ...ctx, assets: { resolve: async id => {
-                const path = resolved.output.pathMap.get(id);
-                const mount = resolved.output.mounts.find(item => item.virtualPath === path);
-                return mount ? { bytes: mount.bytes } : null;
-            } } },
-        )).pdfBytes;
-        const physical = extractPdfText(rendered);
+        // includeAssets=false: the shared Export prepares an empty map; Image nodes remain readable.
+        const compiled = await compileDocumentPdf(document, {}, new Map(), compiler, context(), { locale: 'en' });
+        const physical = extractPdfText(compiled.pdfBytes);
         assert.ok(physical.pageCount >= 3, 'long source text must paginate in the compiled PDF');
         assert.match(physical.text, /Explain the pipeline/, 'actual PDF must contain the user question');
-        assert.match(physical.text, /Paragraph 99:/, 'actual PDF must contain the end of the long model answer');
+        assert.match(physical.text, /Paragraph 99:/, 'actual PDF must contain the end of the model answer');
         assert.match(physical.text, /Results/, 'actual PDF must preserve the authored heading');
-    } finally { compiler.dispose(); }
+        assert.ok(!compiled.diagnostics.some(d => d.code === 'FORMAT_CONTENT_OMITTED'),
+            'intentional includeAssets=false placeholders are not unexpected content loss');
+    } finally {
+        compiler.dispose();
+    }
 });

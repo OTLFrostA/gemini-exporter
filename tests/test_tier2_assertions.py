@@ -20,6 +20,7 @@ from scripts.framework.assertions import (
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
+from scripts.framework.cases.chat import read_initial_export_markdown
 from scripts.framework.cases.export import ImagenMultimodalCase
 from scripts.framework.cases.export import (
     LiveSaveNewChatCase, HtmlExportDownloadCase, PdfExportDownloadCase,
@@ -32,6 +33,7 @@ from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
 from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.image_evidence import assert_image_files, assert_zip_images, image_pixels, capture_webpage_images
+from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
 
 CID = '0123456789abcdef'
 OTHER = 'abcdef0123456789'
@@ -48,12 +50,57 @@ def document(evidence=EVIDENCE, cid=CID):
 
 
 def scan_evidence():
-    return {'started': True, 'finished': True, 'response': {'success': True, 'diagnostics': {
-        'incremental': False, 'totalPagesFetched': 2, 'totalConversations': 40,
-        'endTime': '2026-10-09T20:00:00Z', 'hitGoogleLimit': False,
-        'stopReason': '第 2 页未返回下页游标 nextPageToken，Google 服务端游标已到底',
-        'pageHistory': [{'page': 1, 'hasNextPageToken': True}, {'page': 2, 'hasNextPageToken': False}],
-    }}}
+    return {'started': True, 'finished': True, 'response': {
+        'status': 'complete', 'pagesFetched': 2, 'conversationsFetched': 40}}
+
+
+class V2MarkdownFormatContracts(unittest.TestCase):
+    """Keep Tier 2 file assertions aligned with the real L4 renderer."""
+
+    def test_v2_frontmatter_does_not_require_export_clock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checker = ExportSpecificationAsserter(directory)
+            content = ('---\ntitle: "Real v2 export"\nid: "' + CID
+                       + '"\nprovider: "gemini"\ndate: "2026-10-19T00:00:00.000Z"'
+                       + '\nupdated: "2026-10-19T01:00:00.000Z"\ntags:\n  - gemini-export'
+                       + '\n---\n\n# Real v2 export\n')
+            checker.assert_frontmatter(content, 'v2.md')
+            self.assertEqual(checker.errors, [])
+            for invalid in (
+                content.replace(f'id: "{CID}"\n', ''),
+                content.replace('2026-10-19T01:00:00.000Z', 'invalid-time'),
+            ):
+                rejected = ExportSpecificationAsserter(directory)
+                rejected.assert_frontmatter(invalid, 'v2.md')
+                self.assertTrue(rejected.errors)
+
+    def test_v2_both_locales_preserve_role_and_answer_validation(self):
+        turn = [{'prompt': 'Describe the model', 'response': 'Finished result.', 'has_images': False}]
+        english = '## 👤 You\n\nDescribe the model\n\n## 🤖 Assistant\n\nFinished result.\n'
+        chinese = '## 👤 你\n\nDescribe the model\n\n## 🤖 助手\n\nFinished result.\n'
+        for content in (english, chinese):
+            with self.subTest(content=content):
+                self.assertTrue(assert_turn_content(content, turn)[0])
+                with tempfile.TemporaryDirectory() as directory:
+                    checker = ExportSpecificationAsserter(directory)
+                    checker.assert_turn_flow(content, 'v2.md', min_turns=1)
+                    self.assertEqual(checker.errors, [])
+                self.assertFalse(assert_turn_content(content.replace('Finished result.', 'Different result.'), turn)[0])
+
+    def test_image_ownership_parses_both_v2_role_locales(self):
+        with tempfile.TemporaryDirectory() as directory:
+            assets = Path(directory) / 'assets'
+            assets.mkdir()
+            (assets / 'user.png').write_bytes(b'original image' * 100)
+            (assets / 'generated.png').write_bytes(b'model generated image' * 100)
+            for user, assistant in (('You', 'Assistant'), ('你', '助手')):
+                with self.subTest(locale=user):
+                    content = (f'## 👤 {user}\n\n![user](assets/user.png)\n\n'
+                               f'## 🤖 {assistant}\n\n![Generated Image](assets/generated.png)\n')
+                    checker = ExportSpecificationAsserter(directory)
+                    checker.assert_multi_turn_uploads('v2.md', content, expected_count=1)
+                    checker.assert_ai_generated_images('v2.md', content, min_images=1)
+                    self.assertEqual(checker.errors, [])
 
 
 class StaleTabHistoryTests(unittest.TestCase):
@@ -71,7 +118,7 @@ class StaleTabHistoryTests(unittest.TestCase):
         cdp.eval.side_effect = [7, receivers, None, after_scan or receivers, False, None]
         with patch('scripts.framework.cases.export.select_source_account') as select, \
              patch('scripts.framework.cases.export.wait_for_prior_scan') as prior, \
-             patch('scripts.framework.cases.export.reset_only_coverage') as reset, \
+             patch('scripts.framework.cases.export.clear_scan_records') as reset, \
              patch.object(CDPActions, 'trigger_deep_scan', return_value=scan) as sync, \
              patch.object(CDPActions, 'trigger_export_zip') as export:
             result = StaleTabImageExportCase().execute(ctx)
@@ -248,11 +295,12 @@ class DiskContentTests(unittest.TestCase):
         def export_now(script, *args, **kwargs):
             if "return !!btn" in script:
                 return True
-            if "const formatType" in script:
+            if "btn.click();" in script:
                 path.write_bytes(b'fresh ZIP bytes')
                 return {'clicked': True}
         cdp.eval.side_effect = export_now
-        with patch('scripts.framework.actions.time.sleep'):
+        with patch('scripts.framework.actions.time.sleep'), \
+             patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}):
             result = CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1)
         self.assertEqual(result, str(path))
         cdp.call.assert_called_once_with('Browser.setDownloadBehavior', {
@@ -267,7 +315,8 @@ class DiskContentTests(unittest.TestCase):
         cdp.reset_mock()
         cdp.call.return_value = {'result': {}}
         cdp.eval.side_effect = [True, {'clicked': False}]
-        with patch('scripts.framework.actions.time.sleep') as sleep:
+        with patch('scripts.framework.actions.time.sleep') as sleep, \
+             patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}):
             self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
         sleep.assert_not_called()  # Never enter the download wait after a missed click.
 
@@ -558,279 +607,208 @@ value = 2 ** 3
         self.assertFalse(assert_turn_content(exported.replace('Was this visual helpful?', ''), evidence)[0])
 
 class ScanAndImportTests(unittest.TestCase):
-    def fallback_fixture(self):
-        baseline, before, scan, after = self.activity_fixture()
-        for state in (baseline['state'], before, after):
-            coverage = state['coverage']
-            coverage.update(complete=True, lastStatus='complete', baseline={'headTimestamp': 100})
-            coverage['streams']['pinned'] = {'initialized': True, 'historyComplete': True, 'range': None}
-            coverage['streams']['recent'].update(historyComplete=True, range=None, orderingInvalidated=True)
-        scan = scan_evidence()
-        scan['response']['status'] = 'complete'
-        scan['response']['diagnostics']['totalPagesFetched'] = 8
-        return baseline, before, scan, after
+    account = '10000000-0000-4000-8000-000000000001'
 
-    def test_order_invalidated_activity_requires_real_exhaustive_fallback_and_preserves_targets(self):
-        baseline, before, scan, after = self.fallback_fixture()
-        self.assertTrue(assert_followup_scan_result(scan, before['coverage'], after['coverage'])[0])
-        self.assertTrue(assert_activity_sync_result(baseline, before, scan, after, [CID, OTHER])[0])
-        self.assertFalse(assert_incremental_scan_result(scan, before['coverage'], after['coverage'])[0])
-        attempted = copy.deepcopy(scan)
-        attempted['response']['diagnostics']['incremental'] = True
-        self.assertTrue(assert_followup_scan_result(attempted, before['coverage'], after['coverage'])[0])
-        self.assertFalse(assert_full_scan_coverage(attempted, after['coverage'])[0])
-        for change in ('partial', 'range', 'account', 'marker', 'status', 'target', 'archive'):
-            ev, state = copy.deepcopy(scan), copy.deepcopy(after)
-            if change == 'partial': ev['response']['diagnostics']['stopReason'] = 'Token loop'
-            if change == 'range': state['coverage']['streams']['recent']['range'] = {'head': {'time': 100}, 'tail': {'time': 10}}
-            if change == 'account': state['coverage']['accountId'] = 'other'
-            if change == 'marker': state['coverage']['streams']['recent'].pop('orderingInvalidated')
-            if change == 'status': ev['response']['status'] = 'up_to_date'
-            if change == 'target': state['rows'] = [r for r in state['rows'] if r['id'] != OTHER]
-            if change == 'archive': state['exportIds'] = []
-            self.assertFalse(assert_activity_sync_result(baseline, before, ev, state, [CID, OTHER])[0], change)
-
-    def test_incremental_requires_runtime_and_durable_same_account_closure(self):
-        evidence = scan_evidence()
-        evidence['response']['status'] = 'up_to_date'
-        diag = evidence['response']['diagnostics']
-        diag['incremental'] = True
-        diag['stopReason'] = 'Connected to verified activity coverage'
-        coverage = {'version': 4, 'providerId': 'gemini', 'accountId': '10000000-0000-4000-8000-000000000001', 'generation': 'g',
-                    'initialized': True, 'historyComplete': False, 'activeRunId': None, 'lastStatus': 'up_to_date',
-                    'streams': {'recent': {'initialized': True, 'range': {'head': {'id': 'h', 'time': 100}, 'tail': {'id': 't', 'time': 10}}}}}
-        self.assertTrue(assert_incremental_scan_result(evidence, coverage, copy.deepcopy(coverage))[0])
-        for field in ('accountId', 'generation', 'historyComplete', 'activeRunId', 'lastStatus'):
-            changed = copy.deepcopy(coverage)
-            changed[field] = 'wrong'
-            self.assertFalse(assert_incremental_scan_result(evidence, coverage, changed)[0], field)
-        lost = copy.deepcopy(coverage)
-        lost['streams']['recent']['range']['tail']['time'] = 20
-        self.assertFalse(assert_incremental_scan_result(evidence, coverage, lost)[0])
-        self.assertFalse(assert_incremental_scan_result(evidence, {}, coverage)[0])
-        diag['stopReason'] = 'Token loop'
-        self.assertFalse(assert_incremental_scan_result(evidence, coverage, coverage)[0])
+    def coverage(self, head=100, tail=10):
+        return {'range': {'head': {'id': CID, 'time': head}, 'tail': {'id': OTHER, 'time': tail}}}
 
     def activity_fixture(self):
-        coverage = {'version': 4, 'providerId': 'gemini', 'accountId': '10000000-0000-4000-8000-000000000001', 'generation': 'g',
-                    'initialized': True, 'historyComplete': True, 'activeRunId': None, 'lastStatus': 'up_to_date',
-                    'streams': {'recent': {'initialized': True, 'range': {
-                        'head': {'id': CID, 'time': 100}, 'tail': {'id': 'tail', 'time': 10}}}}}
-        initial = {'coverage': coverage, 'rows': [{'id': CID, 'updatedAt': 100, 'titleSource': 'provider'},
-                    {'id': 'tail', 'updatedAt': 10, 'titleSource': 'provider'}], 'exportIds': [CID]}
+        initial = {'accountId': self.account, 'coverage': self.coverage(),
+                   'rows': [{'key': {'accountId': self.account, 'conversationId': CID}, 'title':'First', 'titleSource':'provider', 'updatedAt':100},
+                            {'key': {'accountId': self.account, 'conversationId': OTHER}, 'title':'Other', 'titleSource':'provider', 'updatedAt':10}], 'exportIds':[CID]}
         after = copy.deepcopy(initial)
-        after['coverage']['streams']['recent']['range']['head'] = {'id': OTHER, 'time': 120}
-        after['rows'][0]['updatedAt'] = 110
-        after['rows'].append({'id': OTHER, 'updatedAt': 120, 'titleSource': 'provider'})
+        after['coverage'] = self.coverage(120)
+        after['rows'][0]['updatedAt'] = 120
+        after['rows'][1]['updatedAt'] = 110
         scan = scan_evidence()
         scan['response']['status'] = 'up_to_date'
-        scan['response']['diagnostics'].update(incremental=True, stopReason='Connected to verified activity coverage')
         full = scan_evidence()
-        full['response']['diagnostics']['totalPagesFetched'] = 8
-        return {'state': initial, 'scan': full}, copy.deepcopy(initial), scan, after
+        full['response']['pagesFetched'] = 8
+        return {'state':initial, 'scan':full}, copy.deepcopy(initial), scan, after
 
-    def test_natural_traversal_requires_durable_complete_coverage(self):
-        baseline, _, _, _ = self.activity_fixture()
-        coverage = copy.deepcopy(baseline['state']['coverage'])
-        coverage.update(complete=True, lastStatus='complete')
-        coverage['streams']['recent']['historyComplete'] = True
-        coverage['streams']['pinned'] = {'initialized': True, 'historyComplete': True, 'range': None}
-        self.assertTrue(assert_full_scan_coverage(baseline['scan'], coverage)[0])
-        for field in ('historyComplete', 'complete', 'initialized'):
-            broken = copy.deepcopy(coverage)
-            broken[field] = False
-            self.assertFalse(assert_full_scan_coverage(baseline['scan'], broken)[0], field)
-        for stream in ('pinned', 'recent'):
-            broken = copy.deepcopy(coverage)
-            broken['streams'][stream]['historyComplete'] = False
-            self.assertFalse(assert_full_scan_coverage(baseline['scan'], broken)[0], stream)
-        broken = copy.deepcopy(coverage)
-        broken['activeRunId'] = 'unfinished'
-        self.assertFalse(assert_full_scan_coverage(baseline['scan'], broken)[0])
-        partial = copy.deepcopy(baseline['scan'])
-        partial['response']['diagnostics']['stopReason'] = 'rate limited'
-        self.assertFalse(assert_full_scan_coverage(partial, coverage)[0])
+    def test_full_scan_requires_real_result_and_v2_recent_row(self):
+        self.assertTrue(assert_full_scan_coverage(scan_evidence(), self.coverage())[0])
+        self.assertTrue(assert_full_scan_coverage(scan_evidence(), {'range':None})[0])
+        for status in ('provider_limit','max_pages','error','aborted','up_to_date'):
+            evidence = scan_evidence(); evidence['response']['status'] = status
+            self.assertFalse(assert_full_scan_coverage(evidence, self.coverage())[0])
+        for broken in (None, {}, {'version':4,'range':None}, self.coverage(5), {'range':{'head':{'id':'h','time':float('nan')},'tail':{'id':'t','time':1}}}):
+            self.assertFalse(assert_full_scan_coverage(scan_evidence(), broken)[0])
 
-    def test_passive_requires_actual_same_account_rpc_and_persisted_endpoints(self):
-        baseline, _, _, _ = self.activity_fixture()
-        after = copy.deepcopy(baseline['state'])
-        after['coverage']['lastStatus'] = None
-        pages = [{'streamId': 'recent', 'accountId': '10000000-0000-4000-8000-000000000001', 'requestedAt': 1, 'truncated': False}]
-        self.assertTrue(assert_passive_coverage({'coverage': None}, after, pages)[0])
-        for changes in ({'accountId': 'other'}, {'requestedAt': 0}, {'truncated': True}, {'streamId': 'pinned'}):
-            with self.subTest(changes=changes):
-                self.assertFalse(assert_passive_coverage({'coverage': None}, after, [dict(pages[0], **changes)])[0])
-        self.assertFalse(assert_passive_coverage({'coverage': None}, after, [])[0])
-        for key, value in (('activeRunId', 'active'), ('lastStatus', 'up_to_date'), ('accountId', None)):
-            broken = copy.deepcopy(after)
-            broken['coverage'][key] = value
-            self.assertFalse(assert_passive_coverage({'coverage': None}, broken, pages)[0], key)
-        broken = copy.deepcopy(after)
-        broken['rows'] = []
-        self.assertFalse(assert_passive_coverage({'coverage': None}, broken, pages)[0])
-        broken = copy.deepcopy(after)
-        broken['coverage']['streams']['recent']['range']['tail']['time'] = 101
-        self.assertFalse(assert_passive_coverage({'coverage': None}, broken, pages)[0])
+    def test_incremental_requires_boundary_result_and_preserves_tail(self):
+        baseline, before, scan, after = self.activity_fixture()
+        self.assertTrue(assert_incremental_scan_result(scan,before['coverage'],after['coverage'])[0])
+        for value in ({'range':None}, self.coverage(90), self.coverage(120,20)):
+            self.assertFalse(assert_incremental_scan_result(scan,before['coverage'],value)[0])
+        self.assertFalse(assert_incremental_scan_result(scan_evidence(),before['coverage'],after['coverage'])[0])
+        self.assertTrue(assert_followup_scan_result(scan_evidence(),{'range':None},{'range':None})[0])
+
+    def test_activity_requires_same_uuid_targets_and_retained_archives(self):
+        baseline, before, scan, after = self.activity_fixture()
+        self.assertTrue(assert_activity_sync_result(baseline,before,scan,after,[CID,OTHER])[0])
+        for change in ('account','target','time','record','archive'):
+            state = copy.deepcopy(after)
+            if change == 'account': state['accountId'] = 'default'
+            if change == 'target': state['rows'] = state['rows'][:1]
+            if change == 'time': state['rows'][0]['updatedAt'] = 100
+            if change == 'record': state['exportIds'] = []
+            if change == 'archive': state['rows'].append({'key':{'accountId':self.account,'conversationId':'new'}}); baseline['state']['rows'].append({'key':{'accountId':self.account,'conversationId':'archived'}})
+            if change == 'head': state['coverage']['range']['head']['time'] = 101
+            self.assertFalse(assert_activity_sync_result(baseline,before,scan,state,[CID,OTHER])[0],change)
+
+    def test_passive_requires_matching_observation_and_committed_endpoints(self):
+        before = {'accountId':self.account,'coverage':None}
+        after = {'accountId':self.account,'coverage':self.coverage(), 'rows':[{'key':{'accountId':self.account,'conversationId':CID}},{'key':{'accountId':self.account,'conversationId':OTHER}}]}
+        observed = [{'streamId':'recent','accountId':self.account,'requestedAt':1,'truncated':False}]
+        self.assertTrue(assert_passive_coverage(before,after,observed)[0])
+        partial = {**after, 'coverage': {'range': None}}
+        self.assertTrue(assert_passive_coverage(before,partial,observed)[0])
+        for pages in ([],[{**observed[0],'accountId':'default'}],[{**observed[0],'truncated':True}]):
+            self.assertFalse(assert_passive_coverage(before,after,pages)[0])
+        after['rows'] = after['rows'][:1]
+        self.assertFalse(assert_passive_coverage(before,after,observed)[0])
 
     def test_passive_setup_waits_for_onboarding_scan_to_settle(self):
-        cdp = MagicMock()
-        cdp.eval.side_effect = [True, False, False]
-        with patch('scripts.framework.cases.sync.read_sync_state', side_effect=[
-                {'coverage': None}, {'coverage': {'activeRunId': 'running'}},
-                {'coverage': {'activeRunId': None, 'lastStatus': 'complete'}}]), \
-                patch('scripts.framework.cases.sync.time.sleep') as sleep:
+        from scripts.framework.cases.sync import wait_for_prior_scan
+        cdp = MagicMock(); cdp.eval.side_effect = [False,False,True]
+        with patch('scripts.framework.cases.sync.time.sleep') as sleep:
             wait_for_prior_scan(cdp)
-        self.assertEqual(sleep.call_count, 2)
-        with patch('scripts.framework.cases.sync.time.monotonic', side_effect=[0, 331]):
-            with self.assertRaisesRegex(RuntimeError, 'did not settle'):
-                wait_for_prior_scan(cdp)
-
-    def test_activity_sync_requires_new_and_promoted_activity_with_shorter_scan(self):
-        baseline, before, scan, after = self.activity_fixture()
-        self.assertTrue(assert_activity_sync_result(baseline, before, scan, after, [CID, OTHER])[0])
-        for cid in (CID, OTHER):
-            broken = copy.deepcopy(after)
-            row = next(row for row in broken['rows'] if row['id'] == cid)
-            row['updatedAt'] = 100
-            self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [cid])[0])
-        for key in ('accountId', 'generation'):
-            broken = copy.deepcopy(baseline)
-            broken['state']['coverage'][key] = 'wrong'
-            self.assertFalse(assert_activity_sync_result(broken, before, scan, after, [CID])[0])
-        broken = copy.deepcopy(after)
-        broken['coverage']['streams']['recent']['range']['head']['time'] = 100
-        self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [OTHER])[0])
-        broken = copy.deepcopy(scan)
-        broken['response']['diagnostics']['totalPagesFetched'] = 8
-        self.assertFalse(assert_activity_sync_result(baseline, before, broken, after, [OTHER])[0])
-        broken['response']['diagnostics']['stopReason'] = 'Token loop'
-        self.assertFalse(assert_activity_sync_result(baseline, before, broken, after, [OTHER])[0])
-
-    def test_activity_sync_preserves_partial_coverage_without_claiming_complete(self):
-        baseline, before, scan, after = self.activity_fixture()
-        for state in (baseline['state'], before, after):
-            state['coverage']['historyComplete'] = False
-        self.assertTrue(assert_activity_sync_result(baseline, before, scan, after, [OTHER])[0])
-        after['coverage']['historyComplete'] = True
-        self.assertFalse(assert_activity_sync_result(baseline, before, scan, after, [OTHER])[0])
-
-    def test_activity_sync_cannot_prune_archives_or_export_records(self):
-        baseline, before, scan, after = self.activity_fixture()
-        for key in ('rows', 'exportIds'):
-            broken = copy.deepcopy(after)
-            broken[key] = [row for row in broken[key] if not isinstance(row, dict) or row['id'] != 'tail'] if key == 'rows' else []
-            self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [OTHER])[0], key)
-        before['rows'].append({'id': 'offline-only', 'updatedAt': 5})
-        self.assertFalse(assert_activity_sync_result(baseline, before, scan, after, [OTHER])[0])
+        self.assertEqual(sleep.call_count,2)
 
     def test_complete_fast_scan_passes_without_sampling_busy_state(self):
-        self.assertTrue(assert_scan_result(scan_evidence())[0])
-        cdp = MagicMock()
-        cdp.eval.side_effect = [{'clicked': True}, scan_evidence(), None]
+        cdp = MagicMock(); cdp.eval.side_effect = [{'clicked':True},scan_evidence(),None]
         self.assertTrue(assert_scan_result(CDPActions.trigger_deep_scan(cdp))[0])
 
     def test_idle_unstarted_failed_and_partial_scans_fail(self):
-        for change in ('started', 'finished', 'success', 'limit', 'incremental', 'reason', 'diagnostics'):
-            with self.subTest(change=change):
-                e = scan_evidence()
-                if change in ('started', 'finished'): e[change] = False
-                elif change == 'success': e['response']['success'] = False
-                elif change == 'limit': e['response']['hitGoogleLimit'] = True
-                elif change == 'incremental': e['response']['diagnostics']['incremental'] = True
-                elif change == 'reason': e['response']['diagnostics']['stopReason'] = '已达到最大页数限制 (150 页)'
-                else: e['response']['diagnostics'] = {}
-                self.assertFalse(assert_scan_result(e)[0])
-        cdp = MagicMock()
-        cdp.eval.return_value = {'error': 'button missing'}
+        for change in ('started','finished','error','status','pages','entries'):
+            evidence = scan_evidence()
+            if change in ('started','finished'): evidence[change] = False
+            elif change == 'error': evidence['error'] = 'network'
+            elif change == 'status': evidence['response']['status'] = 'provider_limit'
+            elif change == 'pages': evidence['response']['pagesFetched'] = 0
+            else: evidence['response']['conversationsFetched'] = -1
+            self.assertFalse(assert_scan_result(evidence)[0],change)
+        cdp = MagicMock(); cdp.eval.return_value = {'error':'missing button'}
         self.assertFalse(assert_scan_result(CDPActions.trigger_deep_scan(cdp))[0])
 
     def test_click_without_bound_handler_does_not_pass(self):
-        cdp = MagicMock()
-        cdp.eval.side_effect = [{'clicked': True}, {'started': False}, None]
-        with patch('scripts.framework.actions.time.monotonic', side_effect=[0, 0, 4]):
-            result = CDPActions.trigger_deep_scan(cdp)
+        cdp = MagicMock(); cdp.eval.side_effect = [{'clicked':True},{'started':False},None]
+        with patch('scripts.framework.actions.time.monotonic', side_effect=[0,0,4]):
+            result = CDPActions.trigger_deep_scan(cdp,max_wait=3)
         self.assertFalse(assert_scan_result(result)[0])
 
     def test_all_matched_titles_must_upgrade(self):
         cdp = MagicMock()
-        first = {'id': CID, 'title': 'Online title', 'source': 'provider', 'hasTakeoutImport': True}
-        second = {'id': OTHER, 'title': 'Offline', 'source': 'derived', 'hasTakeoutImport': True}
-        cdp.eval.return_value = {'matched': [first, second]}
-        self.assertFalse(CDPAssertions.assert_title_upgraded(cdp, [CID, OTHER])[0])
-        cdp.eval.return_value = {'matched': [first]}
-        self.assertFalse(CDPAssertions.assert_title_upgraded(cdp, [CID, OTHER])[0])
-        self.assertTrue(CDPAssertions.assert_title_upgraded(cdp, [CID])[0])  # offline-only sample excluded
+        first = {'key':{'conversationId':CID},'title':'Online','titleSource':'provider'}
+        second = {'key':{'conversationId':OTHER},'title':'Offline','titleSource':'derived'}
+        with patch('scripts.framework.assertions.snapshot', return_value={'rows':[first,second]}):
+            self.assertFalse(CDPAssertions.assert_title_upgraded(cdp,[CID,OTHER])[0])
+            self.assertTrue(CDPAssertions.assert_title_upgraded(cdp,[CID])[0])
+    def takeout_fixture(self):
+        key = {'accountId': self.account, 'conversationId': CID}
+        index = {'key': key, 'title': 'Prompt', 'titleSource': 'derived'}
+        messages = [{'role': role, 'content': [{'type': 'paragraph', 'children': [{'type': 'text', 'text': text}]}]}
+                    for role, text in [('user', 'Prompt'), ('assistant', 'Answer')]]
+        detail = {'key': key, 'messages': messages, 'assets': [], 'quality': {'status': 'partial'}}
+        source = {CID: {'index': {k: v for k, v in index.items() if k != 'key'},
+                        'detail': {k: copy.deepcopy(v) for k, v in detail.items() if k != 'key'}}}
+        return {'id': CID, 'ok': True, 'account': {'id': self.account, 'providerId': 'gemini', 'providerAccountId':'gaia'},
+                'summary': copy.deepcopy(index), 'domain': {'index': index, 'detail': detail}, 'resources': []}, source
 
-    def test_takeout_empty_import_and_missing_resources_fail_idempotent_passes(self):
-        media = {'image.png': hashlib.sha256(b'image bytes').hexdigest()}
-        record = {'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
-                  'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
-                      {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}},
-                  'resources': [{'sourcePath': 'Takeout/image.png', 'bytes': base64.b64encode(b'image bytes').decode()}]}
-        self.assertTrue(validate_takeout_records([CID], media, [record])[0])
-        self.assertFalse(validate_takeout_records([CID], media, [])[0])
-        for field, value in [('conversationId', OTHER), ('accountId', 'another-account')]:
-            broken = copy.deepcopy(record)
-            broken['domain']['index']['key'][field] = value
-            self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
-        broken = copy.deepcopy(record)
-        broken['domain'] = {**record['domain']['index'], **record['domain']['detail']}
-        self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
-        for key in ('messages', 'resources', 'summary'):
-            broken = copy.deepcopy(record)
-            if key == 'messages': broken['domain']['detail']['messages'] = []
-            else: broken[key] = [] if key == 'resources' else {}
-            self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
-        broken = copy.deepcopy(record)
-        broken['domain']['detail']['messages'][0]['content'] = [{'type': 'paragraph', 'children': []}]
-        self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
+    def validate_takeout(self, record, source, media=None):
+        return validate_takeout_records([CID], media or {}, [record], source, self.account)[0]
 
-    def test_takeout_case_accepts_real_readable_reimport_with_zero_added(self):
+    def test_takeout_current_keys_and_readable_asset_bytes_required(self):
+        record, source = self.takeout_fixture()
+        asset = {'id':'image', 'kind':'image', 'sourceUri':'Takeout/image.png'}
+        record['domain']['detail']['assets'] = [asset]
+        record['resources'] = [{'assetId':'image', 'sourcePath':'Takeout/image.png', 'bytes':base64.b64encode(b'image bytes').decode()}]
+        media = {'Takeout/image.png': hashlib.sha256(b'image bytes').hexdigest()}
+        self.assertTrue(self.validate_takeout(record, source, media))
+        self.assertFalse(validate_takeout_records([CID], media, [], source, self.account)[0])
+        for change in ('detail-key','index-key','account','resources','bytes','asset-id','summary','messages','old-index','old-message','old-asset','empty-generation','old-generation'):
+            broken = copy.deepcopy(record)
+            if change == 'detail-key': broken['domain']['detail']['key'] = {'accountId':self.account,'conversationId':OTHER}
+            if change == 'index-key': broken['domain']['index']['key'] = {'accountId':'u0','conversationId':CID}
+            if change == 'account': broken['account']['id'] = 'u0'
+            if change == 'resources': broken['resources'] = []
+            if change == 'bytes': broken['resources'][0]['bytes'] = ''
+            if change == 'asset-id': broken['resources'][0]['assetId'] = 'unrelated'
+            if change == 'summary': broken['summary'] = {'title':'Prompt','hasTakeoutImport':True}
+            if change == 'messages': broken['domain']['detail']['messages'] = []
+            if change == 'old-index': broken['domain']['index']['titleSource'] = 'takeout'
+            if change == 'old-message': broken['domain']['detail']['messages'][1]['generation'] = {'mediaKind':'image','outputCount':1}
+            if change == 'old-asset': broken['domain']['detail']['assets'][0]['localName'] = 'export.png'
+            if change == 'empty-generation': broken['domain']['detail']['assets'][0]['generation'] = {}
+            if change == 'old-generation': broken['domain']['detail']['assets'][0]['generation'] = {'mediaKind':'image','outputCount':1}
+            self.assertFalse(self.validate_takeout(broken, source, media), change)
+        self.assertFalse(validate_takeout_records([CID], media, [record,record], source, self.account)[0])
+        self.assertFalse(self.validate_takeout(record, {}, media))
+
+    def test_takeout_image_reply_uses_current_asset_relationship_not_message_generation(self):
+        record, source = self.takeout_fixture()
+        detail = record['domain']['detail']
+        detail['messages'][1]['content'] = []
+        detail['messages'][1]['generation'] = {'mediaKind':'image','outputCount':1}
+        self.assertFalse(self.validate_takeout(record,source))
+        del detail['messages'][1]['generation']
+        detail['assets'] = [{'id':'image','kind':'image','generation':{'imageCount':1,'prompt':'Draw'}}]
+        self.assertFalse(self.validate_takeout(record,source), 'metadata does not prove an owned reply')
+        detail['messages'][1]['attachmentIds'] = ['image']
+        self.assertTrue(self.validate_takeout(record,source))
+        detail['messages'][1]['attachmentIds'] = ['foreign']
+        self.assertFalse(self.validate_takeout(record,source))
+
+    def test_takeout_unresolved_generation_notice_does_not_invent_assistant_message(self):
+        record, source = self.takeout_fixture()
+        source[CID]['detail']['messages'] = source[CID]['detail']['messages'][:1]
+        record['domain']['detail']['messages'] = record['domain']['detail']['messages'][:1]
+        self.assertTrue(self.validate_takeout(record,source))
+        source[CID]['detail']['messages'] = []
+        self.assertFalse(self.validate_takeout(record,source))
+
+    def test_takeout_case_checks_current_import_result_and_preserves_account(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'takeout.zip'
             with zipfile.ZipFile(path, 'w') as zf:
                 zf.writestr('Takeout/MyActivity.html', f'<a href="https://gemini.google.com/app/{CID}">Chat</a>')
-                zf.writestr('Takeout/README.txt', 'Unreferenced archive metadata is not a conversation resource.')
-            ctx = MagicMock(takeout_zip=str(path))
-            ctx.shared_data = {}
+            ctx = MagicMock(takeout_zip=str(path)); ctx.shared_data = {}
             cdp = ctx.connect_options.return_value
-            cdp.eval.return_value = [{'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
-                'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
-                    {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}}, 'resources': []}]
-            result = {'success': True, 'importedIds': [CID], 'status': 'ok', 'addedCount': 0}
-            with patch.object(CDPActions, 'import_takeout_zip', return_value=result):
+            record, source = self.takeout_fixture()
+            cdp.eval.return_value = [record]
+            result = {'success':True,'importedIds':[CID],'status':'partial','imported':1,'sourceFacts':source}
+            with patch.object(CDPActions,'import_takeout_zip',return_value=result), \
+                 patch('scripts.framework.cases.takeout.snapshot',return_value={'accountId':self.account}):
                 self.assertTrue(TakeoutZipImportCase().execute(ctx)[0])
-                cdp.eval.return_value = []
+                result['imported'] = 0
+                self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
+                result['imported'] = 1; cdp.eval.return_value = []
+                self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
+            cdp.eval.return_value = [record]
+            with patch.object(CDPActions,'import_takeout_zip',return_value=result), \
+                 patch('scripts.framework.cases.takeout.snapshot',side_effect=[{'accountId':self.account},{'accountId':'other'}]):
                 self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
 
-    def test_empty_image_reply_requires_source_recorded_generation(self):
-        record = {'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Draw', 'hasTakeoutImport': True},
-                  'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
-                      {'role': 'user', 'content': [{'text': 'Draw'}]},
-                      {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}},
-                  'resources': []}
-        self.assertFalse(validate_takeout_records([CID], {}, [record])[0])
-        self.assertTrue(validate_takeout_records([CID], {}, [record], {CID})[0])
-        record['domain']['detail']['messages'][1]['generation']['outputCount'] = 0
-        self.assertFalse(validate_takeout_records([CID], {}, [record], {CID})[0])
+    def test_coverage_activity_time_is_independent_of_optional_index_time(self):
+        baseline,before,scan,after = self.activity_fixture()
+        after['coverage']['range']['head']['time'] = 101
+        self.assertTrue(assert_activity_sync_result(baseline,before,scan,after,[CID,OTHER])[0])
+        after['rows'][0] = {'id':CID,'title':'Old flat row','titleSource':'rpc','updatedAt':120}
+        self.assertFalse(assert_activity_sync_result(baseline,before,scan,after,[CID,OTHER])[0])
 
-    def test_takeout_resource_count_cannot_replace_readable_bytes(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'takeout.zip'
-            with zipfile.ZipFile(path, 'w') as zf:
-                zf.writestr('Takeout/MyActivity.html', f'<div class="outer-cell">Prompted Draw<br>1 generated image.<a href="https://gemini.google.com/app/{CID}">Chat</a></div>')
-                zf.writestr('Takeout/media.png', b'Image bytes')
-            ctx = MagicMock(takeout_zip=str(path))
-            ctx.shared_data = {}
-            ctx.connect_options.return_value.eval.return_value = [{'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'},
-                'summary': {'title': 'Draw', 'hasTakeoutImport': True}, 'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
-                    {'role': 'user', 'content': [{'text': 'Draw'}]},
-                    {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}}, 'resources': []}]
-            res = {'success': True, 'importedIds': [CID], 'status': 'ok', 'totalMediaCount': 1}
-            with patch.object(CDPActions, 'import_takeout_zip', return_value=res):
-                self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
-                res['mediaDigests'] = {'Takeout/media.png': hashlib.sha256(b'Image bytes').hexdigest()}
-                self.assertTrue(TakeoutZipImportCase().execute(ctx)[0])
+    def test_confirmed_deletion_requires_same_account_removal_and_ui_notification(self):
+        key = {'accountId':self.account,'conversationId':CID}
+        result = {'sameAccount':True,'removed':True,'othersRetained':True,'inDom':False}
+        cdp = MagicMock()
+        cdp.eval.side_effect = lambda script, **kw: True if script == '!!globalThis.__tier2V2' else result
+        with patch('scripts.framework.assertions.time.sleep'):
+            self.assertTrue(CDPAssertions.assert_confirmed_deleted(cdp,key,[OTHER],timeout=.001)[0])
+            for field in ('sameAccount','removed','othersRetained','inDom'):
+                result[field] = not result[field]
+                self.assertFalse(CDPAssertions.assert_confirmed_deleted(cdp,key,[OTHER],timeout=.001)[0],field)
+                result[field] = not result[field]
+        self.assertIn('storedConversation(key)',cdp.eval.call_args.args[0])
+        self.assertIn(self.account,cdp.eval.call_args.args[0])
 
 
 class ImageOutcomeTests(unittest.TestCase):
@@ -935,6 +913,48 @@ class ImageOutcomeTests(unittest.TestCase):
                 self.assertFalse(check(evidence, MagicMock()))
 
 
+class V2SingleConversationDeliveryTests(unittest.TestCase):
+    """v2 physically delivers a bare .md unless other files require a ZIP."""
+
+    def test_initial_baseline_accepts_standalone_md_and_zip_with_assets(self):
+        content = document(cid=CID)
+        with tempfile.TemporaryDirectory() as directory:
+            for suffix in ('.md', '.zip'):
+                with self.subTest(delivery=suffix):
+                    path = Path(directory) / f'Chat_{CID[-6:]}{suffix}'
+                    if suffix == '.zip':
+                        with zipfile.ZipFile(path, 'w') as archive:
+                            archive.writestr(f'Chat_{CID[-6:]}.md', content)
+                            archive.writestr('assets/photo.png', b'original photo')
+                    else:
+                        path.write_text(content, encoding='utf-8')
+                    baseline = read_initial_export_markdown(str(path), 'c_' + CID)
+                    self.assertEqual(baseline, content)
+                    self.assertTrue(assert_turn_content(baseline, EVIDENCE)[0])
+
+    def test_initial_baseline_rejects_wrong_target_and_missing_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            wrong_file = directory / f'Chat_{OTHER[-6:]}.md'
+            wrong_file.write_text(document(cid=CID), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                read_initial_export_markdown(str(wrong_file), CID)
+            mismatched_id = directory / f'Chat_{CID[-6:]}.md'
+            mismatched_id.write_text(document(cid=OTHER), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                read_initial_export_markdown(str(mismatched_id), CID)
+            archive_path = directory / 'ambiguous.zip'
+            with zipfile.ZipFile(archive_path, 'w') as archive:
+                archive.writestr(f'first/Chat_{CID[-6:]}.md', document(cid=CID))
+                archive.writestr(f'second/Chat_{CID[-6:]}.md', document(cid=CID))
+            with self.assertRaises(ValueError):
+                read_initial_export_markdown(str(archive_path), CID)
+            unrelated = directory / 'unexpected.html'
+            unrelated.write_text(document(cid=CID), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                read_initial_export_markdown(str(unrelated), CID)
+
+
 class CoverageTests(unittest.TestCase):
     def test_missing_required_scenario_is_not_consumed_as_generic(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -971,7 +991,8 @@ class CoverageTests(unittest.TestCase):
         ctx = MagicMock()
         ctx.chat_records = [{'chat_id': CID}]
         ctx.connect_options.return_value.eval.return_value = {'matched': [OTHER], 'missing': [CID]}
-        with patch.object(CDPActions, 'wait_for_export_idle', return_value=True):
+        with patch.object(CDPActions, 'wait_for_export_idle', return_value=True), \
+             patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}):
             with self.assertRaises(RuntimeError): select_format_targets(ctx.connect_options(), ctx, 'html')
 
     def test_html_and_pdf_cases_reject_wrong_archive_targets(self):
@@ -1021,19 +1042,60 @@ class CoverageTests(unittest.TestCase):
 
     def test_partial_skip_requires_both_states_and_exact_zip_contents(self):
         for partial, zip_ids, expected in (({'exportedId': OTHER}, [CID], False),
-                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'deleted'}, [CID], False),
-                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'available'}, [CID, OTHER], False),
-                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'available'}, [CID], True)):
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedSourceVerified': False}, [CID], False),
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedSourceVerified': True}, [CID, OTHER], False),
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedSourceVerified': True}, [CID], True)):
             with self.subTest(partial=partial, zip_ids=zip_ids), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / 'partial.zip'
                 with zipfile.ZipFile(path, 'w') as zf:
                     for cid in zip_ids: zf.writestr(f'Chat_{cid[-6:]}.md', document(cid=cid))
                 ctx = MagicMock(output_dir=directory)
                 ctx.connect_options.return_value.eval.side_effect = [
-                    {'count': 6, 'log': 'old'}, True, {'busy': False, 'log': 'old skipped'}, partial]
-                with patch.object(CDPActions, 'clear_search_workbench'), \
+                    {'count': 6, 'log': 'old'}, True, {'busy': False, 'log': 'Delivery initiated: 0; partial: 0; skipped: 6; failed: 0'}, partial]
+                with patch('scripts.framework.cases.export.install_probe'), \
+                     patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
+                     patch.object(CDPActions, 'clear_search_workbench'), \
                      patch.object(CDPActions, 'trigger_export_zip', return_value=str(path)):
                     self.assertEqual(FastSkipExportedCase().execute(ctx)[0], expected)
+
+    def test_all_skipped_rejects_any_unexpected_physical_download(self):
+        for extension in ('.md', '.zip', '.html', '.pdf'):
+            with self.subTest(extension=extension), tempfile.TemporaryDirectory() as directory:
+                ctx = MagicMock(output_dir=directory)
+                cdp = ctx.connect_options.return_value
+                unexpected = Path(directory) / ('unexpected' + extension)
+
+                def respond(script, **_kwargs):
+                    if 'const exported = items.filter' in script:
+                        return {'count': 6, 'log': 'before'}
+                    if 'btn.click()' in script:
+                        return True
+                    if 'busy: !!document.getElementById' in script:
+                        unexpected.write_bytes(b'export must not run')
+                        return {'busy': False, 'log':
+                                'Delivery initiated: 0; partial: 0; skipped: 6; failed: 0'}
+                    raise AssertionError('Full-skip test continued into partial export')
+
+                cdp.eval.side_effect = respond
+                with patch('scripts.framework.cases.export.install_probe'), \
+                     patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
+                     patch.object(CDPActions, 'clear_search_workbench'):
+                    ok, message, _ = FastSkipExportedCase().execute(ctx)
+                self.assertFalse(ok)
+                self.assertIn('全量跳过异常生成文件', message)
+                self.assertIn(unexpected.name, message)
+
+    def test_all_skipped_probe_rejects_zero_skips_and_failed_exports(self):
+        for result in ('Delivery initiated: 0; partial: 0; skipped: 0; failed: 0',
+                       'Delivery initiated: 0; partial: 0; skipped: 5; failed: 1'):
+            with tempfile.TemporaryDirectory() as directory:
+                ctx = MagicMock(output_dir=directory)
+                ctx.connect_options.return_value.eval.side_effect = [
+                    {'count':6,'log':'old'},True,{'busy':False,'log':result}]
+                with patch('scripts.framework.cases.export.install_probe'), \
+                     patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
+                     patch.object(CDPActions,'clear_search_workbench'):
+                    self.assertFalse(FastSkipExportedCase().execute(ctx)[0])
 
     def test_report_never_calls_skip_or_noncritical_failure_all_passed(self):
         registry = FeatureRegistry()
@@ -1163,67 +1225,52 @@ class SearchSelectionCounterexamples(unittest.TestCase):
 
 
 class GeminiDualParseTests(unittest.TestCase):
-    def test_capture_requires_install_success_and_always_restores_after_read_failure(self):
+    def test_capture_requires_install_and_restores_after_read_failure(self):
         from scripts.framework.gemini_dual_parse import install_capture, finish_capture
-        cdp = MagicMock()
-        cdp.eval.return_value = None
-        with self.assertRaises(RuntimeError):
-            install_capture(cdp)
-        cdp.eval.return_value = True
-        install_capture(cdp)
+        cdp = MagicMock(); cdp.eval.return_value = None
+        with self.assertRaises(RuntimeError): install_capture(cdp)
+        cdp.eval.return_value = True; install_capture(cdp)
+        cdp.eval.side_effect = [RuntimeError('connection lost'),True]
         with tempfile.TemporaryDirectory() as directory:
-            cdp.eval.side_effect = [RuntimeError('connection lost'), True]
-            with self.assertRaisesRegex(RuntimeError, 'connection lost'):
-                finish_capture(cdp, Path(directory) / 'native', [CID])
-            self.assertIn('chrome.tabs.sendMessage = state.original', cdp.eval.call_args.args[0])
+            with self.assertRaisesRegex(RuntimeError,'connection lost'): finish_capture(cdp,Path(directory)/'native',[CID])
+        self.assertIn('window.fetch = state.original',cdp.eval.call_args.args[0])
 
-    def test_capture_only_accepts_native_replies_and_removes_stale_targets(self):
+    def test_capture_keeps_raw_pages_and_rejects_missing_or_failed_targets(self):
         from scripts.framework.gemini_dual_parse import finish_capture
-        native = {'success': True, 'source': 'batchexecute', 'data': {'fixture': True}}
-        cdp = MagicMock()
-        cdp.eval.side_effect = [[{'success': True, 'source': 'dom'}, native],
-                               [{'success': True, 'source': 'cache'}], True]
+        pages = [{'requestCursor':None,'text':'exact raw framing'}]
+        cdp = MagicMock(); cdp.eval.side_effect = [{'replies':{CID:pages,OTHER:pages},'errors':[{'id':OTHER,'error':'read failed'}]},True]
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / 'native'
-            root.mkdir()
-            (root / 'stale.json').write_text('{}')
-            result = finish_capture(cdp, root, [CID, OTHER])
-            self.assertEqual(result['missingNative'], [OTHER])
-            self.assertEqual(json.loads((root / f'{CID}.json').read_text()), native)
-            self.assertFalse((root / 'stale.json').exists())
-            self.assertEqual(json.loads((root.parent / 'capture.json').read_text()), result)
-            self.assertIn('delete window.__geminiDualCapture', cdp.eval.call_args.args[0])
+            root = Path(directory)/'native'; root.mkdir(); (root/'stale.json').write_text('{}')
+            result = finish_capture(cdp,root,[CID,OTHER])
+            self.assertEqual(result['missingNative'],[OTHER])
+            stored = json.loads((root/f'{CID}.json').read_text())
+            self.assertEqual(stored['pages'],pages); self.assertEqual(stored['source'],'raw_rpc_pages')
+            self.assertFalse((root/'stale.json').exists())
+        self.assertIn('delete window.__geminiDualCapture',cdp.eval.call_args.args[0])
 
-    def test_capture_wrapper_preserves_callback_promise_and_unrelated_calls(self):
+    def test_capture_forwards_original_fetch_promise_response_arguments_and_rejection(self):
         from scripts.framework.gemini_dual_parse import INSTALL_CAPTURE
-        script = """
+        script = r"""
         const assert = require('node:assert/strict');
-        global.window = {};
-        const calls = [];
-        const original = function(...args) {
-            calls.push([this, args]);
-            const reply = {success:true,source:'batchexecute',data:{id:args[1].conversationId}};
-            if (typeof args.at(-1) === 'function') { args.at(-1)(reply); return 'callback-return'; }
-            return Promise.resolve(reply);
-        };
-        global.chrome = {tabs:{sendMessage:original}};
-        assert.equal(eval(INSTALL), true);
-        assert.throws(() => eval(INSTALL), /already installed/);
-        (async () => {
-            let received;
-            const sent = chrome.tabs.sendMessage(1,{action:'getConversationDetail',conversationId:'c_callback'},r=>received=r);
-            assert.equal(sent,'callback-return');
-            assert.equal(received.data.id,'c_callback');
-            const reply = await chrome.tabs.sendMessage(1,{action:'getConversationDetail',conversationId:'c_promise'});
-            assert.equal(reply.data.id,'c_promise');
-            await chrome.tabs.sendMessage(1,{action:'other',conversationId:'c_ignored'});
-            assert.deepEqual(Object.keys(window.__geminiDualCapture.replies),['callback','promise']);
-            assert.equal(window.__geminiDualCapture.original, original);
-            assert.ok(calls.every(call=>call[0]===chrome.tabs));
-        })().catch(error=>{console.error(error);process.exitCode=1});
-        """.replace('INSTALL', json.dumps(INSTALL_CAPTURE))
-        result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        global.window=global; global.location={href:'chrome-extension://test/options.html'};
+        let promise; const seen=[];
+        const original=function(...args){seen.push([this,args]);return promise=Promise.resolve(new Response('exact wire'));};
+        global.fetch=original; assert.equal(eval(INSTALL),true);
+        assert.throws(()=>eval(INSTALL),/already installed/);
+        (async()=>{
+            const input='https://gemini.google.com/_/BardChatUi/data/batchexecute';
+            const init={method:'POST',body:new URLSearchParams({'f.req':JSON.stringify([[['hNvQHb',JSON.stringify(['c_target',null])]]])}).toString()};
+            const returned=fetch(input,init); assert.equal(returned,promise);
+            const response=await returned; assert.equal(await response.text(),'exact wire');
+            await Promise.all(__geminiDualCapture.pending);
+            assert.deepEqual(__geminiDualCapture.replies.target,[{requestCursor:null,text:'exact wire'}]);
+            assert.equal(seen[0][0],global);assert.equal(seen[0][1][1],init);
+            await fetch('https://example.com/other',init);
+            assert.deepEqual(Object.keys(__geminiDualCapture.replies),['target']);
+        })().catch(e=>{console.error(e);process.exitCode=1});
+        """.replace('INSTALL',json.dumps(INSTALL_CAPTURE))
+        result=subprocess.run(['node','-e',script],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
 
     def test_additional_case_is_registered_and_missing_or_mismatched_sources_fail(self):
         from scripts.framework.runner import FrameworkRunner

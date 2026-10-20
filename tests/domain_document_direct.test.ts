@@ -1,17 +1,23 @@
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { closeLegacyCitations } from '../src/core/parsers/shared/resources/domainCitationAdapter.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { closeSourceCitations } from '../src/l1/parsers/shared/resources/domainCitationAdapter.js';
 import { historicalFixtureDomain, historicalFixture } from './helpers/nativeFixture.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/exportDomainDocument.js';
-import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
-import { formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+const prepareDomainResources = async (results: Awaited<ReturnType<typeof fixtureResourceResults>>) => Object.fromEntries(results.map(result => [result.resourceId, result.value.path]));
+async function exportDomainMarkdown(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: number; locale?: 'en' | 'zh' } = {}) {
+    return renderDocumentMarkdown(composeDomainDocument(domain, account), await prepareDomainResources(options.resourceResults ?? []), options);
+}
+async function exportDomainHtml(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: number; locale?: 'en' | 'zh' } = {}) {
+    return renderDocumentHtml(composeDomainDocument(domain, account), await prepareDomainResources(options.resourceResults ?? []), options).html;
+}
 
 const raw = {
     id: 'direct', title: 'Draft', titles: { rpc: 'Authoritative title' }, timestamp: 1700000000000,
@@ -45,12 +51,12 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
     assert.deepEqual(domain.detail.messages[1].citations, [
         { id: 'citation-0', title: 'Source', url: 'https://example.test/source' }, { id: 'grounding-2' },
     ]);
-    const ast = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
-    assert.equal(ast.messages[0].blocks.length, 1, 'inline placement suppresses the attachment tail');
+    const ast = composeDomainDocument(domain, fixtureAccountFor(domain));
+    assert.equal(ast.messages[0].blocks.length, 2, 'explicit attachment placement follows the inline content');
     const answer = ast.messages[1].blocks[1];
     assert.equal(answer.type, 'paragraph');
     if (answer.type !== 'paragraph') throw Error('expected paragraph');
-    assert.deepEqual(answer.children[1], { type: 'strong', children: [{ type: 'citation', id: 'msg-1:citation-0', label: '[1]', href: 'https://example.test/source' }] });
+    assert.deepEqual(answer.children[1], { type: 'strong', children: [{ type: 'citation', id: 'citation-0', label: '[1]', href: 'https://example.test/source' }] });
     assert.ok(answer.children.some(node => node.type === 'citation' && node.label === '[2]' && !node.href));
     assert.ok(answer.children.some(node => node.type === 'inlineCode' && node.code === '[1]'));
     const file = ast.messages[1].blocks[2];
@@ -63,31 +69,29 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
     const restored = JSON.parse(JSON.stringify(domain));
     assert.deepEqual(composeDomainDocument(domain, fixtureAccountFor(domain)), composeDomainDocument(restored, fixtureAccountFor(restored)));
     assert.deepEqual(await prepareDomainResources(await fixtureResourceResults(domain)), await prepareDomainResources(await fixtureResourceResults(restored)));
-    const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceResults: await fixtureResourceResults(domain, historicalFixture(raw).resourceHints) };
+    const options = { exportedAt: Date.parse('2026-10-06T00:00:00Z'), locale: 'en' as const, resourceResults: await fixtureResourceResults(domain, historicalFixture(raw).resourceHints) };
     assert.equal(await exportDomainMarkdown(domain, fixtureAccountFor(domain), options), await exportDomainMarkdown(restored, fixtureAccountFor(restored), options));
     assert.equal(await exportDomainHtml(domain, fixtureAccountFor(domain), options), await exportDomainHtml(restored, fixtureAccountFor(restored), options));
-    assert.equal(await formatMarkdownDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainMarkdown(domain, fixtureAccountFor(domain), options));
-    assert.equal(await formatHtmlDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainHtml(domain, fixtureAccountFor(domain), options));
 });
 
-test('composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {
+test('AST: composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('literal'), 'custom'),   titleSource: "derived",   title: 'Literal' }, detail: { key: fixtureKey(String('literal'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal** [1] [cite:2] ![pic](url)' }] }],
             citations: [{ id: 'source', url: 'https://example.test' }] },
     ] } };
-    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)), { documentLanguage: 'zh' }).document;
-    assert.equal(ast.header.providerLabel, 'custom');
-    assert.equal(ast.documentLanguage, 'zh');
+    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)));
+    assert.equal(ast.metadata.provider, 'custom');
+    assert.ok(!('documentLanguage' in ast));
     assert.deepEqual(ast.messages[0].blocks, domain.detail.messages[0].content);
 });
 
-test('reasoning placement prevents another attachment copy and dangling citations fail closed', () => {
+test('AST: reasoning and explicit attachments retain each source placement and dangling citations fail closed', () => {
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('placement'), 'custom'),    }, detail: { key: fixtureKey(String('placement'), 'custom'), quality: { status: 'unknown' }, assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
             { role: 'assistant', content: [], reasoning: [{ type: 'image', assetId: 'shared' }], attachmentIds: ['shared'] },
             { role: 'user', content: [], attachmentIds: ['shared'] },
         ] } };
-    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document;
-    assert.equal(ast.messages[0].blocks.length, 1);
+    const ast = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain)));
+    assert.equal(ast.messages[0].blocks.length, 2, 'explicit attachment remains after reasoning');
     assert.equal(ast.messages[1].blocks.length, 1);
     const broken = structuredClone(domain);
     broken.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'unknown' }] }];
@@ -108,11 +112,13 @@ test('direct export dependency closure cannot load Canonical conversation normal
             if (fs.existsSync(dependency)) visit(dependency);
         }
     };
-    visit(path.resolve(__dirname, '../src/core/engine/chatFormatter.ts'));
+    visit(path.resolve(__dirname, '../src/l3b/compose/composeDomainDocument.ts'));
+    visit(path.resolve(__dirname, '../src/l4/format/html/renderHtml.ts'));
+    visit(path.resolve(__dirname, '../src/l4/format/markdown/renderMarkdown.ts'));
 });
 
 test('provider citation binding covers rich captions/descriptions and ignores code/math markers', () => {
-    const bound = closeLegacyCitations({ role: 'assistant', citations: [{ id: 'source', url: 'https://example.test/source' }], content: [
+    const bound = closeSourceCitations({ role: 'assistant', citations: [{ id: 'source', url: 'https://example.test/source' }], content: [
         { type: 'image', assetId: 'image', caption: [{ type: 'strong', children: [{ type: 'text', text: 'caption [1]' }] }] },
         { type: 'file', assetId: 'file', description: [{ type: 'text', text: 'description [1]' }] },
         { type: 'table', caption: [{ type: 'text', text: 'table [1]' }], rows: [] },
@@ -146,18 +152,18 @@ test('citation numbering is conversation-wide in body, reasoning and Sources, in
         { id: 'first', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[17]' }] }], citations: [{ id: 'same', url: 'https://example.test/one', title: 'First source' }] },
         { id: 'second', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same' }] }], reasoning: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[91]' }] }], citations: [{ id: 'same', title: 'Offline source' }] },
     ] } });
-    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain));
     const first = document.messages[0].blocks[0];
     assert.ok(first.type === 'paragraph');
-    assert.deepEqual(first.children, [{ type: 'citation', id: 'msg-0:same', label: '[1]', href: 'https://example.test/one' }]);
+    assert.deepEqual(first.children, [{ type: 'citation', id: 'same', label: '[17]', href: 'https://example.test/one' }]);
     const second = document.messages[1].blocks[1];
     assert.ok(second.type === 'paragraph');
-    assert.deepEqual(second.children, [{ type: 'citation', id: 'msg-1:same', label: '[2]' }]);
+    assert.deepEqual(second.children, [{ type: 'citation', id: 'same', label: '[2]' }]);
     const reasoning = document.messages[1].blocks[0];
     assert.ok(reasoning.type === 'disclosure');
-    assert.deepEqual(reasoning.blocks, [{ type: 'paragraph', children: second.children }]);
-    assert.equal(document.messages[0].sources?.items[0].number, 1);
-    assert.equal(document.messages[1].sources?.items[0].number, 2);
+    assert.deepEqual(reasoning.blocks, [{ type: 'paragraph', children: [{ type: 'citation', id: 'same', label: '[91]' }] }]);
+    assert.equal(document.messages[0].sources?.[0].number, 1);
+    assert.equal(document.messages[1].sources?.[0].number, 2);
     const markdown = await exportDomainMarkdown(domain, fixtureAccountFor(domain));
     assert.ok(markdown.includes('[2]'));
     assert.ok(markdown.includes('Offline source'));

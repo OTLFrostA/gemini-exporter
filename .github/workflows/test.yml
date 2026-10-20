@@ -90,6 +90,10 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: node scripts/release-gate-checks/check-no-cjk-fonts.js
 
+      - name: Install Chromium for native Storage unit contracts
+        if: steps.filter.outputs.only_scenarios != 'true'
+        run: npx playwright install --with-deps chromium
+
       - name: Run Unit Tests & Syntax Verification
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npm run test:unit

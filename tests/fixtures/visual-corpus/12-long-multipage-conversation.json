@@ -23,19 +23,8 @@
     ]
   },
   "document": {
-    "schemaVersion": 2,
-    "header": {
-      "title": "架构评审长会话",
-      "providerLabel": "gemini",
-      "date": "2026-09-26",
-      "messageCount": 24
-    },
     "messages": [
       {
-        "type": "message",
-        "id": "u0",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -46,13 +35,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a0",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -151,13 +137,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u1",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -168,13 +151,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a1",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -199,7 +179,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -211,7 +190,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -223,7 +201,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -235,7 +212,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -251,7 +227,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -263,7 +238,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -275,7 +249,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -287,7 +260,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -301,7 +273,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -313,7 +284,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -325,7 +295,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -337,7 +306,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -351,7 +319,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -363,7 +330,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -375,7 +341,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -387,7 +352,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -401,7 +365,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -413,7 +376,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -425,7 +387,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -437,7 +398,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -457,13 +417,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u2",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -474,13 +431,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a2",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -505,13 +459,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u3",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -522,13 +473,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a3",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -661,13 +609,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u4",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -678,13 +623,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a4",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -706,13 +648,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u5",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -723,13 +662,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a5",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -767,13 +703,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u6",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -784,13 +717,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a6",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -889,13 +819,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u7",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -906,13 +833,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a7",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -937,7 +861,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -949,7 +872,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -961,7 +883,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -973,7 +894,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -989,7 +909,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1001,7 +920,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1013,7 +931,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1025,7 +942,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1039,7 +955,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1051,7 +966,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1063,7 +977,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1075,7 +988,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1089,7 +1001,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1101,7 +1012,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1113,7 +1023,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1125,7 +1034,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1139,7 +1047,6 @@
                   "column": 0,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1151,7 +1058,6 @@
                   "column": 1,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1163,7 +1069,6 @@
                   "column": 2,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1175,7 +1080,6 @@
                   "column": 3,
                   "colSpan": 1,
                   "rowSpan": 1,
-                  "align": "default",
                   "children": [
                     {
                       "type": "text",
@@ -1195,13 +1099,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u8",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1212,13 +1113,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a8",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1243,13 +1141,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u9",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1260,13 +1155,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a9",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1399,13 +1291,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u10",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1416,13 +1305,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a10",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1444,13 +1330,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       },
       {
-        "type": "message",
-        "id": "u11",
-        "variant": "bubble",
-        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1461,13 +1344,10 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "user"
       },
       {
-        "type": "message",
-        "id": "a11",
-        "variant": "flow",
-        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1505,13 +1385,16 @@
               }
             ]
           }
-        ]
+        ],
+        "role": "assistant"
       }
     ],
     "metadata": {
       "id": "12-long-multipage-conversation",
-      "provider": "gemini"
-    }
+      "provider": "gemini",
+      "updatedAt": 1790380800000
+    },
+    "title": "架构评审长会话"
   },
   "resourceIds": [
     "img-12a",

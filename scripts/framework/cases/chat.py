@@ -3,6 +3,7 @@ import time
 import uuid
 import random
 import hashlib
+import re
 import zipfile
 from typing import Tuple, Optional, Dict, Any
 
@@ -17,6 +18,34 @@ try:
     from scripts.cdp_client import CDPConnection
 except ImportError:
     from cdp_client import CDPConnection
+
+
+def read_initial_export_markdown(download_path: str, chat_id: str) -> str:
+    """Read one actual v2 browser delivery: bare Markdown or a media-containing ZIP."""
+    conversation_id = chat_id.removeprefix('c_')
+    expected_suffix = f"_{conversation_id[-6:]}.md"
+    if download_path.lower().endswith('.zip'):
+        with zipfile.ZipFile(download_path) as archive:
+            matches = [name for name in archive.namelist()
+                       if os.path.basename(name).endswith(expected_suffix)]
+            if len(matches) != 1:
+                raise ValueError("初始导出 ZIP 不含唯一目标会话")
+            content = archive.read(matches[0]).decode('utf-8')
+    elif download_path.lower().endswith('.md'):
+        if not os.path.basename(download_path).endswith(expected_suffix):
+            raise ValueError("初始 Markdown 下载文件名与目标会话不匹配")
+        with open(download_path, encoding='utf-8') as file:
+            content = file.read()
+    else:
+        raise ValueError("初始导出不是 v2 Markdown 或 ZIP 文件")
+
+    if not content.startswith('---\n'):
+        raise ValueError("初始导出 Markdown 缺少 Frontmatter")
+    metadata = content[4:].split('\n---\n', 1)[0]
+    matched_id = re.search(r"""(?m)^id:\s*["']?([^"'\s]+)""", metadata)
+    if not matched_id or matched_id.group(1).removeprefix('c_') != conversation_id:
+        raise ValueError("初始导出 Markdown 会话 ID 不匹配")
+    return content
 
 
 class InpageBadgeCase(FeatureTestCase):
@@ -156,14 +185,12 @@ description: "Dynamically created test attachment to verify multi-format user up
                             CDPActions.toggle_select_none(cdp_opt_init)
                             if not CDPActions.select_workbench_item(cdp_opt_init, session.chat_id, True):
                                 return False, "会话 1 初始导出目标未找到", None
-                            baseline_zip = CDPActions.trigger_export_zip(cdp_opt_init, ctx.output_dir, max_wait=30)
-                            if not baseline_zip or not os.path.isfile(baseline_zip):
-                                return False, "会话 1 初始导出未落盘，无法建立真实基线", None
-                            with zipfile.ZipFile(baseline_zip) as zf:
-                                names = [n for n in zf.namelist() if n.endswith(f'_{session.chat_id[-6:]}.md')]
-                                if len(names) != 1:
-                                    return False, "初始导出 ZIP 不含唯一目标会话", None
-                                baseline_text = zf.read(names[0]).decode('utf-8')
+                            baseline_file = CDPActions.trigger_export_zip(
+                                cdp_opt_init, ctx.output_dir, max_wait=30,
+                                format_type='markdown', allow_standalone=True)
+                            if not baseline_file or not os.path.isfile(baseline_file):
+                                return False, "会话 1 初始 Markdown/ZIP 导出未落盘，无法建立真实基线", None
+                            baseline_text = read_initial_export_markdown(baseline_file, session.chat_id)
                             ok, message = assert_turn_content(baseline_text, record['turn_evidence'])
                             if not ok:
                                 return False, f"初始导出内容基线错误: {message}", None

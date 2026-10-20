@@ -30,7 +30,7 @@ function replaceGlobal(key: string, value: unknown): () => void {
 // P1-007 pinned an obsolete diagnostic string instead of detecting secrets.
 
 test('P1-003: bootstrap avoids the previously leaked token logging patterns', () => {
-    const src = readSrc('content/bootstrap.ts');
+    const src = readSrc('l1/client/gemini/bootstrap.ts');
     assert.ok(!src.includes('atFromPage.slice(0, 12)'), 'credential prefix should never be logged');
     assert.ok(!src.includes("console.log('[Gemini Exporter] bl refreshed', blFromPage)"), 'raw bl should never be logged');
     assert.ok(src.includes("'atLen', atFromPage.length"), 'at log should use only length');
@@ -38,7 +38,7 @@ test('P1-003: bootstrap avoids the previously leaked token logging patterns', ()
 });
 
 test('P1-005: empty postMessage token must not replace the stored token (source guard)', () => {
-    const src = readSrc('content/bootstrap.ts');
+    const src = readSrc('l1/client/gemini/bootstrap.ts');
     assert.ok(src.includes('at: p.at || old.at'), 'empty token must not overwrite stored at');
 });
 
@@ -57,8 +57,8 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
     } });
     const runtime = accountRuntime();
     try {
-        const { MessageRouter } = require('../src/content/messageRouter.js');
-        const { runCleanups } = require('../src/content/cleanupRegistry.js');
+        const { MessageRouter } = require('../src/runtime/content/messageRouter.js');
+        const { runCleanups } = require('../src/runtime/content/cleanupRegistry.js');
         const assets = {
             handleGetFileBlob: (_msg: any, cb: (value: unknown) => void) => {
                 calls.push('getFileBlob');
@@ -73,21 +73,23 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
                 cb({ success: true });
             }
         };
-        MessageRouter.init({ assets: assets as any });
+        const { AssetFetcher } = require('../src/runtime/capabilities/assetFetcher.js');
+        const originalAssets = { ...AssetFetcher };
+        Object.assign(AssetFetcher, assets);
+        MessageRouter.init();
         assert.equal(handlers.size, 1);
         const listener = [...handlers][0];
 
-        for (const action of ['getFileBlob', 'getImageBlob', 'downloadAssetDirect']) {
+        for (const action of ['getFileBlob', 'getImageBlob']) {
             for (const url of [
                 'http://lh3.googleusercontent.com/photo.png',
                 'https://googleusercontent.com.evil.example/photo.png',
                 'https://evil.example/photo.png',
                 'javascript:alert(1)'
             ]) {
-                let reply: any;
-                listener({ action, url }, {}, (value) => { reply = value; });
+                const reply: any = await new Promise(resolve => listener({ action, url, accountId: '10000000-0000-4000-8000-000000000001' }, {}, resolve));
                 assert.equal(reply?.success, false, `${action} must reject ${url}`);
-                assert.match(reply?.error || '', /not allowlisted/i);
+                assert.match(reply?.error || '', /not allowed/i);
             }
             assert.ok(!calls.includes(action), `${action} must not fetch a blocked URL`);
 
@@ -99,6 +101,7 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
             assert.equal(calls.filter(a => a === action).length, 1);
         }
 
+        Object.assign(AssetFetcher, originalAssets);
         runCleanups();
         assert.equal(handlers.size, 0, 'the injected runtime listener should be removed');
     } finally {
@@ -109,14 +112,14 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
 });
 
 test('P1-009: background reload remains scoped to Gemini tabs (source guard)', () => {
-    const src = readSrc('background/background.ts');
-    assert.ok(src.includes('not a gemini tab'));
-    assert.ok(src.includes("startsWith('https://gemini.google.com/')"));
+    const src = readSrc('runtime/background/background.ts');
+    assert.ok(src.includes('Not a Gemini Tab'));
+    assert.ok(src.includes("new URL(tab.url).origin !== 'https://gemini.google.com'"));
 });
 
 // P1-010: this is a genuine storage behavior test; preserve it.
 test('P1-010: self-healed bl is written to session storage rather than memory only', async () => {
-    const CredManager = require('../src/core/api/client/credentialManager.js').default;
+    const CredManager = require('../src/l1/client/gemini/api/credentialManager.js').default;
     const resolveCred = CredManager.resolveCred;
     assert.equal(typeof resolveCred, 'function');
 

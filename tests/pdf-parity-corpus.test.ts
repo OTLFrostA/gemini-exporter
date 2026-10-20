@@ -5,10 +5,10 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { assertDocumentAst } = require('./helpers/assertDocumentAst.js');
-const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
+const { collectDocumentResources } = require('../src/l3b/ast/resourceReferences.js');
 const corpusDir = path.join(__dirname, 'parity-corpus');
 const fixtureNames: string[] = fs
     .readdirSync(corpusDir)
@@ -29,9 +29,10 @@ test('parity corpus: every fixture is a closed JSON display tree', () => {
     assert.ok(fixtureNames.length >= 4);
     for (const name of fixtureNames) {
         const fixture = loadFixture(name), document = fixture.document;
-        assert.equal(document.schemaVersion, 2);
+        assert.equal(typeof document.title, 'string');
+        assert.equal('schemaVersion' in document, false);
         assert.deepEqual(JSON.parse(JSON.stringify(document)), document);
-        assert.equal(new Set(document.messages.map((message: { id: string }) => message.id)).size, document.messages.length);
+        assert.ok(document.messages.every((message: { role: string }) => typeof message.role === 'string')); // AST messages are positional, without transport IDs.
         const preparedIds = new Set(fixture.resourceIds);
         for (const id of collectDocumentResources(document).referencedIds) assert.ok(preparedIds.has(id), `${name}: missing resource identity ${id}`);
         assert.ok(!('bundle' in fixture) && !('conversation' in fixture));
@@ -74,7 +75,6 @@ function normalizeLine(s: string): string {
  */
 function stripHtmlChrome(line: string): string | null {
     if (line === '复制') return null; // code-block copy button
-    if (line === '思考过程') return null; // thought <summary> header; thought content is compared
     const missing = /^(?:图片不可用|附件不可用):\s*(.*?)\s*MISSING$/.exec(line);
     if (missing) return missing[1] || null; // missing attachment card keeps the asset label
     return line; // Both backends retain the same localized inline unavailable text.
@@ -90,7 +90,7 @@ function textLinesFromHtml(html: string): string[] {
     // removed WITHOUT inserting a space so inline markup (strong/em/a/code)
     // never introduces phantom spacing around CJK text.
     t = t.replace(/<\/(p|div|section|article|li|ul|ol|h[1-6]|tr|th|td|thead|tbody|table|blockquote|pre|figure|figcaption|details|summary|caption)\b[^>]*>/gi, '\n');
-    t = t.replace(/<(br|hr)\b[^>]*>/gi, '\n');
+    t = t.replace(/<(br|hr|div)\b[^>]*>/gi, '\n');
     t = t.replace(/<[^>]+>/g, '');
     t = decodeEntities(t);
     const out: string[] = [];
@@ -112,11 +112,21 @@ interface TextParts { body: string[]; asset: string[]; }
  * inline. Comparing the two partitions separately asserts the same body text
  * in the same order and the same asset cards in the same relative order.
  */
-function htmlTextParts(html: string): TextParts {
-    const assetSegs: string[] = [];
-    const assetRe = /<a class="gem-att-card[\s\S]*?<\/a>|<div class="gem-missing-asset">[\s\S]*?<\/div>/g;
-    const bodyHtml = html.replace(assetRe, (m: string) => { assetSegs.push(m); return '\n'; });
-    return { body: textLinesFromHtml(bodyHtml), asset: textLinesFromHtml(assetSegs.join('\n')) };
+async function htmlTextParts(html: string): Promise<TextParts> {
+    const { chromium } = await import('playwright');
+    const browser = await chromium.launch({ headless: true });
+    try {
+        const page = await browser.newPage();
+        await page.setContent(html);
+        const partition = await page.evaluate(() => {
+            const assets = [...document.querySelectorAll('.gem-att-card, .gem-missing-asset:not(.gem-missing-inline)')];
+            const html = assets.map(node => node.outerHTML).join('\n');
+            assets.forEach(node => node.remove());
+            return { asset: html, body: document.documentElement.outerHTML };
+        });
+        const assetLines = textLinesFromHtml(partition.asset).map(line => line.replace(/^(?:图片不可用|附件不可用)[：:]?\s*/, '')).filter(Boolean);
+        return { body: textLinesFromHtml(partition.body), asset: assetLines.filter((line, index) => line !== assetLines[index - 1]) };
+    } finally { await browser.close(); }
 }
 
 /** Flatten Typst inline nodes to the text the template typesets. */
@@ -137,9 +147,7 @@ function typstInlineText(nodes: any[]): string {
 }
 
 function typstTextParts(payload: any, document: any): TextParts {
-    const displayById = new Map<string, any>(
-        ((document.messages ?? []) as any[]).map((m) => [m.id, m]),
-    );
+
     const body: string[] = [];
     const asset: string[] = [];
     const emit = (isAsset: boolean, text: string): void => {
@@ -164,6 +172,7 @@ function typstTextParts(payload: any, document: any): TextParts {
                 return;
             case 'quote':
             case 'note': {
+                if (b.label && displayType === 'disclosure') emit(isAsset, b.label);
                 if (b.blocks) {
                     for (const sub of b.blocks) emitBlock(sub, displayType);
                 } else {
@@ -196,11 +205,10 @@ function typstTextParts(payload: any, document: any): TextParts {
                 if (b.description) emit(isAsset, typstInlineText(b.description));
                 return;
             case 'unknown':
+                if (b.fallback) emit(isAsset, b.fallback);
                 if (b.details) emit(isAsset, typstInlineText(b.details));
                 if (b.blocks) {
                     for (const sub of b.blocks) emitBlock(sub, displayType);
-                } else if (b.fallback) {
-                    emit(isAsset, b.fallback);
                 }
                 return;
             default:
@@ -208,11 +216,12 @@ function typstTextParts(payload: any, document: any): TextParts {
         }
     };
     if (payload.title) body.push(normalizeLine(payload.title));
-    for (const msg of payload.messages ?? []) {
-        const cblocks: any[] = displayById.get(msg.id)?.blocks ?? [];
+    for (const [messageIndex, msg] of (payload.messages ?? []).entries()) {
+        const sourceMessage = document.messages[messageIndex];
+        const cblocks: any[] = sourceMessage?.blocks ?? [];
         // toRenderMessage maps display blocks 1:1, optionally prepending one
         // role-prefix note (system/developer/unknown roles only).
-        const offset = (msg.blocks?.length ?? 0) - cblocks.length;
+        const offset = ['system', 'developer', 'unknown'].includes(sourceMessage.role) ? 1 : 0;
         (msg.blocks ?? []).forEach((b: any, j: number) => {
             emitBlock(b, cblocks[j - offset]?.type);
         });
@@ -224,7 +233,7 @@ function typstTextParts(payload: any, document: any): TextParts {
             }
         }
     }
-    return { body: body.filter(Boolean), asset: asset.filter(Boolean) };
+    return { body: body.filter(Boolean), asset: asset.filter((line, index) => !!line && line !== asset[index - 1]) };
 }
 
 /** Order-preserving subsequence: first needle missing from haystack, else null. */
@@ -260,12 +269,12 @@ interface ParityInputs {
     htmlDiagnostics: Array<{ code: string }>;
 }
 
-function parityInputs(name: string): ParityInputs {
+async function parityInputs(name: string): Promise<ParityInputs> {
     const { document } = loadFixture(name);
     const { html, diagnostics: htmlDiagnostics } = renderDocumentHtml(document, {}, { locale: 'zh' }) as {
         html: string; diagnostics: Array<{ code: string }>;
     };
-    const htmlParts = htmlTextParts(html);
+    const htmlParts = await htmlTextParts(html);
     // Empty preparation exercises the visible unavailable-resource path.
     const { payload, diagnostics } = renderTypstFixture(document, {}, { locale: 'zh' }) as {
         payload: any; diagnostics: Array<{ code: string; severity: string }>;
@@ -278,8 +287,8 @@ for (const name of fixtureNames) {
     // math-cjk carries a known, explicitly asserted citation degradation and
     // is covered by its own test below instead of the generic loop.
     if (name === 'math-cjk.json') continue;
-    test(`parity corpus: HTML-vs-PDF text parity for ${name}`, () => {
-        const { htmlParts, pdfParts, diagnostics, htmlDiagnostics } = parityInputs(name);
+    test(`parity corpus: HTML-vs-PDF text parity for ${name}`, async () => {
+        const { htmlParts, pdfParts, diagnostics, htmlDiagnostics } = await parityInputs(name);
         assertBidirectionalParity(name, htmlParts, pdfParts);
         if (name === 'image-attachment.json') {
             // This fixture supplies no prepared bytes: both renderers
@@ -296,9 +305,9 @@ for (const name of fixtureNames) {
     });
 }
 
-test('parity corpus: math-cjk citation titles keep fidelity on both sides', () => {
+test('parity corpus: math-cjk citation titles keep fidelity on both sides', async () => {
     const name = 'math-cjk.json';
-    const { htmlParts, pdfParts } = parityInputs(name);
+    const { htmlParts, pdfParts } = await parityInputs(name);
 
     const citeTitle = '微积分基本定理';
     assert.ok(htmlParts.body.some((l) => l.includes(citeTitle)), 'HTML shows the citation title');

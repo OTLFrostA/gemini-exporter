@@ -1,7 +1,7 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
+const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 /** Provider parsing, Domain closure and composed attachment-placement regressions. */
 export {};
 const test = require('node:test');
@@ -10,10 +10,10 @@ const fs = require('fs');
 const path = require('path');
 
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { assertDomainClosure } = require('../src/core/domain/closure.js');
-const { extractBlockText, extractInlineText } = require('../src/core/domain/content/unknownFallback.js');
-const { exportDomainMarkdown } = require('../src/core/export/exportDomainDocument.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { assertDomainClosure } = require('../src/l2/closure.js');
+const { extractBlockText, extractInlineText } = require('../src/l2/content/unknownFallback.js');
+const { renderDocumentMarkdown } = require('../src/l4/format/markdown/renderMarkdown.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
 const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
@@ -251,7 +251,7 @@ test('parsed Domain is closed, JSON portable and does not mutate raw fixtures', 
         assertDomainClosure((domain).detail);
         const roundTrip = JSON.parse(JSON.stringify(domain));
         assertDomainClosure((roundTrip).detail);
-        assert.deepEqual(composeDomainDocument(roundTrip, fixtureAccountFor(roundTrip), { sourceVersion: require('./helpers/nativeFixture.js').historicalFixture(raw).sourceVersion }).document, document);
+        assert.deepEqual(composeDomainDocument(roundTrip, fixtureAccountFor(roundTrip), { sourceVersion: require('./helpers/nativeFixture.js').historicalFixture(raw).sourceVersion }), document);
         assert.equal(JSON.stringify(raw), before);
         assert.ok(!diagnostics.some((d: any) => d.severity === 'error'));
     }
@@ -383,7 +383,7 @@ const pngAttachment = (localName: string, name: string) => ({
     mimeType: 'image/png',
 });
 
-test('inline markdown image reusing an attachment asset keeps a single visual placement', async () => {
+test('inline markdown image reusing an attachment asset preserves inline and explicit attachment placements', async () => {
     const input = attachmentConv('see ![pic](assets/shot.png)', [pngAttachment('assets/shot.png', 'shot.png')]);
     const { domain, document, resources } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
@@ -391,10 +391,10 @@ test('inline markdown image reusing an attachment asset keeps a single visual pl
     const inlines = deepInlineImagesOf(m1);
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
-    assert.strictEqual(blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]).length, 0);
+    assert.strictEqual(blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]).length, 1);
 });
 
-test('linked inline image reusing an attachment asset keeps a single visual placement', async () => {
+test('linked inline image reusing an attachment asset preserves inline and explicit attachment placements', async () => {
     const input = attachmentConv('[![pic](assets/shot.png)](https://example.com/full)', [pngAttachment('assets/shot.png', 'shot.png')]);
     const { domain, document, resources } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
@@ -402,7 +402,7 @@ test('linked inline image reusing an attachment asset keeps a single visual plac
     const inlines = deepInlineImagesOf(m1);
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
-    assert.strictEqual(blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]).length, 0);
+    assert.strictEqual(blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]).length, 1);
 });
 
 test('attachment not referenced inline keeps its trailing image block', async () => {
@@ -416,7 +416,7 @@ test('attachment not referenced inline keeps its trailing image block', async ()
     assert.strictEqual(blocks[0].resourceId, m1.attachmentIds[0]);
 });
 
-test('two attachments with only one inlined keep one inline and one trailing block', async () => {
+test('two attachments with only one inlined keep one inline and both explicit trailing blocks', async () => {
     const input = attachmentConv('see ![a](assets/a.png)', [
         pngAttachment('assets/a.png', 'a.png'),
         pngAttachment('assets/b.png', 'b.png'),
@@ -428,15 +428,18 @@ test('two attachments with only one inlined keep one inline and one trailing blo
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
     const blocks = blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]);
-    assert.strictEqual(blocks.length, 1);
-    assert.strictEqual(blocks[0].resourceId, m1.attachmentIds[1]);
+    assert.strictEqual(blocks.length, 2);
+    assert.deepEqual(blocks.map((block: {resourceId: string}) => block.resourceId), m1.attachmentIds);
 });
 
 
 test('composer preserves duplicate source message IDs for every backend', async () => {
     const { domain, document } = await parseFixture({ id: 'dup', messages: [{ id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' }] });
     assert.deepEqual(domain.detail.messages.map((message: { id?: string }) => message.id), ['same', 'same']);
-    assert.deepEqual(document.messages.map((message: { id?: string }) => message.id), ['msg-0', 'msg-1']);
+    assert.equal(document.messages.length, 2);
+    assert.ok(document.messages.every((message: object) => !('id' in message)));
+    assert.match(JSON.stringify(document.messages[0].blocks), /one/);
+    assert.match(JSON.stringify(document.messages[1].blocks), /two/);
 });
 test('title authority and unknown source handling remain ingestion concerns', async () => {
     const { domain } = await parseFixture({ id: 'unknown-source', titles: { rpc: 'Good', 'future-provider-tier': 'Future' }, messages: [] });
@@ -444,14 +447,14 @@ test('title authority and unknown source handling remain ingestion concerns', as
     const unknown = await parseFixture({ id: 'unknown-source-only', title: 'Plain title', titleSource: 'future-provider-tier', messages: [] });
     assert.equal(unknown.domain.index.title, 'Plain title');
     assert.equal(unknown.domain.index.titleSource, 'derived');
-    assert.equal(require('../src/core/domain/titleAuthority.js').titleAuthorityRank(unknown.domain.index.titleSource), require('../src/core/domain/titleAuthority.js').titleAuthorityRank('derived'));
+    assert.equal(require('../src/l2/titleAuthority.js').titleAuthorityRank(unknown.domain.index.titleSource), require('../src/l2/titleAuthority.js').titleAuthorityRank('derived'));
 });
 test('source URL aliases do not enter Domain or get synthesized by Composer', async () => {
     for (const raw of [{ url: 'https://gemini.google.com/app/url', href: 'https://gemini.google.com/app/href' }, { href: 'https://gemini.google.com/app/href' }]) {
         const { domain } = await parseFixture({ id: 'url', messages: [], ...raw });
         assert.equal(domain.index.url, undefined);
         assert.equal(domain.href, undefined);
-        assert.ok(!/^url:/m.test(await exportDomainMarkdown(domain, fixtureAccountFor(domain))));
+        assert.ok(!/^url:/m.test(renderDocumentMarkdown(composeDomainDocument(domain, fixtureAccountFor(domain)), {}, { includeFrontMatter: true })));
     }
 });
 test('unknown raw fields are omitted from Domain and AST without mutating input', async () => {

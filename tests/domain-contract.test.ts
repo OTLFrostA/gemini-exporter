@@ -1,18 +1,18 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 /** Domain/composer contracts, including the shared title authority rules. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveTitle, titleAuthorityRank } from '../src/core/domain/titleAuthority.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import { normalizeArchiveResourceName } from '../src/core/export/assets/archivePath.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { resolveTitle, titleAuthorityRank } from '../src/l2/titleAuthority.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { normalizeArchiveResourceName } from '../src/shared/utils/archivePath.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 function domain(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('contract'), 'test'),   titleSource: "derived",   title: 'Contract' }, detail: { key: fixtureKey(String('contract'), 'test'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'unknown', sourceType: 'widget', text: 'Visible fallback' }] }] } };
 }
@@ -21,7 +21,7 @@ test('Domain closure rejects missing provider identity and duplicate resource id
     assert.throws(() => composeDomainDocument(validateParserDomain(value), { ...fixtureAccountFor(value), providerId: '' }), /account/i); value.detail.assets = [{ id: 'same', kind: 'image' }, { id: 'same', kind: 'image' }];
     assert.throws(() => assertDomainClosure((value).detail), /Duplicate.*asset identity/);
 });
-test('composer gives every message a unique positional ID without changing authored identities', () => {
+test('AST: composer gives every message a unique positional ID without changing authored identities', () => {
     const value = domain();
     value.detail.messages = [undefined, 'msg-0', 'same', 'same', '', '   '].map((id, index) => ({
         ...(id !== undefined ? { id } : {}), role: 'assistant',
@@ -29,15 +29,16 @@ test('composer gives every message a unique positional ID without changing autho
         citations: [{ id: 'citation', url: `https://example.test/${index}` }],
     }));
     const original = structuredClone(value);
-    const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value))).document;
-    assert.deepEqual(document.messages.map(message => message.id), value.detail.messages.map((_, index) => `msg-${index}`));
-    assert.equal(new Set(document.messages.flatMap(message => message.sources?.items.map(item => item.id) ?? [])).size, value.detail.messages.length);
+    const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value)));
+    assert.equal(document.messages.length, value.detail.messages.length);
+    assert.ok(document.messages.every(message => !('id' in message)));
+    assert.deepEqual(document.messages.flatMap(message => message.sources?.map(item => item.number) ?? []), [1, 2, 3, 4, 5, 6]);
     assert.deepEqual(value, original);
 });
 test('unknown content and message order survive a JSON round trip across all backends', () => {
     const value = domain(); value.detail.messages.push({ id: 'second', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second message' }] }] });
-    const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value))).document;
-    assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(value)), fixtureAccountFor(JSON.parse(JSON.stringify(value)))).document, document);
+    const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value)));
+    assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(value)), fixtureAccountFor(JSON.parse(JSON.stringify(value)))), document);
     for (const output of [renderDocumentHtml(document, {}).html, renderDocumentMarkdown(document, {}), JSON.stringify(renderDocumentTypst(document, {}))]) {
         assert.ok(output.includes('Visible fallback'));
         assert.ok(output.indexOf('Visible fallback') < output.indexOf('Second message'));
@@ -46,7 +47,7 @@ test('unknown content and message order survive a JSON round trip across all bac
 test('HTML and Markdown sanitize hostile link protocols without rejecting visible labels', () => {
     for (const href of ['javascript:alert(1)', 'vbscript:evil', 'data:text/html,evil']) {
         const value = domain(); value.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'link', href, children: [{ type: 'text', text: 'Safe label' }] }] }];
-        const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value))).document;
+        const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value)));
         for (const output of [renderDocumentHtml(document, {}).html, renderDocumentMarkdown(document, {})]) {
             assert.ok(output.includes('Safe label'));
             assert.ok(!output.includes(href));

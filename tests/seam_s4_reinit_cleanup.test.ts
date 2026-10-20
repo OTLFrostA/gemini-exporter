@@ -3,10 +3,10 @@
 // source-text regex matching must not be used as a substitute for that flow.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerCleanup, runCleanups, pendingCleanupCount } from '../src/content/cleanupRegistry.js';
-import { MessageRouter } from '../src/content/messageRouter.js';
-import { init as initMessageBridge } from '../src/content/messageBridge.js';
-import { PageObserver } from '../src/content/pageObserver.js';
+import { registerCleanup, runCleanups, pendingCleanupCount } from '../src/runtime/content/cleanupRegistry.js';
+import { MessageRouter } from '../src/runtime/content/messageRouter.js';
+import { init as initMessageBridge } from '../src/l1/sniffer/gemini/messageBridge.js';
+import { PageObserver } from '../src/runtime/content/pageObserver.js';
 
 function makeWindow() {
     const listeners: Record<string, Array<(...args: any[]) => void>> = {};
@@ -87,11 +87,11 @@ test('cleanup registry runs callbacks once and isolates a throwing cleanup', () 
 
 test('messageRouter re-init replaces a single active Chrome listener and still answers ping', () => {
     withMockHost(({ chrome }) => {
-        MessageRouter.init({});
+        MessageRouter.init();
         assert.equal(chrome.messages.length, 1);
         runCleanups();
         assert.equal(chrome.messages.length, 0);
-        MessageRouter.init({});
+        MessageRouter.init();
         assert.equal(chrome.messages.length, 1);
         let response: any;
         chrome.messages[0]({ action: 'ping' }, {}, (result: any) => { response = result; });

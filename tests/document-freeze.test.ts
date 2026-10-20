@@ -1,19 +1,17 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { resourceValue } from './helpers/resources.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/core/document/ast/ast.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { fileBadge } from '../src/core/renderers/shared/backendPresentation.js';
-import { renderMathHtml } from '../src/core/renderers/html/htmlMath.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
-import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/l3b/ast/ast.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { fileBadge } from '../src/l4/format/shared/backendPresentation.js';
+import { renderMathHtml } from '../src/l4/format/html/htmlMath.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 
 function domain(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('freeze'), 'custom'),   titleSource: "derived",   title: 'Boundary' }, detail: { key: fixtureKey(String('freeze'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [
@@ -27,7 +25,7 @@ function freeze(value: unknown): void {
 }
 
 test('HTML owns DOM identities and does not derive document language from UI locale', () => {
-    const document = composeDomainDocument(validateParserDomain(domain()), fixtureAccountFor(validateParserDomain(domain()))).document;
+    const document = composeDomainDocument(validateParserDomain(domain()), fixtureAccountFor(validateParserDomain(domain())));
     assert.ok(document.messages.every(message => !('anchor' in message) && !('modelLabel' in message)));
     for (const locale of ['en', 'zh'] as const) {
         const html = renderDocumentHtml(document, {}, { locale }).html;
@@ -36,15 +34,15 @@ test('HTML owns DOM identities and does not derive document language from UI loc
         assert.match(html, /id="prompt-turn-user-0"/);
         assert.match(html, /id="turn-model-1"/);
     }
-    document.documentLanguage = 'ja';
-    assert.match(renderDocumentHtml(document, {}, { locale: 'zh' }).html, /<html lang="ja">/);
+    assert.ok(!('documentLanguage' in document));
+    assert.match(renderDocumentHtml(document, {}, { locale: 'zh' }).html, /<html>/);
 });
 
 test('file badges use only supplied media type or kind, including misleading labels', () => {
     const file: Extract<DisplayBlock, { type: 'file' }> = { type: 'file', resourceId: 'f', label: 'misleading.pdf', kind: 'file' };
     assert.equal(fileBadge(file), 'FILE');
     assert.equal(fileBadge({ ...file, label: 'renamed.exe', mediaType: 'application/x-zip' }), 'ZIP');
-    const document = composeDomainDocument(validateParserDomain(domain()), fixtureAccountFor(validateParserDomain(domain()))).document;
+    const document = composeDomainDocument(validateParserDomain(domain()), fixtureAccountFor(validateParserDomain(domain())));
     document.messages[0].blocks = [file, { ...file, mediaType: 'text/plain' }];
     const html = renderDocumentHtml(document, { f: 'assets/f' }).html;
     assert.match(html, /gem-att-badge">FILE<\/span>/);
@@ -53,31 +51,46 @@ test('file badges use only supplied media type or kind, including misleading lab
     assert.deepEqual(pdf.messages[0].blocks.map(block => block.type === 'file' && block.kind), ['FILE', 'TXT']);
 });
 
-test('display date selects the first valid fact and normalizes to UTC at composition', () => {
+test('Composer preserves Unix-ms Index timestamps; only renderers format UTC dates', () => {
     const input = domain();
     input.index.createdAt = Date.parse('2026-10-04T00:00:00Z');
-    let sourceVersion: number | undefined = Date.parse('2026-10-06T23:30:00-07:00');
-    for (const [field, expected] of [['updatedAt', '2026-10-07'], ['createdAt', '2026-10-04']] as const) {
-        const document: DocumentAst = composeDomainDocument(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } }), fixtureAccountFor(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } }))).document;
-        assert.equal(document.header.date, expected);
-        assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
-        assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
-        if (field === 'updatedAt') sourceVersion = undefined;
-        else input.index.createdAt = undefined;
-    }
-    assert.equal(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document.header.date, undefined);
+    input.index.updatedAt = Date.parse('2026-10-06T23:30:00-07:00');
+    const accepted = validateParserDomain(input);
+    const document = composeDomainDocument(accepted, fixtureAccountFor(accepted));
+    assert.equal(document.metadata.createdAt, input.index.createdAt);
+    assert.equal(document.metadata.updatedAt, input.index.updatedAt);
+    assert.ok(!('header' in document));
+    assert.ok(renderDocumentHtml(document, {}).html.includes('2026-10-07'));
+    assert.ok(renderDocumentTypst(document, {}).metadata.includes('2026-10-07'));
+    const withoutUpdate = validateParserDomain({ ...input, index: { ...input.index, updatedAt: undefined } });
+    const created = composeDomainDocument(withoutUpdate, fixtureAccountFor(withoutUpdate));
+    assert.equal(created.metadata.updatedAt, undefined);
+    assert.ok(renderDocumentHtml(created, {}).html.includes('2026-10-04'));
+    assert.ok(renderDocumentTypst(created, {}).metadata.includes('2026-10-04'));
+    const noTimes = validateParserDomain({ ...input, index: { ...input.index, createdAt: undefined, updatedAt: undefined } });
+    const missing = composeDomainDocument(noTimes, fixtureAccountFor(noTimes));
+    assert.ok(!('createdAt' in missing.metadata) && !('updatedAt' in missing.metadata));
+    assert.ok(!renderDocumentHtml(missing, {}).html.includes('1970-01-01'));
+});
+
+test('provider parsing retains model identity and normalizes source dates only at L1', () => {
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
-    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture(source, { providerId: 'gemini' }).conversation)).document.header.date, '2026-10-07');
+    const first = historicalFixture(source, { providerId: 'gemini' });
+    const document = composeDomainDocument(first.conversation, fixtureAccountFor(first.conversation));
+    assert.equal(document.metadata.updatedAt, Date.parse('2026-10-06T23:30:00-07:00'));
+    assert.ok(renderDocumentHtml(document, {}).html.includes('2026-10-07'));
     source.updatedAt = 'invalid';
-    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture(source, { providerId: 'gemini' }).conversation)).document;
-    assert.equal(document.header.date, '2026-10-04');
-    assert.equal(document.messages[0].modelLabel, 'provider only');
-    assert.equal(renderDocumentTypst(document, {}).messages[0].model, 'provider only');
+    const second = historicalFixture(source, { providerId: 'gemini' });
+    const fallback = composeDomainDocument(second.conversation, fixtureAccountFor(second.conversation));
+    assert.equal(fallback.metadata.updatedAt, undefined);
+    assert.equal(fallback.metadata.createdAt, Date.parse('2026-10-04T00:00:00Z'));
+    assert.equal(fallback.messages[0].modelLabel, 'provider only');
+    assert.equal(renderDocumentTypst(fallback, {}).messages[0].model, 'provider only');
 });
 
 test('parser removes math delimiters; HTML renders source verbatim and preserves malformed source', () => {
     const parsed = historicalFixture({ id: 'math', messages: [{ role: 'model', content: '$x^2$\n\n$$\ny^2\n$$' }] }, { providerId: 'gemini' });
-    const document = composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation)).document;
+    const document = composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation));
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'paragraph', children: [{ type: 'inlineMath', source: 'x^2' }] }, { type: 'math', source: 'y^2' },
     ]);
@@ -89,7 +102,7 @@ test('parser removes math delimiters; HTML renders source verbatim and preserves
     }
 });
 
-test('PDF acquires every AST image; one frozen rich JSON AST serves all backends', async () => {
+test('PDF renders prepared AST images; one frozen rich JSON AST serves all backends', async () => {
     const input = domain();
     const inline = (id: string) => ({ type: 'image' as const, assetId: id, alt: id });
     const rendered = ['main', 'inline', 'heading', 'header', 'cell', 'nested'];
@@ -105,26 +118,15 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
         { type: 'file', assetId: 'file', description: [inline('description'), inline('inline')] },
     ];
     freeze(input);
-    const document: DocumentAst = JSON.parse(JSON.stringify(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document));
+    const document: DocumentAst = JSON.parse(JSON.stringify(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)))));
     const detail: DisplayInline = { type: 'image', resourceId: 'details', alt: 'details' };
-    document.messages[1].blocks.push({ type: 'placeholder', kind: 'image', resourceId: 'missing', text: 'Missing', details: [detail] });
+    document.messages[1].blocks.push({ type: 'image', resourceId: 'details', alt: 'Details image', caption: [detail] });
     document.messages[1].blocks.push({ type: 'paragraph', children: [{ type: 'image', resourceId: 'body-ending', alt: 'body-ending' }] });
     freeze(document);
     const before = JSON.stringify(document);
     const imageIds = collectDocumentResources(document).imageIds;
     assert.deepEqual([...imageIds].sort(), [...rendered, ...rich].sort());
     assert.equal(collectDocumentResources(document).imageIds.size, rendered.length + rich.length);
-    const acquired: string[] = [];
-    // Distinct bytes ensure resource ownership cannot pass via a swapped/shared receipt.
-    const bytesFor = (id: string) => new TextEncoder().encode(id);
-    const prepared = await preparePdfResources((input).detail, imageIds, {}, { acquire: async id => {
-        acquired.push(id);
-        return { ok: true as const, resourceId: id, value: { bytes: bytesFor(id), mediaType: 'image/png' } };
-    } });
-    assert.deepEqual(acquired.sort(), [...rendered, ...rich].sort());
-    for (const id of [...rendered, ...rich]) {
-        assert.deepEqual(resourceValue(prepared.resources.get(id)).bytes, bytesFor(id), `wrong acquired bytes bound to ${id}`);
-    }
     const bindings = Object.fromEntries([...collectDocumentResources(document).referencedIds].map(id => [id, `assets/${id}.png`]));
     assert.ok(renderDocumentHtml(document, bindings).html.includes('src="assets/image-caption.png"'));
     assert.ok(renderDocumentMarkdown(document, bindings).includes('assets/image-caption.png'));
@@ -132,7 +134,7 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     assert.deepEqual(pdf.messages[1].blocks[0].type === 'image' && pdf.messages[1].blocks[0].caption, [{ type: 'image', asset: bindings['image-caption'], alt: 'image-caption' }]);
     assert.deepEqual(pdf.messages[1].blocks[3].type === 'table' && pdf.messages[1].blocks[3].caption, [{ type: 'image', asset: bindings['table-caption'], alt: 'table-caption' }]);
     assert.deepEqual(pdf.messages[1].blocks[5].type === 'file' && pdf.messages[1].blocks[5].description, ['description', 'inline'].map(id => ({ type: 'image', asset: bindings[id], alt: id })));
-    assert.deepEqual(pdf.messages[1].blocks[6].type === 'unknown' && pdf.messages[1].blocks[6].details, [{ type: 'image', asset: bindings.details, alt: 'details' }]);
+    assert.deepEqual(pdf.messages[1].blocks[6].type === 'image' && pdf.messages[1].blocks[6].caption, [{ type: 'image', asset: bindings.details, alt: 'details' }]);
     assert.ok(JSON.stringify(pdf.messages[1].blocks[7]).includes(bindings['body-ending']));
     assert.equal(JSON.stringify(document), before);
 });

@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { auditGeminiEvidence, canonicalMessage, differences, readGeminiAuditInput, semanticContent } from './helpers/geminiDualParse.js';
 import { runAudit } from '../scripts/check_gemini_dual_parse.js';
-import type { DomainMessage, DomainAsset } from '../src/core/domain/conversationDetail.js';
+import type { DomainMessage, DomainAsset } from '../src/l2/conversationDetail.js';
 
 function wire(markdown = 'Hello', document: unknown = { children: [{ nodeType: 18, text: 'Hello' }] }): string {
     const candidate: unknown[] = [[['rc_dualaudit', [markdown]]]];
@@ -162,4 +162,45 @@ test('offline reports retain source hash and every diff; incomplete pagination, 
         assert.throws(() => runAudit(input, input), /outside/);
         assert.throws(() => runAudit(input, join(input, 'report')), /outside/);
     } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('v2 fetch capture keeps raw framing and validates identity/cursor closure before differential audit', () => {
+    const raw = wire();
+    const source = { schemaVersion: 1, source: 'raw_rpc_pages', conversationId: 'dualaudit',
+        pages: [{ requestCursor: null, text: raw }] };
+    const read = (value: unknown) => readGeminiAuditInput(JSON.stringify(value), 'native_envelope');
+    const captured = read(source);
+    assert.equal(captured.provenance, 'captured_raw_rpc_pages');
+    assert.equal(auditGeminiEvidence(captured.evidence).messages[0].status, 'match');
+    assert.throws(() => read({ ...source, conversationId: 'other' }), /identity|Invalid/);
+    assert.throws(() => read({ ...source, pages: [] }), /Missing/);
+    assert.throws(() => read({ ...source, pages: [{ requestCursor: 'missing-first', text: raw }] }), /cursor chain/);
+    assert.throws(() => read({ ...source, pages: [...source.pages, ...source.pages] }), /cursor chain/);
+    assert.throws(() => read({ ...source, pages: [{ requestCursor: null, text: 'bad response' }] }), /Invalid|parse|invalid/);
+});
+
+test('v2 native page audit requires every requested cursor and merges oldest-to-newest without duplicate turns', () => {
+    const page = (name: string, next: string | null) => {
+        const raw = JSON.parse(wire());
+        const inner = JSON.parse(raw[0][2]);
+        inner[0][0][0][1] = `r_${name}`;
+        inner[0][0][3][0][0][0] = `rc_${name}`;
+        inner[1] = next;
+        raw[0][2] = JSON.stringify(inner);
+        return JSON.stringify(raw);
+    };
+    const newest = page('new', 'tC_older'); const oldest = page('old', null);
+    assert.equal(decodeGeminiDetail(newest).nextPageToken, 'tC_older');
+    const source = {schemaVersion:1,source:'raw_rpc_pages',conversationId:'dualaudit',pages:[
+        {requestCursor:null,text:newest},{requestCursor:'tC_older',text:oldest},
+    ]};
+    const read = (value: unknown) => readGeminiAuditInput(JSON.stringify(value), 'native_envelope');
+    const result = read(source);
+    assert.equal(result.evidence.messages.length,4);
+    assert.deepEqual(result.evidence.messages.map(message => message.id),[
+        ...decodeGeminiDetail(oldest).messages.map(message => message.id),
+        ...decodeGeminiDetail(newest).messages.map(message => message.id),
+    ]);
+    assert.throws(() => read({...source,pages:source.pages.slice(0,1)}), /incomplete/);
+    assert.throws(() => read({...source,pages:[source.pages[0],{...source.pages[1],requestCursor:'tC_wrong'}]}), /cursor chain/);
 });
