@@ -120,10 +120,10 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
                 } else chains.delete(key);
                 const merged = mergeConversationPages(pages, truncated ? 'capture_truncated' : undefined, complete);
                 const index = merged.conversation.index;
-                const changed = await ingestDetail(account.id, cid, merged.conversation.detail, index);
+                const admission = await ingestDetail(account.id, cid, merged.conversation.detail, index);
                 if (deps === capturedDeps) capturedDeps.onIndexesCommitted?.(account.id);
-                capturedDeps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
-                if (changed && deps === capturedDeps) capturedDeps.onDetailChanged?.({ accountId: account.id, conversationId: cid });
+                if (admission.accepted) capturedDeps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
+                if (admission.changed && deps === capturedDeps) capturedDeps.onDetailChanged?.({ accountId: account.id, conversationId: cid });
             }
             return;
         }
