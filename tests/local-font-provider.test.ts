@@ -356,7 +356,7 @@ test('mono selection: mirrors the Typst font-mono family stack', () => {
     const path = require('node:path');
     const theme = fs.readFileSync(path.join(__dirname, '../src/l4/format/typst/templates/theme.typ'), 'utf8');
     const declaration = /#let font-mono = \(([\s\S]*?)\)/.exec(theme);
-    assert.ok(declaration, 'PDF template should declare font-mono');
+    if (!declaration) throw new Error('PDF template should declare font-mono');
     assert.deepStrictEqual([...declaration[1].matchAll(/"([^"]+)"/g)].map((match: RegExpMatchArray) => match[1]), MONO_FONT_STACK);
 });
 
