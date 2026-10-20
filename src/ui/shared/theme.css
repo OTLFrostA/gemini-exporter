@@ -46,7 +46,8 @@
   color: #8390a2;
   border-color: #d6dfeb;
 }
-:root[data-theme="light"] input[type=checkbox].toggle { background: #cbd5e1; }
+/* Override only the OFF track. A checked switch must retain its accent gradient. */
+:root[data-theme="light"] input[type=checkbox].toggle:not(:checked) { background: #cbd5e1; }
 :root[data-theme="light"] .feedback-card:hover,
 :root[data-theme="light"] .item:hover { background: #e9eef8; }
 :root[data-theme="light"] .progress { background: #e2e8f0; }

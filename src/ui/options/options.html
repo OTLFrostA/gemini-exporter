@@ -77,6 +77,9 @@
     transform: translateX(14px);
     background: white;
   }
+  /* Dev alone uses an inverted direction: ON is left, beside its label. */
+  #devToggle::after { transform: translateX(14px); }
+  #devToggle:checked::after { transform: translateX(0); }
   /* Modern Sleek WebKit Scrollbars (No standard scrollbar-color/width to avoid Chrome disabling WebKit engine) */
   ::-webkit-scrollbar {
     width: 10px;
@@ -172,7 +175,7 @@
       <span>💡</span> <span data-i18n="tourBtnGuide">新手引导</span>
     </button>
     <div id="devModeWrapper" style="display:inline-flex; align-items:center; gap:6px; user-select:none; background:var(--card-inner); border:1px solid var(--border); padding:3px 8px; border-radius:20px;" title="开发者模式 (诊断) / Developer Mode">
-      <span id="labelDevMode" style="font-size:11px; font-weight:600; color:var(--muted); transition:color 0.2s; cursor:pointer;">Dev</span>
+      <label for="devToggle" id="labelDevMode" style="font-size:11px; font-weight:600; color:var(--muted); transition:color 0.2s; cursor:pointer;">Dev</label>
       <input type="checkbox" id="devToggle" class="toggle">
     </div>
     <div style="display:inline-flex; align-items:center; gap:6px; user-select:none; background:var(--card-inner); border:1px solid var(--border); padding:3px 8px; border-radius:20px;" title="Switch Language / 切换语言">
