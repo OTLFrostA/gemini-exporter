@@ -137,7 +137,6 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
     });
 }
 
-
 for (const format of ['markdown', 'html', 'json'] as const) {
     test(format + ': includeAssets=false skips acquisition and delivers a complete main file without a ZIP', async t => {
         const host = v2ExportHost(t);
@@ -252,6 +251,24 @@ test('a file companion uses its original L1 bytes in the real ZIP files/ namespa
     assert.ok(main);
     assert.ok(String(await main.async('string')).includes(original.name));
     assert.equal((await getExportRecord(exportKey(id)))?.status, 'ok');
+});
+
+test('failed Browser Download start does not commit an ExportRecord', async t => {
+    const host = v2ExportHost(t, () => { throw new Error('Download start failed'); }); useZip(t);
+    const id = 'delivery-start-failed';
+    await seed(id, [image('good', goodUri)]);
+    const requests = network(t, url => {
+        assert.equal(url, goodUri);
+        return response(png);
+    });
+    const result = await runExport(exportRequest([id], { includeAssets: true }));
+    assert.equal(result.aborted, false);
+    assert.equal(result.exported, 0);
+    assert.equal(result.partial, 0);
+    assert.deepEqual(result.failed, [exportKey(id)]);
+    assert.deepEqual(requests, [goodUri]);
+    assert.equal(host.clicks(), 1);
+    assert.equal(await getExportRecord(exportKey(id)), null);
 });
 
 test('resource waiting is abortable and ordinary transport exceptions remain per-asset failures', async () => {
