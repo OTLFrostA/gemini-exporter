@@ -127,6 +127,7 @@ export class GeminiProvider implements GeminiProviderContract {
             if (!(error instanceof ConfirmedGeminiConversationNotFound)) throw error;
             signal?.throwIfAborted();
             if (error.sourceConversationId !== `c_${conversationId.replace(/^c_/, '')}`) throw error;
+            if (await this.route(accountId) !== slot) throw new Error('Gemini account route changed');
             await ingestDeletedConversation(accountId, conversationId.replace(/^c_/, ''));
             throw new Error('conversation_not_found');
         }
