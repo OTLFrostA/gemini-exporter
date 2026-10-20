@@ -1,210 +1,272 @@
-import { useAccountRuntime } from './helpers/accountRuntime.js';
-useAccountRuntime();
-import { fixtureAccount } from './helpers/domainFixture.js';
-import { fixtureKey } from './helpers/domainFixture.js';
-import { accountRuntime } from './helpers/accountRuntime.js';
-import { useIndexStorage } from './helpers/indexStorage.js';
-useIndexStorage();
-import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { init as initRouter, type MessageRouterDeps } from '../src/runtime/content/messageRouter.js';
-import { init as initLive, resolveConversationDetail } from '../src/runtime/content/liveSaveCoordinator.js';
-import { DomScraper } from '../src/runtime/content/domScraper.js';
-import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
-import type { GeminiProviderConversationDetail } from '../src/l1/client/gemini/geminiContracts.js';
-import type { DomDetail, GetConversationDetailResponse, DetailFailure } from '../src/runtime/types/detailTransport.js';
+import { indexStorage } from './helpers/indexStorage.js';
+import { accountRuntime, ACCOUNT_UUID, OTHER_ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { ConfirmedGeminiConversationNotFound } from '../src/l1/client/gemini/geminiClient.js';
+import { ingestDetail } from '../src/l2/ingestion.js';
+import { getDetail, getIndex, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
+import { init as initBridge, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
+import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
+import { init as initLive, cleanup as cleanupLive, executeLiveSave } from '../src/runtime/content/liveSaveCoordinator.js';
+import { init as initRouter } from '../src/runtime/content/messageRouter.js';
+import { resolveCurrentAccount } from '../src/runtime/content/accountContext.js';
+import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
+import { AssetFetcher } from '../src/runtime/capabilities/assetFetcher.js';
 
-// Compile-time regression: explicit null disables these optional runtime dependencies.
-// Keep this assignment typed; routing through an unchecked fixture would hide the bug.
-const deps: MessageRouterDeps = { syncEngine: null, scraper: null, assets: null, storage: null };
-void deps;
+// The v1 getConversationDetail router, DOM fallback and Live Save detail resolver
+// are gone. Detail belongs to L1 -> L2; only committed passive changes request
+// the unified Export through Content -> Background IPC.
+const account = fixtureAccount();
+const sourceClient = (getDetailFromSource: () => ReturnType<typeof sourceDetail> | Promise<ReturnType<typeof sourceDetail>>) => ({
+    getConversationList: async () => sourceList(),
+    getConversationDetail: async () => getDetailFromSource(),
+});
+const route = async () => 'u0';
+const paragraph = (text: string) => ({ type: 'paragraph' as const, children: [{ type: 'text' as const, text }] });
 
-function detail(): GeminiProviderConversationDetail {
-    return rpcFixture({ id: 'detail123', title: 'Research', titleSource: 'rpc', titles: { rpc: 'Research' }, timestamp: null, createdAt: null, updatedAt: null,
-        messages: [{ role: 'model', content: 'Research answer', timestamp: 1700000000000, model: 'Model',
-            attachments: [{ type: 'image', url: 'https://example.com/image', name: 'generated.png' }],
-            citations: [{ title: 'Citation', url: 'source' }], thoughts: 'thought' }] },
-        { decodedPayload: { wire: ['evidence'] }, schemaDrift: ['drift'], turnsRejected: 1 });
-}
-
-async function withProvider(run: (set: (acquire: (id: string, options?: unknown) => Promise<GeminiProviderConversationDetail>) => void) => Promise<void>) {
-    const provider = ProviderRegistry.getDefault();
-    assert.ok(provider);
-    const original = provider.fetchConversationDetail;
-    try { await run(acquire => { provider.fetchConversationDetail = acquire; }); }
-    finally { provider.fetchConversationDetail = original; initLive(); }
-}
-
-async function route(dom: DomDetail | DetailFailure | (() => Promise<DomDetail | DetailFailure>)) {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    let listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] | undefined;
-    let removed = '';
-    const updates: { slot: string | null | undefined; id: string; cloudAvailability: string | undefined }[] = [];
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { ...globalThis.chrome, runtime: {
-        onMessage: { addListener(fn: typeof listener) { listener = fn; }, removeListener() {} }, sendMessage() {}
-    } } });
-    const runtime = accountRuntime();
+test('v2 detail: L1 commits title, model, reasoning, citations and asset references to L2 without transport evidence', async () => {
+    const environment = indexStorage();
     try {
-        initRouter({ syncEngine: null,
-            scraper: { ...DomScraper, contentFetchChatDetail: typeof dom === 'function' ? dom : async () => dom },
-            storage: {
-                setConversationAvailability: async (slot, id, state) => {
-                    updates.push({ slot, id, cloudAvailability: state });
+        const parsed = sourceDetail({ id: 'detail123', title: 'Research', updatedAt: 1700000000000 });
+        parsed.conversation.detail.quality = { status: 'complete' };
+        parsed.conversation.detail.assets = [
+            { id: 'generated-image', kind: 'image', name: 'generated.png', sourceUri: 'https://lh3.googleusercontent.com/image' },
+        ];
+        parsed.conversation.detail.messages = [{
+            id: 'answer', role: 'assistant', model: 'Model', timestamp: 1700000000000,
+            content: [
+                { type: 'paragraph', children: [{ type: 'text', text: 'Research answer' }, { type: 'citationRef', citationId: 'cite' }] },
+                { type: 'image', assetId: 'generated-image' },
+            ],
+            reasoning: [paragraph('thought')],
+            citations: [{ id: 'cite', title: 'Citation', url: 'https://example.com/source' }],
+            attachmentIds: ['generated-image'],
+        }];
+        parsed.transport.decodedPayload = { wire: ['raw-only-evidence'] };
+        const expected = structuredClone(parsed.conversation.detail);
+        const provider = new GeminiProvider({
+            getConversationList: async () => sourceList(),
+            getConversationDetail: async (id, slot, owner) => {
+                assert.equal(id, 'detail123');
+                assert.equal(slot, 'u0');
+                assert.equal(owner?.id, account.id);
+                return parsed;
+            },
+        }, route);
+
+        assert.equal(await provider.fetchConversationDetail(account.id, 'detail123'), undefined);
+        const key = { accountId: account.id, conversationId: 'detail123' };
+        const committed = await getDetail(key);
+        assert.ok(committed);
+        assert.deepEqual(committed.messages, expected.messages);
+        assert.deepEqual(committed.assets, expected.assets);
+        assert.deepEqual(committed.quality, expected.quality);
+        assert.equal(committed.savedAt, 1700000000000);
+        assert.equal((await getIndex(key))?.title, 'Research');
+        assert.equal((await getIndex(key))?.titleSource, 'provider');
+        assert.equal((await getIndex(key))?.updatedAt, 1700000000000);
+        assert.equal(Object.hasOwn(committed, 'transport'), false, 'raw RPC/debug payload is not trusted Domain');
+        assert.equal(JSON.stringify(committed).includes('raw-only-evidence'), false);
+    } finally {
+        environment.restore();
+    }
+});
+
+test('v2 detail: unknown source times remain absent instead of inventing chatTime or savedAt', async () => {
+    const environment = indexStorage();
+    try {
+        const parsed = sourceDetail({ id: 'no_time', updatedAt: null });
+        const provider = new GeminiProvider(sourceClient(() => parsed), route);
+        await provider.fetchConversationDetail(account.id, 'no_time');
+        const key = { accountId: account.id, conversationId: 'no_time' };
+        const stored = await getDetail(key);
+        const index = await getIndex(key);
+        assert.ok(stored && index);
+        assert.equal(Object.hasOwn(stored, 'savedAt'), false);
+        assert.equal(Object.hasOwn(stored, 'chatTime'), false);
+        assert.equal(Object.hasOwn(index, 'updatedAt'), false);
+        assert.equal(Object.hasOwn(index, 'createdAt'), false);
+    } finally {
+        environment.restore();
+    }
+});
+
+test('v2 detail: transient/ambiguous failures leave local data intact; confirmed Not Found deletes only the matching key', async () => {
+    const environment = indexStorage();
+    try {
+        const id = 'deadbeef00112233';
+        const key = { accountId: account.id, conversationId: id };
+        const otherKey = { accountId: OTHER_ACCOUNT_UUID, conversationId: id };
+        const body = { quality: { status: 'complete' as const }, assets: [], messages: [
+            { role: 'assistant' as const, content: [paragraph('Previously saved answer')] },
+        ] };
+        await ingestDetail(key.accountId, id, body, { title: 'Previously saved', titleSource: 'provider' });
+        await ingestDetail(otherKey.accountId, id, body, { title: 'Other account', titleSource: 'provider' });
+        await putExportRecord(key, { exportedAt: 1700000000000, format: 'markdown', status: 'ok' });
+        const oldDetail = await getDetail(key);
+        const oldRecord = await getExportRecord(key);
+
+        let failure: Error = new Error('temporary failure');
+        const provider = new GeminiProvider({
+            getConversationList: async () => sourceList(),
+            getConversationDetail: async () => { throw failure; },
+        }, route);
+        for (const error of [new Error('temporary failure'), new Error('HTTP 404'),
+            new ConfirmedGeminiConversationNotFound('c_different_conversation')]) {
+            failure = error;
+            await assert.rejects(provider.fetchConversationDetail(account.id, id));
+            assert.deepEqual(await getDetail(key), oldDetail);
+            assert.deepEqual(await getExportRecord(key), oldRecord);
+        }
+
+        failure = new ConfirmedGeminiConversationNotFound('c_' + id);
+        await assert.rejects(provider.fetchConversationDetail(account.id, id), /conversation_not_found/);
+        assert.equal(await getDetail(key), null);
+        assert.equal(await getIndex(key), null);
+        assert.equal(await getExportRecord(key), null);
+        assert.ok(await getDetail(otherKey), 'another Account must not be deleted');
+    } finally {
+        environment.restore();
+    }
+});
+
+test('v2 Live Save: only a committed, changed passive Detail requests a single keyed export', async () => {
+    const environment = indexStorage();
+    const runtime = accountRuntime();
+    const forward = chrome.runtime.sendMessage.bind(chrome.runtime);
+    const sent: unknown[] = [];
+    const feedback: string[] = [];
+    const jobs: Array<Promise<unknown>> = [];
+    try {
+        await resolveCurrentAccount(ACCOUNT_OBSERVATION, 'u0');
+        chrome.runtime.sendMessage = (async (message: { action: string; key?: unknown }) => {
+            if (message.action === 'runLiveSave') {
+                sent.push(message);
+                return { ok: true, result: { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false } };
+            }
+            return forward(message);
+        }) as typeof chrome.runtime.sendMessage;
+        initLive({ badge: { showLiveSaveResult: (_result, accountId) => { feedback.push(accountId); } } });
+        initBridge({ onDetailChanged: key => { jobs.push(executeLiveSave(key)); } });
+
+        const id = 'source_sniff_123';
+        const key = { accountId: ACCOUNT_UUID, conversationId: id };
+        const wire = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+            [[['c_' + id, 'r_question'], [1700000000, 0], [['Question']],
+                [[['rc_answer', [['Answer']]]]]]], null,
+        ])]]);
+        const captured = (extra: Record<string, unknown> = {}): MessageEvent => ({
+            source: window, origin: location.origin, data: {
+                type: CrossWorldEvents.NETWORK_BATCHEXECUTE,
+                payload: {
+                    text: wire, slot: 'u0', requestedAt: 1700000000000, truncated: false,
+                    url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute',
+                    requestAccountObservation: ACCOUNT_OBSERVATION,
+                    detailRequest: { conversationId: id, requestCursor: null }, ...extra,
                 },
-                removeConversation: async (_slot, id) => { removed = id; return true; },
-                getConversations: async () => []
-            } });
-        assert.ok(listener);
-        const result = await new Promise<GetConversationDetailResponse>(resolve => {
-            listener!({ action: 'getConversationDetail', conversationId: 'detail123', targetSid: 'u0', accountSlot: 'u2' }, {}, resolve);
-        });
-        return { result, removed, updates };
+            },
+        }) as unknown as MessageEvent;
+        const admit = async (extra: Record<string, unknown> = {}) => {
+            await handleWindowMessage(captured(extra));
+            await Promise.all(jobs.splice(0));
+        };
+
+        await admit();
+        const initial = await getDetail(key);
+        assert.ok(initial);
+        assert.equal(initial.quality.status, 'complete');
+        assert.deepEqual(sent, [{ action: 'runLiveSave', key }]);
+        assert.deepEqual(feedback, [ACCOUNT_UUID]);
+
+        await admit(); // A duplicate candidate is accepted but not changed.
+        await admit({ truncated: true }); // A partial candidate cannot replace complete Detail.
+        assert.deepEqual(await getDetail(key), initial);
+        assert.equal(sent.length, 1, 'no second Export for unchanged or rejected Detail');
     } finally {
+        runCleanups();
+        cleanupLive();
         runtime.restore();
-        if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
-        else Reflect.deleteProperty(globalThis, 'chrome');
+        environment.restore();
     }
-}
-const dom: DomDetail = {   ...historicalFixture({ id: 'detail123', title: 'DOM title', titleSource: 'dom', messages: [{ role: 'user', content: 'DOM' }] }), transport: { nodeCount: 1, htmlLen: 42, fallbackUsed: null } };
-const emptyDom: DomDetail = {   ...dom, conversation: { index: { ...dom.conversation.index }, detail: {   ...dom.conversation.detail, messages: [] } } };
+});
 
-test('messageRouter: provider success preserves all companion and multimodal evidence', async () => withProvider(async set => {
-    const payload = detail();
-    set(async (id, options) => {
-        assert.equal(id, 'detail123', 'router must forward the normalized conversation ID');
-        assert.deepEqual(options, { accountId: fixtureAccount().id, targetSid: 'u0' }, 'provider must receive target session identity');
-        return payload;
-    });
-    const { result, removed, updates } = await route(async () => { throw new Error('DOM must not run'); });
-    assert.ok(result.success && result.source === 'batchexecute');
-    assert.deepEqual(('conversation' in result.data && result.data.conversation.detail.messages), payload.conversation.detail.messages);
-    assert.deepEqual('transport' in result.data && result.data.transport, payload.transport);
-    assert.equal(removed, '');
-    assert.deepEqual(updates, [], 'a healthy conversation must not be marked cloud-deleted');
-}));
-
-test('messageRouter: empty RPC retains raw previews and DOM debug without pruning', async () => withProvider(async set => {
-    const payload = detail(); payload.conversation.detail.messages = []; set(async () => payload);
-    const { result, removed, updates } = await route(emptyDom);
-    assert.ok(result.success && result.source === 'dom' && '_empty' in result.data);
-    const debug = result.data._debug; assert.ok(debug && 'batchexecuteEmptyDebug' in debug);
-    assert.deepEqual(debug.batchexecuteEmptyDebug, { rawKeys: ['wire'], rawPreview: JSON.stringify(payload.transport.decodedPayload),
-        topPreview: JSON.stringify(payload).slice(0, 1000), messagesLen: 0, hasRaw: true, titleSeen: 'Research' });
-    assert.equal(debug.domHtmlLen, 42); assert.equal(result.data.isEmpty, true); assert.equal(removed, '');
-    assert.deepEqual(updates, []);
-}));
-
-test('messageRouter: provider failure permits valid DOM fallback; 404 only marks confirmed cloud deletion', async () => withProvider(async set => {
-    set(async () => { throw new Error('temporary failure'); });
-    const success = await route(dom);
-    assert.ok(success.result.success && success.result.source === 'dom'); assert.deepEqual('conversation' in success.result.data && success.result.data.conversation.detail.messages, dom.conversation.detail.messages);
-    assert.equal(success.removed, '');
-    assert.deepEqual(success.updates, []);
-    const deleted = await route({ id: 'detail123', isDeleted: true, error: 'HTTP 404', _debug: { status: 404, isNotFound: true } });
-    assert.ok(deleted.result.success && deleted.result.source === 'dom' && '_empty' in deleted.result.data);
-    assert.equal(deleted.result.data.isDeleted, true); assert.equal(deleted.result.data.isEmpty, false);
-    assert.equal(deleted.removed, '');
-    assert.deepEqual(deleted.updates, [{ slot: fixtureAccount().id, id: 'detail123', cloudAvailability: 'deleted' }]);
-    assert.ok(deleted.result.data._debug && 'batchexecuteEmptyDebug' in deleted.result.data._debug);
-    assert.deepEqual(deleted.result.data._debug.batchexecuteEmptyDebug, { error: 'temporary failure' });
-}));
-
-test('messageRouter: confirmed RPC deletion suppresses DOM and preserves deletion evidence', async () => withProvider(async set => {
-    set(async () => { throw new Error('rpc error (BardErrorInfo: 1167) inaccessible or deleted'); });
-    const { result, removed, updates } = await route(async () => { throw new Error('DOM must not run'); });
-    assert.ok(result.success && result.source === 'batchexecute' && '_empty' in result.data);
-    assert.equal(result.data.isDeleted, true); assert.equal(removed, '');
-    assert.ok(result.data._debug && 'isDeleted' in result.data._debug);
-    assert.equal(result.data._debug.isDeleted, true);
-    assert.deepEqual(updates, [{ slot: fixtureAccount().id, id: 'detail123', cloudAvailability: 'deleted' }]);
-}));
-
-test('messageRouter: DOM deletion uses the explicit outcome regardless of diagnostic evidence', async () => withProvider(async set => {
-    set(async () => { throw new Error('temporary failure'); });
-    for (const isDeleted of [false, true]) {
-        const { result, updates } = await route({ id: 'detail123', error: 'source failure', isDeleted,
-            _debug: { isNotFound: !isDeleted, status: isDeleted ? 500 : 404 } });
-        assert.ok(result.success && '_empty' in result.data);
-        assert.equal(result.data.isDeleted, isDeleted);
-        assert.equal(result.data.isEmpty, !isDeleted);
-        assert.deepEqual(updates, isDeleted ? [{ slot: fixtureAccount().id, id: 'detail123', cloudAvailability: 'deleted' }] : [],
-            'only the explicit deletion result may update durable cloud availability');
-    }
-}));
-
-test('liveSave: provider and injected acquisition retain title/media/evidence and derive only missing time aliases', async () => withProvider(async set => {
-    for (const injected of [false, true]) {
-        const payload = detail(); let calledId = '';
-        set(async () => { if (injected) throw new Error('provider must not run'); return payload; });
-        class Client { async getConversationDetail(id: string) { calledId = id; return payload; } }
-        initLive(injected ? { clientClass: Client } : {});
-        const before = structuredClone(payload.conversation.detail.messages);
-        const resolved = await resolveConversationDetail('c_detail123');
-        assert.deepEqual(resolved?.conversation.detail.messages, before);
-        assert.equal(Object.hasOwn(resolved!.conversation, 'chatTime'), false);
-        assert.equal(resolved?.sourceVersion, undefined); assert.equal(resolved?.conversation.index.createdAt, undefined);
-        assert.equal(resolved?.conversation.index.titleSource, 'provider'); assert.equal(Object.hasOwn(resolved!.conversation, 'titles'), false);
-        if (injected) assert.equal(calledId, 'detail123');
-    }
-    const existing = detail(); existing.sourceVersion = 1500000000000;
-    set(async () => existing); initLive();
-    assert.equal((await resolveConversationDetail('detail123'))?.sourceVersion, existing.sourceVersion, 'source version is independent of completeness');
-    const clean = {   ...existing, conversation: { index: {  ...existing.conversation.index,  }, detail: {   ...existing.conversation.detail, quality: { status: 'unknown' as const } } } };
-    set(async () => clean); initLive();
-    assert.equal((await resolveConversationDetail('clean-version'))?.sourceVersion, existing.sourceVersion);
-    assert.equal(existing.sourceVersion, 1500000000000);
-}));
-
-test('liveSave: empty/failed provider and failed injected client still permit DOM acquisition', async () => withProvider(async set => {
-    const empty = detail(); empty.conversation.detail.messages = [];
-    for (const mode of ['empty', 'failed', 'injected']) {
-        set(async () => { if (mode === 'empty') return empty; throw new Error('failure'); });
-        class Client { async getConversationDetail(): Promise<GeminiProviderConversationDetail> { throw new Error('injected failure'); } }
-        initLive({ scraper: { ...DomScraper, parseDoc: () => dom }, ...(mode === 'injected' ? { clientClass: Client } : {}) });
-        assert.deepEqual((await resolveConversationDetail('detail123'))?.conversation.detail.messages, dom.conversation.detail.messages);
-    }
-}));
-
-test('liveSave: missing document is an explicit null DOM fallback, not a non-null assertion', async () => withProvider(async set => {
-    set(async () => { throw new Error('provider unavailable'); });
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-    Reflect.deleteProperty(globalThis, 'document');
-    try {
-        assert.equal(DomScraper.parseDoc(null, 'detail123'), null);
-        initLive();
-        assert.equal(await resolveConversationDetail('detail123'), null);
-    } finally {
-        if (descriptor) Object.defineProperty(globalThis, 'document', descriptor);
-    }
-}));
-
-test('asset routing rejects a different UUID and discards bytes when the tab switches during acquisition', async () => {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    let listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] | undefined;
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { ...globalThis.chrome, runtime: {
-        onMessage: { addListener(fn: typeof listener) { listener = fn; }, removeListener() {} }, sendMessage() {}
-    } } });
+test('v2 Live Save: a changed Account prevents dispatch and suppresses late badge feedback', async () => {
     const runtime = accountRuntime();
-    let called = 0;
+    const forward = chrome.runtime.sendMessage.bind(chrome.runtime);
+    const key = { accountId: ACCOUNT_UUID, conversationId: 'detail123' };
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    const feedback: string[] = [];
+    let dispatched = 0;
     try {
-        const { AssetFetcher } = require('../src/runtime/capabilities/assetFetcher.js') as typeof import('../src/runtime/capabilities/assetFetcher.js');
-        initRouter({ assets: { ...AssetFetcher, downloadAssetDirect: async (_message, respond) => {
-            called++;
-            runtime.state.observation = { providerId: 'gemini', providerAccountId: 'other-gaia' };
-            respond({ success: true, dataBase64: 'AQID' });
-        } } });
-        const send = (accountId: string) => new Promise<{ success: boolean; error?: string }>(resolve => {
-            listener!({ action: 'downloadAssetDirect', url: 'https://lh3.googleusercontent.com/asset', accountId }, {}, resolve);
-        });
-        const mismatch = await send('10000000-0000-4000-8000-000000000002');
-        assert.equal(mismatch.success, false); assert.equal(called, 0);
-        const switched = await send('10000000-0000-4000-8000-000000000001');
-        assert.equal(switched.success, false); assert.match(switched.error || '', /Account changed/);
-        assert.equal(called, 1);
+        await resolveCurrentAccount(ACCOUNT_OBSERVATION, 'u0');
+        chrome.runtime.sendMessage = (async (message: { action: string }) => {
+            if (message.action === 'runLiveSave') {
+                dispatched++;
+                await pending;
+                return { ok: true, result: { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false } };
+            }
+            return forward(message);
+        }) as typeof chrome.runtime.sendMessage;
+        initLive({ badge: { showLiveSaveResult: (_result, id) => { feedback.push(id); } } });
+        const inFlight = executeLiveSave(key);
+        assert.equal(dispatched, 1);
+        runtime.state.observation = { providerId: 'gemini', providerAccountId: 'other-gaia' };
+        await resolveCurrentAccount(runtime.state.observation, 'u0');
+        release();
+        await inFlight;
+        assert.deepEqual(feedback, []);
+        assert.equal(await executeLiveSave(key), null);
+        assert.equal(dispatched, 1);
     } finally {
+        release();
+        cleanupLive();
         runtime.restore();
-        if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
-        else Reflect.deleteProperty(globalThis, 'chrome');
+    }
+});
+
+test('v2 messageRouter: resource IPC rejects foreign Accounts/hosts and never leaks bytes across an Account switch', async () => {
+    const runtime = accountRuntime();
+    const originalFetch = AssetFetcher.handleGetFileBlob;
+    type Listener = Parameters<typeof chrome.runtime.onMessage.addListener>[0];
+    let listener: Listener | undefined;
+    let downloads = 0;
+    try {
+        await resolveCurrentAccount(ACCOUNT_OBSERVATION, 'u0');
+        Object.assign(chrome.runtime, {
+            id: 'own-extension',
+            onMessage: {
+                addListener(fn: Listener) { listener = fn; },
+                removeListener() {},
+            },
+        });
+        AssetFetcher.handleGetFileBlob = async (_message, reply) => {
+            downloads++;
+            runtime.state.observation = { providerId: 'gemini', providerAccountId: 'other-gaia' };
+            reply({ success: true, dataBase64: 'AQID', size: 3 });
+        };
+        initRouter();
+        assert.ok(listener);
+        const request = (message: unknown) => new Promise<Record<string, unknown>>(resolve => {
+            const handled = listener!(message, { id: 'own-extension' } as chrome.runtime.MessageSender,
+                response => resolve(response as Record<string, unknown>));
+            assert.equal(handled, true);
+        });
+        const url = 'https://lh3.googleusercontent.com/asset';
+        assert.equal((await request({ action: 'getFileBlob', accountId: OTHER_ACCOUNT_UUID, url })).success, false);
+        assert.equal((await request({ action: 'getFileBlob', accountId: ACCOUNT_UUID, url: 'https://evil.example/a' })).success, false);
+        assert.equal(downloads, 0);
+        const switched = await request({ action: 'getFileBlob', accountId: ACCOUNT_UUID, url });
+        assert.equal(switched.success, false);
+        assert.match(String(switched.error), /Account changed/);
+        assert.equal(Object.hasOwn(switched, 'dataBase64'), false);
+        assert.equal(downloads, 1);
+    } finally {
+        runCleanups();
+        AssetFetcher.handleGetFileBlob = originalFetch;
+        runtime.restore();
     }
 });
