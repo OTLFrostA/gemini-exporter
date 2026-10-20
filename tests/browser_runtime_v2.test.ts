@@ -196,6 +196,18 @@ test('Live Save returns the exact unified result and request, including skip/par
     assert.equal(await save(key), result);
 });
 
+test('Worker Live Save scopes KeepAlive to the active export and releases it on failure', async () => {
+    const trace: string[] = [];
+    const save = load('src/runtime/background/liveSaveHandler.ts', {
+        'src/application/settings/index.js': { getSettings: async () => ({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: true }) },
+        'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted' }) },
+        'src/application/export/runExport.js': { runExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
+        'src/runtime/background/keepAlive.js': { startKeepAlive: () => { trace.push('start'); return () => trace.push('stop'); } },
+    }).runLiveSave;
+    await assert.rejects(save({ accountId: uuid, conversationId: 'abc' }), /Delivery failed/);
+    assert.deepEqual(trace, ['start', 'export', 'stop']);
+});
+
 test('routing matches Provider and UUID, prefers matching active Tab, and never retries a different Tab after dispatch', async () => {
     const sent: any[] = [];
     global.chrome = { runtime: { id: 'ext' }, tabs: {
