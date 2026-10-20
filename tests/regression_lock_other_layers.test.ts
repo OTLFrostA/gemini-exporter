@@ -72,7 +72,7 @@ function fakeBrowser(t: { after: (fn: () => void) => void }, failClick = false) 
     });
     URL.createObjectURL = ((blob: Blob) => {
         blobs.push(blob);
-        return originalCreate(blob);
+        return originalCreate.call(URL, blob);
     }) as typeof URL.createObjectURL;
     t.after(() => {
         URL.createObjectURL = originalCreate;
