@@ -107,8 +107,8 @@ export class GeminiProvider implements GeminiProviderContract {
         signal?.throwIfAborted();
         if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new TypeError('Detail identity mismatch');
         const index = parsed.conversation.index;
-        await ingestDetail(accountId, parsed.conversationId, parsed.conversation.detail, index);
-        this.resources?.retainParsed({ accountId, conversationId: parsed.conversationId }, parsed);
+        const admission = await ingestDetail(accountId, parsed.conversationId, parsed.conversation.detail, index);
+        if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId: parsed.conversationId }, parsed);
     }
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
         signal?.throwIfAborted();
