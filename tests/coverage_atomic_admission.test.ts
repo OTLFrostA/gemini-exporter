@@ -4,6 +4,7 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import type { PageObservation } from '../src/l2/pageObservation.js';
 import CoverageAdmission from '../src/l2/coverageAdmission.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
 import { clearStoredAccountScanRecords, getCoverage, updateCoverageAtomically, getIndex,
     putIndexes, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
 
@@ -110,5 +111,37 @@ test('a disjoint committed replacement cannot authorize an early stop from an ob
         const { providerId: _provider, accountId: _account, items: _items, ...scanHead } = head;
         assert.equal(await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead), false);
         assert.deepEqual(await getCoverage(accountId, 'recent'), replacement);
+    } finally { env.restore(); }
+});
+
+test('L2 accepts an empty provider-limit terminal after a committed Index page', async () => {
+    const env = indexStorage();
+    try {
+        const identity = 'source-verified';
+        const streamId = 'recent-limit';
+        await ingestIndexes(accountId, [{ conversationId: identity, fields: { updatedAt: 100 } }], {
+            streamId, requestCursor: null, nextCursor: 'limit', requestedAt: 1,
+            requestKnown: true, valid: true, ordered: true, keys: [{ id: identity, time: 100 }],
+        });
+        assert.deepEqual((await getCoverage(accountId, streamId))?.range, null);
+        await ingestIndexes(accountId, [], {
+            streamId, requestCursor: 'limit', nextCursor: null, requestedAt: 2,
+            requestKnown: true, valid: true, ordered: true, keys: [], terminal: 'provider_limit',
+        });
+        assert.deepEqual((await getCoverage(accountId, streamId))?.range, {
+            head: { id: identity, time: 100 }, tail: { id: identity, time: 100 },
+        });
+        assert.ok(await getIndex({ accountId, conversationId: identity }));
+    } finally { env.restore(); }
+});
+
+test('a genuinely empty trusted list establishes no fictitious range or Index', async () => {
+    const env = indexStorage();
+    try {
+        await ingestIndexes(accountId, [], {
+            streamId: 'recent-empty', requestCursor: null, nextCursor: null, requestedAt: 1,
+            requestKnown: true, valid: true, ordered: true, keys: [],
+        });
+        assert.deepEqual((await getCoverage(accountId, 'recent-empty'))?.range, null);
     } finally { env.restore(); }
 });
