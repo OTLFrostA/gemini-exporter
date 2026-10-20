@@ -148,7 +148,7 @@ test('matrix: message citations reach HTML and Typst transport', () => {
     const { payload } = renderTypstFixture(composeDomainDocument(domainFixture([], extra), fixtureAccountFor(domainFixture([], extra))), Object.fromEntries(domainFixture([], extra).detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'note');
-    assert.deepEqual(node.children[0], { type: 'link', url: 'https://example.com', children: [txt('[1] Example Source')] }, 'Typst preserves source number and link');
+    assert.deepEqual(node.children[0], { type: 'link', url: 'https://example.com/', children: [txt('[1] Example Source')] }, 'Typst preserves source number and link');
 });
 
 test('matrix: thematic break is a native divider in HTML and Typst', () => {
