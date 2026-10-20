@@ -1,5 +1,12 @@
 # Gemini Exporter 测试架构与规范指南 (Three-Tier Testing Architecture & Guide)
 
+**v2 严格模块单测隔离：** 本文所称的历史 `npm run test:unit` 是混合回归入口，
+并不表示其中每个文件只运行一个模块。真正的 v2 专属单测统一使用
+`npm run test:v2:unit-ports` 和 `npm run test:v2:unit-isolation`，由
+[模块单测隔离规范](../docs/v2-unit-isolation.md) 约束；任何执行真实多个
+生产模块的测试保留为 Integration，不删除原有测试。
+
+
 本项目构建了严密、分层的**三层测试体系 (Three-Tier Testing Architecture)**，兼顾了 CI 自动化门禁的极致速度与生产环境真实链路的绝对可靠性。无论是人类开发者还是 AI 编程助手，在进行功能开发、Bug 修复或重构时，均须严格遵守本规范。
 
 ---
