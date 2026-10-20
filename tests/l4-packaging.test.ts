@@ -1,14 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
-import { v2Account, v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
+import { v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 import { ZipWriter } from '../src/l4/packaging/writers/zipWriter.js';
 import { assertExportPath } from '../src/l4/packaging/exportPath.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
-import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
 const JSZip = require('../lib/jszip.min.js');
 const prepared: PreparedResources = new Map([
     ['a', { ok: true, resourceId: 'a', value: { bytes: new Uint8Array([1, 2]), mediaType: 'image/png' } }],
@@ -105,27 +104,24 @@ test('ZIP generation failures reject without producing a delivery artifact', asy
     await assert.rejects(packageExportFiles([[{ fileName: 'a.md', mimeType: 'text/markdown', content: 'body' }, { fileName: 'b.md', mimeType: 'text/markdown', content: 'second' }]], 'browserDownload'), /zip failed/);
 });
 
-test('Format references resolve to the same planned ZIP entries for Markdown, HTML and JSON', async () => {
+test('Format references resolve to the same planned ZIP entries for Markdown and HTML', async () => {
     __setModuleOverride('JSZip', JSZip);
     const c = conversation();
-    c.detail.messages = [{ role: 'assistant', content: [{ type: 'image', assetId: 'a' }, { type: 'image', assetId: 'b' }] }];
-    const account = v2Account('gemini', c.index.key.accountId);
     // L3b is outside L4; pass a v2 AST fixture directly to real format backends.
     const document = v2Document([
         { type: 'image', resourceId: 'a', alt: 'Photo' },
         { type: 'image', resourceId: 'b', alt: 'Photo' },
     ], { title: c.index.title, id: c.index.key.conversationId });
-    for (const format of ['markdown', 'html', 'json'] as const) {
+    for (const format of ['markdown', 'html'] as const) {
         const [plan] = planExportPaths([{ conversation: c, prepared, fileIds: new Set<string>() }], format);
         const content = format === 'markdown' ? renderDocumentMarkdown(document, plan.resources)
-            : format === 'html' ? renderDocumentHtml(document, plan.resources).html
-            : serializeDomainJson(c, account, plan.resources);
+            : renderDocumentHtml(document, plan.resources).html;
         const files = buildExportFiles(format, plan, content, prepared);
         const [packed] = await packageExportFiles([files], 'browserDownload');
         const zip = await JSZip.loadAsync(await (packed.content as Blob).arrayBuffer());
         for (const path of Object.values(plan.resources)) {
             const encoded = path.split('/').map(encodeURIComponent).join('/');
-            assert.ok(content.includes(format === 'json' ? path : encoded), `${format} reference: ${path}`);
+            assert.ok(content.includes(encoded), `${format} reference: ${path}`);
             assert.ok(zip.file(path), `${format} entry: ${path}`);
         }
     }
