@@ -1,10 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
-import { startSync } from '../src/ui/options/controllers/syncController.js';
-import { handleTakeoutImport } from '../src/ui/options/controllers/takeoutController.js';
-import { bindDelayedActions } from '../src/ui/guidance/tourSteps.js';
-import { getLatestEligibleFeature } from '../src/ui/guidance/featureReleases.js';
+import { assertUiNodeIsolation, installUiV2Mocks } from './helpers/uiV2Mocks.js';
+
+// Stub external owners before loading any UI module (including its transitive imports).
+installUiV2Mocks();
+const { ConversationViewState } = require('../src/ui/options/state/conversationsStore.js') as
+    typeof import('../src/ui/options/state/conversationsStore.js');
+const { startSync } = require('../src/ui/options/controllers/syncController.js') as
+    typeof import('../src/ui/options/controllers/syncController.js');
+const { handleTakeoutImport } = require('../src/ui/options/controllers/takeoutController.js') as
+    typeof import('../src/ui/options/controllers/takeoutController.js');
+const { bindDelayedActions } = require('../src/ui/guidance/tourSteps.js') as
+    typeof import('../src/ui/guidance/tourSteps.js');
+const { getLatestEligibleFeature } = require('../src/ui/guidance/featureReleases.js') as
+    typeof import('../src/ui/guidance/featureReleases.js');
+assertUiNodeIsolation();
 
 const A = { id: '11111111-1111-4111-8111-111111111111', providerId: 'gemini', providerAccountId: 'A' };
 const B = { ...A, id: '22222222-2222-4222-8222-222222222222', providerAccountId: 'B' };

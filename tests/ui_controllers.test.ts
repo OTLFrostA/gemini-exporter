@@ -1,57 +1,110 @@
-import { seed, request, reset, key } from './helpers/applicationHarness.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as Directory from '../src/runtime/capabilities/dirHandleController.js';
-import type { DirectoryHandle } from '../src/runtime/capabilities/directoryHandle.js';
-import { startSync } from '../src/ui/options/controllers/syncController.js';
-import { handleTakeoutImport } from '../src/ui/options/controllers/takeoutController.js';
-import { runExport as uiExport } from '../src/ui/options/controllers/exportController.js';
-import { runExport } from '../src/application/export/runExport.js';
-import { errorText } from '../src/ui/shared/settings.js';
-const id = '10000000-0000-4000-8000-000000000001';
-test.beforeEach(reset);
+import type { ExportRequest, ExportResult } from '../src/application/export/types.js';
+import { A, B, assertUiNodeIsolation, exportPort, installUiV2Mocks, mockRunExport } from './helpers/uiV2Mocks.js';
 
-test('dirHandleController - exports and in-memory handle state', () => {
-    for (const method of ['getStoredDirHandle', 'saveStoredDirHandle', 'verifyDirPermission', 'restoreSavedDirHandle', 'requestDirHandle'] as const) assert.equal(typeof Directory[method], 'function');
-    const handle = { name: 'exports' } as DirectoryHandle;
-    Directory.setDirHandle(handle); assert.strictEqual(Directory.getDirHandle(), handle);
-    Directory.setDirHandle(null); assert.equal(Directory.getDirHandle(), null);
+// Only load UI code after replacing the Application/Runtime/L1/Storage modules
+// with their v2 public ports. No Application Export engine is executed here.
+installUiV2Mocks();
+const { runExport: uiExport } = require('../src/ui/options/controllers/exportController.js') as
+    typeof import('../src/ui/options/controllers/exportController.js');
+const { startSync } = require('../src/ui/options/controllers/syncController.js') as
+    typeof import('../src/ui/options/controllers/syncController.js');
+const { handleTakeoutImport } = require('../src/ui/options/controllers/takeoutController.js') as
+    typeof import('../src/ui/options/controllers/takeoutController.js');
+const { errorText } = require('../src/ui/shared/settings.js') as
+    typeof import('../src/ui/shared/settings.js');
+assertUiNodeIsolation();
+
+const key = (conversationId: string) => ({ accountId: A, conversationId });
+const request: ExportRequest = {
+    keys: [key('first'), key('second')], format: 'markdown', delivery: 'browserDownload',
+    includeAssets: true, skipUnchanged: false,
+};
+test.beforeEach(() => exportPort.reset());
+
+test('exportController forwards the frozen v2 request and progress port unchanged', async () => {
+    const seen: unknown[] = [];
+    const signal = new AbortController().signal;
+    const result = await uiExport(request, { signal, onProgress: progress => seen.push(progress) });
+    assert.equal(uiExport, mockRunExport);
+    assert.deepEqual(exportPort.calls, [{ request, signal }]);
+    assert.deepEqual(seen, [
+        { current: 1, total: 2, key: key('first') },
+        { current: 2, total: 2, key: key('second') },
+    ]);
+    assert.deepEqual(result, { exported: 2, skipped: 0, partial: 0, failed: [], aborted: false });
 });
-test('exportController - delegates to the unique Application workflow without another engine state machine', () => {
-    assert.strictEqual(uiExport, runExport);
+
+test('exportController passes final partial/failure facts and errors from mocked Application', async () => {
+    const final: ExportResult = { exported: 1, partial: 1, skipped: 0, failed: [key('second')], aborted: false };
+    exportPort.result = final;
+    assert.strictEqual(await uiExport(request), final);
+    const failure = new Error('Delivery failed');
+    exportPort.error = failure;
+    await assert.rejects(uiExport(request), error => error === failure);
 });
-test('ExportController progress uses the Application current/total/key contract unchanged', async () => {
-    seed(); seed('second'); const seen: unknown[] = [];
-    const result = await uiExport(request({ keys: [key(), key('second')] }), { onProgress: progress => seen.push(progress) });
-    assert.equal(result.exported, 2);
-    assert.deepEqual(seen, [{ current: 1, total: 2, key: key() }, { current: 2, total: 2, key: key('second') }]);
-});
-test('syncController - running cancellation belongs to this invocation AbortSignal', async () => {
-    const controller = new AbortController(); let called = false;
-    const operation = startSync(id, { signal: controller.signal, onTarget: async () => controller.abort() }, {
-        resolveScanTarget: async () => id, scanAll: async () => { called = true; throw Error('unexpected'); }
+
+test('syncController aborts after resolving source but before launching the mocked Scan', async () => {
+    const controller = new AbortController();
+    let scans = 0;
+    const operation = startSync(A, { signal: controller.signal, onTarget: async () => controller.abort() }, {
+        resolveScanTarget: async () => A,
+        scanAll: async () => { scans++; throw Error('Unexpected Scan'); },
     });
-    await assert.rejects(operation, { name: 'AbortError' }); assert.equal(called, false);
+    await assert.rejects(operation, { name: 'AbortError' });
+    assert.equal(scans, 0);
 });
-test('syncController - connection failures retain the actionable original error', () => {
-    const error = new Error('Could not establish connection. Receiving end does not exist.');
-    assert.equal(errorText(error), error.message); assert.equal(errorText('HTTP 503 Service Unavailable'), 'HTTP 503 Service Unavailable');
+
+test('syncController uses the verified source, ScanRequest and committed v2 progress', async () => {
+    const seen: unknown[] = [];
+    const signal = new AbortController().signal;
+    const result = await startSync(B, { signal, forceFull: true,
+        onTarget: async id => { seen.push(['target', id]); },
+        onProgress: progress => { seen.push(progress); } }, {
+        resolveScanTarget: async preferred => { assert.equal(preferred, B); return A; },
+        scanAll: async (scanRequest, options) => {
+            seen.push(scanRequest);
+            assert.strictEqual(options?.signal, signal);
+            options?.onProgress?.({ pagesFetched: 2, conversationsFetched: 151 });
+            return { status: 'partial_limit', reason: 'max_pages', pagesFetched: 2, conversationsFetched: 151 };
+        },
+    });
+    assert.deepEqual(seen, [['target', A], { accountId: A, forceFull: true },
+        { pagesFetched: 2, conversationsFetched: 151 }]);
+    assert.equal(result.reason, 'max_pages');
 });
-test('syncController - failed source resolution rejects and never dispatches a scan', async () => {
-    const failure = new Error('Receiving end does not exist'); let scans = 0, targets = 0;
-    await assert.rejects(startSync(id, { signal: new AbortController().signal, onTarget: async () => { targets++; } }, {
-        resolveScanTarget: async () => { throw failure; }, scanAll: async () => { scans++; throw Error('unexpected'); }
+
+test('syncController passes source resolution errors through without starting a Scan', async () => {
+    const failure = new Error('Receiving end does not exist');
+    let scans = 0;
+    await assert.rejects(startSync(A, { signal: new AbortController().signal, onTarget: async () => {} }, {
+        resolveScanTarget: async () => { throw failure; },
+        scanAll: async () => { scans++; throw Error('Unexpected Scan'); },
     }), error => error === failure);
-    assert.equal(scans, 0); assert.equal(targets, 0);
+    assert.equal(scans, 0);
+    assert.equal(errorText(failure), failure.message);
 });
-test('takeoutController - typed File input reaches the current importer with its target and progress', async () => {
-    const file = new File(['fixture'], 'takeout.zip'), seen: unknown[] = [];
-    const account = { id, providerId: 'gemini', providerAccountId: 'fixture' };
-    const result = await handleTakeoutImport(file, id, { onTarget: async target => { seen.push(target); }, onProgress: p => seen.push(p) }, {
-        listAccounts: async () => [account], getAccount: async () => account, getOrCreateAccount: async () => { throw Error('unexpected'); },
-        updateSettings: async patch => { seen.push(patch); }, importTakeout: async (actual, target, progress) => {
-            assert.strictEqual(actual, file); assert.equal(target, id); progress?.(100); return { imported: 1, status: 'ok' as const };
-        }
+
+test('takeoutController uses v2 Account/Settings/Import mocks with selected Account UUID', async () => {
+    const file = new File(['fixture'], 'takeout.zip');
+    const seen: unknown[] = [];
+    const account = { id: A, providerId: 'gemini', providerAccountId: 'fixture' };
+    const result = await handleTakeoutImport(file, A, {
+        onTarget: async id => { seen.push(['target', id]); },
+        onProgress: value => { seen.push(['progress', value]); },
+    }, {
+        listAccounts: async () => [account],
+        getAccount: async id => { assert.equal(id, A); return account; },
+        getOrCreateAccount: async () => { throw Error('Unexpected account creation'); },
+        updateSettings: async patch => { seen.push(['settings', patch]); },
+        importTakeout: async (actual, id, progress) => {
+            assert.strictEqual(actual, file);
+            assert.equal(id, A);
+            progress?.(100);
+            return { imported: 1, status: 'ok' as const };
+        },
     });
-    assert.deepEqual(seen, [id, { takeoutPromptCompleted: true }, 100]); assert.equal(result.imported, 1);
+    assert.deepEqual(seen, [['target', A], ['settings', { takeoutPromptCompleted: true }], ['progress', 100]]);
+    assert.deepEqual(result, { imported: 1, status: 'ok' });
 });

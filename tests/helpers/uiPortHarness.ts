@@ -25,7 +25,7 @@ export const getOrCreateAccount = async (providerId, providerAccountId) => {
  h.accounts.push(account);
  return account;
 };
-export const isAccountId = id => typeof id==='string' && id.length===36;
+export const isAccountId = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id);
 export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
  if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
  const aborted = !!options.signal?.aborted;
@@ -33,7 +33,10 @@ export const runExport = async (request,options={}) => {h.exports.push(request);
  const exported = aborted ? 0 : request.keys.length - failed.length;
  return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;
-export const sendTabMessage = (tabId,message) => chrome.tabs.sendMessage(tabId,message);
+export const sendTabMessage = (tabId,message,timeoutMs) => {
+ h.tabRequests.push({tabId,message,timeoutMs});
+ return chrome.tabs.sendMessage(tabId,message);
+};
 export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
 export const clearLocalExportRecords = async id => {h.clears.push(['exports',id]);};
 export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);};
@@ -41,33 +44,82 @@ export const importTakeout = async (file,id,progress) => {h.imports.push(id);if(
 export const getDirectoryHandle = async () => h.directory;
 export const setDirectoryHandle = async handle => {h.directory=handle;};
 export const clearDirectoryHandle = async () => {};
-export const isVersionGreater = (a,b) => a.localeCompare(b,undefined,{numeric:true})>0;
+// Browser Runtime directory-capability v2 public ports, backed by the test's
+// simulated permission handle; do not load the real controller in a UI test.
+export const getStoredDirHandle = async () => h.directory;
+export const saveStoredDirHandle = async handle => { h.directory=handle; return true; };
+export const verifyDirPermission = async (handle,options={}) => {
+ if(!handle) return false;
+ if(options.allowRequest && globalThis.navigator?.userActivation?.isActive) return (await handle.requestPermission({mode:'readwrite'}))==='granted';
+ return (await handle.queryPermission({mode:'readwrite'}))==='granted';
+};
+export const restoreSavedDirHandle = async () => {
+ const stored=await getStoredDirHandle();
+ const available=await verifyDirPermission(stored);
+ h.activeDirectory=available?stored:null;
+ h.pendingDirectory=available?null:stored;
+ return h.activeDirectory;
+};
+export const getPendingPermissionHandle = () => h.pendingDirectory ?? null;
+export const reauthorizeDirHandle = async () => {
+ const handle=h.pendingDirectory ?? h.activeDirectory;
+ if(!handle || await handle.requestPermission({mode:'readwrite'})!=='granted')return false;
+ await saveStoredDirHandle(handle);h.activeDirectory=handle;h.pendingDirectory=null;return true;
+};
+export const requestDirHandle = async () => {
+ const handle=await globalThis.showDirectoryPicker({mode:'readwrite'});
+ if(await handle.queryPermission({mode:'readwrite'})!=='granted')throw Error('Directory permission not granted');
+ await saveStoredDirHandle(handle);h.activeDirectory=handle;h.pendingDirectory=null;return handle;
+};
+export const getDirHandle = () => h.activeDirectory ?? null;
+export const setDirHandle = handle => { h.activeDirectory=handle;h.pendingDirectory=null; };
+export const registerCleanup = fn => {
+ h.cleanups.push(fn);
+ return () => { const index=h.cleanups.indexOf(fn);if(index>=0)h.cleanups.splice(index,1); };
+};
+export const isVersionGreater = (a,b) => {
+ const one = a.replace(/^v/i,'').split('.').map(Number);
+ const two = b.replace(/^v/i,'').split('.').map(Number);
+ for(let i=0;i<Math.max(one.length,two.length);i++){
+  if((one[i]??0)>(two[i]??0)) return true;
+  if((one[i]??0)<(two[i]??0)) return false;
+ }
+ return false;
+};
 `;
 export const A = '11111111-1111-4111-8111-111111111111';
 export const B = '22222222-2222-4222-8222-222222222222';
 export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', patch: Record<string, unknown> = {}, query = '') {
     page.setDefaultTimeout(5000);
     const root = process.cwd();
-    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; globalThis.testUi = {tour,settings};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
+    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; globalThis.testUi = {tour,settings};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, metafile: true, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
         build.onResolve({ filter: /accountContext\.js$/ }, args => ({path:args.path,namespace:'account-mock'}));
         build.onLoad({filter:/.*/,namespace:'account-mock'},()=>({contents:`export const getAccountContext=()=>({accountId:globalThis.harness.source,providerId:'gemini'});export const resolveCurrentAccount=async()=>getAccountContext();`,loader:'js'}));
         build.onResolve({ filter: /^\./ }, args => {
             const owner = path.relative(path.join(root, 'src'), path.resolve(args.resolveDir, args.path)).replace(/\\/g, '/');
-            const port = /^(?:l1|l2|l3a|l3b|l4|application|migration|shared)\//.test(owner)
-                || /^runtime\/(?:api|ipc)\//.test(owner)
-                || /^runtime\/capabilities\/(?:directoryHandle|tabService)\.js$/.test(owner)
-                || owner === 'ui/shared/progressUtils.js';
+            // Every non-UI source owner is external to the isolated UI unit.
+            // Mock its frozen public port even when indirectly imported by UI.
+            const port = /^(?:l1|l2|l3a|l3b|l4|application|migration|runtime|shared)\//.test(owner);
             if (port) return { path: args.path, namespace: 'ui-mock' };
         });
         build.onLoad({ filter: /.*/, namespace: 'ui-mock' }, () => ({ contents: mock, loader: 'js' }));
     } }] });
+    const rootSource = root.replace(/\\/g, '/') + '/src/';
+    for (const input of Object.keys(bundle.metafile?.inputs ?? {})) {
+        const normalized = input.replace(/\\/g, '/');
+        const owner = normalized.startsWith('src/') ? normalized.slice(4)
+            : normalized.startsWith(rootSource) ? normalized.slice(rootSource.length) : null;
+        if (owner !== null && !owner.startsWith('ui/')) {
+            throw new Error(`UI mock harness bundled non-UI production owner: ${input}`);
+        }
+    }
     await page.route('https://ui.test/**', route => route.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.join(root, `src/ui/${kind === 'badge' ? 'options' : kind}/${kind === 'badge' ? 'options' : kind}.html`), 'utf8').replace(/<script[^>]*><\/script>/g, '').replace(/<link[^>]*>/g, '') }));
     await page.addInitScript(({ A, B, patch }) => {
         const w = window as any;
         w.harness = { settings: {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1'},
             accounts:[{id:A,providerId:'gemini',providerAccountId:'A'},{id:B,providerId:'gemini',providerAccountId:'B'}],
             indexes:[{key:{accountId:A,conversationId:'a'},title:'<img src=x onerror=alert(1)>',updatedAt:5},{key:{accountId:B,conversationId:'b'},title:'B chat',updatedAt:5}],records:{},source:A,scanCount:150,
-            patches:[],events:[],messages:[],exports:[],scans:[],clears:[],imports:[],directory:null,...patch };
+            patches:[],events:[],messages:[],tabRequests:[],cleanups:[],exports:[],scans:[],clears:[],imports:[],directory:null,...patch };
         w.harness.settings = {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1',...(patch.settings as object ?? {})};
         const directory = () => ({ name: w.harness.directoryName || 'Chosen folder', queryPermission: async () => w.harness.permission || 'granted', requestPermission: async () => w.harness.permission || 'granted' });
         if (w.harness.directoryName) w.harness.directory = directory();
