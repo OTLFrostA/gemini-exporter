@@ -1,46 +1,52 @@
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-test('finalizeChatExport: storageAdapter 缺 saveExportRecord 即抛错', async () => {
-    const SessionRecovery = require('../src/core/engine/export/sessionRecovery.js');
+// Cross-module Application/L2/L3a checks: no removed v1 session adapter or StorageService class.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { indexStorage } from './helpers/indexStorage.js';
+import { fixtureKey } from './helpers/domainFixture.js';
+import { ingestDetail } from '../src/l2/ingestion.js';
+import * as storage from '../src/l3a/storageService.js';
+import { clearLocalExportRecords } from '../src/application/localCleanup.js';
+import { shouldSkipExport } from '../src/application/export/runExport.js';
+import type { ExportRecord, ExportRequest } from '../src/application/export/types.js';
 
-    const recordsMap = new Map();
-    recordsMap.set('abc123', { id: 'abc123', title: 'T' });
-
-    await assert.rejects(
-        SessionRecovery.finalizeChatExport('abc123', {
-            chatRecordsMap: recordsMap,
-            // 只有 set/get 的 mock adapter：旧逻辑会静默走降级分支，新逻辑必须抛错
-            storageAdapter: {
-                set: async () => {},
-                get: async () => ({})
-            },
-            slot: '10000000-0000-4000-8000-000000000001'
-        } as any),
-        /adapter must implement finalizeConversationExport or saveExportRecord/,
-        '缺少必要接口的 adapter 必须抛错，不得静默降级'
-    );
+const record: ExportRecord = { exportedAt: 300, chatTime: 100, format: 'markdown', status: 'ok' };
+const request = (key: ReturnType<typeof fixtureKey>): ExportRequest => ({
+    keys: [key], format: 'markdown', delivery: 'browserDownload',
+    includeAssets: true, skipUnchanged: true,
 });
 
-test('finalizeChatExport: 正式路径 saveExportRecord 照常工作', async () => {
-    const SessionRecovery = require('../src/core/engine/export/sessionRecovery.js');
+test('v2 export record write failure does not fabricate an acknowledged delivery', async () => {
+    const env = indexStorage();
+    try {
+        const key = fixtureKey('write_failure');
+        env.fail('exportRecords');
+        await assert.rejects(storage.putExportRecord(key, record), /write failed/);
+        env.fail();
+        assert.equal(await storage.getExportRecord(key), null);
+        await storage.putExportRecord(key, record);
+        assert.deepEqual(await storage.getExportRecord(key), record);
+    } finally {
+        env.restore();
+    }
+});
 
-    const recordsMap = new Map();
-    recordsMap.set('abc123', { id: 'abc123', title: 'T' });
-    let saved: any = null;
-
-    const ok = await SessionRecovery.finalizeChatExport('abc123', {
-        chatRecordsMap: recordsMap,
-        storageAdapter: {
-            saveExportRecord: async (slot: string, id: string, rec: any) => {
-                saved = { slot, id, rec };
-            }
-        },
-        slot: '10000000-0000-4000-8000-000000000001'
-    } as any);
-
-    assert.strictEqual(ok, true);
-    assert.ok(saved, '应经 saveExportRecord 保存');
-    assert.strictEqual(saved.slot, '10000000-0000-4000-8000-000000000001');
-    assert.strictEqual(saved.id, 'abc123');
+test('v2 export record persistence and cleanup never replace or delete L2 conversation facts', async () => {
+    const env = indexStorage();
+    try {
+        const key = fixtureKey('stable-record');
+        await ingestDetail(key.accountId, key.conversationId, {
+            savedAt: 100, quality: { status: 'complete' }, assets: [],
+            messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Keep this body' }] }] }],
+        }, { title: 'Retained conversation', titleSource: 'provider', updatedAt: 100 });
+        const originalIndex = await storage.getIndex(key);
+        const originalDetail = await storage.getDetail(key);
+        await storage.putExportRecord(key, record);
+        assert.equal(shouldSkipExport(await storage.getExportRecord(key), originalIndex?.updatedAt, request(key)), true);
+        await clearLocalExportRecords(key.accountId);
+        assert.equal(await storage.getExportRecord(key), null);
+        assert.deepEqual(await storage.getIndex(key), originalIndex);
+        assert.deepEqual(await storage.getDetail(key), originalDetail);
+    } finally {
+        env.restore();
+    }
 });
