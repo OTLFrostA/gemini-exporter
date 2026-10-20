@@ -1,0 +1,29 @@
+name: V2 P3 focused verification
+on:
+  pull_request:
+    branches: [dev/v2]
+  push:
+    branches: [test/v2-p3-focused-verification-20261020]
+jobs:
+  targeted-v2-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run three targeted v2 regressions independently
+        shell: bash
+        run: |
+          set +e
+          node -r ./tests/ts_register.js --test tests/pdf-conversation-fallback.test.ts
+          a=$?
+          node -r ./tests/ts_register.js --test tests/pdf-options-metadata-resolution.test.ts
+          b=$?
+          node -r ./tests/ts_register.js --test tests/trusted_domain_export.test.ts
+          c=$?
+          echo "P3 results: fallback=$a options=$b trust=$c"
+          if [ "$a" -ne 0 ] || [ "$b" -ne 0 ] || [ "$c" -ne 0 ]; then exit 1; fi
