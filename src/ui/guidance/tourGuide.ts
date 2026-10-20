@@ -56,7 +56,7 @@ function overlay(
     const badge = document.createElement('span');
     badge.className = mode === 'spotlight' ? 'tour-step-badge tour-feature-badge' : 'tour-step-badge';
     badge.textContent = badgeText ?? (String(stepIndex + 1) + ' / ' + String(STEPS.length));
-    const closeButton = button(header, '✕', close, 'tourCloseBtn', 'tour-close-btn');
+    const closeButton = button(header, '×', close, 'tourCloseBtn', 'tour-close-btn');
     closeButton.title = text('Close (ESC)', '关闭（ESC）');
     header.prepend(badge);
 
