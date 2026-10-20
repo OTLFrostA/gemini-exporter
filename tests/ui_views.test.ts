@@ -182,3 +182,25 @@ test('Badge refreshes on visibility restoration and visible timer, never while h
     await page.clock.fastForward(60_000);
     await page.waitForFunction(() => Reflect.get(window, 'harness').countRequests === 3);
 });
+
+test('Badge drag writes only through Runtime position IPC, never Content Settings', async () => {
+    page = await browser.newPage();
+    await mount(page, 'badge');
+    await page.waitForFunction(() => document.getElementById('geminiExportBadgeText')?.textContent === '9 conversations indexed');
+    const badge = page.locator('#geminiExportBadge');
+    const rect = await badge.boundingBox();
+    assert.ok(rect);
+    await page.mouse.move(rect.x + 15, rect.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(rect.x - 80, rect.y - 60, { steps: 4 });
+    assert.deepEqual(await read(page, 'patches'), []);
+    await page.mouse.up();
+    const messages = await read(page, 'messages');
+    const updates = messages.filter((m: { action: string }) => m.action === 'updateBadgePosition');
+    assert.equal(updates.length, 1);
+    assert.ok(Number.isFinite(updates[0].position.left));
+    assert.ok(Number.isFinite(updates[0].position.top));
+    assert.deepEqual(await read(page, 'patches'), [], 'Content must not call Application Settings directly');
+    await badge.click();
+    assert.equal((await read(page, 'messages')).filter((m: { action: string }) => m.action === 'updateBadgePosition').length, 1);
+});
