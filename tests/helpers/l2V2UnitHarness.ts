@@ -129,7 +129,7 @@ loader._load = (request, parent, isMain) => {
     if (caller.includes('/src/l2/')) {
         if (request === '../l3a/storageService.js') return storage;
         if (request === '../runtime/api/accountRegistry.js') return { getAccount };
-        if (/(?:^|\\/)(?:l1|l3a|l3b|l4|application|runtime|ui|migration)\\//.test(request))
+        if (['../l1/', '../l3a/', '../l3b/', '../l4/', '../application/', '../runtime/', '../ui/', '../migration/'].some(part => request.includes(part)))
             throw new Error('Unmocked L2 external-v2 runtime dependency: ' + request);
     }
     return originalLoad.call(loader, request, parent, isMain);
