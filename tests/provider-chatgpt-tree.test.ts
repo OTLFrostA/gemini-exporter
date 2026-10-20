@@ -543,6 +543,16 @@ test('listConversations paginates until the reported total is reached', async ()
 
 });
 
+test('ChatGPT Detail never relabels a foreign source conversation ID', async () => {
+    const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
+        String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : { id: 'other-conversation' },
+    ), { status: 200 })) });
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    await assert.rejects(provider.fetchConversationDetail(account.id, 'requested-conversation'),
+        /Detail identity mismatch/);
+    assert.equal(await getDetail(storageIdentity('chatgpt', account.id, 'requested-conversation')), null);
+});
+
 test('ChatGPT list refuses source_end when pagination, ordering or completeness is unverified', async () => {
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
     const session = { accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } };
