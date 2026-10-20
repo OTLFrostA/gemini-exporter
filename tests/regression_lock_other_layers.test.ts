@@ -85,16 +85,19 @@ function fakeBrowser(t: { after: (fn: () => void) => void }, failClick = false) 
 }
 function fakeNetwork(t: { after: (fn: () => void) => void }, bytes: Uint8Array, mediaType: string) {
     const previousFetch = globalThis.fetch;
-    const previousTabs = globalThis.chrome.tabs;
-    globalThis.fetch = async () => new Response(new Uint8Array(bytes), { status: 200,
+    const previousTabs = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
+    globalThis.fetch = async () => new Response(new Uint8Array(bytes) as BodyInit, { status: 200,
         headers: { 'content-type': mediaType } });
-    globalThis.chrome.tabs = {
+    Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
         query: async () => [{ id: 10, url: 'https://gemini.google.com/app/native' }],
         sendMessage: async () => ({ ok: true, accountContext: {
             accountId: account.id, providerId: 'gemini', slot: 'u0',
         } }),
-    } as unknown as typeof chrome.tabs;
-    t.after(() => { globalThis.fetch = previousFetch; globalThis.chrome.tabs = previousTabs; });
+    } });
+    t.after(() => { globalThis.fetch = previousFetch;
+        if (previousTabs) Object.defineProperty(globalThis.chrome, 'tabs', previousTabs);
+        else Reflect.deleteProperty(globalThis.chrome, 'tabs');
+    });
 }
 
 test('P0: an asset-free v2 export downloads once and writes exactly one committed Record', async t => {
@@ -109,10 +112,12 @@ test('P0: an asset-free v2 export downloads once and writes exactly one committe
     assert.equal(host.blobs.length, 1);
     assert.match(await host.blobs[0].text(), /hello/);
     assert.match(await host.blobs[0].text(), /Answer aaaa1111bbbb2222/);
-    assert.deepEqual(await getExportRecord(conversationKey(id)), {
-        exportedAt: (await getExportRecord(conversationKey(id)))!.exportedAt,
-        format: 'markdown', status: 'ok', chatTime: 100,
-    });
+    const record = await getExportRecord(conversationKey(id));
+    assert.ok(record);
+    assert.ok(Number.isSafeInteger(record.exportedAt));
+    assert.equal(record.format, 'markdown');
+    assert.equal(record.status, 'ok');
+    assert.equal(record.chatTime, 100);
     const second = await runExport(request(id, { skipUnchanged: true }));
     assert.equal(second.exported, 0);
     assert.equal(second.skipped, 1);
@@ -208,8 +213,8 @@ test('L4 folder delivery fails closed when a requested subdirectory cannot be cr
 });
 
 test('verified v2 Runtime account routing never falls back to a different Gemini tab', async t => {
-    const priorTabs = globalThis.chrome.tabs;
-    globalThis.chrome.tabs = {
+    const priorTabs = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
+    Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
         query: async () => [
             { id: 1, active: true, url: 'https://gemini.google.com/u/0/app/a' },
             { id: 2, active: false, url: 'https://gemini.google.com/u/1/app/b' },
@@ -217,8 +222,11 @@ test('verified v2 Runtime account routing never falls back to a different Gemini
         sendMessage: async (id: number) => ({ ok: true, accountContext: {
             accountId: id === 1 ? account.id : account.id, providerId: 'gemini',
         } }),
-    } as unknown as typeof chrome.tabs;
-    t.after(() => { globalThis.chrome.tabs = priorTabs; });
+    } });
+    t.after(() => {
+        if (priorTabs) Object.defineProperty(globalThis.chrome, 'tabs', priorTabs);
+        else Reflect.deleteProperty(globalThis.chrome, 'tabs');
+    });
     const tab = await resolveAccountTab(account.id);
     assert.equal(tab.id, 1);
     await assert.rejects(resolveAccountTab('10000000-0000-4000-8000-000000000002'),
