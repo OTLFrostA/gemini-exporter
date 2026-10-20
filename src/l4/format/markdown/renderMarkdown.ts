@@ -1,7 +1,7 @@
 import { codeHeader, messageLabel, sourceNumberPrefix, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
-import type { MarkdownRenderOptions } from '../shared/internalRenderOptions.js';
+import { safeExternalHref, encodeResourceHref, encodeMarkdownHref } from '../shared/safeLinks.js';
 import type { RendererOptions } from '../shared/renderOptions.js';
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
@@ -12,11 +12,6 @@ function escapeText(text: string): string {
         .replace(/([`*_\[\]#~$])/g, '\\$1').replace(/^(\s*)([-+] |\d+[.)] )/gm, (_, space: string, marker: string) => space + marker.replace(/[-+.)]/, '\\$&'));
 }
 
-function destination(value: string): string | undefined {
-    if (/^[\s]*([a-z][a-z\d+.-]*):/i.test(value) && !/^(https?:|mailto:)/i.test(value)) return undefined;
-    return value.replace(/[\s()<>]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
-}
-
 function codeSpan(value: string): string {
     const fence = '`'.repeat(Math.max(0, ...(value.match(/`+/g) ?? []).map((run) => run.length)) + 1);
     const pad = /(^`|`$|^ .* $)/.test(value) ? ' ' : '';
@@ -24,22 +19,21 @@ function codeSpan(value: string): string {
 }
 
 /** Projects and encodes a format-neutral document as GFM; no source registry or clock. */
-export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings, options?: RendererOptions): string;
-export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings, options: MarkdownRenderOptions = {}): string {
+export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings, options: RendererOptions = {}): string {
     const locale = options.locale ?? 'en';
     const strings = getRendererStrings(locale);
     const available = (id: string) => isResourcePath(resources[id]);
     const resource = (id: string): string => {
         const value = resources[id];
-        const ref = value && destination(value);
+        const ref = value && isResourcePath(value) ? encodeMarkdownHref(encodeResourceHref(value)) : undefined;
         if (!ref) throw new TypeError(`Missing prepared resource binding: ${id}`);
         return ref;
     };
     const placeholder = (node: { text: string; kind: 'image' | 'file' }): string => `[${escapeText(unavailableResourceText(node.kind, node.text, locale))}]`;
     const image = (id: string, alt: string): string => available(id) ? `![${escapeText(alt)}](${resource(id)})` : placeholder({ kind: 'image', text: alt || id });
     const citation = (node: { label: string; href?: string }): string => {
-        const url = node.href && destination(node.href);
-        return url ? `[${escapeText(node.label)}](${url})` : /^\[\d+\]$/.test(node.label) ? escapeText(node.label) : `[${escapeText(node.label)}]`;
+        const url = node.href && safeExternalHref(node.href);
+        return url ? `[${escapeText(node.label)}](${encodeMarkdownHref(url)})` : /^\[\d+\]$/.test(node.label) ? escapeText(node.label) : `[${escapeText(node.label)}]`;
     };
     const inline = (node: DisplayInline, tableCell = false): string => {
         switch (node.type) {
@@ -57,8 +51,8 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return codeSpan(node.code);
             }
             case 'link': {
-                const url = destination(node.href);
-                return url ? `[${inlines(node.children, tableCell)}](${url})` : inlines(node.children, tableCell);
+                const url = safeExternalHref(node.href);
+                return url ? `[${inlines(node.children, tableCell)}](${encodeMarkdownHref(url)})` : inlines(node.children, tableCell);
             }
             case 'image': return image(node.resourceId, node.alt);
             case 'inlineMath': {
@@ -86,7 +80,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             case 'quote': return blocks(node.blocks).split('\n').map((line) => `> ${line}`).join('\n');
             case 'code': {
                 const fence = '`'.repeat(Math.max(2, ...(node.code.match(/`+/g) ?? []).map((run) => run.length)) + 1);
-                const label = codeHeader(node, 'markdown', options);
+                const label = codeHeader(node, 'markdown');
                 const language = (node.language ?? '').replace(/[\r\n`]/g, '');
                 const end = node.code.endsWith('\n') ? '' : '\n';
                 return `${label ? `**${escapeText(label)}**\n\n` : ''}${fence}${language}\n${node.code}${end}${fence}`;
@@ -102,27 +96,26 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return [image(node.resourceId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
             }
             case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
-            case 'disclosure': return `<details${options.thoughtInitiallyCollapsed ?? true ? '' : ' open'}>\n<summary>${escapeText(node.title)}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
+            case 'disclosure': return `<details>\n<summary>${escapeText(node.title)}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
             case 'thematicBreak': return '---';
             case 'unsupported': return `${escapeText(`${strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;
         }
     };
     const metadata = document.metadata;
-    if (options.includeFrontMatter && !metadata) throw new TypeError('Markdown document metadata is required');
-    const entries: Array<{ key: string; value: string | string[] }> | undefined = options.includeFrontMatter ? [
+    if (!metadata) throw new TypeError('Markdown document metadata is required');
+    const entries: Array<{ key: string; value: string | string[] }> = [
         { key: 'title', value: document.title }, { key: 'id', value: metadata.id }, { key: 'provider', value: metadata.provider },
         ...(metadata.createdAt !== undefined ? [{ key: 'date', value: new Date(metadata.createdAt).toISOString() }] : []),
         ...(metadata.updatedAt !== undefined ? [{ key: 'updated', value: new Date(metadata.updatedAt).toISOString() }] : []),
-        ...(options.exportedAt !== undefined ? [{ key: 'exported', value: new Date(options.exportedAt).toISOString() }] : []),
         { key: 'tags', value: [`${metadata.provider}-export`] },
-    ] : undefined;
-    const yaml = entries?.map(entry => {
+    ];
+    const yaml = entries.map(entry => {
         if (!/^[a-z][a-z\d_-]*$/i.test(entry.key)) throw new TypeError('Invalid front matter key');
         return Array.isArray(entry.value)
         ? `${entry.key}:\n${entry.value.map(value => `  - ${/^[a-z][a-z\d_-]*$/i.test(value) && !/^(?:null|true|false|yes|no|on|off)$/i.test(value) ? value : JSON.stringify(value)}`).join('\n')}`
         : `${entry.key}: ${JSON.stringify(entry.value)}`;
     }).join('\n');
-    const header = [yaml !== undefined ? `---\n${yaml}\n---\n` : undefined, `# ${escapeText(document.title)}`].filter(value => value !== undefined).join('\n');
+    const header = `---\n${yaml}\n---\n\n# ${escapeText(document.title)}`;
     const messages = document.messages.map(message => {
         const icons = { user: '👤', assistant: '🤖', system: '⚙️', developer: '🛠', unknown: '' };
         const heading = `## ${icons[message.role] ? icons[message.role] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
