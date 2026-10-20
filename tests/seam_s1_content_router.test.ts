@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { assertRuntimeUnitBoundary } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -14,7 +15,9 @@ function load(stubs: Record<string, unknown>) {
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
         const key = Object.keys(stubs).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
-        return key ? stubs[key] : original.call(this, request, parent, ...args);
+        if (key) return stubs[key];
+        if (request.startsWith('.')) assertRuntimeUnitBoundary(resolved, root);
+        return original.call(this, request, parent, ...args);
     };
     try {
         const file = path.resolve(root, 'src/runtime/content/messageRouter.ts');
