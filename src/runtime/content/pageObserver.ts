@@ -4,6 +4,7 @@ import { registerCleanup } from './cleanupRegistry.js';
 let __syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let __lastObservedUrl = typeof location !== 'undefined' ? location.href : '';
 let __historyUrlCallback: (() => void) | null = null;
+let __locationPoll: ReturnType<typeof setInterval> | null = null;
 
 function __handleLocationChange(): void {
     if (typeof location === 'undefined') return;
@@ -14,9 +15,12 @@ function __handleLocationChange(): void {
 }
 
 function removeHistoryListeners(): void {
-    if (typeof window === 'undefined' || !window.removeEventListener) return;
-    window.removeEventListener('popstate', __handleLocationChange);
-    window.removeEventListener('gemini:locationchange', __handleLocationChange);
+    if (__locationPoll !== null) { clearInterval(__locationPoll); __locationPoll = null; }
+    if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener('popstate', __handleLocationChange);
+        window.removeEventListener('gemini:locationchange', __handleLocationChange);
+    }
+    __historyUrlCallback = null;
 }
 
 export function cleanup(): void {
@@ -79,9 +83,13 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
     }
 
     removeHistoryListeners();
+    __lastObservedUrl = location.href;
     __historyUrlCallback = onUrlChanged;
     window.addEventListener('popstate', __handleLocationChange);
     window.addEventListener('gemini:locationchange', __handleLocationChange);
+    // ISOLATED-world history wrappers may not observe page-world pushState.
+    // Poll the URL only; never poll Domain, count, or trigger Sync.
+    __locationPoll = setInterval(__handleLocationChange, 1000);
     registerCleanup(removeHistoryListeners);
 }
 
