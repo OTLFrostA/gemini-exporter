@@ -70,8 +70,9 @@ export function installUiV2Mocks(): void {
     stub('../../src/application/settings/index.js', {
         getSettings: () => unconfigured('Application.getSettings'),
         updateSettings: () => unconfigured('Application.updateSettings'),
-        isLiveSaveEffective: (settings: { enabledDisk: boolean; defaultFormat: string }, permitted: boolean) =>
-            settings.enabledDisk && settings.defaultFormat === 'markdown' && permitted,
+        isLiveSaveEffective: (settings: { enabledDisk: boolean; defaultFormat: string; exportDelivery?: string }, permitted: boolean) =>
+            settings.enabledDisk && settings.exportDelivery === 'folderWriter'
+                && settings.defaultFormat === 'markdown' && permitted,
     });
     stub('../../src/runtime/api/accountRegistry.js', {
         listAccounts: () => unconfigured('Runtime.listAccounts'),

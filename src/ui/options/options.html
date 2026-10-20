@@ -26,7 +26,7 @@
   .sub{color:var(--muted);font-size:12px;margin-top:4px}
   .row{display:flex;gap:14px;flex:1;overflow:hidden;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:0;display:flex;flex-direction:column;}
-  .card-left{flex:0 0 365px !important;width:365px !important;min-width:365px !important;max-width:365px !important;gap:12px;overflow:hidden;}
+  .card-left{flex:0 0 365px !important;width:365px !important;min-width:365px !important;max-width:365px !important;gap:12px;overflow-y:auto;overflow-x:hidden;}
   .card-right{flex:1 1 0 !important;min-width:0 !important;overflow:hidden;}
   .label{font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:.02em}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
@@ -44,6 +44,36 @@
   .feedback-card:hover .feedback-arrow{opacity:1;transform:translate(1px,-1px);color:var(--accent2);}
   .feedback-card:active{transform:scale(0.99);}
   .feedback-arrow{font-size:12px;opacity:0.6;flex:none;transition:opacity 0.15s ease,transform 0.15s ease,color 0.15s ease;}
+  /* Both export destinations are always visible as radio cards, not tabs. */
+  .export-preferences{display:flex;flex-direction:column;gap:10px;background:var(--card-inner);padding:12px;border-radius:10px;border:1px solid var(--border)}
+  .export-format-row{display:flex;align-items:center;gap:12px;font-size:13px;min-height:32px}
+  .export-format-row select{flex:1;min-width:0;height:32px;padding:4px 8px}
+  .export-skip-row{display:flex;gap:8px;align-items:center;font-size:12px;min-height:24px;cursor:pointer}
+  .export-destination{display:flex;flex-direction:column;gap:8px}
+  .settings-heading{font-size:12px;font-weight:600;color:var(--text)}
+  .delivery-choices{display:flex;flex-direction:column;gap:8px}
+  .delivery-card{min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);transition:border-color .15s ease,background .15s ease}
+  .delivery-card:has(.delivery-choice input:checked){border-color:var(--accent);background:var(--card)}
+  .delivery-card:has(.delivery-choice input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+  .delivery-choice{display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer}
+  .delivery-choice input[type=radio]{width:16px;height:16px;flex:none;margin:0;accent-color:var(--accent);cursor:pointer}
+  .delivery-choice input[type=radio]:disabled{cursor:default}
+  .delivery-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .delivery-title{font-size:13px;font-weight:600}
+  .delivery-description{font-size:11px;color:var(--muted)}
+  .local-card-details{margin:8px 0 0 26px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;transition:opacity .15s ease}
+  .local-card-details.is-disabled{opacity:.45}
+  .settings-dir-box{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;min-height:42px;padding:0}
+  .dir-meta{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+  .dir-setting-title{font-size:13px;font-weight:600}
+  .dir-meta .stat{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dir-meta small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .settings-divider{height:1px;background:var(--border);flex:none}
+  .live-save-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:42px;cursor:pointer}
+  .live-save-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .live-save-title{font-size:13px;font-weight:600}
+  .live-save-hint{font-size:11px;color:var(--muted)}
+  #liveSaveStatus{font-size:11px;color:var(--muted);line-height:1.4}
   input[type=checkbox]{accent-color:var(--accent)}
   input[type=checkbox].toggle {
     appearance: none;
@@ -139,7 +169,7 @@
   .item input{margin-top:4px}
   .item .title{flex:1;font-size:13px;line-height:1.35}
   .item .meta{font-size:11px;color:var(--muted)}
-  .progress{height:8px;background:#161824;border-radius:99px;overflow:hidden;margin:10px 0;display:none}
+  .progress{height:8px;flex:none;background:#161824;border-radius:99px;overflow:hidden;margin:10px 0;display:none}
   .bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
   .progress.indeterminate .bar{width:30% !important;animation:ui-scan-loading 1.5s linear infinite;transition:none}
   @keyframes ui-scan-loading{from{transform:translateX(-100%)}to{transform:translateX(350%)}}
@@ -192,39 +222,65 @@
       <span data-i18n="exportSettings">导出设置</span>
     </div>
     
-    <div style="display:grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap:8px 10px; background:var(--card-inner); padding:12px; border-radius:10px; border:1px solid var(--border);">
-      <label style="grid-column: 1 / -1; display:flex; align-items:center; gap:8px; font-size:13px; height:32px;">
-        <span style="color:var(--muted); white-space:nowrap;" data-i18n="format">格式</span>
-        <select id="format" style="flex:1; height:32px; padding:4px 8px;">
+    <div class="export-preferences">
+      <label class="export-format-row">
+        <span style="color:var(--muted);white-space:nowrap" data-i18n="format">格式</span>
+        <select id="format">
           <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (.md)</option>
           <option value="html" data-i18n="fmtHtml">HTML 独立网页 (.html)</option>
           <option value="pdf" data-i18n="fmtPdf">PDF (.pdf)</option>
           <option value="json" data-i18n="fmtJsonStandard">JSON (插件标准)</option>
         </select>
       </label>
-      <label style="grid-column:1/-1; display:flex; gap:6px; align-items:center; font-size:12px; height:24px; white-space:nowrap; cursor:pointer;" data-i18n-title="skipExportedTip" title="跳过已完整导出且未更新的同格式对话">
+      <label class="export-skip-row" data-i18n-title="skipExportedTip" title="仅跳过已完整导出、同格式且未更新的对话">
         <input type="checkbox" id="skipExported" class="toggle" checked>
-        <span data-i18n="skipExported">跳过已完整导出且未更新的同格式对话</span>
-      </label>
-      <label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer;min-width:0;" title="Export destination">
-        <span data-ui-en="Deliver to" data-ui-zh="保存到" style="flex:none">保存到</span>
-        <select id="delivery" aria-label="Export destination" style="min-width:0;flex:1;padding:3px 4px;font-size:11px;">
-          <option value="browserDownload" data-ui-en="Browser download" data-ui-zh="浏览器下载">浏览器下载</option>
-          <option value="folderWriter" data-ui-en="Authorized folder" data-ui-zh="已授权文件夹">已授权文件夹</option>
-        </select>
-      </label>
-      <label id="liveSaveControls" style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDiskTip" title="每轮对话完成后自动调用本地文件写入器，将单篇 Markdown 直接同步写入指定文件夹">
-        <input type="checkbox" id="liveSaveDiskToggle" class="toggle">
-        <span data-i18n="liveSaveDisk">实时落盘本地</span>
+        <span data-i18n="skipExported">跳过已导出</span>
       </label>
     </div>
 
-    <div id="dirBox" style="display:flex; align-items:center; gap:10px; background:var(--card-inner); padding:8px 12px; border-radius:10px; border:1px solid var(--border); height:46px; box-sizing:border-box; transition: opacity 0.25s, filter 0.25s;">
-      <button id="btnSetDir" class="ghost small" style="white-space:nowrap; flex:none;" data-i18n="btnSetDir">设置目录...</button>
-      <div id="dirLabel" class="stat" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;" title="当前目录" data-i18n="dirNotSet" data-i18n-title="dirCurrentTip">未设置目录</div>
+    <div class="export-destination">
+      <div class="settings-heading" data-ui-en="Export to" data-ui-zh="导出到">导出到</div>
+      <div id="delivery" class="delivery-choices" role="radiogroup" aria-label="Export destination">
+        <div class="delivery-card">
+          <label class="delivery-choice">
+            <input type="radio" name="delivery" value="browserDownload" checked>
+            <span class="delivery-copy">
+              <span class="delivery-title" data-ui-en="Browser download" data-ui-zh="浏览器下载">浏览器下载</span>
+              <span class="delivery-description" data-ui-en="Save using your browser" data-ui-zh="使用浏览器下载设置">使用浏览器下载设置</span>
+            </span>
+          </label>
+        </div>
+        <div class="delivery-card">
+          <label class="delivery-choice">
+            <input type="radio" name="delivery" value="folderWriter">
+            <span class="delivery-copy">
+              <span class="delivery-title" data-ui-en="Save to local folder" data-ui-zh="保存到本地文件夹">保存到本地文件夹</span>
+              <span class="delivery-description" data-ui-en="Write directly to a chosen folder" data-ui-zh="直接写入指定文件夹">直接写入指定文件夹</span>
+            </span>
+          </label>
+          <div id="localFolderControls" class="local-card-details is-disabled">
+            <div id="dirBox" class="settings-dir-box">
+              <div class="dir-meta">
+                <span class="dir-setting-title" data-ui-en="Folder" data-ui-zh="文件夹">文件夹</span>
+                <div id="dirLabel" class="stat" title="当前文件夹">未选择文件夹</div>
+                <small id="dirPermissionLabel"></small>
+              </div>
+              <button id="btnSetDir" type="button" class="ghost small" disabled>选择文件夹</button>
+            </div>
+            <div class="settings-divider"></div>
+            <label id="liveSaveControls" class="live-save-row" data-i18n-title="liveSaveDiskTip" title="仅支持 Markdown；切换其他格式时暂停并保留开启状态">
+              <span class="live-save-copy">
+                <span class="live-save-title" data-i18n="liveSaveDisk">实时保存</span>
+                <span class="live-save-hint" data-ui-en="Automatically save updates to this folder" data-ui-zh="自动保存对话更新到此文件夹">自动保存对话更新到此文件夹</span>
+              </span>
+              <input type="checkbox" id="liveSaveDiskToggle" class="toggle" disabled>
+            </label>
+            <small id="liveSaveStatus" role="status" aria-live="polite" hidden></small>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <small id="liveSaveStatus" style="display:block;font-size:11px;color:var(--muted);min-height:12px;"></small>
     <div style="display:flex; gap:10px; margin-top:4px; height:40px;">
       <button id="btnExport" class="primary" style="flex:1; height:40px; padding:0;" data-ui-en="Export selected" data-ui-zh="导出选中">导出选中</button>
     </div>

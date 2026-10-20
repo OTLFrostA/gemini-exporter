@@ -39,6 +39,13 @@ export function assertRuntimeUnitBoundary(resolvedPath: string, root: string): v
     }
 }
 
+/** Runtime-unit stand-in for the public Application Live Save predicate. */
+export function mockLiveSaveEffective(settings: GlobalSettings, directoryAvailable: boolean): boolean {
+    const destination = settings.exportDelivery ?? (settings.enabledDisk ? 'folderWriter' : 'browserDownload');
+    return settings.enabledDisk && settings.defaultFormat === 'markdown'
+        && destination === 'folderWriter' && directoryAvailable;
+}
+
 // Frozen Application Settings defaults; tests supply only scenario-specific patches.
 export const v2Settings = {
     defaultFormat: 'markdown' as const,

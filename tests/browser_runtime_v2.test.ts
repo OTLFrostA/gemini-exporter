@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary, v2Settings, v2IndexFixtures } from './helpers/runtimeV2ContractMocks.js';
+import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary, v2Settings, v2IndexFixtures, mockLiveSaveEffective } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -177,7 +177,7 @@ test('Extension ingestion calls the same L2 function after readiness', async () 
 
 function live(settings: object, permission = 'granted', handleExists = true, exporter?: Function) {
     return load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }) },
+        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; } } : null },
         'src/application/export/runExport.js': { runExport: exporter || (() => assert.fail('Unexpected Export')) },
     }).runLiveSave;
@@ -186,6 +186,7 @@ test('disabled and non-Markdown Live Save return null without exporting', async 
     const key = { accountId: uuid, conversationId: 'abc' };
     assert.equal(await live({ enabledDisk: false })(key), null);
     assert.equal(await live({ enabledDisk: true, defaultFormat: 'pdf' })(key), null);
+    assert.equal(await live({ enabledDisk: true, defaultFormat: 'markdown', exportDelivery: 'browserDownload' })(key), null);
 });
 test('missing directory or lost permission fails without requesting permission or changing Settings', async () => {
     const settings = { enabledDisk: true, defaultFormat: 'markdown' };
@@ -207,7 +208,7 @@ test('Live Save returns the exact unified result and request, including skip/par
 test('Worker Live Save scopes KeepAlive to the active export and releases it on failure', async () => {
     const trace: string[] = [];
     const save = load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true }) },
+        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true }), isLiveSaveEffective: mockLiveSaveEffective },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted' }) },
         'src/application/export/runExport.js': { runExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
         'src/runtime/background/keepAlive.js': { startKeepAlive: () => { trace.push('start'); return () => trace.push('stop'); } },
