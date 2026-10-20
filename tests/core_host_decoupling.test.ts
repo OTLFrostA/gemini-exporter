@@ -53,7 +53,9 @@ test('L1 injected task resource bytes reach real L3b/L4 output with no chrome.ta
         const domainBefore = structuredClone(bound);
         const prepared = await prepareExportResources(bound.detail.assets, new Set(['image']),
             (item, signal) => context.acquire(key(id), item, signal));
-        assert.deepEqual(prepared.get('image')?.ok && [...prepared.get('image')!.value.bytes], [1, 2, 3, 4]);
+        const acquired = prepared.get('image');
+        assert.ok(acquired?.ok);
+        assert.deepEqual([...acquired.value.bytes], [1, 2, 3, 4]);
         const document = composeDomainDocument(bound, account);
         const [plan] = planExportPaths([{ conversation: bound, prepared, fileIds: new Set<string>() }], 'markdown');
         const markdown = renderDocumentMarkdown(document, plan.resources);
