@@ -151,7 +151,7 @@ export async function initWorkbench(): Promise<void> {
         el('dirPermissionLabel').textContent = handle && directoryAvailable
             ? text('Authorized', '已授权')
             : pending ? text('Permission needs renewal', '需要重新授权')
-                : text('Also used by Live Save', '也用于实时保存');
+                : text('Not authorized', '尚未授权');
         el<HTMLButtonElement>('btnSetDir').textContent = pending
             ? text('Reauthorize', '重新授权')
             : handle ? text('Change', '更换') : text('Choose folder', '选择文件夹');
