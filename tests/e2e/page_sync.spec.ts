@@ -104,7 +104,9 @@ test('dragged Gemini badge is restored from v2 Settings, not page localStorage',
     expect(position).toMatchObject({ left: Math.round(moved!.x), top: Math.round(moved!.y) });
     await source.reload();
     await expect(badge).toBeVisible();
-    const restored = await badge.boundingBox();
-    expect(Math.abs(restored!.x - moved!.x)).toBeLessThanOrEqual(5);
-    expect(Math.abs(restored!.y - moved!.y)).toBeLessThanOrEqual(5);
+    await expect.poll(async () => {
+        const restored = await badge.boundingBox();
+        return !!restored && Math.abs(restored.x - moved!.x) <= 5
+            && Math.abs(restored.y - moved!.y) <= 5;
+    }).toBe(true);
 });
