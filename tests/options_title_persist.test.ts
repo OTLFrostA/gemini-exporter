@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
-import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
-import { A, B } from './helpers/v2ConversationFixture.js';
+import { A, B, installUiV2Mocks } from './helpers/uiV2Mocks.js';
+
+// This UI view-state test must not load the L2 ingestion fixture.
+installUiV2Mocks();
+const { ConversationViewState } = require('../src/ui/options/state/conversationsStore.js') as
+    typeof import('../src/ui/options/state/conversationsStore.js');
 const accounts = [A, B].map(id => ({ id, providerId: 'gemini', providerAccountId: id }));
 test('export view refresh reads accepted Index without publishing metadata', async () => {
     const accepted = { key: { accountId: A, conversationId: 'chat' }, title: 'Accepted', titleSource: 'provider' as const, createdAt: 10, updatedAt: 20 };
