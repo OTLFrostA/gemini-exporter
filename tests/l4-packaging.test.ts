@@ -1,13 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
-import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
-import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
+import { v2Account, v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 import { ZipWriter } from '../src/l4/packaging/writers/zipWriter.js';
 import { assertExportPath } from '../src/l4/packaging/exportPath.js';
-import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
@@ -18,13 +16,11 @@ const prepared: PreparedResources = new Map([
     ['failed', { ok: false, resourceId: 'failed', reason: 'missing', code: 'MISSING' }],
 ]);
 function conversation(title = 'Chat') {
-    const key = fixtureKey('same123456', 'gemini');
-    return restoreDomainSnapshot({ index: { key, title, titleSource: 'derived' }, detail: {
-        key, quality: { status: 'complete' }, messages: [], assets: [
-            { id: 'a', kind: 'image', name: 'Photo.png' }, { id: 'b', kind: 'image', name: 'photo.png' },
-            { id: 'failed', kind: 'file', name: 'missing.bin' },
-        ],
-    } });
+    // Fake L2's frozen v2 ReadonlyDomain input, never invoke L2 validation.
+    return v2Conversation(title, [
+        { id: 'a', kind: 'image', name: 'Photo.png' }, { id: 'b', kind: 'image', name: 'photo.png' },
+        { id: 'failed', kind: 'file', name: 'missing.bin' },
+    ]);
 }
 test('Packaging reserves batch paths case-insensitively and keeps resource IDs local', () => {
     const first = conversation();
@@ -113,8 +109,12 @@ test('Format references resolve to the same planned ZIP entries for Markdown, HT
     __setModuleOverride('JSZip', JSZip);
     const c = conversation();
     c.detail.messages = [{ role: 'assistant', content: [{ type: 'image', assetId: 'a' }, { type: 'image', assetId: 'b' }] }];
-    const account = fixtureAccountFor(c);
-    const document = composeDomainDocument(c, account);
+    const account = v2Account('gemini', c.index.key.accountId);
+    // L3b is outside L4; pass a v2 AST fixture directly to real format backends.
+    const document = v2Document([
+        { type: 'image', resourceId: 'a', alt: 'Photo' },
+        { type: 'image', resourceId: 'b', alt: 'Photo' },
+    ], { title: c.index.title, id: c.index.key.conversationId });
     for (const format of ['markdown', 'html', 'json'] as const) {
         const [plan] = planExportPaths([{ conversation: c, prepared, fileIds: new Set<string>() }], format);
         const content = format === 'markdown' ? renderDocumentMarkdown(document, plan.resources)
