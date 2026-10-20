@@ -48,9 +48,11 @@ test('L2 never admits ephemeral signed resource locators or invalid byte counts'
         'https://example.test/image?X-Goog-Credential=abc&X-Goog-Signature=abc',
         'https://example.test/file?Expires=123&Signature=abc&Key-Pair-Id=key',
         'https://example.test/image?token=temporary',
+        'archive/images/photo.png?token=temporary',
     ]) assert.throws(() => validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri }])), TypeError, sourceUri);
     for (const byteLength of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1])
         assert.throws(() => validateParserDomain(base([{ id: 'image', kind: 'image', byteLength }])), TypeError);
     validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'https://example.test/image?id=stable', byteLength: 0 }]));
     validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'provider-stable-resource-id' }]));
+    validateParserDomain(base([{ id: 'image', kind: 'image', sourceUri: 'archive/photo.png' }]));
 });
