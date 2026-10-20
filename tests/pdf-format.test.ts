@@ -14,9 +14,8 @@ import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
 
 const document: DocumentAst = {
-    schemaVersion: 2, metadata: { id: 'c', provider: 'p' },
-    header: { title: 'Title', providerLabel: 'p', messageCount: 1 },
-    messages: [{ type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks: [
+    title: 'Title', metadata: { id: 'c', provider: 'p' },
+    messages: [{ role: 'assistant', blocks: [
         { type: 'image', resourceId: 'image', alt: 'Figure' },
         { type: 'file', resourceId: 'file', label: 'notes.pdf', kind: 'file' },
         { type: 'math', source: 'x^2' },
