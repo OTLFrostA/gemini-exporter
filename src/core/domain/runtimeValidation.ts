@@ -12,6 +12,7 @@ import type { DomainConversationIndex } from './conversationIndex.js';
 type Check = (value: unknown) => boolean;
 const text: Check = v => typeof v === 'string';
 const number: Check = v => typeof v === 'number' && Number.isFinite(v);
+const sourceTime: Check = v => typeof v === 'number' && Number.isSafeInteger(v);
 const boolean: Check = v => typeof v === 'boolean';
 const optional = (check: Check): Check => v => v === undefined || check(v);
 const array = (check: Check): Check => v => {
@@ -78,7 +79,7 @@ function block(v: unknown): boolean {
         default: return false;
     }
 }
-const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), reasoning: optional(array(block)), citations: optional(array(citation)) });
+const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(sourceTime), attachmentIds: optional(array(text)), reasoning: optional(array(block)), citations: optional(array(citation)) });
 const quality = shape({ status: enumeration('complete', 'partial', 'unknown') });
 const domainFields: Record<string, Check> = { key: v => { try { readConversationKey(v); return true; } catch { return false; } }, savedAt: optional(number), assets: array(asset), messages: array(message), quality };
 const domain = shape(domainFields);

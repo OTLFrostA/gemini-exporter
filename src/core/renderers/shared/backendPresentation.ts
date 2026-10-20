@@ -79,10 +79,6 @@ export function humanBytes(value: number | undefined, unknown: string): string {
     while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
     return `${n >= 10 ? n.toFixed(1) : n.toFixed(2)} ${units[i]}`;
 }
-export function disclosureTitle(node: Extract<DisplayBlock, { type: 'disclosure' }>, options: RenderOptions): string {
-    const strings = getRendererStrings(options.locale ?? 'en');
-    return node.title ?? (node.kind === 'summary' ? strings.thinkingSummary : node.kind === 'progress' ? strings.thinkingProgress : strings.thinkingProcess);
-}
 export function headerMetadata(document: DocumentAst, locale: 'zh' | 'en', pdf = false): string {
     const strings = getRendererStrings(locale);
     const time = document.metadata.updatedAt ?? document.metadata.createdAt;

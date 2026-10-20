@@ -97,7 +97,7 @@ function forbidden(owner: string, target: string): boolean {
         if (admission.has(owner)) return !/^(domain\/|storage\/|api\/accountRegistry\.ts$)/.test(target);
         return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
     }
-    if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/');
+    if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/') && target !== 'domain/conversationDetail.ts';
     if (owner.startsWith('document/compose/')) return !/^(domain\/|document\/|diagnostics\/|utils\/)/.test(target);
     if (owner.startsWith('renderers/')) {
         // Packaging owns the type-only binding; JSON intentionally reads trusted Domain.
@@ -118,6 +118,7 @@ function forbidden(owner: string, target: string): boolean {
 test('semantic layers own their files and obey dependency direction, including type-only references', () => {
     for (const [owner, edges] of graph) for (const edge of edges) {
         assert.ok(!forbidden(owner, edge.target), `${owner} must not depend on ${edge.target}`);
+        if (owner.startsWith('document/ast/') && edge.target === 'domain/conversationDetail.ts') assert.equal(edge.runtime, false, 'AST reuses L2 role/asset types without a runtime dependency');
         if (owner.startsWith('renderers/') && edge.target === 'export/packaging/resourceBindings.ts') assert.equal(edge.runtime, false, `${owner} must import bindings as a type`);
     }
     for (const old of ['api/parser/', 'content/', 'export/document/', 'engine/takeout/', 'engine/template/', 'provider/record/']) {

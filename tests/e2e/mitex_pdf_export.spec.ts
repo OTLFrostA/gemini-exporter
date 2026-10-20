@@ -62,7 +62,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
       ] }] } }), fixtureAccountFor(validateParserDomain({ index: { key: fixtureKey(String('mitex-e2e'), 'gemini'),   titleSource: "derived",   title: 'MiTeX Browser E2E Test', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey(String('mitex-e2e'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
         { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
         ...formulas.map(source => ({ type: 'math' as const, source })),
-      ] }] } }))).document;
+      ] }] } })));
       const payload = renderDocumentTypst(ast, {});
 
       // 1. In-browser pipeline evaluation

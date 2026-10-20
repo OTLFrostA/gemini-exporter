@@ -43,7 +43,7 @@ test('UI locale, theme and page policy change without mutating Document AST', ()
     const en = renderDocumentHtml(document, resources, { locale: 'en', theme: 'light', copyCode: false }).html;
     const zh = renderDocumentHtml(document, resources, { locale: 'zh' }).html;
     assert.ok(en.includes('<html>') && en.includes('Thinking Process') && en.includes('light-theme'));
-    assert.ok(zh.includes('思考过程') && zh.includes('复制'));
+    assert.ok(zh.includes('Thinking Process') && zh.includes('复制'));
     assert.ok(!en.includes('<button class="gem-copy-btn"'));
     const layout = defaultPdfLayout('zh-CN'); layout.page.widthMm = 148;
     const pdf = renderDocumentTypst(document, resources, { locale: 'en', layout, repeatTableHeader: false });

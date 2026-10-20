@@ -44,3 +44,17 @@ test('Markdown preserves independently known creation/update facts and omits unk
     assert.equal(undated.includes('date:'), false);
     assert.equal(undated.includes('updated:'), false);
 });
+
+test('L2 admission protects the L3b Unix-ms contract from fractional and unsafe source times', () => {
+    for (const value of [0.5, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN]) {
+        for (const field of ['createdAt', 'updatedAt']) {
+            assert.throws(() => validateParserDomain({ ...base(), index: { ...base().index, [field]: value } }), TypeError);
+        }
+        assert.throws(() => validateParserDomain({ ...base(), detail: { ...base().detail,
+            messages: [{ role: 'assistant', timestamp: value, content: [] }] } }), TypeError);
+    }
+    const admitted = validateParserDomain({ ...base(), index: { ...base().index, createdAt: 0 },
+        detail: { ...base().detail, messages: [{ role: 'assistant', timestamp: 0, content: [] }] } });
+    const document = require('../src/core/document/compose/composeDomainDocument.js').composeDomainDocument(admitted, fixtureAccountFor(admitted));
+    assert.equal(document.metadata.createdAt, 0); assert.equal(document.messages[0].timestamp, 0);
+});

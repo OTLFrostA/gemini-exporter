@@ -1,4 +1,3 @@
-import { markV2Initialized } from '../storage/migrationMarker.js';
 import { readAccountRegistry } from '../domain/accountRegistry.js';
 import { restoreConversationIndex } from '../domain/conversationIndex.js';
 import { conversationKey } from '../domain/conversationKey.js';
@@ -29,9 +28,11 @@ function format(value: unknown): value is ExportFormat {
     return value === 'markdown' || value === 'html' || value === 'json' || value === 'pdf';
 }
 function time(value: unknown): number | undefined {
+    // v1 numeric fields (including numeric strings) declare milliseconds. Never guess seconds.
     const millis = typeof value === 'number' ? value
-        : typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) ? Date.parse(value) : NaN;
-    return Number.isFinite(millis) && millis > 0 && millis <= 8.64e15 ? millis : undefined;
+        : typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value)
+        : typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? Date.parse(value) : NaN;
+    return Number.isSafeInteger(millis) && Math.abs(millis) <= 8.64e15 ? millis : undefined;
 }
 function exportRecord(value: unknown): ExportRecord | undefined {
     if (!object(value) || (value.status !== 'ok' && value.status !== 'partial') || !format(value.format)) return;
@@ -97,7 +98,16 @@ async function upgrade(): Promise<void> {
         const savedList = raw[`conversations_${account.id}`];
         const list = savedList === undefined ? [] : savedList;
         if (!Array.isArray(list)) throw new TypeError('Invalid legacy index container');
-        const indexes = list.map(restoreConversationIndex);
+        const indexes = list.map(value => {
+            if (!object(value)) throw new TypeError('Invalid legacy index schema');
+            const normalized = { ...value };
+            for (const field of ['createdAt', 'updatedAt']) if (value[field] !== undefined) {
+                const millis = time(value[field]);
+                if (millis === undefined) throw new TypeError('Invalid legacy index schema: source time');
+                normalized[field] = millis;
+            }
+            return restoreConversationIndex(normalized);
+        });
         if (indexes.some(index => index.key.accountId !== account.id)) throw new TypeError('Legacy index account mismatch');
         if (new Set(indexes.map(index => index.key.conversationId)).size !== indexes.length) throw new TypeError('Duplicate legacy index identity');
         const oldRecords = raw[`exported_${account.id}`];
@@ -123,5 +133,5 @@ async function upgrade(): Promise<void> {
     }
     if (isUpgrade) await patchStoredSettings(settings(raw));
     if (handle !== undefined && handle !== null) await setDirectoryHandle(handle);
-    await markV2Initialized();
+    await chrome.storage.local.set({ [INITIALIZED]: true });
 }

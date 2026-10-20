@@ -45,60 +45,34 @@ class UpgradeHarnessGuards(unittest.TestCase):
             self.assertFalse((output / 'profile').exists())
 
 
-    def test_persisted_baseline_and_na_contract_reject_loss_without_seeding_profile(self):
+    def test_five_category_upgrade_oracle_rejects_wrong_identity_and_out_of_scope_migration(self):
         code = """
 import assert from 'node:assert/strict';
-import {bodyFacts,byteFacts,assertPersistedBaseline,upgradeOutcome} from './scripts/upgrade_baseline.mjs';
-const empty={local:{gemini_conversations:[{id:'a',title:'Metadata only',messageCount:2}]},databases:{}};
-assert.equal(bodyFacts(empty).length,0);
-assert.equal(upgradeOutcome([{status:'passed'},{status:'not_applicable'}]),'passed_with_na');
-assert.equal(upgradeOutcome([{status:'failed'},{status:'not_applicable'}]),'failed');
-assert.equal(upgradeOutcome([{status:'running'}]),'failed');
-const before={local:{gemini_conversations:[{id:'a',messages:[{role:'user',content:'Persisted body'}]}]},databases:{bytes:{binarySnapshot:true,sha256:'a'.repeat(64),byteLength:3}}};
-assert.equal(bodyFacts(before)[0].texts[0],'Persisted body');
-assert.equal(byteFacts(before).length,1);
-assert.equal(byteFacts({metadata:{sha256:'a'.repeat(64),byteLength:3}}).length,0); // Declared metadata is not physical bytes.
-await assertPersistedBaseline(before,structuredClone(before));
-await assert.rejects(()=>assertPersistedBaseline(before,{local:empty.local,databases:{backup:before}}),/body lost/);
-await assert.rejects(()=>assertPersistedBaseline(before,empty),/body lost/);
-const corrupt=structuredClone(before);corrupt.databases.bytes.sha256='b'.repeat(64);
-await assert.rejects(()=>assertPersistedBaseline(before,corrupt),/bytes lost/);
-const shared=structuredClone(before);shared.local.gemini_conversations=[{id:'a'}];shared.local.gemini_conversations_u1=[{id:'a'}];shared.databases.gemini_exporter_details_idb={stores:{conversation_details:[before.local.gemini_conversations[0]]}};
-assert.throws(()=>bodyFacts(shared),/ambiguous account/);
-assert.equal(bodyFacts(empty).length,0); // An export ZIP cannot fabricate disk evidence.
-const wrongAccount=structuredClone(before);wrongAccount.local={gemini_conversations:[{id:'a'}],gemini_conversations_u1:before.local.gemini_conversations};
-await assert.rejects(()=>assertPersistedBaseline(before,wrongAccount),/body lost/);
-const wrongConversation=structuredClone(before);wrongConversation.local.gemini_conversations[0].id='other';
-await assert.rejects(()=>assertPersistedBaseline(before,wrongConversation),/body lost/);
-const detail={local:empty.local,databases:{...before.databases,gemini_exporter_details_idb:{stores:{conversation_details:[{...before.local.gemini_conversations[0],id:'c_a'}]}}}};
-await assertPersistedBaseline(before,detail);
-const sameIdTwoAccounts=structuredClone(before);sameIdTwoAccounts.local.gemini_conversations_u1=[{id:'a',messages:[{role:'user',content:'Other account body'}]}];
-assert.equal(bodyFacts(sameIdTwoAccounts).length,2); // Inline bodies carry their own account identity.
-// Frozen historical v2 fixture: this harness audits old disk records, independently of today's UUID parser.
-const conversation={index:{id:'a',providerId:'gemini',title:'',titleSource:'default',cloudAvailability:'unknown',hasTakeoutImport:false},detail:{quality:{status:'unknown'},assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Persisted body'}]}]}]}};
-const record={key:JSON.stringify(['gemini','u0','a']),storageVersion:2,domainVersion:2,origin:'legacy-storage',revision:'test-revision',savedAt:1234,acquisitionHints:{},resources:[],identity:{providerId:'gemini',accountSlot:'u0',conversationId:'a'},conversation};
-const migrated={local:empty.local,databases:{...before.databases,gemini_exporter_domain:{stores:{conversations:[record]}}}};
-await assert.rejects(()=>assertPersistedBaseline(before,migrated)); // Old Domain contracts have no compatibility adapter.
-const padded=structuredClone(before);padded.local.gemini_conversations[0].id=' c_a '.trim();
-await assert.rejects(()=>assertPersistedBaseline(padded,migrated));
-const spaced=structuredClone(before);spaced.local.gemini_conversations[0].id=' a ';
-await assert.rejects(()=>assertPersistedBaseline(spaced,migrated));
+import {migrationFacts,assertPersistedBaseline,upgradeOutcome} from './scripts/upgrade_baseline.mjs';
+assert.throws(()=>migrationFacts({local:{gemini_conversations:[{id:'a'}]},databases:{}}),/Unsupported v1 baseline schema/);
+assert.equal(upgradeOutcome([{status:'passed'},{status:'not_applicable'}]),'failed');
+assert.equal(upgradeOutcome([{status:'passed'}]),'passed');
+const id='10000000-0000-4000-8000-000000000001';
+const account={id,providerId:'gemini',providerAccountId:'subject'};
+const index={key:{accountId:id,conversationId:'chat'},title:'Old',titleSource:'provider',updatedAt:'0'};
+const before={local:{['conversations_'+id]:[index],['exported_'+id]:{chat:{exportedAt:1000,format:'pdf',status:'ok'}},gemini_dev_mode:false,live_save_config:{enabledDisk:true}},databases:{gemini_exporter_domain:{version:1,stores:{accounts:[account],conversations:[{messages:['must not migrate']}]}}}};
+before.databases.gemini_exporter_idb={version:1,stores:{handles:[{directoryHandleSnapshot:true,kind:'directory',name:'Selected'}]},keys:{handles:['export_dir_handle']}};
+const facts=migrationFacts(before);
+const after=structuredClone(before);after.local.gemini_exporter_v2_initialized=true;
+after.local.gemini_exporter_v2_settings=facts.settings;
+after.databases.gemini_exporter_v2={version:1,stores:{accounts:facts.accounts,indexes:facts.indexes,exportRecords:facts.exportRecords,directoryHandles:facts.directoryHandles,details:[],coverage:[]}};
+await assertPersistedBaseline(before,after);
 for(const change of [
- r=>{r.identity.accountSlot='u1';r.key=JSON.stringify(['gemini','u1','a']);},
- r=>{r.identity.conversationId='other';r.key=JSON.stringify(['gemini','u0','other']);r.conversation.index.id='other';},
- r=>{r.identity.accountSlot='u1';}, // Correct-looking key cannot mask mismatched identity.
- r=>{r.conversation.index.id='other';},
- r=>{r.conversation.detail.messages=[];},
-]){
- const lost=structuredClone(migrated);change(lost.databases.gemini_exporter_domain.stores.conversations[0]);
- lost.databases.backup=before; // Arbitrary backup must never satisfy the bound assertion.
- await assert.rejects(()=>assertPersistedBaseline(before,lost));
-}
-const missingStore=structuredClone(migrated);missingStore.databases.gemini_exporter_domain.stores={legacy_imports:[record]};
-await assert.rejects(()=>assertPersistedBaseline(before,missingStore),/body lost/);
-const backupOnly=structuredClone(migrated);backupOnly.databases.gemini_exporter_domain.stores={conversations:[],legacy_imports:[record]};
-await assert.rejects(()=>assertPersistedBaseline(before,backupOnly),/body lost/);
-
+ a=>{delete a.local.gemini_exporter_v2_initialized;},
+ a=>{a.databases.gemini_exporter_v2.stores.indexes[0].key.accountId='other';},
+ a=>{a.databases.gemini_exporter_v2.stores.details.push({messages:['old body']});},
+ a=>{a.databases.gemini_exporter_v2.stores.coverage.push({range:null});},
+ a=>{a.databases.gemini_exporter_v2.stores.resourceBytes=[];},
+ a=>{a.databases.gemini_exporter_v2.stores.exportRecords[0].value.status='partial';},
+ a=>{a.local.gemini_exporter_v2_settings.developerMode=true;},
+ a=>{delete a.local['conversations_'+id];},
+ a=>{a.databases.gemini_exporter_v2.stores.directoryHandles[0].name='Other';},
+]) { const wrong=structuredClone(after);change(wrong);await assert.rejects(()=>assertPersistedBaseline(before,wrong)); }
 """
         result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=ROOT,
                                 text=True, capture_output=True, timeout=20)

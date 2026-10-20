@@ -1,4 +1,4 @@
-import { blockText, codeHeader, fileBadge, disclosureTitle, headerMetadata, messageLabel, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
+import { blockText, codeHeader, fileBadge, headerMetadata, messageLabel, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
 import type { HtmlRenderOptions } from '../shared/renderOptions.js';
@@ -212,7 +212,7 @@ ${options.copyCode !== false ? `<button class="gem-copy-btn" onclick="copyCode(t
             case 'file':
                 if (!available(node.resourceId)) { missing(node.resourceId); return `<div class="gem-missing-asset">${escapeHtml(unavailableText('file', node.label))}${node.description ? `<div>${inlines(node.description)}</div>` : ''}</div>`; }
                 return `<a class="gem-att-card gem-att-file" href="${resource(node.resourceId)}" target="_blank" download="${escapeHtml(node.label)}" title="${escapeHtml(`${isEn ? 'Open or download' : '点击打开或下载'} ${node.label}`)}"><div class="gem-att-icon">${FILE_SVG}</div><div class="gem-att-info"><span class="gem-att-name">${escapeHtml(node.label)}</span><span class="gem-att-badge">${escapeHtml(fileBadge(node))}</span></div>${node.description ? `<div class="gem-att-desc">${inlines(node.description)}</div>` : ''}<div class="gem-att-open-btn">${OPEN_SVG}</div></a>`;
-            case 'disclosure': return `<details class="gem-thoughts"${options.thoughtInitiallyCollapsed ?? false ? '' : ' open'}><summary class="gem-thoughts-summary"><div class="gem-thoughts-header">${THOUGHT_SVG}<span>${escapeHtml(disclosureTitle(node, { ...options, locale }))}</span>${CHEVRON_SVG}</div></summary><div class="gem-thoughts-content">${blocks(node.blocks)}</div></details>`;
+            case 'disclosure': return `<details class="gem-thoughts"${options.thoughtInitiallyCollapsed ?? false ? '' : ' open'}><summary class="gem-thoughts-summary"><div class="gem-thoughts-header">${THOUGHT_SVG}<span>${escapeHtml(node.title)}</span>${CHEVRON_SVG}</div></summary><div class="gem-thoughts-content">${blocks(node.blocks)}</div></details>`;
             case 'thematicBreak': return '<hr class="gem-hr">';
             case 'unsupported':
                 diagnostics.push({ severity: 'info', code: 'HTML_UNKNOWN_BLOCK', message: `Unsupported block ${node.sourceType}` });

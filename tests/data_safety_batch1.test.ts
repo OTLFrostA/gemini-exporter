@@ -92,56 +92,21 @@ test('D2: BatchWorker confirms deletion but retains local metadata on BardErrorI
     }
 });
 
-// 3. D4: Clear All clears list, details, checkpoint, and exported records
-test('D4: StorageService.clearConversations cleans up checkpoint and exported records map', async () => {
-    const StorageService = require('../src/core/storage/storageService.js');
-
-    const mockStore: Record<string, any> = {
-        ['conversations_10000000-0000-4000-8000-000000000001']: ([{ id: 'chat_1', title: 'Chat 1' }]).map(indexFixture),
-        ['last_count_10000000-0000-4000-8000-000000000001']: 1,
-        ['scan_checkpoint_10000000-0000-4000-8000-000000000001']: 1700000000000,
-        exportedIds: { 'chat_1': { status: 'ok', exportedAt: 1700000000000 } }
-    };
-
-    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+// Scan cleanup is account-scoped Coverage + ExportRecord deletion, without deleting Domain.
+test('D4: clearStoredAccountScanRecords clears both scan ledgers and keeps local history', async () => {
+    const { indexStorage } = require('./helpers/indexStorage.js');
+    const storage = require('../src/core/storage/storageService.js');
+    const env = indexStorage();
     try {
-    (globalThis as any).chrome = withRegistry({
-        storage: {
-            local: {
-                get: async (keys: any) => {
-                    const out: Record<string, any> = {};
-                    const arr = Array.isArray(keys) ? keys : (typeof keys === 'string' ? [keys] : Object.keys(mockStore));
-                    for (const k of arr) {
-                        if (mockStore[k] !== undefined) out[k] = mockStore[k];
-                    }
-                    return out;
-                },
-                set: async (items: Record<string, any>) => {
-                    Object.assign(mockStore, items);
-                },
-                remove: async (keys: any) => {
-                    const arr = Array.isArray(keys) ? keys : [keys];
-                    for (const k of arr) {
-                        delete mockStore[k];
-                    }
-                }
-            }
-        }
-    });
-
-    await StorageService.clearConversations('10000000-0000-4000-8000-000000000001');
-
-    assert.deepStrictEqual(mockStore['conversations_10000000-0000-4000-8000-000000000001'], []);
-    assert.strictEqual(mockStore['last_count_10000000-0000-4000-8000-000000000001'], 0);
-    assert.strictEqual(mockStore['scan_checkpoint_10000000-0000-4000-8000-000000000001'], undefined, 'Scan checkpoint must be removed');
-    assert.deepStrictEqual(mockStore['exported_10000000-0000-4000-8000-000000000001'], {}, 'Exported records must be emptied');
-
-    const checkpoint = await getCoverage('10000000-0000-4000-8000-000000000001', 'recent');
-    assert.strictEqual(checkpoint, null, 'getCoverage must return null after clearConversations');
-    } finally {
-        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
-        else delete (globalThis as any).chrome;
-    }
+        const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: 'chat_1' };
+        await storage.putIndexes([{ key }]);
+        await storage.putExportRecord(key, { format: 'markdown', exportedAt: 0, status: 'ok' });
+        await storage.updateCoverageAtomically(key.accountId, 'recent', () => ({ next: { range: null }, result: undefined }));
+        await storage.clearStoredAccountScanRecords(key.accountId);
+        assert.deepEqual(await storage.listExportRecords(key.accountId), {});
+        assert.equal(await storage.getCoverage(key.accountId, 'recent'), null);
+        assert.deepEqual(await storage.getIndex(key), { key });
+    } finally { env.restore(); }
 });
 
 // 4. Page-world deletion notices must be verified by the active content tab, not trusted as deletion commands.

@@ -18,8 +18,8 @@ export function restoreConversationIndex(value: unknown): DomainConversationInde
     if (Object.keys(raw).some(k => !keys.has(k))
         || (title === undefined) !== (titleSource === undefined)
         || title !== undefined && (typeof title !== 'string' || !title || title !== title.trim() || typeof titleSource !== 'string' || !isTitleSource(titleSource))
-        || createdAt !== undefined && (typeof createdAt !== 'number' || !Number.isFinite(createdAt))
-        || updatedAt !== undefined && (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt))) throw new TypeError('Invalid conversation index schema');
+        || createdAt !== undefined && (typeof createdAt !== 'number' || !Number.isSafeInteger(createdAt))
+        || updatedAt !== undefined && (typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt))) throw new TypeError('Invalid conversation index schema');
     return { key, ...(title !== undefined ? { title: title as string, titleSource: titleSource as TitleSource } : {}),
         ...(createdAt !== undefined ? { createdAt: createdAt as number } : {}), ...(updatedAt !== undefined ? { updatedAt: updatedAt as number } : {}) };
 }

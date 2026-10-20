@@ -18,3 +18,7 @@ function composerContract(domain: ReadonlyDomain, indexOnly: DomainConversation,
     return document;
 }
 void composerContract;
+
+// @ts-expect-error Disclosure titles are part of the reading tree, never a renderer fallback.
+const missingDisclosureTitle: import('../src/core/document/ast/ast.js').DisplayBlock = { type: 'disclosure', kind: 'reasoning', blocks: [] };
+void missingDisclosureTitle;

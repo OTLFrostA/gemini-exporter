@@ -13,8 +13,8 @@ fallback, resource bytes or persistent task state is stored here.
 
 L2 owns identity, Index merging, Detail selection and Coverage admission.
 Application owns defaults, Skip, export records and user record cleanup. Runtime
-owns extension-origin execution and permissions. `migrationMarker.ts` supplies
-physical Chrome IO to Migration; it does not interpret upgrade policy.
+owns extension-origin execution and permissions. The independent Migration module
+owns its completion marker; normal Storage never reads or writes upgrade state.
 
 `python3 tests/run_tests.py --filter storage_v2` runs the storage contract suite.
 The complete `npm test` additionally covers Application cleanup retention,

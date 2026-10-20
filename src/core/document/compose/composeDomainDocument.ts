@@ -1,6 +1,7 @@
 import { readAccount, type Account } from '../../domain/accountRegistry.js';
 import { sameConversationKey } from '../../domain/conversationKey.js';
 import type { ReadonlyDomain } from '../../domain/runtimeValidation.js';
+import { readingLabels } from './resourcePresentation.js';
 import { contentComposer } from './composeContent.js';
 import type { DocumentAst, SourceItem } from '../ast/ast.js';
 
@@ -25,7 +26,7 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
             const item = byId.get(id)!;
             return {
                 id,
-                label: explicit?.trim() && !/^\[\d+\]$/.test(explicit) ? explicit : '[' + item.number + ']',
+                label: explicit?.trim() ? explicit : '[' + item.number + ']',
                 ...(item.citation.url !== undefined ? { href: item.citation.url } : {}),
             };
         };
@@ -37,8 +38,8 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
                 : { type: 'file' as const, assetId: id, label: asset.name };
         });
         const blocks = [
-            ...(message.reasoning !== undefined
-                ? [{ type: 'disclosure' as const, kind: 'reasoning', blocks: compose(message.reasoning) }]
+            ...(message.reasoning?.length
+                ? [{ type: 'disclosure' as const, kind: 'reasoning', title: readingLabels.reasoning, blocks: compose(message.reasoning) }]
                 : []),
             ...compose([...message.content, ...attachments]),
         ];
@@ -58,7 +59,7 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
     });
 
     return {
-        title: (conversation.index.title?.trim() || 'Untitled conversation').replace(/[\r\n]+/g, ' '),
+        title: conversation.index.title ?? readingLabels.title,
         metadata: {
             id: conversation.index.key.conversationId,
             provider: account.providerId,

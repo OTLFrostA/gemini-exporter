@@ -1,7 +1,7 @@
 import type { DisplayBlock, DisplayInline, DocumentAst } from '../../document/ast/ast.js';
 import type { ResourceBindings } from '../../export/packaging/resourceBindings.js';
 import { visual } from '../shared/visualContract.js';
-import { blockText, codeHeader, fileBadge, humanBytes, disclosureTitle, headerMetadata, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
+import { blockText, codeHeader, fileBadge, humanBytes, headerMetadata, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
 import type { PdfRenderOptions } from '../shared/renderOptions.js';
@@ -66,7 +66,7 @@ export function renderDocumentTypst(
             }
             case 'unsupported': return { type: 'unknown', sourceType: node.sourceType, label: `${strings.unsupportedContent} · ${node.sourceType}`, fallback: node.text, layout };
             case 'thematicBreak': return { type: 'thematicBreak', layout };
-            case 'disclosure': return { type: 'note', ...(['summary', 'progress', 'reasoning'].includes(node.kind) || node.title ? { label: disclosureTitle(node, options) } : {}), blocks: node.blocks.map(block), layout };
+            case 'disclosure': return { type: 'note', label: node.title, blocks: node.blocks.map(block), layout };
         }
     };
     return {
