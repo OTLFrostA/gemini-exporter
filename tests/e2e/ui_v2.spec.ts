@@ -7,7 +7,9 @@ test('UI v2: Popup four formats use one request, preserve enabledDisk, include a
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
     await expect(page.locator('#chatInfoCard')).toBeVisible();
     await expect(page.locator('#formatTabs .tab-btn')).toHaveCount(4);
-    await expect(page.locator('#countBadge')).toBeVisible();
+    for (const hiddenOfProductScope of ['#countBadge', '#chatTurnBadge', '#langToggle', '#progWrap', '#format']) {
+        await expect(page.locator(hiddenOfProductScope)).toHaveCount(0);
+    }
     await expect(page.locator('#btnCurrent')).toBeEnabled();
     await expect(page.locator('button')).toHaveCount(6);
     await expect(page.locator('#currentChatTitle')).toHaveText('<img src=x onerror=alert(1)>');
@@ -33,9 +35,10 @@ test('UI v2: account switch clears selection and only selected current keys expo
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
     await expect(page.locator('.card-left')).toBeVisible();
     await expect(page.locator('.card-right')).toBeVisible();
-    for (const id of ['progWrap','exportFailureCard','logSection','takeoutImportModal']) {
+    for (const id of ['progWrap','exportFailureCard','logSection','btnImportTakeout']) {
         await expect(page.locator('#'+id)).toHaveCount(1);
     }
+    await expect(page.locator('#takeoutImportModal')).toHaveCount(0);
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#list img')).toHaveCount(0); await expect(page.locator('#btnExport')).toBeDisabled();
     await page.locator('#btnSelectAll').click(); await page.locator('#accountIdSelect').selectOption(B);
@@ -46,17 +49,22 @@ test('UI v2: account switch clears selection and only selected current keys expo
     await page.evaluate(()=>{(window as any).harness.finishExport();}); await expect(page.locator('#accountIdSelect')).toBeEnabled();
     expect((await read(page,'exports'))[0].keys).toEqual([{accountId:B,conversationId:'b'}]);
 });
-test('UI v2: scans only advise Takeout on verified Provider history limit', async ({ page }) => {
+test('UI v2: Takeout prompts at 151 committed records regardless of Scan reason', async ({ page }) => {
     await mount(page,'options',{accounts:[],indexes:[],holdScan:true}); await expect(page.locator('#btnSyncAll')).toBeEnabled();
     await page.locator('#btnSyncAll').click(); await expect(page.locator('#status')).toHaveText('Committed 2 pages, 150 source entries');
-    expect(await read(page,'scans')).toEqual([{accountId:A}]); await page.evaluate(()=>{(window as any).harness.finishScan();});
-    await expect(page.locator('#btnSyncAll')).toBeEnabled(); await expect(page.locator('#takeoutLimitModal')).toBeHidden();
-    await page.evaluate(()=>{Object.assign((window as any).harness,{holdScan:false,scanCount:620});});
-    await page.locator('#btnSyncAll').click(); await expect(page.locator('#takeoutLimitModal')).toBeHidden();
-    await page.evaluate(()=>{(window as any).harness.scanResult={status:'partial_limit',reason:'provider_limit',pagesFetched:2,conversationsFetched:620};});
-    await page.locator('#btnSyncAll').click(); await expect(page.locator('#takeoutLimitModal')).toBeVisible();
-    expect((await read(page,'patches')).length).toBe(0); await page.locator('#btnModalDismissTakeout').click();
+    expect(await read(page,'scans')).toEqual([{accountId:A}]);
+    await page.evaluate(()=>{(window as any).harness.finishScan();});
+    await expect(page.locator('#btnSyncAll')).toBeEnabled();
+    await expect(page.locator('.tour-popover')).toHaveCount(0);
+    await page.evaluate(()=>{Object.assign((window as any).harness,{holdScan:false,scanCount:151});});
+    await page.locator('#btnSyncAll').click();
+    await expect(page.locator('.tour-popover')).toContainText('This scan fetched 151 conversations');
+    expect((await read(page,'patches')).length).toBe(0);
+    await page.getByRole('button',{name:'Got it, don’t show again'}).click();
+    await expect(page.locator('.tour-popover')).toHaveCount(0);
     expect(await read(page,'patches')).toContainEqual({takeoutPromptCompleted:true});
+    await page.locator('#btnSyncAll').click();
+    await expect(page.locator('.tour-popover')).toHaveCount(0);
 });
 test('UI v2: settings preserve Live Save intent, record cleanup never deletes conversations', async ({ page }) => {
     await mount(page,'options'); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
@@ -97,7 +105,7 @@ test('UI v2: Badge isolates account counts, rejects delayed old count, partial p
     await expect(page.locator('#geminiExportBadge')).toContainText('0 conversations indexed');
     await page.evaluate(()=>{const w=window as any;w.badge.showLiveSaveResult({exported:1,partial:1,failed:[],skipped:0,aborted:false},w.harness.source);});
     await expect(page.locator('#geminiExportBadge')).toContainText('Some content was not saved');
-    await page.evaluate(()=>{(window as any).badge.showLiveSaveResult(null);});
+    await page.evaluate(()=>{const w=window as any; w.badge.showLiveSaveResult(null,w.harness.source);});
     await expect(page.locator('#geminiExportBadge')).toContainText('Some content was not saved');
     await expect(page.locator('#geminiExportBadge')).toContainText('0 conversations indexed',{timeout:4000});
     expect(await read(page,'countRequests')).toBe(2);
