@@ -194,6 +194,23 @@ function messageOfNode(
     };
 }
 
+/** A renderable branch is not necessarily a complete source chain. Missing
+ * parents, cycles and absent current_node must never claim full body coverage. */
+function branchCoverage(conversation: ChatGPTApiConversationWithId): 'complete' | 'partial' | 'unknown' {
+    if (!conversation.current_node) return 'unknown';
+    let id: string | undefined = conversation.current_node;
+    const seen = new Set<string>();
+    while (id) {
+        if (seen.has(id)) return 'partial';
+        seen.add(id);
+        const node: ChatGPTConversationNode | undefined = conversation.mapping[id];
+        if (!node) return 'partial';
+        if (node.parent == null) return 'complete';
+        id = node.parent;
+    }
+    return 'unknown';
+}
+
 /** Linearize source messages; final Domain validation belongs to L2. */
 export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConversationParseResult {
     const { conversation } = input;
@@ -235,7 +252,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
                 title: conversation.title?.trim() || '', titleSource: 'provider',
                 createdAt: chatGPTTimestamp(conversation.create_time), updatedAt: sourceVersion,
                 messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
-            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: 'complete' }), assets, messages },
+            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: branchCoverage(conversation) }), assets, messages },
         },
         diagnostics: contentDiagnostics,
         acquisitionHints,
