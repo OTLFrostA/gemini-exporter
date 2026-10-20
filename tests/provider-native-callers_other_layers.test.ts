@@ -1,161 +1,237 @@
-// Application import/export/resource delivery scenarios retained under normal full discovery.
-import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
-import { useIndexStorage } from './helpers/indexStorage.js';
-useIndexStorage();
-import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
-import { validateParserDomain } from '../src/l2/runtimeValidation.js';
-import type { ResourceResult, ResourceDelivery } from '../src/shared/resources/resourceResult.js';
-import { test } from 'node:test';
+/**
+ * Cross-module v2 integration: native L1, L2 admission, L3a persistence,
+ * L3b document composition and L4 outputs. Only ZIP input/bytes are external.
+ */
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
-import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
-import { getConversationDetail } from '../src/l1/client/gemini/api/pagination.js';
-import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
-import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
-import { assertDomainClosure } from '../src/l2/closure.js';
-import { parseTakeoutZip } from '../src/l1/imports/takeout/importTakeout.js';
-import { MediaIndex } from '../src/shared/resources/takeout/mediaIndex.js';
-import type { ResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
-import { getDomainConversationResult } from '../src/l3a/domain/nativePersistence.js';
-import { preparePdfResources } from '../src/l4/format/pdf/prepareResources.js';
-import { extractBlockText } from '../src/l2/content/unknownFallback.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
+import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { ingestDetail } from '../src/l2/ingestion.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import { getDetail, getIndex } from '../src/l3a/storageService.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { serializeDomainJson, JSON_ARCHIVE_VERSION } from '../src/l4/format/json/serializeDomainJson.js';
+import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
+import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
+import type { PreparedResources, ResourceResult, ResourceBytes } from '../src/shared/resources/resourceResult.js';
+import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 
-const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
-function page(request: string, seconds: number, cursor: string | null = null) {
-    const turn = [['c_native', request], [seconds, 0], [[`Question ${request}`]], [[['rc_' + request, [['**Answer**']]]]]];
-    return parseGeminiRpcConversation(JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], cursor, 'Title'])],
-        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_native', 'Title', null, null, null, [1700000010, 0]]]])]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
+useIndexStorage();
+const account = fixtureAccount('gemini');
+const key = fixtureKey('native');
+const JSZip = require('../lib/jszip.min.js');
+
+function native(): SourceConversationParseResult {
+    return {
+        conversationId: key.conversationId, sourceVersion: 100,
+        conversation: {
+            index: { title: 'Source-native title', titleSource: 'provider', updatedAt: 100 },
+            detail: {
+                savedAt: 100, quality: { status: 'complete' },
+                assets: [{ id: 'image', kind: 'image', name: 'photo.png', mediaType: 'image/png',
+                    sourceUri: 'https://example.test/photo.png' }],
+                messages: [{ id: 'source-message', role: 'assistant', model: 'Authored model',
+                    attachmentIds: ['image'], content: [{
+                        type: 'table', rows: [{ cells: [{ children: [
+                            { type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] },
+                            { type: 'image', assetId: 'image' },
+                        ] }] }],
+                    }],
+                }],
+            },
+        },
+        diagnostics: [], acquisitionHints: {},
+    };
 }
-const result = (uri?: string, messageId = 'm1', timestamp = 1): ResourceConversationParseResult => ({ account: fixtureAccount(),
-    sourceVersion: timestamp, conversation: validateParserDomain({ index: { key: fixtureKey(String('native'), 'gemini'),   titleSource: "derived",   title: 'Title' }, detail: { key: fixtureKey(String('native'), 'gemini'), quality: { status: 'unknown' }, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
-        content: [{ type: 'table', rows: [{ cells: [{ children: [{ type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] }, { type: 'image', assetId: 'image' }] }] }] }], attachmentIds: ['image'] }], assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri && !/^(?:data|blob):/.test(uri) ? { sourceUri: uri } : {}) }] } }),
-    diagnostics: [], resourceHints: {}, acquisitionHints: uri?.startsWith('data:') ? { image: { url: uri } } : {},
-});
+function bind(source: SourceConversationParseResult) {
+    const conversationKey = { accountId: account.id, conversationId: source.conversationId };
+    return validateParserDomain({
+        index: { ...source.conversation.index, key: conversationKey },
+        detail: { ...source.conversation.detail, key: conversationKey },
+    });
+}
+const activity = (references: string) =>
+    '<div class="outer-cell"><a href="https://gemini.google.com/app/c_native">Chat</a>' +
+    '<div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">' +
+    'Prompted Read ' + references + '<br>2026-09-02T12:00:00Z<br><p>Answer</p></div></div>';
+type Entry = { _data: { uncompressedSize: number }; async: (type: string) => Promise<string | Uint8Array> };
+function takeoutArchive(html: string, entries: Record<string, Uint8Array> = {}): File {
+    const files: Record<string, Entry> = {
+        'Takeout/Gemini Apps/MyActivity.html': { _data: { uncompressedSize: html.length }, async: async () => html },
+    };
+    for (const [name, bytes] of Object.entries(entries)) files[name] = {
+        _data: { uncompressedSize: bytes.length }, async: async () => bytes,
+    };
+    return { file() {}, files } as unknown as File;
+}
 
-test('native exports use Domain without invoking the historical record parser', async () => {
-    const view = result('data:image/png;base64,iVBORw0KGgo=');
-    const recordParser = require('./helpers/recordFixture/parseRecord.js') as { parseConversationRecord: (...args: unknown[]) => unknown };
-    const old = recordParser.parseConversationRecord;
-    recordParser.parseConversationRecord = () => { throw new Error('A native result cannot be reparsed as a record'); };
-    try {
-        const html = await formatHtmlDocument(view);
-        const markdown = await formatMarkdownDocument(view);
-        const pdf = await preparePdfItem(view, { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
-        assert.ok(pdf.ok);
-        assert.match(html.content, /Rich answer/);
-        assert.match(markdown.content, /Rich answer/);
-        assert.doesNotMatch(html.content + markdown.content + JSON.stringify(pdf.document), /CORRUPTED SNAPSHOT/);
-        assert.match(html.content + markdown.content + JSON.stringify(pdf.document), /Authored model/);
-        assert.equal(pdf.document.messages.length, 1);
-    } finally { recordParser.parseConversationRecord = old; }
-});
-
-test('standard JSON preserves native data without mutation', () => {
-    const native = result('https://example.test/photo.png');
-    const snapshot = structuredClone(native.conversation);
-    const view = native;
-    const json = JSON.parse(formatContent(view, 'json').content);
-    assert.equal('parsed' in json, false);
-    assert.deepEqual(json.conversation, native.conversation);
-    assert.equal(json.version, 3);
-    assert.deepEqual(native.conversation, snapshot);
-
-});
-
-test('malformed native results fail rather than silently using the legacy parser', () => {
-    assert.throws(() => formatContent({ account: fixtureAccount(), conversation: result().conversation, diagnostics: [], resourceHints: [], acquisitionHints: {} } as never, 'json'), /Malformed native/);
-    assert.throws(() => formatContent({ id: 'old', messages: [] } as never, 'json'));
-});
-
-const zipArchive = (files: Record<string, unknown>) => ({ files, file() {} });
-const activity = (refs: string) => `<div class="outer-cell"><a href="https://gemini.google.com/app/c_native">Chat</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Read ${refs}<br>2026-09-02T12:00:00Z<br><p>Answer</p></div></div>`;
-const htmlEntry = (html: string) => ({ _data: { uncompressedSize: html.length }, async: async () => html });
-const bytesEntry = (byte: number) => ({ _data: { uncompressedSize: 1 }, async: async () => new Uint8Array([byte]) });
-
-test('production Takeout binds extension variations once and carries native Domain to PDF acquisition', async () => {
-    const slot = '10000000-0000-4000-8000-000000000001';
-    const html = activity('<a href="image-hash.png">image</a> <a href="IMG-hash.jpeg">photo</a> <a href="script-hash.py">script</a>');
-    try {
-        const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html), 'Takeout/Gemini Apps/image-hash': bytesEntry(1), 'Takeout/Gemini Apps/IMG-hash.jpg': bytesEntry(2), 'Takeout/Gemini Apps/script-hash': bytesEntry(3) }), null, slot);
-        const view = parsed.convCache.native;
-        assert.equal(view.conversation.detail.assets.length, 3);
-        assert.equal(parsed.status, 'ok');
-        assert.equal(parsed.resourceResults.filter(result => result.ok).length, 3);
-        assert.equal(parsed.diagnostics.some(d => /MISSING|AMBIGUOUS/.test(d.code)), false);
-        assert.equal('parsed' in parsed.conversations[0], false);
-        assert.equal('messages' in parsed.conversations[0], false);
-        assert.equal('turns' in parsed.conversations[0], false);
-        assert.equal(Reflect.get(parsed.conversations[0] ?? {}, 'hasTakeoutImport'), undefined);
-        assert.ok(Array.isArray(view.conversation.detail.messages[0].content));
-        for (const [i, asset] of view.conversation.detail.assets.entries()) assert.deepEqual(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: '', sourceUri: view.resourceHints[asset.id].archivePath! }, slot), new Uint8Array([i + 1]));
-        assert.equal(await MediaIndex.getTakeoutFallbackMedia('other', { assetId: '', sourceUri: 'image-hash' }, slot), null);
-        const pdf = await preparePdfItem(view, { accountId: slot, takeoutEngine: MediaIndex, fetchAsset: async () => ({ success: false, error: 'offline' }), maxAssetRetries: 0 });
-        assert.ok(pdf.ok);
-        assert.equal([...pdf.resources.values()].filter(r => r.ok && r.value.bytes.length).length, 2);
-    } finally { MediaIndex.clearTakeoutData(slot); }
-});
-
-test('non-archive Takeout images do not become missing ZIP resource failures', async () => {
-    const slot = '10000000-0000-4000-8000-000000000001';
-    try {
-        const html = activity('').replace('<p>Answer</p>', '<p>![cdn](//cdn.example.com/image.png) ![remote](https://example.test/remote.png) ![http](http://example.test/plain.png) ![inline](data:image/png;base64,AQID)</p>');
-        const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html) }), null, slot);
-        assert.equal(parsed.convCache.native.conversation.detail.assets.length, 4);
-        assert.equal(parsed.status, 'ok');
-        assert.deepEqual(parsed.resourceResults, []);
-        assert.ok(!parsed.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE'));
-    } finally { MediaIndex.clearTakeoutData(slot); }
-});
-
-test('ambiguous Takeout resources cannot be recovered later by permissive legacy guessing', async () => {
-    const slot = '10000000-0000-4000-8000-000000000001';
-    try {
-        const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(activity('<a href="photo.png">image</a>')), 'one/photo.png': bytesEntry(1), 'two/photo.png': bytesEntry(2) }), null, slot);
-        assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
-        assert.equal(parsed.status, 'partial');
-        assert.equal(parsed.resourceResults.filter(result => !result.ok).length, 1);
-        const view = parsed.convCache.native;
-        const asset = view.conversation.detail.assets[0];
-        assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: asset.id }, slot), null);
-        assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: '', sourceUri: 'photo.png' }, slot), null);
-    } finally { MediaIndex.clearTakeoutData(slot); }
-});
-
-test('missing ZIP references and unsupported URI schemes report failures through import and storage restore', async () => {
-    for (const uri of ['missing.png', 'blob:missing.png', 'file:missing.png', 'custom:missing.png']) {
-        const slot = '10000000-0000-4000-8000-000000000001';
-        try {
-            const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(activity(`<a href="${uri}">image</a>`)) }), null, slot);
-            assert.equal(parsed.status, 'partial', uri);
-            assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_MISSING_RESOURCE'), uri);
-            const asset = parsed.convCache.native.conversation.detail.assets[0];
-            assert.ok(parsed.resourceResults.some(result => !result.ok && result.resourceId === asset.id), uri);
-            MediaIndex.clearTakeoutData(slot);
-            const restored = await getDomainConversationResult(slot, 'native');
-            assert.ok(restored);
-            const prepared = await preparePdfResources(restored.conversation.detail, new Set([asset.id]), restored.acquisitionHints);
-            assert.equal(prepared.resources.get(asset.id)?.ok, false);
-            assert.ok(prepared.resources.get(asset.id) && !prepared.resources.get(asset.id)!.ok, uri);
-            assert.ok(prepared.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE'), uri);
-        } finally { MediaIndex.clearTakeoutData(slot); }
+test('native L1 facts preserve rich content and model through real L2, L3b and three renderers', async () => {
+    const source = native(), before = structuredClone(source.conversation);
+    const trusted = bind(source);
+    await ingestDetail(account.id, source.conversationId, trusted.detail, trusted.index);
+    const conversation = await readConversation(key);
+    assert.ok(conversation);
+    const document = composeDomainDocument(conversation, account);
+    const snapshot = structuredClone(document);
+    const outputs = [
+        renderDocumentHtml(document, {}).html,
+        renderDocumentMarkdown(document, {}),
+        JSON.stringify(renderDocumentTypst(document, {})),
+    ];
+    for (const output of outputs) {
+        assert.match(output, /Rich answer/);
+        assert.match(output, /Authored model/);
     }
+    assert.equal(document.messages.length, 1);
+    assert.deepEqual([...collectDocumentResources(document).referencedIds], ['image']);
+    assert.deepEqual(document, snapshot);
+    assert.deepEqual(source.conversation, before);
 });
 
-test('live image renaming updates export hints without modifying native source facts', async () => {
-    const { processAndSaveImages, init } = require('../src/runtime/content/liveSaveCoordinator.js') as typeof import('../src/runtime/content/liveSaveCoordinator.js');
-    const native = result('https://example.test/photo.png');
-    const source = structuredClone(native.conversation);
-    const view = native;
-    init({ assetFetcher: { fetchImageBuffer: async () => ({ buffer: new Uint8Array([1, 2, 3]), ext: 'jpg' }) } });
+test('L4 JSON serializes trusted native v2 Domain without legacy DTO or mutable source fields', () => {
+    const source = native(), before = structuredClone(source);
+    const trusted = bind(source);
+    const archive = JSON.parse(serializeDomainJson(trusted, account, {}));
+    assert.equal(archive.version, JSON_ARCHIVE_VERSION);
+    assert.equal(archive.version, 1);
+    assert.equal(archive.format, 'gemini-exporter-domain');
+    assert.deepEqual(archive.conversation, trusted);
+    assert.equal('sourceVersion' in archive, false);
+    assert.equal('parsed' in archive, false);
+    assert.equal(archive.conversation.detail.messages[0].model, 'Authored model');
+    assert.deepEqual(source, before);
+    assert.throws(() => validateParserDomain({ ...trusted,
+        detail: { ...trusted.detail, quality: { ...trusted.detail.quality, rejectedTurns: 2 } } } as never),
+    /Domain contract/);
+    assert.throws(() => serializeDomainJson(trusted, fixtureAccount('chatgpt'), {}), /Account\/key mismatch/);
+});
+
+test('real v2 Takeout import admits Index/Detail and retains variant filenames as lazy task bytes', async () => {
+    const context = createSourceResourceContext();
+    const files = {
+        'Takeout/Gemini Apps/image-hash': Uint8Array.of(1),
+        'Takeout/Gemini Apps/IMG-hash.jpg': Uint8Array.of(2),
+        'Takeout/Gemini Apps/script-hash': Uint8Array.of(3),
+    };
+    const refs = '<a href="image-hash.png">image</a> <a href="IMG-hash.jpeg">photo</a> <a href="script-hash.py">script</a>';
     try {
-        const written: string[] = [];
-        const deliveries: ResourceResult<ResourceDelivery>[] = [];
-        await processAndSaveImages(view, 'native', { async writeFile(subdir: string, filename: string) { written.push(`${subdir}/${filename}`); } }, [], deliveries);
-        assert.equal(written.length, 1);
-        assert.equal(view.resourceHints.image.archivePath, written[0]);
-        assert.deepEqual(native.conversation, source);
-        assert.match((await formatMarkdownDocument(view, { resourceResults: deliveries })).content, new RegExp(written[0].replace(/\./g, '\\.')));
-    } finally { init(); }
+        const result = await importTakeout(takeoutArchive(activity(refs), files), account.id, undefined, context);
+        assert.equal(result.imported, 1);
+        assert.equal(result.status, 'partial', 'Takeout is not an online completeness claim');
+        const conversation = await readConversation(key);
+        assert.ok(conversation);
+        assert.ok(await getIndex(key));
+        assert.ok(await getDetail(key));
+        assert.equal(conversation.detail.assets.length, 3);
+        assert.equal(conversation.detail.quality.status, 'partial');
+        const assets = conversation.detail.assets;
+        const acquired = await Promise.all(assets.map(asset => context.acquire(key, asset)));
+        assert.deepEqual(acquired.map(value => [...value.bytes]), [[1], [2], [3]]);
+        assert.ok(!JSON.stringify(conversation).includes('dataBase64'));
+
+        const document = composeDomainDocument(conversation, account);
+        const prepared: PreparedResources = new Map<string, ResourceResult<ResourceBytes>>(assets.map((asset, i): [string, ResourceResult<ResourceBytes>] =>
+            [asset.id, { ok: true, resourceId: asset.id,
+                value: { bytes: acquired[i].bytes,
+                    mediaType: asset.kind === 'image' ? 'image/png' : 'application/octet-stream' } }]));
+        const oldZip = __getModuleOverride('JSZip');
+        __setModuleOverride('JSZip', JSZip);
+        try {
+            const [plan] = planExportPaths([{ conversation, prepared,
+                fileIds: collectDocumentResources(document).fileIds }], 'markdown');
+            const markdown = renderDocumentMarkdown(document, plan.resources);
+            const files = buildExportFiles('markdown', plan, markdown, prepared);
+            const [packed] = await packageExportFiles([files], 'browserDownload');
+            const zip = await JSZip.loadAsync(await (packed.content as Blob).arrayBuffer());
+            assert.equal(await zip.file(plan.fileName).async('string'), markdown);
+            for (const [i, asset] of assets.entries()) {
+                assert.deepEqual(await zip.file(plan.resources[asset.id]).async('uint8array'), acquired[i].bytes);
+            }
+        } finally { __setModuleOverride('JSZip', oldZip); }
+    } finally { context.release(); }
 });
 
+test('a partial Takeout cannot replace a complete v2 Detail or capture its source readers', async () => {
+    await ingestDetail(account.id, key.conversationId, {
+        savedAt: 9999999999999, quality: { status: 'complete' }, assets: [],
+        messages: [{ role: 'assistant', content: [{ type: 'paragraph',
+            children: [{ type: 'text', text: 'Keep complete body' }] }] }],
+    }, { title: 'Local title', titleSource: 'user', updatedAt: 9999999999999 });
+    const context = createSourceResourceContext();
+    try {
+        const result = await importTakeout(takeoutArchive(activity('<a href="image.png">image</a>'), {
+            'Takeout/Gemini Apps/image.png': Uint8Array.of(7),
+        }), account.id, undefined, context);
+        assert.equal(result.imported, 1);
+        const stored = await readConversation(key);
+        assert.ok(stored);
+        assert.equal(stored.detail.quality.status, 'complete');
+        assert.equal(stored.detail.assets.length, 0);
+        assert.match(JSON.stringify(stored.detail.messages), /Keep complete body/);
+        assert.equal(stored.index.title, 'Local title');
+        await assert.rejects(context.acquire(key, { id: 'image', kind: 'image' }), /No supported source locator/);
+    } finally { context.release(); }
+});
 
+test('ambiguous Takeout ZIP paths never select unrelated resource bytes', async () => {
+    const context = createSourceResourceContext();
+    try {
+        const result = await importTakeout(takeoutArchive(activity('<a href="photo.png">image</a>'), {
+            'one/photo.png': Uint8Array.of(1), 'two/photo.png': Uint8Array.of(2),
+        }), account.id, undefined, context);
+        assert.equal(result.imported, 1);
+        assert.equal(result.status, 'partial');
+        const stored = await readConversation(key);
+        assert.ok(stored);
+        const asset = stored.detail.assets[0];
+        assert.ok(asset);
+        await assert.rejects(context.acquire(key, asset), /No supported source locator/);
+    } finally { context.release(); }
+});
+
+for (const uri of ['missing.png', 'blob:missing.png', 'file:missing.png', 'custom:missing.png']) {
+    test('missing or unsupported Takeout reference ' + uri + ' never fabricates bytes', async () => {
+        const context = createSourceResourceContext();
+        try {
+            const result = await importTakeout(takeoutArchive(activity('<a href="' + uri + '">image</a>')),
+                account.id, undefined, context);
+            assert.equal(result.imported, 1);
+            assert.equal(result.status, 'partial');
+            const conversation = await readConversation(key);
+            assert.ok(conversation);
+            const asset = conversation.detail.assets[0];
+            assert.ok(asset);
+            await assert.rejects(context.acquire(key, asset), /No supported source locator/);
+        } finally { context.release(); }
+    });
+}
+
+test('Application resources and L4 paths rename output without mutating L1 source identity or bytes', async () => {
+    const source = native();
+    source.acquisitionHints = { image: { dataBase64: 'AQID' } };
+    const trusted = bind(source), before = structuredClone(trusted);
+    const context = createSourceResourceContext();
+    try {
+        context.retainParsed(key, source);
+        const prepared = await prepareExportResources(trusted.detail.assets, new Set(['image']),
+            (asset, signal) => context.acquire(key, asset, signal));
+        const image = prepared.get('image');
+        assert.ok(image?.ok);
+        assert.deepEqual(image.value.bytes, Uint8Array.of(1, 2, 3));
+        const document = composeDomainDocument(trusted, account);
+        const [plan] = planExportPaths([{ conversation: trusted, prepared, fileIds: new Set<string>() }], 'markdown');
+        const markdown = renderDocumentMarkdown(document, plan.resources);
+        assert.match(markdown, /assets\//);
+        assert.ok(plan.resources.image.startsWith('assets/'));
+        assert.notEqual(plan.resources.image, trusted.detail.assets[0].sourceUri);
+        assert.deepEqual(trusted, before);
+    } finally { context.release(); }
+});
