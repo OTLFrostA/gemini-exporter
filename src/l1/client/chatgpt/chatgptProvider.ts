@@ -122,6 +122,8 @@ export class ChatGPTProvider implements AIProvider {
         let totalObserved = 0;
         let expectedTotal: number | undefined;
         let sentHead = false;
+        const seen = new Set<string>();
+        let lastTime = Infinity;
         for (let page = 1; page <= 20; page++) {
             options.signal?.throwIfAborted();
             const offset = (page - 1) * 100;
@@ -140,9 +142,16 @@ export class ChatGPTProvider implements AIProvider {
             expectedTotal ??= result.total;
             const keys = result.conversations.flatMap(item => item.updatedAt === undefined
                 ? [] : [{ id: item.id, time: item.updatedAt }]);
+            // A trustworthy source chain cannot repeat an ID or move forward
+            // in source activity time across two consecutive pages.
             const ordered = valid && keys.length === count
                 && keys.every((key, i) => Number.isSafeInteger(key.time) && key.time > 0
-                    && (i === 0 || keys[i - 1].time >= key.time));
+                    && !seen.has(key.id) && (i === 0 ? key.time <= lastTime : keys[i - 1].time >= key.time))
+                && new Set(keys.map(key => key.id)).size === keys.length;
+            if (ordered) {
+                keys.forEach(key => seen.add(key.id));
+                if (keys.length) lastTime = keys[keys.length - 1].time;
+            }
             const evidence: PageEvidence = {
                 streamId: options.streamId,
                 requestCursor: page === 1 ? null : String(offset),
