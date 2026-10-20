@@ -220,7 +220,7 @@ test('resolve: one font file is never mounted twice across CJK/Latin stacks', as
         mockEntry('Noto Sans', 'NotoSans-Regular', 'Regular'),
     ]);
     try {
-        const res: any = await resolveLocalFonts({ cjk: ['Noto Sans'], latin: ['Noto Sans'] });
+        const res: any = await resolveLocalFonts({ cjk: ['Noto Sans'], latin: ['Noto Sans'], mono: [] });
         // The single installed file is claimed by CJK; Latin must not mount it again.
         assert.strictEqual(res.fonts.length, 1);
         assert.strictEqual(res.fonts[0].postscriptName, 'NotoSans-Regular');
