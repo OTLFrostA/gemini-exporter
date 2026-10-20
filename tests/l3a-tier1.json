@@ -28,5 +28,20 @@
   ],
   "typeTests": [
     "scripts/framework/v2_probe.ts"
+  ],
+  "consumerSuites": [
+    "tests/account_identity_isolation.test.ts",
+    "tests/domain_admission_storage.test.ts",
+    "tests/observed_page_ingest.test.ts",
+    "tests/conversation_repository.test.ts",
+    "tests/l1_l2_verified_deletion.test.ts",
+    "tests/six-module-integration.test.ts",
+    "tests/v2-module-integration.test.ts",
+    "tests/touch_timestamp_authority.test.ts",
+    "tests/regression_lock.test.ts",
+    "tests/browser_runtime_v2.test.ts",
+    "tests/conversation_version.test.ts",
+    "tests/write_failure_semantics.test.ts",
+    "tests/media-identity-persistence.test.ts"
   ]
 }
