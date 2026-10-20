@@ -1,14 +1,22 @@
-import { DEFAULT_ACCOUNT_KEY, type Account } from './accountRegistry.js';
+import { DEFAULT_ACCOUNT_KEY, readAccount, type Account } from './accountRegistry.js';
 import type { ConversationKey } from './conversationKey.js';
 import type { DomainConversationDetail, ConversationDetail } from './conversationDetail.js';
 import { selectConversationDetail } from './conversationDetail.js';
 import { acceptDetailFacts, restoreDomainDetail } from './runtimeValidation.js';
 import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservation } from './pageObservation.js';
-import { getAccount } from '../runtime/api/accountRegistry.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
-import { updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
+import { getAccount, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
 import { conversationKey } from './conversationKey.js';
+
+/** Runtime handles readiness and IPC; L2 reads and validates persisted Account facts directly. */
+async function readExistingAccount(accountId: Account['id']): Promise<Account | null> {
+    const stored = await getAccount(accountId);
+    if (stored === null) return null;
+    const account = readAccount(stored);
+    if (account.id !== accountId) throw new TypeError('Account registry UUID mismatch');
+    return account;
+}
 
 /** Domain values are JSON facts: object property insertion order is not a content change. */
 function sameStoredFacts(left: unknown, right: unknown): boolean {
@@ -46,7 +54,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
 export async function ingestIndexes(accountId: Account['id'],
     items: ReadonlyArray<{ conversationId: ConversationKey['conversationId']; fields: Omit<ConversationIndex, 'key'> }>,
     page?: Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>): Promise<void> {
-    const account = await getAccount(accountId);
+    const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Index account does not exist');
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
     await mergeIndexes(indexes);
@@ -65,7 +73,7 @@ export interface DetailIngestResult {
 
 export async function ingestDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'],
     detail: Omit<ConversationDetail, 'key'>, indexFields: Omit<ConversationIndex, 'key'> = {}): Promise<DetailIngestResult> {
-    const account = await getAccount(accountId);
+    const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Detail account does not exist');
     const key = { accountId, conversationId };
     const incoming = acceptDetailFacts(key, detail);
@@ -91,7 +99,7 @@ export async function ingestDetail(accountId: Account['id'], conversationId: Con
 /** Invoked only after L1 verifies a specific remotely deleted/nonexistent conversation. */
 export async function ingestDeletedConversation(accountId: Account['id'], conversationId: ConversationKey['conversationId']): Promise<void> {
     const key = conversationKey(accountId, conversationId);
-    const account = await getAccount(accountId);
+    const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Deletion account does not exist');
     await deleteStoredConversation(key);
 }
