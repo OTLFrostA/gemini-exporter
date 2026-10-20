@@ -1,7 +1,8 @@
 import { codeHeader, messageLabel, sourceNumberPrefix, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
-import type { MarkdownRenderOptions } from '../shared/renderOptions.js';
+import type { MarkdownRenderOptions } from '../shared/internalRenderOptions.js';
+import type { RendererOptions } from '../shared/renderOptions.js';
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
 import { inlineMathMarkdown } from '../../../shared/utils/markdownMath.js';
@@ -23,6 +24,7 @@ function codeSpan(value: string): string {
 }
 
 /** Projects and encodes a format-neutral document as GFM; no source registry or clock. */
+export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings, options?: RendererOptions): string;
 export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings, options: MarkdownRenderOptions = {}): string {
     const locale = options.locale ?? 'en';
     const strings = getRendererStrings(locale);

@@ -1,7 +1,8 @@
 import { blockText, codeHeader, fileBadge, headerMetadata, messageLabel, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
-import type { HtmlRenderOptions } from '../shared/renderOptions.js';
+import type { HtmlRenderOptions } from '../shared/internalRenderOptions.js';
+import type { RendererOptions } from '../shared/renderOptions.js';
 import { visual } from '../shared/visualContract.js';
 import { GEM_HTML_CSS, GEM_HTML_SCRIPT, sanitizeUrl } from './htmlTemplate.js';
 import { renderMathHtml } from './htmlMath.js';
@@ -148,6 +149,7 @@ const CHEVRON_SVG = '<svg class="gem-thought-chevron" viewBox="0 0 24 24" width=
 
 
 /** Pure backend: only the presentation tree and prepared resource bindings. */
+export function renderDocumentHtml(document: DocumentAst, resources: ResourceBindings, options?: RendererOptions): { html: string; diagnostics: Diagnostic[] };
 export function renderDocumentHtml(document: DocumentAst, resources: ResourceBindings, options: HtmlRenderOptions = {}): { html: string; diagnostics: Diagnostic[] } {
     const locale = options.locale ?? 'zh';
     const strings = getRendererStrings(locale);
