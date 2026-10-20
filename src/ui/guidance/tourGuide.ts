@@ -200,8 +200,9 @@ export async function goToStep(index: number): Promise<void> {
     if (index >= STEPS.length) { destroy(); return; }
     stepIndex = Math.max(0, index);
     const step = STEPS[stepIndex];
-    const related = step.id === 'live_save'
-        ? [document.getElementById('btnSetDir')].filter((item): item is HTMLElement => item instanceof HTMLElement)
+    const relatedId = step.id === 'live_save' ? 'btnSetDir' : step.id === 'select' ? 'btnSelectAll' : undefined;
+    const related = relatedId
+        ? [document.getElementById(relatedId)].filter((item): item is HTMLElement => item instanceof HTMLElement)
         : [];
     const popover = overlay(step.target(), step.title(), step.description(), true,
         related, step.placement, undefined, step.hint?.());

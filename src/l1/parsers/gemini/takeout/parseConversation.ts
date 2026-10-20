@@ -6,7 +6,7 @@ import type { DomainMessage } from '../../../../l2/conversationDetail.js';
 import type { Diagnostic } from '../../../../shared/diagnostics/diagnostic.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
-import { parseGeminiBody } from '../shared/contentAdapter.js';
+import { parseGeminiBody, parseGeminiPrompt } from '../shared/contentAdapter.js';
 import type { SourceConversationParseResult } from '../../parsingResult.js';
 
 import { createTakeoutResourceResolver, decodeTakeoutReference, takeoutBaseName, type TakeoutSourceFile } from './archiveResources.js';
@@ -113,8 +113,10 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
                 continue;
             }
             const attachments = references.map(ref => attachmentOf(ref, role === 'assistant' ? generation : undefined));
-            messages.push({ role, content: parseGeminiBody(content, undefined, { diagnostics: contentDiagnostics,
-                sourceRef: { providerId: 'gemini', locator: `blocks[${activity.blockIndex}].${role}` } }),
+            messages.push({ role, content: role === 'user'
+                ? parseGeminiPrompt(content)
+                : parseGeminiBody(content, undefined, { diagnostics: contentDiagnostics,
+                    sourceRef: { providerId: 'gemini', locator: `blocks[${activity.blockIndex}].${role}` } }),
                 ...(activity.timestamp !== null ? { timestamp: activity.timestamp } : {}) });
             groups.push({ input: { attachments } });
             if (role === 'assistant' && generation && !attachments.some(a => a.isGenerated)) diagnostics.push({ severity: 'warning', code: 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED', message: 'Activity records image generation without an explicit archive resource reference' });

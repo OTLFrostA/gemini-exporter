@@ -130,3 +130,12 @@ test('backend accepts safe custom bindings and reports unsafe bindings as unavai
     assert.ok(!unsafe.html.includes('javascript:'));
     assert.ok(unsafe.html.includes('gem-missing-inline'));
 });
+
+test('HTML exposes collapsed user prompt content without JavaScript', () => {
+    const input = fixture();
+    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
+    const html = renderDocumentHtml(document, {}, { locale: 'en' }).html;
+    assert.ok(html.includes('gem-prompt-content collapsed'), 'long prompt has the regular interactive fold');
+    assert.match(html, /<noscript><style>\.gem-prompt-content\.collapsed\s*\{\s*max-height:\s*none;\s*overflow:\s*visible;/);
+    assert.match(html, /\.gem-prompt-toggle\s*\{\s*display:\s*none;\s*\}<\/style><\/noscript>/);
+});

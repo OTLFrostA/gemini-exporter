@@ -128,7 +128,11 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 const end = node.code.endsWith('\n') ? '' : '\n';
                 return `${label ? `**${escapeText(label)}**\n\n` : ''}${fence}${language}\n${node.code}${end}${fence}`;
             }
-            case 'math': return `$$\n${node.source}\n$$`;
+            case 'math': {
+                const longestDollarRun = (node.source.match(/\$+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 1);
+                const fence = '$'.repeat(Math.max(2, longestDollarRun + 1));
+                return `${fence}\n${node.source}\n${fence}`;
+            }
             case 'table': {
                 if ([...node.headerRows, ...node.rows].some(cells => cells.some(cell => cell.colSpan > 1 || cell.rowSpan > 1))) {
                     return mergedTableHtml(node);
