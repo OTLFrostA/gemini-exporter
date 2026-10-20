@@ -115,3 +115,10 @@ test('Takeout prompt does not queue or mark a blocked modal; Escape closes a vis
     assert.equal(await page.locator('.tour-popover').count(), 0);
     assert.deepEqual(await read(page, 'patches'), [], 'Guidance never owns Settings write');
 });
+
+test('tourGuide - Select All is physically clickable and advances from selection step', async () => {
+    await open(); await start(2);
+    await page.locator('#btnSelectAll').click();
+    await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Choose a format');
+    assert.equal(await page.evaluate(() => Reflect.get(window, 'testUi').tour.isActive()), true);
+});

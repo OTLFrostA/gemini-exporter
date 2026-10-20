@@ -174,3 +174,11 @@ test('authored assets prefixes are source paths and cannot collapse different ZI
     assert.equal(result.conversation.detail.messages[1].attachmentIds?.length, 2);
     assertDomainClosure((result.conversation).detail);
 });
+
+test('Takeout user prompts preserve literal Markdown symbols while model HTML remains formatted', () => {
+    const { conversation } = native({ htmlText: activity('**literal** _not-italic_ $5', '<p><strong>Answer</strong></p>') });
+    const [user, assistant] = conversation.detail.messages;
+    assert.deepEqual(user.content, [{ type: 'paragraph', children: [{ type: 'text', text: '**literal** _not-italic_ $5' }] }]);
+    assert.ok(assistant.content.some(block => block.type === 'paragraph' &&
+        block.children.some(child => child.type === 'strong')), 'assistant formatting stays parsed');
+});

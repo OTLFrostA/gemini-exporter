@@ -253,7 +253,7 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
     const title = escapeHtml(document.title);
     const html = `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Gemini Exporter"><title>${title}</title><style>${GEM_HTML_CSS}\n${CANONICAL_EXTRA_CSS}</style></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Gemini Exporter"><title>${title}</title><style>${GEM_HTML_CSS}\n${CANONICAL_EXTRA_CSS}</style><noscript><style>.gem-prompt-content.collapsed { max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none; } .gem-prompt-toggle { display: none; }</style></noscript></head>
 <body><main class="gem-container"><header class="gem-conversation-header"><h1 class="gem-conversation-title">${title}</h1><p class="gem-conversation-metadata">${escapeHtml(headerMetadata(document, locale))}</p></header>${document.messages.map(message).join('\n')}${!document.messages.length ? `<div class="gem-empty-notice">${escapeHtml(strings.emptyConversation)}</div>` : ''}</main><script>${GEM_HTML_SCRIPT}</script></body></html>`;
     return { html, diagnostics };
 }

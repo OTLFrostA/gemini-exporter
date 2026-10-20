@@ -87,3 +87,17 @@ test('Markdown front matter reads identity and source dates only from Document A
     // @ts-expect-error Metadata is required; still reject malformed runtime callers explicitly.
     assert.throws(() => renderDocumentMarkdown({ ...document, metadata: undefined }, {}), /metadata is required/);
 });
+
+test('Markdown math fences outgrow source dollar runs without changing ordinary formulas', () => {
+    const input = fixture();
+    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
+    for (const [source, fence] of [
+        ['x = 1\n$$\ny = 2', '$$$'],
+        ['x = 1\n$$$$\ny = 2', '$$$$$'],
+        ['E = mc^2', '$$'],
+    ]) {
+        document.messages[0].blocks = [{ type: 'math', source }];
+        const markdown = renderDocumentMarkdown(document, {});
+        assert.ok(markdown.includes(fence + '\n' + source + '\n' + fence), 'math source needs safe fence ' + fence);
+    }
+});

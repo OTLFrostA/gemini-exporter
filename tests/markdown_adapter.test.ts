@@ -745,3 +745,19 @@ test('GM-MD-001 Regression: Attached multiline display math fences do not swallo
     assert.strictEqual(blocks[4].type, 'thematicBreak');
 });
 
+
+test('MDAST HTML containing an hr tag preserves authored text; a lone hr remains a break', () => {
+    const { ctx } = createTestContext();
+    const mixed = mdastRootToBlocks({ type: 'root', children: [{ type: 'html', value: 'Before<hr>After' }] }, ctx, '');
+    assert.deepStrictEqual(mixed, [{ type: 'paragraph', children: [{ type: 'text', text: 'Before<hr>After' }] }]);
+    const lone = mdastRootToBlocks({ type: 'root', children: [{ type: 'html', value: '  <hr class="rule" />  ' }] }, ctx, '');
+    assert.deepStrictEqual(lone, [{ type: 'thematicBreak' }]);
+});
+
+test('MDAST mathflow accepts longer dollar fences without treating internal $$ as a closing fence', () => {
+    const { ctx } = createTestContext();
+    const parsed = parseGenericMarkdownToBlocks('$$$\nx = 1\n$$\ny = 2\n$$$', 'long-math-fence', ctx);
+    assert.strictEqual(parsed.length, 1);
+    assert.strictEqual(parsed[0].type, 'math');
+    assert.strictEqual((parsed[0] as any).source, 'x = 1\n$$\ny = 2');
+});

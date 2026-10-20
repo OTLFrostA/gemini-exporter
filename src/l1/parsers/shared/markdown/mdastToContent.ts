@@ -534,7 +534,7 @@ export function adaptBlockNode(
         }
 
         case 'html': {
-            if (/<hr\s*\/?>/i.test(node.value)) {
+            if (/^\s*<hr\b[^>]*>\s*$/i.test(node.value)) {
                 return [{
                     type: 'thematicBreak',
                 }];
