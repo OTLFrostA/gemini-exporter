@@ -1,48 +1,5 @@
 [
   {
-    "id": "electrochemistry_randles_impedance_nyquist_validation",
-    "domain": "electrochemistry_impedance_spectroscopy",
-    "title": "Electrochemical impedance: Randles circuit, Nyquist geometry and parameter identifiability",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Derive the complex impedance of a Randles circuit containing solution resistance Rs in series with a parallel charge-transfer resistor Rct and double-layer capacitor Cdl. State frequency and sign conventions using LaTeX.",
-      "Generate a labeled educational image containing the equivalent circuit and a Nyquist plot with the high-frequency intercept, low-frequency intercept and characteristic angular frequency. Keep units and the negative imaginary axis explicit.",
-      "Write complete runnable Python using only the standard library to tabulate real and imaginary impedance over a logarithmic frequency grid. Assert both limits and the semicircle identity, and verify the peak frequency numerically.",
-      "Compare ideal Randles, a constant-phase element and a diffusion extension in a Markdown table. Distinguish observed curve features from identifiable parameters and include an English/Chinese glossary.",
-      "Build a reproducible validation report for synthetic noisy impedance data. Include LaTeX error measures, executable tests for units and limiting cases, a table of residual diagnostics, and explain when circuit fitting cannot identify a unique physical mechanism."
-    ]
-  },
-  {
-    "id": "bayesian_beta_binomial_sequential_calibration",
-    "domain": "statistical_inference_beta_binomial",
-    "title": "Bayesian sequential inference: beta-binomial updating, predictive calibration and stopping rules",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "For Bernoulli observations with a Beta prior, derive the posterior and beta-binomial predictive distribution with LaTeX. Separate likelihood, prior, posterior and prediction.",
-      "Write runnable standard-library Python to update the posterior sequentially and calculate predictive probabilities in log space. Assert normalization, order independence and batch/sequential equivalence.",
-      "Derive posterior mean and variance and distinguish credible intervals from frequentist confidence intervals. Give a small worked example and a Markdown table of assumptions.",
-      "Implement a deterministic numerical calculation of equal-tailed credible bounds without third-party packages. Include endpoint handling and monotonicity tests against analytically tractable Beta cases.",
-      "Create a reproducible simulation comparing two fixed priors under several true probabilities. Report coverage and predictive calibration in Markdown tables; include English and Chinese descriptions.",
-      "Examine a posterior-threshold stopping rule. Explain how optional stopping changes a repeated-sampling evaluation and what the Bayesian likelihood principle does and does not establish.",
-      "Add sequential-versus-batch and probability-sum property checks, and show a counterexample where reusing an informative prior after every batch double counts evidence.",
-      "Consolidate a verification report with LaTeX derivations, complete runnable code, explicit random seeds and a Markdown results table. Separate Monte Carlo error from numerical integration error."
-    ]
-  },
-  {
     "id": "biophysics_membrane_diffusion_finite_volume",
     "title": "Membrane diffusion: conservative compartments and flux",
     "domain": "biophysics_membrane_diffusion",
@@ -418,6 +375,47 @@
       "Compare winding-number, parity-crossing, triangulation and convex-half-plane methods in a Markdown table of assumptions, complexity and boundary guarantees.",
       "Generate a deterministic collection of small polygons and cross-check exact predicates against an independently implemented triangulation oracle. Explain the limits of random testing.",
       "Create a reproducible robustness report with runnable Python tests, LaTeX error bounds for floating-point alternatives and a Markdown summary distinguishing numerical ambiguity from invalid geometry."
+    ]
+  },
+  {
+    "id": "graph_theory_residual_network_flow_certificate",
+    "domain": "graph_theory_maximum_flow",
+    "title": "Maximum flow: residual networks and minimum-cut certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a directed capacitated network, feasible flow and residual capacity. Derive conservation in LaTeX and explain reverse edges in English and Chinese using a six-vertex example.",
+      "Compute an augmenting-path trace for the example and show a Markdown table with path, bottleneck, residual updates and total flow. Include one augmentation that cancels earlier flow.",
+      "Write complete standard-library Python implementing Edmonds-Karp with parallel edges and zero capacities. Return both the edge flows and the source-side minimum cut.",
+      "Construct an independent exhaustive cut oracle for small graphs and test the implementation on deterministic random networks. Include disconnected sink, antiparallel edges and multiple optimal flows.",
+      "Produce a reproducible verification report with runnable Python, a LaTeX proof of the max-flow/min-cut certificate and a Markdown complexity comparison with Dinic. Distinguish a nonunique optimum from an invalid certificate."
+    ]
+  },
+  {
+    "id": "queueing_theory_finite_capacity_birth_death",
+    "domain": "queueing_finite_capacity_birth_death",
+    "title": "Finite-capacity queues: stationary balance and blocking probability",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define an M/M/1/K queue with state zero through K and state-dependent arrival admission. Write its generator and explain offered versus admitted traffic in English and Chinese.",
+      "Derive the stationary distribution and stable formulas for utilization, blocking probability and throughput, including the exact rho=1 limit. Show all normalization steps in LaTeX.",
+      "Create a Markdown table for three arrival rates and two capacities with stationary mean occupancy, blocking and effective throughput. Explicitly state units and rounding.",
+      "Write complete standard-library Python using stable recurrence and normalization to compute the distribution, including validation for zero arrival rate and invalid service rate.",
+      "Implement an independent continuous-time event simulation with a seeded RNG, warmup and observation horizon. Accumulate time-weighted occupancy instead of averaging arrival observations.",
+      "Compare analytic results and simulation with confidence intervals. Explain bias from warmup, censoring and rare blocking without treating random deviations as implementation errors.",
+      "Extend the balance equations to M/M/c/K and produce a Markdown comparison at fixed total service capacity. Derive the piecewise departure rates and test c=1 equivalence.",
+      "Prepare a reproducible report with Python, LaTeX formulas and automated invariants for normalization, flow balance and Little's law using admitted throughput. Include edge cases K=1 and arrival rate approaching zero."
     ]
   }
 ]
