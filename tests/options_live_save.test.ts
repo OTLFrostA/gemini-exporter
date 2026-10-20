@@ -9,7 +9,11 @@ async function open(patch: Record<string, unknown>) { page = await browser.newPa
 
 test('Options restores directory capability and toggles only the Settings enabledDisk intention', async () => {
     await open({ directoryName: 'MyVault', settings: { enabledDisk: false } });
-    assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), false); assert.match(await page.locator('#dirLabel').textContent() ?? '', /MyVault/);
+    assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), false);
+    assert.equal(await page.locator('input[name="delivery"][value="browserDownload"]').isChecked(), true);
+    assert.equal(await page.locator('.local-card-details #dirBox').isVisible(), true);
+    assert.equal(await page.locator('.local-card-details #liveSaveControls').count(), 1);
+    assert.match(await page.locator('#dirLabel').textContent() ?? '', /MyVault/);
     await page.locator('#liveSaveDiskToggle').check(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
     assert.equal((await read(page, 'settings')).enabledDisk, true); assert.deepEqual((await read(page, 'patches')).at(-1), { enabledDisk: true });
     await page.locator('#liveSaveDiskToggle').uncheck(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
@@ -24,6 +28,8 @@ test('Options explicit folder authorization persists the handle and resumes effe
 });
 test('cancelling the folder picker preserves the existing enabled intention and does not invent a handle', async () => {
     await open({ cancelPicker: true, settings: { enabledDisk: false } });
+    // Choosing a folder does not depend on selecting the folder for manual export.
+    assert.equal(await page.locator('input[name="delivery"][value="browserDownload"]').isChecked(), true);
     await page.locator('#btnSetDir').click(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
     assert.equal(await read(page, 'directory'), null); assert.equal((await read(page, 'settings')).enabledDisk, false);
     assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), false);
