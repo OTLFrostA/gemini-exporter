@@ -85,6 +85,46 @@ test('UI v2: Dev switch uses left ON and right OFF beside its left label in both
     }
 });
 
+test('UI v2: folder setting follows the selected export or Live Save task', async ({ page }) => {
+    await mount(page, 'options', { settings: { enabledDisk: false } });
+    const browser = page.locator('input[name="delivery"][value="browserDownload"]');
+    const folder = page.locator('input[name="delivery"][value="folderWriter"]');
+    const live = page.locator('#liveSaveDiskToggle');
+
+    await expect(browser).toBeChecked();
+    await expect(page.locator('#dirBox')).toBeHidden();
+    await expect(page.locator('#skipExported')).toBeChecked();
+
+    await folder.check();
+    await expect(page.locator('#manualDirSlot #dirBox')).toBeVisible();
+    await page.locator('#btnSetDir').click();
+    await expect(page.locator('#dirLabel')).toHaveText('Chosen folder');
+    await expect(page.locator('#dirPermissionLabel')).toHaveText('Authorized');
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await expect.poll(async () => (await read(page, 'exports'))[0]?.delivery).toBe('folderWriter');
+    await expect(folder).toBeEnabled();
+
+    await browser.check();
+    await expect(page.locator('#dirBox')).toBeHidden();
+    await expect(live).not.toBeChecked();
+    await live.check();
+    await expect(page.locator('#liveDirSlot #dirBox')).toBeVisible();
+    await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
+
+    await page.locator('#format').selectOption('pdf');
+    await expect(live).toBeEnabled();
+    await expect(live).toBeChecked();
+    await expect(page.locator('#liveSaveStatus')).toContainText('Paused');
+    await expect(page.locator('#liveDirSlot #dirBox')).toBeVisible();
+    await expect.poll(async () => (await read(page, 'settings')).enabledDisk).toBe(true);
+    await page.locator('#format').selectOption('markdown');
+    await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
+
+    await live.uncheck();
+    await expect(page.locator('#dirBox')).toBeHidden();
+});
+
 test('UI v2: Popup loads the shared Light preference and can switch to Dark', async ({ page }) => {
     await mount(page, 'popup', { settings: { theme: 'light' } });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
@@ -150,8 +190,11 @@ test('UI v2: Takeout prompts at 151 committed records regardless of Scan reason'
 });
 test('UI v2: settings preserve Live Save intent, record cleanup never deletes conversations', async ({ page }) => {
     await mount(page,'options'); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
-    await page.locator('#format').selectOption('pdf'); await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
-    await expect(page.locator('#liveSaveDiskToggle')).toBeChecked(); await page.locator('#format').selectOption('markdown');
+    await page.locator('#format').selectOption('pdf');
+    await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();
+    await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
+    await expect(page.locator('#liveSaveStatus')).toContainText('Paused');
+    await page.locator('#format').selectOption('markdown');
     await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled(); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
     page.on('dialog',dialog=>dialog.accept()); await page.locator('#btnClearScan').click();
     await expect(page.locator('#status')).toHaveText('Records cleared'); expect(await read(page,'clears')).toEqual([['scan',A]]);
