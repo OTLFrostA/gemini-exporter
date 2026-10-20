@@ -686,123 +686,37 @@ test('XHR: 200 without completion markers, oversized body and synchronous send f
     assert.equal(harness.complete().length, 0);
 });
 
-function completionBridge(commitDetail: () => Promise<boolean>) {
+// The Runtime test double assumes L1 emits onDetailChanged only after a
+// successful, changed Detail admission. Whether a particular Provider payload
+// changes Domain belongs to L1/L2 tests, not this Chrome wiring suite.
+test('Content wires only passive changed Detail to Live Save, never Stream/Index events', async () => {
     global.window = contentWindow() as any;
-    global.location = { origin: 'https://gemini.google.com', pathname: '/app/abcdef123456' } as any;
-    const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
-    const parsed = { conversationId: 'abcdef123456', transport: { nextPageToken: null },
-        conversation: { index: {}, detail: { messages: [{}] } } };
-    const bridge = load('src/l1/sniffer/gemini/messageBridge.ts', {
-        'src/runtime/api/accountRegistry.js': { getAccount: async () => account },
-        'src/runtime/content/accountContext.js': { resolveRequestAccount: async () => context, resolveCurrentAccount: async () => context },
-        'src/runtime/api/domainIngestion.js': { ingestIndexes: async () => {}, ingestDetail: commitDetail },
-        'src/l1/client/gemini/listObservation.js': {},
-        'src/l1/parsers/gemini/rpc/parseConversation.js': { parseGeminiRpcConversation: () => parsed },
-        'src/l1/parsers/gemini/rpc/mergePages.js': { mergeConversationPages: () => parsed },
-        'src/l1/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
-        'src/l1/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
-        'src/shared/utils/utils.js': { isDevMode: () => false },
-        'src/l1/parsers/gemini/rpc/parseList.js': {},
-    });
-    const event = (type: string) => ({ source: global.window, origin: global.location.origin,
-        data: { type, payload: { slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: 'gaia' },
-            id: 'abcdef123456', text: 'hNvQHb', truncated: false, requestedAt: Date.now(),
-            url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute' } } });
-    return { bridge, detail: () => bridge.handleWindowMessage(event('GEMINI_NETWORK_BATCHEXECUTE')),
-        complete: () => bridge.handleWindowMessage(event('GEMINI_STREAM_GENERATE_COMPLETE')) };
-}
-
-// Use the real Application Skip, Document composer, Markdown renderer and Packaging.
-// Stub only persistence, provider/resource acquisition and final folder delivery.
-function markdownApplication() {
+    global.document = { readyState: 'complete' } as any;
     const key = { accountId: uuid, conversationId: 'abcdef123456' };
-    const message = (text: string) => ({ id: text, role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text }] }] });
-    const conversation = { index: { key, title: 'Live conversation', titleSource: 'rpc', updatedAt: 100 },
-        detail: { key, savedAt: 100, quality: { status: 'complete' }, messages: [message('original reply')], assets: [] } };
-    let record: unknown = null;
-    const markdown: string[] = [];
-    const runExport = load('src/application/export/runExport.ts', {
-        'src/l2/readConversation.js': { readConversation: async () => conversation },
-        'src/runtime/api/accountRegistry.js': { getAccount: async () => account },
-        'src/l3a/storageService.js': { getIndex: async () => conversation.index, getExportRecord: async () => record,
-            putExportRecord: async (_: unknown, value: unknown) => { record = value; }, getDirectoryHandle: async () => ({}) },
-        'src/l1/resources/sourceResources.js': { createSourceResourceContext: () => ({ release() {} }) },
-        'src/l1/client/taskProvider.js': { createTaskProvider: () => assert.fail('Fresh admitted Detail requires no fetch') },
-        'src/application/export/prepareExportResources.js': { prepareExportResources: async () => new Map() },
-        'src/l4/delivery/index.js': { writeToFolder: async (files: { content: string }[]) => { markdown.push(...files.map(file => file.content)); } },
-        'src/l4/format/html/renderHtml.js': {}, 'src/l4/format/json/serializeDomainJson.js': {},
-        'src/l4/format/pdf/compileDocumentPdf.js': {}, 'src/l4/format/pdf/typst/typstSandboxCompiler.js': {},
-        'src/l4/format/pdf/typst/fonts/localFontProvider.js': {}, 'src/l4/format/pdf/typst/fonts/mountRuntimeFonts.js': {},
-    }).runExport;
-    const save = live({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: false }, 'granted', true, runExport);
-    return { key, save, markdown, append: (advanceIndex = true) => {
-        conversation.detail.messages.push(message('latest generated reply'));
-        conversation.detail.savedAt = 200;
-        if (advanceIndex) conversation.index.updatedAt = 200;
-    } };
-}
-
-test('passive Detail change waits for commit and Live Save writes latest Markdown', async () => {
-    const app = markdownApplication();
-    assert.equal((await app.save(app.key)).exported, 1);
-    assert.match(app.markdown[0], /original reply/);
-    let commit!: () => void;
-    const gate = new Promise<void>(resolve => { commit = resolve; });
-    const harness = completionBridge(async () => { await gate; app.append(); return true; });
-    const exports: Promise<any>[] = [];
-    harness.bridge.init({ onDetailChanged: (key: unknown) => { exports.push(app.save(key)); } });
-    const detail = harness.detail();
-    const completion = harness.complete(); // Completion is only an observation, not a save trigger.
+    const triggered: unknown[] = [];
+    let capture: { onDetailChanged?: (key: unknown) => void; onIndexesCommitted?: unknown;
+        onStreamStart?: unknown; onStreamComplete?: unknown } | undefined;
+    load('src/runtime/content/content.ts', {
+        'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} },
+        'src/l1/client/gemini/bootstrap.js': { initBootstrap() {} },
+        'src/runtime/content/messageRouter.js': { MessageRouter: { init() {} } },
+        'src/l1/sniffer/gemini/messageBridge.js': { MessageBridge: { init: (deps: typeof capture) => { capture = deps; } } },
+        'src/ui/badge/badgeView.js': { BadgeView: { ensureBadge() {}, refreshAccount: async () => {} } },
+        'src/runtime/content/liveSaveCoordinator.js': { LiveSaveCoordinator: {
+            init() {}, cleanup() {}, executeLiveSave: async (observed: unknown) => { triggered.push(observed); }
+        } },
+        'src/runtime/content/accountContext.js': { setAccountChangedHandler() {}, invalidateAccountContext() {} },
+        'src/runtime/content/pageObserver.js': { hookHistoryEvents() {} },
+        'src/runtime/content/cleanupRegistry.js': { runCleanups() {}, registerCleanup() {} },
+    });
+    assert.equal(typeof capture?.onDetailChanged, 'function');
+    assert.equal(capture?.onIndexesCommitted, undefined);
+    assert.equal(capture?.onStreamStart, undefined);
+    assert.equal(capture?.onStreamComplete, undefined);
+    assert.deepEqual(triggered, []);
+    capture!.onDetailChanged!(key);
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(exports.length, 0);
-    assert.equal(app.markdown.length, 1);
-    commit(); await detail; await completion;
-    assert.equal(exports.length, 1);
-    assert.equal((await exports[0]).exported, 1);
-    assert.equal(app.markdown.length, 2);
-    assert.match(app.markdown[1], /original reply/);
-    assert.match(app.markdown[1], /latest generated reply/);
-});
-
-test('Live Save does not consult old ExportRecord even when Index time is unchanged', async () => {
-    const app = markdownApplication();
-    assert.equal((await app.save(app.key)).exported, 1);
-    app.append(false);
-    const result = await app.save(app.key);
-    assert.equal(result.skipped, 0);
-    assert.equal(result.exported, 1);
-    assert.equal(app.markdown.length, 2);
-    assert.match(app.markdown[1], /latest generated reply/);
-});
-
-test('failed, unchanged and superseded Detail admissions never trigger Live Save', async () => {
-    let fail!: (error: Error) => void;
-    const gate = new Promise<boolean>((_, reject) => { fail = reject; });
-    const harness = completionBridge(() => gate);
-    let saves = 0;
-    harness.bridge.init({ onDetailChanged: () => { saves++; } });
-    const rejectedDetail = assert.rejects(harness.detail(), /commit failed/);
-    fail(new Error('commit failed'));
-    await rejectedDetail;
-    assert.equal(saves, 0);
-    await harness.complete();
-    assert.equal(saves, 0);
-
-    const unchanged = completionBridge(async () => false);
-    unchanged.bridge.init({ onDetailChanged: () => { saves++; } });
-    await unchanged.detail(); await unchanged.complete();
-    assert.equal(saves, 0);
-
-    let commit!: () => void;
-    const pending = new Promise<void>(resolve => { commit = resolve; });
-    const replaced = completionBridge(async () => { await pending; return true; });
-    replaced.bridge.init({ onDetailChanged: () => { saves++; } });
-    const d = replaced.detail();
-    replaced.bridge.init({ onDetailChanged: () => { saves++; } });
-    commit(); await d;
-    assert.equal(saves, 0, 'a disposed listener cannot trigger an export');
-    await replaced.detail();
-    assert.equal(saves, 1);
+    assert.deepEqual(triggered, [key]);
 });
 
 test('resource IPC rejects aggregate duplicate Base64 fields before sending, while preserving small responses', async () => {
@@ -942,7 +856,8 @@ function migratedRuntime(initial: Record<string, unknown>, beforeWrite: (patch: 
     const { IDBFactory, IDBKeyRange } = require('fake-indexeddb');
     global.IDBKeyRange = IDBKeyRange;
     const pendingLocks = new Map<string, Promise<void>>();
-    Object.defineProperty(navigator, 'locks', { configurable: true, value: {
+    if (typeof globalThis.navigator === 'undefined') (globalThis as any).navigator = {};
+    Object.defineProperty(globalThis.navigator, 'locks', { configurable: true, value: {
         async request<T>(name: string, callback: () => Promise<T>): Promise<T> {
             const previous = pendingLocks.get(name) ?? Promise.resolve();
             let release!: () => void;
