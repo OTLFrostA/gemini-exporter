@@ -15,8 +15,15 @@ declare global {
 }
 let browser: Browser;
 let page: Page;
-const bundle = buildSync({ entryPoints: ['src/l3a/storageService.ts'], bundle: true,
-    format: 'iife', globalName: 'storage', write: false }).outputFiles[0].text;
+// This browser-based unit bundles actual L3a, so the Node Module._compile
+// isolation guard cannot observe its imports. Inspect the esbuild graph too.
+const build = buildSync({ entryPoints: ['src/l3a/storageService.ts'], bundle: true,
+    format: 'iife', globalName: 'storage', write: false, metafile: true });
+for (const input of Object.keys(build.metafile.inputs)) {
+    if (input.startsWith('src/') && !input.startsWith('src/l3a/') && !input.startsWith('src/shared/'))
+        throw new Error('L3a browser unit bundled another real v2 module: ' + input);
+}
+const bundle = build.outputFiles[0].text;
 
 before(async () => {
     browser = await chromium.launch({ headless: true });
