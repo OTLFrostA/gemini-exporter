@@ -395,43 +395,36 @@ def test_javascript_unit_tests(target_tests=None):
             print(f"  ✓ Unit test suite passed: {rel}")
 
 def test_content_badge_flicker_prevention():
+    """Verify the actual v2 Badge owner, not removed SyncEngine/IndexCapture files."""
     css_path = os.path.join(BASE_DIR, "src/ui/badge/content.css")
     with open(css_path, "r", encoding="utf-8") as f:
         css = f.read()
-    assert "white-space: nowrap" in css, "content.css should prevent badge text wrapping"
-    assert "min-width:" in css, "content.css should define min-width to avoid width jitter"
-    assert ".syncing .pulse" in css, "content.css should only pulse when syncing"
-    assert re.search(r'#geminiExportBadge\s+\.pulse\s*\{[^}]*background:\s*#06b6d4', css), "content.css idle pulse should define static background #06b6d4"
+    assert "white-space: nowrap" in css, "Badge must not wrap while its count changes"
+    assert "min-width:" in css, "Badge keeps a stable minimum width"
+    assert ".syncing .pulse" in css, "Badge retains its visual sync feedback"
+    assert re.search(r'#geminiExportBadge\s+\.pulse\s*\{[^}]*background:\s*#06b6d4', css), "Idle pulse must remain visually stable"
 
-    content_ts = os.path.join(BASE_DIR, "src/runtime/content/content.ts")
-    js_path = content_ts if os.path.isfile(content_ts) else os.path.join(BASE_DIR, "src/runtime/content/content.js")
-    with open(js_path, "r", encoding="utf-8") as f:
-        js = f.read()
-    badge_ts = os.path.join(BASE_DIR, "src/ui/badge/badgeView.ts")
-    badge_js_path = badge_ts if os.path.isfile(badge_ts) else os.path.join(BASE_DIR, "src/ui/badge/badgeView.js")
-    badge_js = ""
-    if os.path.exists(badge_js_path):
-        with open(badge_js_path, "r", encoding="utf-8") as f:
-            badge_js = f.read()
-    observer_ts = os.path.join(BASE_DIR, "src/runtime/content/pageObserver.ts")
-    observer_path = observer_ts if os.path.isfile(observer_ts) else os.path.join(BASE_DIR, "src/runtime/content/pageObserver.js")
-    with open(observer_path, "r", encoding="utf-8") as f:
-        observer_js = f.read()
-    sync_ts = os.path.join(BASE_DIR, "src/runtime/content/syncEngine.ts")
-    sync_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/runtime/content/syncEngine.js")
-    with open(sync_path, "r", encoding="utf-8") as f:
-        sync_js = f.read()
-    combined_js = js + badge_js
-    assert "debouncedSync" in observer_js, "pageObserver.js should debounce sync triggers"
-    with open(os.path.join(BASE_DIR, "src/l2/ingestion.ts"), encoding="utf-8") as f:
-        ingestion = f.read()
-    with open(os.path.join(BASE_DIR, "src/runtime/content/geminiIndexCapture.ts"), encoding="utf-8") as f:
-        capture_js = f.read()
-    assert "ingestIndexes" in capture_js, "L1 capture must delegate admission to the shared Domain boundary"
-    assert "JSON.stringify(list) !== JSON.stringify(existing)" in ingestion, "Index admission must skip unchanged writes"
-    assert "textContent" in combined_js and "targetText" in combined_js, "badgeView/content.js updateBadge should guard textContent updates"
-    assert "existing.isConnected" in combined_js or "isConnected" in combined_js, "badgeView/content.js ensureBadge should check isConnected"
-    print("  ✓ Content badge flicker prevention verified")
+    def read(path):
+        with open(os.path.join(BASE_DIR, path), encoding="utf-8") as f:
+            return f.read()
+
+    badge = read("src/ui/badge/badgeView.ts")
+    content = read("src/runtime/content/content.ts")
+    observer = read("src/runtime/content/pageObserver.ts")
+    ingestion = read("src/l2/ingestion.ts")
+
+    assert "label.textContent" in badge and "count === null" in badge, "Badge must render local Index count safely"
+    assert "badge.isConnected" in badge, "Badge must reattach a detached node instead of duplicating it"
+    assert "getLocalIndexCount" in badge and "refreshIndexCount" in badge, "Only Badge owns the local count pull"
+    assert "accountId !== id" in badge or "id !== accountId" in badge, "Count replies must be account-scoped"
+    assert "stopCountPolling" in badge and "registerCleanup" in badge, "Badge must stop polling during cleanup"
+    assert "BadgeView.ensureBadge" in content and "BadgeView.refreshAccount" in content, "Content must delegate Badge lifecycle"
+    assert "hookHistoryEvents" in content, "Content handles location changes through PageObserver"
+    assert "MessageBridge.init" in content, "Passive Sniffer admission must remain separate from Badge"
+    assert "getDeepScanPromise" in observer, "Debounce must avoid overlapping active scans"
+    assert "sameStoredFacts" in ingestion and "mergeIndexes" in ingestion, "L2 must skip unchanged Index facts"
+    assert "syncEngine" not in content and "geminiIndexCapture" not in content, "Removed scan facades must not return"
+    print("  ✓ V2 Badge lifetime, account isolation, stable CSS and passive Index separation verified")
 
 def test_account_uuid_storage_boundary():
     with open(os.path.join(BASE_DIR, "src/l3a/storageService.ts"), encoding="utf-8") as f:
