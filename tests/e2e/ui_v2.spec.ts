@@ -54,6 +54,7 @@ test('UI v2: Dev switch uses left ON and right OFF beside its left label in both
         return !!input && el.getBoundingClientRect().right <= input.getBoundingClientRect().left;
     })).toBe(true);
     await expect(toggle).toHaveAccessibleName('Dev');
+    await expect(toggle).toBeEnabled();
 
     for (const theme of ['light', 'dark']) {
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
@@ -62,6 +63,7 @@ test('UI v2: Dev switch uses left ON and right OFF beside its left label in both
         await expect(toggle).toHaveCSS('background-image', 'none');
         await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
 
+        await expect(toggle).toBeEnabled();
         await label.click();
         await expect(toggle).toBeChecked();
         await expect.poll(knobX).toBe(0); // ON: knob moves left, towards Dev.
@@ -69,6 +71,7 @@ test('UI v2: Dev switch uses left ON and right OFF beside its left label in both
         await expect(page.locator('body')).toHaveClass(/dev-mode/);
         await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(true);
 
+        await expect(toggle).toBeEnabled();
         await label.click();
         await expect(toggle).not.toBeChecked();
         await expect.poll(knobX).toBe(14);
