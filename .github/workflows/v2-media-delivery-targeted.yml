@@ -1,0 +1,19 @@
+name: V2 media delivery targeted verification (temporary)
+on:
+  pull_request:
+    branches: [dev/v2]
+    paths:
+      - 'tests/media-identity-delivery.test.ts'
+      - '.github/workflows/v2-media-delivery-targeted.yml'
+jobs:
+  targeted-media-delivery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Run v2 media identity and delivery integration test
+        run: node -r ./tests/ts_register.js --test tests/media-identity-delivery.test.ts
