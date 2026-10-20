@@ -1,47 +1,5 @@
 [
   {
-    "id": "oceanography_gravity_wave_dispersion_group_velocity",
-    "title": "Ocean waves: dispersion and wave-packet verification",
-    "domain": "oceanography_surface_wave_dispersion",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational illustration of an idealized surface-gravity wave packet above a flat seabed. Label wavelength, water depth, phase motion and envelope motion. Distinguish a schematic illustration from measured ocean data.",
-      "Derive phase and group velocities from the linear surface-gravity dispersion relation in LaTeX. State the inviscid, incompressible, irrotational and small-amplitude assumptions, and show the shallow-water and deep-water limits with units.",
-      "Write complete runnable standard-library Python computing frequency, phase velocity and group velocity with stable small-argument handling. Include assertions for limiting behavior, positive depths, dimensional scaling and an independent finite-difference derivative check.",
-      "Use a Markdown table comparing synthetic wavelengths and depths. Report the nondimensional depth, period, phase velocity and group velocity with explicit units and tolerances. Explain what changes when capillarity, currents or nonlinear breaking matter.",
-      "Write a detailed reproducibility report connecting the illustration, dispersion derivation and numerical checks. Explain the distinction between a crest and an energy-carrying envelope, finite packet bandwidth and limitations of the linear model. Include a Chinese-English glossary."
-    ]
-  },
-  {
-    "id": "optimization_convex_quadratic_active_set_certificates",
-    "title": "Quadratic optimization: active sets and KKT certificates",
-    "domain": "optimization_convex_quadratic_programming",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a synthetic strictly convex quadratic objective in two variables with a bounded polygonal feasible region. Write the objective and inequalities in LaTeX with an explicit sign convention and units for all coefficients.",
-      "Derive the Karush-Kuhn-Tucker conditions, including stationarity, primal feasibility, dual feasibility and complementary slackness. Explain the role of convexity and constraint qualifications in necessity and sufficiency.",
-      "Solve one interior-optimum example and one boundary-optimum example by hand. Show the candidate active set, linear system, solution and multipliers without silently discarding infeasible candidates.",
-      "Write complete runnable standard-library Python enumerating active sets for these small problems. Validate Hessian symmetry and positive definiteness, singular active constraints and inconsistent inequalities, with explicit numerical tolerances.",
-      "Implement an independent geometric oracle checking polygon vertices and one-dimensional edge minima. Compare its objective values with the active-set solver on deterministic generated instances.",
-      "Use a Markdown table reporting candidates, active constraints, objective values and maximum KKT residuals for several synthetic perturbations. Separate true infeasibility from numerical singularity.",
-      "Investigate a nearly parallel pair of constraints and a nearly singular Hessian. Report sensitivity under controlled perturbations, define the conditioning diagnostic and explain why a small objective error alone does not prove coordinate accuracy.",
-      "Write a detailed reproducibility report containing the model, full code, geometric oracle and certificates. Discuss degeneracy, redundant constraints, nonconvex counterexamples, scaling and the limits of tiny active-set enumeration. Include a Chinese-English terminology table."
-    ]
-  },
-  {
     "id": "botany_phyllotaxis_golden_angle_point_pattern",
     "title": "Phyllotaxis: golden-angle geometry and reproducible spatial statistics",
     "domain": "botany_phyllotaxis_spatial_statistics",
@@ -420,6 +378,48 @@
       "Extend the replay with a delayed message and an idle process. Show that wall-clock timestamps and message arrival delays do not change the causal ordering, and state the limits of the model.",
       "Analyze time and space complexity in LaTeX for vector construction, pairwise comparison and the independent reachability oracle. Discuss process membership changes without inventing a fixed-size solution for arbitrary dynamic membership.",
       "Produce a detailed English-Chinese technical report containing the event trace, executable code, validation failures, independent certificates and limitations. Clearly distinguish executed output from illustrative output."
+    ]
+  },
+  {
+    "id": "ecology_two_patch_population_migration",
+    "title": "Ecology: two-patch population migration and conservation",
+    "domain": "ecology_population_migration",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational illustration of two wetland habitats connected by migration corridors. Label hypothetical population counts and both movement rates. Clearly mark this as a synthetic teaching diagram, not field evidence.",
+      "Derive a continuous-time two-patch migration model in LaTeX without births or deaths. Prove total-population conservation and nonnegativity, find the equilibrium ratio, and state the units and assumptions.",
+      "Write complete runnable standard-library Python comparing the analytical solution with a numerical integrator. Include tests for zero rates, equal rates, conservation, positivity and convergence as the step decreases.",
+      "Provide a Markdown table of synthetic migration rates and initial counts, equilibrium populations and relaxation times. Distinguish rates from per-step probabilities and state numerical tolerances.",
+      "Write a reproducibility report connecting the diagram, equations and code. Explain why seasonal migration, births and density dependence can invalidate this model. Include a Chinese-English glossary."
+    ]
+  },
+  {
+    "id": "thermodynamics_two_reservoir_heat_exchange",
+    "title": "Thermodynamics: two-reservoir heat exchange and energy balance",
+    "domain": "thermodynamics_lumped_heat_exchange",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic experiment with two well-mixed insulated water reservoirs exchanging heat through a thermal conductance. State positive heat capacities, initial temperatures, units and the absence of environmental losses.",
+      "Derive the coupled differential equations in LaTeX. Prove total-energy conservation and derive equilibrium temperature and the exponential temperature-difference decay time.",
+      "Explain numerical stability for explicit Euler integration of this system, including the stronger step-size condition that avoids temperature overshoot. Distinguish absolute stability from physical bounds.",
+      "Write complete runnable standard-library Python implementing analytical and Euler solutions with input validation. Test conservation, equal starting temperatures, zero conductance and convergence when the time step is halved.",
+      "Provide a Markdown table comparing several synthetic heat-capacity ratios and conductances. Include equilibrium temperature, decay time and recommended step size, with units and explicit rounding.",
+      "Derive total entropy change using absolute temperatures and constant heat capacities. Show the equilibrium change is nonnegative and explain why Celsius cannot be used inside logarithms.",
+      "Extend the explanation to uncertain conductance: demonstrate a reproducible parameter sweep and report a Markdown table of temperature differences at fixed times. Avoid claiming an empirical confidence interval.",
+      "Write a detailed bilingual reproducibility report separating conservation laws, discretization error and missing physics such as environmental losses, incomplete mixing and temperature-dependent heat capacity."
     ]
   }
 ]
