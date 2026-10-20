@@ -3,6 +3,11 @@ import { mount, read, A, B } from '../helpers/uiPortHarness';
 
 test('UI v2: Popup four formats use one request, preserve enabledDisk, include assets and never skip', async ({ page }) => {
     await mount(page, 'popup');
+    // Product contract: the v1 dark card/tabs presentation survives the v2 service migration.
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
+    await expect(page.locator('#chatInfoCard')).toBeVisible();
+    await expect(page.locator('#formatTabs .tab-btn')).toHaveCount(4);
+    await expect(page.locator('#countBadge')).toBeVisible();
     await expect(page.locator('#btnCurrent')).toBeEnabled();
     await expect(page.locator('button')).toHaveCount(6);
     await expect(page.locator('#currentChatTitle')).toHaveText('<img src=x onerror=alert(1)>');
@@ -24,7 +29,14 @@ test('UI v2: Popup blocks unknown context, supports index-less trusted key and p
     await expect(page.locator('#btnCurrent')).toBeDisabled(); expect((await read(page,'exports')).length).toBe(1);
 });
 test('UI v2: account switch clears selection and only selected current keys export; cancel waits for return', async ({ page }) => {
-    await mount(page,'options',{holdExport:true}); await expect(page.locator('#list .item')).toHaveCount(1);
+    await mount(page,'options',{holdExport:true});
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
+    await expect(page.locator('.card-left')).toBeVisible();
+    await expect(page.locator('.card-right')).toBeVisible();
+    for (const id of ['progWrap','exportFailureCard','logSection','takeoutImportModal']) {
+        await expect(page.locator('#'+id)).toHaveCount(1);
+    }
+    await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#list img')).toHaveCount(0); await expect(page.locator('#btnExport')).toBeDisabled();
     await page.locator('#btnSelectAll').click(); await page.locator('#accountIdSelect').selectOption(B);
     await expect(page.locator('#btnExport')).toBeDisabled(); await expect(page.locator('#list')).toContainText('B chat');
@@ -93,6 +105,8 @@ test('UI v2: Badge isolates account counts, rejects delayed old count, partial p
 });
 test('UI v2: Badge drag saves only Settings on pointerup, ignores ordinary clicks and resizes', async ({ page }) => {
     await mount(page,'badge'); await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
+    await expect(page.locator('#geminiExportBadge .pulse')).toHaveCount(1);
+    await expect(page.locator('#geminiExportBadge')).toHaveCSS('background-color', 'rgb(15, 16, 26)');
     const badge=page.locator('#geminiExportBadge'); const before=await badge.boundingBox();
     await page.mouse.move(before!.x+15,before!.y+10);await page.mouse.down();await page.mouse.move(before!.x-100,before!.y-80);
     expect(await read(page,'patches')).toEqual([]);await page.mouse.up();
