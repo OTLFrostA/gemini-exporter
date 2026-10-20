@@ -1,11 +1,16 @@
 import type { DisplayBlock, DisplayInline, DocumentAst } from './ast.js';
 
 /** Walk the logical tree, including rich captions and nested metadata. Placement determines binary needs. */
-export function collectDocumentResources(document: DocumentAst): { referencedIds: Set<string>; imageIds: Set<string> } {
-    const referencedIds = new Set<string>(), imageIds = new Set<string>();
+export function collectDocumentResources(document: DocumentAst): {
+    referencedIds: Set<string>;
+    imageIds: Set<string>;
+    fileIds: Set<string>;
+} {
+    const referencedIds = new Set<string>(), imageIds = new Set<string>(), fileIds = new Set<string>();
     const reference = (id: string, image: boolean): void => {
         referencedIds.add(id);
         if (image) imageIds.add(id);
+        else fileIds.add(id);
     };
     const inlines = (nodes: DisplayInline[] = []): void => {
         for (const node of nodes) {
@@ -27,5 +32,5 @@ export function collectDocumentResources(document: DocumentAst): { referencedIds
     for (const message of document.messages) {
         blocks(message.blocks);
     }
-    return { referencedIds, imageIds };
+    return { referencedIds, imageIds, fileIds };
 }
