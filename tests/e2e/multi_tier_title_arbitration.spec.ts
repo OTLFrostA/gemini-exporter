@@ -65,6 +65,10 @@ test('v2 title precedence is user > provider > derived across actual passive RPC
         conversationId: id, fields: { title: '用户手动标题', titleSource: 'user' },
     }]), { accountId, id });
     await providerList(source, id, 'RPC 更晚的标题', 1700000200);
+    // The MAIN fetch has returned, but the isolated Sniffer -> Background L2
+    // admission is asynchronous. The user title cannot signal the commit: it
+    // intentionally remains unchanged by this lower-priority provider fact.
+    await expect.poll(async () => (await index(options, id))?.updatedAt).toBe(1700000200000);
     await options.evaluate(async ({ accountId, id }) => Reflect.get(globalThis, 'uiFixture').ingestIndexes(accountId, [{
         conversationId: id, fields: { title: '过时的离线标题', titleSource: 'derived' },
     }]), { accountId, id });
