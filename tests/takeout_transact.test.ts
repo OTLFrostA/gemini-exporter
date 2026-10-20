@@ -6,7 +6,7 @@ import { ingestIndexes } from '../src/l2/ingestion.js';
 import { handleTakeoutImport } from '../src/ui/options/controllers/takeoutController.js';
 import { updateSettings } from '../src/application/settings/index.js';
 import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
-useIndexStorage();
+useIndexStorage({ seedAccounts: false });
 const A='10000000-0000-4000-8000-000000000001',B='10000000-0000-4000-8000-000000000002';
 async function accounts(){for(const id of [A,B])await putAccount({id,providerId:'gemini',providerAccountId:id});}
 const never=async()=>{throw Error('Unexpected account creation');};
