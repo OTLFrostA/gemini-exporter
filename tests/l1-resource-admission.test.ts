@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 
-const key = { accountId: 'account-1', conversationId: 'conversation-1' };
+const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: 'conversation-1' };
 const asset = { id: 'image', kind: 'image' as const };
 function parsed(text: string, inline: string | undefined): SourceConversationParseResult {
     return {
@@ -37,7 +37,7 @@ test('admitted replacement never mixes resource bytes from different Detail cand
 
 test('task resource readers remain isolated by full account/conversation identity', async () => {
     const resources = createSourceResourceContext();
-    const other = { accountId: 'account-2', conversationId: key.conversationId };
+    const other = { accountId: '10000000-0000-4000-8000-000000000002', conversationId: key.conversationId };
     try {
         resources.retainParsed(key, parsed('first', 'account-one'));
         resources.retainParsed(other, parsed('second', 'account-two'));
