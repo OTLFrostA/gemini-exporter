@@ -17,12 +17,21 @@ export const listExportRecords = async id => h.records[id]||{};
 export const getIndex = async key => h.indexes.find(x=>x.key.accountId===key.accountId&&x.key.conversationId===key.conversationId)||null;
 export const getDetail = async () => ({ messages: [] });
 export const getAccount = async id => h.accounts.find(a=>a.id===id)||null;
-export const getOrCreateAccount = async () => {h.events.push('create');return h.accounts[0];};
+export const getOrCreateAccount = async (providerId, providerAccountId) => {
+ h.events.push('create');
+ const existing = h.accounts.find(a => a.providerId === providerId && a.providerAccountId === providerAccountId);
+ if (existing) return existing;
+ const account = { id: '11111111-1111-4111-8111-111111111111', providerId, providerAccountId };
+ h.accounts.push(account);
+ return account;
+};
 export const isAccountId = id => typeof id==='string' && id.length===36;
 export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
  if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
- if(h.failExport)for(const key of request.keys)options.onFailure?.(key,'Injected export failure');
- return {exported:options.signal?.aborted?0:1,partial:h.partial?1:0,skipped:0,failed:h.failExport?request.keys:[],aborted:!!options.signal?.aborted};};
+ const aborted = !!options.signal?.aborted;
+ const failed = aborted ? [] : h.failExport ? request.keys.slice(h.partial ? 1 : 0) : [];
+ const exported = aborted ? 0 : request.keys.length - failed.length;
+ return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;
 export const sendTabMessage = (tabId,message) => chrome.tabs.sendMessage(tabId,message);
 export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
@@ -58,14 +67,14 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
         w.harness = { settings: {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1'},
             accounts:[{id:A,providerId:'gemini',providerAccountId:'A'},{id:B,providerId:'gemini',providerAccountId:'B'}],
             indexes:[{key:{accountId:A,conversationId:'a'},title:'<img src=x onerror=alert(1)>',updatedAt:5},{key:{accountId:B,conversationId:'b'},title:'B chat',updatedAt:5}],records:{},source:A,scanCount:150,
-            patches:[],events:[],exports:[],scans:[],clears:[],imports:[],directory:null,...patch };
+            patches:[],events:[],messages:[],exports:[],scans:[],clears:[],imports:[],directory:null,...patch };
         w.harness.settings = {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1',...(patch.settings as object ?? {})};
         const directory = () => ({ name: w.harness.directoryName || 'Chosen folder', queryPermission: async () => w.harness.permission || 'granted', requestPermission: async () => w.harness.permission || 'granted' });
         if (w.harness.directoryName) w.harness.directory = directory();
         w.showDirectoryPicker = async () => { w.harness.events.push('picker'); if (w.harness.cancelPicker) throw new DOMException('Picker cancelled', 'AbortError'); return directory(); };
         const listeners = new Set<(...args: unknown[]) => void>();
         w.harness.fireSettingsChange = (area = 'local') => { for (const listener of listeners) listener({}, area); };
-        w.chrome = { runtime:{getManifest:()=>({version:'1.8.1'}),openOptionsPage:async()=>w.harness.events.push('options'),sendMessage:async(message:any)=>{if(message.action==='getLocalIndexCount'){w.harness.countRequests=(w.harness.countRequests||0)+1;if(w.harness.holdCount)return new Promise(resolve=>w.harness.finishCount=resolve);return {ok:true,count:message.accountId===A?9:0};}w.harness.events.push(message.action);return {ok:true};}},
+        w.chrome = { runtime:{getManifest:()=>({version:'1.8.1'}),openOptionsPage:async()=>w.harness.events.push('options'),sendMessage:async(message:any)=>{w.harness.messages.push(message);if(message.action==='getLocalIndexCount'){w.harness.countRequests=(w.harness.countRequests||0)+1;if(w.harness.holdCount)return new Promise(resolve=>w.harness.finishCount=resolve);return {ok:true,count:message.accountId===A?9:0};}w.harness.events.push(message.action);return {ok:true};}},
             tabs:{query:async()=>w.harness.tabs??[{id:1,active:true}],sendMessage:async()=>{w.harness.events.push('context');if ('contextReply' in w.harness) return w.harness.contextReply;return w.harness.noContext?{ok:false}:{ok:true,accountContext:{accountId:A,providerId:'gemini'},conversationId:'a'};},create:async()=>{w.harness.events.push('open');},reload:async()=>{w.harness.events.push('reload');}},
             storage:{onChanged:{addListener:(listener: (...args: unknown[]) => void)=>listeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>listeners.delete(listener)}}};
     }, { A, B, patch });

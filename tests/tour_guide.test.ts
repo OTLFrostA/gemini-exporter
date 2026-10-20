@@ -38,7 +38,7 @@ test('Tour startup intent is consumed once from URL with no durable completion p
 test('Takeout prompt marks Settings only on explicit acknowledgement', async () => {
     await open(); await page.evaluate(() => { Reflect.get(window, 'harness').scanCount = 151; });
     await page.locator('#btnSyncAll').click(); await page.locator('.tour-popover').waitFor(); assert.deepEqual(await read(page, 'patches'), []);
-    await page.getByRole('button', { name: 'Got it', exact: true }).click();
+    await page.getByRole('button', { name: 'Got it, don’t show again', exact: true }).click();
     assert.deepEqual(await read(page, 'patches'), [{ takeoutPromptCompleted: true }]);
 });
 test('tourGuide - action-driven advancement covers scan, selection, format, export, Live Save and feedback', async () => {
@@ -65,4 +65,48 @@ test('tourGuide - clicking actual backdrop dismisses the tour and cleans up', as
     assert.equal(await page.locator('.tour-overlay-container').count(), 0);
     assert.equal(await page.evaluate(() => Reflect.get(window, 'testUi').tour.isActive()), false);
     assert.deepEqual(await read(page, 'patches'), []);
+});
+
+test('Takeout prompt exposes three actions and closes before delivering their callbacks', async () => {
+    await open();
+    const cases = [
+        { name: 'Import Takeout ZIP', want: ['closed', 'import'] },
+        { name: 'Open Google Takeout', want: ['closed', 'web'] },
+        { name: 'Got it, don’t show again', want: ['closed'] },
+        { name: '×', want: ['closed'] }
+    ];
+    for (const item of cases) {
+        const shown = await page.evaluate(() => {
+            const events: string[] = [];
+            Reflect.set(window, 'takeoutEvents', events);
+            return Reflect.get(window, 'testUi').tour.showTakeoutPrompt(151,
+                () => events.push('closed'), () => events.push('import'), () => events.push('web'));
+        });
+        assert.equal(shown, true);
+        assert.match(await page.locator('.tour-popover').textContent() ?? '', /This scan fetched 151 conversations/);
+        await page.locator('.tour-popover').getByRole('button', { name: item.name, exact: true }).click();
+        assert.equal(await page.locator('.tour-popover').count(), 0);
+        assert.deepEqual(await page.evaluate(() => Reflect.get(window, 'takeoutEvents')), item.want);
+    }
+});
+
+test('Takeout prompt does not queue or mark a blocked modal; Escape closes a visible prompt', async () => {
+    await open(); await start(1);
+    const blocked = await page.evaluate(() =>
+        Reflect.get(window, 'testUi').tour.showTakeoutPrompt(151, () => { throw Error('Must not be called'); },
+            () => { throw Error('Must not be called'); }, () => { throw Error('Must not be called'); }));
+    assert.equal(blocked, false);
+    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Scan conversations');
+    await page.keyboard.press('Escape');
+    const shown = await page.evaluate(() => {
+        const events: string[] = [];
+        Reflect.set(window, 'takeoutEvents', events);
+        return Reflect.get(window, 'testUi').tour.showTakeoutPrompt(151,
+            () => events.push('closed'), () => events.push('import'), () => events.push('web'));
+    });
+    assert.equal(shown, true);
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await page.evaluate(() => Reflect.get(window, 'takeoutEvents')), ['closed']);
+    assert.equal(await page.locator('.tour-popover').count(), 0);
+    assert.deepEqual(await read(page, 'patches'), [], 'Guidance never owns Settings write');
 });

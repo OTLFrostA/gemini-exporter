@@ -89,7 +89,9 @@ test('failed export is displayed and a retry remains available after the task en
 test('scan progress exposes committed page counts and returns controls to idle', async () => {
     await open({ holdScan: true }); await page.locator('#btnSyncAll').click();
     await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes('150 source entries'));
-    assert.equal(await page.locator('#btnCancel').isEnabled(), true);
+    assert.equal(await page.locator('#btnStopScan').isVisible(), true);
+    assert.equal(await page.locator('#btnStopScan').isEnabled(), true);
+    assert.equal(await page.locator('#btnCancel').isVisible(), false);
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
 });
@@ -143,4 +145,86 @@ test('busy workbench disables conflicting actions and selection, then restores t
     await page.locator('#btnCancel').click(); assert.equal(await page.locator('#btnSelectAll').isDisabled(), true);
     await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#list input').isEnabled(), true);
+});
+
+test('zero-account Takeout creates the first Gemini default only after ZIP selection', async () => {
+    await open({ accounts: [], indexes: [], records: {} });
+    await page.waitForFunction(() => !(document.getElementById('btnImportTakeout') as HTMLButtonElement).disabled);
+    assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
+    assert.equal((await read(page, 'events')).includes('create'), false);
+    const chooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#btnImportTakeout').click();
+    const chooser = await chooserPromise;
+    assert.equal((await read(page, 'events')).includes('create'), false, 'Opening the picker must not create an account');
+    await chooser.setFiles({ name: 'Takeout.zip', mimeType: 'application/zip', buffer: Buffer.from('fixture') });
+    await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes('Imported 2'));
+    assert.deepEqual(await read(page, 'imports'), [A]);
+    assert.equal((await read(page, 'events')).filter((value: string) => value === 'create').length, 1);
+    assert.equal((await read(page, 'accounts')).length, 1);
+    assert.equal(await page.locator('#accountName').textContent(), 'default');
+    assert.deepEqual((await read(page, 'patches')).at(-1), { takeoutPromptCompleted: true });
+});
+
+test('Badge refreshes on visibility restoration and visible timer, never while hidden', async () => {
+    page = await browser.newPage();
+    await page.clock.install();
+    await mount(page, 'badge');
+    await page.waitForFunction(() => Reflect.get(window, 'harness').countRequests === 1);
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.clock.fastForward(60_000);
+    assert.equal(await read(page, 'countRequests'), 1);
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForFunction(() => Reflect.get(window, 'harness').countRequests === 2);
+    await page.clock.fastForward(60_000);
+    await page.waitForFunction(() => Reflect.get(window, 'harness').countRequests === 3);
+});
+
+test('Badge drag writes only through Runtime position IPC, never Content Settings', async () => {
+    page = await browser.newPage();
+    await mount(page, 'badge');
+    await page.waitForFunction(() => document.getElementById('geminiExportBadgeText')?.textContent === '9 conversations indexed');
+    const badge = page.locator('#geminiExportBadge');
+    const rect = await badge.boundingBox();
+    assert.ok(rect);
+    await page.mouse.move(rect.x + 15, rect.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(rect.x - 80, rect.y - 60, { steps: 4 });
+    assert.deepEqual(await read(page, 'patches'), []);
+    await page.mouse.up();
+    const messages = await read(page, 'messages');
+    const updates = messages.filter((m: { action: string }) => m.action === 'updateBadgePosition');
+    assert.equal(updates.length, 1);
+    assert.ok(Number.isFinite(updates[0].position.left));
+    assert.ok(Number.isFinite(updates[0].position.top));
+    assert.deepEqual(await read(page, 'patches'), [], 'Content must not call Application Settings directly');
+    await badge.click();
+    assert.equal((await read(page, 'messages')).filter((m: { action: string }) => m.action === 'updateBadgePosition').length, 1);
+});
+
+test('Export retry uses only current failed ConversationKeys and disables skip', async () => {
+    await open({ partial: true, failExport: true, indexes: [
+        { key: { accountId: A, conversationId: 'delivered' }, title: 'Delivered with missing assets' },
+        { key: { accountId: A, conversationId: 'failed' }, title: 'Not delivered' }
+    ] });
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    assert.equal(await page.locator('#btnRetryFailed').isVisible(), true);
+    assert.match(await page.locator('#status').textContent() ?? '', /partial: 1; skipped: 0; failed: 1/);
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness'); h.partial = false; h.failExport = false;
+    });
+    await page.locator('#btnRetryFailed').click();
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    const requests = await read(page, 'exports');
+    assert.equal(requests.length, 2);
+    assert.deepEqual(requests[0].keys.map((key: { conversationId: string }) => key.conversationId), ['delivered', 'failed']);
+    assert.deepEqual(requests[1].keys, [{ accountId: A, conversationId: 'failed' }]);
+    assert.equal(requests[1].skipUnchanged, false);
 });

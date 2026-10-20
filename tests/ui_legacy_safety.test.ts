@@ -9,7 +9,11 @@ async function open(patch:Record<string,unknown>={},kind:'options'|'popup'='opti
 // executes actual current UI handlers with IO mocked at the owner boundary.
 test('export completion warns for attachment-only and mixed failures in both languages; a complete export still reports success',async()=>{
     for(const language of ['en','zh'])for(const [partial,failExport]of [[true,false],[true,true],[false,false]]){
-        await open({partial,failExport,settings:{language}});await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+        const indexes=partial && failExport ? [
+            {key:{accountId:A,conversationId:'partial'},title:'Partial chat'},
+            {key:{accountId:A,conversationId:'failed'},title:'Failed chat'}
+        ] : undefined;
+        await open({ ...(indexes ? { indexes } : {}), partial, failExport, settings: { language } });await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
         const status=await page.locator('#status').textContent()??'';assert.match(status,language==='en'?new RegExp(`partial: ${partial?1:0}; skipped: 0; failed: ${failExport?1:0}`):new RegExp(`部分缺失 ${partial?1:0}；跳过 0；失败 ${failExport?1:0}`));assert.equal(await page.locator('#btnRetryFailed').isVisible(),failExport);await page.close();
     }
 });

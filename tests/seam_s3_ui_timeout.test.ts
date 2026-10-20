@@ -34,7 +34,7 @@ test('S3 - failed Scan releases workbench controls and reports the actual error'
     } finally { await browser.close(); }
 });
 test('S3 - Popup uses bounded current-context transport and releases its guard on a context rejection', async () => {
-    const source = readFileSync('src/ui/popup/popup.ts', 'utf8'); assert.match(source, /await sendTabMessage\(tab\.id, \{ action: 'getAccountContext' \}\)/);
+    const source = readFileSync('src/ui/popup/popup.ts', 'utf8'); assert.match(source, /await sendTabMessage\(tab\.id, \{ action: 'getAccountContext' \}, 3000\)/);
     const browser = await chromium.launch({ headless: true }); try {
         const page = await browser.newPage(); await mount(page, 'popup'); await page.waitForFunction(() => !(document.getElementById('btnCurrent') as HTMLButtonElement).disabled);
         await page.evaluate(() => { chrome.tabs.sendMessage = (async () => { throw new Error('Context request timed out'); }) as typeof chrome.tabs.sendMessage; });
