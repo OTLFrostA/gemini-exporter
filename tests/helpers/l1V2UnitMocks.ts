@@ -222,6 +222,11 @@ export function installL1V2Mocks(): void {
     const originalLoad = loader._load;
     loader._load = (request, parent, isMain) => {
         const parentPath = parent?.filename?.replace(/\\/g, '/') ?? '';
+        // The unit file (including its helpers) may import L2 *types* but not
+        // execute a live external module. Type-only imports are erased by TS.
+        if (parentPath.includes('/tests/')
+            && /(?:^|\\/)src\\/(?:l2|l3a|l3b|l4|runtime|application|ui)\\//.test(request))
+            throw new Error('L1 unit test directly loaded external implementation: ' + request);
         if (parentPath.includes('/src/l1/')) {
             if (request.endsWith('/l2/ingestion.js')) return ingestion;
             if (request.endsWith('/runtime/api/domainIngestion.js')) return ingestion;
