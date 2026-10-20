@@ -29,6 +29,8 @@ jobs:
       - run: npm ci
       - name: Install Chromium for native L3a and UI test surfaces
         run: npx playwright install --with-deps chromium
+      - name: Check that the strict execution guard blocks foreign production code
+        run: node --test tests/arch/v2-unit-guard.test.cjs
       - name: Type-check mocked ports against latest v2 owner definitions
         run: npm run test:v2:unit-ports
       - name: Run every v2 module-unit suite with real-external-module guard
