@@ -127,8 +127,9 @@ export async function initWorkbench(): Promise<void> {
             el<HTMLInputElement>('langToggle').checked = en;
             el<HTMLElement>('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
             el<HTMLElement>('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
-            // Non-Markdown pauses the background workflow; the user can still turn the intent off.
+            // Preserve the established Markdown-only rule without resetting enabledDisk.
             el<HTMLInputElement>('liveSaveDiskToggle').checked = settings.enabledDisk;
+            el<HTMLInputElement>('liveSaveDiskToggle').disabled = busy || settings.defaultFormat !== 'markdown';
             const liveStatus = el<HTMLElement>('liveSaveStatus');
             liveStatus.hidden = !settings.enabledDisk;
             liveStatus.textContent = isLiveSaveEffective(settings, directoryAvailable)
@@ -137,17 +138,8 @@ export async function initWorkbench(): Promise<void> {
                     ? text('Paused: Markdown only; switch back to resume', '已暂停 · 仅支持 Markdown，切回后恢复')
                     : text('Paused: authorize a folder to resume', '已暂停 · 请选择或重新授权文件夹');
         }
-        // The same folder is used for manual direct-write and background Live Save.
-        // Show a single picker only near whichever visible action needs it.
-        const manualSlot = el<HTMLElement>('manualDirSlot');
-        const liveSlot = el<HTMLElement>('liveDirSlot');
-        const manualFolder = delivery === 'folderWriter';
-        const liveFolder = !manualFolder && !!settings?.enabledDisk;
-        manualSlot.hidden = !manualFolder;
-        liveSlot.hidden = !liveFolder;
-        const folderSlot = manualFolder ? manualSlot : liveFolder ? liveSlot : null;
-        const folderBox = el('dirBox');
-        if (folderSlot && folderBox.parentElement !== folderSlot) folderSlot.append(folderBox);
+        // Manual folder delivery and Live Save share a single capability.
+        // Keep the folder card visible for both choices, regardless of manual export destination.
         const handle = Directory.getDirHandle();
         const pending = Directory.getPendingPermissionHandle();
         const folderName = handle?.name || pending?.name;
@@ -156,7 +148,7 @@ export async function initWorkbench(): Promise<void> {
         el('dirPermissionLabel').textContent = handle && directoryAvailable
             ? text('Authorized', '已授权')
             : pending ? text('Permission needs renewal', '需要重新授权')
-                : text('Shared with Live Save', '与实时保存共用');
+                : text('Also used by Live Save', '也用于实时保存');
         el<HTMLButtonElement>('btnSetDir').textContent = pending
             ? text('Reauthorize', '重新授权')
             : handle ? text('Change', '更换') : text('Choose folder', '选择文件夹');
