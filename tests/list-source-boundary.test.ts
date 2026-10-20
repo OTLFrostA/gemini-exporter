@@ -91,6 +91,16 @@ test('Gemini parser rejects incomplete row coverage and unknown layouts as exhau
     }
 });
 
+test('Gemini list requires an explicit natural-terminal cursor, not an unrecognized slot', () => {
+    const row = ['c_boundary123', 'Title', null, null, null, [1700000060, 0]];
+    const explicit = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [row]])]]));
+    const ambiguous = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, { cursor: 'unrecognized' }, [row]])]]));
+    assert.equal(explicit.pageEvidence.valid, true);
+    assert.equal(ambiguous.nextPageToken, null);
+    assert.equal(ambiguous.pageEvidence.valid, false);
+    assert.equal(ambiguous.pageEvidence.ordered, false);
+});
+
 test('DOM metadata preserves title precedence and keeps UI labels and observation clocks out of Domain', () => {
     const header = { textContent: 'Header title' };
     const sidebar = { textContent: 'Google Gemini', href: 'https://gemini.google.com/app/boundary123',
