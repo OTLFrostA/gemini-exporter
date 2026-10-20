@@ -10,6 +10,9 @@ on:
       - '.github/workflows/l1-unit.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   l1-unit:
     runs-on: ubuntu-latest

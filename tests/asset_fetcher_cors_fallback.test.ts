@@ -16,6 +16,26 @@ test('assetFetcher - toHighRes preserves gstatic.com thumbnail URLs without corr
     assert.ok(transformedLh3.includes('=s1024-rj'), 'googleusercontent URLs should still be upgraded');
 });
 
+test('assetFetcher - only actual gstatic hosts bypass high-resolution conversion', () => {
+    for (const url of [
+        'https://gstatic.com/image.png',
+        'https://ENCRYPTED-TBN0.GSTATIC.COM/image.png',
+    ]) {
+        assert.strictEqual(toHighRes(url), url);
+    }
+    for (const url of [
+        'https://gstatic.com.example.org/image.png',
+        'https://fakegstatic.com/image.png',
+        'https://example.org/gstatic.com/image.png',
+        'https://example.org/image.png?source=gstatic.com',
+        'https://gstatic.com@example.org/image.png',
+        'https://example.org/image.png#gstatic.com',
+    ]) {
+        assert.notStrictEqual(toHighRes(url), url, `Must not treat ${url} as a gstatic host`);
+    }
+    assert.strictEqual(toHighRes('not a URL'), 'not a URL');
+});
+
 test('assetFetcher - Google image URL normalization is entirely Runtime-local', () => {
     // L1 owns highResVariant, which has its own tests. This suite must not load
     // its real implementation just to exercise Runtime's toHighRes capability.
