@@ -41,8 +41,7 @@ const patchStoredSettings: typeof import('../src/l3a/storageService.js').patchSt
     async settings => { if (failOn === 'settings') throw new Error('mock v2 settings write failed'); recorded.settings.push(settings); };
 const setDirectoryHandle: typeof import('../src/l3a/storageService.js').setDirectoryHandle =
     async handle => { if (failOn === 'handle') throw new Error('mock v2 handle write failed'); recorded.handles.push(handle!); };
-const storage = { putAccount, putIndexes, putExportRecord, patchStoredSettings, setDirectoryHandle }
-    satisfies Partial<typeof import('../src/l3a/storageService.js')>;
+const storage = { putAccount, putIndexes, putExportRecord, patchStoredSettings, setDirectoryHandle } satisfies Partial<typeof import('../src/l3a/storageService.js')>;
 
 // Import real Migration once; only its imported L2/L3a public v2 ports are mocked.
 type Loader = { _load(request: string, parent?: NodeModule | null, isMain?: boolean): unknown };
