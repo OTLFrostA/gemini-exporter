@@ -239,7 +239,7 @@ test('Detail submits image identities; bytes are acquired on demand without chan
         fetchFn: (url) => {
             const u = String(url);
             if (u.endsWith('/api/auth/session')) {
-                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok' }), { status: 200 }));
+                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } }), { status: 200 }));
             }
             if (u.includes('/files/download/file_cat')) {
                 return Promise.resolve(new Response(JSON.stringify({
@@ -507,21 +507,39 @@ test('listConversations paginates until the reported total is reached', async ()
             calls.push(u);
             const items = [
                 { id: 'a', title: 'A', create_time: 1, update_time: 2 },
-                { id: 'b', title: 'B', create_time: 1 },
-                { id: 'c', title: 'C', create_time: 1 },
+                { id: 'b', title: 'B', create_time: 1, update_time: 1 },
+                { id: 'c', title: 'C', create_time: 1, update_time: 0.5 },
             ];
             return Promise.resolve(new Response(JSON.stringify({
                 items, total: 3, limit: 100, offset: 0, has_missing_conversations: false,
             }), { status: 200 }));
         },
     });
-    const account = await getOrCreateAccount('chatgpt', 'default');
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
     assert.equal(await provider.listConversations({ accountId: account.id, streamId: 'recent' }), 'source_end');
     const indexes = await getConversations(account.id);
     assert.deepEqual(indexes.map(i => i.key.conversationId), ['a', 'b', 'c']);
     assert.equal(indexes[0].createdAt, 1000); assert.equal(indexes[0].updatedAt, 2000);
     assert.equal(calls.length, 1);
 
+});
+
+test('ChatGPT list refuses source_end when pagination, ordering or completeness is unverified', async () => {
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
+    const session = { accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } };
+    const cases = [
+        { items: [{ id: 'missing-time', title: 'Missing time' }], total: 1, limit: 100, offset: 0, has_missing_conversations: false },
+        { items: [{ id: 'missing-row', title: 'Incomplete', update_time: 2 }], total: 1, limit: 100, offset: 0, has_missing_conversations: true },
+        { items: [{ id: 'wrong-offset', title: 'Wrong offset', update_time: 2 }], total: 1, limit: 100, offset: 100, has_missing_conversations: false },
+        { items: [{ id: 'missing-total', title: 'Missing total', update_time: 2 }], limit: 100, offset: 0, has_missing_conversations: false },
+    ];
+    for (const page of cases) {
+        const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
+            String(url).endsWith('/api/auth/session') ? session : page,
+        ), { status: 200 })) });
+        await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent' }),
+            /Unverified ChatGPT list page/);
+    }
 });
 
 test('optional access helper never prompts and registers only on grant', async () => {
