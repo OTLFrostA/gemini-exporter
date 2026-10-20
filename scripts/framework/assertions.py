@@ -183,10 +183,37 @@ def assert_followup_scan_result(evidence, before, after):
     return assert_full_scan_coverage(evidence, after)
 
 
+def index_rows(state):
+    """Only current account-keyed Index facts; no flat-id/title-source aliases."""
+    account = state.get('accountId')
+    rows = state.get('rows')
+    if not is_account_uuid(account) or not isinstance(rows, list):
+        return None
+    result = {}
+    for row in rows:
+        if not isinstance(row, dict) or set(row) - {'key', 'title', 'titleSource', 'createdAt', 'updatedAt'}:
+            return None
+        key = row.get('key')
+        if (not isinstance(key, dict) or set(key) != {'accountId', 'conversationId'}
+                or key.get('accountId') != account or not isinstance(key.get('conversationId'), str)
+                or not key['conversationId'] or key['conversationId'] in result):
+            return None
+        if ('title' in row) != ('titleSource' in row):
+            return None
+        if 'title' in row and (not isinstance(row['title'], str) or not row['title'].strip()
+                               or row['titleSource'] not in ('user', 'provider', 'derived')):
+            return None
+        if any(type(row[field]) not in (int, float) or not math.isfinite(row[field])
+               for field in ('createdAt', 'updatedAt') if field in row):
+            return None
+        result[key['conversationId']] = row
+    return result
+
+
 def assert_passive_coverage(before, after, observations):
     coverage = after.get('coverage')
     account = after.get('accountId')
-    rows = {row.get('id') or row.get('key', {}).get('conversationId') for row in after.get('rows', [])}
+    rows = index_rows(after)
     if (before.get('coverage') is not None or not is_account_uuid(account) or before.get('accountId') != account
             or not valid_coverage(coverage) or not rows
             or coverage['range'] and any(coverage['range'][end]['id'] not in rows for end in ('head', 'tail'))
@@ -204,19 +231,17 @@ def assert_activity_sync_result(baseline, before, scan, after, target_ids):
     ok, message = assert_followup_scan_result(scan, before.get('coverage'), after.get('coverage'))
     if not ok:
         return False, message
-    def rows(state):
-        return {row.get('id') or row.get('key', {}).get('conversationId'): row for row in state.get('rows', [])}
-    old_rows, new_rows = rows(initial), rows(after)
-    span = (after.get('coverage') or {}).get('range')
+    old_rows, prior_rows, new_rows = index_rows(initial), index_rows(before), index_rows(after)
+    if any(rows is None for rows in (old_rows, prior_rows, new_rows)):
+        return False, 'Activity scan contains invalid account-keyed Index facts'
     if not target_ids:
         return False, 'Activity check has no targets'
     for cid in target_ids:
         row = new_rows.get(cid) or {}
-        if (row.get('titleSource') != 'provider' or row.get('updatedAt', 0) <= old_rows.get(cid, {}).get('updatedAt', 0)
-                or span and span['head']['time'] < row.get('updatedAt', 0)):
+        if (row.get('titleSource') != 'provider' or row.get('updatedAt', 0) <= old_rows.get(cid, {}).get('updatedAt', 0)):
             return False, f'Real activity was not committed: {cid}'
     for state in (initial, before):
-        if not set(rows(state)).issubset(new_rows) or not set(state.get('exportIds', [])).issubset(after.get('exportIds', [])):
+        if not set(index_rows(state)).issubset(new_rows) or not set(state.get('exportIds', [])).issubset(after.get('exportIds', [])):
             return False, 'Scan removed archives or export records'
     return True, message
 
@@ -331,22 +356,23 @@ class CDPAssertions:
         return False, f'v2 export history/freshness evidence missing: {last}', last
 
     @staticmethod
-    def assert_confirmed_deleted(cdp_opt, deleted_chat_id: str, retained_ids: List[str], timeout: float = 10.0) -> Tuple[bool, str, Dict[str, Any]]:
+    def assert_confirmed_deleted(cdp_opt, key: Dict[str, str], retained_ids: List[str], timeout: float = 10.0) -> Tuple[bool, str, Dict[str, Any]]:
         """Confirmed remote deletion removes the same key's three local facts only."""
         install_probe(cdp_opt)
         deadline = time.monotonic() + timeout
         last = {}
         while time.monotonic() < deadline:
             last = cdp_opt.eval(f"""(async () => {{
-                const id = {json.dumps(deleted_chat_id.removeprefix('c_'))};
-                const stored = await globalThis.__tier2V2.storedConversation(id);
+                const key = {json.dumps(key)};
+                const id = key.conversationId;
+                const stored = await globalThis.__tier2V2.storedConversation(key);
                 const state = await globalThis.__tier2V2.snapshot();
                 const ids = new Set(state.rows.map(row => row.key.conversationId));
-                return {{removed: stored.index === null && stored.detail === null && stored.exportRecord === null,
+                return {{sameAccount: state.accountId === key.accountId, removed: stored.index === null && stored.detail === null && stored.exportRecord === null,
                     othersRetained: {json.dumps(retained_ids)}.every(id => ids.has(id)),
                     inDom:[...document.querySelectorAll('#list .item')].some(el => el.dataset.chatId?.replace(/^c_/, '') === id)}};
             }})()""", await_promise=True) or {}
-            if last.get('removed') and last.get('othersRetained'):
+            if last.get('sameAccount') and last.get('removed') and last.get('othersRetained') and last.get('inDom') is False:
                 return True, 'Confirmed deletion removed Index, Detail and ExportRecord; unrelated Index facts remain', last
             time.sleep(0.3)
         return False, f'Confirmed local deletion failed: {last}', last

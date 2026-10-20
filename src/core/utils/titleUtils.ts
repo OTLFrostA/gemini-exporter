@@ -7,7 +7,7 @@ import { TITLE_SOURCE_PRIORITY, TITLE_TIER_RANK, normalizeReliableTitleSource, r
 export { TITLE_SOURCE_PRIORITY, TITLE_TIER_RANK, normalizeReliableTitleSource, resolveReliableTitleSource } from '../domain/titleAuthority.js';
 
 /** Only the fields title arbitration reads or mutates. */
-export interface TitleResolutionInput { id?: string | number; title?: string; titleSource?: string; titles?: import('../../types/conversation.js').TitleSources; }
+export interface TitleResolutionInput { id?: string | number; title?: string; titleSource?: string; }
 
 export interface TitleResolution {
     title: string;
@@ -15,7 +15,7 @@ export interface TitleResolution {
 }
 
 /**
- * Resolve the most authoritative valid title from a chat object with multi-tier source slots.
+ * Resolve the most authoritative valid title from a chat object.
  */
 export function resolveTitle(chat?: TitleResolutionInput | null): TitleResolution {
     return { title: cleanTitle(chat?.title) || '未命名对话', source: normalizeReliableTitleSource(chat?.titleSource) ?? 'derived' };

@@ -1,6 +1,6 @@
-# L1/L2 frozen-design repair — PR #1061
+# L1/L2 frozen-design repair and contract cleanup
 
-Base: `65581493` on `dev/v2`. The frozen Notion design remains authoritative; the HTTP 429 clarification is the explicitly requested design change.
+Initial repair: PR #1061, based on `65581493`, merged into `dev/v2` as `4ede73c5` on 2026-10-19. This follow-up starts from that merged commit. The frozen Notion design remains authoritative; the HTTP 429 clarification is the explicitly requested design change.
 
 ## Audit disposition
 
@@ -34,14 +34,30 @@ Run `node scripts/test-l1.cjs` and `node scripts/test-l2.cjs`. Each manifest rec
 
 This scoped migration is not a claim that all tests across Application, Delivery, UI and Runtime have migrated. Full-gate failures remain visible and must not be bypassed to merge the PR.
 
+## Follow-up contract cleanup
+
+- Removed the production flat `ChatMessage`/Turn/Attachment/title-map schema (`src/types/conversation.ts`). Historical record grammar now lives only in `tests/helpers/historicalConversation.ts`; current public types come from their Domain owners. Source generation identity lives with its parser evidence.
+- Removed Parser `resourceHints` and its archive/destination sidecar from every native parser, page merge and resource closure. Only acquisition hints accompany keyless source facts. Historical archive-path fixtures remain test-only. The type contract rejects the retired Parser property.
+- Renamed source attachment/citation/reasoning helpers to describe source interpretation; deleted unused legacy attachment wrapper ports without compatibility aliases. Native wire-format interpretation remains supported.
+- Migrated `rpc_list_ingest`, `sync_provider_contract`, `watermark_checkpoint`, `conversation_version`, `conversation_repository` and `p1_archive_retention` to the current Bridge/Provider/L2/read/physical-store owners. They cover committed counts, coverage, source versions, complete/partial selection, Index/Detail separation, account keys, rollback/retry, and ordinary 404 versus confirmed deletion. No old repository, StorageService, syncEngine, tombstone, capture receipt or cloudAvailability model is restored.
+- Extracted native page merging, metadata retries, cooperative Takeout decoding, attachment ownership and source generation identity from mixed export suites, so retired export imports cannot prevent those L1 tests from loading.
+- Migrated media persistence to L2 snapshot selection plus task-scoped resource acquisition. Known source generation conflicts/ambiguity do not authorize cross-source matches. URI-less bytes remain task output; fresh/released tasks cannot recover a persistent cache. Archive path/byte receipts never become Domain fields. The retired persistent-resource-cache behavior is intentionally replaced, rather than recreated.
+- Export preparation/completion/serialization and resource-delivery fallback scenarios remain in `conversation_repository_other_layers`, `conversation_version_other_layers`, `provider-native-callers_other_layers`, and `media-identity-delivery`. Normal full discovery still executes them and reports their retired dependencies. They are not declared migrated or skipped.
+- Updated active local testing guidance to the frozen title and deletion contracts. Old PDF plans are explicitly marked historical; archived audits retain their historical observations.
+
+## Tier 2 test-code migration (live execution deferred)
+
+- Physical stored-conversation probes require an explicit `ConversationKey`, so switching the selected account cannot turn deletion checks into empty reads of another account. The delete test requires pre-existing same-key Index/Detail, a same-window/origin event with captured provider identity and request/acknowledgement, committed removal of all three records and removal of the UI row.
+- Scan reset uses Application `clearLocalScanRecords`: Coverage and ExportRecords clear atomically, while Index/Detail stay intact. Current keyed Index rows replace flat ID aliases. Coverage activity evidence does not require matching Index.updatedAt.
+- Takeout probes expose keyless source facts and source-path/asset-ID/byte evidence. Assertions check current Index/Detail/Message/Asset schemas, account ownership, source-known roles/content, resource closure and SHA256 bytes with full source paths. Generation metadata does not fabricate an assistant message. Valid partial sources remain allowed; imported counts and required known facts/bytes must still match.
+- The offline Python harness has 88 passing tests, including negative cases for flat/old schemas, wrong accounts/assets/bytes, invented message assumptions, and false deletion success. Probe TypeScript is included in the L1 manifest type check. No real Chrome/Gemini Tier 2 session was started for this follow-up.
+
 ## Validation
 
-- L1 manifest: 560 tests passed, zero skipped; production plus manifest suite/type contracts pass TypeScript.
-- L2 manifest: 231 tests passed, zero skipped; production plus manifest suite/type contracts pass TypeScript.
-- Runtime/deletion integration: 67 tests passed, including real Hook → Bridge → authenticated Background → L2 → IndexedDB commit and rollback.
-- Headless Domain persistence browser cases: 6 passed. Account Registry browser cases: 6 passed.
-- Scoped zero-any gate and production build pass (six bundles, zero warnings).
-- Repository-wide `npm test` remains blocked at 295 pre-existing other-layer test TypeScript diagnostics (production source: zero). Normalizing source paths and moved test-file positions introduces no new diagnostic messages. The full unit run also still fails legacy Application/Delivery/UI cases; it is not reported as green. The baseline independently reproduces the stale PDF exporter constructor failure.
-- Tier 2 was interrupted and is deferred at the user's request; no Tier 2 pass is claimed. The deletion-oracle changes are not live-validated. Consumed scenario-pool entries were replenished to 20/20 and validated.
+- L1 manifest: **613/613 passed**, zero skipped. L2 manifest: **288/288 passed**, zero skipped. Both production-plus-manifest TypeScript checks passed. The manifests overlap on integration suites; these counts must not be added as distinct test totals.
+- Offline Tier 2 Python harness: **88 passed**. Python framework syntax and the bundled probe build passed. No live Tier 2 run was started.
+- Scoped zero-any and production build passed (six bundles, zero warnings). `git diff --check` passed.
+- Repository `npm test` remains blocked by **219 test TypeScript diagnostics**, with zero diagnostics in production `src/`. Full unit discovery: **1,744 passed, 202 failed, 6 cancelled, zero skipped**. Legacy export/delivery/UI/runtime failures remain visible; this is not a green full repository gate. The historical Python aggregate runner additionally stops on its retired `src/content/syncEngine.js` source-string check; the current full Node unit discovery was run independently, without changing either runner.
+- Scenario pool remains **20/20**, with zero entries consumed by this follow-up.
 
-PR #1061 stays draft while the repository-wide gate remains red.
+The follow-up PR stays draft while the repository-wide gate is red. PR #1061 is already merged; this draft contains only the additional cleanup after that merge.

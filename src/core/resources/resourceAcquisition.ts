@@ -2,7 +2,7 @@ import type { DomainGeneratedMediaIdentity } from '../domain/conversationDetail.
 
 /** Acquisition context carried beside Domain/AST, never conversation semantics or delivery state. */
 export interface ResourceAcquisitionHint {
-    /** Transient inline acquisition input. Persist decoded bytes in the resource store. */
+    /** Transient inline acquisition input. Decoded bytes belong to the current task resource context. */
     dataBase64?: string;
     url?: string;
     sourceUrl?: string;

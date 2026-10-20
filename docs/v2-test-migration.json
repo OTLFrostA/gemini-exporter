@@ -93,7 +93,7 @@
     },
     {
       "file": "tests/conversation_repository.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/conversation_repository.types.ts",
@@ -101,7 +101,7 @@
     },
     {
       "file": "tests/conversation_version.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/conversations_store.test.ts",
@@ -365,7 +365,7 @@
     },
     {
       "file": "tests/media-identity-persistence.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/messageRouter_liveSave_detail_contract.test.ts",
@@ -409,7 +409,7 @@
     },
     {
       "file": "tests/p1_archive_retention.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/p1_b1_engine.test.ts",
@@ -505,7 +505,7 @@
     },
     {
       "file": "tests/provider-native-callers.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/provider_abstraction.test.ts",
@@ -533,7 +533,7 @@
     },
     {
       "file": "tests/rpc_list_ingest.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/run_tests.py",
@@ -605,7 +605,7 @@
     },
     {
       "file": "tests/sync_provider_contract.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/tab_service.test.ts",
@@ -681,7 +681,7 @@
     },
     {
       "file": "tests/watermark_checkpoint.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/write_failure_semantics.test.ts",
@@ -753,7 +753,16 @@
       "tests/l1-tier1.json",
       "tests/l2-tier1.json"
     ],
-    "preservedOtherLayerScenarios": "tests/regression_lock_other_layers.test.ts",
-    "fullRepositoryMigration": "incomplete; ordinary full discovery and npm test are unchanged"
+    "preservedOtherLayerScenarios": [
+      "tests/regression_lock_other_layers.test.ts",
+      "tests/conversation_repository_other_layers.test.ts",
+      "tests/conversation_version_other_layers.test.ts",
+      "tests/provider-native-callers_other_layers.test.ts",
+      "tests/media-identity-delivery.test.ts"
+    ],
+    "fullRepositoryMigration": "incomplete; ordinary full discovery and npm test are unchanged",
+    "tier2": "L1/L2 probes, source/index/detail/assets/coverage/deletion oracles migrated; offline harness verified; live run deferred by user",
+    "followupBase": "4ede73c5884d4667c5c87e1f85642d2225843f49",
+    "initialRepair": "https://github.com/OTLFrostA/gemini-exporter/pull/1061 (merged)"
   }
 }

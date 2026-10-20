@@ -4,16 +4,16 @@ import { normalizeTimestamp } from '../../../domain/time.js';
 import { sameGenerationEvent } from './generationEvent.js';
 
 /** Acquisition aliases are resolved here; none of these lists is part of Domain. */
-export interface LegacyAttachmentInput extends Omit<Partial<ResourceEvidence>, 'generation' | 'createdAt'> {
+export interface SourceAttachmentInput extends Omit<Partial<ResourceEvidence>, 'generation' | 'createdAt'> {
     generation?: Omit<NonNullable<ResourceEvidence['generation']>, 'time'> & { time?: number | null };
     createdAt?: number | string | null;
     token?: unknown;
     dataBuffer?: ArrayBuffer | ArrayBufferView | number[];
 }
-export interface LegacyAttachmentLists {
-    attachments?: readonly LegacyAttachmentInput[];
-    images?: readonly LegacyAttachmentInput[];
-    documents?: readonly LegacyAttachmentInput[];
+export interface SourceAttachmentLists {
+    attachments?: readonly SourceAttachmentInput[];
+    images?: readonly SourceAttachmentInput[];
+    documents?: readonly SourceAttachmentInput[];
 }
 
 const attachmentFields = [
@@ -23,7 +23,7 @@ const attachmentFields = [
     'id', 'chipUrl', 'contentMarkdown', 'hasFabricatedText',
 ] as const;
 
-function portableBytes(value: LegacyAttachmentInput['dataBuffer']): string | undefined {
+function portableBytes(value: SourceAttachmentInput['dataBuffer']): string | undefined {
     const bytes = value instanceof ArrayBuffer ? new Uint8Array(value)
         : ArrayBuffer.isView(value) ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
         : Array.isArray(value) ? new Uint8Array(value) : undefined;
@@ -36,7 +36,7 @@ function portableBytes(value: LegacyAttachmentInput['dataBuffer']): string | und
 }
 
 /** Only semantic metadata survives; parser tokens/evidence and mutable byte views do not. */
-function copyAttachment(input: LegacyAttachmentInput, defaultType: string): ResourceEvidence {
+function copyAttachment(input: SourceAttachmentInput, defaultType: string): ResourceEvidence {
     const result: ResourceEvidence = { type: input.type || defaultType };
     for (const field of attachmentFields) {
         if (input[field] !== undefined) Object.assign(result, { [field]: input[field] });
@@ -114,7 +114,7 @@ function stableValue(value: unknown): string {
 }
 function fingerprint(attachment: ResourceEvidence): string | undefined {
     // A bare kind has no evidence of identity. Identical named records in different
-    // legacy lists can be aliases even when no downloadable source exists.
+    // source lists can be aliases even when no downloadable source exists.
     if (!attachment.fileName && !attachment.name && !attachment.title && !attachment.contentMarkdown) return undefined;
     const type = ['file', 'doc', 'code'].includes(attachment.type) ? 'file' : attachment.type;
     return stableValue({ ...attachment, type });
@@ -162,25 +162,19 @@ interface ResolvedAttachment {
     owners: Map<number, number>;
 }
 
-export interface LegacyAttachmentResolution {
-    attachments: ResourceEvidence[];
-    /** Retarget old body references before acquisition aliases are discarded. */
-    resolveReference(ref: string): string;
+/** One message's source resource evidence, kept outside the final Domain model. */
+export interface SourceAttachmentGroup {
+    input: SourceAttachmentLists;
+    bodyAttachments?: readonly SourceAttachmentInput[];
 }
-
-/** One message's legacy resource evidence, kept outside the final Domain model. */
-export interface LegacyAttachmentGroup {
-    input: LegacyAttachmentLists;
-    bodyAttachments?: readonly LegacyAttachmentInput[];
-}
-export interface LegacyAttachmentGroupResolution {
+export interface SourceAttachmentGroupResolution {
     attachments: ResourceEvidence[];
     attachmentIndexes: number[][];
     findReference(ref: string, groupIndex?: number): number | undefined;
     isExportAlias(ref: string, groupIndex: number): boolean;
 }
 
-export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentGroup[], options: { semanticOnly?: boolean; sourceReferences?: boolean } = {}): LegacyAttachmentGroupResolution {
+export function resolveSourceAttachmentGroups(groups: readonly SourceAttachmentGroup[], options: { semanticOnly?: boolean; sourceReferences?: boolean } = {}): SourceAttachmentGroupResolution {
     const normalize = options.sourceReferences ? normalizedSourceReference : normalizedResourceReference;
     const resolved: ResolvedAttachment[] = [];
     groups.forEach(({ input, bodyAttachments = [] }, groupIndex) => {
@@ -269,17 +263,4 @@ export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentG
         return !/^[a-z][a-z\d+.-]*:/i.test(key) && resolved.some(record => record.owners.has(groupIndex) && record.lookupRefs.has(key) && !record.refs.has(key));
     };
     return { attachments: resolved.map(record => record.attachment), attachmentIndexes, findReference, isExportAlias };
-}
-
-export function resolveLegacyAttachments(input: LegacyAttachmentLists, bodyAttachments: readonly LegacyAttachmentInput[] = []): LegacyAttachmentResolution {
-    const result = resolveLegacyAttachmentGroups([{ input, bodyAttachments }]);
-    return { attachments: result.attachments, resolveReference: ref => {
-        const index = result.findReference(ref);
-        const resource = index === undefined ? undefined : result.attachments[index];
-        return resource ? resource.localName || resource.resolvedUrl || resource.sourceUrl || resource.url || resource.src || ref : ref;
-    } };
-}
-
-export function normalizeLegacyAttachments(input: LegacyAttachmentLists, bodyAttachments: readonly LegacyAttachmentInput[] = []): ResourceEvidence[] {
-    return resolveLegacyAttachments(input, bodyAttachments).attachments;
 }

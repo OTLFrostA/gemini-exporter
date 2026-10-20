@@ -120,9 +120,7 @@ export interface TurnDriftReport {
     warnings: string[];
 }
 
-import type { MessageCitation } from '../../../../types/conversation.js';
-
-export interface Citation extends MessageCitation {
+export interface Citation {
     url: string;
     title: string;
 }

@@ -1,21 +1,16 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
-import { admitFixture } from './helpers/admitFixture.js';
-import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
-import { toJsonStandard } from '../src/core/engine/formatters/jsonFormatter.js';
-import { test, beforeEach } from 'node:test';
+import { ingestDetail } from '../src/core/domain/ingestion.js';
+import { readConversation } from '../src/core/domain/readConversation.js';
+import type { SourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
-import { __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
-import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
-import { resolveConversationExportState } from '../src/core/utils/titleUtils.js';
-import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
 
-beforeEach(() => __clearDomainMemory());
 const wire = (rows: Array<[string, unknown]>) => JSON.stringify(rows.map(([rpc, payload]) => ['wrb.fr', rpc, JSON.stringify(payload)]));
 function detail(messageTime: number[], version?: number[], more = false, id = 'version_chat') {
     const turn = [[`c_${id}`, 'r_request'], null, [['Question']], [[['rc_answer', [['Answer']]]]], messageTime];
@@ -36,7 +31,7 @@ test('six anonymized live pairs preserve identical List/Detail versions and late
         const index = parseList(wire([['MaZiqc', [null, null, [['c_version_chat', 'Source title', null, null, null, pair.listWire]]]]])).conversations[0];
         assert.equal(parsed.sourceVersion, index.updatedAt);
         assert.equal(parsed.sourceVersion, pair.listUpdatedAt);
-        assert.equal(restoreConversationIndex(parsed.conversation.index).updatedAt, pair.listUpdatedAt);
+        assert.equal(parsed.conversation.index.updatedAt, pair.listUpdatedAt);
     }
 });
 test('matching metadata owns the update version, while message dates remain message facts', () => {
@@ -50,37 +45,33 @@ test('matching metadata owns the update version, while message dates remain mess
     const list = parseList(wire([['MaZiqc', [null, null, [['c_version_chat', 'Source title', [1700000005, 0], [1700000000, 0], null, null]]]]])).conversations[0];
     assert.equal(list.updatedAt, undefined, 'creation/unknown wire slots cannot substitute for the update slot');
 });
-test('savedAt is the committed source version and cannot advance for rejected or partial captures', async () => {
-    const first = await admitFixture('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], [1700000000, 0]));
+test('savedAt is the committed source version and retains the complete body version when a newer partial capture loses selection', async () => {
+    const first = await commitSource(detail([1700000000, 0], [1700000000, 0]));
     assert.equal(first.conversation.detail.savedAt, 1700000000000);
     assert.equal('updatedAt' in first.conversation, false);
     assert.equal(first.sourceVersion, first.conversation.detail.savedAt);
-    const repeated = await admitFixture('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], [1700000000, 0]));
+    const repeated = await commitSource(detail([1700000000, 0], [1700000000, 0]));
     assert.equal(repeated.conversation.detail.savedAt, first.conversation.detail.savedAt);
     assert.deepEqual(repeated.conversation.detail, first.conversation.detail);
-    const newer = await admitFixture('10000000-0000-4000-8000-000000000001', detail([1700000005, 0], [1700000005, 0]));
+    const newer = await commitSource(detail([1700000005, 0], [1700000005, 0]));
     assert.equal(newer.conversation.detail.savedAt, 1700000005000);
-    const rejected = await admitFixture('10000000-0000-4000-8000-000000000001', detail([1700000010, 0], [1700000010, 0], true));
+    const rejected = await commitSource(detail([1700000010, 0], [1700000010, 0], true));
     assert.equal(rejected.conversation.detail.savedAt, newer.conversation.detail.savedAt);
     assert.deepEqual(rejected.conversation.detail, newer.conversation.detail);
     assert.equal(rejected.conversation.index.updatedAt, 1700000010000);
-    const older = await admitFixture('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], [1700000000, 0]));
+    const older = await commitSource(detail([1700000000, 0], [1700000000, 0]));
     assert.equal(older.conversation.detail.savedAt, newer.conversation.detail.savedAt);
 });
-test('partial, unknown, metadata-only, conflicting and migrated bodies carry no saved source version', async () => {
-    const partial = await admitFixture('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], [1700000000, 0], true, 'partial_chat'));
+test('Detail savedAt follows known source evidence even for partial or metadata-only captures', async () => {
+    const partial = await commitSource(detail([1700000000, 0], [1700000000, 0], true, 'partial_chat'));
     assert.equal(partial.conversation.detail.savedAt, 1700000000000);
-    const unknown = await admitFixture('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], undefined, false, 'unknown_chat'));
+    const unknown = await commitSource(detail([1700000000, 0], undefined, false, 'unknown_chat'));
     assert.equal(unknown.conversation.detail.savedAt, undefined);
-    const conflicting = await admitFixture('10000000-0000-4000-8000-000000000001', detail([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'));
+    const conflicting = await commitSource(detail([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'));
     assert.equal(conflicting.conversation.detail.quality.status, 'partial');
     assert.equal(conflicting.conversation.detail.savedAt, 1700000000000);
     const metadata = parseGeminiRpcConversation(wire([['MaZiqc', [null, null, [['c_metadata_chat', 'Metadata only', null, null, null, [1700000000, 0]]]]]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'metadata_chat' });
-    assert.equal((await admitFixture('10000000-0000-4000-8000-000000000001', metadata)).conversation.detail.savedAt, 1700000000000);
-    const legacy = parseLegacyStorageConversation({ metadata: { id: 'legacy_chat', title: 'Legacy', updatedAt: 1700000005000,
-        messages: [{ role: 'user', content: 'Cached older body', timestamp: 1700000000000 }] } }, { account: fixtureAccount('gemini'), providerId: 'gemini' });
-    assert.equal(legacy.sourceVersion, undefined);
-    assert.equal((await admitFixture('10000000-0000-4000-8000-000000000001', legacy))?.conversation.detail.savedAt, undefined);
+    assert.equal((await commitSource(metadata)).conversation.detail.savedAt, 1700000000000);
 });
 test('a version change during pagination invalidates the saved version until a consistent refetch', async () => {
     const first = detail([1700000005, 0], [1700000005, 0], true);
@@ -88,34 +79,11 @@ test('a version change during pagination invalidates the saved version until a c
     const mixed = mergeConversationPages([first, changed]);
     assert.equal(mixed.conversation.detail.quality.status, 'partial');
     assert.ok(mixed.diagnostics.some(d => d.code === 'CONVERSATION_VERSION_CHANGED'));
-    assert.equal((await admitFixture('10000000-0000-4000-8000-000000000001', mixed)).conversation.detail.savedAt, undefined);
+    assert.equal((await commitSource(mixed)).conversation.detail.savedAt, undefined);
     const consistent = mergeConversationPages([first, detail([1700000000, 0], [1700000005, 0])]);
-    assert.equal((await admitFixture('10000000-0000-4000-8000-000000000001', consistent)).conversation.detail.savedAt, 1700000005000);
+    assert.equal((await commitSource(consistent)).conversation.detail.savedAt, 1700000005000);
 });
-test('export freshness compares source versions even with a newer Index and a far-ahead local clock', () => {
-    const parsed = detail([1700000000, 0], [1700000000, 0]);
-    const index = restoreConversationIndex(parsed.conversation.index);
-    const record = buildExportCompletion({ conversation: parsed.conversation, chatTime: parsed.sourceVersion, exportedAt: 1900000000000 }).exportRecord;
-    assert.equal(record.chatTime, parsed.sourceVersion);
-    assert.equal(resolveConversationExportState(index, record).needsIncrementalExport, false);
-    assert.equal(resolveConversationExportState({ ...index, updatedAt: index.updatedAt! + 1 }, record).needsIncrementalExport, true);
-    assert.equal(resolveConversationExportState(index, { ...record, chatTime: undefined }).needsIncrementalExport, true);
-    const unknown = buildExportCompletion({ conversation: { id: 'unversioned_chat', messages: [{ timestamp: 1700000000000 }], createdAt: 1700000000000 }, exportedAt: 1900000000000 });
-    assert.equal(unknown.exportRecord.chatTime, undefined);
-});
-
-test('JSON archives retain one saved body version outside Detail and partial captures omit it', () => {
-    const parsed = detail([1700000000, 0], [1700000000, 0]);
-    const archive = JSON.parse(toJsonStandard(parsed));
-    assert.equal(archive.conversation.detail.savedAt, parsed.sourceVersion);
-    assert.equal('updatedAt' in archive.conversation, false);
-    assert.equal('sourceVersion' in archive, false);
-    const partial = JSON.parse(toJsonStandard(detail([1700000000, 0], [1700000000, 0], true)));
-    assert.equal('savedAt' in partial, true);
-});
-
-
-test('diagnostic deletion or spoofed diagnostic codes cannot change merged completeness or export status', () => {
+test('diagnostic deletion or spoofed diagnostic codes cannot change merged Detail quality', () => {
     const healthy = detail([1700000000, 0], [1700000005, 0]);
     const rejected = {   ...healthy, conversation: { ...healthy.conversation, detail: {   ...healthy.conversation.detail, quality: { status: 'partial' as const, rejectedTurns: 1 } } } };
     const mismatched = detail([1700000010, 0], [1700000005, 0]);
@@ -125,9 +93,18 @@ test('diagnostic deletion or spoofed diagnostic codes cannot change merged compl
         const records = [[], warnings].map(diagnostics => {
             const merged = mergeConversationPages([{   ...input, diagnostics }]);
             assert.equal(merged.conversation.detail.quality.status, expected);
-            return buildExportCompletion({ conversation: merged.conversation, exportedAt: 1900000000000 }).exportRecord;
+            return merged.conversation.detail;
         });
         assert.deepEqual(records[0], records[1]);
-        assert.equal(records[0].status, expected === 'partial' ? 'partial' : 'ok');
+        assert.equal(records[0].quality.status, expected);
     }
 });
+
+/** Admit native keyless facts through L2; no historical fixture/repository compatibility path. */
+async function commitSource(source: SourceConversationParseResult) {
+    const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: source.conversationId };
+    await ingestDetail(key.accountId, key.conversationId, source.conversation.detail, source.conversation.index);
+    const conversation = await readConversation(key);
+    assert.ok(conversation);
+    return { conversation, sourceVersion: conversation.detail.savedAt };
+}

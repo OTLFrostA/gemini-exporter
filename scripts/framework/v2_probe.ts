@@ -1,3 +1,5 @@
+import { readConversationKey, type ConversationKey } from '../../src/core/domain/conversationKey.js';
+import { clearLocalScanRecords } from '../../src/core/application/localCleanup.js';
 /** Test-only access to public v2 owners. Bundled by the Python harness, never shipped. */
 import { getSettings, updateSettings } from '../../src/core/application/settings/index.js';
 import * as storage from '../../src/core/storage/storageService.js';
@@ -19,9 +21,9 @@ export async function snapshot() {
     if (!account || account.providerId !== 'gemini') throw new Error('Selected account is not Gemini');
     return { accountId: id, account, rows, coverage, exportIds: Object.keys(records).sort(), records };
 }
-export async function storedConversation(conversationId: string) {
+export async function storedConversation(input: ConversationKey) {
     await ensureV2Ready();
-    const key = { accountId: accountId(), conversationId };
+    const key = readConversationKey(input);
     const [index, detail, exportRecord] = await Promise.all([
         storage.getIndex(key), storage.getDetail(key), storage.getExportRecord(key),
     ]);
@@ -36,9 +38,9 @@ export async function conversations(ids: string[]) {
     }));
 }
 /** Scan reset clears both trusted Coverage and export records (frozen L3a contract). */
-export async function resetCoverage() {
+export async function clearScanRecords() {
     await ensureV2Ready();
-    await storage.clearStoredAccountScanRecords(accountId());
+    await clearLocalScanRecords(accountId());
 }
 export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
     const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
@@ -46,14 +48,14 @@ export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
     if (!account) throw new Error('Takeout account missing');
     const archive = await (globalThis as unknown as {JSZip:{loadAsync(bytes:Uint8Array):Promise<{files:Record<string,{async(kind:string):Promise<Uint8Array>}>}>}}).JSZip.loadAsync(bytes);
     const parsed = await parseGeminiTakeoutZipArchive(bytes, {account, providerId:'gemini', readArchive:async () => archive});
-    const resources: Record<string, {sourcePath:string;bytes:string}[]> = {};
+    const resources: Record<string, {assetId:string;sourcePath:string;bytes:string}[]> = {};
     for (const result of parsed) {
         resources[result.conversationId] = [];
-        for (const bound of Object.values(result.archiveResources)) {
+        for (const [assetId, bound] of Object.entries(result.archiveResources)) {
             const data = await readTakeoutBytes(bound.entry);
             if (!data?.byteLength) throw new Error('Takeout source entry empty');
             let binary = ''; for (const byte of data) binary += String.fromCharCode(byte);
-            resources[result.conversationId].push({sourcePath:bound.path,bytes:btoa(binary)});
+            resources[result.conversationId].push({assetId,sourcePath:bound.path,bytes:btoa(binary)});
         }
     }
     const mediaDigests: Record<string,string> = {};
@@ -65,9 +67,9 @@ export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
         mediaDigests[path] = [...new Uint8Array(await crypto.subtle.digest('SHA-256', data as Uint8Array<ArrayBuffer>))]
             .map(byte => byte.toString(16).padStart(2,'0')).join('');
     }
-    return {ids:parsed.map(result => result.conversationId), resources, mediaDigests};
+    return {ids:parsed.map(result => result.conversationId), sourceFacts:Object.fromEntries(parsed.map(result => [result.conversationId, result.conversation])), resources, mediaDigests};
 }
-Object.assign(globalThis, { __tier2V2: { accountId, snapshot, conversations, storedConversation, resetCoverage, inspectTakeout,
+Object.assign(globalThis, { __tier2V2: { accountId, snapshot, conversations, storedConversation, clearScanRecords, inspectTakeout,
     getAccount: storage.getAccount, listAccounts: storage.listAccounts,
     getSettings, updateSettings,
     setDirectoryHandle: storage.setDirectoryHandle } });

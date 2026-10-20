@@ -16,7 +16,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseGeminiBody, parseLegacyReasoning } = require('../src/core/parsers/gemini/shared/contentAdapter.js');
+const { parseGeminiBody, parseSourceReasoning } = require('../src/core/parsers/gemini/shared/contentAdapter.js');
 
 test('Gemini interactive markup is removed by provider content adapter before source AST output', () => {
     const rawContent = [
@@ -40,7 +40,7 @@ test('Gemini interactive markup is removed by provider content adapter before so
 
     // This is the same provider adapter used by native Gemini RPC parsing.
     // Do not re-import the body through the historical record compatibility fixture.
-    const reasoning = parseLegacyReasoning(
+    const reasoning = parseSourceReasoning(
         '思考过程：\n<Elicitation label="内部测试"/>\n分析比特与量子比特。',
         { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'messages[0].reasoning' } },
     );

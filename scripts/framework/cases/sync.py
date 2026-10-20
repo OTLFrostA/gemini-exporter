@@ -18,13 +18,13 @@ def save_sync_evidence(ctx, name, evidence):
     ctx.shared_data[name] = evidence
 
 
-def reset_only_coverage(cdp):
+def clear_scan_records(cdp):
     install_probe(cdp)
-    cdp.eval('globalThis.__tier2V2.resetCoverage()', await_promise=True)
+    cdp.eval('globalThis.__tier2V2.clearScanRecords()', await_promise=True)
 
 
 def wait_for_prior_scan(cdp, timeout=330):
-    """The onboarding tour starts a real scan; do not reset its live ledger."""
+    """The onboarding tour starts a real scan; wait before clearing scan records."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if cdp.eval("document.body.dataset.busy === 'false'") is True:
@@ -71,7 +71,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         window.__tier2PassivePages = [];
         window.addEventListener('message', event => {
             const p = event.data?.payload;
-            if (event.data?.type === 'GEMINI_NETWORK_BATCHEXECUTE' && p?.listRequest?.streamId === 'recent') {
+            if (event.source === window && event.origin === location.origin && event.data?.type === 'GEMINI_NETWORK_BATCHEXECUTE' && p?.listRequest?.streamId === 'recent') {
                 window.__tier2PassivePages.push({ ...p.listRequest, requestedAt: p.requestedAt,
                     accountObservation: p.requestAccountObservation, truncated: p.truncated });
             }
@@ -84,7 +84,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
     try:
         select_source_account(cdp_opt, cdp_gemini)
         wait_for_prior_scan(cdp_opt)
-        reset_only_coverage(cdp_opt)
+        clear_scan_records(cdp_opt)
         empty = read_sync_state(cdp_opt)
         if empty.get('coverage') is not None:
             raise RuntimeError('Passive fixture did not clear coverage')
@@ -122,7 +122,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         if not ok:
             raise RuntimeError(message)
         print('      ✓ 网页自然加载建立 Coverage，未点击 Sync All')
-        reset_only_coverage(cdp_opt)
+        clear_scan_records(cdp_opt)
         full = CDPActions.trigger_deep_scan(cdp_opt)
         state = read_sync_state(cdp_opt)
         ok, message = assert_full_scan_coverage(full, state.get('coverage') or {})

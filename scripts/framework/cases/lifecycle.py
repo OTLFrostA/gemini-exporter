@@ -7,7 +7,7 @@ from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions
-from scripts.framework.cases.sync import read_sync_state, verify_activity_sync
+from scripts.framework.cases.sync import read_sync_state, verify_activity_sync, select_source_account
 
 try:
     from scripts.cdp_client import CDPConnection
@@ -136,16 +136,25 @@ class EphemeralChatPruningCase(FeatureTestCase):
                 return False, "未能获取瞬态会话 ID", None
 
             ctx.tracker.track(eph_chat_id)
+            select_source_account(cdp_opt, cdp_gem_live)
             before = read_sync_state(cdp_opt)
+            key = {'accountId': before['accountId'], 'conversationId': eph_chat_id.removeprefix('c_')}
             retained_ids = [row['key']['conversationId'] for row in before['rows']
-                            if row['key']['conversationId'] != eph_chat_id.removeprefix('c_')]
-            prior = cdp_opt.eval(f"globalThis.__tier2V2.storedConversation({json.dumps(eph_chat_id.removeprefix('c_'))})", await_promise=True)
-            if not prior or not prior.get('index') or not prior.get('detail'):
-                return False, "删除前未确认本地 Index 与 Detail，不能做空值验收", prior
+                            if row['key'] != key]
+            deadline = time.monotonic() + 10
+            prior = None
+            while time.monotonic() < deadline:
+                prior = cdp_opt.eval(f"globalThis.__tier2V2.storedConversation({json.dumps(key)})", await_promise=True)
+                if (prior and (prior.get('index') or {}).get('key') == key
+                        and (prior.get('detail') or {}).get('key') == key):
+                    break
+                time.sleep(0.2)
+            else:
+                return False, "删除前未确认同 Key Index 与 Detail，不能做空值验收", prior
             cdp_gem_live.eval("""(() => {
                 window.__tier2DeleteEvents = [];
                 window.addEventListener('message', event => {
-                    if (event.data?.type === 'GEMINI_CONVERSATION_DELETED')
+                    if (event.source === window && event.origin === location.origin && event.data?.type === 'GEMINI_CONVERSATION_DELETED')
                         window.__tier2DeleteEvents.push(event.data.payload);
                 });
             })()""")
@@ -155,9 +164,12 @@ class EphemeralChatPruningCase(FeatureTestCase):
                 return False, f"网页端原生删除触发失败 (会话 ID: {eph_chat_id})", None
             ctx.tracker.mark_deleted(eph_chat_id)
 
-            pruned_ok, pruned_msg, _ = CDPAssertions.assert_confirmed_deleted(cdp_opt, eph_chat_id, retained_ids, timeout=10.0)
+            pruned_ok, pruned_msg, _ = CDPAssertions.assert_confirmed_deleted(cdp_opt, key, retained_ids, timeout=10.0)
             events = cdp_gem_live.eval("window.__tier2DeleteEvents || []")
-            verified = any(event.get('id') == eph_chat_id.removeprefix('c_') for event in events or [])
+            verified = any(event.get('id') == key['conversationId']
+                           and event.get('requestAccountObservation', {}).get('providerAccountId') == before['account']['providerAccountId']
+                           and event.get('requestAccountObservation', {}).get('providerId') == 'gemini'
+                           and event.get('requestBody') and event.get('responseText') for event in events or [])
             if pruned_ok and verified:
                 return True, "确证远端删除后，同 Key 本地事实已原子清理", {"delete_events": events}
             return False, f"确证删除清理校验失败: {pruned_msg}; 捕获到确认事件={verified}", {"delete_events": events}

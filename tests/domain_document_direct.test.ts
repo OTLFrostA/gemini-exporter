@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { closeLegacyCitations } from '../src/core/parsers/shared/resources/domainCitationAdapter.js';
+import { closeSourceCitations } from '../src/core/parsers/shared/resources/domainCitationAdapter.js';
 import { historicalFixtureDomain, historicalFixture } from './helpers/nativeFixture.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
@@ -118,7 +118,7 @@ test('direct export dependency closure cannot load Canonical conversation normal
 });
 
 test('provider citation binding covers rich captions/descriptions and ignores code/math markers', () => {
-    const bound = closeLegacyCitations({ role: 'assistant', citations: [{ id: 'source', url: 'https://example.test/source' }], content: [
+    const bound = closeSourceCitations({ role: 'assistant', citations: [{ id: 'source', url: 'https://example.test/source' }], content: [
         { type: 'image', assetId: 'image', caption: [{ type: 'strong', children: [{ type: 'text', text: 'caption [1]' }] }] },
         { type: 'file', assetId: 'file', description: [{ type: 'text', text: 'description [1]' }] },
         { type: 'table', caption: [{ type: 'text', text: 'table [1]' }], rows: [] },

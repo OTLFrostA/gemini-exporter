@@ -1,4 +1,4 @@
-import type { GeneratedMediaIdentity as SourceGeneratedMediaIdentity } from '../../../../types/conversation.js';
+import type { SourceGeneratedMediaIdentity } from './generationEvent.js';
 
 /** Clean acquisition record before constructing the final Domain resource. */
 export interface ResourceEvidence {

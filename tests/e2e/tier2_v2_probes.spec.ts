@@ -50,7 +50,7 @@ test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset preserves
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(page.locator('#list .item[data-chat-id="probe"]')).toHaveCount(1);
     const before = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').snapshot());
-    await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').resetCoverage());
+    await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').clearScanRecords());
     const after = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').snapshot());
     expect(after.coverage).toBeNull(); expect(after.rows).toEqual(before.rows);
     expect(Object.keys(before.records)).toEqual(['probe']); expect(after.records).toEqual({});

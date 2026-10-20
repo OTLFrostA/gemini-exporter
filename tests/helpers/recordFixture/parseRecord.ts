@@ -3,13 +3,13 @@ import { contentQuality, type ContentQuality } from '../../../src/core/parsers/q
 import { parseIndexMetadata } from '../../../src/core/parsers/shared/parseIndexMetadata.js';
 import { normalizeConversationTimes } from '../../../src/core/domain/time.js';
 import { structuredBodyAttachments } from './contentAdapter.js';
-import { closeLegacyCitations } from '../../../src/core/parsers/shared/resources/domainCitationAdapter.js';
+import { closeSourceCitations } from '../../../src/core/parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../../src/core/parsers/shared/resources/domainResourceAdapter.js';
 import { resolveTitle, isTitleSource } from '../../../src/core/domain/titleAuthority.js';
 import { validateParserDomain } from '../../../src/core/domain/runtimeValidation.js';
 import type { BlockNode } from '../../../src/core/domain/content/blocks.js';
 import { parseImportedBody } from '../../../src/core/parsers/shared/importedContentAdapter.js';
-import { parseGeminiBody, parseLegacyReasoning } from '../../../src/core/parsers/gemini/shared/contentAdapter.js';
+import { parseGeminiBody, parseSourceReasoning } from '../../../src/core/parsers/gemini/shared/contentAdapter.js';
 import { supplementLegacyGeneratedMedia } from './generatedMediaReconciliation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
 import type { ConversationParseContext } from '../../../src/core/parsers/contracts.js';
@@ -60,7 +60,7 @@ function copyMessage(value: ConversationRecordMessage, parseContent: (body: unkn
     const reasoningText = normalizeReasoning(value);
     const reasoning = reasoningText !== undefined ? parseReasoning(reasoningText) : undefined;
     const citations = normalizeCitations(value);
-    return closeLegacyCitations({
+    return closeSourceCitations({
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
         content: parseContent(content, value.structuredContent),
         ...copyTimestamp(timestamp),
@@ -154,7 +154,7 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         return providerId === 'gemini' || typeof body !== 'string' ? parseGeminiBody(body, structured, context) : parseImportedBody(body, context);
     };
     const parseReasoning = providerId === 'gemini'
-        ? (body: string) => parseLegacyReasoning(body, { diagnostics: parserDiagnostics, sourceRef: { providerId, locator: 'reasoning' } })
+        ? (body: string) => parseSourceReasoning(body, { diagnostics: parserDiagnostics, sourceRef: { providerId, locator: 'reasoning' } })
         : (body: string) => parseImportedBody(body, { diagnostics: parserDiagnostics, sourceRef: { providerId, locator: 'reasoning' } });
     for (const message of legacyMessages) {
         if (!['user', 'assistant', 'model', 'system', 'developer'].includes(message.role ?? '')) diagnostics.push({ severity: 'warning', code: 'UNKNOWN_ROLE', message: `Unrecognized role '${message.role ?? ''}'; preserved as an unknown message` });
@@ -175,5 +175,7 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
                 heuristicDocumentIds: resources.heuristicDocumentIds }) },
     };
     return { evidence: { rejectedTurns, ...(conversation.truncated === true || conversation.isTruncated === true || conversation.nextPageToken?.trim()
-        ? { truncation: conversation.truncateReason || (conversation.nextPageToken?.trim() ? 'pagination_pending' : 'truncated') } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), account: options.account, conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics] };
+        ? { truncation: conversation.truncateReason || (conversation.nextPageToken?.trim() ? 'pagination_pending' : 'truncated') } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), account: options.account, conversation: validateParserDomain(domain), resourceHints: Object.fromEntries(Object.entries(resources.acquisitionHints).flatMap(([id, hint]) =>
+            hint.localName && !/^[a-z][a-z\d+.-]*:/i.test(hint.localName)
+                ? [[id, { archivePath: hint.localName, fallbackName: hint.localName.split('/').pop() }]] : [])), acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics] };
 }

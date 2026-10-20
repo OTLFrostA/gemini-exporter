@@ -64,12 +64,21 @@
   ],
   "typeTests": [
     "tests/domain_parsing.types.ts",
-    "tests/l1_l2_frozen_contract.types.ts"
+    "tests/l1_l2_frozen_contract.types.ts",
+    "scripts/framework/v2_probe.ts"
   ],
   "integrationSuites": [
     "tests/batch_a_followup.test.ts",
     "tests/p1_a_regressions.test.ts",
     "tests/p1_c_regressions.test.ts",
-    "tests/provider_abstraction.test.ts"
+    "tests/provider_abstraction.test.ts",
+    "tests/rpc_list_ingest.test.ts",
+    "tests/sync_provider_contract.test.ts",
+    "tests/conversation_version.test.ts",
+    "tests/conversation_repository.test.ts",
+    "tests/p1_archive_retention.test.ts",
+    "tests/provider-native-callers.test.ts",
+    "tests/media-identity-source.test.ts",
+    "tests/media-identity-persistence.test.ts"
   ]
 }

@@ -305,6 +305,7 @@ class ExtensionActions:
                 return {'success': True, 'status': 'partial' if 'partial' in result['status'] else 'ok',
                         'imported': int(next(v for v in match.groups() if v and v.isdigit())),
                         'importedIds': source['ids'], 'mediaDigests': source['mediaDigests'], 'sourceResources': source['resources'],
+                        'sourceFacts': source['sourceFacts'],
                         'uiStatus': result['status']}
             time.sleep(0.1)
         return {'success': False, 'error': 'Takeout import timed out'}

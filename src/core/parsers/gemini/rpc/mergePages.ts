@@ -13,7 +13,6 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
     const heuristicDocumentIds: string[] = [];
     const seenMessages = new Set<string>();
     let messages: DomainMessage[] = [];
-    const resourceHints: Record<string, SourceConversationParseResult['resourceHints'][string]> = {};
     const acquisitionHints: Record<string, SourceConversationParseResult['acquisitionHints'][string]> = {};
     for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
         const page = pages[pageIndex];
@@ -29,7 +28,6 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
             }
             aliases.set(asset.id, id);
             assets.set(id, sharedSource ? { ...asset, ...previous } : { ...asset, id });
-            if (page.resourceHints[asset.id]) resourceHints[id] = { ...page.resourceHints[asset.id], ...resourceHints[id] };
             if (page.acquisitionHints[asset.id]) acquisitionHints[id] = { ...page.acquisitionHints[asset.id], ...acquisitionHints[id] };
         }
         heuristicDocumentIds.push(...(page.evidence?.heuristicDocumentIds ?? []).map(id => aliases.get(id) ?? id));
@@ -52,7 +50,7 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
     const sourceVersion = versionChanged ? undefined : pages[0].sourceVersion;
     const conversation = { index: first.index, detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), messages, assets: [...assets.values()],
         quality: contentQuality({ status: sourcePartial || versionMismatch || versionChanged ? 'partial' : coverageComplete ? 'complete' : 'unknown', rejectedTurns, truncation, heuristicDocumentIds }) } };
-    return { conversationId: pages[0].conversationId, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)] }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation, resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
+    return { conversationId: pages[0].conversationId, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)] }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : []),
         ...(versionChanged ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' }] : [])] };
 }

@@ -143,7 +143,7 @@ test('generated resources retain their authored request token independently of a
     const generated = result.conversation.detail.assets.find(asset => asset.generation);
     assert.ok(generated);
     assert.equal(generated.generation?.providerRequestId, 'r_Ab12');
-    assert.equal(result.resourceHints[generated.id]?.archivePath, undefined);
+    assert.equal('resourceHints' in result, false);
     for (const field of ['localName', 'subDir', 'rawProviderRequestId']) assert.equal(field in generated, false);
     assertDomainClosure((result.conversation).detail);
 });
