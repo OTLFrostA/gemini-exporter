@@ -23,6 +23,13 @@ test('non-Markdown formats pause Live Save without discarding its v2 setting', a
             assert.equal(await getExportRecord(key), null, 'no delivery or export record was created');
         }
         await updateSettings({ defaultFormat: 'markdown' });
+        await updateSettings({ exportDelivery: 'browserDownload' });
+        const paused = await getSettings();
+        assert.equal(paused.enabledDisk, true, 'destination changes preserve the enabled preference');
+        assert.equal(isLiveSaveEffective(paused, true), false);
+        assert.equal(await runLiveSave(key), null, 'Runtime must not write files in browser-download mode');
+        assert.equal(await getExportRecord(key), null);
+        await updateSettings({ exportDelivery: 'folderWriter' });
         assert.equal(isLiveSaveEffective(await getSettings(), false), false);
         await assert.rejects(runLiveSave(key), /Choose a Live Save directory/, 'a Markdown live save still requires a writable folder');
         assert.equal((await getStoredSettings()).enabledDisk, true);
