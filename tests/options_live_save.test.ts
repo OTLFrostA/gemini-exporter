@@ -23,7 +23,7 @@ test('Options restores directory capability and toggles only the Settings enable
     assert.equal((await read(page, 'settings')).enabledDisk, false); assert.deepEqual((await read(page, 'patches')).at(-1), { enabledDisk: false });
 });
 test('Options explicit folder authorization persists the handle and resumes effective Live Save', async () => {
-    await open({ settings: { enabledDisk: true } });
+    await open({ settings: { enabledDisk: true, exportDelivery: 'folderWriter' } });
     await page.locator('#btnSetDir').click(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
     assert.ok((await read(page, 'events')).includes('picker')); assert.match(await page.locator('#dirLabel').textContent() ?? '', /Chosen folder/);
     assert.equal((await read(page, 'settings')).enabledDisk, true);
@@ -39,7 +39,7 @@ test('cancelling the folder picker preserves the existing enabled intention and 
     assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), false);
 });
 test('an unavailable directory pauses Live Save without clearing the persisted enabled intention', async () => {
-    await open({ directoryName: 'MissingVault', permission: 'denied', settings: { enabledDisk: true } });
+    await open({ directoryName: 'MissingVault', permission: 'denied', settings: { enabledDisk: true, exportDelivery: 'folderWriter' } });
     assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), true);
     assert.equal(await page.locator('#liveSaveDiskToggle').isDisabled(), true);
     assert.equal((await read(page, 'settings')).enabledDisk, true);
