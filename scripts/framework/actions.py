@@ -56,8 +56,8 @@ SCAN_OBSERVER = r"""(() => {
         const statuses = {
             'Connected to trusted history coverage':'up_to_date', '已衔接可信历史范围':'up_to_date',
             'Reached the end of this Recent source':'complete', '已达到本次 Recent 来源尽头':'complete',
-            'Source online access limit':'partial_limit', '来源在线访问范围限制':'partial_limit',
-            'Local page budget reached':'partial_limit', '已达到本地页数预算':'partial_limit',
+            'Source online access limit':'provider_limit', '来源在线访问范围限制':'provider_limit',
+            'Local page budget reached':'max_pages', '已达到本地页数预算':'max_pages',
             'Scan cancelled':'aborted', '扫描已取消':'aborted', 'Scan failed':'error', '扫描失败':'error'
         };
         if (matched && statuses[matched[1]]) evidence.response = {
