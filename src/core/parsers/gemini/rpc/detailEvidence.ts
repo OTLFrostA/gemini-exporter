@@ -2,7 +2,7 @@ import type { GeminiSourceAttribution } from './sourceAttributions.js';
 import type { ImageAttachment, DocLink } from './sourceAttachments.js';
 import type { Citation, TitleResult } from './extractors.js';
 import type { GeminiStructuredDocument, GeminiStructuredExtraction } from './structuredContent.js';
-import type { GeneratedMediaIdentity as SourceGeneratedMediaIdentity } from '../../../../types/conversation.js';
+import type { SourceGeneratedMediaIdentity } from '../../shared/resources/generationEvent.js';
 
 /** Source extraction evidence, not the persisted Conversation/Message contract. */
 export interface GeminiAttachmentEvidence {

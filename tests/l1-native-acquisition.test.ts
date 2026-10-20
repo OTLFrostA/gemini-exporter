@@ -19,7 +19,7 @@ const result = (uri?: string, messageId = 'm1', timestamp = 1): SourceConversati
     conversation: { index: { title: 'Title' }, detail: { quality: { status: 'unknown' },
         messages: [{ id: messageId, role: 'assistant', timestamp, content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }], attachmentIds: ['image'] }],
         assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { sourceUri: uri } : {}) }] } },
-    diagnostics: [], resourceHints: {}, acquisitionHints: {},
+    diagnostics: [], acquisitionHints: {},
 });
 
 test('production pagination merges native pages chronologically and closes renamed resources', async () => {

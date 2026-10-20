@@ -67,7 +67,7 @@ class StaleTabHistoryTests(unittest.TestCase):
         cdp.eval.side_effect = [7, receivers, None, after_scan or receivers, False, None]
         with patch('scripts.framework.cases.export.select_source_account') as select, \
              patch('scripts.framework.cases.export.wait_for_prior_scan') as prior, \
-             patch('scripts.framework.cases.export.reset_only_coverage') as reset, \
+             patch('scripts.framework.cases.export.clear_scan_records') as reset, \
              patch.object(CDPActions, 'trigger_deep_scan', return_value=scan) as sync, \
              patch.object(CDPActions, 'trigger_export_zip') as export:
             result = StaleTabImageExportCase().execute(ctx)
@@ -561,8 +561,8 @@ class ScanAndImportTests(unittest.TestCase):
 
     def activity_fixture(self):
         initial = {'accountId': self.account, 'coverage': self.coverage(),
-                   'rows': [{'id': CID, 'titleSource':'provider', 'updatedAt':100},
-                            {'id': OTHER, 'titleSource':'provider', 'updatedAt':10}], 'exportIds':[CID]}
+                   'rows': [{'key': {'accountId': self.account, 'conversationId': CID}, 'title':'First', 'titleSource':'provider', 'updatedAt':100},
+                            {'key': {'accountId': self.account, 'conversationId': OTHER}, 'title':'Other', 'titleSource':'provider', 'updatedAt':10}], 'exportIds':[CID]}
         after = copy.deepcopy(initial)
         after['coverage'] = self.coverage(120)
         after['rows'][0]['updatedAt'] = 120
@@ -593,19 +593,19 @@ class ScanAndImportTests(unittest.TestCase):
     def test_activity_requires_same_uuid_targets_and_retained_archives(self):
         baseline, before, scan, after = self.activity_fixture()
         self.assertTrue(assert_activity_sync_result(baseline,before,scan,after,[CID,OTHER])[0])
-        for change in ('account','target','time','record','archive','head'):
+        for change in ('account','target','time','record','archive'):
             state = copy.deepcopy(after)
             if change == 'account': state['accountId'] = 'default'
             if change == 'target': state['rows'] = state['rows'][:1]
             if change == 'time': state['rows'][0]['updatedAt'] = 100
             if change == 'record': state['exportIds'] = []
-            if change == 'archive': state['rows'].append({'id':'new'}); baseline['state']['rows'].append({'id':'archived'})
+            if change == 'archive': state['rows'].append({'key':{'accountId':self.account,'conversationId':'new'}}); baseline['state']['rows'].append({'key':{'accountId':self.account,'conversationId':'archived'}})
             if change == 'head': state['coverage']['range']['head']['time'] = 101
             self.assertFalse(assert_activity_sync_result(baseline,before,scan,state,[CID,OTHER])[0],change)
 
     def test_passive_requires_matching_observation_and_committed_endpoints(self):
         before = {'accountId':self.account,'coverage':None}
-        after = {'accountId':self.account,'coverage':self.coverage(), 'rows':[{'id':CID},{'id':OTHER}]}
+        after = {'accountId':self.account,'coverage':self.coverage(), 'rows':[{'key':{'accountId':self.account,'conversationId':CID}},{'key':{'accountId':self.account,'conversationId':OTHER}}]}
         observed = [{'streamId':'recent','accountId':self.account,'requestedAt':1,'truncated':False}]
         self.assertTrue(assert_passive_coverage(before,after,observed)[0])
         partial = {**after, 'coverage': {'range': None}}
@@ -647,80 +647,115 @@ class ScanAndImportTests(unittest.TestCase):
     def test_all_matched_titles_must_upgrade(self):
         cdp = MagicMock()
         first = {'key':{'conversationId':CID},'title':'Online','titleSource':'provider'}
-        second = {'key':{'conversationId':OTHER},'title':'Offline','titleSource':'takeout'}
+        second = {'key':{'conversationId':OTHER},'title':'Offline','titleSource':'derived'}
         with patch('scripts.framework.assertions.snapshot', return_value={'rows':[first,second]}):
             self.assertFalse(CDPAssertions.assert_title_upgraded(cdp,[CID,OTHER])[0])
             self.assertTrue(CDPAssertions.assert_title_upgraded(cdp,[CID])[0])
-    def test_takeout_empty_import_and_missing_resources_fail_idempotent_passes(self):
-        media = {'image.png': hashlib.sha256(b'image bytes').hexdigest()}
-        record = {'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
-                  'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
-                      {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}},
-                  'resources': [{'sourcePath': 'Takeout/image.png', 'bytes': base64.b64encode(b'image bytes').decode()}]}
-        self.assertTrue(validate_takeout_records([CID], media, [record])[0])
-        self.assertFalse(validate_takeout_records([CID], media, [])[0])
-        for field, value in [('conversationId', OTHER), ('accountId', 'another-account')]:
-            broken = copy.deepcopy(record)
-            broken['domain']['index']['key'][field] = value
-            self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
-        broken = copy.deepcopy(record)
-        broken['domain'] = {**record['domain']['index'], **record['domain']['detail']}
-        self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
-        for key in ('messages', 'resources', 'summary'):
-            broken = copy.deepcopy(record)
-            if key == 'messages': broken['domain']['detail']['messages'] = []
-            else: broken[key] = [] if key == 'resources' else {}
-            self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
-        broken = copy.deepcopy(record)
-        broken['domain']['detail']['messages'][0]['content'] = [{'type': 'paragraph', 'children': []}]
-        self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
+    def takeout_fixture(self):
+        key = {'accountId': self.account, 'conversationId': CID}
+        index = {'key': key, 'title': 'Prompt', 'titleSource': 'derived'}
+        messages = [{'role': role, 'content': [{'type': 'paragraph', 'children': [{'type': 'text', 'text': text}]}]}
+                    for role, text in [('user', 'Prompt'), ('assistant', 'Answer')]]
+        detail = {'key': key, 'messages': messages, 'assets': [], 'quality': {'status': 'partial'}}
+        source = {CID: {'index': {k: v for k, v in index.items() if k != 'key'},
+                        'detail': {k: copy.deepcopy(v) for k, v in detail.items() if k != 'key'}}}
+        return {'id': CID, 'ok': True, 'account': {'id': self.account, 'providerId': 'gemini', 'providerAccountId':'gaia'},
+                'summary': copy.deepcopy(index), 'domain': {'index': index, 'detail': detail}, 'resources': []}, source
 
-    def test_takeout_case_accepts_real_readable_reimport_with_zero_added(self):
+    def validate_takeout(self, record, source, media=None):
+        return validate_takeout_records([CID], media or {}, [record], source, self.account)[0]
+
+    def test_takeout_current_keys_and_readable_asset_bytes_required(self):
+        record, source = self.takeout_fixture()
+        asset = {'id':'image', 'kind':'image', 'sourceUri':'Takeout/image.png'}
+        record['domain']['detail']['assets'] = [asset]
+        record['resources'] = [{'assetId':'image', 'sourcePath':'Takeout/image.png', 'bytes':base64.b64encode(b'image bytes').decode()}]
+        media = {'Takeout/image.png': hashlib.sha256(b'image bytes').hexdigest()}
+        self.assertTrue(self.validate_takeout(record, source, media))
+        self.assertFalse(validate_takeout_records([CID], media, [], source, self.account)[0])
+        for change in ('detail-key','index-key','account','resources','bytes','asset-id','summary','messages','old-index','old-message','old-asset','empty-generation','old-generation'):
+            broken = copy.deepcopy(record)
+            if change == 'detail-key': broken['domain']['detail']['key'] = {'accountId':self.account,'conversationId':OTHER}
+            if change == 'index-key': broken['domain']['index']['key'] = {'accountId':'u0','conversationId':CID}
+            if change == 'account': broken['account']['id'] = 'u0'
+            if change == 'resources': broken['resources'] = []
+            if change == 'bytes': broken['resources'][0]['bytes'] = ''
+            if change == 'asset-id': broken['resources'][0]['assetId'] = 'unrelated'
+            if change == 'summary': broken['summary'] = {'title':'Prompt','hasTakeoutImport':True}
+            if change == 'messages': broken['domain']['detail']['messages'] = []
+            if change == 'old-index': broken['domain']['index']['titleSource'] = 'takeout'
+            if change == 'old-message': broken['domain']['detail']['messages'][1]['generation'] = {'mediaKind':'image','outputCount':1}
+            if change == 'old-asset': broken['domain']['detail']['assets'][0]['localName'] = 'export.png'
+            if change == 'empty-generation': broken['domain']['detail']['assets'][0]['generation'] = {}
+            if change == 'old-generation': broken['domain']['detail']['assets'][0]['generation'] = {'mediaKind':'image','outputCount':1}
+            self.assertFalse(self.validate_takeout(broken, source, media), change)
+        self.assertFalse(validate_takeout_records([CID], media, [record,record], source, self.account)[0])
+        self.assertFalse(self.validate_takeout(record, {}, media))
+
+    def test_takeout_image_reply_uses_current_asset_relationship_not_message_generation(self):
+        record, source = self.takeout_fixture()
+        detail = record['domain']['detail']
+        detail['messages'][1]['content'] = []
+        detail['messages'][1]['generation'] = {'mediaKind':'image','outputCount':1}
+        self.assertFalse(self.validate_takeout(record,source))
+        del detail['messages'][1]['generation']
+        detail['assets'] = [{'id':'image','kind':'image','generation':{'imageCount':1,'prompt':'Draw'}}]
+        self.assertFalse(self.validate_takeout(record,source), 'metadata does not prove an owned reply')
+        detail['messages'][1]['attachmentIds'] = ['image']
+        self.assertTrue(self.validate_takeout(record,source))
+        detail['messages'][1]['attachmentIds'] = ['foreign']
+        self.assertFalse(self.validate_takeout(record,source))
+
+    def test_takeout_unresolved_generation_notice_does_not_invent_assistant_message(self):
+        record, source = self.takeout_fixture()
+        source[CID]['detail']['messages'] = source[CID]['detail']['messages'][:1]
+        record['domain']['detail']['messages'] = record['domain']['detail']['messages'][:1]
+        self.assertTrue(self.validate_takeout(record,source))
+        source[CID]['detail']['messages'] = []
+        self.assertFalse(self.validate_takeout(record,source))
+
+    def test_takeout_case_checks_current_import_result_and_preserves_account(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'takeout.zip'
             with zipfile.ZipFile(path, 'w') as zf:
                 zf.writestr('Takeout/MyActivity.html', f'<a href="https://gemini.google.com/app/{CID}">Chat</a>')
-                zf.writestr('Takeout/README.txt', 'Unreferenced archive metadata is not a conversation resource.')
-            ctx = MagicMock(takeout_zip=str(path))
-            ctx.shared_data = {}
+            ctx = MagicMock(takeout_zip=str(path)); ctx.shared_data = {}
             cdp = ctx.connect_options.return_value
-            cdp.eval.return_value = [{'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
-                'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
-                    {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}}, 'resources': []}]
-            result = {'success': True, 'importedIds': [CID], 'status': 'ok', 'addedCount': 0}
-            with patch.object(CDPActions, 'import_takeout_zip', return_value=result):
+            record, source = self.takeout_fixture()
+            cdp.eval.return_value = [record]
+            result = {'success':True,'importedIds':[CID],'status':'partial','imported':1,'sourceFacts':source}
+            with patch.object(CDPActions,'import_takeout_zip',return_value=result), \
+                 patch('scripts.framework.cases.takeout.snapshot',return_value={'accountId':self.account}):
                 self.assertTrue(TakeoutZipImportCase().execute(ctx)[0])
-                cdp.eval.return_value = []
+                result['imported'] = 0
+                self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
+                result['imported'] = 1; cdp.eval.return_value = []
+                self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
+            cdp.eval.return_value = [record]
+            with patch.object(CDPActions,'import_takeout_zip',return_value=result), \
+                 patch('scripts.framework.cases.takeout.snapshot',side_effect=[{'accountId':self.account},{'accountId':'other'}]):
                 self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
 
-    def test_empty_image_reply_requires_source_recorded_generation(self):
-        record = {'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Draw', 'hasTakeoutImport': True},
-                  'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
-                      {'role': 'user', 'content': [{'text': 'Draw'}]},
-                      {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}},
-                  'resources': []}
-        self.assertFalse(validate_takeout_records([CID], {}, [record])[0])
-        self.assertTrue(validate_takeout_records([CID], {}, [record], {CID})[0])
-        record['domain']['detail']['messages'][1]['generation']['outputCount'] = 0
-        self.assertFalse(validate_takeout_records([CID], {}, [record], {CID})[0])
+    def test_coverage_activity_time_is_independent_of_optional_index_time(self):
+        baseline,before,scan,after = self.activity_fixture()
+        after['coverage']['range']['head']['time'] = 101
+        self.assertTrue(assert_activity_sync_result(baseline,before,scan,after,[CID,OTHER])[0])
+        after['rows'][0] = {'id':CID,'title':'Old flat row','titleSource':'rpc','updatedAt':120}
+        self.assertFalse(assert_activity_sync_result(baseline,before,scan,after,[CID,OTHER])[0])
 
-    def test_takeout_resource_count_cannot_replace_readable_bytes(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'takeout.zip'
-            with zipfile.ZipFile(path, 'w') as zf:
-                zf.writestr('Takeout/MyActivity.html', f'<div class="outer-cell">Prompted Draw<br>1 generated image.<a href="https://gemini.google.com/app/{CID}">Chat</a></div>')
-                zf.writestr('Takeout/media.png', b'Image bytes')
-            ctx = MagicMock(takeout_zip=str(path))
-            ctx.shared_data = {}
-            ctx.connect_options.return_value.eval.return_value = [{'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'},
-                'summary': {'title': 'Draw', 'hasTakeoutImport': True}, 'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
-                    {'role': 'user', 'content': [{'text': 'Draw'}]},
-                    {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}}, 'resources': []}]
-            res = {'success': True, 'importedIds': [CID], 'status': 'ok', 'totalMediaCount': 1}
-            with patch.object(CDPActions, 'import_takeout_zip', return_value=res):
-                self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
-                res['mediaDigests'] = {'Takeout/media.png': hashlib.sha256(b'Image bytes').hexdigest()}
-                self.assertTrue(TakeoutZipImportCase().execute(ctx)[0])
+    def test_confirmed_deletion_requires_same_account_removal_and_ui_notification(self):
+        key = {'accountId':self.account,'conversationId':CID}
+        result = {'sameAccount':True,'removed':True,'othersRetained':True,'inDom':False}
+        cdp = MagicMock()
+        cdp.eval.side_effect = lambda script, **kw: True if script == '!!globalThis.__tier2V2' else result
+        with patch('scripts.framework.assertions.time.sleep'):
+            self.assertTrue(CDPAssertions.assert_confirmed_deleted(cdp,key,[OTHER],timeout=.001)[0])
+            for field in ('sameAccount','removed','othersRetained','inDom'):
+                result[field] = not result[field]
+                self.assertFalse(CDPAssertions.assert_confirmed_deleted(cdp,key,[OTHER],timeout=.001)[0],field)
+                result[field] = not result[field]
+        self.assertIn('storedConversation(key)',cdp.eval.call_args.args[0])
+        self.assertIn(self.account,cdp.eval.call_args.args[0])
 
 
 class ImageOutcomeTests(unittest.TestCase):

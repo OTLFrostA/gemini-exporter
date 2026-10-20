@@ -28,7 +28,16 @@
     "tests/domain_resource_sources.test.ts",
     "tests/domain_timestamp_contract.test.ts",
     "tests/l1_l2_verified_deletion.test.ts",
-    "tests/l1_l2_frozen_contract.test.ts"
+    "tests/l1_l2_frozen_contract.test.ts",
+    "tests/watermark_checkpoint.test.ts",
+    "tests/rpc_list_ingest.test.ts",
+    "tests/sync_provider_contract.test.ts",
+    "tests/conversation_version.test.ts",
+    "tests/conversation_repository.test.ts",
+    "tests/p1_archive_retention.test.ts",
+    "tests/provider-native-callers.test.ts",
+    "tests/media-identity-source.test.ts",
+    "tests/media-identity-persistence.test.ts"
   ],
   "typeTests": [
     "tests/domain_conversation_detail.types.ts",

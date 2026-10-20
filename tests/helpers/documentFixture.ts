@@ -21,7 +21,7 @@ export async function parseFixture(raw: ConversationRecordInput) {
     return { ...composed, domain: parsed.conversation, sourceVersion: parsed.sourceVersion, diagnostics: [...parsed.diagnostics] };
 }
 
-import type { LegacyResourceHints } from '../../src/core/parsers/shared/resources/resourceHints.js';
+import type { LegacyResourceHints } from './recordFixture/resourceHints.js';
 import type { DomainConversationWithDetail } from '../../src/core/domain/conversation.js';
 import { normalizeArchiveResourceName } from '../../src/core/export/assets/archivePath.js';
 import { decodeDataUrlAsset, buildDataUrlStorageRef, sha256Hex } from '../../src/core/export/assets/index.js';

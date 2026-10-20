@@ -1,9 +1,8 @@
 import { isDurableSourceUri } from '../../../domain/sourceUri.js';
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../../resources/resourceAcquisition.js';
-import type { LegacyResourceHints } from './resourceHints.js';
 import type { DomainAsset, DomainAssetKind, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ResourceEvidence } from './resourceEvidence.js';
-import { normalizedSourceReference, normalizedResourceReference, resolveLegacyAttachmentGroups, type LegacyAttachmentGroup } from './resolveResources.js';
+import { normalizedSourceReference, normalizedResourceReference, resolveSourceAttachmentGroups, type SourceAttachmentGroup } from './resolveResources.js';
 import { mapContentAssetReferences } from '../../../domain/content/assetReferences.js';
 
 /** Stable semantic identities do not depend on message order or export numbering. */
@@ -89,9 +88,9 @@ function acquisitionHint(record: ResourceEvidence): ResourceAcquisitionHint {
 }
 
 /** Close every body/reasoning reference over one conversation resource registry before Domain. */
-export function closeDomainResources(providerId: string, messages: DomainMessage[], groups: LegacyAttachmentGroup[], options: { sourceReferences?: boolean } = {}): { assets: DomainAsset[]; heuristicDocumentIds: string[]; messages: DomainMessage[]; resourceHints: LegacyResourceHints; acquisitionHints: ResourceAcquisitionHints } {
+export function closeDomainResources(providerId: string, messages: DomainMessage[], groups: SourceAttachmentGroup[], options: { sourceReferences?: boolean } = {}): { assets: DomainAsset[]; heuristicDocumentIds: string[]; messages: DomainMessage[]; acquisitionHints: ResourceAcquisitionHints } {
     const normalize = options.sourceReferences ? normalizedSourceReference : normalizedResourceReference;
-    const resolved = resolveLegacyAttachmentGroups(groups, { semanticOnly: true, ...options });
+    const resolved = resolveSourceAttachmentGroups(groups, { semanticOnly: true, ...options });
     const claimedIds = new Set<string>();
     const assets = resolved.attachments.map((record, index) => {
         const key = identityKey(record, providerId, options.sourceReferences);
@@ -103,12 +102,6 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
     });
     const acquisitionHints: Record<string, ResourceAcquisitionHint> = {};
     resolved.attachments.forEach((record, index) => { acquisitionHints[assets[index].id] = acquisitionHint(record); });
-    const resourceHints: Record<string, { archivePath?: string; fallbackName?: string; unresolvedReference?: string }> = {};
-    resolved.attachments.forEach((record, index) => {
-        if (record.localName && !/^[a-z][a-z\d+.-]*:/i.test(record.localName)) resourceHints[assets[index].id] = {
-            archivePath: record.localName, fallbackName: record.localName.split('/').pop(),
-        };
-    });
     const inline = new Map<string, string>();
     const closed = messages.map((message, groupIndex) => {
         const resolve = (ref: string, kind: 'image' | 'file', alt?: string): string => {
@@ -131,7 +124,6 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
             const name = alt?.trim() || (hasSource && !/^data:/i.test(ref) ? (ref.split('/').pop() ?? '').split('?')[0] : undefined);
             assets.push({ id, kind, ...(name ? { name } : {}), ...(hasSource && isDurableSourceUri(ref) ? { sourceUri: ref } : {}) });
             if (hasSource) acquisitionHints[id] = { url: ref, ...(name ? { fileName: name } : {}) };
-            if (!hasSource) resourceHints[id] = { unresolvedReference: ref };
             inline.set(key, id);
             return id;
         };
@@ -143,5 +135,5 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
             ...(attachmentIds.length || groups[groupIndex].input.attachments ? { attachmentIds } : {}) };
     });
     const heuristicDocumentIds = resolved.attachments.flatMap((record, index) => record.hasFabricatedText ? [assets[index].id] : []);
-    return { assets, heuristicDocumentIds, messages: closed, resourceHints, acquisitionHints };
+    return { assets, heuristicDocumentIds, messages: closed, acquisitionHints };
 }

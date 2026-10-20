@@ -139,6 +139,6 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         const bound = asset.sourceUri ? boundFiles.get(asset.sourceUri) : undefined;
         if (bound) archiveResources[asset.id] = bound;
     }
-    return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, conversationId: id, conversation, resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
+    return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, conversationId: id, conversation, acquisitionHints: resources.acquisitionHints, archiveResources,
         diagnostics: [...diagnostics, ...contentDiagnostics] };
 }

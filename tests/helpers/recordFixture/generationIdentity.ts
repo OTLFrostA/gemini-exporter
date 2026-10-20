@@ -1,5 +1,5 @@
-import type { LegacyAttachmentInput } from '../../../src/core/parsers/shared/resources/resolveResources.js';
-type GenerationIdentity = NonNullable<LegacyAttachmentInput['generation']>;
+import type { SourceAttachmentInput } from '../../../src/core/parsers/shared/resources/resolveResources.js';
+type GenerationIdentity = NonNullable<SourceAttachmentInput['generation']>;
 
 export type GenerationAttachment = {
     type?: string;

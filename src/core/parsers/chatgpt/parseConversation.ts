@@ -238,7 +238,6 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
             detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: 'complete' }), assets, messages },
         },
         diagnostics: contentDiagnostics,
-        resourceHints: {},
         acquisitionHints,
     };
 }

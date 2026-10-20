@@ -89,7 +89,7 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
             url: raw.url ?? `https://gemini.google.com/app/${id}` }),
         detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), messages: resources.messages, assets: resources.assets },
     };
-    return { evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, conversationId: id, conversation, resourceHints: {}, acquisitionHints: resources.acquisitionHints,
+    return { evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, conversationId: id, conversation, acquisitionHints: resources.acquisitionHints,
         diagnostics,
         transport: { fallbackUsed, nodeCount: nodes.length, htmlLen: doc.documentElement?.outerHTML?.length ?? 0 } };
 }

@@ -2,7 +2,7 @@ import type { Account } from '../../src/core/domain/accountRegistry.js';
 import type { ConversationKey } from '../../src/core/domain/conversationKey.js';
 import type { TrustedDomain } from '../../src/core/domain/runtimeValidation.js';
 import type { Diagnostic } from '../../src/core/diagnostics/diagnostic.js';
-import type { LegacyResourceHints } from '../../src/core/parsers/shared/resources/resourceHints.js';
+import type { LegacyResourceHints } from './recordFixture/resourceHints.js';
 import type { ResourceAcquisitionHints } from '../../src/core/resources/resourceAcquisition.js';
 import type { QualityEvidence } from '../../src/core/parsers/qualityEvidence.js';
 

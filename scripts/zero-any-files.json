@@ -15,7 +15,6 @@
   "src/core/provider/gemini/geminiProvider.ts",
   "src/types/messages.ts",
   "src/types/utils.ts",
-  "src/types/conversation.ts",
   "src/core/utils/messaging.ts",
   "src/core/utils/tabService.ts",
   "src/ui/controllers/syncController.ts",

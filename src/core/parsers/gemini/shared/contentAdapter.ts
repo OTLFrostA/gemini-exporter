@@ -95,7 +95,7 @@ export function structuredBodyAttachments(message: { structuredContent?: unknown
 }
 
 /** Parse provider-exposed reasoning before it crosses the semantic input boundary. */
-export function parseLegacyReasoning(reasoning: unknown, context: MarkdownParseContext): BlockNode[] | undefined {
+export function parseSourceReasoning(reasoning: unknown, context: MarkdownParseContext): BlockNode[] | undefined {
     if (typeof reasoning !== 'string') return undefined;
     const cleaned = cleanGeminiBody(reasoning);
     return cleaned.trim() ? normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context)) : undefined;

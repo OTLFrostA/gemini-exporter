@@ -64,7 +64,7 @@ test('archive source paths and handles stay separate from export destinations', 
     assert.equal(asset.sourceUri, 'docs/report?.pdf');
     assert.equal(result.archiveResources[asset.id].entry, entry);
     assert.equal(result.archiveResources[asset.id].path, 'docs/report?.pdf');
-    assert.deepEqual(result.resourceHints, {});
+    assert.equal('resourceHints' in result, false);
     assert.deepEqual(result.conversation.detail.messages[0].attachmentIds, [asset.id]);
     for (const field of ['localName', 'archiveResources', 'diagnostics', 'async', 'chatTime', 'lastSeen']) assert.ok(!JSON.stringify(result.conversation).includes(`"${field}":`));
     assertDomainClosure((result.conversation).detail);

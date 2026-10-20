@@ -18,7 +18,7 @@ from scripts.framework.pdf_evidence import assert_pdf_turn_content
 from scripts.framework.html_evidence import assert_html_turn_content
 from scripts.framework.selectors import WorkbenchSelectors
 from scripts.framework.v2_probe import install_probe
-from scripts.framework.cases.sync import wait_for_prior_scan, reset_only_coverage, select_source_account
+from scripts.framework.cases.sync import wait_for_prior_scan, clear_scan_records, select_source_account
 
 DESIGNATED_HISTORICAL_CHATS = [
     {
@@ -452,7 +452,7 @@ class StaleTabImageExportCase(FeatureTestCase):
                 cdp_opt.eval("document.getElementById('tourSkipBtn')?.click()")
                 select_source_account(cdp_opt, source_tab_id=setup['freshId'])
                 wait_for_prior_scan(cdp_opt)
-                reset_only_coverage(cdp_opt)
+                clear_scan_records(cdp_opt)
                 scan = CDPActions.trigger_deep_scan(cdp_opt)
                 scan_ok, message = assert_scan_result(scan)
                 setup['historyScan'] = scan

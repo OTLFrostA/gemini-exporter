@@ -14,12 +14,14 @@ import type { ConversationParseResult as BarrelLegacyResult } from '../src/core/
 
 const rawParser: ConversationParser<{ text: string }> = raw => ({ conversationId: 'source',
     conversation: { index: {}, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] } },
-    diagnostics: [], resourceHints: {}, acquisitionHints: {} });
+    diagnostics: [], acquisitionHints: {} });
 const asyncParser: ConversationParser<{ text: string }> = async (raw, context) => rawParser(raw, context);
 const rpcParser: ConversationParser<string, GeminiRpcParseResult> = parseGeminiRpcConversation;
 const takeoutParser: ConversationParser<GeminiTakeoutRaw, GeminiTakeoutParseResult> = parseGeminiTakeoutConversation;
 const zipReader: ConversationParser<GeminiTakeoutZipRaw, GeminiTakeoutParseResult> = parseGeminiTakeoutZip;
 function sourceContract(result: SourceConversationParseResult) {
+    // @ts-expect-error Export destinations belong to a delivery task, not the L1 parser result.
+    result.resourceHints;
     // @ts-expect-error L1 output has no local Account.
     result.account;
     // @ts-expect-error Local identity binding belongs to L2.

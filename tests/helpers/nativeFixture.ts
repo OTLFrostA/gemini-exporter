@@ -22,7 +22,7 @@ export function rpcFixture<T extends ConversationRecordInput>(record: T, transpo
     const { key: indexKey, ...index } = parsed.conversation.index;
     const { key: _detailKey, ...detail } = parsed.conversation.detail;
     return { conversationId: indexKey.conversationId, conversation: { index, detail },
-        diagnostics: parsed.diagnostics, resourceHints: parsed.resourceHints,
+        diagnostics: parsed.diagnostics,
         acquisitionHints: parsed.acquisitionHints, evidence: parsed.evidence,
         sourceVersion: parsed.sourceVersion, transport: { nextPageToken: null, ...acquisition } };
 }

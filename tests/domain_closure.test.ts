@@ -225,7 +225,7 @@ test('Domain consumers never parse provider syntax or reconcile acquisition alia
     for (const file of ['src/core/domain/closure.ts', 'src/core/document/compose/composeDomainDocument.ts',
         'src/core/document/compose/composeContent.ts']) {
         const source = readFileSync(join(__dirname, '..', file), 'utf8');
-        assert.doesNotMatch(source, /parseGemini|parseImported|parseLegacyReasoning|preprocessGemini|convertHtmlToMarkdown|structuredBodyAttachments|resolveLegacyAttachment/);
+        assert.doesNotMatch(source, /parseGemini|parseImported|parseSourceReasoning|preprocessGemini|convertHtmlToMarkdown|structuredBodyAttachments|resolveSourceAttachment/);
         assert.doesNotMatch(source, /from\s+['"][^'"]*(?:provider\/|api\/parser)[^'"]*['"]/);
     }
     const domain = historicalFixtureDomain({ ...metadata, messages: [{ role: 'assistant', content: '', attachments: [{

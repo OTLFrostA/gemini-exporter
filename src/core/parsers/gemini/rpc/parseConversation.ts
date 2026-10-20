@@ -7,9 +7,9 @@ import type { GeminiDetailDebugEvidence, GeminiMessageEvidence, GeminiDetailEvid
 import type { DomainCitation, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
-import { closeLegacyCitations } from '../../shared/resources/domainCitationAdapter.js';
+import { closeSourceCitations } from '../../shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
-import { parseGeminiBody, parseGeminiPrompt, parseLegacyReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
+import { parseGeminiBody, parseGeminiPrompt, parseSourceReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
 import type { SourceConversationParseResult } from '../../parsingResult.js';
 
 export interface GeminiRpcParseContext extends ConversationParseContext {
@@ -85,9 +85,9 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             sourceRef,
             details: { reason: extraction.status, ...(extraction.status === 'decode_rejected' ? { issue: { ...extraction.issue } } : {}) },
         });
-        const reasoning = parseLegacyReasoning(message.thoughts, { diagnostics: contentDiagnostics, sourceRef });
+        const reasoning = parseSourceReasoning(message.thoughts, { diagnostics: contentDiagnostics, sourceRef });
         const { citations, legacyCitations, sourceCitations } = citationsOf(message);
-        const closed = closeLegacyCitations({
+        const closed = closeSourceCitations({
             ...(typeof message.id === 'string' && message.id.trim() ? { id: message.id } : {}),
             role: message.role === 'model' ? 'assistant' : 'user',
             content: message.role === 'user' ? parseGeminiPrompt(message.content)
@@ -126,7 +126,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     return {
         evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds },
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
-        conversationId: normId(evidence.id), conversation, resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints,
+        conversationId: normId(evidence.id), conversation, acquisitionHints: resources.acquisitionHints,
         diagnostics: [
             ...(evidence.schemaDrift ?? []).map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })),
             ...(rejected ? [{ severity: 'warning' as const, code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` }] : []),

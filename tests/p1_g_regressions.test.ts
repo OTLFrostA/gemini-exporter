@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { ChatMessage, Attachment } from '../src/types/conversation.js';
+import type { ChatMessage, Attachment } from './helpers/historicalConversation.js';
 import type { MessageAction } from '../src/types/messages.js';
 
 // P1-090, 091, 092, 093, 098, 099, 100 are type-check contracts.
@@ -61,9 +61,9 @@ function typecheckContracts(): void {
 
     // P1-100: these model types must not reappear in the public API.
     // @ts-expect-error - deleted public type
-    type _NoThoughtBlock = import('../src/types/conversation.js').ThoughtBlock;
+    type _NoThoughtBlock = import('./helpers/historicalConversation.js').ThoughtBlock;
     // @ts-expect-error - deleted public type
-    type _NoCitationSource = import('../src/types/conversation.js').CitationSource;
+    type _NoCitationSource = import('./helpers/historicalConversation.js').CitationSource;
 
     void fromParser; void fromOtherProvider;
     void message; void conversation; void attachment; void actions;

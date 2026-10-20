@@ -30,7 +30,7 @@ test('message dates do not fabricate conversation creation or update facts durin
     const conversation = validateParserDomain({ index: { ...base().index }, detail: {   ...base().detail, messages: [{ role: 'user', timestamp: 1700000000000, content: [] }] } });
     const { key: _indexKey, ...index } = conversation.index;
     const { key: _detailKey, ...detail } = conversation.detail;
-    const merged = mergeConversationPages([{ conversationId: conversation.index.key.conversationId, conversation: { index, detail }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }]);
+    const merged = mergeConversationPages([{ conversationId: conversation.index.key.conversationId, conversation: { index, detail }, acquisitionHints: {}, diagnostics: [] }]);
     assert.equal(merged.conversation.index.createdAt, undefined);
     assert.equal(merged.sourceVersion, undefined);
     assert.equal(merged.conversation.detail.messages[0].timestamp, 1700000000000);

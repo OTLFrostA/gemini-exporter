@@ -1,150 +1,72 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
-import { admitFixture } from './helpers/admitFixture.js';
-import { test, beforeEach, afterEach } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mediaSources, mediaChatId, mediaPrompt, mediaBytes, mediaTime } from './helpers/mediaSourceFixture.js';
-import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
-import { planExportResources } from '../src/core/export/assets/planExportResources.js';
-import { TakeoutEngine } from '../src/core/engine/takeoutEngine.js';
-import { commitTakeoutData, clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
-import { __clearDomainMemory, storageIdentity } from '../src/core/storage/domain/domainStore.js';
-import { getDomainResource, cacheDomainResource } from '../src/core/storage/domain/resourceContext.js';
-import { readFixture, removeFixture } from './helpers/admitFixture.js';
+import { mediaSources, mediaChatId, mediaBytes } from './helpers/mediaSourceFixture.js';
+import { ingestDetail, ingestDeletedConversation } from '../src/core/domain/ingestion.js';
+import { readConversation } from '../src/core/domain/readConversation.js';
+import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
 import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
-
-beforeEach(() => { __clearDomainMemory(); clearTakeoutData(); });
-afterEach(() => { __clearDomainMemory(); clearTakeoutData(); });
-test('real RPC turns expose only source-authored event time/prompt and single-image position', () => {
-    const { online, offline } = mediaSources();
-    const onlineImage = online.conversation.detail.assets[0];
-    const offlineImage = offline.conversation.detail.assets.find(a => a.generation?.prompt === mediaPrompt)!;
-    assert.equal(onlineImage.generation?.time, mediaTime + 123);
-    assert.equal(onlineImage.generation?.prompt, mediaPrompt);
-    assert.equal(onlineImage.generation?.providerRequestId, 'r_request-9');
-    assert.equal(onlineImage.generation?.imageCount, 1);
-    assert.equal(onlineImage.generation?.imageOrdinal, 0);
-    assert.notEqual(onlineImage.generation?.generationOrdinal, offlineImage.generation?.generationOrdinal);
-    assert.notEqual(onlineImage.id, offlineImage.id);
-    assert.notEqual(onlineImage.sourceUri, offlineImage.sourceUri);
-    for (const options of [{ noTime: true }, { noPrompt: true }]) {
-        const image = mediaSources(options).online.conversation.detail.assets[0];
-        assert.equal(options.noTime ? image.generation?.time : image.generation?.prompt, undefined);
-    }
-    for (const image of mediaSources({ multi: true }).online.conversation.detail.assets) assert.equal(image.generation?.imageOrdinal, undefined, 'a traversal index is not a stable source ordinal');
-});
-
-test('real parsed sources recover renamed exports and refuse insufficient or ambiguous event evidence through AssetPipeline', async () => {
-    for (const options of [{}, { noTime: true }, { noPrompt: true }, { multi: true }, { duplicate: true }]) {
-        const { online, offline, files } = mediaSources(options);
-        commitTakeoutData('10000000-0000-4000-8000-000000000001', { convCache: { [mediaChatId]: offline }, globalMedia: files });
-        const plan = await planExportResources(online);
-        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', takeoutEngine: TakeoutEngine,
-            fetchAsset: async () => ({ success: false, error: 'offline' }) });
-        const result = await pipeline.acquireAssetBytes(plan.assets[0].item, { id: mediaChatId }, { isImage: true, maxRetries: 0 });
-        assert.equal(result.ok, Object.keys(options).length === 0);
-        if (result.ok) assert.deepEqual(result.value.bytes, mediaBytes);
-        else assert.ok(result.reason);
-    }
-});
-
+import type { SourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: mediaChatId };
+const commit = (source: SourceConversationParseResult) => ingestDetail(key.accountId, key.conversationId, source.conversation.detail, source.conversation.index);
 for (const order of ['online-first', 'takeout-first'] as const) {
-    test(`DomainStore ${order}: retain the complete body and independently fill proven resource bytes`, async () => {
-        const { online, offline, resources } = mediaSources();
-        const snapshot = structuredClone(online.conversation);
-        if (order === 'online-first') await admitFixture('10000000-0000-4000-8000-000000000001', online);
-        await admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
-        if (order === 'takeout-first') await admitFixture('10000000-0000-4000-8000-000000000001', online);
-        const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
-        assert.deepEqual((await readFixture(identity))!.conversation.detail, snapshot.detail);
-        assert.equal(Reflect.get((await readFixture(identity))!.conversation.index ?? {}, 'hasTakeoutImport'), undefined);
-        assert.equal((await readFixture(identity))!.conversation.index.title, snapshot.index.title);
-        assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
-        await admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
-        assert.deepEqual((await readFixture(identity))!.conversation.detail, snapshot.detail);
-        assert.equal(Reflect.get((await readFixture(identity))!.conversation.index ?? {}, 'hasTakeoutImport'), undefined);
-        assert.equal((await readFixture(identity))!.conversation.index.title, snapshot.index.title);
-        assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
-        assert.equal(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000002', mediaChatId), online.conversation.detail.assets[0].id), null);
+    test(`L2 ${order}: source selection retains a complete body without importing acquisition bytes`, async () => {
+        const { online, offline } = mediaSources();
+        online.conversation.detail.quality.status = 'complete'; offline.conversation.detail.quality.status = 'partial';
+        const snapshot = structuredClone(online.conversation.detail);
+        if (order === 'online-first') await commit(online);
+        await commit(offline);
+        if (order === 'takeout-first') await commit(online);
+        const stored = await readConversation(key); assert.ok(stored);
+        assert.deepEqual(stored.detail, { ...snapshot, key });
+        assert.equal('resources' in stored.detail, false); assert.equal('resourceDigests' in stored.detail, false);
+        assert.equal('acquisitionHints' in stored, false); assert.equal('hasTakeoutImport' in stored.index, false);
+        await commit(offline); assert.deepEqual((await readConversation(key))?.detail, stored.detail);
     });
 }
-
-test('DomainStore rebinds existing byte-cache entries only with unique event proof', async () => {
-    const { online, offline } = mediaSources();
-    await admitFixture('10000000-0000-4000-8000-000000000001', offline);
-    const original = offline.conversation.detail.assets.find(a => a.generation?.prompt === mediaPrompt)!;
-    const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
-    await cacheDomainResource(identity, original.id, original.sourceUri!!, mediaBytes);
-    await admitFixture('10000000-0000-4000-8000-000000000001', online);
-    assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
-    const changed = structuredClone(online); changed.conversation.detail.assets[0].sourceUri! = 'https://lh3.googleusercontent.com/another';
-    changed.conversation.detail.assets[0].generation!.prompt = 'Unrelated prompt';
-    changed.acquisitionHints = {};
-    await admitFixture('10000000-0000-4000-8000-000000000001', changed);
-    assert.equal(await getDomainResource(identity, changed.conversation.detail.assets[0].id), null);
+test('RPC request conflicts reject cross-source matching despite identical event time and prompt', () => {
+    const first = mediaSources().online, second = mediaSources({ requestId: 'r_other-request', uriSuffix: '-different' }).online;
+    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.detail.assets[0], mediaChatId),
+        second.conversation.detail.assets.map(asset => resourceIdentity(asset, mediaChatId))), null);
 });
-
-test('production RPC request conflicts reject cross-source reuse even with identical event timestamps and prompts', async () => {
-    const first = mediaSources().online;
-    const second = mediaSources({ requestId: 'r_other-request', uriSuffix: '-different' }).online;
-    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.detail.assets[0], first.conversation.index.key.conversationId), second.conversation.detail.assets.map(asset => resourceIdentity(asset, second.conversation.index.key.conversationId))), null);
-    await admitFixture('10000000-0000-4000-8000-000000000001', first, [{ assetId: first.conversation.detail.assets[0].id, bytes: mediaBytes }]);
-    await admitFixture('10000000-0000-4000-8000-000000000001', second);
-    assert.equal(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId), second.conversation.detail.assets[0].id), null);
-});
-
-test('byte-cache reuse cannot bypass conflicting event evidence when an asset ID and URI are reused', async () => {
-    const { online } = mediaSources();
-    const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
-    const image = online.conversation.detail.assets[0];
-    await admitFixture('10000000-0000-4000-8000-000000000001', online);
-    await cacheDomainResource(identity, image.id, image.sourceUri!!, mediaBytes);
-    const changed = structuredClone(online);
-    changed.conversation.detail.assets[0].generation!.prompt = 'A different event';
-    await admitFixture('10000000-0000-4000-8000-000000000001', changed);
-    assert.equal(await getDomainResource(identity, image.id), null);
-});
-
-test('DomainStore refuses ambiguous matches in either direction and deletion erases rebound caches', async () => {
+test('insufficient or ambiguous generation evidence cannot authorize cross-source identity reuse', () => {
     for (const options of [{ duplicate: true }, { multi: true }, { noTime: true }, { noPrompt: true }]) {
-        __clearDomainMemory();
-        const { online, offline, resources } = mediaSources(options);
-        await admitFixture('10000000-0000-4000-8000-000000000001', online);
-        await admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
-        assert.equal(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId), online.conversation.detail.assets[0].id), null);
+        const { online, offline } = mediaSources(options);
+        assert.equal(findResourceMatch(mediaChatId, resourceIdentity(online.conversation.detail.assets[0], mediaChatId),
+            offline.conversation.detail.assets.map(asset => resourceIdentity(asset, mediaChatId))), null);
     }
-    __clearDomainMemory();
-    const { online, offline, resources } = mediaSources();
-    await admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
-    await admitFixture('10000000-0000-4000-8000-000000000001', online);
-    const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
-    assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
-    await removeFixture(identity);
-    await admitFixture('10000000-0000-4000-8000-000000000001', online);
-    assert.equal(await getDomainResource(identity, online.conversation.detail.assets[0].id), null);
 });
-
-test('URI-less imported resources remain retrievable without carrying inline bytes into current or subsequent saves', async () => {
-    const parsed = mediaSources().online;
-    const asset = parsed.conversation.detail.assets[0]; delete asset.sourceUri;
-    parsed.acquisitionHints = {};
-    const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
-    const initial = await admitFixture('10000000-0000-4000-8000-000000000001', parsed, [{ assetId: asset.id, bytes: mediaBytes }]);
-    assert.equal('resources' in initial.conversation.detail, false);
-    parsed.conversation.index.title = 'Continued conversation';
-    const continued = await admitFixture('10000000-0000-4000-8000-000000000001', parsed);
-    assert.equal('resources' in continued.conversation.detail, false);
-    assert.deepEqual(await getDomainResource(identity, asset.id), mediaBytes);
+test('task resources isolate accounts and conversations; fresh tasks cannot recover a persistent byte cache', async () => {
+    const { online } = mediaSources(); const asset = { ...online.conversation.detail.assets[0] }; delete asset.sourceUri;
+    const context = createSourceResourceContext(), fresh = createSourceResourceContext();
+    try {
+        context.retain(key, asset.id, async () => ({ bytes: mediaBytes.slice() }));
+        assert.deepEqual((await context.acquire(key, asset)).bytes, mediaBytes);
+        await assert.rejects(context.acquire({ ...key, accountId: '10000000-0000-4000-8000-000000000002' }, asset), /locator/);
+        await assert.rejects(context.acquire({ ...key, conversationId: 'other' }, asset), /locator/);
+        await assert.rejects(fresh.acquire(key, asset), /locator/);
+    } finally { context.release(); fresh.release(); }
 });
-
-test('current resource receipts update archive paths while repeated receipts stay idempotent', async () => {
-    const parsed = mediaSources().online;
-    const resource = { assetId: parsed.conversation.detail.assets[0].id, sourcePath: 'archive/original.png', bytes: mediaBytes };
-    await admitFixture('10000000-0000-4000-8000-000000000001', parsed, [resource]);
-    resource.sourcePath = 'archive/relocated.png';
-    const relocated = await admitFixture('10000000-0000-4000-8000-000000000001', parsed, [resource]);
-    assert.equal('resourceDigests' in relocated.conversation.detail, false);
-    const repeated = await admitFixture('10000000-0000-4000-8000-000000000001', parsed, [resource]);
-    assert.deepEqual(repeated.conversation, relocated.conversation);
-    assert.deepEqual(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId), resource.assetId), mediaBytes);
+test('URI-less imported resources stay in task acquisition output while repeated L2 admission stays byte-free', async () => {
+    const parsed = mediaSources().online, asset = parsed.conversation.detail.assets[0]; delete asset.sourceUri;
+    parsed.acquisitionHints = { [asset.id]: { dataBase64: btoa(String.fromCharCode(...mediaBytes)) } };
+    const context = createSourceResourceContext();
+    try {
+        context.retainParsed(key, parsed); await commit(parsed); const initial = await readConversation(key); assert.ok(initial);
+        parsed.conversation.index.title = 'Continued conversation'; await commit(parsed);
+        const continued = await readConversation(key); assert.ok(continued);
+        assert.deepEqual(continued.detail, initial.detail);
+        assert.deepEqual((await context.acquire(key, asset)).bytes, mediaBytes);
+        assert.equal(JSON.stringify(continued).includes('dataBase64'), false);
+        await ingestDeletedConversation(key.accountId, key.conversationId); assert.equal(await readConversation(key), null);
+    } finally { context.release(); }
+    await assert.rejects(context.acquire(key, asset), /released/);
+});
+test('acquisition receipt/path changes never become Domain fields or change an idempotent Detail', async () => {
+    const parsed = mediaSources().online; await commit(parsed); const first = await readConversation(key);
+    const asset = parsed.conversation.detail.assets[0];
+    parsed.acquisitionHints = { [asset.id]: { localName: 'archive/relocated.png', dataBase64: 'AQID' } };
+    assert.equal(await commit(parsed), false); assert.deepEqual(await readConversation(key), first);
+    assert.equal(JSON.stringify(first).includes('archive/relocated.png'), false);
 });

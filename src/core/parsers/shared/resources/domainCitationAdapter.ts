@@ -2,7 +2,7 @@ import type { DomainCitation, DomainMessage } from '../../../domain/conversation
 import { linkCitationMarkers } from './citationAdapter.js';
 
 /** Resolve raw textual markers before returning Domain, never inside a composer/backend. */
-export function closeLegacyCitations(message: DomainMessage, markers?: readonly string[]): DomainMessage {
+export function closeSourceCitations(message: DomainMessage, markers?: readonly string[]): DomainMessage {
     const web = (message.citations ?? []).map(citation => ({ ...citation }));
     const citations: DomainCitation[] = [...web];
     const grounding = new Map<string, { citation: { id: string }; displayLabel: string }[]>();

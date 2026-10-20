@@ -1,4 +1,15 @@
-import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
+export interface SourceGeneratedMediaIdentity {
+    chatId: string;
+    providerRequestId?: string;
+    time?: number | null;
+    prompt?: string;
+    generationOrdinal: number;
+    imageCount?: number;
+    /** Present only when the source establishes a stable ordinal (single image => 0). */
+    imageOrdinal?: number;
+    turnId?: string;
+}
+
 
 /** Takeout activity timestamps have second precision; RPC retains milliseconds. */
 export function eventSecond(value: number | undefined): number | null {
@@ -17,7 +28,7 @@ export function normalizeChatId(id: unknown): string {
     return String(id).trim().replace(/^c_/, '');
 }
 
-export function sameGenerationEvent(a: GeneratedMediaIdentity, b: GeneratedMediaIdentity): boolean {
+export function sameGenerationEvent(a: SourceGeneratedMediaIdentity, b: SourceGeneratedMediaIdentity): boolean {
     const aChat = normalizeChatId(a.chatId);
     const bChat = normalizeChatId(b.chatId);
     if (!aChat || !bChat || aChat !== bChat) {

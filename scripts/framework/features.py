@@ -101,7 +101,7 @@ class FeatureRegistry:
             id="feat_updated_badge_display",
             domain=FeatureDomain.LIFECYCLE,
             name="来源更新时间与导出记录",
-            description="已导出过的会话检测到新提问后，渲染琥珀色「已更新」徽章并被默认自动勾选",
+            description="追加提问后验证来源更新时间晚于已有导出记录；v2 保持显式选择",
             critical=True,
             prerequisites=["feat_continued_chat_promotion"]
         ))
@@ -117,7 +117,7 @@ class FeatureRegistry:
             id="feat_ephemeral_chat_pruning",
             domain=FeatureDomain.LIFECYCLE,
             name="瞬态会话网页端删除实时剥离",
-            description="在网页端侧边栏删除会话，Options 列表与 Storage 在无需刷新情况下平滑剥离该项",
+            description="核验请求绑定的删除确认，同 Key Index/Detail/ExportRecord 原子删除，其他会话保留，Options 无刷新移除",
             critical=True
         ))
         self.register(Feature(
@@ -135,7 +135,7 @@ class FeatureRegistry:
             id="feat_takeout_zip_import",
             domain=FeatureDomain.TAKEOUT,
             name="离线 Takeout ZIP 导入",
-            description="导入预置纯净 Takeout ZIP，离线附件池建立，初始提问前缀临时标题生效",
+            description="导入预置 Takeout ZIP，验证来源事实接纳、Asset 引用闭合及源归档字节；不创建持久附件池",
             critical=True
         ))
         self.register(Feature(

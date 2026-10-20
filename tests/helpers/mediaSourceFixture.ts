@@ -35,7 +35,7 @@ export function mediaSources(options: { noTime?: boolean; noPrompt?: boolean; mu
         files['Takeout/Gemini Apps/duplicate.png'] = { _data: { uncompressedSize: otherMediaBytes.length }, async: async () => otherMediaBytes.slice() };
     }
     const takeout = parseGeminiTakeoutArchive({ htmlText: html, archiveFiles: files, activityPath: 'Takeout/Gemini Apps/MyActivity.html' }, { account: fixtureAccount('gemini'), providerId: 'gemini' })[0];
-    const offline: SourceConversationParseResult = {   ...takeout, resourceHints: Object.fromEntries(Object.entries(takeout.archiveResources).map(([id, bound]) => [id, { archivePath: bound.path }])) };
+    const offline: SourceConversationParseResult = takeout;
     const resources = Object.entries(takeout.archiveResources).map(([assetId, bound]) => ({ assetId, sourcePath: bound.path, bytes: bytesFor(bound.path).slice() }));
     online.conversation.detail.quality.status = 'complete';
     return { online, offline, files, resources };
