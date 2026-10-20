@@ -1,57 +1,61 @@
-import { test } from 'node:test';
+/**
+ * V2 replacement for the retired AssetPipeline direct-write failure test.
+ *
+ * L1 acquires source bytes; L2/L3a own facts; Application + L3b/L4 write the
+ * main Markdown and its sidecar. Only HTTP and the FileSystemDirectoryHandle
+ * host are simulated. Failed delivery never commits a successful ExportRecord.
+ */
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import AssetPipeline from '../src/core/engine/assetPipeline.js';
+import { runLiveSave } from '../src/runtime/background/liveSaveHandler.js';
+import { getExportRecord } from '../src/l3a/storageService.js';
+import { liveKey, seedLiveDetail, v2LiveSaveHost } from './helpers/v2LiveSaveHost.js';
 
-// Unlike an assignment/regex guard, this exercises the actual direct writer
-// after bytes have been acquired. A failed write must never mark an asset saved.
-test('direct asset writer rejection records failure instead of success or refetching', async () => {
-    const originalFetch = globalThis.fetch;
-    const warnings: string[] = [];
-    let fetchCalls = 0;
-    let fetchCallsAtWrite = 0;
-    let writeCalls = 0;
+test('direct sidecar write rejects after one acquisition, with no refetch and no committed record', async t => {
+    const host = v2LiveSaveHost(t), id = 'disk-full';
+    const url = 'https://encrypted-tbn2.gstatic.com/licensed-image?q=test';
+    const bytes = Uint8Array.of(1, 2, 3);
+    await seedLiveDetail(id, [{ id: 'search', kind: 'image', name: 'search.png',
+        mediaType: 'image/png', sourceUri: url }]);
+    host.source(url, bytes, 'image/png');
+    host.failWrite('assets/');
+    const result = await runLiveSave(liveKey(id));
+    assert.ok(result);
+    assert.equal(result.exported, 0);
+    assert.equal(result.partial, 0);
+    assert.deepEqual(result.failed, [liveKey(id)]);
+    assert.deepEqual(host.requests, [url], 'a disk error must not refetch already acquired source bytes');
+    assert.equal(host.events.filter(event => event.startsWith('write:assets/')).length, 1);
+    assert.equal(host.events.filter(event => event.startsWith('abort:assets/')).length, 1);
+    assert.equal([...host.files.keys()].filter(name => name.startsWith('assets/')).length, 0);
+    assert.ok([...host.files.keys()].some(name => name.endsWith('.md')),
+        'Markdown can already have landed before the sidecar error');
+    assert.equal(await getExportRecord(liveKey(id)), null, 'no success may be recorded for failed L4 delivery');
+});
 
-    globalThis.fetch = async () => {
-        fetchCalls++;
-        return new Response(new Uint8Array([1, 2, 3]).buffer, {
-            headers: { 'Content-Type': 'image/png' },
-        });
-    };
+test('retry after direct disk failure reacquires once and commits exactly the delivered v2 asset', async t => {
+    const host = v2LiveSaveHost(t), id = 'disk-recovered';
+    const url = 'https://example.test/restored-image.png';
+    const bytes = Uint8Array.of(137, 80, 78, 71, 9, 8, 7);
+    await seedLiveDetail(id, [{ id: 'restored', kind: 'image', name: 'restored.png',
+        mediaType: 'image/png', sourceUri: url }]);
+    host.source(url, bytes);
+    host.failWrite('assets/');
+    const first = await runLiveSave(liveKey(id));
+    assert.equal(first?.exported, 0);
+    assert.equal(await getExportRecord(liveKey(id)), null);
 
-    try {
-        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
-            useZip: false,
-            writeFileDirect: async (fileName, bytes) => {
-                writeCalls++;
-                fetchCallsAtWrite = fetchCalls;
-                assert.equal(fileName, 'assets/search.png');
-                assert.deepEqual(Array.from(bytes), [1, 2, 3]);
-                throw new Error('disk full');
-            },
-            fetchAssetDelegate: async () => {
-                throw new Error('unexpected page-side fetch');
-            },
-            onLog: (message, level) => {
-                if (level === 'warn') warnings.push(message);
-            },
-        }) });
-
-        const result = await pipeline.processAsset(
-            { assetId: 'test-asset',
-                sourceUrl: 'https://encrypted-tbn2.gstatic.com/licensed-image?q=test',
-                localName: 'assets/search.png',
-            },
-            { id: 'chat', title: 'Export with full disk' },
-            { isImage: true, maxRetries: 0 },
-        );
-
-        assert.equal(result.ok, false, 'a rejected write must never be marked saved');
-        assert.match(result.reason, /disk full/);
-        assert.equal(writeCalls, 1, 'the writer must be reached exactly once');
-        assert.ok(fetchCallsAtWrite > 0, 'the asset must be acquired before the writer runs');
-        assert.equal(fetchCalls, fetchCallsAtWrite, 'local write failures must not re-fetch acquired bytes');
-        assert.match(warnings.join('\n'), /disk full/, 'the failure must reach the export log');
-    } finally {
-        globalThis.fetch = originalFetch;
-    }
+    host.failWrite(null);
+    const retry = await runLiveSave(liveKey(id));
+    assert.equal(retry?.exported, 1);
+    assert.equal(retry?.partial, 0);
+    assert.deepEqual(retry?.failed, []);
+    assert.deepEqual(host.requests, [url, url], 'one source acquisition per export attempt');
+    const resource = [...host.files.entries()].find(([name]) => name.startsWith('assets/') && name.endsWith('restored.png'));
+    assert.ok(resource);
+    assert.deepEqual(resource[1], bytes);
+    const main = [...host.files.values()].find(value => typeof value === 'string') as string | undefined;
+    assert.ok(main);
+    assert.ok(main.includes(resource[0]));
+    assert.equal((await getExportRecord(liveKey(id)))?.status, 'ok');
 });
