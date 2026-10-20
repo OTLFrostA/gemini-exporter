@@ -40,13 +40,13 @@ export function assertRuntimeUnitBoundary(resolvedPath: string, root: string): v
 }
 
 // Frozen Application Settings defaults; tests supply only scenario-specific patches.
-export const v2Settings: GlobalSettings = {
+export const v2Settings = {
     defaultFormat: 'markdown' as const,
     skipExported: true,
     includeAssets: true,
     enabledDisk: false,
     developerMode: false,
-};
+} satisfies GlobalSettings;
 
 // Frozen L2 Index DTO shape; Runtime Count only uses the returned array length.
 export function v2IndexFixtures(accountId: string): DomainConversationIndex[] {
