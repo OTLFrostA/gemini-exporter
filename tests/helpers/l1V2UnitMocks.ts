@@ -237,8 +237,11 @@ const indexCollectionPort: Pick<typeof import('../../src/l2/indexCollection.js')
 const messagingPort: Pick<typeof import('../../src/runtime/ipc/messaging.js'),
     'getErrorMessage' | 'isMessageAction' | 'sendTypedMessage'> = {
     getErrorMessage: error => error instanceof Error ? error.message : String(error),
-    isMessageAction: (value, action): value is { action: typeof action } =>
-        !!value && typeof value === 'object' && 'action' in value && value.action === action,
+    isMessageAction<A extends import('../../src/runtime/types/messages.js').MessageAction>(
+        value: unknown, action: A,
+    ): value is { action: A } {
+        return !!value && typeof value === 'object' && 'action' in value && value.action === action;
+    },
     sendTypedMessage: async () => { throw new Error('Unexpected real IPC in isolated L1 unit test'); },
 };
 const progressPort: Pick<typeof import('../../src/ui/shared/progressUtils.js'), 'formatExportProgress'> = {
