@@ -8,6 +8,7 @@ const root = path.resolve(__dirname, '..');
 const uuid = '12345678-1234-4234-8234-123456789abc';
 const otherUuid = '87654321-4321-4321-8321-cba987654321';
 const account = { id: uuid, providerId: 'gemini', providerAccountId: 'gaia' };
+const detailFact = { messages: [], assets: [], quality: { status: 'unknown' as const } };
 const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.google.com/app' };
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
@@ -50,7 +51,8 @@ test('ingestion awaits L2 commit, forwards empty terminal page and never writes 
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
         'src/l2/ingestion.js': { ingestIndexes: async (...values: unknown[]) => { args = values; await gate; } },
     });
-    const page = { streamId: 'recent', requestCursor: 'last', nextCursor: null };
+    const page = { streamId: 'recent', requestCursor: 'last', nextCursor: null,
+        requestedAt: 1700000000000, requestKnown: true, valid: true, ordered: true, keys: [] };
     let answered = false;
     const result = invoke(handle, { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [], page }).then(value => { answered = true; return value; });
     await new Promise(resolve => setImmediate(resolve));
@@ -67,7 +69,8 @@ test('ingestion preserves Detail and Index facts; reports L2 errors', async () =
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
         'src/l2/ingestion.js': { ingestDetail: async (...args: unknown[]) => { seen = args; throw new Error('commit failed'); } },
     }).handleDomainIngestionMessage;
-    const detail = { quality: { status: 'partial' } }, indexFields = { title: 'a' };
+    const detail = { ...detailFact, quality: { status: 'partial' as const } };
+    const indexFields = { title: 'a', titleSource: 'provider' as const };
     assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail', accountId: uuid, conversationId: 'abc', detail, indexFields }), { ok: false, error: 'commit failed' });
     assert.deepEqual(seen, [uuid, 'abc', detail, indexFields]);
     assert.equal(handle({ action: 'domainStorage' }, sender, () => assert.fail()), false);
@@ -83,7 +86,7 @@ test('Background returns the full Detail admission result only after L2 commits'
     }).handleDomainIngestionMessage;
     let returned = false;
     const response = invoke(handle, { action: 'domainIngest', operation: 'detail',
-        accountId: uuid, conversationId: 'abc', detail: {} }).then((value: unknown) => { returned = true; return value; });
+        accountId: uuid, conversationId: 'abc', detail: detailFact }).then((value: unknown) => { returned = true; return value; });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(returned, false);
     finish();
@@ -152,13 +155,13 @@ test('Content ingestion preserves the full accepted/changed result from the work
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: true, changed: true } }) } } as any;
     const api = load('src/runtime/api/domainIngestion.ts', { 'src/l2/ingestion.js': {},
         'src/runtime/api/runtimeReady.js': ready });
-    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: true, changed: true });
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', detailFact), { accepted: true, changed: true });
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: false, changed: false } }) } } as any;
-    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: false, changed: false });
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', detailFact), { accepted: false, changed: false });
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, changed: true }) } } as any;
-    await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /Invalid committed/);
+    await assert.rejects(api.ingestDetail(uuid, 'abc', detailFact), /Invalid committed/);
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: false, changed: true } }) } } as any;
-    await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /Invalid committed/);
+    await assert.rejects(api.ingestDetail(uuid, 'abc', detailFact), /Invalid committed/);
 });
 
 test('Extension ingestion calls the same L2 function after readiness', async () => {
@@ -168,7 +171,7 @@ test('Extension ingestion calls the same L2 function after readiness', async () 
         'src/l2/ingestion.js': { ingestDetail: async () => { order.push('L2'); return { accepted: true, changed: true }; } },
         'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => { order.push('ready'); } },
     });
-    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: true, changed: true });
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', detailFact), { accepted: true, changed: true });
     assert.deepEqual(order, ['ready', 'L2']);
 });
 
