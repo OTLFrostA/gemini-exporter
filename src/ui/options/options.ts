@@ -21,6 +21,7 @@ export async function initWorkbench(): Promise<void> {
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();
     let settings: GlobalSettings;
+    let directoryAvailable = false;
     let busy = false;
     let action: Action = null;
     let controller: AbortController | null = null;
@@ -108,8 +109,12 @@ export async function initWorkbench(): Promise<void> {
             el<HTMLElement>('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
             el<HTMLInputElement>('liveSaveDiskToggle').checked = settings.enabledDisk;
             el<HTMLInputElement>('liveSaveDiskToggle').disabled = busy || settings.defaultFormat !== 'markdown';
-            el('liveSaveStatus').textContent = isLiveSaveEffective(settings, !!Directory.getDirHandle())
-                ? text('Live Save active', '自动保存已生效') : text('Live Save inactive or paused', '自动保存未启用或暂时暂停');
+            el('liveSaveStatus').textContent = isLiveSaveEffective(settings, directoryAvailable)
+                ? text('Live Save active', '自动保存已生效')
+                : !settings.enabledDisk ? text('Live Save off', '自动保存未开启')
+                : settings.defaultFormat !== 'markdown'
+                    ? text('Paused: switch to Markdown to resume', '已暂停：切回 Markdown 后恢复')
+                    : text('Paused: authorize a folder to resume', '已暂停：授权文件夹后恢复');
         }
         const handle = Directory.getDirHandle();
         el('dirLabel').textContent = handle?.name || text('Directory not set', '未设置目录');
@@ -208,6 +213,7 @@ export async function initWorkbench(): Promise<void> {
         const permission = Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
         void perform('cleanup', async () => {
             if (!await permission) throw new Error(text('Folder permission denied', '目录权限被拒绝'));
+            directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
             status(text('Folder authorized', '目录已授权'));
         });
     });
@@ -289,7 +295,13 @@ export async function initWorkbench(): Promise<void> {
     const stopSettings = observeSettings(() => {
         void readSettings().then(next => { settings = next; render(); }).catch(e => status(errorText(e), 'error'));
     });
-    const onFocus = () => { if (!busy) void refresh().catch(e => status(errorText(e), 'error')); };
+    const onFocus = () => {
+        if (busy) return;
+        void (async () => {
+            directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
+            await refresh();
+        })().catch(e => status(errorText(e), 'error'));
+    };
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
         stopSettings(); window.removeEventListener('focus', onFocus); TourGuide.destroy();
@@ -298,6 +310,7 @@ export async function initWorkbench(): Promise<void> {
     await ensureV2Ready();
     settings = await readSettings();
     await Directory.restoreSavedDirHandle();
+    directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
     await refresh();
     if (installationTour) await TourGuide.startTour();
     else {
