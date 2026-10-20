@@ -1,3 +1,9 @@
+/**
+ * V2 native Detail transport integration:
+ * Provider RPC -> L1 source parser -> Content domainIngest IPC -> L2 -> L3a.
+ * The fake Chrome messaging boundary dispatches to real L2 and fake IndexedDB.
+ * Background sender authorization is tested in browser_runtime_v2.test.ts.
+ */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -5,6 +11,8 @@ import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountIds.js';
 import { sourceDetail, sourceMessage } from './helpers/l1SourceFixture.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
+import { ingestDetail as ingestThroughContentRuntime } from '../src/runtime/api/domainIngestion.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { getDetail, getIndex } from '../src/l3a/storageService.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 
@@ -58,11 +66,54 @@ test('malformed native payloads and wrong Provider context cannot be admitted as
     assert.equal(await getDetail({ accountId: ACCOUNT_UUID, conversationId: CONVERSATION_ID }), null);
 });
 
-test('L2 binds native source facts to the Account key and persists the same message graph', async () => {
+test('v2 Content ingestion rejects failed or malformed IPC replies without accepting Domain facts', async () => {
     const candidate = parseNativeReply();
-    const result = await ingestDetail(ACCOUNT_UUID, candidate.conversationId,
+    const key = { accountId: ACCOUNT_UUID, conversationId: candidate.conversationId };
+    const expectedRequest = {
+        action: 'domainIngest',
+        operation: 'detail',
+        accountId: ACCOUNT_UUID,
+        conversationId: candidate.conversationId,
+        detail: candidate.conversation.detail,
+        indexFields: candidate.conversation.index,
+    };
+    const original = Object.getOwnPropertyDescriptor(chrome.runtime, 'sendMessage');
+    try {
+        for (const { reply, error } of [
+            { reply: null, error: /Domain ingestion unavailable/ },
+            { reply: { ok: false, error: 'worker offline' }, error: /worker offline/ },
+            { reply: { ok: true }, error: /Invalid committed Detail ingestion result/ },
+            { reply: { ok: true, result: { accepted: false, changed: true } }, error: /Invalid committed Detail ingestion result/ },
+            { reply: { success: true, domainEnvelopeVersion: 3, data: candidate }, error: /Domain ingestion unavailable/ },
+        ]) {
+            // Only the browser IPC response is mocked. No L2 or Storage write occurs.
+            Object.defineProperty(chrome.runtime, 'sendMessage', {
+                configurable: true,
+                value: async (message: unknown) => {
+                    assert.deepEqual(message, expectedRequest);
+                    return reply;
+                },
+            });
+            await assert.rejects(ingestThroughContentRuntime(ACCOUNT_UUID, candidate.conversationId,
+                candidate.conversation.detail, candidate.conversation.index), error);
+            assert.equal(await getIndex(key), null);
+            assert.equal(await getDetail(key), null);
+        }
+    } finally {
+        if (original) Object.defineProperty(chrome.runtime, 'sendMessage', original);
+        else Reflect.deleteProperty(chrome.runtime, 'sendMessage');
+    }
+});
+
+test('v2 Content ingestion IPC binds native facts to the Account and preserves the message graph', async () => {
+    const candidate = parseNativeReply();
+    const result = await ingestThroughContentRuntime(ACCOUNT_UUID, candidate.conversationId,
         candidate.conversation.detail, candidate.conversation.index);
     assert.deepEqual(result, { accepted: true, changed: true });
+    const identical = await ingestThroughContentRuntime(ACCOUNT_UUID, candidate.conversationId,
+        candidate.conversation.detail, candidate.conversation.index);
+    assert.deepEqual(identical, { accepted: true, changed: false },
+        'replaying an identical native Detail is accepted but must not trigger Live Save');
 
     const key = { accountId: ACCOUNT_UUID, conversationId: CONVERSATION_ID };
     const index = await getIndex(key);
@@ -112,6 +163,9 @@ test('native attachment bytes remain source-only; L2 persists asset identity and
     assert.equal(candidate.conversation.detail.assets.length, 1);
     assert.equal(candidate.conversation.detail.messages[0].attachmentIds?.length, 1);
     assert.equal('dataBuffer' in candidate.conversation.detail.assets[0], false);
+    const asset = candidate.conversation.detail.assets[0];
+    assert.ok(candidate.acquisitionHints[asset.id]?.dataBase64,
+        'raw source bytes must remain available in the one-task acquisition context');
 
     await ingestDetail(ACCOUNT_UUID, candidate.conversationId,
         candidate.conversation.detail, candidate.conversation.index);
@@ -122,5 +176,17 @@ test('native attachment bytes remain source-only; L2 persists asset identity and
     assert.deepEqual(stored.messages[0].attachmentIds,
         candidate.conversation.detail.messages[0].attachmentIds);
     assert.equal('dataBuffer' in stored.assets[0], false);
+    assert.equal('dataBase64' in stored.assets[0], false);
     assert.equal('acquisitionHints' in stored, false);
+
+    const key = { accountId: ACCOUNT_UUID, conversationId: candidate.conversationId };
+    const sourceResources = createSourceResourceContext();
+    try {
+        sourceResources.retainParsed(key, candidate);
+        const acquired = await sourceResources.acquire(key, asset);
+        assert.deepEqual(acquired.bytes, rawBytes,
+            'resource bytes remain readable for the accepted export task, without entering Domain');
+    } finally {
+        sourceResources.release();
+    }
 });
