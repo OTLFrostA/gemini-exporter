@@ -28,7 +28,10 @@ export const getOrCreateAccount = async (providerId, providerAccountId) => {
 export const isAccountId = id => typeof id==='string' && id.length===36;
 export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
  if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
- return {exported:options.signal?.aborted?0:1,partial:h.partial?1:0,skipped:0,failed:h.failExport?request.keys:[],aborted:!!options.signal?.aborted};};
+ const aborted = !!options.signal?.aborted;
+ const failed = aborted ? [] : h.failExport ? request.keys.slice(h.partial ? 1 : 0) : [];
+ const exported = aborted ? 0 : request.keys.length - failed.length;
+ return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;
 export const sendTabMessage = (tabId,message) => chrome.tabs.sendMessage(tabId,message);
 export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
