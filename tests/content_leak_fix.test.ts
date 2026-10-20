@@ -40,7 +40,7 @@ test('PageObserver re-init clears the old interval and listeners, then cleanup c
 
     let observer: { init: (options?: { onSync?: () => void }) => unknown; cleanup: () => void } | null = null;
     try {
-        observer = require('../src/content/pageObserver.js');
+        observer = require('../src/runtime/content/pageObserver.js');
         observer!.init();
         const first = (globalThis as any).window.__gemExporterSyncInterval;
         assert.ok(first, 'first init must register a periodic sync interval');

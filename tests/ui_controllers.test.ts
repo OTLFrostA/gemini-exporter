@@ -1,13 +1,13 @@
 import { seed, request, reset, key } from './helpers/applicationHarness.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as Directory from '../src/ui/controllers/dirHandleController.js';
-import type { DirectoryHandle } from '../src/core/engine/writers/directoryHandle.js';
-import { startSync } from '../src/ui/controllers/syncController.js';
-import { handleTakeoutImport } from '../src/ui/controllers/takeoutController.js';
-import { runExport as uiExport } from '../src/ui/controllers/exportController.js';
-import { runExport } from '../src/core/application/export/runExport.js';
-import { errorText } from '../src/ui/utils/settings.js';
+import * as Directory from '../src/runtime/capabilities/dirHandleController.js';
+import type { DirectoryHandle } from '../src/runtime/capabilities/directoryHandle.js';
+import { startSync } from '../src/ui/options/controllers/syncController.js';
+import { handleTakeoutImport } from '../src/ui/options/controllers/takeoutController.js';
+import { runExport as uiExport } from '../src/ui/options/controllers/exportController.js';
+import { runExport } from '../src/application/export/runExport.js';
+import { errorText } from '../src/ui/shared/settings.js';
 const id = '10000000-0000-4000-8000-000000000001';
 test.beforeEach(reset);
 

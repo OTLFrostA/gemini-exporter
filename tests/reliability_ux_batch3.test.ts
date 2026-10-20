@@ -74,7 +74,7 @@ test('P1-4: abortManager increments slot generation epoch on abort and clear', a
         getSlotEpoch,
         setSlotAborted,
         clearAllAborts
-    } = require('../src/background/abortManager.js');
+    } = require('../src/runtime/background/abortManager.js');
 
     clearAllAborts();
     const epoch0 = getSlotEpoch('10000000-0000-4000-8000-000000000001');
@@ -107,12 +107,12 @@ test('P1-4: cancelled batch cannot resurrect even if slot is later reset to unab
         }
     };
 
-    const { TabService } = require('../src/core/utils/tabService.js');
+    const { TabService } = require('../src/runtime/capabilities/tabService.js');
     const {
         setSlotAborted,
         clearAllAborts
-    } = require('../src/background/abortManager.js');
-    const { fetchBatch } = require('../src/background/batchFetcher.js');
+    } = require('../src/runtime/background/abortManager.js');
+    const { fetchBatch } = require('../src/runtime/background/batchFetcher.js');
 
     clearAllAborts();
     const origGet = TabService.getGeminiTab;
@@ -189,8 +189,8 @@ test('P1-7: sessionStore re-throws storage failures in setSession, updateSession
 
     (global as any).chrome = failingChrome;
 
-    delete require.cache[require.resolve('../src/core/storage/sessionStore.js')];
-    const { SessionStore } = require('../src/core/storage/sessionStore.js');
+    delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
+    const { SessionStore } = require('../src/l3a/sessionStore.js');
 
     await assert.rejects(
         async () => {
@@ -226,7 +226,7 @@ test('D7: Tour guide does NOT render connected ok state on ERROR or NO_TABS_API'
     const origChrome = (global as any).chrome;
     const origWindow = (global as any).window;
     const origDocument = (global as any).document;
-    const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+    const { __setModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
     (global as any).window = {
         innerWidth: 1200,
@@ -294,8 +294,8 @@ test('D7: Tour guide does NOT render connected ok state on ERROR or NO_TABS_API'
         t: (k: string) => k
     });
 
-    delete require.cache[require.resolve('../src/ui/tour/tourGuide.js')];
-    const TourGuide = require('../src/ui/tour/tourGuide.js');
+    delete require.cache[require.resolve('../src/ui/guidance/tourGuide.js')];
+    const TourGuide = require('../src/ui/guidance/tourGuide.js');
 
     try {
         // Test 1: Status = ERROR

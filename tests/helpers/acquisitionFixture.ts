@@ -1,6 +1,6 @@
 import { admitFixture } from './admitFixture.js';
-import { readAccount } from '../../src/core/domain/accountRegistry.js';
-import { restoreDomainSnapshot } from '../../src/core/domain/runtimeValidation.js';
+import { readAccount } from '../../src/l2/accountRegistry.js';
+import { restoreDomainSnapshot } from '../../src/l2/runtimeValidation.js';
 import type { DomainFixture } from './domainFixture.js';
 function isBoundFixture(value: unknown): value is DomainFixture {
     if (!value || typeof value !== 'object' || !('account' in value) || !('conversation' in value)) return false;

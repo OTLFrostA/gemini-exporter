@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { sourceDetail, sourceList, sourceMessage } from './helpers/l1SourceFixture.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import { getConversationDetail, type GeminiPaginationDetailClient } from '../src/core/api/client/pagination.js';
-import type { GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import type { ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
-import { getCoverage } from '../src/core/domain/coverageAdmission.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { getConversationDetail, type GeminiPaginationDetailClient } from '../src/l1/client/gemini/api/pagination.js';
+import type { GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { getCoverage } from '../src/l2/coverageAdmission.js';
 useIndexStorage();
 function listProvider(pages: (ListParseResult | Error)[]) {
     return new GeminiProvider({ async getConversationList() { const p = pages.shift(); if (p instanceof Error) throw p; assert.ok(p); return p; },

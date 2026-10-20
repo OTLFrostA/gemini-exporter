@@ -131,7 +131,7 @@ test('chatFormatter - formats generated image as markdown and cleans placeholder
 });
 
 test('assetFetcher - ensureAlr appends or preserves alr=yes parameter', () => {
-    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
     const ensureAlr = AssetFetcher.ensureAlr || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.ensureAlr);
 
     assert.strictEqual(ensureAlr('https://lh3.googleusercontent.com/gg/abc'), 'https://lh3.googleusercontent.com/gg/abc?alr=yes');
@@ -141,7 +141,7 @@ test('assetFetcher - ensureAlr appends or preserves alr=yes parameter', () => {
 });
 
 test('assetFetcher - extractLh3 parses lh3-lh6 and unescapes json characters', () => {
-    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
     const extractLh3 = AssetFetcher.extractLh3 || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.extractLh3);
 
     const normal = 'https://lh3.google.com/rd-gg/abc123=s512?alr=yes';
@@ -152,7 +152,7 @@ test('assetFetcher - extractLh3 parses lh3-lh6 and unescapes json characters', (
 });
 
 test('assetFetcher - fetchGgChain follows multi-hop ALR text redirects to final image', async () => {
-    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
     const fetchGgChain = AssetFetcher.fetchGgChain || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.fetchGgChain);
 
     const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');

@@ -10,9 +10,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
-const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
+const { ZipWriter } = require('../src/l4/packaging/writers/zipWriter.js');
 const { writeIndexAndMeta, writeDiagnostics } = require('../src/core/engine/export/sessionRecovery.js');
-const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 // 记录每次 folder.file(path, content, opts) 的文件级 opts，用于断言压缩决策
 const capturedFileOpts: Record<string, any> = {};

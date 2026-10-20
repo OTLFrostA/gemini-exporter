@@ -1,16 +1,16 @@
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { closeSourceCitations } from '../src/core/parsers/shared/resources/domainCitationAdapter.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { closeSourceCitations } from '../src/l1/parsers/shared/resources/domainCitationAdapter.js';
 import { historicalFixtureDomain, historicalFixture } from './helpers/nativeFixture.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 const prepareDomainResources = async (results: Awaited<ReturnType<typeof fixtureResourceResults>>) => Object.fromEntries(results.map(result => [result.resourceId, result.value.path]));
 async function exportDomainMarkdown(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: number; locale?: 'en' | 'zh' } = {}) {
     return renderDocumentMarkdown(composeDomainDocument(domain, account), await prepareDomainResources(options.resourceResults ?? []), options);
@@ -112,9 +112,9 @@ test('direct export dependency closure cannot load Canonical conversation normal
             if (fs.existsSync(dependency)) visit(dependency);
         }
     };
-    visit(path.resolve(__dirname, '../src/core/document/compose/composeDomainDocument.ts'));
-    visit(path.resolve(__dirname, '../src/core/renderers/html/renderHtml.ts'));
-    visit(path.resolve(__dirname, '../src/core/renderers/markdown/renderMarkdown.ts'));
+    visit(path.resolve(__dirname, '../src/l3b/compose/composeDomainDocument.ts'));
+    visit(path.resolve(__dirname, '../src/l4/format/html/renderHtml.ts'));
+    visit(path.resolve(__dirname, '../src/l4/format/markdown/renderMarkdown.ts'));
 });
 
 test('provider citation binding covers rich captions/descriptions and ignores code/math markers', () => {

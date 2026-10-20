@@ -1,6 +1,6 @@
-import { parseGeminiDetailEvidence } from '../../src/core/parsers/gemini/rpc/parseConversation.js';
-import type { GeminiDetailEvidence, GeminiMessageEvidence } from '../../src/core/parsers/gemini/rpc/detailEvidence.js';
-import { parseList } from '../../src/core/parsers/gemini/rpc/parseList.js';
+import { parseGeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/parseConversation.js';
+import type { GeminiDetailEvidence, GeminiMessageEvidence } from '../../src/l1/parsers/gemini/rpc/detailEvidence.js';
+import { parseList } from '../../src/l1/parsers/gemini/rpc/parseList.js';
 
 /** Native source fixtures intentionally contain neither Account UUID nor trusted Domain. */
 export function sourceMessage(id: string, content = id, role: 'user' | 'model' = 'model'): GeminiMessageEvidence {

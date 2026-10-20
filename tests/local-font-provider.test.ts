@@ -1,7 +1,7 @@
 /**
  * tests/local-font-provider.test.ts
  * Tier 1 tests for the Phase D local-first font provider
- * (src/core/export/typst/fonts/localFontProvider.ts).
+ * (src/l4/format/pdf/typst/fonts/localFontProvider.ts).
  *
  * Covers (all with a mocked queryLocalFonts -- no real browser needed):
  *  - pure font matching: exact family, postscript heuristic, style priority,
@@ -23,7 +23,7 @@ const {
     getCachedLocalFonts,
     clearLocalFontCache,
     CJK_FONT_STACK,
-} = require('../src/core/export/typst/fonts/localFontProvider.js');
+} = require('../src/l4/format/pdf/typst/fonts/localFontProvider.js');
 
 function mockEntry(family: string, postscriptName: string, style: string): any {
     return {

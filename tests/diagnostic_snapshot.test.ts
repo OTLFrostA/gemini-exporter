@@ -5,12 +5,12 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { FlightRecorder } = require('../src/core/diagnostics/flightRecorder.js');
+const { FlightRecorder } = require('../src/runtime/diagnostics/flightRecorder.js');
 const {
     maskTitle,
     explainStateDerivation,
     buildDiagnosticSnapshot
-} = require('../src/core/diagnostics/diagnosticSnapshot.js');
+} = require('../src/shared/diagnostics/diagnosticSnapshot.js');
 
 // The flight recorder is a singleton; audited tests must leave no sensitive fixtures behind.
 test.afterEach(() => FlightRecorder.clear());

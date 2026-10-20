@@ -2,11 +2,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
-import { ingestDetail, ingestIndexes } from '../src/core/domain/ingestion.js';
-import { getIndex, getDetail, getExportRecord, putExportRecord, listIndexes } from '../src/core/storage/storageService.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
-import { ConfirmedGeminiConversationNotFound } from '../src/core/api/geminiClient.js';
+import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
+import { getIndex, getDetail, getExportRecord, putExportRecord, listIndexes } from '../src/l3a/storageService.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import type { GeminiProviderClient } from '../src/l1/client/gemini/geminiContracts.js';
+import { ConfirmedGeminiConversationNotFound } from '../src/l1/client/gemini/geminiClient.js';
 const accountId = '10000000-0000-4000-8000-000000000001', otherId = '10000000-0000-4000-8000-000000000002';
 const conversationId = 'deadbeef00112233';
 test('ordinary 404 preserves facts; target-bound confirmed deletion removes all three records only for its account', async () => {

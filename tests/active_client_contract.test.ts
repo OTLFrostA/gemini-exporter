@@ -1,11 +1,11 @@
 import { accountRuntime } from './helpers/accountRuntime.js';
-import { startSync } from '../src/ui/controllers/syncController.js';
+import { startSync } from '../src/ui/options/controllers/syncController.js';
 import test from 'node:test';
 import assert from 'node:assert';
-import type { ActiveClientContract } from '../src/content/contentContext.js';
-import { ContentContext, contentContext } from '../src/content/contentContext.js';
-import { runCleanups } from '../src/content/cleanupRegistry.js';
-import { init as initMessageRouter } from '../src/content/messageRouter.js';
+import type { ActiveClientContract } from '../src/runtime/content/contentContext.js';
+import { ContentContext, contentContext } from '../src/runtime/content/contentContext.js';
+import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
+import { init as initMessageRouter } from '../src/runtime/content/messageRouter.js';
 
 // --------------------------------------------------------------------------
 // 1. Compile-time regression:

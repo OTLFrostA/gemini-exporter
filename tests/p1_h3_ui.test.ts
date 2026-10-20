@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import { mount, read, A } from './helpers/uiPortHarness.js';
-import { verifyDirPermission } from '../src/ui/controllers/dirHandleController.js';
+import { verifyDirPermission } from '../src/runtime/capabilities/dirHandleController.js';
 let browser:Browser,page:Page;
 test.before(async()=>{browser=await chromium.launch({headless:true});});test.afterEach(async()=>{await page?.close();});test.after(async()=>{await browser?.close();});
 async function open(kind:'popup'|'options'='options',patch:Record<string,unknown>={}){page=await browser.newPage();await mount(page,kind,patch);}

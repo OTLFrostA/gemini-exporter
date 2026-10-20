@@ -3,8 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
-import { init, handleWindowMessage } from '../src/content/messageBridge.js';
-import { listIndexes, getCoverage } from '../src/core/storage/storageService.js';
+import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
+import { listIndexes, getCoverage } from '../src/l3a/storageService.js';
 const wire = (seconds: number) => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
     [['c_abcdef123', 'A', null, null, null, [seconds, 0]]]])]]);
 function capture(seconds: number, correlated: boolean): MessageEvent {

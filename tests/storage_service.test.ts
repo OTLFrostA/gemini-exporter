@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as storage from '../src/core/storage/storageService.js';
+import * as storage from '../src/l3a/storageService.js';
 import { indexStorage, useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 
-import { getSettings, updateSettings } from '../src/core/application/settings/index.js';
+import { getSettings, updateSettings } from '../src/application/settings/index.js';
 useIndexStorage();
 test('compound storage keys partition identical provider IDs by Account UUID', async () => {
     const key = fixtureKey('same'), other = { ...key, accountId: '20000000-0000-4000-8000-000000000002' };

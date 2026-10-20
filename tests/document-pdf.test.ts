@@ -1,13 +1,13 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import type { DocumentAst } from '../src/core/document/ast/ast.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentTypst, defaultPdfLayout } from '../src/core/renderers/typst/renderTypst.js';
-import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { DocumentAst } from '../src/l3b/ast/ast.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentTypst, defaultPdfLayout } from '../src/l4/format/typst/renderTypst.js';
+import { TypstSandboxCompiler } from '../src/l4/format/pdf/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
 

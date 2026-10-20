@@ -16,8 +16,8 @@ export {};
 const test = require('node:test');
 import assert from 'node:assert/strict';
 
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 async function normAndRender(content: string, options: any = {}) {
     const raw: any = {

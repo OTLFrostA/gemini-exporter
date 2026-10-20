@@ -6,8 +6,8 @@
  * Drives the REAL, unmodified TypstSandboxCompiler (product code) against a
  * test frame that runs the REAL @myriaddreamin/typst.ts WASM compiler using
  * the product's exact sandbox recipe -- a line-by-line mirror of
- * src/ui/sandbox/typstCompileEntry.ts:
- *  - WASM bytes: the vendored src/ui/sandbox/vendor/typst_ts_web_compiler_bg.wasm
+ * src/l4/format/pdf/sandbox/typstCompileEntry.ts:
+ *  - WASM bytes: the vendored src/l4/format/pdf/sandbox/vendor/typst_ts_web_compiler_bg.wasm
  *  - init: createOfflineInitOptions() (loadFonts([], {assets:false})) for both
  *    the compiler and the font builder -- no jsdelivr, no remote fonts
  *  - sources: the 7 v8 template files + MAIN_TYP + /payload.json from the wire
@@ -28,16 +28,16 @@
  */
 
 export {};
-const { visual } = require('../../src/core/renderers/shared/visualContract');
+const { visual } = require('../../src/l4/format/shared/visualContract.ts');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const { createTypstCompiler, createTypstFontBuilder } = require('@myriaddreamin/typst.ts');
-const { createOfflineInitOptions } = require('../../src/ui/sandbox/offlineInit.js');
+const { createOfflineInitOptions } = require('../../src/l4/format/pdf/sandbox/offlineInit.js');
 const {
     HOST_TO_SANDBOX,
     SANDBOX_TO_HOST,
-} = require('../../src/core/export/typst/sandboxProtocol.js');
+} = require('../../src/l4/format/pdf/typst/sandboxProtocol.js');
 
 const PDF_FORMAT = 1;
 
@@ -59,7 +59,7 @@ const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
     ['/quiet-light.tmTheme', 'quiet-light.tmTheme'],
 ];
 
-/** Must stay identical to MAIN_TYP in src/ui/sandbox/typstCompileEntry.ts. */
+/** Must stay identical to MAIN_TYP in src/l4/format/pdf/sandbox/typstCompileEntry.ts. */
 const MAIN_TYP = '#import "document.typ": render-document\n#let payload = json("/payload.json")\n#render-document(payload)\n';
 
 export interface FrameStats {
@@ -87,7 +87,7 @@ export class RealWasmSandboxFrame {
         private readonly stats: FrameStats,
         repo: string,
     ) {
-        const dir = path.join(repo, 'src/core/renderers/typst/templates');
+        const dir = path.join(repo, 'src/l4/format/typst/templates');
         this.templates = TEMPLATE_FILES.map(([vpath, name]) => {
             return [vpath, fs.readFileSync(path.join(dir, name), 'utf8')] as [string, string];
         });

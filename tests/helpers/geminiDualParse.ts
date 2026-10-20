@@ -1,11 +1,11 @@
 import { fixtureAccount } from './domainFixture.js';
 /** Test-only differential audit. Never imported into the extension. */
-import type { BlockNode } from '../../src/core/domain/content/blocks.js';
-import type { InlineNode } from '../../src/core/domain/content/inline.js';
-import type { DomainAsset, DomainMessage } from '../../src/core/domain/conversationDetail.js';
-import type { GeminiDetailEvidence } from '../../src/core/parsers/gemini/rpc/detailEvidence.js';
-import { decodeGeminiDetail } from '../../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { parseGeminiDetailEvidence } from '../../src/core/parsers/gemini/rpc/parseConversation.js';
+import type { BlockNode } from '../../src/l2/content/blocks.js';
+import type { InlineNode } from '../../src/l2/content/inline.js';
+import type { DomainAsset, DomainMessage } from '../../src/l2/conversationDetail.js';
+import type { GeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/detailEvidence.js';
+import { decodeGeminiDetail } from '../../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { parseGeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/parseConversation.js';
 
 export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
 export interface Difference { path: string; structured?: Value; markdown?: Value }

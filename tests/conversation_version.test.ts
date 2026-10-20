@@ -1,15 +1,15 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
-import { ingestDetail } from '../src/core/domain/ingestion.js';
-import { readConversation } from '../src/core/domain/readConversation.js';
-import type { SourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import { ingestDetail } from '../src/l2/ingestion.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 
 const wire = (rows: Array<[string, unknown]>) => JSON.stringify(rows.map(([rpc, payload]) => ['wrb.fr', rpc, JSON.stringify(payload)]));
 function detail(messageTime: number[], version?: number[], more = false, id = 'version_chat') {

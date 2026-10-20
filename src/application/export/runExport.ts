@@ -1,0 +1,225 @@
+import { readConversation } from '../../l2/readConversation.js';
+import { getAccount } from '../../runtime/api/accountRegistry.js';
+import { getIndex, getExportRecord, putExportRecord, getDirectoryHandle } from '../../l3a/storageService.js';
+import type { ConversationKey } from '../../l2/conversationKey.js';
+import type { Account } from '../../l2/accountRegistry.js';
+import { type ReadonlyDomain } from '../../l2/runtimeValidation.js';
+import type { AIProvider } from '../../l1/client/aiProvider.js';
+import { createTaskProvider } from '../../l1/client/taskProvider.js';
+import { createSourceResourceContext } from '../../l1/resources/sourceResources.js';
+import { composeDomainDocument } from '../../l3b/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../../l3b/ast/resourceReferences.js';
+import type { DocumentAst } from '../../l3b/ast/ast.js';
+import type { PreparedResources } from '../../shared/resources/resourceResult.js';
+import { renderDocumentMarkdown } from '../../l4/format/markdown/renderMarkdown.js';
+import { renderDocumentHtml } from '../../l4/format/html/renderHtml.js';
+import { serializeDomainJson } from '../../l4/format/json/serializeDomainJson.js';
+import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles, type ExportPathPlan } from '../../l4/packaging/index.js';
+import type { ExportArtifact } from '../../l4/artifacts.js';
+import { startBrowserDownload, writeToFolder } from '../../l4/delivery/index.js';
+import { compileDocumentPdf } from '../../l4/format/pdf/compileDocumentPdf.js';
+import { TypstSandboxCompiler } from '../../l4/format/pdf/typst/typstSandboxCompiler.js';
+import { resolveLocalFonts } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
+import { mountRuntimeFonts } from '../../l4/format/pdf/typst/fonts/mountRuntimeFonts.js';
+import { prepareExportResources } from './prepareExportResources.js';
+import type { ExportRequest, ExportRecord, ExportProgress, ExportResult } from './types.js';
+
+// Missing-resource diagnostics are expected when the user explicitly omits bytes.
+const expectedMissingResource = new Set(['HTML_ASSET_UNRESOLVED', 'TYPST_V8_IMAGE_MISSING', 'TYPST_V8_INLINE_IMAGE_MISSING']);
+const comparable = (value: number | undefined): value is number => value !== undefined && Number.isFinite(value);
+export function shouldSkipExport(record: ExportRecord | null, updatedAt: number | undefined, request: ExportRequest): boolean {
+    return request.skipUnchanged && record?.status === 'ok' && record.format === request.format
+        && comparable(record.chatTime) && comparable(updatedAt) && record.chatTime >= updatedAt;
+}
+function isFresh(conversation: ReadonlyDomain): boolean {
+    return conversation.detail.quality.status === 'complete' && comparable(conversation.detail.savedAt)
+        && comparable(conversation.index.updatedAt) && conversation.detail.savedAt >= conversation.index.updatedAt;
+}
+interface PendingExport {
+    key: ConversationKey;
+    account: Account;
+    conversation: ReadonlyDomain;
+    document?: DocumentAst;
+    prepared: PreparedResources;
+}
+interface ExportGroup { key: ConversationKey; record: ExportRecord; files: ExportArtifact[] }
+
+/** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
+export async function runExport(request: ExportRequest, options: {
+    onProgress?: (progress: ExportProgress) => void;
+    /** Optional ephemeral error detail for interactive consumers; never persisted. */
+    onFailure?: (key: ConversationKey, message: string) => void;
+    signal?: AbortSignal;
+} = {}): Promise<ExportResult> {
+    const failed: ConversationKey[] = [];
+    const result = { exported: 0, skipped: 0, partial: 0, failed, aborted: false };
+    const signal = options.signal ?? new AbortController().signal;
+    const resources = createSourceResourceContext();
+    const providers = new Map<string, AIProvider>();
+    let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
+    let pdfFonts: import('../../l4/format/pdf/typst/fonts/localFontProvider.js').LocalFontResolution | undefined;
+    const cancelled = (error: unknown): boolean => signal.aborted || (error instanceof Error && error.name === 'AbortError');
+    const fail = (keys: readonly ConversationKey[], error?: unknown): void => {
+        const message = error instanceof Error ? error.message : error === undefined ? 'Export failed' : String(error);
+        for (const key of keys) {
+            if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
+                failed.push(key);
+                options.onFailure?.(key, message);
+            }
+        }
+    };
+    const providerFor = (id: string): AIProvider => {
+        let provider = providers.get(id);
+        if (!provider) {
+            provider = createTaskProvider(id, resources);
+            providers.set(id, provider);
+        }
+        return provider;
+    };
+    const readLocal = readConversation;
+    const finalize = async (groups: readonly ExportGroup[]): Promise<void> => {
+        // Once Delivery returned, cancellation cannot suppress records for that group/ZIP.
+        const exportedAt = Date.now();
+        for (const group of groups) {
+            try {
+                await putExportRecord(group.key, { ...group.record, exportedAt });
+                result.exported++;
+                if (group.record.status === 'partial') result.partial++;
+            } catch (error) {
+                console.warn('[Gemini Exporter] ExportRecord write failed', group.key, error);
+                fail([group.key], error);
+            }
+        }
+    };
+    const renderGroup = async (item: PendingExport, plan: ExportPathPlan): Promise<ExportGroup> => {
+        const { conversation, document, prepared, key } = item;
+        let partial = conversation.detail.quality.status !== 'complete'
+            || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
+                && conversation.detail.savedAt < conversation.index.updatedAt)
+            || [...prepared.values()].some(value => !value.ok);
+        let content: string | Uint8Array;
+        switch (request.format) {
+            case 'json': content = serializeDomainJson(conversation, item.account, plan.resources); break;
+            case 'markdown': content = renderDocumentMarkdown(document!, plan.resources); break;
+            case 'html': {
+                const html = renderDocumentHtml(document!, plan.resources);
+                content = html.html;
+                partial ||= html.diagnostics.some(diagnostic => diagnostic.severity !== 'info' && (request.includeAssets || !expectedMissingResource.has(diagnostic.code)));
+                break;
+            }
+            case 'pdf': {
+                if (!compiler) {
+                    compiler = new TypstSandboxCompiler();
+                    const mounted = await mountRuntimeFonts(await resolveLocalFonts(), compiler);
+                    pdfFonts = mounted.effectiveFonts;
+                }
+                const pdf = await compileDocumentPdf(document!, plan.resources, prepared, compiler,
+                    { signal, reportProgress() {} });
+                content = pdf.pdfBytes;
+                partial ||= [...(pdfFonts?.diagnostics ?? []), ...pdf.diagnostics].some(diagnostic => diagnostic.severity !== 'info' && (request.includeAssets || !expectedMissingResource.has(diagnostic.code)));
+                break;
+            }
+        }
+        signal.throwIfAborted();
+        const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
+            record: { exportedAt: 0, format: request.format, status: partial ? 'partial' : 'ok',
+                ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) } };
+        return group;
+    };
+    try {
+        signal.throwIfAborted();
+        const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
+        if (request.delivery === 'folderWriter' && !directory) throw new Error('Export directory unavailable');
+        const folderPlanner = request.delivery === 'folderWriter' ? createExportPathPlanner(request.format) : undefined;
+        const pending: PendingExport[] = [];
+        for (const [index, key] of request.keys.entries()) {
+            signal.throwIfAborted();
+            options.onProgress?.({ current: index + 1, total: request.keys.length, key });
+            try {
+                const account = await getAccount(key.accountId);
+                if (!account) throw new Error('Account unavailable');
+                const localIndex = await getIndex(key);
+                const record = request.skipUnchanged ? await getExportRecord(key) : null;
+                if (localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
+                    result.skipped++;
+                    continue;
+                }
+                let conversation = await readLocal(key);
+                if (!conversation || !isFresh(conversation)) {
+                    try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal); }
+                    catch (error) { if (cancelled(error)) throw error; }
+                    // Even a failed refresh may have committed useful facts. Never export a response DTO.
+                    conversation = await readLocal(key);
+                }
+                signal.throwIfAborted();
+                if (!conversation) throw new Error('No usable local Detail');
+                const document = request.format === 'json' ? undefined : composeDomainDocument(conversation, account);
+                const references = document && collectDocumentResources(document);
+                const requiredIds = !request.includeAssets ? new Set<string>() : request.format === 'json'
+                    ? new Set(conversation.detail.assets.map(asset => asset.id))
+                    : request.format === 'pdf' ? references!.imageIds : references!.referencedIds;
+                const prepared = await prepareExportResources(conversation.detail.assets, requiredIds,
+                    (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
+                const item: PendingExport = { key, account, conversation, document, prepared };
+                if (folderPlanner) {
+                    const group = await renderGroup(item, folderPlanner(conversation, prepared));
+                    await writeToFolder(group.files, directory!);
+                    await finalize([group]);
+                } else pending.push(item);
+            } catch (error) {
+                if (cancelled(error)) throw error;
+                console.warn('[Gemini Exporter] Export item failed', key, error);
+                fail([key], error);
+            } finally {
+                // Free captured inline/Takeout readers as soon as this Folder item settles.
+                if (folderPlanner) resources.releaseConversation(key);
+            }
+        }
+        signal.throwIfAborted();
+        let plans: ReturnType<typeof planExportPaths>;
+        try {
+            plans = folderPlanner ? [] : planExportPaths(pending, request.format);
+        } catch (error) {
+            if (cancelled(error)) throw error;
+            console.warn('[Gemini Exporter] Export path planning failed', error);
+            fail(pending.map(item => item.key), error);
+            return result;
+        }
+        const groups: ExportGroup[] = [];
+        for (const [index, item] of pending.entries()) {
+            signal.throwIfAborted();
+            try {
+                groups.push(await renderGroup(item, plans[index]));
+            } catch (error) {
+                if (cancelled(error)) throw error;
+                console.warn('[Gemini Exporter] Export format or delivery failed', item.key, error);
+                fail([item.key], error);
+            }
+        }
+        signal.throwIfAborted();
+        if (groups.length) {
+            try {
+                const files = await packageExportFiles(groups.map(group => group.files), request.delivery);
+                signal.throwIfAborted();
+                if (request.delivery === 'browserDownload') {
+                    if (files.length !== 1) throw new Error('Browser delivery requires one final file');
+                    await startBrowserDownload(files[0]);
+                } else await writeToFolder(files, directory!);
+                await finalize(groups);
+            } catch (error) {
+                if (cancelled(error)) throw error;
+                console.warn('[Gemini Exporter] Batch delivery failed', error);
+                fail(groups.map(group => group.key), error);
+            }
+        }
+        result.aborted = signal.aborted;
+        return result;
+    } catch (error) {
+        if (!cancelled(error)) throw error;
+        result.aborted = true;
+        return result;
+    } finally {
+        resources.release();
+        compiler?.dispose();
+    }
+}

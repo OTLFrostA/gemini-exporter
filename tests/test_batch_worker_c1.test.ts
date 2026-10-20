@@ -1,11 +1,11 @@
 import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import * as DomainAdmission from '../src/l2/ingestion.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+import { StorageService as catalogStorage } from '../src/l3a/storageService.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { __clearDomainMemory } = require('../src/core/storage/domain/domainStore.js');
+const { __clearDomainMemory } = require('../src/l3a/domain/domainStore.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');

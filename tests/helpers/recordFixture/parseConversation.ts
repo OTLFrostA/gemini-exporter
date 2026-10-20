@@ -2,7 +2,7 @@ import { parseConversationRecord } from './parseRecord.js';
 import type { ConversationRecordInput } from './conversationRecord.js';
 import type { DomainFixture } from '../domainFixture.js';
 import type { ConversationRecordParseContext } from './parseRecord.js';
-import { normId } from '../../../src/core/utils/pathUtils.js';
+import { normId } from '../../../src/shared/utils/pathUtils.js';
 
 export interface LegacyStorageRaw { metadata: unknown; detail?: unknown }
 function record(value: unknown): Record<string, unknown> {

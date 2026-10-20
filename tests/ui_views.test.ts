@@ -2,7 +2,7 @@ import test, { before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import { mount, read, A, B } from './helpers/uiPortHarness.js';
-import { isRealTitle } from '../src/core/utils/titleText.js';
+import { isRealTitle } from '../src/shared/utils/titleText.js';
 let browser: Browser, page: Page;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 afterEach(async () => { await page?.close(); });

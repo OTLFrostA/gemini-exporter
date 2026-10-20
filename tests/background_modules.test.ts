@@ -12,7 +12,7 @@ test('abortManager - per-slot abort isolation and session storage persistence', 
         setSlotAborted,
         restoreAbortFlags,
         clearAllAborts
-    } = require('../src/background/abortManager.js');
+    } = require('../src/runtime/background/abortManager.js');
 
     const sessionData: Record<string, any> = {};
     const origChrome = (global as any).chrome;
@@ -87,7 +87,7 @@ test('keepAlive - startKeepAlive interval triggers getPlatformInfo and clears cl
     };
 
     try {
-        const { startKeepAlive } = require('../src/background/keepAlive.js');
+        const { startKeepAlive } = require('../src/runtime/background/keepAlive.js');
         const stop = startKeepAlive();
         assert.strictEqual(calls, 1, 'keepAlive should immediately trigger getPlatformInfo via mocked interval');
         assert.strictEqual(clearedId, null);
@@ -108,7 +108,7 @@ test('tabAction - URL detection and icon state switching', async () => {
         updateTabActionState,
         ACTION_COLOR_ICONS,
         ACTION_GRAY_ICONS
-    } = require('../src/background/tabAction.js');
+    } = require('../src/runtime/background/tabAction.js');
 
     assert.strictEqual(isGeminiTabUrl('https://gemini.google.com/app'), true);
     assert.strictEqual(isGeminiTabUrl('https://gemini.google.com/u/1/app/c_123'), true);
@@ -148,7 +148,7 @@ test('tabAction - URL detection and icon state switching', async () => {
 
 // 4. LiveSaveHandler unit tests
 test('liveSaveHandler - directory missing and deletion detection', async () => {
-    const { handleLiveSaveViaHandle, markDirDeletedInConfig } = require('../src/background/liveSaveHandler.js');
+    const { handleLiveSaveViaHandle, markDirDeletedInConfig } = require('../src/runtime/background/liveSaveHandler.js');
     const origChrome = (global as any).chrome;
 
     let storageConfig: any = { enabledDisk: true, dirName: 'test_dir' };
@@ -183,8 +183,8 @@ test('liveSaveHandler - directory missing and deletion detection', async () => {
 });
 
 test('liveSaveHandler - persists to gemini_export with cid6 filename and assets', async () => {
-    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
-    const idbStore = require('../src/core/storage/idbHandleStore.js');
+    const { handleLiveSaveViaHandle } = require('../src/runtime/background/liveSaveHandler.js');
+    const idbStore = require('../src/l3a/idbHandleStore.js');
 
     let writtenFiles: Record<string, any> = {};
     let createdFolder = '';
@@ -227,7 +227,7 @@ test('liveSaveHandler - persists to gemini_export with cid6 filename and assets'
     idbStore.getStoredDirHandle = async () => mockHandle;
 
     // Phase A (P1-2): 拦截 saveExportRecord，断言 partial 记录语义
-    const storageMod = require('../src/core/storage/storageService.js');
+    const storageMod = require('../src/l3a/storageService.js');
     const origSaveExportRecord = storageMod.StorageService.saveExportRecord;
     let savedRecord: any = null;
     storageMod.StorageService.saveExportRecord = async (slot: string, nid: string, rec: any) => {
@@ -287,7 +287,7 @@ test('liveSaveHandler - persists to gemini_export with cid6 filename and assets'
 });
 
 test('liveSaveHandler - base64ToUint8Array decodes valid base64 and handles empty inputs', () => {
-    const { base64ToUint8Array } = require('../src/background/liveSaveHandler.js');
+    const { base64ToUint8Array } = require('../src/runtime/background/liveSaveHandler.js');
     const original = 'binary-data-test-string';
     const b64 = Buffer.from(original).toString('base64');
     const u8 = base64ToUint8Array(b64);

@@ -1,9 +1,9 @@
 import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { extractBlockText } from '../src/l2/content/unknownFallback.js';
 
 // Sanitized shape observed in the failing 2026-10-09 Tier 2 spray-dryer RPC:
 // one request, two answer drafts, turn[3][3] naming the displayed candidate.

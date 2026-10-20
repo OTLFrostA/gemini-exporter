@@ -4,11 +4,11 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { storageIdentity } from './helpers/admitFixture.js';
-import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { readFixture } from './helpers/admitFixture.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {
     for (const status of ['complete', 'partial', 'unknown'] as const) {

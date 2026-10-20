@@ -1,14 +1,14 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { parseGeminiTakeoutZipArchive, parseGeminiTakeoutZip } from '../src/core/imports/takeout/readArchive.js';
+import { parseGeminiTakeoutZipArchive, parseGeminiTakeoutZip } from '../src/l1/imports/takeout/readArchive.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseGeminiTakeoutArchive, type GeminiTakeoutRaw } from '../src/core/parsers/gemini/takeout/parseConversation.js';
-import { decodeTakeoutHtml } from '../src/core/parsers/gemini/takeout/decodeHtml.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { parseGeminiTakeoutArchive, type GeminiTakeoutRaw } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
+import { decodeTakeoutHtml } from '../src/l1/parsers/gemini/takeout/decodeHtml.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { extractBlockText } from '../src/l2/content/unknownFallback.js';
 
 const ID = 'CaseSensitive_99';
 function activity(prompt = 'Question', answer = '<p><strong>Answer</strong></p>', date = '2026-09-02T12:00:00Z', id = ID, extra = ''): string {
@@ -124,7 +124,7 @@ test('long report HTML becomes authored Content AST without synthetic document I
 
 test('Takeout extraction has no export naming and native parsing does not call compatibility constructors', () => {
     assert.equal(native({ htmlText: activity() }).conversation.detail.messages.length, 2);
-    const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/takeout/parseConversation.ts'), 'utf8');
+    const source = readFileSync(join(__dirname, '../src/l1/parsers/gemini/takeout/parseConversation.ts'), 'utf8');
     assert.doesNotMatch(source, /parseTakeoutHtmlBlocks|correlateGeneratedImages|parseConversationRecord|Date\.now|sanitizeFileName|localName/);
     assert.equal(decodeTakeoutHtml(activity())[0].conversationIds[0], ID);
     assert.throws(() => native({ htmlText: 'unsupported format' }), /Unsupported Takeout/);

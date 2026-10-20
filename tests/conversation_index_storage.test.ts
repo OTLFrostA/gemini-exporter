@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountRuntime.js';
-import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../src/core/domain/ingestion.js';
-import { listIndexes, getIndex, getDetail, putExportRecord, getExportRecord } from '../src/core/storage/storageService.js';
-import { mergeConversationIndex, restoreConversationIndex, indexActivityTime } from '../src/core/domain/conversationIndex.js';
-import type { DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
+import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../src/l2/ingestion.js';
+import { listIndexes, getIndex, getDetail, putExportRecord, getExportRecord } from '../src/l3a/storageService.js';
+import { mergeConversationIndex, restoreConversationIndex, indexActivityTime } from '../src/l2/conversationIndex.js';
+import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
 const key = (id = 'chat', accountId = ACCOUNT_UUID) => ({ accountId, conversationId: id });
 const fields = () => ({ title: 'Research', titleSource: 'provider' as const, updatedAt: 50 });
 const detail = () => ({ quality: { status: 'complete' as const }, assets: [],

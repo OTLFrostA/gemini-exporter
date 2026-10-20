@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import { unavailableResourceText } from '../src/core/renderers/shared/backendPresentation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { unavailableResourceText } from '../src/l4/format/shared/backendPresentation.js';
 
 const account = Object.freeze({ ...fixtureAccount('chatgpt'), email: 'private@example.test', displayName: 'Private name' });
 function input(): DomainConversationWithDetail {

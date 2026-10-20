@@ -4,10 +4,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { convertMath } = require('../src/core/renderers/typst/mathConverter.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
+const { convertMath } = require('../src/l4/format/typst/mathConverter.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
     RealWasmSandboxHost,

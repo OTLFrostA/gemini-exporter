@@ -1,12 +1,12 @@
-import { sendTabMessage } from '../../core/utils/tabService.js';
-import { isAccountId } from '../../core/domain/accountRegistry.js';
-import type { ConversationKey } from '../../core/domain/conversationKey.js';
-import { getIndex, getDetail, listIndexes } from '../../core/storage/storageService.js';
-import { updateSettings, type GlobalSettings } from '../../core/application/settings/index.js';
-import { ensureV2Ready } from '../../core/api/runtimeReady.js';
-import { warmLocalFontCache } from '../../core/export/typst/fonts/localFontProvider.js';
-import { runExport } from '../controllers/exportController.js';
-import { readSettings, observeSettings, useSettings, text, errorText, labelPage } from '../utils/settings.js';
+import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
+import { isAccountId } from '../../l2/accountRegistry.js';
+import type { ConversationKey } from '../../l2/conversationKey.js';
+import { getIndex, getDetail, listIndexes } from '../../l3a/storageService.js';
+import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
+import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
+import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
+import { runExport } from '../options/controllers/exportController.js';
+import { readSettings, observeSettings, useSettings, text, errorText, labelPage } from '../shared/settings.js';
 
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
 export async function readActiveKey(): Promise<ConversationKey | null> {

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import credentials from '../src/core/api/client/credentialManager.js';
-import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
-import { getDetail } from '../src/core/storage/storageService.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import credentials from '../src/l1/client/gemini/api/credentialManager.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { getDetail } from '../src/l3a/storageService.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 useIndexStorage();
 
 test('adapter: prefixed request IDs use the canonical source ID for admission and task resources', async () => {

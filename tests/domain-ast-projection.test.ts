@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 
 const account = Object.freeze({ ...fixtureAccount('chatgpt'), email: 'private@example.test', displayName: 'Private name' });
 function input(): DomainConversationWithDetail {
@@ -90,7 +90,7 @@ test('AST: code and reasoning preserve facts without renderer controls', () => {
 
 test('AST: Composer modules cannot reach persistence, acquisition or provider services', () => {
     for (const file of ['composeDomainDocument', 'composeContent', 'resourcePresentation']) {
-        const source = readFileSync(`src/core/document/compose/${file}.ts`, 'utf8');
+        const source = readFileSync(`src/l3b/compose/${file}.ts`, 'utf8');
         for (const [, dependency] of source.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)) {
             assert.doesNotMatch(dependency, /(?:^|\/)(?:storage|api|providers?|parsers|resources|renderers|export)(?:\/|$)/);
         }

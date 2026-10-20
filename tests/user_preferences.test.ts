@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
-import { getSettings, updateSettings, type GlobalSettings } from '../src/core/application/settings/index.js';
-import { isVersionGreater } from '../src/core/utils/pathUtils.js';
+import { getSettings, updateSettings, type GlobalSettings } from '../src/application/settings/index.js';
+import { isVersionGreater } from '../src/shared/utils/pathUtils.js';
 
 test('userPreferences - developer mode uses the single Application Settings owner', async () => {
     const env = indexStorage(); try {

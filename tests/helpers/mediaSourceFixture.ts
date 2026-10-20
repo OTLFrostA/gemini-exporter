@@ -1,7 +1,7 @@
 import { fixtureAccount } from './domainFixture.js';
-import { parseGeminiRpcConversation } from '../../src/core/parsers/gemini/rpc/parseConversation.js';
-import { parseGeminiTakeoutArchive } from '../../src/core/parsers/gemini/takeout/parseConversation.js';
-import type { SourceConversationParseResult } from '../../src/core/parsers/parsingResult.js';
+import { parseGeminiRpcConversation } from '../../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { parseGeminiTakeoutArchive } from '../../src/l1/parsers/gemini/takeout/parseConversation.js';
+import type { SourceConversationParseResult } from '../../src/l1/parsers/parsingResult.js';
 
 export const mediaChatId = 'source-media';
 export const mediaPrompt = 'Draw a diagram of a green bridge';

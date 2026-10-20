@@ -3,11 +3,11 @@ useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mediaSources, mediaChatId, mediaBytes } from './helpers/mediaSourceFixture.js';
-import { ingestDetail, ingestDeletedConversation } from '../src/core/domain/ingestion.js';
-import { readConversation } from '../src/core/domain/readConversation.js';
-import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
-import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
-import type { SourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import { ingestDetail, ingestDeletedConversation } from '../src/l2/ingestion.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { findResourceMatch, resourceIdentity } from '../src/l1/parsers/shared/resources/resourceIdentity.js';
+import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: mediaChatId };
 const commit = (source: SourceConversationParseResult) => ingestDetail(key.accountId, key.conversationId, source.conversation.detail, source.conversation.index);
 for (const order of ['online-first', 'takeout-first'] as const) {

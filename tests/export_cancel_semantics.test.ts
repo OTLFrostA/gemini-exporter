@@ -14,7 +14,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { ExportOrchestrator } = require('../src/core/engine/export/exportOrchestrator.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 // 不失败的 MockJSZip（记录写入文件，用于断言 _export_errors.json 未产生）
 function setupMockJSZip() {
@@ -227,9 +227,9 @@ test('cancel semantics - rate-limit backoff is abortable (no 30s stall on cancel
 });
 
 test('ZIP delivery makes cancellation during Storage await ineffective; next run can still cancel', async () => {
-    const Storage = require('../src/core/storage/storageService.js');
-    const { SessionStore } = require('../src/core/storage/sessionStore.js');
-    const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const Storage = require('../src/l3a/storageService.js');
+    const { SessionStore } = require('../src/l3a/sessionStore.js');
+    const { __clearModuleOverrides } = require('../src/shared/utils/moduleOverrides.js');
     const previousChrome = Reflect.get(globalThis, 'chrome');
     const memory: Record<string, unknown> = {};
     const { expKey } = Storage.getStorageKeys('10000000-0000-4000-8000-000000000001');

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { A, B, key, seed } from './helpers/v2ConversationFixture.js';
-import { listIndexes, listExportRecords, putExportRecord } from '../src/core/storage/storageService.js';
+import { listIndexes, listExportRecords, putExportRecord } from '../src/l3a/storageService.js';
 
 test('current-schema reads use only account-scoped v2 stores, ignoring legacy global fallback keys', async () => {
     const env = indexStorage({ conversations: [{ id: 'leak' }], exported: { leak: {} }, ['conversations_' + A]: [{ id: 'old' }] });

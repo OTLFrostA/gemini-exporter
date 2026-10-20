@@ -1,7 +1,7 @@
 import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import * as DomainAdmission from '../src/l2/ingestion.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
-import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+import { StorageService as catalogStorage } from '../src/l3a/storageService.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -27,7 +27,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { PdfExporter, PDF_NO_MESSAGES } = require('../src/core/export/pdf/index.js');
+const { PdfExporter, PDF_NO_MESSAGES } = require('../src/l4/format/pdf/index.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');

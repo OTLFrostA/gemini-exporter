@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { putAccount, getAccount, listAccounts, listIndexes } from '../src/core/storage/storageService.js';
-import { ingestIndexes } from '../src/core/domain/ingestion.js';
-import { handleTakeoutImport } from '../src/ui/controllers/takeoutController.js';
-import { updateSettings } from '../src/core/application/settings/index.js';
-import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
+import { putAccount, getAccount, listAccounts, listIndexes } from '../src/l3a/storageService.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
+import { handleTakeoutImport } from '../src/ui/options/controllers/takeoutController.js';
+import { updateSettings } from '../src/application/settings/index.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
 useIndexStorage();
 const A='10000000-0000-4000-8000-000000000001',B='10000000-0000-4000-8000-000000000002';
 async function accounts(){for(const id of [A,B])await putAccount({id,providerId:'gemini',providerAccountId:id});}

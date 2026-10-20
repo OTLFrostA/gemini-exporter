@@ -1,21 +1,21 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
-import type { DetailParseResult } from '../src/core/api/client/detailTypes.js';
-import type { GeminiDetailEvidence } from '../src/core/parsers/gemini/rpc/detailEvidence.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import type { DomainMessage } from '../src/core/domain/conversationDetail.js';
-import type { GeminiParserExtractorsModule } from '../src/core/parsers/gemini/rpc/extractors.js';
-import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseList.js';
-import type { Citation } from '../src/core/parsers/gemini/rpc/extractors.js';
-import type { GeminiProtocolModule } from '../src/core/protocol/protocol.js';
-import { normId } from '../src/core/utils/pathUtils.js';
-import { cleanTitle, isRealTitle } from '../src/core/utils/titleText.js';
-import { isDevMode } from '../src/core/utils/devMode.js';
+import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import type { DetailParseResult } from '../src/l1/client/gemini/api/detailTypes.js';
+import type { GeminiDetailEvidence } from '../src/l1/parsers/gemini/rpc/detailEvidence.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import type { DomainMessage } from '../src/l2/conversationDetail.js';
+import type { GeminiParserExtractorsModule } from '../src/l1/parsers/gemini/rpc/extractors.js';
+import type { ListParseDiagnostics } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import type { Citation } from '../src/l1/parsers/gemini/rpc/extractors.js';
+import type { GeminiProtocolModule } from '../src/l1/protocol/gemini/protocol.js';
+import { normId } from '../src/shared/utils/pathUtils.js';
+import { cleanTitle, isRealTitle } from '../src/shared/utils/titleText.js';
+import { isDevMode } from '../src/runtime/devMode.js';
 type ParserUtils = { normId: typeof normId; cleanTitle: typeof cleanTitle; isRealTitle: typeof isRealTitle; isDevMode: typeof isDevMode };
-import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 
 // Compile-time regression: native evidence and application views preserve contracts rather
 // than widening media/results/dependencies back to an unchecked escape.

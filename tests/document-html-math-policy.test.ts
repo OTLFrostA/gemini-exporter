@@ -16,9 +16,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { renderMathHtml } = require('../src/core/renderers/html/htmlMath.js');
-const { getRendererStrings } = require('../src/core/renderers/shared/renderStrings.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { renderMathHtml } = require('../src/l4/format/html/htmlMath.js');
+const { getRendererStrings } = require('../src/l4/format/shared/renderStrings.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
 
 test('PR 3: Supported LaTeX math compiles to valid MathML', () => {

@@ -2,8 +2,8 @@ import { after, before, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import { buildSync } from 'esbuild';
-import type * as Storage from '../src/core/storage/storageService.js';
-import type { GlobalSettings } from '../src/core/application/settings/index.js';
+import type * as Storage from '../src/l3a/storageService.js';
+import type { GlobalSettings } from '../src/application/settings/index.js';
 
 declare global {
     interface Window {
@@ -15,7 +15,7 @@ declare global {
 }
 let browser: Browser;
 let page: Page;
-const bundle = buildSync({ entryPoints: ['src/core/storage/storageService.ts'], bundle: true,
+const bundle = buildSync({ entryPoints: ['src/l3a/storageService.ts'], bundle: true,
     format: 'iife', globalName: 'storage', write: false }).outputFiles[0].text;
 
 before(async () => {

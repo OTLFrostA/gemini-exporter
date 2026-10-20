@@ -23,21 +23,21 @@ import assert from 'node:assert/strict';
 const fs = require('fs');
 const path = require('path');
 
-const { assertDomainClosure } = require('../src/core/domain/closure.js');
+const { assertDomainClosure } = require('../src/l2/closure.js');
 const {
     convertGeminiInlines,
-} = require('../src/core/parsers/gemini/shared/structuredContentAdapter.js');
+} = require('../src/l1/parsers/gemini/shared/structuredContentAdapter.js');
 const {
     decodeGeminiAnnotation,
     decodeGeminiStructuredNode,
     decodeGeminiStructuredPayload,
     extractStructuredContent,
-} = require('../src/core/parsers/gemini/rpc/structuredContent.js');
-const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const { extractImageEvidence: extractImages } = require('../src/core/parsers/gemini/rpc/sourceAttachments.js');
+} = require('../src/l1/parsers/gemini/rpc/structuredContent.js');
+const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const { extractImageEvidence: extractImages } = require('../src/l1/parsers/gemini/rpc/sourceAttachments.js');
 
-import type { BlockNode } from '../src/core/domain/content/blocks.js';
-import type { InlineNode } from '../src/core/domain/content/inline.js';
+import type { BlockNode } from '../src/l2/content/blocks.js';
+import type { InlineNode } from '../src/l2/content/inline.js';
 function firstText(block: BlockNode): string {
     assert.ok(block.type === 'paragraph');
     return inlineText(block.children[0]);

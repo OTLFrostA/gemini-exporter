@@ -1,7 +1,7 @@
-import { ingestDetail } from '../../src/core/domain/ingestion.js';
-import { readConversation } from '../../src/core/domain/readConversation.js';
-import { deleteStoredConversation } from '../../src/core/storage/storageService.js';
-import type { ConversationKey } from '../../src/core/domain/conversationKey.js';
+import { ingestDetail } from '../../src/l2/ingestion.js';
+import { readConversation } from '../../src/l2/readConversation.js';
+import { deleteStoredConversation } from '../../src/l3a/storageService.js';
+import type { ConversationKey } from '../../src/l2/conversationKey.js';
 import type { DomainFixture } from './domainFixture.js';
 import { fixtureAccountFor } from './domainFixture.js';
 /** Historical fixture identity only; persistence keys contain no provider routing data. */

@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-import Proto from '../src/core/protocol/protocol.js';
+import Proto from '../src/l1/protocol/gemini/protocol.js';
 
 
 test('protocol - RPC endpoint names are centralized and match known values', () => {

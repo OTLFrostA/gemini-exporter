@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture, rpcFixture } from './helpers/nativeFixture.js';
-import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
+import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 
 test('parser closes heuristic document identities and rejects malformed messages before Domain', () => {
     const parsed = historicalFixture({ id: 'quality', messages: [null as never,

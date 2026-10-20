@@ -1,9 +1,9 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeConversation } from '../src/core/domain/indexCollection.js';
-import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
-import { restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
+import { mergeConversation } from '../src/l2/indexCollection.js';
+import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
+import { restoreConversationIndex } from '../src/l2/conversationIndex.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseLegacyConversationIndex } from './helpers/recordFixture/parseIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';

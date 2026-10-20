@@ -1,12 +1,12 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const LiveStorageManager = require('../src/core/storage/liveStorageManager.js');
+const LiveStorageManager = require('../src/l3a/liveStorageManager.js');
 test('non-Markdown formats suppress live save config and both write routes', async () => {
-    const { STORAGE_KEYS } = require('../src/core/utils/constants.js');
-    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
+    const { STORAGE_KEYS } = require('../src/shared/utils/constants.js');
+    const { handleLiveSaveViaHandle } = require('../src/runtime/background/liveSaveHandler.js');
     const { writeLiveSaveMarkdown } = require('../src/core/engine/liveSaveWriter.js');
-    const { saveFormat } = require('../src/core/storage/formatStore.js');
+    const { saveFormat } = require('../src/l3a/formatStore.js');
     const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     const data: Record<string, any> = {};
     (global as any).chrome = { storage: { local: {

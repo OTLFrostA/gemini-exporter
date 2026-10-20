@@ -1,20 +1,20 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 
 const metadata = { index: { key: fixtureKey(String('semantic'), 'other'),  title: 'Semantic input', titleSource: "derived" as const,    }, detail: { key: fixtureKey(String('semantic'), 'other'), quality: { status: 'unknown' } as const, assets: [] } };
 
 test('AST: Document composition contains no body parsing or provider-format decisions', () => {
     for (const file of ['composeDomainDocument.ts', 'composeContent.ts']) {
-        const source = readFileSync(join(__dirname, '../src/core/document/compose', file), 'utf8');
+        const source = readFileSync(join(__dirname, '../src/l3b/compose', file), 'utf8');
         assert.doesNotMatch(source, /parseMarkdown|parseGemini|preprocessGemini|structuredContent|geminiStructuredTo/);
         assert.doesNotMatch(source, /from\s+['"][^'"]*(?:api\/parser|provider\/gemini)[^'"]*['"]/);
     }

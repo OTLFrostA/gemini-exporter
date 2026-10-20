@@ -27,18 +27,18 @@ const {
     SANDBOX_TO_HOST,
     HOST_TO_SANDBOX,
     BUNDLED_FONT_PATHS,
-} = require('../src/core/export/typst/sandboxProtocol.js');
+} = require('../src/l4/format/pdf/typst/sandboxProtocol.js');
 
-const { createOfflineInitOptions } = require('../src/ui/sandbox/offlineInit.js');
+const { createOfflineInitOptions } = require('../src/l4/format/pdf/sandbox/offlineInit.js');
 
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 const {
     TypstSandboxCompiler,
     fontHasMathTable,
     stripConvertedMath,
-} = require('../src/core/export/typst/typstSandboxCompiler.js');
+} = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
 
 const tick = (n = 5) => new Promise((resolve) => {
     const step = () => (n <= 1 ? resolve(undefined) : (n -= 1, setImmediate(step)));
@@ -97,7 +97,7 @@ test('protocol: source/origin gate requires both to match', () => {
 
 test('protocol: sandbox derives the expected host origin from its own URL', () => {
     assert.strictEqual(
-        sandboxExpectedHostOrigin('chrome-extension://abcdefghijklmnop/src/ui/sandbox/typst-compile.html'),
+        sandboxExpectedHostOrigin('chrome-extension://abcdefghijklmnop/src/l4/format/pdf/sandbox/typst-compile.html'),
         'chrome-extension://abcdefghijklmnop');
 });
 
@@ -156,7 +156,7 @@ test('fontHasMathTable: detects the MATH table, rejects junk', () => {
 });
 
 test('fontHasMathTable: the bundled NewCMMath really has a MATH table', () => {
-    const fontPath = path.join(__dirname, '..', 'src', 'ui', 'sandbox', 'fonts', 'NewCMMath-Regular.otf');
+    const fontPath = path.join(__dirname, '..', 'src', 'l4', 'format', 'pdf', 'sandbox', 'fonts', 'NewCMMath-Regular.otf');
     const bytes = new Uint8Array(fs.readFileSync(fontPath));
     assert.ok(bytes.length > 1_000_000, 'bundled font should be the full NewCMMath file');
     assert.strictEqual(fontHasMathTable(bytes), true);
@@ -264,7 +264,7 @@ class FakeHost {
         public fontBytes: Uint8Array = fakeFontBytes(true),
     ) {}
     pageUrl() {
-        return 'chrome-extension://fake-ext-id/src/ui/sandbox/typst-compile.html';
+        return 'chrome-extension://fake-ext-id/src/l4/format/pdf/sandbox/typst-compile.html';
     }
     assetUrl(relativePath: string) {
         return `chrome-extension://fake-ext-id/${relativePath}`;

@@ -1,7 +1,7 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test } from 'node:test';
-import { parseMarkdownAst } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
+import { parseMarkdownAst } from '../src/l1/parsers/shared/markdown/parseMarkdown.js';
 import assert from 'node:assert/strict';
 import { extractMarkdownResourceReferences } from '../scripts/extract_markdown_resource_refs.js';
 
@@ -21,9 +21,9 @@ test('syntax helper emits external references for the archive resolver to classi
     ]);
 });
 
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

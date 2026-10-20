@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     decodeGeminiStructuredNode,
-} from '../src/core/parsers/gemini/rpc/structuredContent.js';
+} from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 
 interface NodeAccessTracker {
     trackNode<T extends Record<string, unknown>>(id: string, obj: T): T;

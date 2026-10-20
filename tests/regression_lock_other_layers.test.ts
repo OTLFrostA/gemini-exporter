@@ -7,8 +7,8 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { extractImages } = require('./helpers/recordFixture/attachments.js');
-const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const { isRealTitle } = require('../src/core/parsers/gemini/rpc/extractors.js');
+const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const { isRealTitle } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 export {};
 
 /**
@@ -32,20 +32,20 @@ const assert = require('node:assert');
 const path = require('node:path');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 const SRC = path.join(__dirname, '..', 'src');
-const Proto = require('../src/core/protocol/protocol.js');
-const Extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
-const StorageService = require('../src/core/storage/storageService.js');
-const TabService = require('../src/core/utils/tabService.js');
-const GeminiUtils = require('../src/core/utils/utils.js');
-const ListView = require('../src/ui/views/listView.js');
-const ExportEngineMod = require('../src/core/engine/exportEngine.js');
+const Proto = require('../src/l1/protocol/gemini/protocol.js');
+const Extractors = require('../src/l1/parsers/gemini/rpc/extractors.js');
+const StorageService = require('../src/l3a/storageService.js');
+const TabService = require('../src/runtime/capabilities/tabService.js');
+const GeminiUtils = require('../src/shared/utils/utils.js');
+const ListView = require('../src/ui/options/views/listView.js');
+const ExportEngineMod = require('../src/application/exportEngine.js');
 const { ExportEngine } = ExportEngineMod;
 const AssetPipeline = require('../src/core/engine/assetPipeline.js');
-const AssetFetcherModule = require('../src/content/assetFetcher.js');
-const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
+const AssetFetcherModule = require('../src/runtime/capabilities/assetFetcher.js');
+const TakeoutEngine = require('../src/l1/imports/takeoutEngine.js');
 
 // ---------------------------------------------------------------- helpers & mocks
 
@@ -284,8 +284,8 @@ test('regression: export_engine getExtensionVersion should be exported and read 
 
 
 test('regression: stop sync must sync window flag and active client', () => {
-    const clientContent = readSrc('../src/core/api/geminiClient.js');
-    const contentContent = readSrc('../src/content/content.js') + readSrc('../src/content/messageRouter.js') + readSrc('../src/content/contentContext.js');
+    const clientContent = readSrc('../src/l1/client/gemini/geminiClient.js');
+    const contentContent = readSrc('../src/runtime/content/content.js') + readSrc('../src/runtime/content/messageRouter.js') + readSrc('../src/runtime/content/contentContext.js');
     assert.ok(clientContent.includes('window.__gemExporterAborted') && clientContent.includes('isAborted'), 'gemini_client should check window abort flag');
     assert.ok(contentContent.includes('__gemExporterActiveClient'), 'content should store active client');
     assert.ok(
@@ -301,7 +301,7 @@ test('regression: empty cloud response must be logged as error with debug', () =
     const expContent = readSrc('../src/core/engine/export/exportOrchestrator.js');
     assert.ok(expContent.includes("'error'") && expContent.includes('logExportSkipped'), 'empty should be error level');
     assert.ok(expContent.includes('debug: evidence._debug') && expContent.includes('raw: transport.decodedPayload'), 'failedChats should carry debug/raw');
-    const bgContent = readSrc('../src/background/background.js') + readSrc('../src/background/batchFetcher.js');
+    const bgContent = readSrc('../src/runtime/background/background.js') + readSrc('../src/runtime/background/batchFetcher.js');
     assert.ok(bgContent.includes('_debug'), 'background should preserve _raw debug');
 });
 
@@ -489,10 +489,10 @@ test('audit fix: listView escapes URL properly to prevent attribute injection', 
 // contracts: L1 accepts supplied native evidence; Content has no active fetch port.
 
 test('regression: background Receiving end error must hint refresh', () => {
-    const bfTsPath = path.join(__dirname, '../src/background/batchFetcher.ts');
+    const bfTsPath = path.join(__dirname, '../src/runtime/background/batchFetcher.ts');
     const bgPath = fs.existsSync(bfTsPath)
         ? bfTsPath
-        : path.join(__dirname, '../src/background/background.js');
+        : path.join(__dirname, '../src/runtime/background/background.js');
     const bgContent = fs.readFileSync(bgPath, 'utf8');
     assert.ok(bgContent.includes('Receiving end does not exist'), 'should handle Receiving end');
     assert.ok(bgContent.includes('刷新 gemini.google.com'), 'should hint refresh after reload');

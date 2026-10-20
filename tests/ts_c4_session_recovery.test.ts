@@ -9,9 +9,9 @@ import {
     SessionRecovery,
     type FinalizeChatExportContext
 } from '../src/core/engine/export/sessionRecovery.js';
-import { SessionStore } from '../src/core/storage/sessionStore.js';
-import type { IExportWriter } from '../src/core/engine/writers/writerInterface.js';
-import type { StoredExportRecordMap, StoredExportRecord } from '../src/core/storage/storageCompatibility.js';
+import { SessionStore } from '../src/l3a/sessionStore.js';
+import type { IExportWriter } from '../src/l4/delivery/writers/writerInterface.js';
+import type { StoredExportRecordMap, StoredExportRecord } from '../src/l3a/storageCompatibility.js';
 
 interface MockMemoryWriter extends IExportWriter {
     files: Record<string, string>;

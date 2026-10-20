@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
-import type { CommittedListPage } from '../src/core/provider/aiProvider.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import type { CommittedListPage } from '../src/l1/client/aiProvider.js';
 useIndexStorage();
 
 test('neutral listing returns ListEnd and callbacks contain committed progress only', async () => {

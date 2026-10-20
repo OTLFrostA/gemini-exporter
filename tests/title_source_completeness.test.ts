@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TITLE_AUTHORITY_RANK, titleAuthorityRank, resolveTitle as resolveAuthorityTitle } from '../src/core/domain/titleAuthority.js';
-import { TITLE_SOURCE_PRIORITY, TITLE_TIER_RANK, resolveTitle } from '../src/core/utils/titleUtils.js';
+import { TITLE_AUTHORITY_RANK, titleAuthorityRank, resolveTitle as resolveAuthorityTitle } from '../src/l2/titleAuthority.js';
+import { TITLE_SOURCE_PRIORITY, TITLE_TIER_RANK, resolveTitle } from '../src/shared/utils/titleUtils.js';
 
 test('canonical title authority gives every declared source a numeric rank', () => {
     for (const [source, rank] of Object.entries(TITLE_AUTHORITY_RANK)) {

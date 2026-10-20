@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { auditGeminiEvidence, canonicalMessage, differences, readGeminiAuditInput, semanticContent } from './helpers/geminiDualParse.js';
 import { runAudit } from '../scripts/check_gemini_dual_parse.js';
-import type { DomainMessage, DomainAsset } from '../src/core/domain/conversationDetail.js';
+import type { DomainMessage, DomainAsset } from '../src/l2/conversationDetail.js';
 
 function wire(markdown = 'Hello', document: unknown = { children: [{ nodeType: 18, text: 'Hello' }] }): string {
     const candidate: unknown[] = [[['rc_dualaudit', [markdown]]]];

@@ -1,6 +1,6 @@
-import * as source from '../../../src/core/parsers/gemini/rpc/sourceAttachments.js';
-import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult } from '../../../src/core/parsers/gemini/rpc/sourceAttachments.js';
-export * from '../../../src/core/parsers/gemini/rpc/sourceAttachments.js';
+import * as source from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult } from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+export * from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 export interface GeminiParserAttachmentsModule {
     IMAGE_GEN_RE: RegExp;
     isInternalChipUrl: (u?: string | null) => boolean;

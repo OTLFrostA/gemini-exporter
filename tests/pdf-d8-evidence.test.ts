@@ -29,10 +29,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { convertMath: convertLatex } = require('../src/core/renderers/typst/mathConverter.js');
+const { convertMath: convertLatex } = require('../src/l4/format/typst/mathConverter.js');
 const convertMath = (source: string, display: boolean) => convertLatex(source, 'latex', display);
 const { withNetworkGate, assertZeroExternalRequests } = require('./helpers/compileNetworkGate.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
@@ -231,7 +231,7 @@ test('D8-3: long Chinese session extracts with full CJK coverage, zero tofu', as
         );
     }
     const domain = makeDomain(messages, { title: '中文长会话提取测试', conversationId: 'd8-cjk' });
-    const fontPaths = ['src/ui/sandbox/fonts/NewCMMath-Regular.otf', cjkFont];
+    const fontPaths = ['src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf', cjkFont];
     const { pdfBytes, diagnostics } = await compileOnce(domain, { fontPaths });
     assertPdfMagic(pdfBytes);
     const errors = diagnostics.filter((d) => d.severity === 'error');

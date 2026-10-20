@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import type { ResourceBytes, ResourceResult, PreparedResources } from '../../src/core/resources/resourceResult.js';
+import type { ResourceBytes, ResourceResult, PreparedResources } from '../../src/shared/resources/resourceResult.js';
 
 export function resourceValue<T>(result: ResourceResult<T> | undefined): T {
     assert.ok(result?.ok, result && !result.ok ? result.reason : 'missing resource result');

@@ -2,8 +2,8 @@ import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { extractGeneratedFiles } from '../src/core/parsers/gemini/rpc/generatedFiles.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { extractGeneratedFiles } from '../src/l1/parsers/gemini/rpc/generatedFiles.js';
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_generated_file.json', 'utf8')) as { packet: unknown[]; chip: unknown[] };
 const packet = fixture.packet;

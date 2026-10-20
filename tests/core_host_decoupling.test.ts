@@ -2,12 +2,12 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert';
 
-import { __setModuleOverride, __getModuleOverride, __resolveModule } from '../src/core/utils/moduleOverrides.js';
+import { __setModuleOverride, __getModuleOverride, __resolveModule } from '../src/shared/utils/moduleOverrides.js';
 
 import AssetPipeline from '../src/core/engine/assetPipeline.js';
 import * as BatchWorker from '../src/core/engine/export/batchWorker.js';
 import * as SessionRecovery from '../src/core/engine/export/sessionRecovery.js';
-import { GeminiAPIClient } from '../src/core/api/geminiClient.js';
+import { GeminiAPIClient } from '../src/l1/client/gemini/geminiClient.js';
 
 test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegate', async () => {
     const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');

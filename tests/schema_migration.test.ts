@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as storage from '../src/core/storage/storageService.js';
+import * as storage from '../src/l3a/storageService.js';
 import { indexStorage, useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 
-import { ensureUpgraded } from '../src/core/migration/upgradeV1.js';
+import { ensureUpgraded } from '../src/migration/upgradeV1.js';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 test('global schema manager and normal Storage legacy readers are retired', () => {
-    for (const file of ['schemaMigration.ts', 'schemaState.ts', 'migrationMarker.ts']) assert.equal(existsSync('src/core/storage/' + file), false);
-    for (const file of readdirSync('src/core/storage').filter(file => file.endsWith('.ts'))) {
-        const source = readFileSync('src/core/storage/' + file, 'utf8');
+    for (const file of ['schemaMigration.ts', 'schemaState.ts', 'migrationMarker.ts']) assert.equal(existsSync('src/l3a/' + file), false);
+    for (const file of readdirSync('src/l3a').filter(file => file.endsWith('.ts'))) {
+        const source = readFileSync('src/l3a/' + file, 'utf8');
         assert.doesNotMatch(source, /gemini_exporter_v2_initialized|conversations_|exported_|schemaVersion|ensureUpgraded/);
     }
 });

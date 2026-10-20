@@ -13,7 +13,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { getEffectiveTimestamp, checkIsUpdated } = require('../src/core/utils/titleUtils.js');
+const { getEffectiveTimestamp, checkIsUpdated } = require('../src/shared/utils/titleUtils.js');
 
 // Case 1: lastSeen-only 会话返回 0，不再返回 lastSeen。
 test('getEffectiveTimestamp: lastSeen-only chat returns 0', () => {

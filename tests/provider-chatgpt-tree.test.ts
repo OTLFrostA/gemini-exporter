@@ -1,6 +1,6 @@
-import { getOrCreateAccount } from '../src/core/api/accountRegistry.js';
-import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
-import { getDetail } from '../src/core/storage/storageService.js';
+import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { getDetail } from '../src/l3a/storageService.js';
 import { storageIdentity } from './helpers/admitFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
@@ -13,32 +13,32 @@ import {
     mergeChatGPTContinuations,
     processChatGPTMapping,
     shouldSkipChatGPTMessage,
-} from '../src/core/parsers/chatgpt/conversationTree.js';
+} from '../src/l1/parsers/chatgpt/conversationTree.js';
 import {
     arrayBufferToBase64,
     fileIdFromPointer,
     parseFileDownloadPayload,
-} from '../src/core/provider/chatgpt/imageAssets.js';
+} from '../src/l1/client/chatgpt/imageAssets.js';
 import {
     applyChatGPTHead,
     citationsOfChatGPTNode,
     collectChatGPTThinking,
     refreshChatGPTList,
     uploadedFilesOfChatGPTNode,
-} from '../src/core/parsers/chatgpt/conversationDetail.js';
-import { parseChatGPTConversation } from '../src/core/parsers/chatgpt/parseConversation.js';
-import { preprocessChatGPTMarkdown } from '../src/core/parsers/chatgpt/markdownCompatibility.js';
+} from '../src/l1/parsers/chatgpt/conversationDetail.js';
+import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
+import { preprocessChatGPTMarkdown } from '../src/l1/parsers/chatgpt/markdownCompatibility.js';
 import {
     ensureChatGPTRegistered,
     hasChatGPTAccess,
     requestChatGPTAccess,
-} from '../src/core/provider/chatgpt/chatgptAccess.js';
-import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
-import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
+} from '../src/l1/client/chatgpt/chatgptAccess.js';
+import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type {
     ChatGPTApiConversationWithId,
     ChatGPTConversationNode,
-} from '../src/core/parsers/chatgpt/chatgptTypes.js';
+} from '../src/l1/parsers/chatgpt/chatgptTypes.js';
 
 function textNode(
     id: string,

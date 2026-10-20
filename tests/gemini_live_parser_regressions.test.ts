@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
-import { GM_TEX_003_BAR_ALIASES } from '../src/core/parsers/gemini/shared/markdownCompatibility.js';
+import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
+import { GM_TEX_003_BAR_ALIASES } from '../src/l1/parsers/gemini/shared/markdownCompatibility.js';
 
 test('live line-start display fence remains a block without a preceding blank line', () => {
     const raw = readFileSync('tests/fixtures/provider/math/gm_md_004_evidence.md', 'utf8').split('-->\n')[1];

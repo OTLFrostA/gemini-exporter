@@ -1,7 +1,7 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
+const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 /** Provider parsing, Domain closure and composed attachment-placement regressions. */
 export {};
 const test = require('node:test');
@@ -10,10 +10,10 @@ const fs = require('fs');
 const path = require('path');
 
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { assertDomainClosure } = require('../src/core/domain/closure.js');
-const { extractBlockText, extractInlineText } = require('../src/core/domain/content/unknownFallback.js');
-const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { assertDomainClosure } = require('../src/l2/closure.js');
+const { extractBlockText, extractInlineText } = require('../src/l2/content/unknownFallback.js');
+const { renderDocumentMarkdown } = require('../src/l4/format/markdown/renderMarkdown.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
 const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
@@ -447,7 +447,7 @@ test('title authority and unknown source handling remain ingestion concerns', as
     const unknown = await parseFixture({ id: 'unknown-source-only', title: 'Plain title', titleSource: 'future-provider-tier', messages: [] });
     assert.equal(unknown.domain.index.title, 'Plain title');
     assert.equal(unknown.domain.index.titleSource, 'derived');
-    assert.equal(require('../src/core/domain/titleAuthority.js').titleAuthorityRank(unknown.domain.index.titleSource), require('../src/core/domain/titleAuthority.js').titleAuthorityRank('derived'));
+    assert.equal(require('../src/l2/titleAuthority.js').titleAuthorityRank(unknown.domain.index.titleSource), require('../src/l2/titleAuthority.js').titleAuthorityRank('derived'));
 });
 test('source URL aliases do not enter Domain or get synthesized by Composer', async () => {
     for (const raw of [{ url: 'https://gemini.google.com/app/url', href: 'https://gemini.google.com/app/href' }, { href: 'https://gemini.google.com/app/href' }]) {

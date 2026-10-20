@@ -5,7 +5,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { transformSync } from 'esbuild';
 
 const root = resolve(__dirname, '../..');
-const core = resolve(root, 'src/core');
+const core = resolve(root, 'src');
 interface Edge { target: string; runtime: boolean }
 function files(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
@@ -83,34 +83,37 @@ function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
 const graph = new Map([...sources].map(([name, file]) => [name, dependencies(file)]));
 
 test('the compatibility directory is retired and no production source imports it', () => {
-    assert.equal(existsSync(resolve(core, 'compatibility')), false);
+    assert.equal(existsSync(resolve(core, 'core/compatibility')), false);
     for (const file of files(resolve(root, 'src'))) {
         for (const edge of dependencies(file)) {
-            assert.ok(!edge.target.startsWith('compatibility/'), `${relative(root, file)} imports retired ${edge.target}`);
+            assert.ok(!edge.target.startsWith('core/compatibility/'), `${relative(root, file)} imports retired ${edge.target}`);
         }
     }
 });
+function renderer(owner: string): boolean {
+    return /^l4\/format\/(?:html|json|markdown|shared|typst)\//.test(owner);
+}
 function forbidden(owner: string, target: string): boolean {
-    if (owner === 'diagnostics/diagnostic.ts') return target !== 'utils/jsonTypes.ts';
-    if (owner.startsWith('domain/')) {
-        const admission = new Set(['domain/accountAdmission.ts', 'domain/ingestion.ts', 'domain/coverageAdmission.ts', 'domain/readConversation.ts']);
-        if (admission.has(owner)) return !/^(domain\/|storage\/|api\/accountRegistry\.ts$)/.test(target);
-        return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
+    if (owner === 'shared/diagnostics/diagnostic.ts') return target !== 'shared/utils/jsonTypes.ts';
+    if (owner.startsWith('l2/')) {
+        const admission = new Set(['l2/accountAdmission.ts', 'l2/ingestion.ts', 'l2/coverageAdmission.ts', 'l2/readConversation.ts']);
+        if (admission.has(owner)) return !/^(l2\/|l3a\/|runtime\/api\/accountRegistry\.ts$)/.test(target);
+        return !target.startsWith('l2/') && target !== 'shared/utils/jsonTypes.ts';
     }
-    if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/') && target !== 'domain/conversationDetail.ts';
-    if (owner.startsWith('document/compose/')) return !/^(domain\/|document\/|diagnostics\/|utils\/)/.test(target);
-    if (owner.startsWith('renderers/')) {
+    if (owner.startsWith('l3b/ast/')) return !target.startsWith('l3b/ast/') && target !== 'l2/conversationDetail.ts';
+    if (owner.startsWith('l3b/compose/')) return !/^(l2\/|l3b\/|shared\/(?:diagnostics|utils)\/)/.test(target);
+    if (renderer(owner)) {
         // Packaging owns the type-only binding; JSON intentionally reads trusted Domain.
-        if (target === 'export/packaging/resourceBindings.ts') return false;
-        if (owner === 'renderers/json/serializeDomainJson.ts' && /^domain\//.test(target)) {
+        if (target === 'l4/packaging/resourceBindings.ts') return false;
+        if (owner === 'l4/format/json/serializeDomainJson.ts' && /^l2\//.test(target)) {
             return /(?:Admission|ingestion|indexCoverage|pageObservation)/.test(target);
         }
-        return /^(parsers\/|imports\/|domain\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
+        return /^(l1\/(?:parsers|imports|client)\/|l2\/|runtime\/api\/|application\/exportEngine\.ts$|l4\/(?:packaging|delivery)\/|l4\/format\/(?:pdf|resources)\/|l3a\/)/.test(target);
     }
-    if (owner.startsWith('parsers/')) {
-        if (target.startsWith('parsers/legacyStorage/') && !owner.startsWith('parsers/legacyStorage/')
-            && owner !== 'parsers/parseConversation.ts' && owner !== 'parsers/index.ts') return true;
-        return /^(imports\/|document\/|renderers\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
+    if (owner.startsWith('l1/parsers/')) {
+        if (target.startsWith('l1/parsers/legacyStorage/') && !owner.startsWith('l1/parsers/legacyStorage/')
+            && owner !== 'l1/parsers/parseConversation.ts' && owner !== 'l1/parsers/index.ts') return true;
+        return /^(l1\/(?:imports|client)\/|l3b\/|l4\/|runtime\/api\/|application\/exportEngine\.ts$|l3a\/)/.test(target);
     }
     return false;
 }
@@ -118,17 +121,17 @@ function forbidden(owner: string, target: string): boolean {
 test('semantic layers own their files and obey dependency direction, including type-only references', () => {
     for (const [owner, edges] of graph) for (const edge of edges) {
         assert.ok(!forbidden(owner, edge.target), `${owner} must not depend on ${edge.target}`);
-        if (owner.startsWith('document/ast/') && edge.target === 'domain/conversationDetail.ts') assert.equal(edge.runtime, false, 'AST reuses L2 role/asset types without a runtime dependency');
-        if (owner.startsWith('renderers/') && edge.target === 'export/packaging/resourceBindings.ts') assert.equal(edge.runtime, false, `${owner} must import bindings as a type`);
+        if (owner.startsWith('l3b/ast/') && edge.target === 'l2/conversationDetail.ts') assert.equal(edge.runtime, false, 'AST reuses L2 role/asset types without a runtime dependency');
+        if (renderer(owner) && edge.target === 'l4/packaging/resourceBindings.ts') assert.equal(edge.runtime, false, `${owner} must import bindings as a type`);
     }
-    for (const old of ['api/parser/', 'content/', 'export/document/', 'engine/takeout/', 'engine/template/', 'provider/record/']) {
+    for (const old of ['core/api/parser/', 'core/content/', 'core/export/document/', 'core/engine/takeout/', 'core/engine/template/', 'core/provider/record/']) {
         assert.ok(![...sources.keys()].some(name => name.startsWith(old)), `obsolete directory still owns code: ${old}`);
     }
 });
 
 test('native parsers and renderers cannot acquire forbidden dependencies through a shared runtime helper', () => {
     for (const owner of graph.keys()) {
-        if (!owner.startsWith('renderers/') && !/^parsers\//.test(owner)) continue;
+        if (!renderer(owner) && !/^l1\/parsers\//.test(owner)) continue;
         function walk(current: string, chain: string[], seen: Set<string>): void {
             if (seen.has(current)) return;
             seen.add(current);
@@ -143,24 +146,24 @@ test('native parsers and renderers cannot acquire forbidden dependencies through
 });
 
 test('boundary reader detects re-export, type-only, dynamic import and require escape routes', () => {
-    const owner = resolve(core, 'renderers/html/probe.ts');
+    const owner = resolve(core, 'l4/format/html/probe.ts');
     const edges = dependencies(owner, `
-        import type { DomainMessage } from '../../domain/conversationDetail.js';
-        export { parseConversation } from '../../parsers/parseConversation.js';
-        const decoder = import('../../parsers/gemini/rpc/detailDecoder.js');
-        const storage = require('../../storage/storageService.js');
-        type Record = import('../../parsers/legacyStorage/conversationRecord.js').ConversationRecordInput;
+        import type { DomainMessage } from '../../../l2/conversationDetail.js';
+        export { parseConversation } from '../../../l1/parsers/parseConversation.js';
+        const decoder = import('../../../l1/parsers/gemini/rpc/detailDecoder.js');
+        const storage = require('../../../l3a/storageService.js');
+        type Record = import('../../../l1/parsers/legacyStorage/conversationRecord.js').ConversationRecordInput;
     `);
     assert.equal(edges.length, 5);
     assert.deepEqual(edges.map(edge => edge.runtime), [false, true, true, true, false]);
-    assert.ok(edges.every(edge => forbidden('renderers/html/probe.ts', edge.target)));
+    assert.ok(edges.every(edge => forbidden('l4/format/html/probe.ts', edge.target)));
 });
 
 test('native parsing does not allocate export paths or sanitized filenames', () => {
     const naming = new Set(['sanitizeFileName', 'sanitizeFileNameLegacy', 'sanitizeRelativePath',
         'getUniqueLocalName', 'buildExportFileName', 'buildExportFileNameLegacy', 'resolveExportFileName']);
     for (const [name, file] of sources) {
-        if (!name.startsWith('parsers/')) continue;
+        if (!name.startsWith('l1/parsers/')) continue;
         for (const token of tokens(readFileSync(file, 'utf8'))) {
             assert.ok(token.literal || !naming.has(token.value), `${name} uses export naming: ${token.value}`);
         }
@@ -169,9 +172,9 @@ test('native parsing does not allocate export paths or sanitized filenames', () 
 
 test('list acquisition consumes parser facts instead of reinterpreting wire fields', () => {
     const retiredReads = new Map([
-        ['provider/chatgpt/chatgptProvider.ts', new Set(['create_time', 'update_time', 'toProviderItem'])],
-        ['provider/gemini/listObservation.ts', new Set(['_raw', 'GEMINI_JSPB_SCHEMA', 'payloadToMs'])],
-        ['api/client/pagination.ts', new Set(['_raw', 'GEMINI_JSPB_SCHEMA', 'payloadToMs'])],
+        ['l1/client/chatgpt/chatgptProvider.ts', new Set(['create_time', 'update_time', 'toProviderItem'])],
+        ['l1/client/gemini/listObservation.ts', new Set(['_raw', 'GEMINI_JSPB_SCHEMA', 'payloadToMs'])],
+        ['l1/client/gemini/api/pagination.ts', new Set(['_raw', 'GEMINI_JSPB_SCHEMA', 'payloadToMs'])],
     ]);
     for (const [owner, forbiddenReads] of retiredReads) {
         for (const token of tokens(readFileSync(resolve(core, owner), 'utf8'))) {
@@ -184,14 +187,14 @@ test('normal runtime cannot parse historical records or depend on application pr
     const obsolete = new Set(['parseLegacyConversation', 'toDomainConversationDetail', 'createParsedConversationView', 'readParsedConversation', 'createNativeDetailView', 'ParsedConversationView']);
     for (const file of files(resolve(root, 'src'))) {
         const name = relative(core, file).replace(/\\/g, '/');
-        const migration = name.startsWith('parsers/legacyStorage/');
+        const migration = name.startsWith('l1/parsers/legacyStorage/');
         const text = readFileSync(file, 'utf8');
         for (const edge of dependencies(file, text)) {
-            if (/^parsers\/legacyStorage\/(?:parseRecord|conversationRecord|attachments|contentAdapter|generationIdentity|generatedMediaReconciliation)\.ts$/.test(edge.target)) {
+            if (/^l1\/parsers\/legacyStorage\/(?:parseRecord|conversationRecord|attachments|contentAdapter|generationIdentity|generatedMediaReconciliation)\.ts$/.test(edge.target)) {
                 assert.ok(migration, `${name} depends on the historical record boundary`);
             }
-            if (edge.target === 'parsers/legacyStorage/parseIndex.ts') {
-                assert.ok(migration || name === 'storage/storageService.ts' || name === 'diagnostics/diagnosticSnapshot.ts',
+            if (edge.target === 'l1/parsers/legacyStorage/parseIndex.ts') {
+                assert.ok(migration || name === 'l3a/storageService.ts' || name === 'diagnostics/diagnosticSnapshot.ts',
                     `${name} interprets historical indexes outside migration/recovery`);
             }
         }
@@ -205,27 +208,27 @@ test('normal runtime cannot parse historical records or depend on application pr
 
 
 test('only L2 admission and the passive Storage implementation expose Detail writes', () => {
-    const owners = new Set(['core/domain/ingestion.ts', 'core/storage/conversationStore.ts', 'core/storage/storageService.ts', 'background/domainStorageHandler.ts']);
+    const owners = new Set(['l2/ingestion.ts', 'l3a/conversationStore.ts', 'l3a/storageService.ts', 'runtime/background/domainStorageHandler.ts']);
     for (const file of files(resolve(root, 'src'))) {
         const owner = relative(resolve(root, 'src'), file).replace(/\\/g, '/');
         const text = readFileSync(file, 'utf8');
         if (!owners.has(owner)) assert.ok(!tokens(text).some(token => !token.literal && token.value === 'putDetail'), `${owner} bypasses Detail admission`);
         assert.ok(!tokens(text).some(token => !token.literal && ['ingestConversation', 'saveDomainConversation', 'selectSnapshot'].includes(token.value)), `${owner} retains an obsolete entry`);
     }
-    const ingestion = readFileSync(resolve(core, 'domain/ingestion.ts'), 'utf8');
+    const ingestion = readFileSync(resolve(core, 'l2/ingestion.ts'), 'utf8');
     assert.doesNotMatch(ingestion, /parsingResult|StorageRecord|revision|acquisitionHints|resourceChanged|forceWrite|touched/);
 });
 
 test('passive Storage cannot own Domain selection or scan lifecycle rules', () => {
     const rules = new Set(['mergeConversationIndex', 'selectConversationDetail', 'selectSnapshot', 'findAccount',
         'advanceIndexCoverage', 'indexCoverageConnects', 'indexCoverageExhausted', 'assertCoverageCompletion']);
-    for (const [name, file] of sources) if (name.startsWith('storage/')) {
+    for (const [name, file] of sources) if (name.startsWith('l3a/')) {
         for (const token of tokens(readFileSync(file, 'utf8'))) {
             assert.ok(token.literal || !rules.has(token.value), `${name} decides Domain rule ${token.value}`);
         }
     }
-    for (const retired of ['storage/conversationIngest.ts', 'storage/conversationIndexFromParsed.ts',
-        'storage/conversationDetailStore.ts', 'parsers/legacyStorage/parseConversation.ts']) {
+    for (const retired of ['l3a/conversationIngest.ts', 'l3a/conversationIndexFromParsed.ts',
+        'l3a/conversationDetailStore.ts', 'l1/parsers/legacyStorage/parseConversation.ts']) {
         assert.equal(sources.has(retired), false, `${retired} leaves an alternate v1 path`);
     }
 });

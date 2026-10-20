@@ -1,14 +1,14 @@
-import { getCoverage, getIndex, getDetail, updateIndexesAtomically } from '../src/core/storage/storageService.js';
+import { getCoverage, getIndex, getDetail, updateIndexesAtomically } from '../src/l3a/storageService.js';
 import { admitFixture } from './helpers/admitFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { ingestIndexes, ingestDetail } from '../src/core/domain/ingestion.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { ingestIndexes, ingestDetail } from '../src/l2/ingestion.js';
 import { storageIdentity } from './helpers/admitFixture.js';
 import { readFixture } from './helpers/admitFixture.js';
-import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import type { DomainFixture } from './helpers/domainFixture.js';
 
 const account = fixtureAccount();

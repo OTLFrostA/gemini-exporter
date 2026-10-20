@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as storage from '../src/core/storage/storageService.js';
+import * as storage from '../src/l3a/storageService.js';
 import { indexStorage, useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 
-function readiness(): typeof import('../src/background/readiness.js') {
-    const file = require.resolve('../src/background/readiness.js');
+function readiness(): typeof import('../src/runtime/background/readiness.js') {
+    const file = require.resolve('../src/runtime/background/readiness.js');
     delete require.cache[file]; return require(file);
 }
 test('Background readiness shares in-flight upgrade and caches success', async () => {

@@ -6,9 +6,9 @@ const assert = require('node:assert');
 // the three modules under test, then restore their original require.cache and
 // Chrome globals so the suite cannot change module singletons for other tests.
 const modulePaths = [
-    '../src/core/api/client/credStorage.js',
-    '../src/core/api/client/credentialManager.js',
-    '../src/content/bootstrap.js',
+    '../src/l1/client/gemini/api/credStorage.js',
+    '../src/l1/client/gemini/api/credentialManager.js',
+    '../src/l1/client/gemini/bootstrap.js',
 ];
 
 async function withCredentialModules<T>(
@@ -23,9 +23,9 @@ async function withCredentialModules<T>(
     else Object.defineProperty(g, 'chrome', { value: chromeMock, writable: true, configurable: true });
     try {
         for (const id of ids) delete require.cache[id];
-        const credStorage = require('../src/core/api/client/credStorage.js');
-        const credManager = require('../src/core/api/client/credentialManager.js').default;
-        const bootstrap = require('../src/content/bootstrap.js');
+        const credStorage = require('../src/l1/client/gemini/api/credStorage.js');
+        const credManager = require('../src/l1/client/gemini/api/credentialManager.js').default;
+        const bootstrap = require('../src/l1/client/gemini/bootstrap.js');
         return await check({ credStorage, credManager, bootstrap });
     } finally {
         ids.forEach((id: string, i: number) => {

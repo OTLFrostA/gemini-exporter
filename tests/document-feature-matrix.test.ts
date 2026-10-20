@@ -1,12 +1,12 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 function domainFixture(blocks: any[], extra: any = {}) {
     return restoreDomainSnapshot({ index: { key: fixtureKey(String('c1'), 'gemini'),   titleSource: "derived",   title: 'Matrix', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });

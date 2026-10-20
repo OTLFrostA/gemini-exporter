@@ -33,8 +33,8 @@ const { parseFixture } = require('./helpers/documentFixture.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 // §5 全链路门禁的依赖（真编译器 + 文本提取）。§1–§4 不需要它们。
-const { PdfExporter } = require('../src/core/export/pdf/index.js');
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const { PdfExporter } = require('../src/l4/format/pdf/index.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
 const {
     RealWasmSandboxHost,
     repoRoot,
@@ -416,7 +416,7 @@ test('stress: full-pipeline release stress with real Typst compile (Item 4)', as
 
     const cjkFont = resolveLocalCjkFont();
     const fontPaths = cjkFont
-        ? ['src/ui/sandbox/fonts/NewCMMath-Regular.otf', cjkFont]
+        ? ['src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf', cjkFont]
         : undefined;
 
     const host = new RealWasmSandboxHost(repoRoot());

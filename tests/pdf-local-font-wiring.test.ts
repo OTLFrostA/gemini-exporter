@@ -4,16 +4,16 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const {
     resolveLocalFonts,
     clearLocalFontCache,
     BUNDLED_MATH_FALLBACK,
     SYSTEM_FALLBACK,
-} = require('../src/core/export/typst/fonts/localFontProvider.js');
-const { mountRuntimeFonts } = require('../src/core/export/typst/fonts/mountRuntimeFonts.js');
+} = require('../src/l4/format/pdf/typst/fonts/localFontProvider.js');
+const { mountRuntimeFonts } = require('../src/l4/format/pdf/typst/fonts/mountRuntimeFonts.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
     RealWasmSandboxHost,
@@ -98,7 +98,7 @@ class FakeHost {
     frame: FakeFrame | null = null;
     constructor(public fontBytes: Uint8Array = fakeFontBytes(true)) {}
     pageUrl() {
-        return 'chrome-extension://fake-ext-id/src/ui/sandbox/typst-compile.html';
+        return 'chrome-extension://fake-ext-id/src/l4/format/pdf/sandbox/typst-compile.html';
     }
     assetUrl(relativePath: string) {
         return `chrome-extension://fake-ext-id/${relativePath}`;

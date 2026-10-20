@@ -1,11 +1,11 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { validateZipFile } from '../src/core/imports/takeout/zipBombGuard.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { validateZipFile } from '../src/l1/imports/takeout/zipBombGuard.js';
 
 test('batch A acquisition rejects empty provider bytes instead of claiming success', async () => {
-    const { acquireSourceResource } = require('../src/core/provider/sourceResources.js');
+    const { acquireSourceResource } = require('../src/l1/resources/sourceResources.js');
     const original = globalThis.fetch;
     globalThis.fetch = async () => new Response(new Uint8Array());
     try {

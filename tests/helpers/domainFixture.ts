@@ -1,10 +1,10 @@
-import type { Account } from '../../src/core/domain/accountRegistry.js';
-import type { ConversationKey } from '../../src/core/domain/conversationKey.js';
-import type { TrustedDomain } from '../../src/core/domain/runtimeValidation.js';
-import type { Diagnostic } from '../../src/core/diagnostics/diagnostic.js';
+import type { Account } from '../../src/l2/accountRegistry.js';
+import type { ConversationKey } from '../../src/l2/conversationKey.js';
+import type { TrustedDomain } from '../../src/l2/runtimeValidation.js';
+import type { Diagnostic } from '../../src/shared/diagnostics/diagnostic.js';
 import type { LegacyResourceHints } from './recordFixture/resourceHints.js';
-import type { ResourceAcquisitionHints } from '../../src/core/resources/resourceAcquisition.js';
-import type { QualityEvidence } from '../../src/core/parsers/qualityEvidence.js';
+import type { ResourceAcquisitionHints } from '../../src/l1/resources/resourceAcquisition.js';
+import type { QualityEvidence } from '../../src/l1/parsers/qualityEvidence.js';
 
 /** Test setup for already-bound historical facts, never an L1 parser contract. */
 export interface DomainFixture {
@@ -39,7 +39,7 @@ export function fixtureAccountFor<T extends { index: { key: ConversationKey } }>
 export function fixtureResult(conversation: TrustedDomain): DomainFixture {
     return { account: fixtureAccountFor(conversation), conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
 }
-export function sourceIndex(index: import('../../src/core/domain/conversationIndex.js').DomainConversationIndex): import('../../src/core/parsers/gemini/rpc/parseList.js').ConversationListItem {
+export function sourceIndex(index: import('../../src/l2/conversationIndex.js').DomainConversationIndex): import('../../src/l1/parsers/gemini/rpc/parseList.js').ConversationListItem {
     const { key, ...fields } = index;
     return { id: key.conversationId, ...fields };
 }

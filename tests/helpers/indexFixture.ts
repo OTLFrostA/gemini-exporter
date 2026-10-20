@@ -1,9 +1,9 @@
-import { restoreConversationIndex, type DomainConversationIndex } from '../../src/core/domain/conversationIndex.js';
-import { parseIndexMetadata } from '../../src/core/parsers/shared/parseIndexMetadata.js';
-import { normalizeTimestamp } from '../../src/core/domain/time.js';
-import { resolveTitle } from '../../src/core/domain/titleAuthority.js';
-import { semanticTitleSource } from '../../src/core/parsers/shared/parseIndexMetadata.js';
-import { cleanTitle, isBrandPlaceholderTitle } from '../../src/core/utils/titleText.js';
+import { restoreConversationIndex, type DomainConversationIndex } from '../../src/l2/conversationIndex.js';
+import { parseIndexMetadata } from '../../src/l1/parsers/shared/parseIndexMetadata.js';
+import { normalizeTimestamp } from '../../src/l2/time.js';
+import { resolveTitle } from '../../src/l2/titleAuthority.js';
+import { semanticTitleSource } from '../../src/l1/parsers/shared/parseIndexMetadata.js';
+import { cleanTitle, isBrandPlaceholderTitle } from '../../src/shared/utils/titleText.js';
 import { fixtureAccount } from './domainFixture.js';
 /** Test source facts are explicitly bound before exercising canonical consumers. */
 export function indexFixture(value: unknown): DomainConversationIndex {

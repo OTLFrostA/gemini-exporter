@@ -2,7 +2,7 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLegacyConversationIndex } from './helpers/recordFixture/parseIndex.js';
-import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
+import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
 
 test('historical aliases cannot become current Gemini metadata or cloud evidence', () => {
     const raw = { id: 'c_boundary123', title: 'Current title', titleSource: 'dom',

@@ -3,12 +3,12 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { getConversationDetail } from '../src/core/api/client/pagination.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
-import type { SourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
+import { getConversationDetail } from '../src/l1/client/gemini/api/pagination.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { extractBlockText } from '../src/l2/content/unknownFallback.js';
+import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
 function page(request: string, seconds: number, cursor: string | null = null) {
     const turn = [['c_native', request], [seconds, 0], [[`Question ${request}`]], [[['rc_' + request, [['**Answer**']]]]]];
@@ -56,14 +56,14 @@ test('native token loops retain diagnostics and explicitly mark incomplete cover
 });
 
 test('production RPC client parses raw responses without invoking the legacy detail facade', async () => {
-    const credentials = require('../src/core/api/client/credentialManager.js') as typeof import('../src/core/api/client/credentialManager.js');
-    const transport = require('../src/core/api/client/rpcClient.js') as typeof import('../src/core/api/client/rpcClient.js');
+    const credentials = require('../src/l1/client/gemini/api/credentialManager.js') as typeof import('../src/l1/client/gemini/api/credentialManager.js');
+    const transport = require('../src/l1/client/gemini/api/rpcClient.js') as typeof import('../src/l1/client/gemini/api/rpcClient.js');
     const originalCred = credentials.resolveCred, originalPost = transport.postBatchexecute;
     credentials.resolveCred = async () => ({ at: 'test', bl: 'test', accountSlot: '10000000-0000-4000-8000-000000000001', fSid: 'test' });
     const rawTurn = [['c_native', 'r_one'], [1700000000, 0], [['Question']], [[['rc_one', [['Answer']]]]]];
     transport.postBatchexecute = async () => new Response(rpc([[rawTurn], null, 'Native title']));
     try {
-        const { GeminiAPIClient } = require('../src/core/api/geminiClient.js') as typeof import('../src/core/api/geminiClient.js');
+        const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js') as typeof import('../src/l1/client/gemini/geminiClient.js');
         const detail = await new GeminiAPIClient().fetchConversationPage('native', null, '10000000-0000-4000-8000-000000000001');
         assert.equal(detail.conversation.index.title, 'Native title');
         assert.equal(detail.conversation.detail.messages.length, 2);
@@ -95,7 +95,7 @@ test('metadata-only detail retry follows native pagination to its terminal page'
 });
 
 test('cooperative ZIP decoding yields to the event loop and preserves synchronous HTML semantics', async () => {
-    const { parseGeminiTakeoutArchive, parseGeminiTakeoutArchiveAsync } = require('../src/core/parsers/gemini/takeout/parseConversation.js') as typeof import('../src/core/parsers/gemini/takeout/parseConversation.js');
+    const { parseGeminiTakeoutArchive, parseGeminiTakeoutArchiveAsync } = require('../src/l1/parsers/gemini/takeout/parseConversation.js') as typeof import('../src/l1/parsers/gemini/takeout/parseConversation.js');
     const raw = { htmlText: Array.from({ length: 120 }, (_, index) => activity(`Question ${index}`)).join('') };
     let yielded = false;
     const timer = setTimeout(() => { yielded = true; }, 0);
@@ -111,7 +111,7 @@ test('cooperative ZIP decoding yields to the event loop and preserves synchronou
 
 
 test('Takeout prompt-cell attachments and audio stay user-owned while response references remain assistant-owned', () => {
-    const { parseGeminiTakeoutArchive } = require('../src/core/parsers/gemini/takeout/parseConversation.js') as typeof import('../src/core/parsers/gemini/takeout/parseConversation.js');
+    const { parseGeminiTakeoutArchive } = require('../src/l1/parsers/gemini/takeout/parseConversation.js') as typeof import('../src/l1/parsers/gemini/takeout/parseConversation.js');
     const htmlText = `<div class="outer-cell"><a href="https://gemini.google.com/app/c_native">Chat</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Read files<br>Attached 1 file.<br><a href="same.png">Image</a><br><a href="recording.wav">Audio</a><br>2026-09-02T12:00:00Z<br><p>Answer <img src="same.png"></p></div><div class="content-cell mdl-typography--text-right"><img src="same.png" class="image-preview"></div><img src="unowned.png"></div>`;
     const result = parseGeminiTakeoutArchive({ htmlText, archiveFiles: { 'same.png': {}, 'recording.wav': {}, 'unowned.png': {} } }, { account: fixtureAccount('gemini'), providerId: 'gemini' })[0];
     const assets = new Map(result.conversation.detail.assets.map(asset => [asset.id, asset]));

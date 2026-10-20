@@ -1,14 +1,14 @@
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
-import type { ResourceRequest } from '../src/core/resources/resourceAcquisition.js';
-import { TakeoutEngine } from '../src/core/engine/takeoutEngine.js';
-import { commitTakeoutData, clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
-import { planExportResources } from '../src/core/export/assets/planExportResources.js';
-import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
-import type { DomainAsset } from '../src/core/domain/conversationDetail.js';
+import type { ResourceRequest } from '../src/l1/resources/resourceAcquisition.js';
+import { TakeoutEngine } from '../src/l1/imports/takeoutEngine.js';
+import { commitTakeoutData, clearTakeoutData } from '../src/shared/resources/takeout/mediaIndex.js';
+import { planExportResources } from '../src/l4/format/resources/planExportResources.js';
+import type { ResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
+import type { DomainAsset } from '../src/l2/conversationDetail.js';
 
 const chatId = 'lookup-regression';
 const generation = { generationOrdinal: 2, time: 1700000000123, prompt: 'Draw a diagram', imageCount: 2 };

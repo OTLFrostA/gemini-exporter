@@ -1,17 +1,17 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { getRendererStrings } = require('../src/core/renderers/shared/renderStrings.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { getRendererStrings } = require('../src/l4/format/shared/renderStrings.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 function domainFixture(messages: any[], extra: any = {}) {
-    const createdAt = require('../src/core/domain/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
-    const updatedAt = require('../src/core/domain/time.js').normalizeTimestamp(extra.updatedAt);
+    const createdAt = require('../src/l2/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
+    const updatedAt = require('../src/l2/time.js').normalizeTimestamp(extra.updatedAt);
     return restoreDomainSnapshot({ index: { key: fixtureKey(String('c1'), 'gemini'),   title: 'Test convo', titleSource: "derived",
         ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) },
         detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages } });

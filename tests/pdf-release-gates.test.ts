@@ -23,7 +23,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 
 // ------------------------------------------------------------------ fixtures
 

@@ -1,12 +1,12 @@
 /**
  * tests/helpers/stubPdfCompiler.ts
  *
- * Test-only PDF compiler stub. Moved out of src/core/export/pdf/pdfCompiler.ts
+ * Test-only PDF compiler stub. Moved out of src/l4/format/pdf/pdfCompiler.ts
  * by the Maintenance Convergence iteration (PR4): production source must never
  * import this file. Tests inject it through the IPdfCompiler contract; the
  * production PdfExporter default remains the real TypstSandboxCompiler.
  */
-import type { IPdfCompiler, PdfCompileResult, PdfCompileContext, TypstRenderPayload } from '../../src/core/export/pdf/pdfCompiler.js';
+import type { IPdfCompiler, PdfCompileResult, PdfCompileContext, TypstRenderPayload } from '../../src/l4/format/pdf/pdfCompiler.js';
 
 export const STUB_PDF_COMPILER_NAME = 'stub-pdf-compiler';
 

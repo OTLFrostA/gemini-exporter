@@ -1,10 +1,10 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTakeoutResourceResolver, type TakeoutSourceFile } from '../src/core/parsers/gemini/takeout/archiveResources.js';
-import { parseGeminiTakeoutConversation } from '../src/core/parsers/gemini/takeout/parseConversation.js';
-import { parseGeminiTakeoutZip, parseGeminiTakeoutZipArchive } from '../src/core/imports/takeout/readArchive.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
+import { createTakeoutResourceResolver, type TakeoutSourceFile } from '../src/l1/parsers/gemini/takeout/archiveResources.js';
+import { parseGeminiTakeoutConversation } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
+import { parseGeminiTakeoutZip, parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
 
 const directory = 'Takeout/My Activity/Gemini Apps';
 const activityPath = `${directory}/MyActivity.html`;

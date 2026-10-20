@@ -1,5 +1,5 @@
 import { fixtureKey } from './helpers/domainFixture.js';
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
+const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 const { messageAssets } = require('./helpers/domainAssets.js');
 export {};
 const test = require('node:test');

@@ -24,7 +24,7 @@ The legacy `PdfExporter`, `prepareItem`, `prepareResources` and PDF four-stage p
 Callers outside L4 are intentionally unchanged:
 
 - `src/core/engine/chatFormatter.ts` still imports the removed `toJsonStandard`. The Application owner must supply Domain + Account + Packaging bindings to `serializeDomainJson`.
-- `src/ui/controllers/exportController.ts` still imports the removed `PdfExporter`. The Application owner must use its single export workflow, supply the composed AST and shared image resources, call `compileDocumentPdf`, and pass final bytes to Packaging/Delivery.
+- `src/ui/options/controllers/exportController.ts` still imports the removed `PdfExporter`. The Application owner must use its single export workflow, supply the composed AST and shared image resources, call `compileDocumentPdf`, and pass final bytes to Packaging/Delivery.
 - Older integration tests that import these removed APIs require the corresponding Application/Delivery migration. Full application build and full-suite success are not claimed by this module change.
 
 After the L3b migration removed resource delivery types from AST, ResourceBindings lives in export/packaging/resourceBindings.ts. L4 consumers import that existing map shape directly. Its runtime ownership is Packaging → Format; no bytes or paths are added to the AST.

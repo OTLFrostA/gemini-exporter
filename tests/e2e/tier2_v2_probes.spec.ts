@@ -10,8 +10,8 @@ const probe = execFileSync('python3', ['-c', 'from scripts.framework.v2_probe im
 const scanObserver = execFileSync('python3', ['-c', 'from scripts.framework.actions import SCAN_OBSERVER; print(SCAN_OBSERVER)'], { cwd: root }).toString();
 const capture = execFileSync('python3', ['-c', 'from scripts.framework.gemini_dual_parse import INSTALL_CAPTURE; print(INSTALL_CAPTURE)'], { cwd: root }).toString();
 const fixture = buildSync({ stdin: { resolveDir: root, loader: 'ts', contents: `
-    import * as storage from './src/core/storage/storageService.ts';
-    import { ingestDetail } from './src/core/domain/ingestion.ts';
+    import * as storage from './src/l3a/storageService.ts';
+    import { ingestDetail } from './src/l2/ingestion.ts';
     Object.assign(globalThis,{probeFixture:{...storage,ingestDetail}});
 ` }, bundle: true, write: false, format: 'iife', conditions: ['worker', 'browser'] }).outputFiles[0].text;
 

@@ -24,7 +24,7 @@ function load(file: string, stubs: Record<string, unknown>) {
 const chromeBase = () => ({ runtime: { id: 'ext' }, tabs: { sendMessage: (_id: unknown, _message: unknown, _options: unknown, callback: Function) => callback({ ok: true, accountContext: { accountId: uuid, providerId: 'gemini' } }) } });
 const ready = { ensureV2Ready: async () => {} };
 const storage = { getAccount: async () => account };
-const security = () => load('src/background/contentSender.ts', { 'src/core/storage/storageService.js': storage });
+const security = () => load('src/runtime/background/contentSender.ts', { 'src/l3a/storageService.js': storage });
 async function invoke(handler: Function, message: unknown, origin: unknown = sender) {
     let count = 0;
     let finish: (value: any) => void = () => {};
@@ -41,9 +41,9 @@ test('ingestion awaits L2 commit, forwards empty terminal page and never writes 
     let commit!: () => void;
     let args: unknown[] = [];
     const gate = new Promise<void>(resolve => { commit = resolve; });
-    const { handleDomainIngestionMessage: handle } = load('src/background/domainStorageHandler.ts', {
-        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
-        'src/core/domain/ingestion.js': { ingestIndexes: async (...values: unknown[]) => { args = values; await gate; } },
+    const { handleDomainIngestionMessage: handle } = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestIndexes: async (...values: unknown[]) => { args = values; await gate; } },
     });
     const page = { streamId: 'recent', requestCursor: 'last', nextCursor: null };
     let answered = false;
@@ -58,9 +58,9 @@ test('ingestion awaits L2 commit, forwards empty terminal page and never writes 
 test('ingestion preserves Detail and Index facts; reports L2 errors', async () => {
     global.chrome = chromeBase() as any;
     let seen: unknown[] = [];
-    const handle = load('src/background/domainStorageHandler.ts', {
-        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
-        'src/core/domain/ingestion.js': { ingestDetail: async (...args: unknown[]) => { seen = args; throw new Error('commit failed'); } },
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestDetail: async (...args: unknown[]) => { seen = args; throw new Error('commit failed'); } },
     }).handleDomainIngestionMessage;
     const detail = { quality: { status: 'partial' } }, indexFields = { title: 'a' };
     assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail', accountId: uuid, conversationId: 'abc', detail, indexFields }), { ok: false, error: 'commit failed' });
@@ -72,9 +72,9 @@ test('Background returns Detail changed only after L2 admission commits', async 
     global.chrome = chromeBase() as any;
     let finish!: () => void;
     const gate = new Promise<void>(resolve => { finish = resolve; });
-    const handle = load('src/background/domainStorageHandler.ts', {
-        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
-        'src/core/domain/ingestion.js': { ingestDetail: async () => { await gate; return false; } },
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestDetail: async () => { await gate; return false; } },
     }).handleDomainIngestionMessage;
     let returned = false;
     const response = invoke(handle, { action: 'domainIngest', operation: 'detail',
@@ -90,9 +90,9 @@ test('Background deletion awaits L2 commit, rejects default identity and propaga
     let finish!: () => void;
     const gate = new Promise<void>(resolve => { finish = resolve; });
     let calls = 0;
-    const handle = load('src/background/domainStorageHandler.ts', {
-        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
-        'src/core/domain/ingestion.js': { ingestDeletedConversation: async (accountId: string, id: string) => {
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestDeletedConversation: async (accountId: string, id: string) => {
             calls++; assert.equal(accountId, uuid); assert.equal(id, 'abcdef123456'); await gate;
         } },
     }).handleDomainIngestionMessage;
@@ -101,11 +101,11 @@ test('Background deletion awaits L2 commit, rejects default identity and propaga
         .then(value => { responded = true; return value; });
     await new Promise(resolve => setImmediate(resolve)); assert.equal(responded, false);
     finish(); assert.deepEqual(await result, { ok: true }); assert.equal(calls, 1);
-    const denied = load('src/background/domainStorageHandler.ts', {
-        'src/background/readiness.js': ready,
-        'src/background/contentSender.js': { assertContentSender() {}, object: (value: unknown) => value,
+    const denied = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready,
+        'src/runtime/background/contentSender.js': { assertContentSender() {}, object: (value: unknown) => value,
             requireContentAccount: async () => ({ ...account, providerAccountId: 'default' }) },
-        'src/core/domain/ingestion.js': { ingestDeletedConversation: () => assert.fail('default cannot delete') },
+        'src/l2/ingestion.js': { ingestDeletedConversation: () => assert.fail('default cannot delete') },
     }).handleDomainIngestionMessage;
     assert.equal((await invoke(denied, { action: 'domainIngest', operation: 'deleted', accountId: uuid, conversationId: 'abcdef123456' })).ok, false);
 });
@@ -113,9 +113,9 @@ test('Background deletion awaits L2 commit, rejects default identity and propaga
 test('ingestion rejects foreign, unsupported, subframe and malformed requests', async () => {
     global.chrome = chromeBase() as any;
     let calls = 0;
-    const handle = load('src/background/domainStorageHandler.ts', {
-        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
-        'src/core/domain/ingestion.js': { ingestIndexes: async () => { calls++; } },
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestIndexes: async () => { calls++; } },
     }).handleDomainIngestionMessage;
     const message = { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [] };
     for (const origin of [{ ...sender, id: 'other' }, { ...sender, tab: undefined }, { ...sender, url: 'https://chatgpt.com/' }, { ...sender, frameId: 1 }]) {
@@ -129,7 +129,7 @@ test('ingestion rejects foreign, unsupported, subframe and malformed requests', 
 
 test('provider mismatch is rejected before L2 admission', async () => {
     global.chrome = chromeBase() as any;
-    const guard = load('src/background/contentSender.ts', { 'src/core/storage/storageService.js': { getAccount: async () => ({ ...account, providerId: 'chatgpt' }) } });
+    const guard = load('src/runtime/background/contentSender.ts', { 'src/l3a/storageService.js': { getAccount: async () => ({ ...account, providerId: 'chatgpt' }) } });
     await assert.rejects(guard.requireContentAccount(sender, uuid), /mismatch/);
 });
 
@@ -137,7 +137,7 @@ test('Content ingestion sends only JSON facts and propagates worker failure', as
     global.location = { protocol: 'https:' } as any;
     let sent: unknown;
     global.chrome = { runtime: { sendMessage: async (message: unknown) => { sent = message; return { ok: false, error: 'L2 rejected' }; } } } as any;
-    const api = load('src/core/api/domainIngestion.ts', { 'src/core/domain/ingestion.js': {}, 'src/core/api/runtimeReady.js': ready });
+    const api = load('src/runtime/api/domainIngestion.ts', { 'src/l2/ingestion.js': {}, 'src/runtime/api/runtimeReady.js': ready });
     await assert.rejects(api.ingestIndexes(uuid, []), /L2 rejected/);
     assert.deepEqual(JSON.parse(JSON.stringify(sent)), { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [] });
 });
@@ -145,8 +145,8 @@ test('Content ingestion sends only JSON facts and propagates worker failure', as
 test('Content ingestion preserves committed changed results from the worker', async () => {
     global.location = { protocol: 'https:' } as any;
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, changed: true }) } } as any;
-    const api = load('src/core/api/domainIngestion.ts', { 'src/core/domain/ingestion.js': {},
-        'src/core/api/runtimeReady.js': ready });
+    const api = load('src/runtime/api/domainIngestion.ts', { 'src/l2/ingestion.js': {},
+        'src/runtime/api/runtimeReady.js': ready });
     assert.equal(await api.ingestDetail(uuid, 'abc', {}), true);
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true }) } } as any;
     await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /changed/);
@@ -155,19 +155,19 @@ test('Content ingestion preserves committed changed results from the worker', as
 test('Extension ingestion calls the same L2 function after readiness', async () => {
     global.location = { protocol: 'chrome-extension:' } as any;
     const order: string[] = [];
-    const api = load('src/core/api/domainIngestion.ts', {
-        'src/core/domain/ingestion.js': { ingestDetail: async () => { order.push('L2'); return true; } },
-        'src/core/api/runtimeReady.js': { ensureV2Ready: async () => { order.push('ready'); } },
+    const api = load('src/runtime/api/domainIngestion.ts', {
+        'src/l2/ingestion.js': { ingestDetail: async () => { order.push('L2'); return true; } },
+        'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => { order.push('ready'); } },
     });
     await api.ingestDetail(uuid, 'abc', {});
     assert.deepEqual(order, ['ready', 'L2']);
 });
 
 function live(settings: object, permission = 'granted', handleExists = true, exporter?: Function) {
-    return load('src/background/liveSaveHandler.ts', {
-        'src/core/application/settings/index.js': { getSettings: async () => settings },
-        'src/core/storage/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; } } : null },
-        'src/core/application/export/runExport.js': { runExport: exporter || (() => assert.fail('Unexpected Export')) },
+    return load('src/runtime/background/liveSaveHandler.ts', {
+        'src/application/settings/index.js': { getSettings: async () => settings },
+        'src/l3a/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; } } : null },
+        'src/application/export/runExport.js': { runExport: exporter || (() => assert.fail('Unexpected Export')) },
     }).runLiveSave;
 }
 test('disabled and non-Markdown Live Save return null without exporting', async () => {
@@ -202,7 +202,7 @@ test('routing matches Provider and UUID, prefers matching active Tab, and never 
             else { Reflect.set(chrome.runtime, 'lastError', { message: 'Tab navigated' }); callback(); Reflect.deleteProperty(global.chrome.runtime, 'lastError'); }
         },
     } } as any;
-    const routing = load('src/core/utils/tabService.ts', { 'src/core/storage/storageService.js': storage, 'src/core/api/runtimeReady.js': ready });
+    const routing = load('src/runtime/capabilities/tabService.ts', { 'src/l3a/storageService.js': storage, 'src/runtime/api/runtimeReady.js': ready });
     assert.equal((await routing.resolveAccountTab(uuid)).id, 3);
     await assert.rejects(routing.sendToGeminiTab({ action: 'getFileBlob' }, uuid), /Tab navigated/);
     assert.equal(sent.filter(value => value.message.action === 'getFileBlob').length, 1);
@@ -213,7 +213,7 @@ test('routing matches Provider and UUID, prefers matching active Tab, and never 
 });
 test('routing rejects matching UUID from wrong Provider and uninjected Tabs', async () => {
     global.chrome = { runtime: {}, tabs: { query: async () => [{ id: 1 }], sendMessage: (_: unknown, __: unknown, cb: Function) => cb({ ok: true, accountContext: { accountId: uuid, providerId: 'chatgpt' } }) } } as any;
-    const routing = load('src/core/utils/tabService.ts', { 'src/core/storage/storageService.js': storage, 'src/core/api/runtimeReady.js': ready });
+    const routing = load('src/runtime/capabilities/tabService.ts', { 'src/l3a/storageService.js': storage, 'src/runtime/api/runtimeReady.js': ready });
     await assert.rejects(routing.resolveAccountTab(uuid), /No open/);
 });
 
@@ -221,12 +221,12 @@ test('readiness shares one pending upgrade and retries failures', async () => {
     let calls = 0;
     let finish!: () => void;
     const gate = new Promise<void>(resolve => { finish = resolve; });
-    const runtime = load('src/background/readiness.ts', { 'src/core/migration/upgradeV1.js': { ensureUpgraded: () => { calls++; return gate; } } });
+    const runtime = load('src/runtime/background/readiness.ts', { 'src/migration/upgradeV1.js': { ensureUpgraded: () => { calls++; return gate; } } });
     const first = runtime.ensureV2Ready();
     assert.equal(first, runtime.ensureV2Ready());
     assert.equal(calls, 1); finish(); await first;
     let attempts = 0;
-    const retry = load('src/background/readiness.ts', { 'src/core/migration/upgradeV1.js': { ensureUpgraded: async () => { if (++attempts === 1) throw new Error('upgrade failed'); } } });
+    const retry = load('src/runtime/background/readiness.ts', { 'src/migration/upgradeV1.js': { ensureUpgraded: async () => { if (++attempts === 1) throw new Error('upgrade failed'); } } });
     await assert.rejects(retry.ensureV2Ready(), /upgrade failed/);
     await retry.ensureV2Ready();
     assert.equal(attempts, 2);
@@ -242,9 +242,9 @@ test('Content router pairs Account and conversation in one read and rejects acco
     let listener!: Function;
     global.chrome = { runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; }, removeListener: () => {} } } } as any;
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
-    const router = load('src/content/messageRouter.ts', {
-        'src/content/accountContext.js': { resolveCurrentAccount: async () => context, isCurrentAccount: () => true },
-        'src/content/assetFetcher.js': { AssetFetcher: {} },
+    const router = load('src/runtime/content/messageRouter.ts', {
+        'src/runtime/content/accountContext.js': { resolveCurrentAccount: async () => context, isCurrentAccount: () => true },
+        'src/runtime/capabilities/assetFetcher.js': { AssetFetcher: {} },
     });
     router.init();
     assert.deepEqual(await invoke(listener, { action: 'getAccountContext' }), { ok: true, accountContext: context, conversationId: 'abcdef123456' });
@@ -252,9 +252,9 @@ test('Content router pairs Account and conversation in one read and rejects acco
     assert.equal((await invoke(listener, { action: 'getFileBlob', accountId: uuid, url: 'https://evil.test/a' })).ok, false);
     assert.equal(listener({ action: 'deepScan' }, sender, () => assert.fail()), false);
     assert.equal((await invoke(listener, { action: 'getAccountContext' }, { id: 'foreign' })).ok, false);
-    const changed = load('src/content/messageRouter.ts', {
-        'src/content/accountContext.js': { resolveCurrentAccount: async () => { global.location.href = 'https://gemini.google.com/app/other'; return context; }, isCurrentAccount: () => true },
-        'src/content/assetFetcher.js': { AssetFetcher: {} },
+    const changed = load('src/runtime/content/messageRouter.ts', {
+        'src/runtime/content/accountContext.js': { resolveCurrentAccount: async () => { global.location.href = 'https://gemini.google.com/app/other'; return context; }, isCurrentAccount: () => true },
+        'src/runtime/capabilities/assetFetcher.js': { AssetFetcher: {} },
     });
     changed.init();
     assert.equal((await invoke(listener, { action: 'getAccountContext' })).ok, false);
@@ -267,9 +267,9 @@ test('resource router checks Account after completion and answers exactly once',
     global.chrome = { runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; }, removeListener: () => {} } } } as any;
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
     let changed = false;
-    load('src/content/messageRouter.ts', {
-        'src/content/accountContext.js': { resolveCurrentAccount: async () => changed ? null : context, isCurrentAccount: () => !changed },
-        'src/content/assetFetcher.js': { AssetFetcher: { handleGetFileBlob: async (_: unknown, cb: Function) => { changed = true; cb({ success: true, base64: 'AA==' }); } } },
+    load('src/runtime/content/messageRouter.ts', {
+        'src/runtime/content/accountContext.js': { resolveCurrentAccount: async () => changed ? null : context, isCurrentAccount: () => !changed },
+        'src/runtime/capabilities/assetFetcher.js': { AssetFetcher: { handleGetFileBlob: async (_: unknown, cb: Function) => { changed = true; cb({ success: true, base64: 'AA==' }); } } },
     }).init();
     assert.equal((await invoke(listener, { action: 'getFileBlob', accountId: uuid, url: 'https://lh3.googleusercontent.com/a' })).ok, false);
 });
@@ -279,8 +279,8 @@ test('Live Save Content sends only the changed key and suppresses stale reinject
     let sent: unknown;
     let reply!: (value: unknown) => void;
     global.chrome = { runtime: { sendMessage: (message: unknown) => { sent = message; return new Promise(resolve => { reply = resolve; }); } } } as any;
-    const coordinator = load('src/content/liveSaveCoordinator.ts', {
-        'src/content/accountContext.js': { getAccountContext: () => context },
+    const coordinator = load('src/runtime/content/liveSaveCoordinator.ts', {
+        'src/runtime/content/accountContext.js': { getAccountContext: () => context },
     });
     let feedback = 0;
     const badge = { showLiveSaveFeedback: () => { feedback++; } };
@@ -299,9 +299,9 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
     const order: unknown[] = [];
     global.chrome = { runtime: { onInstalled: { addListener: (fn: Function) => { install = fn; } },
         getManifest: () => ({ version: '2.0.0' }), getURL: (path: string) => 'chrome-extension://ext/' + path }, tabs: { create: async ({url}: {url: string}) => { assert.match(url, /options.html\?startTour=1$/); order.push('open'); } } } as any;
-    const lifecycle = load('src/background/lifecycle.ts', {
-        'src/background/readiness.js': { ensureV2Ready: async () => { order.push('ready'); } },
-        'src/core/application/settings/index.js': { getSettings: async () => ({}), updateSettings: async (patch: unknown) => { order.push(patch); } },
+    const lifecycle = load('src/runtime/background/lifecycle.ts', {
+        'src/runtime/background/readiness.js': { ensureV2Ready: async () => { order.push('ready'); } },
+        'src/application/settings/index.js': { getSettings: async () => ({}), updateSettings: async (patch: unknown) => { order.push(patch); } },
     });
     lifecycle.initLifecycleListeners();
     install({ reason: 'install' }); await new Promise(resolve => setImmediate(resolve));
@@ -318,14 +318,14 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
 test('Background count uses Index query, propagates Live Save result, and declines retired actions', async () => {
     let listener!: Function;
     global.chrome = { ...chromeBase(), runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; } } } } as any;
-    load('src/background/background.ts', {
-        'src/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
-        'src/background/accountRegistryHandler.js': { handleAccountRegistryMessage: () => false },
-        'src/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
-        'src/background/tabAction.js': { initTabActionListeners: () => {} },
-        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
-        'src/core/storage/storageService.js': { listIndexes: async (id: string) => { assert.equal(id, uuid); return [{}, {}]; } },
-        'src/background/liveSaveHandler.js': { runLiveSave: async () => null },
+    load('src/runtime/background/background.ts', {
+        'src/runtime/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
+        'src/runtime/background/accountRegistryHandler.js': { handleAccountRegistryMessage: () => false },
+        'src/runtime/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
+        'src/runtime/background/tabAction.js': { initTabActionListeners: () => {} },
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l3a/storageService.js': { listIndexes: async (id: string) => { assert.equal(id, uuid); return [{}, {}]; } },
+        'src/runtime/background/liveSaveHandler.js': { runLiveSave: async () => null },
     });
     assert.deepEqual(await invoke(listener, { action: 'getLocalIndexCount', accountId: uuid }), { ok: true, count: 2 });
     assert.deepEqual(await invoke(listener, { action: 'runLiveSave', key: { accountId: uuid, conversationId: 'abc' } }), { ok: true, result: null });
@@ -337,9 +337,9 @@ test('directory picker and reauthorization preserve click gesture; restoration o
     const order: string[] = [];
     const handle = { queryPermission: async () => { order.push('query'); return 'prompt'; }, requestPermission: async () => { order.push('request'); return 'granted'; } };
     global.window = { showDirectoryPicker: () => { order.push('picker'); return Promise.resolve({ ...handle, queryPermission: async () => 'granted' }); } } as any;
-    const directory = load('src/ui/controllers/dirHandleController.ts', {
-        'src/core/api/runtimeReady.js': { ensureV2Ready: async () => { order.push('ready'); } },
-        'src/core/storage/storageService.js': { getDirectoryHandle: async () => handle, setDirectoryHandle: async () => { order.push('store'); } },
+    const directory = load('src/runtime/capabilities/dirHandleController.ts', {
+        'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => { order.push('ready'); } },
+        'src/l3a/storageService.js': { getDirectoryHandle: async () => handle, setDirectoryHandle: async () => { order.push('store'); } },
     });
     assert.equal(await directory.restoreSavedDirHandle(), null);
     assert.deepEqual(order, ['ready', 'query']);
@@ -355,7 +355,7 @@ test('MAIN hook reinjection returns before wrapping fetch or adding timers/liste
     const fs = require('node:fs');
     const esbuild = require('esbuild');
     const vm = require('node:vm');
-    const source = fs.readFileSync(path.join(root, 'src/content/hookCredentials.ts'), 'utf8')
+    const source = fs.readFileSync(path.join(root, 'src/l1/sniffer/gemini/hookCredentials.ts'), 'utf8')
         .replace(/import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*\s,]+)\s*from\s*['"][^'"]+['"];?\s*/g, '');
     const script = esbuild.transformSync(source, { loader: 'ts', format: 'iife' }).code;
     const window = { __gemExporterHookInstalled: true, fetch: () => {} };
@@ -366,7 +366,7 @@ test('MAIN hook reinjection returns before wrapping fetch or adding timers/liste
 
 test('Content cleanup unregisters individual completed requests and drains listeners once on reinjection', () => {
     global.window = contentWindow() as any;
-    const cleanup = load('src/content/cleanupRegistry.ts', {});
+    const cleanup = load('src/runtime/content/cleanupRegistry.ts', {});
     let calls = 0;
     const unregister = cleanup.registerCleanup(() => { calls++; });
     unregister();
@@ -384,10 +384,10 @@ test('Worker API readiness shares the background upgrade promise and never messa
     let upgrades = 0;
     let finish!: () => void;
     const pending = new Promise<void>(resolve => { finish = resolve; });
-    const worker = load('src/background/readiness.ts', {
-        'src/core/migration/upgradeV1.js': { ensureUpgraded: () => { upgrades++; return pending; } },
+    const worker = load('src/runtime/background/readiness.ts', {
+        'src/migration/upgradeV1.js': { ensureUpgraded: () => { upgrades++; return pending; } },
     });
-    const api = load('src/core/api/runtimeReady.ts', { 'src/background/readiness.js': worker });
+    const api = load('src/runtime/api/runtimeReady.ts', { 'src/runtime/background/readiness.js': worker });
     let done = false;
     const calls = Promise.all([worker.ensureV2Ready(), api.ensureV2Ready(), api.ensureV2Ready()]).then(() => { done = true; });
     await Promise.resolve();
@@ -405,7 +405,7 @@ test('Content readiness uses IPC and propagates Background upgrade failure', asy
         messages++; assert.deepEqual(message, { action: 'ensureV2Ready' });
         return { ok: false, error: 'upgrade failed' };
     } } } as any;
-    const api = load('src/core/api/runtimeReady.ts', { 'src/background/readiness.js': { ensureV2Ready: () => assert.fail('Content must not execute upgrade') } });
+    const api = load('src/runtime/api/runtimeReady.ts', { 'src/runtime/background/readiness.js': { ensureV2Ready: () => assert.fail('Content must not execute upgrade') } });
     await assert.rejects(api.ensureV2Ready(), /upgrade failed/);
     assert.equal(messages, 1);
 });
@@ -416,15 +416,15 @@ test('Content registers capture, account and message listeners while readiness i
     let finish!: () => void;
     const pending = new Promise<void>(resolve => { finish = resolve; });
     const initialized: string[] = [];
-    load('src/content/content.ts', {
-        'src/core/api/runtimeReady.js': { ensureV2Ready: () => pending },
-        'src/content/bootstrap.js': { initBootstrap: () => initialized.push('credentials') },
-        'src/content/messageRouter.js': { MessageRouter: { init: () => initialized.push('router') } },
-        'src/content/messageBridge.js': { MessageBridge: { init: () => initialized.push('bridge') } },
-        'src/content/badgeView.js': { BadgeView: { ensureBadge: () => initialized.push('badge') } },
-        'src/content/liveSaveCoordinator.js': { LiveSaveCoordinator: { init: () => {}, cleanup: () => {} } },
-        'src/content/accountContext.js': { setAccountChangedHandler() {}, invalidateAccountContext: () => {} },
-        'src/content/cleanupRegistry.js': { runCleanups: () => {}, registerCleanup: () => {} },
+    load('src/runtime/content/content.ts', {
+        'src/runtime/api/runtimeReady.js': { ensureV2Ready: () => pending },
+        'src/l1/client/gemini/bootstrap.js': { initBootstrap: () => initialized.push('credentials') },
+        'src/runtime/content/messageRouter.js': { MessageRouter: { init: () => initialized.push('router') } },
+        'src/l1/sniffer/gemini/messageBridge.js': { MessageBridge: { init: () => initialized.push('bridge') } },
+        'src/ui/badge/badgeView.js': { BadgeView: { ensureBadge: () => initialized.push('badge') } },
+        'src/runtime/content/liveSaveCoordinator.js': { LiveSaveCoordinator: { init: () => {}, cleanup: () => {} } },
+        'src/runtime/content/accountContext.js': { setAccountChangedHandler() {}, invalidateAccountContext: () => {} },
+        'src/runtime/content/cleanupRegistry.js': { runCleanups: () => {}, registerCleanup: () => {} },
     });
     assert.deepEqual(initialized, ['credentials', 'router', 'bridge']);
     finish(); await new Promise(resolve => setImmediate(resolve));
@@ -440,17 +440,17 @@ test('an early source completion survives readiness wait and keeps its captured 
     const keys: unknown[] = [];
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
     let current = context;
-    const bridge = load('src/content/messageBridge.ts', {
-        'src/core/api/accountRegistry.js': { getAccount: async () => account },
-        'src/content/accountContext.js': { resolveRequestAccount: async () => { await pending; return context; }, resolveCurrentAccount: async () => current },
-        'src/core/api/domainIngestion.js': { ingestIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; } },
-        'src/core/provider/gemini/listObservation.js': {},
-        'src/core/parsers/gemini/rpc/parseConversation.js': {},
-        'src/core/parsers/gemini/rpc/mergePages.js': {},
-        'src/core/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
-        'src/core/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
-        'src/core/utils/utils.js': { isDevMode: () => false },
-        'src/core/parsers/gemini/rpc/parseList.js': {},
+    const bridge = load('src/l1/sniffer/gemini/messageBridge.ts', {
+        'src/runtime/api/accountRegistry.js': { getAccount: async () => account },
+        'src/runtime/content/accountContext.js': { resolveRequestAccount: async () => { await pending; return context; }, resolveCurrentAccount: async () => current },
+        'src/runtime/api/domainIngestion.js': { ingestIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; } },
+        'src/l1/client/gemini/listObservation.js': {},
+        'src/l1/parsers/gemini/rpc/parseConversation.js': {},
+        'src/l1/parsers/gemini/rpc/mergePages.js': {},
+        'src/l1/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
+        'src/l1/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
+        'src/shared/utils/utils.js': { isDevMode: () => false },
+        'src/l1/parsers/gemini/rpc/parseList.js': {},
     });
     bridge.init({ onStreamComplete: (key: unknown) => keys.push(key) });
     const event = { source: global.window, origin: global.location.origin, data: { type: 'GEMINI_STREAM_GENERATE_COMPLETE', payload: { slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: 'gaia' }, id: 'abcdef123456' } } };
@@ -486,14 +486,14 @@ test('both active Background ports reject a different current Account before Exp
     let listener!: Function;
     global.chrome = { ...chromeBase(), runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; } } } } as any;
     global.chrome.tabs.sendMessage = ((_id: unknown, _message: unknown, _options: unknown, callback: Function) => callback({ ok: true, accountContext: { accountId: 'other', providerId: 'gemini' } })) as any;
-    load('src/background/background.ts', {
-        'src/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
-        'src/background/accountRegistryHandler.js': { handleAccountRegistryMessage: () => false },
-        'src/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
-        'src/background/tabAction.js': { initTabActionListeners: () => {} },
-        'src/background/readiness.js': ready, 'src/background/contentSender.js': security(),
-        'src/core/storage/storageService.js': { listIndexes: () => assert.fail('Must reject before reading Index') },
-        'src/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('Must reject before writing files') },
+    load('src/runtime/background/background.ts', {
+        'src/runtime/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
+        'src/runtime/background/accountRegistryHandler.js': { handleAccountRegistryMessage: () => false },
+        'src/runtime/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
+        'src/runtime/background/tabAction.js': { initTabActionListeners: () => {} },
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l3a/storageService.js': { listIndexes: () => assert.fail('Must reject before reading Index') },
+        'src/runtime/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('Must reject before writing files') },
     });
     for (const request of [{ action: 'getLocalIndexCount', accountId: uuid }, { action: 'runLiveSave', key: { accountId: uuid, conversationId: 'abc' } }]) {
         const result = await invoke(listener, request);
@@ -504,8 +504,8 @@ test('both active Background ports reject a different current Account before Exp
 test('CI scripts no longer reference Runtime modules removed by this PR', () => {
     const fs = require('node:fs');
     const files = JSON.parse(fs.readFileSync(path.join(root, 'scripts/zero-any-files.json'), 'utf8'));
-    for (const deleted of ['src/background/batchFetcher.ts', 'src/background/abortManager.ts',
-        'src/content/geminiIndexCapture.ts', 'src/content/domScraper.ts', 'src/content/syncEngine.ts']) {
+    for (const deleted of ['src/runtime/background/batchFetcher.ts', 'src/runtime/background/abortManager.ts',
+        'src/runtime/content/geminiIndexCapture.ts', 'src/runtime/content/domScraper.ts', 'src/runtime/content/syncEngine.ts']) {
         assert.equal(files.includes(deleted), false);
         assert.equal(fs.existsSync(path.join(root, deleted)), false);
     }
@@ -531,7 +531,7 @@ function streamWire(options: { answered?: number; saved?: boolean; responseId?: 
 }
 function hookHarness(fetcher: Function) {
     const fs = require('node:fs'), esbuild = require('esbuild'), vm = require('node:vm');
-    const protocol = require('../src/core/protocol/protocol.js');
+    const protocol = require('../src/l1/protocol/gemini/protocol.js');
     const messages: any[] = [];
     let intervals = 0;
     class Xhr extends EventTarget {
@@ -546,7 +546,7 @@ function hookHarness(fetcher: Function) {
         setInterval: () => { intervals++; return 1; },
     });
     const location = { href: 'https://gemini.google.com/app/abcdef123456', pathname: '/app/abcdef123456', origin: 'https://gemini.google.com' };
-    const source = fs.readFileSync(path.join(root, 'src/content/hookCredentials.ts'), 'utf8')
+    const source = fs.readFileSync(path.join(root, 'src/l1/sniffer/gemini/hookCredentials.ts'), 'utf8')
         .replace(/import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*\s,]+)\s*from\s*['"][^'"]+['"];?\s*/g, '');
     const script = esbuild.transformSync(source, { loader: 'ts', format: 'iife' }).code;
     const context = vm.createContext({ window: win, location, document: new EventTarget(),
@@ -660,17 +660,17 @@ function completionBridge(commitDetail: () => Promise<boolean>) {
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
     const parsed = { conversationId: 'abcdef123456', transport: { nextPageToken: null },
         conversation: { index: {}, detail: { messages: [{}] } } };
-    const bridge = load('src/content/messageBridge.ts', {
-        'src/core/api/accountRegistry.js': { getAccount: async () => account },
-        'src/content/accountContext.js': { resolveRequestAccount: async () => context, resolveCurrentAccount: async () => context },
-        'src/core/api/domainIngestion.js': { ingestIndexes: async () => {}, ingestDetail: commitDetail },
-        'src/core/provider/gemini/listObservation.js': {},
-        'src/core/parsers/gemini/rpc/parseConversation.js': { parseGeminiRpcConversation: () => parsed },
-        'src/core/parsers/gemini/rpc/mergePages.js': { mergeConversationPages: () => parsed },
-        'src/core/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
-        'src/core/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
-        'src/core/utils/utils.js': { isDevMode: () => false },
-        'src/core/parsers/gemini/rpc/parseList.js': {},
+    const bridge = load('src/l1/sniffer/gemini/messageBridge.ts', {
+        'src/runtime/api/accountRegistry.js': { getAccount: async () => account },
+        'src/runtime/content/accountContext.js': { resolveRequestAccount: async () => context, resolveCurrentAccount: async () => context },
+        'src/runtime/api/domainIngestion.js': { ingestIndexes: async () => {}, ingestDetail: commitDetail },
+        'src/l1/client/gemini/listObservation.js': {},
+        'src/l1/parsers/gemini/rpc/parseConversation.js': { parseGeminiRpcConversation: () => parsed },
+        'src/l1/parsers/gemini/rpc/mergePages.js': { mergeConversationPages: () => parsed },
+        'src/l1/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
+        'src/l1/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
+        'src/shared/utils/utils.js': { isDevMode: () => false },
+        'src/l1/parsers/gemini/rpc/parseList.js': {},
     });
     const event = (type: string) => ({ source: global.window, origin: global.location.origin,
         data: { type, payload: { slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: 'gaia' },
@@ -689,18 +689,18 @@ function markdownApplication() {
         detail: { key, savedAt: 100, quality: { status: 'complete' }, messages: [message('original reply')], assets: [] } };
     let record: unknown = null;
     const markdown: string[] = [];
-    const runExport = load('src/core/application/export/runExport.ts', {
-        'src/core/domain/readConversation.js': { readConversation: async () => conversation },
-        'src/core/api/accountRegistry.js': { getAccount: async () => account },
-        'src/core/storage/storageService.js': { getIndex: async () => conversation.index, getExportRecord: async () => record,
+    const runExport = load('src/application/export/runExport.ts', {
+        'src/l2/readConversation.js': { readConversation: async () => conversation },
+        'src/runtime/api/accountRegistry.js': { getAccount: async () => account },
+        'src/l3a/storageService.js': { getIndex: async () => conversation.index, getExportRecord: async () => record,
             putExportRecord: async (_: unknown, value: unknown) => { record = value; }, getDirectoryHandle: async () => ({}) },
-        'src/core/provider/sourceResources.js': { createSourceResourceContext: () => ({ release() {} }) },
-        'src/core/provider/taskProvider.js': { createTaskProvider: () => assert.fail('Fresh admitted Detail requires no fetch') },
-        'src/core/application/export/prepareExportResources.js': { prepareExportResources: async () => new Map() },
-        'src/core/export/delivery/index.js': { writeToFolder: async (files: { content: string }[]) => { markdown.push(...files.map(file => file.content)); } },
-        'src/core/renderers/html/renderHtml.js': {}, 'src/core/renderers/json/serializeDomainJson.js': {},
-        'src/core/export/pdf/compileDocumentPdf.js': {}, 'src/core/export/typst/typstSandboxCompiler.js': {},
-        'src/core/export/typst/fonts/localFontProvider.js': {}, 'src/core/export/typst/fonts/mountRuntimeFonts.js': {},
+        'src/l1/resources/sourceResources.js': { createSourceResourceContext: () => ({ release() {} }) },
+        'src/l1/client/taskProvider.js': { createTaskProvider: () => assert.fail('Fresh admitted Detail requires no fetch') },
+        'src/application/export/prepareExportResources.js': { prepareExportResources: async () => new Map() },
+        'src/l4/delivery/index.js': { writeToFolder: async (files: { content: string }[]) => { markdown.push(...files.map(file => file.content)); } },
+        'src/l4/format/html/renderHtml.js': {}, 'src/l4/format/json/serializeDomainJson.js': {},
+        'src/l4/format/pdf/compileDocumentPdf.js': {}, 'src/l4/format/pdf/typst/typstSandboxCompiler.js': {},
+        'src/l4/format/pdf/typst/fonts/localFontProvider.js': {}, 'src/l4/format/pdf/typst/fonts/mountRuntimeFonts.js': {},
     }).runExport;
     const save = live({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: false }, 'granted', true, runExport);
     return { key, save, markdown, append: (advanceIndex = true) => {
@@ -780,9 +780,9 @@ test('resource IPC rejects aggregate duplicate Base64 fields before sending, whi
     global.chrome = { runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; }, removeListener() {} } } } as any;
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
     let result: unknown = { success: true, dataUrl: 'data:image/png;base64,AA==', size: 1 };
-    load('src/content/messageRouter.ts', {
-        'src/content/accountContext.js': { resolveCurrentAccount: async () => context, isCurrentAccount: () => true },
-        'src/content/assetFetcher.js': { AssetFetcher: { handleGetImageBlob: async (_: unknown, cb: Function) => cb(result) } },
+    load('src/runtime/content/messageRouter.ts', {
+        'src/runtime/content/accountContext.js': { resolveCurrentAccount: async () => context, isCurrentAccount: () => true },
+        'src/runtime/capabilities/assetFetcher.js': { AssetFetcher: { handleGetImageBlob: async (_: unknown, cb: Function) => cb(result) } },
     }).init();
     const request = { action: 'getImageBlob', accountId: uuid, url: 'https://lh3.googleusercontent.com/a' };
     assert.deepEqual(await invoke(listener, request), result);
@@ -834,28 +834,28 @@ function migratedRuntime(initial: Record<string, unknown>, beforeWrite: (patch: 
         onMessage: { addListener: (fn: Function) => { listener = fn; } },
         sendMessage: async (message: unknown) => invoke(listener, message),
     } } as any;
-    delete require.cache[require.resolve('../src/core/migration/upgradeV1.ts')];
-    const readiness = load('src/background/readiness.ts', {});
-    const settings = load('src/core/application/settings/index.ts', {});
-    const lifecycle = load('src/background/lifecycle.ts', { 'src/background/readiness.js': readiness,
-        'src/core/application/settings/index.js': settings });
-    const guards = load('src/background/contentSender.ts', {});
-    const registryHandler = load('src/background/accountRegistryHandler.ts', {
-        'src/background/readiness.js': readiness, 'src/background/contentSender.js': guards,
+    delete require.cache[require.resolve('../src/migration/upgradeV1.ts')];
+    const readiness = load('src/runtime/background/readiness.ts', {});
+    const settings = load('src/application/settings/index.ts', {});
+    const lifecycle = load('src/runtime/background/lifecycle.ts', { 'src/runtime/background/readiness.js': readiness,
+        'src/application/settings/index.js': settings });
+    const guards = load('src/runtime/background/contentSender.ts', {});
+    const registryHandler = load('src/runtime/background/accountRegistryHandler.ts', {
+        'src/runtime/background/readiness.js': readiness, 'src/runtime/background/contentSender.js': guards,
     });
-    load('src/background/background.ts', {
-        'src/background/readiness.js': readiness, 'src/background/lifecycle.js': lifecycle,
-        'src/background/contentSender.js': guards, 'src/background/accountRegistryHandler.js': registryHandler,
-        'src/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
-        'src/background/tabAction.js': { initTabActionListeners() {} },
-        'src/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('No export requested') },
+    load('src/runtime/background/background.ts', {
+        'src/runtime/background/readiness.js': readiness, 'src/runtime/background/lifecycle.js': lifecycle,
+        'src/runtime/background/contentSender.js': guards, 'src/runtime/background/accountRegistryHandler.js': registryHandler,
+        'src/runtime/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
+        'src/runtime/background/tabAction.js': { initTabActionListeners() {} },
+        'src/runtime/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('No export requested') },
     });
-    const readyApi = load('src/core/api/runtimeReady.ts', { 'src/background/readiness.js': readiness });
-    const accounts = load('src/core/api/accountRegistry.ts', { 'src/core/api/runtimeReady.js': readyApi });
+    const readyApi = load('src/runtime/api/runtimeReady.ts', { 'src/runtime/background/readiness.js': readiness });
+    const accounts = load('src/runtime/api/accountRegistry.ts', { 'src/runtime/api/runtimeReady.js': readyApi });
     return { data, writes, readiness, readyApi, accounts, settings, opened: () => opened,
         install: (reason: string, previousVersion?: string) => installed({ reason, previousVersion }),
         message: (message: unknown) => invoke(listener, message),
-        store: load('src/core/storage/storageService.ts', {}),
+        store: load('src/l3a/storageService.ts', {}),
     };
 }
 async function seedRuntimeLegacyAccount() {

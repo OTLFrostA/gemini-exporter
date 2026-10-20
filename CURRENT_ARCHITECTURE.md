@@ -23,7 +23,7 @@ Verdict 定义：
 - `SCAFFOLD-unverified`：为 planned provider 搭的架子、未经真实验证，代码内以 `// @unverified-provider-scaffold` 标记（可 grep）。
 - `UNKNOWN`：拿不准的——本轮为 0，全部已分类。
 
-### `src/core/provider/`（扩展 provider 层）
+### `src/l1/client/`（扩展 provider 层）
 
 | Symbol | Verdict | 备注 |
 |---|---|---|
@@ -68,7 +68,7 @@ Verdict 定义：
 ## Wave 2 detail transport status (W2-06)
 
 Content detail responses now distinguish Gemini companion evidence, DOM observations
-and deletion/empty diagnostics in `src/types/detailTransport.ts`. Router detail
+and deletion/empty diagnostics in `src/runtime/types/detailTransport.ts`. Router detail
 responses and live-save acquisition use these types; flat wire payloads and fallback
 precedence remain unchanged. Broad runtime/asset/export transport and cancellation
 remain deferred. See [W2-06 report](docs/audits/wave2-detail-transport-consumer.md).

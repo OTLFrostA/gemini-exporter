@@ -3,8 +3,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
     return { index: { key: fixtureKey(String('c1'), 'gemini'),   titleSource: "derived",   title: 't' }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets, messages } };

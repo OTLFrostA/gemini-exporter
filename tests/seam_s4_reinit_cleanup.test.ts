@@ -3,10 +3,10 @@
 // source-text regex matching must not be used as a substitute for that flow.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerCleanup, runCleanups, pendingCleanupCount } from '../src/content/cleanupRegistry.js';
-import { MessageRouter } from '../src/content/messageRouter.js';
-import { init as initMessageBridge } from '../src/content/messageBridge.js';
-import { PageObserver } from '../src/content/pageObserver.js';
+import { registerCleanup, runCleanups, pendingCleanupCount } from '../src/runtime/content/cleanupRegistry.js';
+import { MessageRouter } from '../src/runtime/content/messageRouter.js';
+import { init as initMessageBridge } from '../src/l1/sniffer/gemini/messageBridge.js';
+import { PageObserver } from '../src/runtime/content/pageObserver.js';
 
 function makeWindow() {
     const listeners: Record<string, Array<(...args: any[]) => void>> = {};

@@ -2,13 +2,13 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const zipBombGuard = require('../src/core/imports/takeout/zipBombGuard.js');
+const zipBombGuard = require('../src/l1/imports/takeout/zipBombGuard.js');
 
 
 // The full media-index suite covers general matching/slot isolation. This is a
 // distinct substring-direction regression: the requested name contains a stored one.
 test('p1_h1 - source resolver must not match a filename by substring', () => {
-    const { createTakeoutResourceResolver } = require('../src/core/parsers/gemini/takeout/archiveResources.js');
+    const { createTakeoutResourceResolver } = require('../src/l1/parsers/gemini/takeout/archiveResources.js');
     const resolve = createTakeoutResourceResolver({ 'cat-photo.png': {} });
     assert.equal(resolve('prefix-cat-photo.png').status, 'missing');
     assert.equal(resolve('cat-photo.png').status, 'resolved');
@@ -37,7 +37,7 @@ test('p1_h1 - P1-114: zip guards fail closed on unknown size', () => {
 // C2PA marker/date coverage lives in media_index_safety.test.ts and takeout_engine.test.ts.
 
 test('p1_h1 - explicit numeric UTC offsets in English and Chinese Takeout dates', () => {
-    const { parseTakeoutTimestamp } = require('../src/core/parsers/gemini/takeout/decodeHtml.js');
+    const { parseTakeoutTimestamp } = require('../src/l1/parsers/gemini/takeout/decodeHtml.js');
     // Avoid asserting a CST interpretation from prompt language: CST is ambiguous
     // without locale metadata, and a Chinese prompt is not timezone evidence.
 

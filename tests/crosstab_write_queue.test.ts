@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { buildSync } from 'esbuild';
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { A, B, key } from './helpers/v2ConversationFixture.js';
-import type * as Storage from '../src/core/storage/storageService.js';
-const code = buildSync({ entryPoints: ['src/core/storage/storageService.ts'], bundle: true, write: false, format: 'iife', globalName: 'storage' }).outputFiles[0].text;
+import type * as Storage from '../src/l3a/storageService.js';
+const code = buildSync({ entryPoints: ['src/l3a/storageService.ts'], bundle: true, write: false, format: 'iife', globalName: 'storage' }).outputFiles[0].text;
 function contexts() {
     const database = new IDBFactory();
     const create = () => new Function('indexedDB', 'IDBKeyRange', code + ';return storage;')(database, IDBKeyRange) as typeof Storage;

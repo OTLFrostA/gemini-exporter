@@ -17,9 +17,9 @@ import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { mergeConversation } = require('../src/core/domain/indexCollection.js');
-const syncEngine = require('../src/content/syncEngine.js');
-const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+const { mergeConversation } = require('../src/l2/indexCollection.js');
+const syncEngine = require('../src/runtime/content/syncEngine.js');
+const { __setModuleOverride, __clearModuleOverrides } = require('../src/shared/utils/moduleOverrides.js');
 
 let originalChromeDescriptor: PropertyDescriptor | undefined;
 test.beforeEach(() => {

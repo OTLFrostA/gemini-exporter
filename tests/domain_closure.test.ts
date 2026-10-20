@@ -1,22 +1,22 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { fixtureKey } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import type { BlockNode } from '../src/core/domain/content/blocks.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { BlockNode } from '../src/l2/content/blocks.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
-import { mapContentAssetReferences } from '../src/core/domain/content/assetReferences.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
+import { mapContentAssetReferences } from '../src/l2/content/assetReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 
 const metadata = { id: 'closed', title: 'Closed Domain', timestamp: null };
@@ -222,8 +222,8 @@ test('Domain closure rejects invalid provider, repeated registry/message IDs and
 });
 
 test('Domain consumers never parse provider syntax or reconcile acquisition aliases', () => {
-    for (const file of ['src/core/domain/closure.ts', 'src/core/document/compose/composeDomainDocument.ts',
-        'src/core/document/compose/composeContent.ts']) {
+    for (const file of ['src/l2/closure.ts', 'src/l3b/compose/composeDomainDocument.ts',
+        'src/l3b/compose/composeContent.ts']) {
         const source = readFileSync(join(__dirname, '..', file), 'utf8');
         assert.doesNotMatch(source, /parseGemini|parseImported|parseSourceReasoning|preprocessGemini|convertHtmlToMarkdown|structuredBodyAttachments|resolveSourceAttachment/);
         assert.doesNotMatch(source, /from\s+['"][^'"]*(?:provider\/|api\/parser)[^'"]*['"]/);

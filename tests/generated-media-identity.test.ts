@@ -5,8 +5,8 @@ const test = require('node:test');
 import assert from 'node:assert/strict';
 const fs = require('node:fs');
 const path = require('node:path');
-import { parseGeminiTakeoutZipArchive } from '../src/core/imports/takeout/readArchive.js';
-import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
+import { parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 
 const id = '1bd028d5c5b0c0e2';
 const png = 'watermarked_img_45281370108017511-1c81efe352c9ef8a.png';
@@ -92,8 +92,8 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
 });
 
 test('regression: extractTurnRequestId schema slot evidence and fallback boundaries', () => {
-    const { extractTurnRequestId } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-    const { GEMINI_JSPB_SCHEMA } = require('../src/core/parsers/gemini/rpc/extractors.js');
+    const { extractTurnRequestId } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+    const { GEMINI_JSPB_SCHEMA } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 
     // Verify schema constant
     assert.equal(GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT, 1, 'REQUEST_ID_SLOT must be index 1 in ID_META');

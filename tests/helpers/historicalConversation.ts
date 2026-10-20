@@ -1,5 +1,5 @@
 /** Historical fixture grammar, never an application index. */
-import type { TitleSource } from '../../src/core/domain/titleAuthority.js';
+import type { TitleSource } from '../../src/l2/titleAuthority.js';
 export type { TitleSource };
 export interface TitleSources {
     rpc?: string;

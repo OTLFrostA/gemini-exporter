@@ -30,11 +30,11 @@ class TestImpactAnalyzer(unittest.TestCase):
 
     def test_storage_service_transitive_dependencies(self):
         """核心断言：修改底层 storageService.ts 必须传递影响所有依赖它的模块与测试"""
-        target = "src/core/storage/storageService.ts"
+        target = "src/l3a/storageService.ts"
         affected = self.graph.get_transitive_dependents({target})
 
         # 直接引用
-        self.assertIn("src/content/messageBridge.ts", affected)
+        self.assertIn("src/l1/sniffer/gemini/messageBridge.ts", affected)
         self.assertIn("src/ui/options/options.ts", affected)
         self.assertIn("tests/application_export.test.ts", affected)
 
@@ -54,7 +54,7 @@ class TestImpactAnalyzer(unittest.TestCase):
 
     def test_localized_badge_view_impact(self):
         """修改局部的 badgeView.ts 只应该影响 content 相关的少数测试，不应全量执行"""
-        target = "src/content/badgeView.ts"
+        target = "src/ui/badge/badgeView.ts"
         res = analyze_impact({target}, graph=self.graph, base_dir=BASE_DIR)
         self.assertFalse(res.is_all_affected)
         self.assertFalse(res.is_docs_only)

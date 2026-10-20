@@ -1,10 +1,10 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readAccount, readAccountParameters, readAccountRegistry, findAccount } from '../src/core/domain/accountRegistry.js';
-import { geminiAccountObservation } from '../src/core/provider/gemini/accountObservation.js';
-import { chatgptAccountObservation } from '../src/core/provider/chatgpt/accountObservation.js';
-import { resolveCurrentAccount, resolveRequestAccount, getAccountContext, invalidateAccountContext } from '../src/content/accountContext.js';
+import { readAccount, readAccountParameters, readAccountRegistry, findAccount } from '../src/l2/accountRegistry.js';
+import { geminiAccountObservation } from '../src/l1/client/gemini/accountObservation.js';
+import { chatgptAccountObservation } from '../src/l1/client/chatgpt/accountObservation.js';
+import { resolveCurrentAccount, resolveRequestAccount, getAccountContext, invalidateAccountContext } from '../src/runtime/content/accountContext.js';
 import { accountRuntime, ACCOUNT_UUID, OTHER_ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 const alice = { id: ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com' };
 

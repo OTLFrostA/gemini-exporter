@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 const fs = require('fs') as typeof import('node:fs');
 import path from 'node:path';
 import vm from 'node:vm';
-import type { BlockNode } from '../src/core/domain/content/blocks.js';
-import { parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/index.js';
-import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
+import type { BlockNode } from '../src/l2/content/blocks.js';
+import { parseMarkdownToBlocks } from '../src/l1/parsers/shared/markdown/index.js';
+import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { sourceConversation } from './helpers/l1SourceFixture.js';
-import CredManager from '../src/core/api/client/credentialManager.js';
-import * as attachments from '../src/core/parsers/gemini/rpc/sourceAttachments.js';
-const Proto = require('../src/core/protocol/protocol.js');
-import * as Extractors from '../src/core/parsers/gemini/rpc/extractors.js';
-import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { isRealTitle } from '../src/core/parsers/gemini/rpc/extractors.js';
+import CredManager from '../src/l1/client/gemini/api/credentialManager.js';
+import * as attachments from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+const Proto = require('../src/l1/protocol/gemini/protocol.js');
+import * as Extractors from '../src/l1/parsers/gemini/rpc/extractors.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { isRealTitle } from '../src/l1/parsers/gemini/rpc/extractors.js';
 
 const SRC = path.join(__dirname, '..', 'src');
 const paragraph = (text: string): BlockNode[] => [{ type: 'paragraph', children: [{ type: 'text', text }] }];
@@ -176,9 +176,9 @@ test('shopping and lmdx widget references are not downloadable image files', () 
 });
 
 // --- From regression_lock.test.ts (hookCredentials & parser wire helpers) ---
-function createHookSandbox(sniffProfile?: typeof import('../src/content/accountSniffer.js').sniffUserProfileFromDom) {
-    const hookCode = fs.readFileSync(path.resolve(__dirname, '../src/content/hookCredentials.js'), 'utf8');
-    const protocolCode = fs.readFileSync(path.resolve(__dirname, '../src/core/protocol/protocol.js'), 'utf8');
+function createHookSandbox(sniffProfile?: typeof import('../src/l1/parsers/gemini/dom/accountSniffer.js').sniffUserProfileFromDom) {
+    const hookCode = fs.readFileSync(path.resolve(__dirname, '../src/l1/sniffer/gemini/hookCredentials.js'), 'utf8');
+    const protocolCode = fs.readFileSync(path.resolve(__dirname, '../src/l1/protocol/gemini/protocol.js'), 'utf8');
 
     const posted: any[] = [];
     const win: any = {};
@@ -204,10 +204,10 @@ function createHookSandbox(sniffProfile?: typeof import('../src/content/accountS
         console: { log: () => {}, warn: () => {}, debug: () => {} },
         setTimeout: () => 0,
         URLSearchParams, Request, XMLHttpRequest: MockXhr,
-        sniffUserProfileFromDom: sniffProfile ?? require('../src/content/accountSniffer.js').sniffUserProfileFromDom,
-        geminiAccountObservation: require('../src/core/provider/gemini/accountObservation.js').geminiAccountObservation,
-        readGeminiDetailRequest: require('../src/core/parsers/gemini/rpc/detailRequest.js').readGeminiDetailRequest,
-        readGeminiListRequest: require('../src/core/parsers/gemini/rpc/listRequest.js').readGeminiListRequest
+        sniffUserProfileFromDom: sniffProfile ?? require('../src/l1/parsers/gemini/dom/accountSniffer.js').sniffUserProfileFromDom,
+        geminiAccountObservation: require('../src/l1/client/gemini/accountObservation.js').geminiAccountObservation,
+        readGeminiDetailRequest: require('../src/l1/parsers/gemini/rpc/detailRequest.js').readGeminiDetailRequest,
+        readGeminiListRequest: require('../src/l1/parsers/gemini/rpc/listRequest.js').readGeminiListRequest
     };
     vm.createContext(sandbox);
     vm.runInContext(protocolCode, sandbox, { filename: 'protocol.js' });

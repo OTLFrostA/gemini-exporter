@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { makeTestWorker } from './helpers/makeTestWorker.js';
 import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
-import { __clearModuleOverrides, __setModuleOverride } from '../src/core/utils/moduleOverrides.js';
+import { __clearModuleOverrides, __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 
 // A worker rejection must fail only its own conversation; the next chat still exports.
 test('P1-011: a worker rejection records one failure and does not stop the next chat', async () => {

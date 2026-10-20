@@ -1,6 +1,6 @@
-import { ingestDetail } from '../../src/core/domain/ingestion.js';
-import type { DomainAsset, DomainConversationDetail } from '../../src/core/domain/conversationDetail.js';
-import type { ConversationIndexPatch } from '../../src/core/domain/conversationIndex.js';
+import { ingestDetail } from '../../src/l2/ingestion.js';
+import type { DomainAsset, DomainConversationDetail } from '../../src/l2/conversationDetail.js';
+import type { ConversationIndexPatch } from '../../src/l2/conversationIndex.js';
 export const A = '10000000-0000-4000-8000-000000000001';
 export const B = '10000000-0000-4000-8000-000000000002';
 export const key = (conversationId = 'chat', accountId = A) => ({ accountId, conversationId });

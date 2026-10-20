@@ -1,11 +1,11 @@
-const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const { parseList } = require('../src/core/parsers/gemini/rpc/parseList.js');
-const { highResVariant } = require('../src/core/resources/geminiImageUrl.js');
-const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/core/parsers/gemini/rpc/extractors.js');
+const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const { parseList } = require('../src/l1/parsers/gemini/rpc/parseList.js');
+const { highResVariant } = require('../src/l1/client/gemini/geminiImageUrl.js');
+const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { cleanTitle } = require('../src/core/utils/utils.js');
+const { cleanTitle } = require('../src/shared/utils/utils.js');
 
 test('gemini_parser - isRealTitle', () => {
     assert.strictEqual(isRealTitle(''), false);
@@ -59,7 +59,7 @@ test('gemini_parser - parseList with valid batchexecute RPC text', () => {
 });
 
 test('utils - resolveTitle displays the canonical L2 title and semantic source', () => {
-    const { resolveTitle } = require('../src/core/utils/utils.js');
+    const { resolveTitle } = require('../src/shared/utils/utils.js');
     assert.deepStrictEqual(resolveTitle({ title: 'Canonical title', titleSource: 'provider' }), { title: 'Canonical title', source: 'provider' });
     assert.deepStrictEqual(resolveTitle({ title: 'User title', titleSource: 'user' }), { title: 'User title', source: 'user' });
     assert.deepStrictEqual(resolveTitle({}), { title: '未命名对话', source: 'derived' });
@@ -143,7 +143,7 @@ test('gemini_parser - decodeGeminiDetail with metadata-only payload returns empt
 });
 
 test('gemini_parser - JSPB schema and candidate extraction filters telemetry and language code', () => {
-    const { GEMINI_JSPB_SCHEMA, detectTurnSchemaDrift } = require('../src/core/parsers/gemini/rpc/extractors.js');
+    const { GEMINI_JSPB_SCHEMA, detectTurnSchemaDrift } = require('../src/l1/parsers/gemini/rpc/extractors.js');
     assert.ok(GEMINI_JSPB_SCHEMA, 'GEMINI_JSPB_SCHEMA should be exported');
     assert.strictEqual(typeof detectTurnSchemaDrift, 'function', 'detectTurnSchemaDrift should be function');
 
@@ -201,7 +201,7 @@ test('gemini_parser - JSPB schema and candidate extraction filters telemetry and
 });
 
 test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns', () => {
-    const { detectTurnSchemaDrift } = require('../src/core/parsers/gemini/rpc/extractors.js');
+    const { detectTurnSchemaDrift } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 
     // Healthy turn
     const healthyTurn = [
@@ -225,9 +225,9 @@ test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns'
 });
 
 test('gemini_parser - sub-modules and unified deepWalk verification', () => {
-    const extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
+    const extractors = require('../src/l1/parsers/gemini/rpc/extractors.js');
     const attachments = require('./helpers/recordFixture/attachments.js');
-    const parseListMod = require('../src/core/parsers/gemini/rpc/parseList.js');
+    const parseListMod = require('../src/l1/parsers/gemini/rpc/parseList.js');
 
     // 1. deepWalk unified tree walker
     const visited: string[] = [];
@@ -277,7 +277,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
 });
 
 test('gemini_parser - isTurn accepts r_ prefixed turn IDs in addition to c_ prefixed turn IDs', () => {
-    const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
+    const detailDecoder = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
     const turnWithR = [
         ["r_testturn123", "rc_candidate1"],
         [1700000000, 0],

@@ -47,13 +47,13 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
         const snapshot = api.updateSnapshot({ openFiles: [...virtual.keys()] });
         for (const [path, source] of virtual) {
             const ast = snapshot.getDefaultProjectForFile(path)!.program.getSourceFile(path)!;
-            const issues = trustBoundaryViolations(ast, 'core/engine/probe.ts');
+            const issues = trustBoundaryViolations(ast, 'application/probe.ts');
             if (path === quiet) assert.deepEqual(issues, []);
             else assert.ok(issues.length > 0, source);
         }
         // Even an otherwise authorized module cannot add a double trust assertion.
         const double = snapshot.getDefaultProjectForFile([...virtual.keys()][9])!.program.getSourceFile([...virtual.keys()][9])!;
-        assert.ok(trustBoundaryViolations(double, 'core/domain/readConversation.ts').some(issue => issue.includes('double trust assertion')));
+        assert.ok(trustBoundaryViolations(double, 'l2/readConversation.ts').some(issue => issue.includes('double trust assertion')));
         snapshot.dispose();
     } finally { api.close(); }
 });

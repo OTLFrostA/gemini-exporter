@@ -12,19 +12,19 @@ test.beforeEach(async ({ context, extensionId }) => {
 let bundle: string;
 test.beforeAll(async () => {
     const result = await build({ stdin: { contents: `
-        import * as store from './src/core/storage/domain/domainStore.ts';
+        import * as store from './src/l3a/domain/domainStore.ts';
         import { admitFixture, readFixture, removeFixture } from './tests/helpers/admitFixture.ts';
-        import * as resources from './src/core/storage/domain/resourceContext.ts';
+        import * as resources from './src/l3a/domain/resourceContext.ts';
         import * as fixtures from './tests/helpers/mediaSourceFixture.ts';
         import { bindFixture } from './tests/helpers/domainFixture.ts';
-        import { ingestIndexes } from './src/core/domain/ingestion.ts';
-        import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
+        import { ingestIndexes } from './src/l2/ingestion.ts';
+        import { getDomainConversationResult } from './src/l3a/domain/nativePersistence.ts';
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
-        import { planExportResources } from './src/core/export/assets/planExportResources.ts';
+        import { planExportResources } from './src/l4/format/resources/planExportResources.ts';
         import { formatMarkdownDocument, formatHtmlDocument } from './src/core/engine/chatFormatter.ts';
-        import { preparePdfItem, PdfExporter } from './src/core/export/pdf/pdfExporter.ts';
-        import { resourceStage } from './src/core/export/pdf/pipeline/resourceStage.ts';
-        import { encodeBytes } from './src/core/storage/domain/transport.ts';
+        import { preparePdfItem, PdfExporter } from './src/l4/format/pdf/pdfExporter.ts';
+        import { resourceStage } from './src/l4/format/pdf/pipeline/resourceStage.ts';
+        import { encodeBytes } from './src/l3a/domain/transport.ts';
         globalThis.mediaProbe = { ...store, ...resources, admitFixture, readFixture, removeFixture, ...fixtures, bindFixture, ingestIndexes, getDomainConversationResult, AssetPipeline,
             planExportResources, formatMarkdownDocument, formatHtmlDocument, preparePdfItem, PdfExporter, resourceStage, encodeBytes };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });

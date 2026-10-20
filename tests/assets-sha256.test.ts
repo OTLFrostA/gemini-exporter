@@ -1,7 +1,7 @@
 /**
  * tests/assets-sha256.test.ts
  * Tier 1 tests for the Web Crypto SHA-256 adapter
- * (src/core/export/assets/sha256.ts).
+ * (src/l4/format/resources/sha256.ts).
  *
  * The handwritten compression implementation was replaced by
  * crypto.subtle.digest('SHA-256', ...); the project owns only the
@@ -13,8 +13,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const nodeCrypto = require('node:crypto');
 
-const { sha256Hex } = require('../src/core/export/assets/sha256.js');
-const { decodeDataUrlAsset } = require('../src/core/export/assets/dataUrl.js');
+const { sha256Hex } = require('../src/l4/format/resources/sha256.js');
+const { decodeDataUrlAsset } = require('../src/l4/format/resources/dataUrl.js');
 
 function oracle(bytes: Uint8Array): string {
     return nodeCrypto.createHash('sha256').update(bytes).digest('hex');

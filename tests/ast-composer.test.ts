@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import type { DocumentAst } from '../src/core/document/ast/ast.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { DocumentAst } from '../src/l3b/ast/ast.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 
 const account = fixtureAccount('chatgpt');
 function input(): DomainConversationWithDetail {
@@ -177,8 +177,8 @@ test('all accepted roles keep their identity and message-level timestamps', () =
 });
 
 test('AST modules have no acquisition, persistence, renderer or diagnostics dependencies', () => {
-    for (const directory of ['ast', 'compose']) for (const file of readdirSync('src/core/document/' + directory)) {
-        const source=readFileSync('src/core/document/' + directory + '/' + file,'utf8');
+    for (const directory of ['ast', 'compose']) for (const file of readdirSync('src/l3b/' + directory)) {
+        const source=readFileSync('src/l3b/' + directory + '/' + file,'utf8');
         for(const [,dependency] of source.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)){
             assert.doesNotMatch(dependency,/(?:^|\/)(?:storage|api|providers?|parsers|resources|renderers|export|diagnostics)(?:\/|$)/);
         }

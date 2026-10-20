@@ -1,8 +1,8 @@
 import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import * as DomainAdmission from '../src/l2/ingestion.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+import { StorageService as catalogStorage } from '../src/l3a/storageService.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
@@ -10,7 +10,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { preparePdfItem, extractChatFromDetailResult, PDF_NO_MESSAGES } = require('./helpers/pdfAcquisitionFixture.js');
 const { resolveConversationData } = require('../src/core/engine/export/batchWorker.js');
-const store = require('../src/core/storage/domain/domainStore.js');
+const store = require('../src/l3a/domain/domainStore.js');
 const message = (text: string) => ({ id: 'm1', role: 'model', content: text });
 
 test('PDF successful empty online response selects Takeout rather than reporting a cache fallback', async () => {

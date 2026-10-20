@@ -58,12 +58,12 @@ let tabResponder: ((_msg: any, cb: any) => void) | null = null;
 // tabService.ts 末尾 `module.exports = TabService` 覆盖了 esbuild 具名导出，
 // ts_register 下 `import { TabService }` 会拿到 undefined（生产 bundle 走 ESM
 // 不受影响）。沿用 p1_c_regressions.test.ts 的做法：给 require 缓存打补丁，仅用于测试。
-const tabServiceMod: any = require('../src/core/utils/tabService.js');
+const tabServiceMod: any = require('../src/runtime/capabilities/tabService.js');
 const originalTabServiceDescriptor = tabServiceMod && Object.getOwnPropertyDescriptor(tabServiceMod, 'TabService');
 if (tabServiceMod && !tabServiceMod.TabService) tabServiceMod.TabService = tabServiceMod;
 
 bindTabAccounts({42:'10000000-0000-4000-8000-000000000001'});
-require('../src/background/background.ts');
+require('../src/runtime/background/background.ts');
 
 test.after(() => {
     tabResponder = null;
@@ -129,7 +129,7 @@ test('S2 - fetchChat forwards the detail request and passes the tab reply throug
 });
 
 test('queued fetchBatch submitted before cancel must not restart after the in-flight batch drains', async () => {
-    const { clearAllAborts, setSlotAborted } = require('../src/background/abortManager.js');
+    const { clearAllAborts, setSlotAborted } = require('../src/runtime/background/abortManager.js');
     clearAllAborts();
     let detailCalls = 0;
     let releaseFirstDetail: any = null;
@@ -161,7 +161,7 @@ test('queued fetchBatch submitted before cancel must not restart after the in-fl
 });
 
 test('same-slot batches do not overlap the shared abort controller in production routing', async () => {
-    const { clearAllAborts } = require('../src/background/abortManager.js');
+    const { clearAllAborts } = require('../src/runtime/background/abortManager.js');
     clearAllAborts();
     let detailCalls = 0;
     let releaseFirst: any = null;
@@ -194,7 +194,7 @@ test('same-slot batches do not overlap the shared abort controller in production
 });
 
 test('back-to-back batches submitted before the first starts both run without cancellation', async () => {
-    const { clearAllAborts } = require('../src/background/abortManager.js');
+    const { clearAllAborts } = require('../src/runtime/background/abortManager.js');
     clearAllAborts();
     const sent: string[] = [];
     tabResponder = (msg: any, cb: any) => {

@@ -6,10 +6,10 @@ useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { checkIsUpdated, resolveConversationExportState } = require('../src/core/utils/titleUtils.js');
-const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
-const idbStore = require('../src/core/storage/idbHandleStore.js');
-const { StorageService } = require('../src/core/storage/storageService.js');
+const { checkIsUpdated, resolveConversationExportState } = require('../src/shared/utils/titleUtils.js');
+const { handleLiveSaveViaHandle } = require('../src/runtime/background/liveSaveHandler.js');
+const idbStore = require('../src/l3a/idbHandleStore.js');
+const { StorageService } = require('../src/l3a/storageService.js');
 
 function mockDirHandle(writtenFiles: Record<string, Uint8Array | string>) {
     const writable = (name: string) => ({

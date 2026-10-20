@@ -11,10 +11,10 @@ const assert = require('node:assert');
 // key instead of a triple lookup, and no migration is needed.
 
 const { finalizeChatExport } = require('../src/core/engine/export/sessionRecovery.js');
-const { normId } = require('../src/core/utils/pathUtils.js');
-const { exportedIdsKey } = require('../src/core/utils/constants.js');
-const ConversationsStore = require('../src/ui/state/conversationsStore.js');
-const { StorageService } = require('../src/core/storage/storageService.js');
+const { normId } = require('../src/shared/utils/pathUtils.js');
+const { exportedIdsKey } = require('../src/shared/utils/constants.js');
+const ConversationsStore = require('../src/ui/options/state/conversationsStore.js');
+const { StorageService } = require('../src/l3a/storageService.js');
 const { indexStorage } = require('./helpers/indexStorage.js');
 
 async function runFinalize(targetId: string) {
@@ -196,8 +196,8 @@ test('exportedIds - finalizeChatExport preserves empty status with hasFailedAsse
 });
 
 test('locale - badgeExportedPartial exists in zh and en locales', () => {
-    const zh = require('../src/core/utils/locales/zh.js');
-    const en = require('../src/core/utils/locales/en.js');
+    const zh = require('../src/shared/utils/locales/zh.js');
+    const en = require('../src/shared/utils/locales/en.js');
     const zhDict = zh.zh || zh.default || zh;
     const enDict = en.en || en.default || en;
     assert.strictEqual(zhDict.badgeExportedPartial, '已导出 (部分附件缺失)');

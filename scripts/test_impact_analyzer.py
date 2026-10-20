@@ -54,16 +54,33 @@ IMPORT_PATTERN = re.compile(
 COMPONENT_E2E_MAP = {
     "src/ui": ["tests/e2e/ui_v2.spec.ts", "tests/e2e/production_v2.spec.ts", "tests/e2e/tier2_v2_probes.spec.ts"],
     "scripts/framework": ["tests/e2e/tier2_v2_probes.spec.ts"],
-    "src/content": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts", "tests/e2e/ui_v2.spec.ts"],
-    "src/background": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts"],
+    "src/runtime/content": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts", "tests/e2e/ui_v2.spec.ts"],
+    "src/runtime/background": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts"],
 }
 # Browser/Runtime tests deliberately load production entries as bundles or VM scripts.
 COMPONENT_UNIT_MAP = {
     "src/ui": ["tests/ui_v2.test.ts"],
-    "src/content": ["tests/browser_runtime_v2.test.ts", "tests/ui_v2.test.ts"],
-    "src/background": ["tests/browser_runtime_v2.test.ts"],
+    "src/runtime/content": ["tests/browser_runtime_v2.test.ts", "tests/ui_v2.test.ts"],
+    "src/runtime/background": ["tests/browser_runtime_v2.test.ts"],
 }
 
+
+# These source groups were formerly src/content; keep their implicit entry coverage.
+_CONTENT_PREFIXES = ("src/l1/sniffer/", "src/l1/client/gemini/bootstrap.ts",
+                     "src/l1/parsers/gemini/dom/accountSniffer.ts", "src/ui/badge/",
+                     "src/runtime/capabilities/assetFetcher.ts")
+for _prefix in _CONTENT_PREFIXES:
+    COMPONENT_E2E_MAP[_prefix] = COMPONENT_E2E_MAP["src/runtime/content"]
+    COMPONENT_UNIT_MAP[_prefix] = COMPONENT_UNIT_MAP["src/runtime/content"]
+# Sandbox compilation and directory selection were formerly under src/ui.
+for _prefix in ("src/l4/format/pdf/sandbox/", "src/runtime/capabilities/dirHandleController.ts"):
+    COMPONENT_E2E_MAP[_prefix] = COMPONENT_E2E_MAP["src/ui"]
+    COMPONENT_UNIT_MAP[_prefix] = COMPONENT_UNIT_MAP["src/ui"]
+_CORE_PREFIXES = ("src/l1/", "src/l2/", "src/l3a/", "src/l3b/", "src/l4/",
+                  "src/application/", "src/migration/", "src/shared/", "src/runtime/api/",
+                  "src/runtime/ipc/", "src/runtime/diagnostics/", "src/runtime/devMode.ts",
+                  "src/runtime/environment.ts", "src/runtime/capabilities/directoryHandle.ts",
+                  "src/runtime/capabilities/tabService.ts", "src/ui/shared/progressUtils.ts")
 
 
 def normalize_repo_path(path: str, base_dir: str = REPO_DIR) -> str:
@@ -242,7 +259,7 @@ class ImpactAnalysisResult:
                     e2e_set.add(f)
 
             # 如果影响到 core 模块，则所有 E2E 均可能受影响
-            if any(f.startswith("src/core/") for f in self.affected_files):
+            if any(f.startswith(_CORE_PREFIXES) and not f.startswith((*_CONTENT_PREFIXES, "src/l4/format/pdf/sandbox/")) for f in self.affected_files):
                 e2e_set.update(self.all_e2e_specs)
             else:
                 # 检查特定组件映射

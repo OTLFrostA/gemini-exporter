@@ -1,17 +1,17 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/core/document/ast/ast.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { fileBadge } from '../src/core/renderers/shared/backendPresentation.js';
-import { renderMathHtml } from '../src/core/renderers/html/htmlMath.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/l3b/ast/ast.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { fileBadge } from '../src/l4/format/shared/backendPresentation.js';
+import { renderMathHtml } from '../src/l4/format/html/htmlMath.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 
 function domain(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('freeze'), 'custom'),   titleSource: "derived",   title: 'Boundary' }, detail: { key: fixtureKey(String('freeze'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [

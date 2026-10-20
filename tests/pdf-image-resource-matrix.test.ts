@@ -1,10 +1,10 @@
 /** Image validation and binary mounting use only Document AST + ResourceBytess. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compileDocumentPdf } from '../src/core/export/pdf/compileDocumentPdf.js';
-import { MAX_ASSET_BYTES } from '../src/core/export/assets/imageContent.js';
-import { missingResource, type ResourceFailure, type ResourceBytes } from '../src/core/resources/resourceResult.js';
-import type { DocumentAst } from '../src/core/document/ast/ast.js';
+import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
+import { MAX_ASSET_BYTES } from '../src/l4/format/resources/imageContent.js';
+import { missingResource, type ResourceFailure, type ResourceBytes } from '../src/shared/resources/resourceResult.js';
+import type { DocumentAst } from '../src/l3b/ast/ast.js';
 async function mount(resources: Record<string, ResourceBytes | ResourceFailure>, ids = Object.keys(resources)) {
     const document: DocumentAst = { title: 'Image matrix', metadata: { id: 'fixture', provider: 'test' }, messages: [{ role: 'assistant', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
     const before = JSON.stringify(document);

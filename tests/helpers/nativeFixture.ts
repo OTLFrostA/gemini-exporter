@@ -9,8 +9,8 @@ export function historicalFixtureDomain(record: ConversationRecordInput, options
     return historicalFixture(record, options).conversation;
 }
 
-import { contentQuality } from '../../src/core/parsers/qualityEvidence.js';
-import type { GeminiRpcParseResult } from '../../src/core/parsers/gemini/rpc/parseConversation.js';
+import { contentQuality } from '../../src/l1/parsers/qualityEvidence.js';
+import type { GeminiRpcParseResult } from '../../src/l1/parsers/gemini/rpc/parseConversation.js';
 /** A native runtime fixture with explicit transport evidence, never an application projection. */
 export function rpcFixture<T extends ConversationRecordInput>(record: T, transport: Partial<GeminiRpcParseResult['transport']> & { turnsRejected?: number; schemaDrift?: string[] } = {}): GeminiRpcParseResult {
     const { turnsRejected, schemaDrift = [], ...acquisition } = transport;

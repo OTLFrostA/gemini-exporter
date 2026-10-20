@@ -2,11 +2,11 @@ import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { resourceLabel, readingLabels } = require('../src/core/document/compose/resourcePresentation.js');
-const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
-const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
+const { resourceLabel, readingLabels } = require('../src/l3b/compose/resourcePresentation.js');
+const { renderDocumentMarkdown } = require('../src/l4/format/markdown/renderMarkdown.js');
+const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { validateParserDomain } = require('../src/l2/runtimeValidation.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 test('resource labels preserve source facts and use shared fixed fallbacks', () => {

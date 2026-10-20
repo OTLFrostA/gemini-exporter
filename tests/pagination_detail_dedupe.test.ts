@@ -13,7 +13,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const Pagination = require('../src/core/api/client/pagination.js');
+const Pagination = require('../src/l1/client/gemini/api/pagination.js');
 
 function makeClient(pages: any[]): any {
     let calls = 0;

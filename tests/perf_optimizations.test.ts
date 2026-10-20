@@ -8,7 +8,7 @@ const assert = require('node:assert');
 // Ensure parser is available in global for geminiClient in Node environment
 // 1. Test 429 rate limit backoff in GeminiAPIClient
 test('perf - geminiClient 429 backoff retries and recovers on transient rate limit', async () => {
-    const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
+    const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
     const client = new GeminiAPIClient();
 
     // Mock global fetch
@@ -65,7 +65,7 @@ test('perf - geminiClient 429 backoff retries and recovers on transient rate lim
 });
 
 test('perf - geminiClient 429 throws after exceeding maxRetries', async () => {
-    const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
+    const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
     const client = new GeminiAPIClient();
 
     const originalFetch = (global as any).fetch;
@@ -97,7 +97,7 @@ test('perf - geminiClient 429 throws after exceeding maxRetries', async () => {
 
 // 2. Test Takeout HTML parsing time-slicing and progress
 test('perf - takeoutEngine yields to event loop and reports incremental progress on large archives', async () => {
-    const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
+    const TakeoutEngine = require('../src/l1/imports/takeoutEngine.js');
     (global as any).JSZip = require('../lib/jszip.min.js');
     const zip = new (global as any).JSZip();
 
@@ -130,7 +130,7 @@ test('perf - takeoutEngine yields to event loop and reports incremental progress
 
 // 3. Test AssetFetcher ArrayBuffer transfer
 test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true', async () => {
-    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
 
     const originalFetch = (global as any).fetch;
     const testData = Buffer.from('fake image binary content 1234567890');
@@ -164,7 +164,7 @@ test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true
 });
 
 test('perf - assetFetcher returns base64 when preferBuffer is false', async () => {
-    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const AssetFetcher = require('../src/runtime/capabilities/assetFetcher.js');
 
     const originalFetch = (global as any).fetch;
     const testData = Buffer.from('fake image binary content 1234567890');
@@ -198,7 +198,7 @@ test('perf - assetFetcher returns base64 when preferBuffer is false', async () =
 
 // 4. Test ExportEngine rateLimitCooldownUntil initialization
 test('perf - ExportEngine initializes and tracks rateLimitCooldownUntil', () => {
-    const { ExportEngine } = require('../src/core/engine/exportEngine.js');
+    const { ExportEngine } = require('../src/application/exportEngine.js');
     const engine = new ExportEngine();
     assert.strictEqual(engine.rateLimitCooldownUntil, 0, 'rateLimitCooldownUntil should be initialized to 0');
 });

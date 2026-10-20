@@ -10,11 +10,11 @@ The original direction is justified by repeated Closure checks in dispatch, adap
 
 | Entry | Owner and behavior |
 | --- | --- |
-| `validateParserDomain` | `src/core/domain/runtimeValidation.ts`; Schema + Closure at final RPC, DOM, Takeout, legacy-record and merged-page construction. Dispatcher returns the existing result. Merge validates its new graph once. |
-| `restoreDomainSnapshot` / `readStorageDomain` | Runtime validator, re-exported by `src/core/storage/domain/validate.ts`, called by `domainStore.ts` on incoming writes and physical reads. JSON-detached snapshot, pre/post Schema, storage identity and Closure. |
-| `requestNativeDetail` / `requestNativeBatch` | `src/core/utils/nativeDetailTransport.ts`; controlled Chrome runtime/tab channels, versioned envelope and root shape only. Business errors, retry, cancellation and raw diagnostics survive. |
-| `callDomainBroker` | `src/core/storage/domain/transport.ts`; authenticated Broker response envelope/version/root checks. Background incoming writes still establish snapshot trust. |
-| Raw page bridge | `src/content/messageBridge.ts`; validates used protocol fields, then sends raw text into Parser. A page message never establishes Trusted Domain. |
+| `validateParserDomain` | `src/l2/runtimeValidation.ts`; Schema + Closure at final RPC, DOM, Takeout, legacy-record and merged-page construction. Dispatcher returns the existing result. Merge validates its new graph once. |
+| `restoreDomainSnapshot` / `readStorageDomain` | Runtime validator, re-exported by `src/l3a/domain/validate.ts`, called by `domainStore.ts` on incoming writes and physical reads. JSON-detached snapshot, pre/post Schema, storage identity and Closure. |
+| `requestNativeDetail` / `requestNativeBatch` | `src/shared/utils/nativeDetailTransport.ts`; controlled Chrome runtime/tab channels, versioned envelope and root shape only. Business errors, retry, cancellation and raw diagnostics survive. |
+| `callDomainBroker` | `src/l3a/domain/transport.ts`; authenticated Broker response envelope/version/root checks. Background incoming writes still establish snapshot trust. |
+| Raw page bridge | `src/l1/sniffer/gemini/messageBridge.ts`; validates used protocol fields, then sends raw text into Parser. A page message never establishes Trusted Domain. |
 
 The only product brand-related assertions are in `validateParserDomain`, `restoreDomainSnapshot`, the private transport `nativeResult`, and `callDomainBroker`. The latter two adapt the controlled transport contract; they do not accept arbitrary page or disk data as trusted. No brand property is serialized into Domain. Persisted records retain the unbranded Domain type.
 
@@ -63,7 +63,7 @@ Each implementation PR passed full `npm test` (unit tests, scoped lint/type chec
 
 The closeout addresses the integration of Standard JSON removal with the count test: merged main had a stale OpenAI-format invocation even though the separate PR checks passed. Current counters retain Standard JSON, HTML, Markdown and PDF preparation. Verification must include merged-main CI, not just branch CI. The following baseline results distinguish corrected test contracts from the separate live acceptance work:
 
-- The earlier global lint baseline had two `no-floating-promises` errors in `src/core/storage/schemaState.ts`. Current main uses explicit asynchronous badge failure handling; lint and trust-specific enforced lint pass. Existing global warnings remain.
+- The earlier global lint baseline had two `no-floating-promises` errors in `src/l3a/schemaState.ts`. Current main uses explicit asynchronous badge failure handling; lint and trust-specific enforced lint pass. Existing global warnings remain.
 - Real profile upgrade from the official 1.7.0 ZIP originally reported 4/5 PASS and failed offline recovery of bodies/images never persisted by that runtime. The closeout harness now inventories original disk bodies and byte hashes, requires their preservation after upgrade/restart, and reexports only persisted bodies offline. Missing original bodies are explicitly `not_applicable`, never successful recovery. Their offline export is still attempted as a negative check: native failure, no fake body file, and unchanged existing export records are required. The verified official run reports `passed_with_na`: four stages PASS and one NA. Same profile/identity, metadata, export records, new activity/export and failure-not-marked-exported checks remain enforced. Positive and loss/corruption counterexamples test the persistence contract without seeding the real old profile.
 - Full no-skip live Tier 2: same-account passive RPC coverage never initializes, blocking formal scenario generation; dependent stages are scheduler-skipped and the run is overall FAIL. The existing fast-skip feature also fails because the expected ephemeral record is absent. Real deletion/archive retention, Takeout/title upgrade, full/incremental scan and downloaded six-conversation multimodal ZIP assertions pass. These partial successes do not constitute a full Tier 2 PASS.
 

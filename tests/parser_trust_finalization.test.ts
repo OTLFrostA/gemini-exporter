@@ -2,7 +2,7 @@ import { fixtureKey, fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
-import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 
 test('source identity semantics remain separate from nonempty storage identity', () => {
     const source = { index: { key: fixtureKey(String(''), 'future'),   titleSource: "derived" as const,   title: '' }, detail: { key: fixtureKey(String(''), 'future'), quality: { status: 'unknown' } as const, assets: [], messages: [] } };

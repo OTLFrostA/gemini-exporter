@@ -4,13 +4,13 @@ import { readFileSync } from 'node:fs';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { activityHtml, takeoutArchive } from './helpers/l1SourceFixture.js';
-import { importTakeout, stripHtmlTags } from '../src/core/imports/takeout/importTakeout.js';
-import { parseGeminiTakeoutZipArchive } from '../src/core/imports/takeout/readArchive.js';
-import { parseGeminiTakeoutArchive } from '../src/core/parsers/gemini/takeout/parseConversation.js';
-import { extractC2PATimestamp } from '../src/core/parsers/shared/resources/c2paTimestamp.js';
-import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
-import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
-import { getDetail } from '../src/core/storage/storageService.js';
+import { importTakeout, stripHtmlTags } from '../src/l1/imports/takeout/importTakeout.js';
+import { parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
+import { parseGeminiTakeoutArchive } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
+import { extractC2PATimestamp } from '../src/l1/parsers/shared/resources/c2paTimestamp.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { listIndexes as getConversations } from '../src/l3a/storageService.js';
+import { getDetail } from '../src/l3a/storageService.js';
 useIndexStorage();
 
 test('Takeout import exposes only count/status after committing multi-turn facts with case-preserved source identity', async () => {

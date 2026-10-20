@@ -2,7 +2,7 @@ import { bindTabAccounts } from './helpers/tabAccounts.js';
 import test from 'node:test';
 import assert from 'node:assert';
 
-import * as TabService from '../src/core/utils/tabService.js';
+import * as TabService from '../src/runtime/capabilities/tabService.js';
 
 
 

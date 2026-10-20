@@ -11,8 +11,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const StorageService = require('../src/core/storage/storageService.js');
-const CredManager = require('../src/core/api/client/credentialManager.js').default;
+const StorageService = require('../src/l3a/storageService.js');
+const CredManager = require('../src/l1/client/gemini/api/credentialManager.js').default;
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
 function readSrc(rel: string): string {
@@ -123,7 +123,7 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
 
 // ---------------------------------------------------------------- P0-4
 test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () => {
-    const { DOC_TITLE_FALLBACK_RE } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
+    const { DOC_TITLE_FALLBACK_RE } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
     assert.ok(DOC_TITLE_FALLBACK_RE instanceof RegExp, 'DOC_TITLE_FALLBACK_RE must be exported as RegExp');
     assert.strictEqual(
         DOC_TITLE_FALLBACK_RE.test('# 真实标题'), true,

@@ -1,5 +1,5 @@
-import type { DomainAsset } from '../../src/core/domain/conversationDetail.js';
-import type { DomainConversationWithDetail } from '../../src/core/domain/conversation.js';
+import type { DomainAsset } from '../../src/l2/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../../src/l2/conversation.js';
 
 /** Follow the public Domain relationship rather than assuming registry/message array positions coincide. */
 export function messageAssets(domain: DomainConversationWithDetail, index = 0): DomainAsset[] {

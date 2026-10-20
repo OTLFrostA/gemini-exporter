@@ -1,5 +1,5 @@
 import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/core/domain/ingestion.js';
+import * as DomainAdmission from '../src/l2/ingestion.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { bindFixture } from './helpers/domainFixture.js';
 import { sourceIndex } from './helpers/domainFixture.js';
@@ -11,8 +11,8 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { normId } = require('../src/core/utils/pathUtils.js');
-const StorageService = require('../src/core/storage/storageService.js');
+const { normId } = require('../src/shared/utils/pathUtils.js');
+const StorageService = require('../src/l3a/storageService.js');
 const {
     buildExportCompletion,
     completeConversationExport,
@@ -312,8 +312,8 @@ test('Callback semantics: invoked after persistence, error does not abort, not i
 test('actual Batch and background Live Save produce the same completion record for complete and partial bodies', async () => {
     const { ExportOrchestrator } = require('../src/core/engine/export/exportOrchestrator.js');
     const { makeTestWorker } = require('./helpers/makeTestWorker.js');
-    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
-    const { getMemoryDirHandle, setMemoryDirHandle } = require('../src/core/storage/idbHandleStore.js');
+    const { handleLiveSaveViaHandle } = require('../src/runtime/background/liveSaveHandler.js');
+    const { getMemoryDirHandle, setMemoryDirHandle } = require('../src/l3a/idbHandleStore.js');
     const previousChrome = (global as any).chrome;
     const previousHandle = getMemoryDirHandle();
     try {
@@ -524,7 +524,7 @@ test('completion integrity facts are monotonic and preserve status precedence', 
 test('Directory finalizes real Storage and UI immediately after file close, before the next conversation', async () => {
     const { ExportOrchestrator } = require('../src/core/engine/export/exportOrchestrator.js');
     const { makeTestWorker } = require('./helpers/makeTestWorker.js');
-    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/shared/utils/moduleOverrides.js');
     const { mockStorage, chrome } = createMockChromeStorage();
     const previousChrome = Reflect.get(globalThis, 'chrome');
     Reflect.set(globalThis, 'chrome', chrome);

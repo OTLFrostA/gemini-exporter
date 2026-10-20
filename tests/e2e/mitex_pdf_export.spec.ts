@@ -1,5 +1,5 @@
 import { fixtureAccountFor, fixtureKey } from '../helpers/domainFixture.js';
-import { validateParserDomain } from '../../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../../src/l2/runtimeValidation.js';
 /**
  * tests/e2e/mitex_pdf_export.spec.ts
  *
@@ -19,9 +19,9 @@ import { validateParserDomain } from '../../src/core/domain/runtimeValidation.js
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
-import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentTypst } from '../../src/core/renderers/typst/renderTypst.js';
-import type { TypstConversationRenderPayload } from '../../src/core/renderers/typst/transport.js';
+import { composeDomainDocument } from '../../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentTypst } from '../../src/l4/format/typst/renderTypst.js';
+import type { TypstConversationRenderPayload } from '../../src/l4/format/typst/transport.js';
 
 test.beforeEach(async ({context, extensionId}) => {
     void extensionId;
@@ -192,9 +192,9 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
         },
         {
           formulas, payload,
-          sandbox: `${extOrigin}/src/ui/sandbox/typst-compile.html`,
-          wasm: `${extOrigin}/src/ui/sandbox/vendor/typst_ts_web_compiler_bg.wasm`,
-          font: `${extOrigin}/src/ui/sandbox/fonts/NewCMMath-Regular.otf`,
+          sandbox: `${extOrigin}/src/l4/format/pdf/sandbox/typst-compile.html`,
+          wasm: `${extOrigin}/src/l4/format/pdf/sandbox/vendor/typst_ts_web_compiler_bg.wasm`,
+          font: `${extOrigin}/src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf`,
         },
       );
 

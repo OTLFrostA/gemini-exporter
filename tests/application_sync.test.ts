@@ -1,20 +1,20 @@
 import { key, reset, stubModule, provider } from './helpers/applicationHarness.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { StreamCoverage } from '../src/core/domain/streamCoverage.js';
-import type { ScanHead } from '../src/core/domain/coverageAdmission.js';
-import type { ListEnd } from '../src/core/provider/aiProvider.js';
+import type { StreamCoverage } from '../src/l2/streamCoverage.js';
+import type { ScanHead } from '../src/l2/coverageAdmission.js';
+import type { ListEnd } from '../src/l1/client/aiProvider.js';
 let baseline: StreamCoverage | null;
 let boundary: boolean;
 let reads = 0;
 const checks: { baseline: StreamCoverage; head: ScanHead }[] = [];
-stubModule('../../src/core/domain/coverageAdmission.js', { __esModule: true, default: {
+stubModule('../../src/l2/coverageAdmission.js', { __esModule: true, default: {
     async getCoverage(accountId: string, streamId: string) {
         assert.equal(accountId, key().accountId); assert.equal(streamId, 'recent'); reads++; return baseline;
     },
     async hasTrustedBoundary(_account: string, baseline: StreamCoverage, head: ScanHead) { checks.push({ baseline, head }); return boundary; },
 } });
-const { scanAll } = require('../src/core/application/sync/scanController.js') as typeof import('../src/core/application/sync/scanController.js');
+const { scanAll } = require('../src/application/sync/scanController.js') as typeof import('../src/application/sync/scanController.js');
 const head: ScanHead = { streamId: 'recent', requestKnown: true, requestCursor: null, nextCursor: 'next',
     valid: true, ordered: true, requestedAt: 1, keys: [{ id: 'first', time: 100 }] };
 function trusted(): StreamCoverage {

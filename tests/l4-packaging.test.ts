@@ -1,16 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/core/export/packaging/index.js';
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
+import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
-import type { PreparedResources } from '../src/core/resources/resourceResult.js';
-import { __setModuleOverride } from '../src/core/utils/moduleOverrides.js';
-import { ZipWriter } from '../src/core/engine/writers/zipWriter.js';
-import { assertExportPath } from '../src/core/export/packaging/exportPath.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { serializeDomainJson } from '../src/core/renderers/json/serializeDomainJson.js';
+import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
+import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { ZipWriter } from '../src/l4/packaging/writers/zipWriter.js';
+import { assertExportPath } from '../src/l4/packaging/exportPath.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
 const JSZip = require('../lib/jszip.min.js');
 const prepared: PreparedResources = new Map([
     ['a', { ok: true, resourceId: 'a', value: { bytes: new Uint8Array([1, 2]), mediaType: 'image/png' } }],

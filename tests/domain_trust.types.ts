@@ -1,5 +1,5 @@
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-import { validateParserDomain, restoreDomainSnapshot, type TrustedDomain } from '../src/core/domain/runtimeValidation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import { validateParserDomain, restoreDomainSnapshot, type TrustedDomain } from '../src/l2/runtimeValidation.js';
 function typeContract(domain: DomainConversationWithDetail, raw: unknown): void {
     // @ts-expect-error An ordinary builder cannot manufacture trust.
     const forged: TrustedDomain = domain;
@@ -12,9 +12,9 @@ function typeContract(domain: DomainConversationWithDetail, raw: unknown): void 
 }
 void typeContract;
 
-import type { GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import type { GeminiDomParseResult } from '../src/core/parsers/gemini/dom/parseConversation.js';
-import type { GeminiTakeoutParseResult } from '../src/core/parsers/gemini/takeout/parseConversation.js';
+import type { GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import type { GeminiDomParseResult } from '../src/l1/parsers/gemini/dom/parseConversation.js';
+import type { GeminiTakeoutParseResult } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
 function parserOutputs(rpc: GeminiRpcParseResult, dom: GeminiDomParseResult, takeout: GeminiTakeoutParseResult): void {
     // @ts-expect-error L1 RPC candidates need L2 key binding and validation.
     const trustedRpc: TrustedDomain = rpc.conversation;

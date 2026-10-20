@@ -40,15 +40,15 @@ const DEFINE_VERSION = {
 };
 
 const BUNDLE_ENTRIES = {
-    'content/content': path.join(SRC, 'content', 'content.ts'),
-    'content/hook': path.join(SRC, 'content', 'hookCredentials.ts'),
-    'background/background': path.join(SRC, 'background', 'background.ts'),
+    'content/content': path.join(SRC, 'runtime', 'content', 'content.ts'),
+    'content/hook': path.join(SRC, 'l1', 'sniffer', 'gemini', 'hookCredentials.ts'),
+    'background/background': path.join(SRC, 'runtime', 'background', 'background.ts'),
     'ui/popup': path.join(SRC, 'ui', 'popup', 'popup.ts'),
     'ui/options': path.join(SRC, 'ui', 'options', 'options.ts'),
 };
 
 const SANDBOX_ENTRIES = {
-    'ui/sandbox/typst-compile': path.join(SRC, 'ui', 'sandbox', 'typstCompileEntry.ts'),
+    'ui/sandbox/typst-compile': path.join(SRC, 'l4', 'format', 'pdf', 'sandbox', 'typstCompileEntry.ts'),
 };
 
 const EXPECTED_BUNDLES = [

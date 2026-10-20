@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { ingestIndexes } from '../src/core/domain/ingestion.js';
-import { listIndexes, putAccount } from '../src/core/storage/storageService.js';
-import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
+import { listIndexes, putAccount } from '../src/l3a/storageService.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
 useIndexStorage();
 const accountId = '10000000-0000-4000-8000-000000000001';
 async function seed() {

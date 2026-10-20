@@ -34,14 +34,14 @@ test('batchFetcher - slot abort wins the race while sendToGeminiTab is in-flight
         }
     };
 
-    const { TabService } = require('../src/core/utils/tabService.js');
+    const { TabService } = require('../src/runtime/capabilities/tabService.js');
     const {
         setSlotAborted,
         clearAllAborts,
         getSlotAbortSignal,
         __bgControllers
-    } = require('../src/background/abortManager.js');
-    const { fetchBatch } = require('../src/background/batchFetcher.js');
+    } = require('../src/runtime/background/abortManager.js');
+    const { fetchBatch } = require('../src/runtime/background/batchFetcher.js');
 
     clearAllAborts();
     const origGet = TabService.getGeminiTab;
@@ -111,9 +111,9 @@ test('batchFetcher - no abort: sendToGeminiTab result passes through, timer rele
         }
     };
 
-    const { TabService } = require('../src/core/utils/tabService.js');
-    const { clearAllAborts, __bgControllers } = require('../src/background/abortManager.js');
-    const { fetchBatch } = require('../src/background/batchFetcher.js');
+    const { TabService } = require('../src/runtime/capabilities/tabService.js');
+    const { clearAllAborts, __bgControllers } = require('../src/runtime/background/abortManager.js');
+    const { fetchBatch } = require('../src/runtime/background/batchFetcher.js');
 
     clearAllAborts();
     const origGet = TabService.getGeminiTab;

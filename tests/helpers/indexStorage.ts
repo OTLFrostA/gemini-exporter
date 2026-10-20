@@ -1,5 +1,5 @@
 import { IDBFactory, IDBObjectStore, IDBKeyRange } from 'fake-indexeddb';
-import { resetIndexCoverageSessions } from '../../src/core/domain/indexCoverage.js';
+import { resetIndexCoverageSessions } from '../../src/l2/indexCoverage.js';
 import { fixtureAccount } from './domainFixture.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountRuntime.js';
 import { beforeEach, afterEach } from 'node:test';
@@ -46,7 +46,7 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
     globalThis.chrome = { runtime: { async sendMessage(message: Record<string, unknown>) {
         if (message.action === 'ensureV2Ready') return { ok: true };
         if (message.action === 'domainIngest') {
-            const domain: typeof import('../../src/core/domain/ingestion.js') = require('../../src/core/domain/ingestion.js');
+            const domain: typeof import('../../src/l2/ingestion.js') = require('../../src/l2/ingestion.js');
             if (message.operation === 'indexes') { await domain.ingestIndexes(message.accountId as string, message.items as Parameters<typeof domain.ingestIndexes>[1], message.page as Parameters<typeof domain.ingestIndexes>[2]); return { ok: true }; }
             if (message.operation === 'deleted') { await domain.ingestDeletedConversation(message.accountId as string, message.conversationId as string); return { ok: true }; }
             if (message.operation === 'detail') return { ok: true, changed: await domain.ingestDetail(message.accountId as string, message.conversationId as string, message.detail as Parameters<typeof domain.ingestDetail>[2], message.indexFields as Parameters<typeof domain.ingestDetail>[3]) };

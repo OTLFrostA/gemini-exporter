@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { ingestIndexes } from '../src/core/domain/ingestion.js';
-import { getIndex, getCoverage, updateCoverageAtomically } from '../src/core/storage/storageService.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
+import { getIndex, getCoverage, updateCoverageAtomically } from '../src/l3a/storageService.js';
 const accountId = '10000000-0000-4000-8000-000000000001';
 const key = { accountId, conversationId: 'chat' };
 useIndexStorage();

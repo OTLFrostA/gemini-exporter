@@ -1,8 +1,8 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const LiveSaveObserver = require('../src/content/liveSaveObserver.js');
-const PageObserver = require('../src/content/pageObserver.js');
+const LiveSaveObserver = require('../src/runtime/content/liveSaveObserver.js');
+const PageObserver = require('../src/runtime/content/pageObserver.js');
 
 /** Restore the exact global descriptors even if a test or observer throws. */
 async function withHost<T>(overrides: Record<string, unknown>, run: () => T | Promise<T>): Promise<T> {

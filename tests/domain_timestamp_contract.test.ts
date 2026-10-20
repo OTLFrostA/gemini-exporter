@@ -1,13 +1,13 @@
 import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeTimestamp, normalizeConversationTimes } from '../src/core/domain/time.js';
-import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
-import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { normalizeTimestamp, normalizeConversationTimes } from '../src/l2/time.js';
+import { validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
+import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 const exportDomainMarkdown = (domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(domain, account), {}, { includeFrontMatter: true });
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 const base = (): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('chat'), 'custom'),   titleSource: "derived",   title: 'Times' }, detail: { key: fixtureKey(String('chat'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [] } });
 test('conversation times are independent finite epoch milliseconds and unknown facts are absent', () => {
     assert.deepEqual(normalizeConversationTimes({ updatedAt: 0 }), { updatedAt: 0 });
@@ -55,6 +55,6 @@ test('L2 admission protects the L3b Unix-ms contract from fractional and unsafe 
     }
     const admitted = validateParserDomain({ ...base(), index: { ...base().index, createdAt: 0 },
         detail: { ...base().detail, messages: [{ role: 'assistant', timestamp: 0, content: [] }] } });
-    const document = require('../src/core/document/compose/composeDomainDocument.js').composeDomainDocument(admitted, fixtureAccountFor(admitted));
+    const document = require('../src/l3b/compose/composeDomainDocument.js').composeDomainDocument(admitted, fixtureAccountFor(admitted));
     assert.equal(document.metadata.createdAt, 0); assert.equal(document.messages[0].timestamp, 0);
 });

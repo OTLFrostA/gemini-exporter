@@ -1,13 +1,13 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { convertMath: convertLatex } = require('../src/core/renderers/typst/mathConverter.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
+const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
+const { convertMath: convertLatex } = require('../src/l4/format/typst/mathConverter.js');
 const convertMath = (source: string, display: boolean) => convertLatex(source, 'latex', display);
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {

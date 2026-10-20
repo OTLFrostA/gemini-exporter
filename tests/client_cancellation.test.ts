@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { GeminiAPIClient } from '../src/core/api/geminiClient.js';
-import retryPolicy from '../src/core/api/client/retryPolicy.js';
+import { GeminiAPIClient } from '../src/l1/client/gemini/geminiClient.js';
+import retryPolicy from '../src/l1/client/gemini/api/retryPolicy.js';
 useIndexStorage();
 for (const operation of ['list', 'detail'] as const) for (const signalSource of ['call', 'client'] as const) {
     test(`${operation}: cancellation during actual HTTP 429 backoff propagates AbortError (${signalSource} signal)`, async () => {

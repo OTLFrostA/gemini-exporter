@@ -1,7 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { isLocalDevelopment } = require('../src/core/utils/environment.js');
+const { isLocalDevelopment } = require('../src/runtime/environment.js');
 
 test('environment - returns true when chrome runtime has no update_url (unpacked dev)', () => {
     const originalChrome = (global as any).chrome;

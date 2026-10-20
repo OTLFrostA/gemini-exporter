@@ -14,7 +14,7 @@ const { beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert');
 
 const { ExportOrchestrator } = require('../src/core/engine/export/exportOrchestrator.js');
-const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 // An injected JSZip/StorageService may not leak to another scenario or test file.
 let originalZip: any, originalStorage: any;

@@ -9,9 +9,9 @@ function bustRequireCache(p: string) {
 }
 
 function getFreshCredManager() {
-    bustRequireCache('../src/core/api/client/credStorage.js');
-    bustRequireCache('../src/core/api/client/credentialManager.js');
-    return require('../src/core/api/client/credentialManager.js');
+    bustRequireCache('../src/l1/client/gemini/api/credStorage.js');
+    bustRequireCache('../src/l1/client/gemini/api/credentialManager.js');
+    return require('../src/l1/client/gemini/api/credentialManager.js');
 }
 
 function makeMockStorage(initialData: Record<string, unknown> = {}) {
@@ -73,7 +73,7 @@ test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromH
 
 test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_global_data -> WIZ_global_data -> script scan -> full HTML -> empty', () => {
     const credManager = getFreshCredManager();
-    const P = require('../src/core/protocol/protocol.js').default;
+    const P = require('../src/l1/protocol/gemini/protocol.js').default;
 
     // A. __gemExporterExtractAt wins over everything
     const origExtractAt = (globalThis as Record<string, unknown>).__gemExporterExtractAt;
@@ -345,7 +345,7 @@ test('11. Page fallback only for matching slot', async () => {
         }
     });
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
-    const P = require('../src/core/protocol/protocol.js').default;
+    const P = require('../src/l1/protocol/gemini/protocol.js').default;
 
     // Simulate page on slot 'default' with page AT token and mock document
     (globalThis as Record<string, unknown>).document = {
@@ -597,8 +597,8 @@ test('C3 review: numeric SID HTTP diagnostics use the real SID contract', async 
     glob.fetch = async () => new Response('diagnostic failure', { status: 418 });
     try {
         getFreshCredManager();
-        bustRequireCache('../src/core/api/geminiClient.js');
-        const Client = require('../src/core/api/geminiClient.js').GeminiAPIClient;
+        bustRequireCache('../src/l1/client/gemini/geminiClient.js');
+        const Client = require('../src/l1/client/gemini/geminiClient.js').GeminiAPIClient;
         await assert.rejects(new Client().getConversationList(null, '12345'), /sidLen:5/);
     } finally { glob.chrome = previousChrome; glob.fetch = previousFetch; }
 });

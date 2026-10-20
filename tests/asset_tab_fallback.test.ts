@@ -2,7 +2,7 @@ import { bindTabAccounts } from './helpers/tabAccounts.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import AssetPipeline from '../src/core/engine/assetPipeline.js';
-import TabService from '../src/core/utils/tabService.js';
+import TabService from '../src/runtime/capabilities/tabService.js';
 
 test('asset download retries another Gemini tab when the selected tab has no content-script receiver', async () => {
     const originalChrome = (globalThis as any).chrome;

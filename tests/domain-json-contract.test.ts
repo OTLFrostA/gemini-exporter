@@ -1,17 +1,17 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 /** Runtime closure and JSON portability of actual Domain and Document AST fixtures. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
 test('each Domain fixture is closed and JSON round-trip preserves every backend output', () => {
     const dir = join(__dirname, 'fixtures', 'document-domain');
     const files = readdirSync(dir).filter(file => file.endsWith('.json'));

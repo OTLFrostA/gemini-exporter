@@ -3,12 +3,12 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { putExportRecord } from '../src/core/storage/storageService.js';
-import { ingestDetail } from '../src/core/domain/ingestion.js';
-import { readConversation } from '../src/core/domain/readConversation.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { contentComposer } from '../src/core/document/compose/composeContent.js';
-import type { DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
+import { putExportRecord } from '../src/l3a/storageService.js';
+import { ingestDetail } from '../src/l2/ingestion.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
+import { contentComposer } from '../src/l3b/compose/composeContent.js';
+import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
 
 const index: DomainConversationIndex = { key: fixtureKey(String('review123'), 'gemini'),   title: 'Review fixture', titleSource: "provider",   updatedAt: 1700000000000 };
 

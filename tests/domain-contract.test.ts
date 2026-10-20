@@ -1,18 +1,18 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 /** Domain/composer contracts, including the shared title authority rules. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveTitle, titleAuthorityRank } from '../src/core/domain/titleAuthority.js';
-import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
-import { normalizeArchiveResourceName } from '../src/core/export/assets/archivePath.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { resolveTitle, titleAuthorityRank } from '../src/l2/titleAuthority.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { normalizeArchiveResourceName } from '../src/l4/format/resources/archivePath.js';
+import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 function domain(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('contract'), 'test'),   titleSource: "derived",   title: 'Contract' }, detail: { key: fixtureKey(String('contract'), 'test'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'unknown', sourceType: 'widget', text: 'Visible fallback' }] }] } };
 }

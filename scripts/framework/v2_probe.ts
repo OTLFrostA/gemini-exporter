@@ -1,14 +1,14 @@
-import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
-import { collectDocumentResources } from '../../src/core/document/ast/resourceReferences.js';
-import { openStorageDB } from '../../src/core/storage/idb.js';
-import { readConversationKey, type ConversationKey } from '../../src/core/domain/conversationKey.js';
-import { clearLocalScanRecords } from '../../src/core/application/localCleanup.js';
+import { composeDomainDocument } from '../../src/l3b/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../../src/l3b/ast/resourceReferences.js';
+import { openStorageDB } from '../../src/l3a/idb.js';
+import { readConversationKey, type ConversationKey } from '../../src/l2/conversationKey.js';
+import { clearLocalScanRecords } from '../../src/application/localCleanup.js';
 /** Test-only access to public v2 owners. Bundled by the Python harness, never shipped. */
-import { getSettings, updateSettings } from '../../src/core/application/settings/index.js';
-import * as storage from '../../src/core/storage/storageService.js';
-import { ensureV2Ready } from '../../src/core/api/runtimeReady.js';
-import { parseGeminiTakeoutZipArchive, readTakeoutBytes } from '../../src/core/imports/takeout/readArchive.js';
-import { readConversation } from '../../src/core/domain/readConversation.js';
+import { getSettings, updateSettings } from '../../src/application/settings/index.js';
+import * as storage from '../../src/l3a/storageService.js';
+import { ensureV2Ready } from '../../src/runtime/api/runtimeReady.js';
+import { parseGeminiTakeoutZipArchive, readTakeoutBytes } from '../../src/l1/imports/takeout/readArchive.js';
+import { readConversation } from '../../src/l2/readConversation.js';
 
 export function accountId(): string {
     const id = (document.getElementById('accountIdSelect') as HTMLSelectElement | null)?.value;

@@ -9,7 +9,7 @@ test('Batch 4 - Canonical classifyDetailError and isConfirmedDeletedError in Gem
     const {
         isConfirmedDeletedError,
         classifyDetailError
-    } = require('../src/core/protocol/protocol.js');
+    } = require('../src/l1/protocol/gemini/protocol.js');
 
     // Confirmed deleted cases
     assert.strictEqual(isConfirmedDeletedError('["BardErrorInfo", 1167]'), true);
@@ -36,7 +36,7 @@ test('Batch 4 - Canonical classifyDetailError and isConfirmedDeletedError in Gem
 });
 
 test('Batch 4 - listView restricts conversation URLs to http/https and blocks javascript:/data:', () => {
-    const { render } = require('../src/ui/views/listView.js');
+    const { render } = require('../src/ui/options/views/listView.js');
 
     const mockListEl: any = { innerHTML: '', addEventListener: () => {} };
     const mockStatusEl: any = { textContent: '' };

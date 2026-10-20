@@ -2,14 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
 import { buildSync } from 'esbuild';
-import type * as Storage from '../src/core/storage/storageService.js';
-import type * as AccountAdmission from '../src/core/domain/accountAdmission.js';
-import type * as Ingestion from '../src/core/domain/ingestion.js';
+import type * as Storage from '../src/l3a/storageService.js';
+import type * as AccountAdmission from '../src/l2/accountAdmission.js';
+import type * as Ingestion from '../src/l2/ingestion.js';
 
 const bundle = buildSync({ stdin: { contents: `
-    export * from './src/core/storage/storageService.ts';
-    export {getOrCreateAccount} from './src/core/domain/accountAdmission.ts';
-    export {ingestIndexes, ingestDetail} from './src/core/domain/ingestion.ts';
+    export * from './src/l3a/storageService.ts';
+    export {getOrCreateAccount} from './src/l2/accountAdmission.ts';
+    export {ingestIndexes, ingestDetail} from './src/l2/ingestion.ts';
 `, resolveDir: process.cwd() }, bundle: true, format: 'iife', globalName: 'admission', write: false }).outputFiles[0].text;
 declare global { interface Window { admission: typeof Storage & typeof AccountAdmission & typeof Ingestion } }
 

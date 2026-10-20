@@ -10,20 +10,20 @@ test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); })
 let bundle: string;
 test.beforeAll(async () => {
     const result = await build({ stdin: { contents: `
-        import { init } from './src/content/messageRouter.ts';
-        import { SyncEngine } from './src/content/syncEngine.ts';
-        import { ProviderRegistry } from './src/core/provider/providerRegistry.ts';
-        import { StorageService } from './src/core/storage/storageService.ts';
+        import { init } from './src/runtime/content/messageRouter.ts';
+        import { SyncEngine } from './src/runtime/content/syncEngine.ts';
+        import { ProviderRegistry } from './src/l1/client/providerRegistry.ts';
+        import { StorageService } from './src/l3a/storageService.ts';
         import { BatchWorker } from './src/core/engine/export/batchWorker.ts';
         import { ExportOrchestrator } from './src/core/engine/export/exportOrchestrator.ts';
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
-        import * as domain from './src/core/storage/domain/domainStore.ts';
+        import * as domain from './src/l3a/domain/domainStore.ts';
         import { admitFixture } from './tests/helpers/admitFixture.ts';
-        import * as resources from './src/core/storage/domain/resourceContext.ts';
-        import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
+        import * as resources from './src/l3a/domain/resourceContext.ts';
+        import { getDomainConversationResult } from './src/l3a/domain/nativePersistence.ts';
         import { indexFixture } from './tests/helpers/indexFixture.ts';
         import { historicalFixture } from './tests/helpers/nativeFixture.ts';
-        import { __setModuleOverride, __clearModuleOverrides } from './src/core/utils/moduleOverrides.ts';
+        import { __setModuleOverride, __clearModuleOverrides } from './src/shared/utils/moduleOverrides.ts';
         globalThis.deletionProbe = { ...domain, ...resources, getDomainConversationResult, async run(scenario) {
             const id = 'deletion-isolation';
             const source = historicalFixture({ id, title: 'Retained archive', messages: [{ role: 'model', content: 'Saved local answer', images: [

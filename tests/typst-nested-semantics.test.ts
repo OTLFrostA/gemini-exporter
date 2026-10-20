@@ -1,11 +1,11 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
+import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
     return restoreDomainSnapshot({ index: { key: fixtureKey(String('c1'), 'gemini'),   titleSource: "derived",   title: 'Fixture', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets, messages: messages } });

@@ -1,7 +1,7 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { putAccount } from '../src/core/storage/storageService.js';
+import { putAccount } from '../src/l3a/storageService.js';
 useIndexStorage();
-import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
 import { mount, A, B } from './helpers/uiPortHarness.js';
 import { chromium } from 'playwright';
 import { withRegistry } from './helpers/registryMock.js';
@@ -14,17 +14,17 @@ test.beforeEach(async () => {
         await putAccount({ id: '10000000-0000-4000-8000-00000000000' + suffix, providerId: 'gemini', providerAccountId: subject });
 });
 
-const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 const {
     extractEmailFromText,
     extractNameFromLabel,
     sniffUserProfileFromDom
-} = require('../src/content/accountSniffer.js');
+} = require('../src/l1/parsers/gemini/dom/accountSniffer.js');
 
-const { resolveCred } = require('../src/core/api/client/credentialManager.js');
-const TabService = require('../src/core/utils/tabService.js').default || require('../src/core/utils/tabService.js');
-const ConversationsStore = require('../src/ui/state/conversationsStore.js');
+const { resolveCred } = require('../src/l1/client/gemini/api/credentialManager.js');
+const TabService = require('../src/runtime/capabilities/tabService.js').default || require('../src/runtime/capabilities/tabService.js');
+const ConversationsStore = require('../src/ui/options/state/conversationsStore.js');
 
 
 // ---------------------------------------------------------------------------

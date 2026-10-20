@@ -1,16 +1,16 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import { parseConversation } from '../src/l1/parsers/parseConversation.js';
+import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BlockNode } from '../src/core/domain/content/blocks.js';
-import { mapContentAssetReferences } from '../src/core/domain/content/assetReferences.js';
-import { parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/index.js';
-import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
+import type { BlockNode } from '../src/l2/content/blocks.js';
+import { mapContentAssetReferences } from '../src/l2/content/assetReferences.js';
+import { parseMarkdownToBlocks } from '../src/l1/parsers/shared/markdown/index.js';
+import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
-import { ConversationViewState } from '../src/ui/state/conversationsStore.js';
+import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
+import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
 import { A, B } from './helpers/v2ConversationFixture.js';
 const accounts = [A, B].map(id => ({ id, providerId: 'gemini', providerAccountId: id }));
 test('export view refresh reads accepted Index without publishing metadata', async () => {

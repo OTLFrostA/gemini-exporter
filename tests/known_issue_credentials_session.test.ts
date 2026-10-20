@@ -8,8 +8,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const code = require('esbuild').buildSync({ entryPoints: [path.join(__dirname, '..', 'src', 'content', 'bootstrap.ts')], bundle: true, write: false, format: 'iife', globalName: 'TestBootstrap', logLevel: 'silent' }).outputFiles[0].text;
-const protocolCode = fs.readFileSync(path.join(__dirname, '..', 'src', 'core', 'protocol', 'protocol.js'), 'utf8');
+const code = require('esbuild').buildSync({ entryPoints: [path.join(__dirname, '..', 'src', 'l1', 'client', 'gemini', 'bootstrap.ts')], bundle: true, write: false, format: 'iife', globalName: 'TestBootstrap', logLevel: 'silent' }).outputFiles[0].text;
+const protocolCode = fs.readFileSync(path.join(__dirname, '..', 'src', 'l1', 'protocol', 'gemini', 'protocol.js'), 'utf8');
 
 function makeContext() {
     const ctx: Record<string, any> = {
@@ -124,7 +124,7 @@ test('p1-lock: session tokens live in chrome.storage.session, never in chrome.st
 });
 
 test('CredentialManager credentials storage uses chrome.storage.session and does not leak to local', async () => {
-    const CredentialManager = require('../src/core/api/client/credentialManager.js').default || require('../src/core/api/client/credentialManager.js');
+    const CredentialManager = require('../src/l1/client/gemini/api/credentialManager.js').default || require('../src/l1/client/gemini/api/credentialManager.js');
     const localStore: Record<string, any> = {};
     const sessionStore: Record<string, any> = { gemini_credentials_map: { test_sid: { at: 'test_at', sid: 'test_sid' } } };
     const originalChromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
@@ -174,7 +174,7 @@ test('CredentialManager credentials storage uses chrome.storage.session and does
 });
 
 test('GeminiAPIClient 401 evicts only the expired SID from session storage', async () => {
-    const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
+    const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
     const originalChromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
     const sessionStore: Record<string, any> = {

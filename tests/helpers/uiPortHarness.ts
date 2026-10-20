@@ -39,10 +39,17 @@ export const B = '22222222-2222-4222-8222-222222222222';
 export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', patch: Record<string, unknown> = {}, query = '') {
     page.setDefaultTimeout(5000);
     const root = process.cwd();
-    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/content/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/tour/tourGuide.ts'; import * as settings from './src/ui/utils/settings.ts'; globalThis.testUi = {tour,settings};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
+    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; globalThis.testUi = {tour,settings};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
         build.onResolve({ filter: /accountContext\.js$/ }, args => ({path:args.path,namespace:'account-mock'}));
         build.onLoad({filter:/.*/,namespace:'account-mock'},()=>({contents:`export const getAccountContext=()=>({accountId:globalThis.harness.source,providerId:'gemini'});export const resolveCurrentAccount=async()=>getAccountContext();`,loader:'js'}));
-        build.onResolve({ filter: /core\// }, args => ({ path: args.path, namespace: 'ui-mock' }));
+        build.onResolve({ filter: /^\./ }, args => {
+            const owner = path.relative(path.join(root, 'src'), path.resolve(args.resolveDir, args.path)).replace(/\\/g, '/');
+            const port = /^(?:l1|l2|l3a|l3b|l4|application|migration|shared)\//.test(owner)
+                || /^runtime\/(?:api|ipc)\//.test(owner)
+                || /^runtime\/capabilities\/(?:directoryHandle|tabService)\.js$/.test(owner)
+                || owner === 'ui/shared/progressUtils.js';
+            if (port) return { path: args.path, namespace: 'ui-mock' };
+        });
         build.onLoad({ filter: /.*/, namespace: 'ui-mock' }, () => ({ contents: mock, loader: 'js' }));
     } }] });
     await page.route('https://ui.test/**', route => route.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.join(root, `src/ui/${kind === 'badge' ? 'options' : kind}/${kind === 'badge' ? 'options' : kind}.html`), 'utf8').replace(/<script[^>]*><\/script>/g, '').replace(/<link[^>]*>/g, '') }));
@@ -63,10 +70,10 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
             storage:{onChanged:{addListener:(listener: (...args: unknown[]) => void)=>listeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>listeners.delete(listener)}}};
     }, { A, B, patch });
     await page.goto('https://ui.test/' + query);
-    await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/tour/tourGuide.css'), 'utf8') });
+    await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/guidance/tourGuide.css'), 'utf8') });
     if (kind === 'badge') {
         // Production injects this through manifest.json; the isolated UI harness must do the same.
-        await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/content/content.css'), 'utf8') });
+        await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/badge/content.css'), 'utf8') });
     }
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
 }

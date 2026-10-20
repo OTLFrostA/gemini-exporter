@@ -1,0 +1,9 @@
+import { sanitizeRelativePath } from '../../shared/utils/pathUtils.js';
+import { normalizeArchivePath } from '../format/resources/archivePath.js';
+
+/** Writers accept the planned path verbatim or reject it. */
+export function assertExportPath(path: string): void {
+    if (!path || normalizeArchivePath(path) !== path || sanitizeRelativePath(path) !== path) {
+        throw new Error(`Noncanonical export path: ${path}`);
+    }
+}

@@ -12,13 +12,13 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const StorageService = require('../src/core/storage/storageService.js');
-const LiveStorageManager = require('../src/core/storage/liveStorageManager.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
-const IdbHandleStore = require('../src/core/storage/idbHandleStore.js');
-const FormatStore = require('../src/core/storage/formatStore.js');
-const { mergeConversation } = require('../src/core/domain/indexCollection.js');
-const Pagination = require('../src/core/api/client/pagination.js');
+const StorageService = require('../src/l3a/storageService.js');
+const LiveStorageManager = require('../src/l3a/liveStorageManager.js');
+const { __setModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
+const IdbHandleStore = require('../src/l3a/idbHandleStore.js');
+const FormatStore = require('../src/l3a/formatStore.js');
+const { mergeConversation } = require('../src/l2/indexCollection.js');
+const Pagination = require('../src/l1/client/gemini/api/pagination.js');
 
 // ------------------------------------------------------------------ helpers
 
