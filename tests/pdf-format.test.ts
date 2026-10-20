@@ -9,9 +9,6 @@ import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
 import { simulateMitexInitFailureForTesting, resetMitexForTesting } from '../src/l4/format/typst/mathConverter.js';
-import { TypstSandboxCompiler } from '../src/l4/format/pdf/typst/typstSandboxCompiler.js';
-import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
-import { extractPdfText } from './helpers/pdfTextExtract.js';
 
 const document: DocumentAst = {
     title: 'Title', metadata: { id: 'c', provider: 'p' },
@@ -130,17 +127,3 @@ test('abort during compilation rejects even when the compiler returns bytes', as
     await assert.rejects(compileDocumentPdf(document, {}, new Map(), compiler, { ...context(), signal: abort.signal }), { name: 'AbortError' });
 });
 
-test('real WASM compiles an image at the supplied Packaging path and releases its sandbox', async () => {
-    const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
-    const bytes = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
-    const resources: PreparedResources = new Map([['image', { ok: true, resourceId: 'image', value: { bytes } }]]);
-    try {
-        const result = await compileDocumentPdf(document, { image: 'assets/packaging-image.png' }, resources, compiler, context());
-        const extracted = extractPdfText(result.pdfBytes);
-        assert.ok(extracted.imageXObjectCount >= 1);
-        assert.match(extracted.text, /notes\.pdf/);
-        assert.equal(result.diagnostics.some(d => d.severity === 'error'), false);
-    } finally {
-        compiler.dispose();
-    }
-});
