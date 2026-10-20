@@ -21,7 +21,7 @@ import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
 import { serializeDomainJson, JSON_ARCHIVE_VERSION } from '../src/l4/format/json/serializeDomainJson.js';
 import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
-import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
+import type { PreparedResources, ResourceResult, ResourceBytes } from '../src/shared/resources/resourceResult.js';
 import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 
 useIndexStorage();
@@ -138,8 +138,8 @@ test('real v2 Takeout import admits Index/Detail and retains variant filenames a
         assert.ok(!JSON.stringify(conversation).includes('dataBase64'));
 
         const document = composeDomainDocument(conversation, account);
-        const prepared: PreparedResources = new Map(assets.map((asset, i) =>
-            [asset.id, { ok: true as const, resourceId: asset.id,
+        const prepared: PreparedResources = new Map<string, ResourceResult<ResourceBytes>>(assets.map((asset, i): [string, ResourceResult<ResourceBytes>] =>
+            [asset.id, { ok: true, resourceId: asset.id,
                 value: { bytes: acquired[i].bytes,
                     mediaType: asset.kind === 'image' ? 'image/png' : 'application/octet-stream' } }]));
         const oldZip = __getModuleOverride('JSZip');
