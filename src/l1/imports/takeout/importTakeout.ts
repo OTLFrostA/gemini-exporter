@@ -1,3 +1,4 @@
+import type { Account } from '../../../l2/accountRegistry.js';
 import type { SourceResourceContext } from '../../resources/sourceResources.js';
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
 import { ingestDetail } from '../../../l2/ingestion.js';
@@ -10,7 +11,7 @@ export interface TakeoutParseResult { imported: number; status: 'ok' | 'partial'
 export { stripHtmlTags };
 
 /** UI/acquisition adapter: native parsing precedes the one-way storage projection. */
-export async function importTakeout(file: File, accountId: string, onProgress?: (pct: number) => void, resources?: SourceResourceContext): Promise<TakeoutParseResult> {
+export async function importTakeout(file: File, accountId: Account['id'], onProgress?: (percent: number) => void, resources?: SourceResourceContext): Promise<TakeoutParseResult> {
     if (!accountId) throw new TypeError('Takeout requires an account UUID');
     const account = await getAccount(accountId);
     if (!account || account.providerId !== 'gemini') throw new TypeError('Takeout requires an existing Gemini account');
