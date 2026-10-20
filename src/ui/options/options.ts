@@ -28,7 +28,6 @@ export async function initWorkbench(): Promise<void> {
     let lastRequest: UIExportRequest | null = null;
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
-    const failureReasons = new Map<string, string>();
     const log: LogEntry[] = [];
     const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -65,7 +64,7 @@ export async function initWorkbench(): Promise<void> {
         container.replaceChildren();
         for (const key of failed) {
             const line = document.createElement('div');
-            line.textContent = `${key.conversationId}: ${failureReasons.get(key.conversationId) ?? text('Export failed', '导出失败')}`;
+            line.textContent = `${key.conversationId}: ${text('Export failed', '导出失败')}`;
             container.append(line);
         }
     };
@@ -133,7 +132,7 @@ export async function initWorkbench(): Promise<void> {
     };
     const refresh = async () => { await state.refresh(); render(); };
     const select = async (id: string) => {
-        if (id !== state.accountId) { lastRequest = null; failed = []; failureReasons.clear(); dismissedFailures = false; }
+        if (id !== state.accountId) { lastRequest = null; failed = []; dismissedFailures = false; }
         state.selectAccount(id); render(); await refresh();
     };
     const perform = async (kind: Action, task: () => Promise<void>, cancellable = false) => {
@@ -148,13 +147,12 @@ export async function initWorkbench(): Promise<void> {
     };
     const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async () => {
         lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
-        failed = []; failureReasons.clear(); dismissedFailures = false; render();
+        failed = []; dismissedFailures = false; render();
         await fonts;
         if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
             throw new Error(text('Authorize a folder first', '请先授权文件夹'));
         const result = await runExport(request, { signal: controller!.signal,
-            onProgress: p => progress(p.current, p.total, text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
-            onFailure: (key, message) => { failureReasons.set(key.conversationId, message); }
+            onProgress: p => progress(p.current, p.total, text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`))
         });
         failed = [...result.failed];
         status(text(`Delivery initiated: ${result.exported}; partial: ${result.partial}; skipped: ${result.skipped}; failed: ${failed.length}${result.aborted ? '; cancelled' : ''}`,
@@ -205,7 +203,7 @@ export async function initWorkbench(): Promise<void> {
     el('btnDismissFailure').addEventListener('click', () => { dismissedFailures = true; showFailures(); });
     el('btnCopyFailedLog').addEventListener('click', () => {
         void navigator.clipboard.writeText(failed.map(key =>
-            `${key.conversationId}: ${failureReasons.get(key.conversationId) ?? 'Export failed'}`).join('\n'))
+            `${key.conversationId}: Export failed`).join('\n'))
             .catch(e => status(errorText(e), 'error'));
     });
     el('btnSetDir').addEventListener('click', () => {
@@ -243,7 +241,7 @@ export async function initWorkbench(): Promise<void> {
             void perform('cleanup', async () => {
                 if (scanRecords) await Cleanup.clearLocalScanRecords(accountId);
                 else await Cleanup.clearLocalExportRecords(accountId);
-                failed = []; failureReasons.clear(); dismissedFailures = false;
+                failed = []; dismissedFailures = false;
                 status(text('Records cleared', '记录已清除'));
             });
         });
