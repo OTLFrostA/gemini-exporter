@@ -56,6 +56,7 @@ export async function runExport(request: ExportRequest, options: {
     const resources = createSourceResourceContext();
     const providers = new Map<string, AIProvider>();
     let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
+    let locale: 'zh' | 'en' = 'en';
     const cancelled = (error: unknown): boolean => signal.aborted || (error instanceof Error && error.name === 'AbortError');
     const fail = (keys: readonly ConversationKey[], error?: unknown): void => {
         for (const key of keys) {
@@ -125,7 +126,7 @@ export async function runExport(request: ExportRequest, options: {
         signal.throwIfAborted();
         // The user setting controls only renderer-owned text, not Domain, JSON, paths or records.
         const language = request.format === 'json' ? undefined : (await getSettings()).language;
-        const locale: 'zh' | 'en' = language ?? (typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
+        locale = language ?? (typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
         const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
         if (request.delivery === 'folderWriter' && !directory) throw new Error('Export directory unavailable');
         const folderPlanner = request.delivery === 'folderWriter' ? createExportPathPlanner(request.format) : undefined;
