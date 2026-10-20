@@ -38,7 +38,7 @@ test('Tour startup intent is consumed once from URL with no durable completion p
 test('Takeout prompt marks Settings only on explicit acknowledgement', async () => {
     await open(); await page.evaluate(() => { Reflect.get(window, 'harness').scanCount = 151; });
     await page.locator('#btnSyncAll').click(); await page.locator('.tour-popover').waitFor(); assert.deepEqual(await read(page, 'patches'), []);
-    await page.getByRole('button', { name: 'Got it', exact: true }).click();
+    await page.getByRole('button', { name: 'Got it, don’t show again', exact: true }).click();
     assert.deepEqual(await read(page, 'patches'), [{ takeoutPromptCompleted: true }]);
 });
 test('tourGuide - action-driven advancement covers scan, selection, format, export, Live Save and feedback', async () => {
