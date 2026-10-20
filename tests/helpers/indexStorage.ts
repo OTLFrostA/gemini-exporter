@@ -32,7 +32,8 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
         const row = value as { key?: { accountId?: string } };
         if (failKey && (failKey === this.name || failKey === `conversations_${row.key?.accountId}`)) throw new Error(`write failed: ${failKey}`);
         writes++;
-        return originalPut.call(this, value, key);
+        // Preserve call arity: in-line-key stores must use put(value), not put(value, undefined).
+        return arguments.length === 1 ? originalPut.call(this, value) : originalPut.call(this, value, key);
     };
     const local = structuredClone(seed);
     let writes = 0;
