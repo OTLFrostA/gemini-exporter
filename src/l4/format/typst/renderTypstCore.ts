@@ -46,7 +46,7 @@ export function renderDocumentTypstCore(
             }
             case 'image':
                 if (!isResourcePath(resources[node.resourceId])) runtime.onDiagnostic?.({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_MISSING', message: `Missing prepared image ${node.resourceId}` });
-                return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.alt ? { alt: node.alt } : {}) } : { type: 'text', text: unavailableResourceText('image', node.alt || node.resourceId, locale) };
+                return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.alt ? { alt: node.alt } : {}) } : { type: 'text', text: unavailableResourceText('image', node.alt, locale) };
             case 'lineBreak': return { type: 'lineBreak' };
             case 'inlineMath': {
                 const typst = runtime.convertMath?.(node.source, false);
@@ -74,7 +74,7 @@ export function renderDocumentTypstCore(
                 const cell = (entry: typeof node.rows[number][number]): TypstTableCell => ({ children: entry.children.map(inline), ...(entry.colSpan > 1 ? { colspan: entry.colSpan } : {}), ...(entry.rowSpan > 1 ? { rowspan: entry.rowSpan } : {}) });
                 return { type: 'table', headers: node.headerRows.map(row => row.map(cell)), rows: node.rows.map(row => row.map(cell)), columnCount: node.columnAlignments.length, aligns: node.columnAlignments.map(align => align === 'default' ? 'left' : align), repeatHeader: true, ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout };
             }
-            case 'image': return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout } : missing('image', node.caption?.length ? '' : node.alt, node.caption);
+            case 'image': return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout } : missing('image', node.alt, node.caption);
             case 'file': {
                 const kind = fileBadge(node), size = humanBytes(node.byteLength, strings.sizeUnknown);
                 return { type: 'file', name: node.label, kind, size, metadata: `${kind} · ${size}`, ...(node.description?.length ? { description: node.description.map(inline) } : {}), layout };

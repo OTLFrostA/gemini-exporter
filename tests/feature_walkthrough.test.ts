@@ -5,7 +5,7 @@ import { mount, read } from './helpers/uiPortHarness.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { getSettings, updateSettings } from '../src/application/settings/index.js';
 import { isVersionGreater } from '../src/shared/utils/pathUtils.js';
-import { getLatestEligibleFeature } from '../src/ui/guidance/featureReleases.js';
+import { FEATURE_RELEASES, getLatestEligibleFeature } from '../src/ui/guidance/featureReleases.js';
 let browser: Browser, page: Page;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });
@@ -13,9 +13,16 @@ test('feature version comparison uses numeric components at the current shared o
     for (const [a, b, expected] of [['1.10.0', '1.9.0', true], ['1.5.0', '1.5.0', false], ['1.4.0', '1.5.0', false], ['2.0.0', '1.99.99', true]] as const) assert.equal(isVersionGreater(a, b), expected);
 });
 test('featureReleases - latest eligible release arbitration excludes old, future and unusable baselines', () => {
+    assert.equal(FEATURE_RELEASES.length, 0, 'v1 announcements are not approved v2 announcements');
+    assert.equal(getLatestEligibleFeature('1.4.0', '1.8.1'), null);
+    // Supply explicit announcements only for testing the arbitration algorithm.
+    const previous = FEATURE_RELEASES.slice();
+    FEATURE_RELEASES.push({ version: '1.7.0', stepId: 'export' }, { version: '1.5.0', stepId: 'live_save' });
+    try {
     assert.deepEqual(getLatestEligibleFeature('1.4.0', '1.8.1'), { version: '1.7.0', stepId: 'export' });
     assert.deepEqual(getLatestEligibleFeature('1.4.0', '1.5.0'), { version: '1.5.0', stepId: 'live_save' });
     for (const baseline of ['', 'invalid', '1.7.0', '1.8.1', '2.0.0']) assert.equal(getLatestEligibleFeature(baseline, '1.8.1'), null);
+    } finally { FEATURE_RELEASES.splice(0, FEATURE_RELEASES.length, ...previous); }
 });
 test('last seen feature version persists through Application Settings', async () => {
     const env = indexStorage(); try {

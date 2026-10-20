@@ -83,12 +83,19 @@ test('Gemini observations and pagination consume parsed evidence without reading
 
 test('Gemini parser rejects incomplete row coverage and unknown layouts as exhaustion evidence', () => {
     for (const inner of [[null, null, [null]], [null, { unexpected: true }],
-        [null, 'tC_cursor', []], [null, null, [['c_unknown', 'Invalid identity']]],
+        [null, null, [['c_unknown', 'Invalid identity']]],
         [null, null, [['c_settings', 'Reserved route']]]]) {
         const parsed = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(inner)]]));
         assert.equal(parsed.pageEvidence.valid, false, JSON.stringify(inner));
         assert.equal(parsed.pageEvidence.ordered, false);
     }
+});
+
+test('an empty Gemini continuation page preserves its cursor instead of claiming exhaustion', () => {
+    const parsed = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, 'tC_cursor', []])]]));
+    assert.equal(parsed.pageEvidence.valid, true);
+    assert.equal(parsed.nextPageToken, 'tC_cursor');
+    assert.deepEqual(parsed.conversations, []);
 });
 
 test('Gemini list requires an explicit natural-terminal cursor, not an unrecognized slot', () => {

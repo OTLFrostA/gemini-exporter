@@ -2163,15 +2163,256 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/document-model-other-layers.test.ts",
+      "domain": "document",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Controlled fixtures exercising current L1, L2, L3b and L4 contracts; no independently verified live Provider capture.",
+      "notes": "Project behavior and interface migration coverage; does not claim P0 source evidence.",
+      "testCount": 2,
+      "tests": [
+        {
+          "name": "native provider model names survive L2 -> L3b and Markdown, HTML, Typst/PDF payloads",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "different authored models remain attached to their own messages in every v2 renderer",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/document-model.test.ts",
+      "domain": "document",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Controlled fixtures exercising current L1, L2, L3b and L4 contracts; no independently verified live Provider capture.",
+      "notes": "Project behavior and interface migration coverage; does not claim P0 source evidence.",
+      "testCount": 2,
+      "tests": [
+        {
+          "name": "turn models, absent/invalid models and escaped model names",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "compiled PDF visibly retains the model name",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/html-document-migration-other-layers.test.ts",
+      "domain": "document",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Controlled fixtures exercising current L1, L2, L3b and L4 contracts; no independently verified live Provider capture.",
+      "notes": "Project behavior and interface migration coverage; does not claim P0 source evidence.",
+      "testCount": 8,
+      "tests": [
+        {
+          "name": "migration: message count and order are correct",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: body text not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: attachments and images not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: thought not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: code block not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: table not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: citation not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: duplicate source message IDs preserve every message at export",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/html-document-migration.test.ts",
+      "domain": "document",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Controlled fixtures exercising current L1, L2, L3b and L4 contracts; no independently verified live Provider capture.",
+      "notes": "Project behavior and interface migration coverage; does not claim P0 source evidence.",
+      "testCount": 8,
+      "tests": [
+        {
+          "name": "migration: message count and order are correct",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: body text not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: attachments and images not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: thought not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: code block not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: table not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: citation not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: duplicate source message IDs preserve every message at export",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/provider-native-callers.test.ts",
+      "domain": "provider",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Controlled fixtures exercising current L1, L2, L3b and L4 contracts; no independently verified live Provider capture.",
+      "notes": "Project behavior and interface migration coverage; does not claim P0 source evidence.",
+      "testCount": 9,
+      "tests": [
+        {
+          "name": "production pagination merges native pages chronologically and closes renamed resources",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "page merge dedupes stable messages and shared source images without collapsing anonymous assets",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native token loops retain diagnostics and explicitly mark incomplete coverage",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "production RPC client parses raw responses without invoking the legacy detail facade",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native pagination rejects mixed legacy message pages instead of dropping their bodies",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "metadata-only detail retry follows native pagination to its terminal page",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "cooperative ZIP decoding yields to the event loop and preserves synchronous HTML semantics",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Takeout prompt-cell attachments and audio stay user-owned while response references remain assistant-owned",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "metadata-only retry cannot hide a subsequent detail-page fetch failure",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/provider-native-callers_other_layers.test.ts",
+      "domain": "provider",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Controlled fixtures exercising current L1, L2, L3b and L4 contracts; no independently verified live Provider capture.",
+      "notes": "Project behavior and interface migration coverage; does not claim P0 source evidence.",
+      "testCount": 6,
+      "tests": [
+        {
+          "name": "native L1 facts preserve rich content and model through real L2, L3b and three renderers",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "L4 JSON serializes trusted native v2 Domain without legacy DTO or mutable source fields",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real v2 Takeout import admits Index/Detail and retains variant filenames as lazy task bytes",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "a partial Takeout cannot replace a complete v2 Detail or capture its source readers",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ambiguous Takeout ZIP paths never select unrelated resource bytes",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Application resources and L4 paths rename output without mutating L1 source identity or bytes",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 42,
-    "totalTests": 333,
+    "totalSuites": 48,
+    "totalTests": 368,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 313,
+      "P2": 348,
       "P3": 2,
       "P4": 0
     }

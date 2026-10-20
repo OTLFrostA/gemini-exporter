@@ -236,7 +236,12 @@ test('Options renders account display names or email fallbacks and preserves the
         assert.deepEqual(await page.locator('#accountIdSelect option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value)), [A, B]);
         assert.equal(await page.locator('#accountIdSelect').isVisible(), true);
         await page.locator('#accountIdSelect').selectOption(B);
-        await page.waitForFunction(() => document.getElementById('accountName')?.textContent === 'lisi@gmail.com');
+        // Options §8: multiple accounts are named by the selected option;
+        // the standalone account name is used only without the switcher.
+        await page.waitForFunction(() => document.querySelector('#list .item')?.textContent?.includes('B chat'));
+        assert.equal(await page.locator('#accountIdSelect option:checked').textContent(), 'lisi@gmail.com');
+        assert.equal(await page.locator('#accountIdSelect').getAttribute('title'), 'lisi@gmail.com');
+        assert.equal(await page.locator('#accountName').textContent(), '');
         assert.equal(await page.locator('#accountIdSelect').inputValue(), B);
     } finally { await browser.close(); }
 });

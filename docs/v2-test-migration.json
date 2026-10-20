@@ -1,6 +1,6 @@
 {
   "baseline": "2f78e71c9551c4eec863cdbc21965e8f92bcf8b1",
-  "status": "scoped_repairs_complete_remaining_unchanged",
+  "status": "full_tier1_repaired",
   "policy": "Preserve original behavioral scenarios. Move tests to current owner APIs; explicit design changes require updated assertions, not deletion or skip. Restored tests remain in normal discovery even when failing.",
   "files": [
     {
@@ -13,15 +13,15 @@
     },
     {
       "file": "tests/active_title_fetch.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/archive-resource-path.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/asset_dedup_and_matching.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/asset_direct_write_failure.test.ts",
@@ -29,15 +29,15 @@
     },
     {
       "file": "tests/asset_tab_fallback.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/audit_reinforcement.test.ts",
-      "status": "l3_contract_migrated_other_owner_scenarios_pending"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/b1_writer_unified.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/background_modules.test.ts",
@@ -53,11 +53,11 @@
     },
     {
       "file": "tests/batch_fetcher_abort.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/chat_formatter.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/clear_exported_race.test.ts",
@@ -77,7 +77,7 @@
     },
     {
       "file": "tests/continued_chat_export_badge.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/conversation-representation.test.ts",
@@ -101,7 +101,7 @@
     },
     {
       "file": "tests/conversation_version.test.ts",
-      "status": "migrated_verified"
+      "status": "verified_after_dependency_or_runner_repair"
     },
     {
       "file": "tests/conversations_store.test.ts",
@@ -117,15 +117,15 @@
     },
     {
       "file": "tests/data_safety_batch1.test.ts",
-      "status": "l3_contract_migrated_other_owner_scenarios_pending"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/dedup_regressions.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/diagnostic_snapshot.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/document-freeze.test.ts",
@@ -145,7 +145,7 @@
     },
     {
       "file": "tests/dom_scraper.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/domain_conversation_detail.types.ts",
@@ -265,7 +265,7 @@
     },
     {
       "file": "tests/e2e/visual_inspector.spec.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/e2e/workbench_ui.spec.ts",
@@ -277,11 +277,11 @@
     },
     {
       "file": "tests/export_orchestrator.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/exportedids_alias.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/exportedids_readpath_normalization.test.ts",
@@ -293,7 +293,7 @@
     },
     {
       "file": "tests/finalize_conversation_export.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/format_store.test.ts",
@@ -317,7 +317,7 @@
     },
     {
       "file": "tests/html_export.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/i18n.test.ts",
@@ -329,7 +329,7 @@
     },
     {
       "file": "tests/imagen_generated_assets.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/istakeout_unify.test.ts",
@@ -341,15 +341,15 @@
     },
     {
       "file": "tests/live_save_coordinator.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/live_save_coordinator_safety.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/live_save_observer.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/live_save_permission_deadlock.test.ts",
@@ -361,7 +361,7 @@
     },
     {
       "file": "tests/maintenance_convergence_batch4.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/media-identity-persistence.test.ts",
@@ -369,7 +369,7 @@
     },
     {
       "file": "tests/messageRouter_liveSave_detail_contract.test.ts",
-      "status": "restored_pending_review"
+      "status": "verified_after_dependency_or_runner_repair"
     },
     {
       "file": "tests/message_bridge.test.ts",
@@ -401,7 +401,7 @@
     },
     {
       "file": "tests/p0_regressions.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/p1_a_regressions.test.ts",
@@ -417,7 +417,7 @@
     },
     {
       "file": "tests/p1_b2_msgui.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/p1_b3_attach.test.ts",
@@ -429,11 +429,11 @@
     },
     {
       "file": "tests/p1_d_regressions.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/p1_h2_pathwriter.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/p1_h3_ui.test.ts",
@@ -449,11 +449,11 @@
     },
     {
       "file": "tests/pdf-dataurl-assets.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/pdf-e2e-disk.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/pdf-export.test.ts",
@@ -461,7 +461,7 @@
     },
     {
       "file": "tests/pdf-exporter-dispose.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/pdf-image-hydration.test.ts",
@@ -473,7 +473,7 @@
     },
     {
       "file": "tests/pdf-stress-gates.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/pdf_domain_direct.test.ts",
@@ -485,15 +485,15 @@
     },
     {
       "file": "tests/perf_optimizations.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/phase_g_p2_fixes.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/pr3_lastseen_fallback.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/pr865_followups.test.ts",
@@ -521,7 +521,7 @@
     },
     {
       "file": "tests/reliability_ux_batch3.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/resource-delivery.test.ts",
@@ -561,11 +561,11 @@
     },
     {
       "file": "tests/search_image_export.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/session_store.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/shared_type_foundations_contract.test.ts",
@@ -617,7 +617,7 @@
     },
     {
       "file": "tests/takeout_and_limit_guidance.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/takeout_transact.test.ts",
@@ -657,7 +657,7 @@
     },
     {
       "file": "tests/unified_ingest_integrity.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/upsert_lastseen_max.test.ts",
@@ -665,7 +665,7 @@
     },
     {
       "file": "tests/user_file_attachment.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/user_preferences.test.ts",
@@ -673,11 +673,11 @@
     },
     {
       "file": "tests/verifiable_export_batch2.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/verified_scan_overlap.test.ts",
-      "status": "restored_pending_review"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/watermark_checkpoint.test.ts",
@@ -693,7 +693,7 @@
     },
     {
       "file": "tests/arch/semantic-layer-boundary.test.ts",
-      "status": "l3_contract_migrated_verified"
+      "status": "verified_after_dependency_or_runner_repair"
     },
     {
       "file": "tests/asset-presentation.test.ts",
@@ -717,7 +717,7 @@
     },
     {
       "file": "tests/document-markdown-contract.test.ts",
-      "status": "l3_contract_migrated_verified"
+      "status": "migrated_verified"
     },
     {
       "file": "tests/document-typst-contract.test.ts",
@@ -767,7 +767,7 @@
     },
     {
       "file": "tests/html-document-migration-other-layers.test.ts",
-      "status": "retained_pending_other_owner_migration",
+      "status": "migrated_verified",
       "note": "Preserved from the mixed original suite; remains in normal full discovery."
     },
     {
@@ -837,7 +837,62 @@
     "tests/e2e/scan_flow.spec.ts",
     "tests/e2e/live_save.spec.ts",
     "tests/e2e/archive_notice.spec.ts",
-    "tests/e2e/archive_retention.spec.ts"
+    "tests/e2e/archive_retention.spec.ts",
+    "tests/active_title_fetch.test.ts",
+    "tests/archive-resource-path.test.ts",
+    "tests/asset_dedup_and_matching.test.ts",
+    "tests/asset_tab_fallback.test.ts",
+    "tests/audit_reinforcement.test.ts",
+    "tests/b1_writer_unified.test.ts",
+    "tests/batch_fetcher_abort.test.ts",
+    "tests/chat_formatter.test.ts",
+    "tests/continued_chat_export_badge.test.ts",
+    "tests/data_safety_batch1.test.ts",
+    "tests/dedup_regressions.test.ts",
+    "tests/diagnostic_snapshot.test.ts",
+    "tests/document-markdown-contract.test.ts",
+    "tests/dom_scraper.test.ts",
+    "tests/domain-contract.test.ts",
+    "tests/e2e/visual_inspector.spec.ts",
+    "tests/export_orchestrator.test.ts",
+    "tests/exportedids_alias.test.ts",
+    "tests/finalize_conversation_export.test.ts",
+    "tests/html-document-migration-other-layers.test.ts",
+    "tests/html_export.test.ts",
+    "tests/imagen_generated_assets.test.ts",
+    "tests/l1-source-timestamps.test.ts",
+    "tests/l4-resource-path.test.ts",
+    "tests/list-source-boundary.test.ts",
+    "tests/live_save_coordinator.test.ts",
+    "tests/live_save_coordinator_safety.test.ts",
+    "tests/live_save_observer.test.ts",
+    "tests/maintenance_convergence_batch4.test.ts",
+    "tests/markdown-resource-parser.test.ts",
+    "tests/media-identity-persistence.test.ts",
+    "tests/p0_regressions.test.ts",
+    "tests/p1_b2_msgui.test.ts",
+    "tests/p1_d_regressions.test.ts",
+    "tests/p1_h2_pathwriter.test.ts",
+    "tests/pagination_contract.test.ts",
+    "tests/pdf-dataurl-assets.test.ts",
+    "tests/pdf-e2e-disk.test.ts",
+    "tests/pdf-exporter-dispose.test.ts",
+    "tests/pdf-parity-corpus.test.ts",
+    "tests/pdf-stress-gates.test.ts",
+    "tests/pdf-visual-corpus.test.ts",
+    "tests/perf_optimizations.test.ts",
+    "tests/phase_g_p2_fixes.test.ts",
+    "tests/pr3_lastseen_fallback.test.ts",
+    "tests/regression_lock_other_layers.test.ts",
+    "tests/reliability_ux_batch3.test.ts",
+    "tests/search_image_export.test.ts",
+    "tests/session_store.test.ts",
+    "tests/sync_provider_contract.test.ts",
+    "tests/takeout_and_limit_guidance.test.ts",
+    "tests/unified_ingest_integrity.test.ts",
+    "tests/user_file_attachment.test.ts",
+    "tests/verifiable_export_batch2.test.ts",
+    "tests/verified_scan_overlap.test.ts"
   ],
   "l1L2Repair": {
     "base": "65581493",
@@ -863,5 +918,26 @@
     "scopedCommand": "node scripts/test-l3.cjs",
     "tier2": "Harness contracts migrated; no live Tier 2 execution.",
     "report": "docs/l3-frozen-design-audit.md"
+  },
+  "currentTier1Audit": {
+    "date": "2026-10-20",
+    "initialBaseline": "bb1d4d162e32bceec5347c243c07f60e9971c64f",
+    "localVerificationBase": "de6080120b9ceabaedad9646fa19a652d4fbe0d5",
+    "report": "docs/dev-v2-tier1-repair.md",
+    "initialUnitFiles": 336,
+    "initialFailedUnitFiles": 63,
+    "command": "npm test",
+    "unitFilesPassed": 336,
+    "playwrightCasesPassed": 121,
+    "zeroAny": "passed",
+    "typecheck": "passed",
+    "build": "passed",
+    "isolatedModuleOwnersPassed": 10,
+    "unitPortFilesChecked": 10,
+    "scenarioPool": "20/20",
+    "liveTier2AndTier3": "not run",
+    "pendingDesignDecisions": [],
+    "acceptedUndefinedBehavior": "in-flight export racing separately confirmed deletion remains unspecified per user decision",
+    "priorVerificationSections": "historical scoped repair rounds; current results are in this object"
   }
 }

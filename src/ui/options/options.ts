@@ -87,6 +87,8 @@ export async function initWorkbench(): Promise<void> {
             'btnSyncAll','btnForceFullScan','btnImportTakeout'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         const selector = el<HTMLSelectElement>('accountIdSelect');
+        selector.setAttribute('aria-label', text('Account', '账户'));
+        el('chatSearchInput').setAttribute('aria-label', text('Search title or ID', '搜索标题或 ID'));
         selector.replaceChildren();
         for (const account of state.accounts) {
             const option = document.createElement('option');

@@ -1,9 +1,11 @@
-import { fixtureAccount } from './helpers/domainFixture.js';
+import { parseGeminiDomConversation } from '../src/l1/parsers/gemini/dom/parseConversation.js';
+import { parseGeminiDomList } from '../src/l1/parsers/gemini/dom/parseIndex.js';
+import { parseDomContent } from '../src/l1/parsers/gemini/dom/content.js';
+import { isReservedRoute } from '../src/shared/utils/pathUtils.js';
 const { extractBlockText } = require('../src/l2/content/unknownFallback.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const DomScraper = require('../src/runtime/content/domScraper.js');
 
 let nodeCounter = 0;
 
@@ -97,22 +99,22 @@ function createMockElement(tag: string, attrs: Record<string, string> = {}, text
     return el;
 }
 
-test('dom_scraper - cleanText functionality', () => {
-    assert.strictEqual(DomScraper.cleanText('  Hello\u00a0World\r\n  '), 'Hello World');
-    assert.strictEqual(DomScraper.cleanText(''), '');
-    assert.strictEqual(DomScraper.cleanText(null), '');
-    assert.strictEqual(DomScraper.cleanText(undefined), '');
+test('dom parser preserves authored text without the retired scraper cleanup', () => {
+    const text = '  Hello\u00a0World\r\n  ';
+    const parsed = parseDomContent(createMockElement('p', {}, text) as unknown as Element);
+    assert.ok(parsed.map(extractBlockText).join('\n').includes('Hello'));
+    assert.deepStrictEqual(parseDomContent(createMockElement('p') as unknown as Element), []);
 });
 
 test('dom_scraper - isReservedRoute route detection', () => {
-    assert.strictEqual(DomScraper.isReservedRoute('download'), true);
-    assert.strictEqual(DomScraper.isReservedRoute('c_settings'), true);
-    assert.strictEqual(DomScraper.isReservedRoute('trash'), true);
-    assert.strictEqual(DomScraper.isReservedRoute('explore'), true);
-    assert.strictEqual(DomScraper.isReservedRoute('c_1bd028d5c5b0c0e2'), false);
-    assert.strictEqual(DomScraper.isReservedRoute('normal_chat_id'), false);
-    assert.strictEqual(DomScraper.isReservedRoute(''), false);
-    assert.strictEqual(DomScraper.isReservedRoute(null), false);
+    assert.strictEqual(isReservedRoute('download'), true);
+    assert.strictEqual(isReservedRoute('c_settings'), true);
+    assert.strictEqual(isReservedRoute('trash'), true);
+    assert.strictEqual(isReservedRoute('explore'), true);
+    assert.strictEqual(isReservedRoute('c_1bd028d5c5b0c0e2'), false);
+    assert.strictEqual(isReservedRoute('normal_chat_id'), false);
+    assert.strictEqual(isReservedRoute(''), false);
+    assert.strictEqual(isReservedRoute(null), false);
 });
 
 test('dom_scraper - parseDoc extracts messages, images, and title correctly', () => {
@@ -140,11 +142,11 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
         querySelectorAll: (sel: string) => root.querySelectorAll!(sel)
     };
 
-    const parsed = DomScraper.parseDoc(mockDoc, 'chat_001', undefined, fixtureAccount());
+    const parsed = parseGeminiDomConversation({ document: mockDoc, id: 'chat_001' }, { providerId: 'gemini' });
 
     assert.strictEqual(parsed.conversationId, 'chat_001');
     assert.strictEqual(parsed.conversation.index.titleSource, 'provider');
-    assert.ok(parsed.conversation.index.title.includes('量子力学与量子纠缠探讨'), `Title should be cleaned: ${parsed.conversation.index.title}`);
+    assert.ok(parsed.conversation.index.title?.includes('量子力学与量子纠缠探讨'), `Title should be cleaned: ${parsed.conversation.index.title}`);
     assert.strictEqual(parsed.conversation.detail.messages.length, 2);
     assert.equal(parsed.conversation.detail.quality.status, 'partial');
     assert.equal('key' in parsed.conversation.detail, false);
@@ -177,7 +179,7 @@ test('dom_scraper - parseDoc fallbacks when standard tags are absent', () => {
         querySelectorAll: (sel: string) => root.querySelectorAll!(sel)
     };
 
-    const parsed = DomScraper.parseDoc(mockDoc, 'c_fallback_test', undefined, fixtureAccount());
+    const parsed = parseGeminiDomConversation({ document: mockDoc, id: 'c_fallback_test' }, { providerId: 'gemini' });
     assert.strictEqual(parsed.conversation.detail.messages.length, 2);
     assert.strictEqual(parsed.conversation.detail.messages[0].role, 'user');
     assert.strictEqual(parsed.conversation.detail.messages[0].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '用户提问内容');
@@ -187,23 +189,15 @@ test('dom_scraper - parseDoc fallbacks when standard tags are absent', () => {
     assert.strictEqual(parsed.conversation.index.titleSource, undefined);
 });
 
-test('dom_scraper - getScrollContainer locates history scroller element', () => {
-    const origDoc = (global as any).document;
-    try {
-        const mockContainer = createMockElement('nav', { 'aria-label': 'Chat History 历史记录' });
-        (global as any).document = {
-            querySelector: (sel: string) => {
-                if (sel.includes('历史') || sel.includes('History')) return mockContainer;
-                return null;
-            }
-        };
-
-        const res = DomScraper.getScrollContainer();
-        assert.ok(res, 'Scroll container should be found');
-        assert.strictEqual(res.getAttribute('aria-label'), 'Chat History 历史记录');
-    } finally {
-        (global as any).document = origDoc;
-    }
+test('DOM list parser observes history without scrolling or expanding it', () => {
+    let mutations = 0;
+    const doc = {
+        querySelectorAll: () => [],
+        querySelector: () => { throw new Error('Must not locate interactive controls'); },
+        scroll: () => { mutations++; },
+    } as unknown as Document;
+    assert.deepStrictEqual(parseGeminiDomList(doc), []);
+    assert.strictEqual(mutations, 0);
 });
 
 test('dom_scraper - getConversationLinks parses links and skips reserved routes', () => {
@@ -220,7 +214,7 @@ test('dom_scraper - getConversationLinks parses links and skips reserved routes'
             }
         };
 
-        const links = DomScraper.getConversationLinks();
+        const links = parseGeminiDomList((globalThis as unknown as {document: Document}).document);
         assert.strictEqual(links.length, 2, 'Should skip reserved route /trash');
         assert.strictEqual(links[0].id, '1bd028d5c5b0c0e2');
         assert.strictEqual(links[0].title, '火星猫咪');
@@ -232,7 +226,7 @@ test('dom_scraper - getConversationLinks parses links and skips reserved routes'
     }
 });
 
-test('dom_scraper - tryExpandRecents clicks expand buttons safely', () => {
+test('DOM list parser leaves collapsed recent controls untouched', () => {
     const origDoc = (global as any).document;
     try {
         const expandBtn = createMockElement('button', { 'aria-label': 'Toggle Recents', 'aria-expanded': 'false' });
@@ -243,8 +237,9 @@ test('dom_scraper - tryExpandRecents clicks expand buttons safely', () => {
             }
         };
 
-        DomScraper.tryExpandRecents();
-        assert.strictEqual(expandBtn.clicked, true, 'Expand button should be clicked');
+        (global as any).document.querySelectorAll = () => [];
+        assert.deepStrictEqual(parseGeminiDomList((global as any).document), []);
+        assert.strictEqual(expandBtn.clicked, false, 'Passive parser must not expand recents');
     } finally {
         (global as any).document = origDoc;
     }

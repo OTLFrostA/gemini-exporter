@@ -18,11 +18,12 @@ type Reply = (value: unknown) => void;
 function tabs(t: TestContext,
     handler: (id: number, message: TabMessage, reply: Reply) => void,
     list: Array<{ id: number; active?: boolean }> = [{ id: 11 }, { id: 22 }]) {
+    const chromeHost = globalThis.chrome;
     const previous = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
     const runtime = globalThis.chrome.runtime;
     const previousError = Object.getOwnPropertyDescriptor(runtime, 'lastError');
     const calls: Array<{ id: number; message: TabMessage }> = [];
-    Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
+    Object.defineProperty(chromeHost, 'tabs', { configurable: true, value: {
         query: async () => list.map(tab => ({ ...tab, url: 'https://gemini.google.com/app' })),
         sendMessage: (id: number, message: TabMessage, reply: Reply) => {
             calls.push({ id, message });
@@ -30,8 +31,8 @@ function tabs(t: TestContext,
         },
     } });
     t.after(() => {
-        if (previous) Object.defineProperty(globalThis.chrome, 'tabs', previous);
-        else Reflect.deleteProperty(globalThis.chrome, 'tabs');
+        if (previous) Object.defineProperty(chromeHost, 'tabs', previous);
+        else Reflect.deleteProperty(chromeHost, 'tabs');
         if (previousError) Object.defineProperty(runtime, 'lastError', previousError);
         else Reflect.deleteProperty(runtime, 'lastError');
     });

@@ -24,7 +24,7 @@ import type { Diagnostic } from '../../src/shared/diagnostics/diagnostic.js';
 import { convertMathWithMitex, initMitexWasm } from '../../src/l4/format/typst/mathConverter.js';
 import { compareMarkdownAst, compareMathConversion, type DiffCategory } from './diff_runner.js';
 import { TypstSandboxCompiler } from '../../src/l4/format/pdf/typst/typstSandboxCompiler.js';
-import { renderDocumentTypst } from '../../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypstCore } from '../../src/l4/format/typst/renderTypstCore.js';
 import { RealWasmSandboxHost, repoRoot } from '../../tests/helpers/realWasmSandbox.js';
 
 export type MarkdownParserFn = (content: string, id: string) => Promise<{ conversation: DomainConversationDetail; diagnostics: Diagnostic[] }>;
@@ -489,7 +489,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         baseTypstMap.set(e.latex, e.typst);
                     }
                     const convertMathFn = (s: string) => baseTypstMap.get(s);
-                    const document = renderDocumentTypst(composeDomainDocument(domain, fixtureAccount()), {}, { convertMath: convertMathFn });
+                    const document = renderDocumentTypstCore(composeDomainDocument(domain, fixtureAccount()), {}, {}, { convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,
@@ -534,7 +534,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         candTypstMap.set(e.latex, e.typst);
                     }
                     const convertMathFn = (s: string) => candTypstMap.get(s);
-                    const document = renderDocumentTypst(composeDomainDocument(domain, fixtureAccount()), {}, { convertMath: convertMathFn });
+                    const document = renderDocumentTypstCore(composeDomainDocument(domain, fixtureAccount()), {}, {}, { convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,

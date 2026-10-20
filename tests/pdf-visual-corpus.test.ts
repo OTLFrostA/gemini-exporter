@@ -96,7 +96,7 @@ test('visual corpus manifest: exactly the 12 fixed fixtures with stable ids', ()
         EXPECTED_IDS,
     );
     for (const { item } of entries) {
-        assert.ok(item.document && item.document.schemaVersion === 2, `${item.id}: missing Document AST`);
+        assert.ok(item.document && typeof item.document.title === 'string', `${item.id}: missing Document AST`);
         assert.ok(item.expect && typeof item.expect.minPages === 'number', `${item.id}: missing expect.minPages`);
     }
 });
@@ -149,7 +149,7 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
         store[aid] = new Uint8Array(Buffer.from(b64 as string, 'base64'));
     }
     const display = item.document;
-    assert.strictEqual(typeof display.header.title, 'string', `${item.id}: fixture titles follow the current semantic contract`);
+    assert.strictEqual(typeof display.title, 'string', `${item.id}: fixture titles follow the current semantic contract`);
     const { payload: document, diagnostics: payloadDiagnostics } = renderTypstFixture(display, Object.fromEntries(item.resourceIds.map((id: string) => [id, `assets/${id}`])), {
         convertMath,
         locale: 'zh',

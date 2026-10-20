@@ -1,5 +1,5 @@
 // Retained Application export-entry scenarios; still included in normal discovery.
-import { fixtureResourceResults } from './helpers/documentFixture.js';
+import { composeFixture } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 /**
@@ -18,7 +18,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 
 const chat: any = {
     id: 'migrate_001',
@@ -83,11 +83,10 @@ let newHtml: string;
 // Build independent test evidence in a suite hook, not in a preceding test.
 test.before(async () => {
     const native = historicalFixture(chat);
-    const res = await ChatFormatter.formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
-    assert.strictEqual(res.ext, 'html');
-    assert.strictEqual(res.mime, 'text/html');
-    assert.ok(String(res.content).startsWith('<!DOCTYPE html>'), 'must be a full HTML document');
-    newHtml = String(res.content);
+    const { document, resources } = await composeFixture(native.conversation, native.resourceHints);
+    const { html } = await renderDocumentHtml(document, resources);
+    assert.ok(html.startsWith('<!DOCTYPE html>'), 'must be a full HTML document');
+    newHtml = html;
 });
 
 test('migration: message count and order are correct', () => {
@@ -147,8 +146,9 @@ test('migration: duplicate source message IDs preserve every message at export',
             { id: 'c_dup_001', role: 'user', content: 'first user prompt' },
         ],
     };
-    const result = await ChatFormatter.formatHtmlDocument(historicalFixture(dupChat));
-    assert.deepStrictEqual(turnRoles(result.content), ['user', 'model', 'user']);
-    assert.equal(result.content.match(/first user prompt/g)?.length, 2);
-    assert.ok(result.content.includes('model answer'));
+    const { document, resources } = await composeFixture(historicalFixture(dupChat).conversation);
+    const { html } = await renderDocumentHtml(document, resources);
+    assert.deepStrictEqual(turnRoles(html), ['user', 'model', 'user']);
+    assert.equal(html.match(/first user prompt/g)?.length, 2);
+    assert.ok(html.includes('model answer'));
 });

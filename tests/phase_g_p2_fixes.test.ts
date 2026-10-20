@@ -1,37 +1,31 @@
-import { withRegistry } from './helpers/registryMock.js';
-import { listFixture } from './helpers/listFixture.js';
-import { indexFixture } from './helpers/indexFixture.js';
-const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
 // Phase G (G4) P2 行为修复回归测试。
 
-// ---------- P2-1: pagination 达 maxPages 必须标 stoppedEarly ----------
-test('P2-1: getAllConversations 跑满 maxPages 时 stoppedEarly=true', async () => {
-    const Pagination = require('../src/l1/client/gemini/api/pagination.js');
-    let callCount = 0;
-    const mockClient = {
-        getConversationList: async () => {
-            callCount++;
-            return listFixture(([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture), `token_${callCount}`);
-        }
-    };
-    const result = await Pagination.getAllConversations(mockClient, 3);
-    assert.strictEqual(callCount, 3, '应恰好拉取 3 页');
-    assert.strictEqual(result.total, 3);
-    assert.strictEqual(result.stoppedEarly, true, '跑满 maxPages 必须标 stoppedEarly（否则上层误判已穷尽）');
-    assert.ok(result.diagnostics.stopReason.includes('最大页数'), 'stopReason 应说明页数上限');
+// List completion belongs to the provider; its safety budget is internal.
+import { indexStorage } from './helpers/indexStorage.js';
+import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { sourceList, sourceDetail } from './helpers/l1SourceFixture.js';
+import { getCoverage } from '../src/l2/coverageAdmission.js';
+import { listIndexes } from '../src/l3a/storageService.js';
+import { getStoredSettings, patchStoredSettings, SETTINGS_KEY } from '../src/l3a/settingsStore.js';
+test('P2-1: safety-budget exhaustion remains distinct from a natural source end', async () => {
+    const env = indexStorage(); let calls=0;
+    try {
+        const p = new GeminiProvider({getConversationList:async()=>sourceList(['page'+ ++calls], 'tC_'+calls),getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
+        assert.strictEqual(await p.listConversations({accountId:ACCOUNT_UUID,streamId:'recent'}), 'max_pages');
+        assert.strictEqual(calls,2000); assert.strictEqual((await listIndexes(ACCOUNT_UUID)).length,2000);
+        assert.strictEqual((await getCoverage(ACCOUNT_UUID,'recent'))?.range,null);
+    } finally { env.restore(); }
 });
-
-test('P2-1 对照: 自然到底时 stoppedEarly 不为 true', async () => {
-    const Pagination = require('../src/l1/client/gemini/api/pagination.js');
-    const mockClient = {
-        getConversationList: async () => listFixture([], null)
-    };
-    const result = await Pagination.getAllConversations(mockClient, 2000);
-    assert.ok(!result.stoppedEarly, '服务端自然到底不应标 stoppedEarly');
+test('P2-1: empty terminal page is a natural end', async () => {
+    const env=indexStorage();try {
+        const p=new GeminiProvider({getConversationList:async()=>sourceList(),getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
+        assert.strictEqual(await p.listConversations({accountId:ACCOUNT_UUID,streamId:'recent'}),'source_end');
+    }finally{env.restore();}
 });
 
 // ---------- P2-3: 401 先刷新 at，刷新失败才删凭证 ----------
@@ -140,6 +134,7 @@ test('P2-3: 401 但 map 中无此 sid → 两条路径都是 no-op（不写不�
 
 // ---------- P2-4: bootstrap hook payload 的 p.bl 优先 ----------
 test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值', async () => {
+    const previous = new Map(['chrome', 'window', 'document', 'location'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
     const store: Record<string, any> = {};
     (globalThis as any).chrome = {
         runtime: { id: 'test-ext', sendMessage: async (message: any) => ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}) },
@@ -174,12 +169,12 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
     (globalThis as any).document = {
         querySelectorAll: () => [],
         documentElement: { innerHTML: '' },
-        addEventListener: () => {}
+        addEventListener: () => {}, removeEventListener: () => {}
     };
     (globalThis as any).location = { href: 'https://gemini.google.com/app', origin: 'https://gemini.google.com' };
     try {
         delete require.cache[require.resolve('../src/l1/client/gemini/bootstrap.js')];
-        require('../src/l1/client/gemini/bootstrap.js');
+        require('../src/l1/client/gemini/bootstrap.js').initBootstrap();
         // 预置旧 bl
         store['gemini_credentials_map'] = {
             sid1: { at: 'old-at', sid: 'sid1', bl: 'old-bl', accountSlot: 'u0', lastUsed: 1 }
@@ -202,161 +197,40 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
             'hook payload 的 p.bl 必须优先（此前被丢弃，只用 old.bl/页面抓取）');
         assert.strictEqual(store['gemini_credentials_map'].sid1.at, 'hook-at');
     } finally {
-        delete (globalThis as any).window;
-        delete (globalThis as any).document;
-        delete (globalThis as any).location;
-        delete (globalThis as any).chrome;
+        require('../src/runtime/content/cleanupRegistry.js').runCleanups();
+        require('../src/runtime/content/accountContext.js').invalidateAccountContext();
+        for (const [key, descriptor] of previous) {
+            if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+            else Reflect.deleteProperty(globalThis, key);
+        }
         delete require.cache[require.resolve('../src/l1/client/gemini/bootstrap.js')];
     }
 });
 
-// ---------- chatFormatter fail-closed ----------
-test('P2: formatContent 未知格式显式抛错（不静默回落 markdown）', () => {
-    const ChatFormatter = require('../src/core/engine/chatFormatter.js');
-    const chat = { id: 'x', title: 't', messages: [] };
-    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'pdf'), /unsupported format: pdf/);
-    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'typo-format'), /unsupported format/);
-    // 合法格式不受影响
-    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'markdown'), /unsupported format: markdown/);
-    assert.strictEqual(ChatFormatter.formatContent(historicalFixture(chat), 'json').ext, 'json');
-    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'json_raw'), /unsupported format/);
+// PDF is now supported; formatting is owned by the unified export API.
+import { runExport } from '../src/application/export/runExport.js';
+import { v2ExportHost, seedExportConversation, exportRequest } from './helpers/v2ExportHost.js';
+test('P2: current JSON export is delivered by the unified pipeline', async (t: import('node:test').TestContext) => {
+    const h=v2ExportHost(t);await seedExportConversation('json');
+    const result=await runExport(exportRequest(['json'],{format:'json'}));
+    assert.strictEqual(result.exported,1);
+    const body=JSON.parse(await h.blobs[0].text()); assert.ok(JSON.stringify(body).includes('Answer for json'));
 });
-
-// ---------- P2-11: sessionStore 并发 updateSession 不丢更新 ----------
-test('P2-11: 并发 updateSession 串行化，无 lost update', async () => {
-    const memoryStorage: Record<string, any> = {};
-    (globalThis as any).chrome = {
-        storage: {
-            local: {
-                get: async (keys: string[]) => {
-                    await new Promise(r => setTimeout(r, 5)); // 放大竞态窗口
-                    const res: Record<string, any> = {};
-                    for (const k of keys) if (k in memoryStorage) res[k] = memoryStorage[k];
-                    return res;
-                },
-                set: async (obj: Record<string, any>) => {
-                    await new Promise(r => setTimeout(r, 5));
-                    Object.assign(memoryStorage, obj);
-                },
-                remove: async (keys: string[]) => { for (const k of keys) delete memoryStorage[k]; }
-            }
-        }
-    };
-    // navigator.locks 在 Node 24 原生存在；这里验证 fallback 链同样串行。
-    // 为确定性，测试走"无 Web Locks → 内存链"路径与"有 Web Locks"路径两种情形。
-    try {
-        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
-        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/l3a/sessionStore.js');
-        await SessionStore.setSession({ status: 'running' });
-        const N = 10;
-        await Promise.all(Array.from({ length: N }, (_, i) =>
-            SessionStore.updateSession({ [`field_${i}`]: i })
-        ));
-        const final = memoryStorage[EXPORT_SESSION_KEY];
-        for (let i = 0; i < N; i++) {
-            assert.strictEqual(final[`field_${i}`], i, `field_${i} 丢失：并发写互相覆盖`);
-        }
-        assert.strictEqual(final.status, 'running', '原有字段应被 merge 保留');
-    } finally {
-        delete (globalThis as any).chrome;
-        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
-    }
+test('P2-11: concurrent settings patches preserve all independent fields',async()=>{
+    const env=indexStorage();try{
+        await Promise.all([patchStoredSettings({language:'en'}),patchStoredSettings({includeAssets:false}),patchStoredSettings({enabledDisk:true}),patchStoredSettings({defaultFormat:'html'})]);
+        const s=await getStoredSettings();assert.strictEqual(s.language,'en');assert.strictEqual(s.includeAssets,false);assert.strictEqual(s.enabledDisk,true);assert.strictEqual(s.defaultFormat,'html');
+    }finally{env.restore();}
 });
-
-// ---------- P2-11: 无 Web Locks → 内存链 fallback 同样串行 ----------
-test('P2-11: 无 Web Locks 时内存链 fallback 串行化', async () => {
-    const memoryStorage: Record<string, any> = {};
-    (globalThis as any).chrome = {
-        storage: {
-            local: {
-                get: async (keys: string[]) => {
-                    await new Promise(r => setTimeout(r, 5)); // 放大竞态窗口
-                    const res: Record<string, any> = {};
-                    for (const k of keys) if (k in memoryStorage) res[k] = memoryStorage[k];
-                    return res;
-                },
-                set: async (obj: Record<string, any>) => {
-                    await new Promise(r => setTimeout(r, 5));
-                    Object.assign(memoryStorage, obj);
-                },
-                remove: async (keys: string[]) => { for (const k of keys) delete memoryStorage[k]; }
-            }
-        }
-    };
-    // Node 24 的 navigator 是 getter，直接赋值/删除无效，必须用 defineProperty 去掉 locks。
-    const origDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-    try {
-        Object.defineProperty(globalThis, 'navigator', {
-            value: {}, // 故意不带 locks，迫使 getWebLocks() 返回 null
-            configurable: true,
-            writable: true,
-        });
-        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
-        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/l3a/sessionStore.js');
-        await SessionStore.setSession({ status: 'running' });
-        const N = 10;
-        await Promise.all(Array.from({ length: N }, (_, i) =>
-            SessionStore.updateSession({ [`field_${i}`]: i })
-        ));
-        const final = memoryStorage[EXPORT_SESSION_KEY];
-        for (let i = 0; i < N; i++) {
-            assert.strictEqual(final[`field_${i}`], i, `field_${i} 丢失：内存链 fallback 未串行`);
-        }
-        assert.strictEqual(final.status, 'running', '原有字段应被 merge 保留');
-    } finally {
-        delete (globalThis as any).chrome;
-        if (origDesc) Object.defineProperty(globalThis, 'navigator', origDesc);
-        else delete (globalThis as any).navigator;
-        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
-    }
+test('P2-11: unavailable Web Locks fails before writing settings',async()=>{
+    const env=indexStorage(), previous=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+    try{Object.defineProperty(globalThis,'navigator',{configurable:true,value:{}});
+        await assert.rejects(patchStoredSettings({language:'en'})); assert.deepStrictEqual(await getStoredSettings(),{});
+    }finally{if(previous)Object.defineProperty(globalThis,'navigator',previous);else Reflect.deleteProperty(globalThis,'navigator');env.restore();}
 });
-
-// ---------- P2-11: 模拟 navigator.locks → 验证跨 tab 锁名 ----------
-test('P2-11: 有 Web Locks 时使用锁名 gemini-exporter:write:session', async () => {
-    const memoryStorage: Record<string, any> = {};
-    (globalThis as any).chrome = {
-        storage: {
-            local: {
-                get: async (keys: string[]) => {
-                    const res: Record<string, any> = {};
-                    for (const k of keys) if (k in memoryStorage) res[k] = memoryStorage[k];
-                    return res;
-                },
-                set: async (obj: Record<string, any>) => { Object.assign(memoryStorage, obj); },
-                remove: async (keys: string[]) => { for (const k of keys) delete memoryStorage[k]; }
-            }
-        }
-    };
-    const seenNames: string[] = [];
-    const fakeLocks = {
-        request: async (name: string, fn: () => Promise<any>) => {
-            seenNames.push(name);
-            return fn();
-        }
-    };
-    const origDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-    try {
-        Object.defineProperty(globalThis, 'navigator', {
-            value: { locks: fakeLocks },
-            configurable: true,
-            writable: true,
-        });
-        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
-        const { SessionStore, EXPORT_SESSION_KEY } = require('../src/l3a/sessionStore.js');
-        await SessionStore.setSession({ status: 'running' });
-        await Promise.all([1, 2, 3].map(i => SessionStore.updateSession({ [`f${i}`]: i })));
-        assert.ok(seenNames.length > 0, '有 Web Locks 时应走 locks.request');
-        for (const n of seenNames) {
-            assert.strictEqual(n, 'gemini-exporter:write:session', `跨 tab 锁名错误: ${n}`);
-        }
-        const final = memoryStorage[EXPORT_SESSION_KEY];
-        assert.strictEqual(final.f1, 1);
-        assert.strictEqual(final.f2, 2);
-        assert.strictEqual(final.f3, 3);
-    } finally {
-        delete (globalThis as any).chrome;
-        if (origDesc) Object.defineProperty(globalThis, 'navigator', origDesc);
-        else delete (globalThis as any).navigator;
-        delete require.cache[require.resolve('../src/l3a/sessionStore.js')];
-    }
+test('P2-11: settings use one cross-tab Web Lock name',async()=>{
+    const env=indexStorage(), previous=Object.getOwnPropertyDescriptor(globalThis,'navigator'), seen:string[]=[];
+    try{Object.defineProperty(globalThis,'navigator',{configurable:true,value:{locks:{request:async(name:string,fn:()=>Promise<void>)=>{seen.push(name);return fn();}}}});
+        await patchStoredSettings({language:'en'});assert.deepStrictEqual(seen,[SETTINGS_KEY]);
+    }finally{if(previous)Object.defineProperty(globalThis,'navigator',previous);else Reflect.deleteProperty(globalThis,'navigator');env.restore();}
 });

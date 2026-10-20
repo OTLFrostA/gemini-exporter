@@ -67,6 +67,6 @@ test('acquisition receipt/path changes never become Domain fields or change an i
     const parsed = mediaSources().online; await commit(parsed); const first = await readConversation(key);
     const asset = parsed.conversation.detail.assets[0];
     parsed.acquisitionHints = { [asset.id]: { localName: 'archive/relocated.png', dataBase64: 'AQID' } };
-    assert.equal(await commit(parsed), false); assert.deepEqual(await readConversation(key), first);
+    assert.deepEqual(await commit(parsed), { accepted: true, changed: false }); assert.deepEqual(await readConversation(key), first);
     assert.equal(JSON.stringify(first).includes('archive/relocated.png'), false);
 });

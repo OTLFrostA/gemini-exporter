@@ -1,4 +1,4 @@
-import { fixtureResourceResults } from './helpers/documentFixture.js';
+import { composeFixture } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/html_export.test.ts
@@ -12,7 +12,7 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const ChatFormatter = require('../src/core/engine/chatFormatter.js');
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 
 test('html_export - formatHtmlDocument returns valid structure, metadata, and styles', async () => {
     const mockChat = {
@@ -47,11 +47,8 @@ test('html_export - formatHtmlDocument returns valid structure, metadata, and st
     };
 
     const native = historicalFixture(mockChat);
-    const res = await ChatFormatter.formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
-    assert.strictEqual(res.ext, 'html');
-    assert.strictEqual(res.mime, 'text/html');
-
-    const html = res.content;
+    const { document, resources } = await composeFixture(native.conversation, native.resourceHints);
+    const { html } = await renderDocumentHtml(document, resources);
 
     // 1. Valid HTML5 Doctype & Meta
     assert.ok(html.startsWith('<!DOCTYPE html>'), 'Must start with <!DOCTYPE html>');
@@ -98,13 +95,14 @@ test('html_export - supports English localization and handles empty conversation
         messages: []
     };
 
-    const resEn = await ChatFormatter.formatHtmlDocument(historicalFixture(emptyChat), { lang: 'en' });
-    assert.ok(resEn.content.includes('<html>'), 'Unknown document language must not be inferred from English UI');
-    assert.ok(resEn.content.includes('Empty conversation.'), 'Must render English empty notice');
+    const { document, resources } = await composeFixture(historicalFixture(emptyChat).conversation);
+    const { html: htmlEn } = await renderDocumentHtml(document, resources, { locale: 'en' });
+    assert.ok(htmlEn.includes('<html>'), 'Unknown document language must not be inferred from English UI');
+    assert.ok(htmlEn.includes('Empty conversation.'), 'Must render English empty notice');
 
-    const resZh = await ChatFormatter.formatHtmlDocument(historicalFixture(emptyChat), { lang: 'zh' });
-    assert.ok(resZh.content.includes('<html>'), 'Unknown document language must not be inferred from Chinese UI');
-    assert.ok(resZh.content.includes('暂无对话记录。'), 'Must render Chinese empty notice');
+    const { html: htmlZh } = await renderDocumentHtml(document, resources, { locale: 'zh' });
+    assert.ok(htmlZh.includes('<html>'), 'Unknown document language must not be inferred from Chinese UI');
+    assert.ok(htmlZh.includes('暂无对话记录。'), 'Must render Chinese empty notice');
 });
 
 test('html_export - XSS protection escapes malicious tags', async () => {
@@ -119,9 +117,10 @@ test('html_export - XSS protection escapes malicious tags', async () => {
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlDocument(historicalFixture(attackChat));
-    assert.ok(!res.content.includes('<script>alert("hacked")</script>'), 'Title script tags must be escaped');
-    assert.ok(res.content.includes('&lt;script&gt;alert(&quot;hacked&quot;)&lt;/script&gt;'), 'Title must be HTML encoded');
+    const { document, resources } = await composeFixture(historicalFixture(attackChat).conversation);
+    const { html } = await renderDocumentHtml(document, resources);
+    assert.ok(!html.includes('<script>alert("hacked")</script>'), 'Title script tags must be escaped');
+    assert.ok(html.includes('&lt;script&gt;alert(&quot;hacked&quot;)&lt;/script&gt;'), 'Title must be HTML encoded');
 });
 
 test('html_export - XSS pseudo-protocols in markdown links are disarmed to safe href', async () => {
@@ -140,13 +139,13 @@ test('html_export - XSS pseudo-protocols in markdown links are disarmed to safe 
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlDocument(historicalFixture(attackChat));
-    const html = res.content;
+    const { document, resources } = await composeFixture(historicalFixture(attackChat).conversation);
+    const { html } = await renderDocumentHtml(document, resources);
     assert.ok(!html.includes('href="javascript:'), 'Must NOT contain javascript: in href');
     assert.ok(!html.includes('href="vbscript:'), 'Must NOT contain vbscript: in href');
     assert.ok(!html.includes('href="data:text/html'), 'Must NOT contain data:text/html in href');
     assert.ok(!html.includes('src="javascript:'), 'Must NOT contain javascript: in src');
-    assert.ok(html.includes('href="https://example.com"'), 'Valid https links must be preserved');
+    assert.ok(html.includes('href="https://example.com/"'), 'Valid https links must be preserved');
     // Canonical renderer is offline-first: remote asset bytes are never
     // embedded, so a remote image renders a visible missing-asset placeholder
     // (alt text kept) instead of a remote <img src>.

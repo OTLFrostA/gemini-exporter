@@ -80,5 +80,6 @@ export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSi
     const bytes = new Uint8Array(await response.arrayBuffer());
     signal?.throwIfAborted();
     if (!bytes.byteLength) throw new Error('Empty source resource');
-    return { bytes, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
+    const mediaType = asset.mediaType ?? response.headers.get('content-type')?.split(';')[0].trim();
+    return { bytes, ...(mediaType ? { mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
 }

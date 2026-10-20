@@ -33,8 +33,8 @@ test('conversationsStore - in-memory view state is per instance and account chan
 test('conversationsStore - export records use exact current Conversation IDs', async () => {
     const record: ExportRecord = { format: 'markdown', exportedAt: 5000, status: 'ok' };
     const state = view([row('123'), row('c_123')], { '123': record }); await state.refresh();
-    state.filter = 'exported'; assert.deepEqual(state.visible().map(r => r.key.conversationId), ['123']);
-    state.filter = 'unexported'; assert.deepEqual(state.visible().map(r => r.key.conversationId), ['c_123']);
+    state.filter = 'has_record'; assert.deepEqual(state.visible().map(r => r.key.conversationId), ['123']);
+    state.filter = 'no_record'; assert.deepEqual(state.visible().map(r => r.key.conversationId), ['c_123']);
 });
 test('conversationsStore - refresh publishes changed titles and identities without a signature cache', async () => {
     let rows = [row('a')]; const state = new ConversationViewState({ listAccounts: async () => accounts,

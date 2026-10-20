@@ -1,15 +1,20 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-
-const TakeoutEngine = require('../src/l1/imports/takeoutEngine.js');
+import type { DomainAsset } from '../src/l2/conversationDetail.js';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { getDetail } from '../src/l3a/storageService.js';
+import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
+import { buildExportFiles } from '../src/l4/packaging/index.js';
 
 test('asset_dedup - ZIP import preserves exact image bytes and per-turn Domain ownership', async () => {
     const slot = '10000000-0000-4000-8000-000000000001';
     const id = 'chat_multi_img_123';
-    const g = globalThis as any;
+    const g = globalThis;
+    const resources = createSourceResourceContext();
+    const key = { accountId: slot, conversationId: id };
     const originalJSZip = Object.getOwnPropertyDescriptor(g, 'JSZip');
     const JSZip = require('../lib/jszip.min.js');
     Object.defineProperty(g, 'JSZip', { value: JSZip, configurable: true, writable: true });
@@ -34,82 +39,44 @@ test('asset_dedup - ZIP import preserves exact image bytes and per-turn Domain o
         zip.file('Takeout/Gemini/unreferenced.png', new Uint8Array([97, 98, 99]));
 
         const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-        const parsed = await TakeoutEngine.parseTakeoutZip(zipBuffer, null, slot);
-        assert.strictEqual(parsed.status, 'ok', 'all referenced resources must resolve');
-        assert.strictEqual(parsed.resourceResults.filter((result: any) => result.ok).length, 3,
-            'only three referenced resources are delivered');
-        const native = TakeoutEngine.getTakeoutOfflineChat(id, slot);
-        assert.ok(native, 'real ZIP import must produce a native Domain conversation');
-        assert.strictEqual(native.conversation.detail.assets.length, 3,
-            'an unreferenced ZIP file must not become a Domain asset');
-
-        const userMessages = native.conversation.detail.messages.filter((message: any) => message.role === 'user');
-        assert.strictEqual(userMessages.length, images.length);
+        const imported = await importTakeout(zipBuffer as unknown as File, slot, undefined, resources);
+        assert.equal(imported.imported, 1);
+        const detail = await getDetail(key);
+        assert.ok(detail, 'real ZIP import must persist the admitted Domain Detail');
+        assert.equal(detail.assets.length, 3, 'unreferenced files must not become Domain assets');
+        const userMessages = detail.messages.filter(message => message.role === 'user');
+        assert.equal(userMessages.length, images.length);
         const owned = new Set<string>();
         for (let i = 0; i < images.length; i++) {
             const ids = userMessages[i].attachmentIds || [];
             assert.strictEqual(ids.length, 1, `turn ${i + 1} must own one source image`);
             assert.strictEqual(owned.has(ids[0]), false, 'distinct source images must not share an asset ID');
             owned.add(ids[0]);
-            const path = native.resourceHints[ids[0]]?.archivePath;
-            assert.ok(path?.endsWith(`/${images[i].filename}`),
-                `turn ${i + 1} must own its exact source file, not a similarly named image`);
-            assert.deepStrictEqual(
-                await TakeoutEngine.getTakeoutFallbackMedia(id, { assetId: ids[0] }, slot),
-                new Uint8Array(images[i].bytes),
-                'Domain asset ownership must resolve the correct original archive bytes'
-            );
+            const asset: DomainAsset | undefined = detail.assets.find(candidate => candidate.id === ids[0]);
+            assert.ok(asset);
+            assert.deepEqual((await resources.acquire(key, asset)).bytes, new Uint8Array(images[i].bytes),
+                'each turn must resolve its exact archive bytes, not a similarly named image');
         }
-        assert.strictEqual(
-            await TakeoutEngine.getTakeoutFallbackMedia(id, { assetId: '', sourceUri: 'image.png' }, slot),
-            null, 'generic names must not select an arbitrary sibling image'
-        );
-        assert.strictEqual(
-            await TakeoutEngine.getTakeoutFallbackMedia(id, { assetId: '', sourceUri: 'unreferenced.png' }, slot),
-            null, 'unused ZIP media must not be bound to this conversation'
-        );
+        for (const sourceUri of ['image.png', 'unreferenced.png']) {
+            await assert.rejects(resources.acquire(key, { id: '', kind: 'image', sourceUri }), /No supported source locator/,
+                'generic or unused archive names must not select a sibling resource');
+        }
     } finally {
-        TakeoutEngine.clearTakeoutData(slot);
+        resources.release();
         if (originalJSZip) Object.defineProperty(g, 'JSZip', originalJSZip);
-        else delete g.JSZip;
+        else Reflect.deleteProperty(g, 'JSZip');
     }
 });
 
-test('asset_dedup - AssetPipeline preserves byteOffset and byteLength for sliced buffers', async () => {
-    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
-    let writtenBytes: any = null;
-    let writtenPath = '';
-
-    const mockWriter = {
-        writeFile: async (path: string, content: any) => {
-            writtenPath = path;
-            writtenBytes = content;
-            return path;
-        }
-    };
-
-    const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
-        useZip: true,
-        writer: mockWriter,
-        fetchAssetDelegate: async () => {
-            const slab = new Uint8Array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
-            const slice = new Uint8Array(slab.buffer, 3, 4);
-            return {
-                success: true,
-                dataBuffer: slice,
-                mime: 'image/png'
-            };
-        }
-    }) });
-
-    const item = { assetId: 'sliced', localName: 'assets/sliced.png', url: 'https://example.com/sliced.png' };
-    const chat = { id: 'chat1', title: 'Test Chat' };
-    const res = await pipeline.processAsset(item, chat, { isImage: true });
-
-    assert.strictEqual(res.ok, true);
-    assert.strictEqual(writtenPath, 'assets/sliced.png');
-    assert.ok(writtenBytes instanceof Uint8Array, 'Written content must be Uint8Array');
-    assert.strictEqual(writtenBytes.byteLength, 4, `Expected byteLength 4, got ${writtenBytes.byteLength}`);
-    assert.deepStrictEqual(Array.from(writtenBytes), [30, 40, 50, 60], 'Should only write slice contents, not slab');
+test('asset_dedup - resource preparation and Packaging preserve sliced buffer bounds', async () => {
+    const slab = new Uint8Array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
+    const prepared = await prepareExportResources([{ id: 'sliced', kind: 'image', mediaType: 'image/png' }],
+        new Set(['sliced']), async () => ({ bytes: new Uint8Array(slab.buffer, 3, 4) }));
+    const files = buildExportFiles('markdown', {
+        fileName: 'chat.md', resources: { sliced: 'assets/sliced.png' }, externalResourceIds: new Set(['sliced']),
+    }, 'conversation', prepared);
+    const resource = files.find(file => file.fileName === 'assets/sliced.png');
+    assert.ok(resource?.content instanceof Uint8Array);
+    assert.equal(resource.content.byteLength, 4);
+    assert.deepEqual(Array.from(resource.content), [30, 40, 50, 60]);
 });
-

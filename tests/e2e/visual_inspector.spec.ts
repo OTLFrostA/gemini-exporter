@@ -47,7 +47,9 @@ async function screenshot(page: import('@playwright/test').Page, name: string) {
     expect(fs.existsSync(dest)).toBe(true);
 }
 async function verifyPopoverGeometry(page: import('@playwright/test').Page, target: string, action: string) {
-    const result = await page.evaluate(({ target, action }) => {
+    // Restored Tour cards animate after footer/status relayout. Assert the
+    // eventual geometry rather than sampling a button mid-transition offscreen.
+    await expect.poll(async () => page.evaluate(({ target, action }) => {
         const popover = document.querySelector('.tour-popover') as HTMLElement | null;
         const anchor = document.querySelector(target) as HTMLElement | null;
         const button = [...(popover?.querySelectorAll('button') ?? [])].find(b => b.textContent?.trim() === action);
@@ -55,9 +57,9 @@ async function verifyPopoverGeometry(page: import('@playwright/test').Page, targ
         const p = popover.getBoundingClientRect(), a = anchor.getBoundingClientRect();
         const clear = p.right <= a.left || p.left >= a.right || p.bottom <= a.top || p.top >= a.bottom;
         const b = button.getBoundingClientRect(), hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        return { present: true, clear, hittable: hit === button || !!button.contains(hit) };
-    }, { target, action });
-    expect(result).toEqual({ present: true, clear: true, hittable: true });
+        const hittable = hit === button || !!button.contains(hit);
+        return { present: true, clear, hittable };
+    }, { target, action })).toEqual({ present: true, clear: true, hittable: true });
 }
 
 test('the real seven-step v2 Tour has no target collisions and Next can be physically clicked throughout', async ({ context, extensionId }) => {

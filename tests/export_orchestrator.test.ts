@@ -66,10 +66,11 @@ const source = (id: string, kind: DomainAsset['kind'], url: string,
 function sourceTransport(t: { after(fn: () => void): void }, entries: Record<string, {
     bytes: Uint8Array; type: string;
 }>) {
+    const chromeHost = globalThis.chrome;
     const previousTabs = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
     const oldFetch = globalThis.fetch;
     const requested: string[] = [];
-    Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
+    Object.defineProperty(chromeHost, 'tabs', { configurable: true, value: {
         query: async () => [{ id: 9, url: 'https://gemini.google.com/app/source' }],
         sendMessage: async () => ({ ok: true, accountContext: {
             accountId: exportKey('fixture').accountId, providerId: 'gemini', slot: 'u0',
@@ -86,8 +87,8 @@ function sourceTransport(t: { after(fn: () => void): void }, entries: Record<str
     }) as typeof fetch;
     t.after(() => {
         globalThis.fetch = oldFetch;
-        if (previousTabs) Object.defineProperty(globalThis.chrome, 'tabs', previousTabs);
-        else Reflect.deleteProperty(globalThis.chrome, 'tabs');
+        if (previousTabs) Object.defineProperty(chromeHost, 'tabs', previousTabs);
+        else Reflect.deleteProperty(chromeHost, 'tabs');
     });
     return requested;
 }

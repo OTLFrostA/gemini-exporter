@@ -26,7 +26,7 @@ for (const ids of [[], ['one']]) test(`list: terminal ${ids.length} rows commit 
 test('list: invalid populated page saves valid rows but throws and cannot certify coverage', async () => {
     const invalid = sourceList(['two']); invalid.pageEvidence.valid = false;
     const progress: number[] = [];
-    await assert.rejects(listProvider([sourceList(['one'], 'tC_next'), invalid]).listConversations({ ...options, onPageCommitted: async p => { progress.push(p.totalObserved); return false; } }), /Malformed/);
+    await assert.rejects(listProvider([sourceList(['one'], 'tC_next'), invalid]).listConversations({ ...options, onPageCommitted: async p => { progress.push(p.totalObserved); return false; } }), /Unverified Gemini list page/);
     assert.deepEqual((await getConversations(ACCOUNT_UUID)).map(i => i.key.conversationId).sort(), ['one', 'two']);
     assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range, null);
     assert.deepEqual(progress, [1, 2]);
@@ -38,7 +38,7 @@ test('list: loop and ordinary errors propagate after committed progress', async 
 });
 test('list: safety budget is internal and reports max_pages without coverage', async () => {
     let pages = 0;
-    const provider = new GeminiProvider({ getConversationList: async () => sourceList(['one'], 'tC_' + ++pages), getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    const provider = new GeminiProvider({ getConversationList: async () => sourceList(['page_' + ++pages], 'tC_' + pages), getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     assert.equal(await provider.listConversations(options), 'max_pages'); assert.equal(pages, 2000);
     assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range, null);
 });

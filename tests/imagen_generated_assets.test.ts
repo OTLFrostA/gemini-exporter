@@ -1,11 +1,11 @@
-import { fixtureResourceResults } from './helpers/documentFixture.js';
+import { composeFixture } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { extractImages } = require('./helpers/recordFixture/attachments.js');
 export {};
 
 const test = require('node:test');
 const assert = require('node:assert');
-const ChatFormatter = require('../src/core/engine/chatFormatter.js');
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 
 test('geminiParser - extracts Imagen generated image node (Pattern 2)', () => {
     const imagenNode = [
@@ -122,7 +122,8 @@ test('chatFormatter - formats generated image as markdown and cleans placeholder
     };
 
     const parsed = historicalFixture(mockChat);
-    const { content: res } = await ChatFormatter.formatMarkdownDocument(parsed, { resourceResults: await fixtureResourceResults(parsed.conversation, parsed.resourceHints) });
+    const { document, resources } = await composeFixture(parsed.conversation, parsed.resourceHints);
+    const res = renderDocumentMarkdown(document, resources);
     // 必须包含 Markdown 图片引用 ![]
     assert.ok(res.includes('!['));
     assert.ok(res.includes('assets/b800f3_watermarked_img_16704480932994645752.jpg'));
