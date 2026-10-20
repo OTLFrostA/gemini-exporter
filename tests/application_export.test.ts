@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runExport, shouldSkipExport } from '../src/application/export/runExport.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
+import { updateSettings } from '../src/application/settings/index.js';
 import type { ExportRecord } from '../src/application/export/types.js';
 
 test.beforeEach(reset);
@@ -16,15 +17,25 @@ test('Skip requires same format, ok record and comparable source versions; deliv
     assert.equal(shouldSkipExport(previous, 100, request()), false);
     assert.equal(shouldSkipExport(previous, 100, request({ skipUnchanged: true, includeAssets: false, delivery: 'folderWriter', })), true);
 });
+test('Skip accepts zero epoch-ms but rejects fractional, nonfinite and unsafe source versions', () => {
+    const skip = request({ skipUnchanged: true });
+    assert.equal(shouldSkipExport({ ...previous, chatTime: 0 }, 0, skip), true);
+    for (const invalid of [NaN, Infinity, -Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+        assert.equal(shouldSkipExport({ ...previous, chatTime: invalid }, 100, skip), false);
+        assert.equal(shouldSkipExport(previous, invalid, skip), false);
+    }
+});
 for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
     test(`${format} uses local Domain, shared resources, then delivery before the minimal Record`, async () => {
         seed();
+        const startedAt = Date.now();
         const result = await runExport(request({ format }));
         assert.equal(result.exported, 1); assert.equal(result.partial, 0);
         assert.deepEqual(events, ['delivery', 'record:first']);
         const record = records.get(address(key()))!;
         assert.deepEqual(Object.keys(record).sort(), ['chatTime', 'exportedAt', 'format', 'status']);
         assert.equal(record.chatTime, 100); assert.equal(record.format, format);
+        assert.ok(record.exportedAt >= startedAt && record.exportedAt <= Date.now(), 'delivery record uses real epoch-ms');
         assert.equal(deliveries[0].length, 1);
         if (format !== 'pdf') assert.match(String(deliveries[0][0].content), /Body first/);
         if (format === 'pdf') assert.equal(state.disposed, 1);
@@ -43,13 +54,59 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         seed('first', { assets: true });
         const result = await runExport(request({ format }));
         assert.equal(result.exported, 1);
-        assert.deepEqual(events.filter(event => event.startsWith('acquire:')), format === 'pdf' ? ['acquire:image']
-            : format === 'json' ? ['acquire:image', 'acquire:file', 'acquire:unused'] : ['acquire:image', 'acquire:file']);
-        if (format === 'pdf') { assert.deepEqual(state.pdfPrepared, ['image']); assert.ok(state.pdfBindings.image); }
-        else assert.equal(deliveries[0][0].mimeType, 'application/zip');
+        assert.deepEqual(events.filter(event => event.startsWith('acquire:')), format === 'json'
+            ? ['acquire:image', 'acquire:file', 'acquire:unused'] : ['acquire:image', 'acquire:file']);
+        if (format === 'pdf') {
+            assert.deepEqual(state.pdfPrepared, ['image', 'file']);
+            assert.ok(state.pdfBindings.image); assert.ok(state.pdfBindings.file);
+        }
+        assert.equal(deliveries[0][0].mimeType, 'application/zip');
     });
 }
-test('Popup bypasses records; Options and Live Save can Skip', async () => {
+test('PDF retains referenced File-node originals but does not emit embedded images separately', async () => {
+    seed('first', { assets: true });
+    const result = await runExport(request({ format: 'pdf', delivery: 'folderWriter' }));
+    assert.equal(result.exported, 1);
+    assert.deepEqual(state.pdfPrepared, ['image', 'file']);
+    assert.equal(deliveries.length, 1);
+    assert.equal(deliveries[0].length, 2);
+    assert.match(deliveries[0][0].fileName, /\.pdf$/);
+    assert.match(deliveries[0][1].fileName, /^files\//);
+    assert.ok(!deliveries[0].some(file => file.fileName.startsWith('assets/')));
+});
+for (const format of ['markdown', 'html', 'pdf'] as const) {
+    test(`${format} uses the shared Settings language for renderer-owned text`, async () => {
+        await updateSettings({ language: 'zh' });
+        seed();
+        const result = await runExport(request({ format }));
+        assert.equal(result.exported, 1);
+        assert.equal(state.settingsReads, 1);
+        if (format === 'pdf') assert.equal(state.pdfLocale, 'zh');
+        else assert.match(String(deliveries[0][0].content), /你/);
+    });
+}
+test('Export resolves renderer language once per task and JSON does not read renderer preferences', async () => {
+    await updateSettings({ language: 'en' });
+    seed(); seed('second');
+    const result = await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }));
+    assert.equal(result.exported, 2);
+    assert.equal(state.settingsReads, 1);
+    reset(); seed();
+    assert.equal((await runExport(request({ format: 'json' }))).exported, 1);
+    assert.equal(state.settingsReads, 0);
+});
+test('PDF ordinary renderer diagnostics do not mark partial, but FORMAT_CONTENT_OMITTED does', async () => {
+    seed();
+    state.pdfDiagnostics = [{ severity: 'warning', code: 'TYPST_LOCAL_FONT_READ_FAILED', message: 'fallback used' }];
+    const first = await runExport(request({ format: 'pdf' }));
+    assert.equal(first.exported, 1); assert.equal(first.partial, 0);
+    assert.equal(records.get(address(key()))?.status, 'ok');
+    state.pdfDiagnostics = [{ severity: 'warning', code: 'FORMAT_CONTENT_OMITTED', message: 'content omitted' }];
+    const second = await runExport(request({ format: 'pdf' }));
+    assert.equal(second.exported, 1); assert.equal(second.partial, 1);
+    assert.equal(records.get(address(key()))?.status, 'partial');
+});
+test('skipUnchanged opt-in uses the matching Record; false always performs the export', async () => {
     seed(); records.set(address(key()), previous);
     assert.equal((await runExport(request({ skipUnchanged: true }))).skipped, 1);
     assert.equal((await runExport(request())).exported, 1);
@@ -68,6 +125,17 @@ test('stale refresh failure exports old Detail as partial with its actual versio
     provider.fetchConversationDetail = async () => { events.push('refresh'); throw new Error('offline'); };
     const result = await runExport(request());
     assert.equal(result.partial, 1); assert.equal(records.get(address(key()))?.chatTime, 90);
+});
+test('confirmed remote Detail deletion fails the Key instead of exporting its stale local snapshot', async () => {
+    seed('first', { savedAt: 90 });
+    records.set(address(key()), previous);
+    provider.fetchConversationDetail = async () => { events.push('refresh'); throw new Error('conversation_not_found'); };
+    const result = await runExport(request());
+    assert.equal(result.exported, 0);
+    assert.deepEqual(result.failed, [key()]);
+    assert.deepEqual(events, ['refresh']);
+    assert.equal(records.get(address(key())), previous);
+    assert.equal(deliveries.length, 0);
 });
 test('unknown Detail quality exports as partial and cannot satisfy Skip after refresh failure', async () => {
     seed('first', { quality: 'unknown' });
@@ -95,7 +163,7 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         }
     });
 }
-test('batch planning consistently reserves colliding file names for separate conversations', async () => {
+test('Folder shared path planner reserves colliding file names for separate conversations', async () => {
     const first = seed('alpha_sameid'), second = seed('beta_sameid');
     first.index.title = 'Collision';
     second.index.title = 'Collision';
@@ -177,7 +245,7 @@ test('resource preparation retains failure results and propagates Abort', async 
     }, controller.signal), { name: 'AbortError' });
 });
 for (const delivery of ['browserDownload', 'folderWriter'] as const) {
-    test(`${delivery} ZIP failure fails only actual participants, never overwrites old records`, async () => {
+    test(`${delivery} delivery failure affects only participating keys and preserves old records`, async () => {
         seed(); seed('second'); seed('skipped');
         records.set(address(key()), previous); records.set(address(key('skipped')), previous);
         state.failDelivery = 1;

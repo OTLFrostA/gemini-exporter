@@ -1,4 +1,4 @@
-import { key, reset, stubModule, provider } from './helpers/applicationHarness.js';
+import { account, key, reset, stubModule, provider, state } from './helpers/applicationHarness.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { StreamCoverage } from '../src/l2/streamCoverage.js';
@@ -22,6 +22,47 @@ function trusted(): StreamCoverage {
     return { range: { head: { id: 'old', time: 90 }, tail: { id: 'older', time: 10 } } } as StreamCoverage;
 }
 test.beforeEach(() => { reset(); baseline = null; boundary = false; reads = 0; checks.length = 0; });
+test('Scan All fails closed on an invalid UUID or unverified online Account before Coverage or L1', async () => {
+    let listCalls = 0;
+    provider.listConversations = async () => { listCalls++; return 'source_end'; };
+    assert.deepEqual(await scanAll({ accountId: 'not-a-uuid' }), {
+        status: 'error', pagesFetched: 0, conversationsFetched: 0, reason: 'Invalid account UUID',
+    });
+    for (const unavailable of [null, { ...account, providerAccountId: 'default' }, { ...account, providerId: 'chatgpt' }]) {
+        state.accountOverride = unavailable;
+        assert.deepEqual(await scanAll({ accountId: account.id }), {
+            status: 'error', pagesFetched: 0, conversationsFetched: 0, reason: 'Verified Gemini account unavailable',
+        });
+    }
+    assert.equal(reads, 0);
+    assert.equal(listCalls, 0);
+    state.accountOverride = undefined;
+    assert.equal((await scanAll({ accountId: account.id })).status, 'complete', 'rejected attempts do not block later valid scans');
+});
+test('trusted empty Recent result can be complete without manufacturing a Coverage boundary', async () => {
+    provider.listConversations = async () => 'source_end';
+    const progress: unknown[] = [];
+    assert.deepEqual(await scanAll({ accountId: account.id }, { onProgress: value => progress.push(value) }), {
+        status: 'complete', pagesFetched: 0, conversationsFetched: 0,
+    });
+    assert.deepEqual(progress, []);
+    assert.equal(reads, 1); assert.equal(checks.length, 0);
+});
+test('unexpected Provider termination becomes a structured error, never undefined', async () => {
+    provider.listConversations = async () => 'unknown_end' as ListEnd;
+    assert.deepEqual(await scanAll({ accountId: account.id }), {
+        status: 'error', pagesFetched: 0, conversationsFetched: 0, reason: 'Unknown provider list termination',
+    });
+});
+test('already-aborted Scan does not read Coverage or enter the Provider', async () => {
+    const controller = new AbortController(); controller.abort();
+    let listCalls = 0;
+    provider.listConversations = async () => { listCalls++; return 'source_end'; };
+    assert.deepEqual(await scanAll({ accountId: account.id }, { signal: controller.signal }), {
+        status: 'aborted', pagesFetched: 0, conversationsFetched: 0,
+    });
+    assert.equal(reads, 0); assert.equal(listCalls, 0);
+});
 for (const [end, status, reason] of [ ['source_end', 'complete', undefined], ['provider_limit', 'partial_limit', 'provider_limit'],
     ['max_pages', 'partial_limit', 'max_pages'], ['stopped', 'error', 'Unverified scan stop'] ] as const) {
     test(`L1 ${end} maps to ${status} using only committed counters`, async () => {
