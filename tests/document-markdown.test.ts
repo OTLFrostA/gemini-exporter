@@ -9,7 +9,7 @@ import { composeDomainDocument } from '../src/core/document/compose/composeDomai
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 
-const time = '2026-10-06T00:00:00Z';
+const time = Date.parse('2026-10-06T00:00:00Z');
 function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-markdown.json', 'utf8'));
 }
@@ -41,8 +41,8 @@ test('Markdown consumes only JSON display choices, explicit time and prepared pa
     const md = renderDocumentMarkdown(restored, resources);
     assert.ok(!md.includes('exported:')); assert.ok(md.includes('**123**'));
     assert.equal(md.match(/!\[/g)?.length, 2); assert.ok(md.includes('Preserved description'));
-    restored.messages[0].label = 'developer';
-    restored.messages[0].sources = { type: 'sources', items: [{ id: 'ignored', label: 'Chosen source', number: 7 }] };
+    restored.messages[0].role = 'developer';
+    restored.messages[0].sources = [{ id: 'ignored', label: 'Chosen source', number: 7 }];
     const disclosure = restored.messages[0].blocks.find(block => block.type === 'disclosure');
     if (!disclosure || disclosure.type !== 'disclosure') throw new Error('Expected disclosure');
     disclosure.title = 'Chosen disclosure';
@@ -70,21 +70,21 @@ test('Markdown renderer cannot depend on provider, Domain or storage services', 
         assert.doesNotMatch(dependency, /(?:^|\/)(?:domain|parsers|storage|provider|api|engine)(?:\/|$)/,
             'Markdown rendering must consume Document AST instead of source-side services');
     }
-    assert.doesNotMatch(code, /\b(?:new\s+Date|Date\.now)\s*\(/, 'renderers must use supplied timestamps');
-    assert.doesNotMatch(code, /\.(?:role|storageRef)\b/, 'renderers must not inspect Domain or storage-only fields');
+    assert.doesNotMatch(code, /\bDate\.now\s*\(/, 'renderers must not invent export timestamps');
+    assert.doesNotMatch(code, /\.storageRef\b/, 'renderers must not inspect storage-only fields');
 });
 
 test('Markdown front matter reads identity and source dates only from Document AST', () => {
     const input = fixture(); input.index.updatedAt = 1000;
     const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
-    document.header.title = 'true';
+    document.title = 'true';
     document.metadata!.id = 'null';
     const markdown = renderDocumentMarkdown(document, {}, { includeFrontMatter: true, exportedAt: time });
     assert.ok(markdown.includes('title: "true"'));
     assert.ok(markdown.includes('id: "null"'));
     assert.ok(!/^url:/m.test(markdown), 'L3b metadata no longer supplies provider URLs');
     assert.ok(markdown.includes('updated: "1970-01-01T00:00:01.000Z"'));
-    assert.ok(markdown.includes(`exported: "${time}"`));
+    assert.ok(markdown.includes(`exported: "${new Date(time).toISOString()}"`));
     // @ts-expect-error Metadata is required; still reject malformed runtime callers explicitly.
     assert.throws(() => renderDocumentMarkdown({ ...document, metadata: undefined }, {}, { includeFrontMatter: true }), /metadata is required/);
 });

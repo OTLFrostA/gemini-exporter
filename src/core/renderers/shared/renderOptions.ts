@@ -14,7 +14,7 @@ export interface HtmlRenderOptions extends RenderOptions {
 }
 export interface MarkdownRenderOptions extends RenderOptions {
     includeFrontMatter?: boolean;
-    exportedAt?: string;
+    exportedAt?: number;
 }
 export interface PdfRenderOptions extends RenderOptions {
     convertMath?: (source: string, display: boolean) => string | undefined;

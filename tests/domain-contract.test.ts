@@ -30,8 +30,9 @@ test('AST: composer gives every message a unique positional ID without changing 
     }));
     const original = structuredClone(value);
     const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value)));
-    assert.deepEqual(document.messages.map(message => message.id), value.detail.messages.map((_, index) => `msg-${index}`));
-    assert.equal(new Set(document.messages.flatMap(message => message.sources?.items.map(item => item.id) ?? [])).size, value.detail.messages.length);
+    assert.equal(document.messages.length, value.detail.messages.length);
+    assert.ok(document.messages.every(message => !('id' in message)));
+    assert.deepEqual(document.messages.flatMap(message => message.sources?.map(item => item.number) ?? []), [1, 2, 3, 4, 5, 6]);
     assert.deepEqual(value, original);
 });
 test('unknown content and message order survive a JSON round trip across all backends', () => {

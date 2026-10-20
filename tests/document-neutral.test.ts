@@ -17,8 +17,8 @@ function freeze(value: unknown): void { if (!value || typeof value !== 'object')
 
 test('one immutable JSON document serves all three backends without losing rich structure', () => {
     const input = fixture(), inputBefore = JSON.stringify(input); freeze(input);
-    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)), { documentLanguage: 'zh-CN' });
-    assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)), { documentLanguage: 'zh-CN' }), document);
+    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
+    assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), document);
     const restored = JSON.parse(JSON.stringify(document)) as typeof document; freeze(restored);
     const before = JSON.stringify(restored), resources = { image: 'assets/image.png', file: 'assets/report.pdf' };
     const md = renderDocumentMarkdown(restored, resources, { locale: 'en' });
@@ -37,12 +37,12 @@ test('one immutable JSON document serves all three backends without losing rich 
     assert.deepEqual(renderDocumentTypst(document, resources), renderDocumentTypst(restored, resources));
 });
 
-test('UI locale, theme and page policy change independently of document language and content', () => {
-    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())), { documentLanguage: 'zh-CN' });
+test('UI locale, theme and page policy change without mutating Document AST', () => {
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     const resources = { image: 'assets/image.png', file: 'assets/report.pdf' }, before = JSON.stringify(document);
     const en = renderDocumentHtml(document, resources, { locale: 'en', theme: 'light', copyCode: false }).html;
     const zh = renderDocumentHtml(document, resources, { locale: 'zh' }).html;
-    assert.ok(en.includes('<html lang="zh-CN">') && en.includes('Thinking Process') && en.includes('light-theme'));
+    assert.ok(en.includes('<html>') && en.includes('Thinking Process') && en.includes('light-theme'));
     assert.ok(zh.includes('思考过程') && zh.includes('复制'));
     assert.ok(!en.includes('<button class="gem-copy-btn"'));
     const layout = defaultPdfLayout('zh-CN'); layout.page.widthMm = 148;

@@ -25,9 +25,6 @@ export function renderDocumentTypst(
     const inline = (node: DisplayInline): TypstInlineNode => {
         switch (node.type) {
             case 'text': return { type: 'text', text: node.text };
-            case 'placeholder':
-                options.onDiagnostic?.({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_MISSING', message: `Missing inline resource ${node.text}` });
-                return { type: 'text', text: unavailableResourceText(node.kind, node.text, locale) };
             case 'strong': case 'emphasis': case 'strikethrough': return { type: node.type, children: node.children.map(inline) };
             case 'inlineCode': return { type: 'inlineCode', text: node.code };
             case 'link': return { type: 'link', url: node.href, children: node.children.map(inline) };
@@ -70,23 +67,23 @@ export function renderDocumentTypst(
             case 'unsupported': return { type: 'unknown', sourceType: node.sourceType, label: `${strings.unsupportedContent} · ${node.sourceType}`, fallback: node.text, layout };
             case 'thematicBreak': return { type: 'thematicBreak', layout };
             case 'disclosure': return { type: 'note', ...(['summary', 'progress', 'reasoning'].includes(node.kind) || node.title ? { label: disclosureTitle(node, options) } : {}), blocks: node.blocks.map(block), layout };
-            case 'placeholder': return missing(node.kind, node.text, node.details);
         }
     };
     return {
-        schemaVersion: 1, profile: { id: 'pdf', version: 1 }, title: document.header.title, metadata: headerMetadata(document, locale, true) + (!document.messages.length ? ` · ${strings.emptyConversation}` : ''),
-        layout: structuredClone(options.layout ?? defaultPdfLayout(document.documentLanguage)),
+        schemaVersion: 1, profile: { id: 'pdf', version: 1 }, title: document.title, metadata: headerMetadata(document, locale, true) + (!document.messages.length ? ` · ${strings.emptyConversation}` : ''),
+        layout: structuredClone(options.layout ?? defaultPdfLayout()),
         messages: document.messages.map((message, index) => {
             const blocks = message.blocks.map(block);
-            const prefix = message.label === 'system' ? strings.systemMessage : message.label === 'developer' ? strings.developerMessage : message.label === 'unknown' ? strings.unknownRole : undefined;
+            const prefix = message.role === 'system' ? strings.systemMessage : message.role === 'developer' ? strings.developerMessage : message.role === 'unknown' ? strings.unknownRole : undefined;
             if (prefix) blocks.unshift({ type: 'note', children: [{ type: 'text', text: prefix }], layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
-            if (message.sources?.items.length) blocks.push({ type: 'note', label: strings.sources, children: message.sources.items.flatMap((item, index) => [
+            if (message.sources?.length) blocks.push({ type: 'note', label: strings.sources, children: message.sources.flatMap((item, index) => [
                 ...(index ? [{ type: 'lineBreak' as const }] : []),
                 item.href ? { type: 'link' as const, url: item.href, children: [{ type: 'text' as const, text: sourceLabel(item) }] } : { type: 'text' as const, text: sourceLabel(item) },
             ]), layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
-            applyLayout(blocks, message.variant === 'bubble', false);
+            const variant = message.role === 'user' ? 'bubble' as const : 'flow' as const;
+            applyLayout(blocks, variant === 'bubble', false);
             const next = document.messages[index + 1];
-            return { id: message.id, variant: message.variant, ...(message.modelLabel ? { model: message.modelLabel } : {}), plainText: message.blocks.map(blockText).join('\n'), minWidthCards: blocks.flatMap(node => node.type === 'file' ? [{ label: node.name, metadata: node.metadata }] : []), gapAfterPt: next ? (message.variant === 'flow' && next.variant === 'bubble' ? visual.spacing.turn : visual.spacing.section) * 0.75 : 0, blocks };
+            return { id: 'msg-' + index, variant, ...(message.modelLabel ? { model: message.modelLabel } : {}), plainText: message.blocks.map(blockText).join('\n'), minWidthCards: blocks.flatMap(node => node.type === 'file' ? [{ label: node.name, metadata: node.metadata }] : []), gapAfterPt: next ? (variant === 'flow' && next.role === 'user' ? visual.spacing.turn : visual.spacing.section) * 0.75 : 0, blocks };
         }),
     };
 }

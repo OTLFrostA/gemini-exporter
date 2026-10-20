@@ -28,8 +28,8 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
     assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), first);
     assert.equal(JSON.stringify(input), before);
     const document = first;
-    assert.equal(document.header.providerLabel, 'example');
-    assert.equal(document.messages[0].variant, 'bubble');
+    assert.equal(document.metadata.provider, 'example');
+    assert.equal(document.messages[0].role, 'user');
     assert.ok(renderDocumentHtml(document, resources, { locale: 'en' }).html.includes('Show more'));
     const disclosure = document.messages[1].blocks[0];
     assert.equal(disclosure.type, 'disclosure');
@@ -37,7 +37,7 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
         assert.equal(disclosure.kind, 'reasoning');
         assert.ok(!('initiallyCollapsed' in disclosure));
     }
-    assert.deepEqual(document.messages[1].sources?.items, [{ id: 'msg-1:c1', label: 'Source', href: 'https://example.com', number: 1 }]);
+    assert.deepEqual(document.messages[1].sources, [{ id: 'c1', label: 'Source', href: 'https://example.com', number: 1 }]);
     assert.equal(document.messages[1].blocks.filter(b => b.type === 'image').length, 2, 'registry identity never deduplicates placements');
     assert.ok(renderDocumentHtml(document, resources).html.includes('<strong>123</strong>'), 'explicit caption is not tested as a filename');
 });
@@ -48,15 +48,15 @@ test('JSON roundtrip and explicit presentation edits work without semantic input
     const restored: DocumentAst = JSON.parse(JSON.stringify(document));
     assert.deepEqual(restored, document);
     assert.deepEqual(renderDocumentHtml(restored, resources), renderDocumentHtml(document, resources));
-    restored.header.providerLabel = 'Custom metadata';
-    restored.messages[0].variant = 'flow';
-    restored.messages[1].sources = { type: 'sources', items: [{ id: 'chosen', label: 'Chosen source', number: 1 }] };
+    restored.metadata.provider = 'Custom metadata';
+    restored.messages[0].role = 'assistant';
+    restored.messages[1].sources = [{ id: 'chosen', label: 'Chosen source', number: 1 }];
     const disclosure = restored.messages[1].blocks[0];
     assert.equal(disclosure.type, 'disclosure');
     if (disclosure.type === 'disclosure') disclosure.title = 'Chosen title';
     const html = renderDocumentHtml(restored, resources).html;
     assert.ok(html.includes('Custom metadata'));
-    assert.ok(!html.includes('<div class="gem-user-bubble">'), 'renderer must not recompute bubble from a source role');
+    assert.ok(!html.includes('<div class="gem-user-bubble">'), 'renderer uses the AST role to select the presentation');
     assert.ok(html.includes('Chosen source') && html.includes('Chosen title'));
     assert.ok(!html.includes('gem-citation-chip" href="https://example.com'), 'renderer must not rebuild a source footer from registry');
 });
@@ -72,9 +72,9 @@ test('table alignment follows logical columns for colSpan and rowSpan', () => {
     assert.equal(table.type, 'table');
     if (table.type === 'table') {
         assert.equal(table.rows[0][1].column, 2);
-        assert.equal(table.rows[0][1].align, 'center');
+        assert.equal(table.columnAlignments[table.rows[0][1].column], 'center');
         assert.equal(table.rows[1][0].column, 2);
-        assert.equal(table.rows[1][0].align, 'center');
+        assert.equal(table.columnAlignments[table.rows[1][0].column], 'center');
     }
     assert.ok(renderDocumentHtml(document, { img: 'assets/img.png' }).html.includes('style="text-align:center">under'));
 });

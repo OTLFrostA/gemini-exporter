@@ -57,8 +57,8 @@ test('real PDF engine changes page policy without recomposing the document', asy
 test('PDF renderer follows edited Document AST presentation, not the original Domain roles', () => {
     const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     const altered: DocumentAst = structuredClone(document);
-    altered.header.title = 'Chosen export title';
-    altered.messages[0].variant = 'flow';
+    altered.title = 'Chosen export title';
+    altered.messages[0].role = 'assistant';
     altered.messages[1].modelLabel = 'Selected model';
 
     const original = renderDocumentTypst(document, resources);
@@ -67,7 +67,7 @@ test('PDF renderer follows edited Document AST presentation, not the original Do
     assert.equal(changed.messages[0].variant, 'flow');
     assert.equal(original.messages[0].blocks[1].layout.width, 'container');
     assert.equal(changed.messages[0].blocks[1].layout.width, 'reading',
-        'text width must follow the authored presentation variant');
+        'text width must derive from the AST message role');
     assert.equal(changed.title, 'Chosen export title');
     assert.equal(changed.messages[1].model, 'Selected model');
     assert.equal(original.messages[1].model, undefined);
@@ -88,8 +88,6 @@ test('PDF missing placements preserve authored numeric captions and descriptions
     assert.ok(file.type === 'file');
     assert.equal(file.name, 'Missing.pdf');
     assert.deepEqual(file.description, [{ type: 'strong', children: [{ type: 'text', text: 'Authored description' }] }]);
-    document.messages[1].blocks[1] = { type: 'placeholder', resourceId: 'missing', kind: 'file', text: 'Missing.pdf', details: [{ type: 'strong', children: [{ type: 'text', text: 'Authored description' }] }] };
-    const placeholder = renderDocumentTypst(document, {}).messages[1].blocks[1];
-    assert.equal(placeholder.type === 'unknown' && placeholder.fallback, 'Missing.pdf');
-    assert.deepEqual(placeholder.type === 'unknown' && placeholder.details, [{ type: 'strong', children: [{ type: 'text', text: 'Authored description' }] }]);
+    assert.doesNotMatch(JSON.stringify(document), /"type":"placeholder"/);
+
 });

@@ -23,7 +23,7 @@ function input(): DomainConversationWithDetail {
 // Existing renderer/export coverage, separated from AST unit tests.
 test('integration: exported metadata and message order', async () => {
     const domain = validateParserDomain(input());
-    const markdown = renderDocumentMarkdown(composeDomainDocument(domain, account), {}, { exportedAt: '2026-01-01T00:00:00Z', includeFrontMatter: true });
+    const markdown = renderDocumentMarkdown(composeDomainDocument(domain, account), {}, { exportedAt: Date.parse('2026-01-01T00:00:00Z'), includeFrontMatter: true });
     assert.ok(markdown.includes('provider: "chatgpt"'));
     assert.ok(markdown.indexOf('First body') < markdown.indexOf('Second body'));
     assert.ok((renderDocumentHtml(composeDomainDocument(domain, account), {}).html).includes('Index title'));
@@ -75,7 +75,7 @@ test('integration: renderers express unavailable media', () => {
     }
     const diagnostics: string[] = [];
     const pdf = renderDocumentTypst(document, { photo: 'assets/photo.png' }, { onDiagnostic: d => diagnostics.push(d.code) });
-    assert.equal(pdf.messages[1].blocks[1].type, 'file', 'PDF file card does not imply download failure');
+    assert.ok(pdf.messages[1].blocks.some(block => block.type === 'file'), 'PDF file card does not imply download failure');
     assert.deepEqual(diagnostics, []);
 
 });

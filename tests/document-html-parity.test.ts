@@ -208,18 +208,11 @@ test('offline: no remote asset URLs leak into output', () => {
 
 test('inline image (#555 contract): renders inline <img>, never dropped', () => {
     const document = {
-        "schemaVersion": 2,
-        "header": {
-            "title": "Inline img",
-            "providerLabel": "gemini",
-            "messageCount": 1
-        },
+        title: "Inline img",
+        metadata: { id: "inline", provider: "gemini" },
         "messages": [
             {
-                "type": "message",
-                "id": "m1",
-                "variant": "bubble",
-                "label": "you",
+                role: "user",
                 "blocks": [
                     {
                         "type": "paragraph",
@@ -254,18 +247,11 @@ test('inline image (#555 contract): renders inline <img>, never dropped', () => 
 
 test('inline image with missing asset: visible placeholder + diagnostic', () => {
     const document = {
-        "schemaVersion": 2,
-        "header": {
-            "title": "Inline img missing",
-            "providerLabel": "gemini",
-            "messageCount": 1
-        },
+        title: "Inline img missing",
+        metadata: { id: "inline-missing", provider: "gemini" },
         "messages": [
             {
-                "type": "message",
-                "id": "m1",
-                "variant": "bubble",
-                "label": "you",
+                role: "user",
                 "blocks": [
                     {
                         "type": "paragraph",

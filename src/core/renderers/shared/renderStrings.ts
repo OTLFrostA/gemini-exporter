@@ -13,7 +13,7 @@ export interface RendererStrings {
     emptyConversation: string;
     imageUnavailable: string;
     fileUnavailable: string;
-    roles: Record<'you' | 'assistant' | 'system' | 'developer' | 'unknown', string>;
+    roles: Record<'user' | 'assistant' | 'system' | 'developer' | 'unknown', string>;
 }
 
 const EN: RendererStrings = {
@@ -31,7 +31,7 @@ const EN: RendererStrings = {
     emptyConversation: 'Empty conversation.',
     imageUnavailable: 'Image unavailable',
     fileUnavailable: 'Attachment unavailable',
-    roles: { you: 'You', assistant: 'Assistant', system: 'System', developer: 'Developer', unknown: 'Message' },
+    roles: { user: 'You', assistant: 'Assistant', system: 'System', developer: 'Developer', unknown: 'Message' },
 };
 
 const ZH: RendererStrings = {
@@ -49,7 +49,7 @@ const ZH: RendererStrings = {
     emptyConversation: '暂无对话记录。',
     imageUnavailable: '图片不可用',
     fileUnavailable: '附件不可用',
-    roles: { you: '你', assistant: '助手', system: '系统', developer: '开发者', unknown: '消息' },
+    roles: { user: '你', assistant: '助手', system: '系统', developer: '开发者', unknown: '消息' },
 };
 
 export function getRendererStrings(locale: 'zh' | 'en'): RendererStrings {
