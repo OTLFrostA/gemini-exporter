@@ -85,6 +85,13 @@ test('Recent pages with unverified source ordering never advertise source_end',a
     assert.ok((await listIndexes(ACCOUNT_UUID)).some(i=>i.key.conversationId==='untrusted'));
     assert.equal(await getCoverage(ACCOUNT_UUID,'recent'),null);
 }));
+test('a repeated Recent source ID across pages cannot certify complete Coverage',async()=>fixture(async(_env,provider)=>{
+    provider([sourceList(['repeated'],'tC_repeat'),sourceList(['repeated'])]);
+    const result=await scanAll({accountId:ACCOUNT_UUID,forceFull:true});
+    assert.equal(result.status,'error');
+    assert.equal(result.pagesFetched,2);
+    assert.equal(await getCoverage(ACCOUNT_UUID,'recent')?.then(value => value?.range ?? null),null);
+}));
 test('ordinary request failures cannot manufacture a provider limit or reusable boundary',async()=>fixture(async(_env,provider)=>{
     provider([sourceList(['first'],'tC_next'),new Error('HTTP 500')]);
     assert.equal((await scanAll({accountId:ACCOUNT_UUID,forceFull:true})).status,'error');
