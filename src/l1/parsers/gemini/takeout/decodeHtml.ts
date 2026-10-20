@@ -141,8 +141,36 @@ function activityBlocks(htmlText: string): string[] {
     return blocks.slice(1);
 }
 
+/** Conversation links inside authored content are references, never an activity owner. */
+function activityMetadata(block: string): string {
+    const divTags = /<\/?div\b[^>]*>/gi;
+    let metadata = '';
+    let cursor = 0;
+    let contentDepth = 0;
+    for (let tag = divTags.exec(block); tag; tag = divTags.exec(block)) {
+        const closing = tag[0].startsWith('</');
+        if (contentDepth > 0) {
+            contentDepth += closing ? -1 : 1;
+            if (contentDepth === 0) cursor = divTags.lastIndex;
+        } else if (!closing) {
+            const classes = /\bclass\s*=\s*(['"])(.*?)\1/i.exec(tag[0])?.[2] ?? '';
+            if (classes.split(/\s+/).includes('content-cell')) {
+                metadata += block.slice(cursor, tag.index);
+                contentDepth = 1;
+            }
+        }
+    }
+    if (contentDepth === 0) metadata += block.slice(cursor);
+    return metadata;
+}
+
 function decodeActivityBlock(block: string, index: number): TakeoutActivityEvidence {
-    const conversationIds = [...new Set(Array.from(block.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g), m => m[1].replace(/^c_/, '')))];
+    const metadata = activityMetadata(block);
+    const metadataIds = [...new Set(Array.from(metadata.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g),
+        match => match[1].replace(/^c_/, '')))];
+    // No unverified event may be copied into several conversations.
+    if (metadataIds.length > 1) console.warn(`[Gemini Exporter] Takeout activity ${index + 1} has ambiguous conversation metadata; skipping it`);
+    const conversationIds = metadataIds.length === 1 ? metadataIds : [];
     const { promptText, hasExplicitPrompt } = parseTakeoutPrompt(block);
     const generated = /(?:(\d+)\s*generated images?|(\d+)\s*张生成的图片)/i.exec(block);
     const rawCell = activityContentCell(block);
