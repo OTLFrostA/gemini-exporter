@@ -15,7 +15,7 @@ const prepareDomainResources = async (results: Awaited<ReturnType<typeof fixture
 async function exportDomainMarkdown(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: number; locale?: 'en' | 'zh' } = {}) {
     return renderDocumentMarkdown(composeDomainDocument(domain, account), await prepareDomainResources(options.resourceResults ?? []), options);
 }
-async function exportDomainHtml(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: string; locale?: 'en' | 'zh' } = {}) {
+async function exportDomainHtml(domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1], options: { resourceResults?: Awaited<ReturnType<typeof fixtureResourceResults>>; exportedAt?: number; locale?: 'en' | 'zh' } = {}) {
     return renderDocumentHtml(composeDomainDocument(domain, account), await prepareDomainResources(options.resourceResults ?? []), options).html;
 }
 
