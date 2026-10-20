@@ -2,11 +2,12 @@ import test, { before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import { mount, read } from './helpers/uiPortHarness.js';
-import { installUiV2Mocks } from './helpers/uiV2Mocks.js';
+import { assertUiNodeIsolation, installUiV2Mocks } from './helpers/uiV2Mocks.js';
 
 installUiV2Mocks();
 const { STEPS } = require('../src/ui/guidance/tourSteps.js') as
     typeof import('../src/ui/guidance/tourSteps.js');
+assertUiNodeIsolation();
 let browser: Browser, page: Page;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });
