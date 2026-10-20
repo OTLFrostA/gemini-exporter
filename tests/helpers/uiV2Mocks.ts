@@ -40,10 +40,25 @@ export async function mockRunExport(request: ExportRequest, options: {
 function unconfigured(port: string): never {
     throw new Error(`UI unit test did not mock v2 external port: ${port}`);
 }
+const mockedFiles = new Set<string>();
 function stub(relativePath: string, exports: object): void {
     const filename = require.resolve(relativePath);
     // A test harness may provide a public port without loading the real owner.
     require.cache[filename] = { id: filename, filename, loaded: true, exports } as NodeModule;
+    mockedFiles.add(filename);
+}
+
+/** Verify no cross-module implementation was loaded transitively by any UI module. */
+export function assertUiNodeIsolation(): void {
+    for (const filename of Object.keys(require.cache)) {
+        const normalized = filename.replace(/\\/g, '/');
+        const root = normalized.lastIndexOf('/src/');
+        if (root < 0) continue;
+        const owner = normalized.slice(root + 5);
+        if (!owner.startsWith('ui/') && !mockedFiles.has(filename)) {
+            throw new Error(`Unmocked non-UI production import: ${owner}`);
+        }
+    }
 }
 
 /** Call once at the beginning of every Node UI-unit test file. */
