@@ -523,9 +523,6 @@ test('both active Background ports reject a different current Account before Exp
         'src/runtime/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
         'src/runtime/background/tabAction.js': { initTabActionListeners: () => {} },
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
-        // Background's Badge-position setting is an Application port, not a
-        // Runtime implementation; keep the real Application module isolated.
-        'src/application/settings/index.js': { updateSettings: async () => {} },
         'src/l3a/storageService.js': { listIndexes: () => assert.fail('Must reject before reading Index') },
         'src/runtime/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('Must reject before writing files') },
         // Background also imports Application Settings. Keep the v2 port mocked and
