@@ -5,8 +5,13 @@ test('old interrupted sessions stay inert after reload and language changes; sou
     await seedRegistryAccounts(context);const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'one',title:'Takeout Prompt 临时问题',titleSource:'derived'},{id:'two'}]);
     await page.evaluate(()=>chrome.storage.local.set({gemini_last_export_session:{status:'interrupted',total:2,current:1,lastChatId:'one',lastChatTitle:'Must not overwrite source title'}}));
     await page.reload();await expect(page.locator('#list .item')).toHaveCount(2);await expect(page.locator('#exportSessionBanner,#btnResumeExport,#btnDismissExportBanner')).toHaveCount(0);await expect(page.locator('#list input:checked')).toHaveCount(0);
-    await page.locator('#language').selectOption('zh');await expect(page.locator('[data-chat-id="one"]')).toContainText('Takeout Prompt 临时问题');await expect(page.locator('#btnExport')).toBeDisabled();
-    await page.locator('#language').selectOption('en');await expect(page.locator('[data-chat-id="one"]')).toContainText('Takeout Prompt 临时问题');
+    await page.locator('#langToggle').uncheck();
+    await expect(page.locator('html')).toHaveAttribute('lang','zh-CN');
+    await expect(page.locator('[data-chat-id="one"]')).toContainText('Takeout Prompt 临时问题');
+    await expect(page.locator('#btnExport')).toBeDisabled();
+    await page.locator('#langToggle').check();
+    await expect(page.locator('html')).toHaveAttribute('lang','en');
+    await expect(page.locator('[data-chat-id="one"]')).toContainText('Takeout Prompt 临时问题');
     // Direct IDB inspection is through current Storage, with no v1 globals or aliases.
     const {exposeUIStorage}=await import('./uiFixture');await exposeUIStorage(page);
     const index=await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').getIndex({accountId:id,conversationId:'one'}),accountId);expect(index.title).toBe('Takeout Prompt 临时问题');expect(index.titleSource).toBe('derived');
