@@ -28,6 +28,7 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     let outside = '';
     let pending = '';
     let opened: { marker: string; length: number } | null = null;
+    let inHtmlPre = false;
     for (const line of lines) {
         if (!line) continue;
         const content = line.replace(/\r?\n$/, '');
@@ -40,11 +41,14 @@ export function convertHtmlToMarkdown(html?: string | null): string {
                 opened = null;
             }
         } else {
-            const opening = /^ {0,3}(`{3,}|~{3,})[^\r\n]*$/.exec(content);
+            // Backticks inside a real HTML <pre> are content, not Markdown delimiters.
+            if (/<pre(?:\s|>)/i.test(content)) inHtmlPre = true;
+            const opening = inHtmlPre ? null : /^ {0,3}(`{3,}|~{3,})[^\r\n]*$/.exec(content);
             if (opening) {
                 opened = { marker: opening[1][0], length: opening[1].length };
                 pending = line;
             } else outside += line;
+            if (/<\/pre\s*>/i.test(content)) inHtmlPre = false;
         }
     }
     res = outside + (pending ? __stashCode(pending) : '');
