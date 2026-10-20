@@ -14,7 +14,7 @@ import type { PreparedResources } from '../../resources/resourceResult.js';
 import { renderDocumentMarkdown } from '../../renderers/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../../renderers/html/renderHtml.js';
 import { serializeDomainJson } from '../../renderers/json/serializeDomainJson.js';
-import { planExportPaths, buildExportFiles, packageExportFiles } from '../../export/packaging/index.js';
+import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles, type ExportPathPlan } from '../../export/packaging/index.js';
 import type { ExportArtifact } from '../../export/artifacts.js';
 import { startBrowserDownload, writeToFolder } from '../../export/delivery/index.js';
 import { compileDocumentPdf } from '../../export/pdf/compileDocumentPdf.js';
@@ -91,10 +91,46 @@ export async function runExport(request: ExportRequest, options: {
             }
         }
     };
+    const renderGroup = async (item: PendingExport, plan: ExportPathPlan): Promise<ExportGroup> => {
+        const { conversation, document, prepared, key } = item;
+        let partial = conversation.detail.quality.status !== 'complete'
+            || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
+                && conversation.detail.savedAt < conversation.index.updatedAt)
+            || [...prepared.values()].some(value => !value.ok);
+        let content: string | Uint8Array;
+        switch (request.format) {
+            case 'json': content = serializeDomainJson(conversation, item.account, plan.resources); break;
+            case 'markdown': content = renderDocumentMarkdown(document!, plan.resources); break;
+            case 'html': {
+                const html = renderDocumentHtml(document!, plan.resources);
+                content = html.html;
+                partial ||= html.diagnostics.some(diagnostic => diagnostic.severity !== 'info' && (request.includeAssets || !expectedMissingResource.has(diagnostic.code)));
+                break;
+            }
+            case 'pdf': {
+                if (!compiler) {
+                    compiler = new TypstSandboxCompiler();
+                    const mounted = await mountRuntimeFonts(await resolveLocalFonts(), compiler);
+                    pdfFonts = mounted.effectiveFonts;
+                }
+                const pdf = await compileDocumentPdf(document!, plan.resources, prepared, compiler,
+                    { signal, reportProgress() {} });
+                content = pdf.pdfBytes;
+                partial ||= [...(pdfFonts?.diagnostics ?? []), ...pdf.diagnostics].some(diagnostic => diagnostic.severity !== 'info' && (request.includeAssets || !expectedMissingResource.has(diagnostic.code)));
+                break;
+            }
+        }
+        signal.throwIfAborted();
+        const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
+            record: { exportedAt: 0, format: request.format, status: partial ? 'partial' : 'ok',
+                ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) } };
+        return group;
+    };
     try {
         signal.throwIfAborted();
         const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
         if (request.delivery === 'folderWriter' && !directory) throw new Error('Export directory unavailable');
+        const folderPlanner = request.delivery === 'folderWriter' ? createExportPathPlanner(request.format) : undefined;
         const pending: PendingExport[] = [];
         for (const [index, key] of request.keys.entries()) {
             signal.throwIfAborted();
@@ -124,17 +160,25 @@ export async function runExport(request: ExportRequest, options: {
                     : request.format === 'pdf' ? references!.imageIds : references!.referencedIds;
                 const prepared = await prepareExportResources(conversation.detail.assets, requiredIds,
                     (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
-                pending.push({ key, account, conversation, document, prepared });
+                const item: PendingExport = { key, account, conversation, document, prepared };
+                if (folderPlanner) {
+                    const group = await renderGroup(item, folderPlanner(conversation, prepared));
+                    await writeToFolder(group.files, directory!);
+                    await finalize([group]);
+                } else pending.push(item);
             } catch (error) {
                 if (cancelled(error)) throw error;
-                console.warn('[Gemini Exporter] Export preparation failed', key, error);
+                console.warn('[Gemini Exporter] Export item failed', key, error);
                 fail([key], error);
+            } finally {
+                // Free captured inline/Takeout readers as soon as this Folder item settles.
+                if (folderPlanner) resources.releaseConversation(key);
             }
         }
         signal.throwIfAborted();
         let plans: ReturnType<typeof planExportPaths>;
         try {
-            plans = planExportPaths(pending, request.format);
+            plans = folderPlanner ? [] : planExportPaths(pending, request.format);
         } catch (error) {
             if (cancelled(error)) throw error;
             console.warn('[Gemini Exporter] Export path planning failed', error);
@@ -145,43 +189,7 @@ export async function runExport(request: ExportRequest, options: {
         for (const [index, item] of pending.entries()) {
             signal.throwIfAborted();
             try {
-                const { conversation, document, prepared, key } = item;
-                const plan = plans[index];
-                let partial = conversation.detail.quality.status !== 'complete'
-                    || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
-                        && conversation.detail.savedAt < conversation.index.updatedAt)
-                    || [...prepared.values()].some(value => !value.ok);
-                let content: string | Uint8Array;
-                switch (request.format) {
-                    case 'json': content = serializeDomainJson(conversation, item.account, plan.resources); break;
-                    case 'markdown': content = renderDocumentMarkdown(document!, plan.resources); break;
-                    case 'html': {
-                        const html = renderDocumentHtml(document!, plan.resources);
-                        content = html.html;
-                        partial ||= html.diagnostics.some(diagnostic => diagnostic.severity !== 'info' && (request.includeAssets || !expectedMissingResource.has(diagnostic.code)));
-                        break;
-                    }
-                    case 'pdf': {
-                        if (!compiler) {
-                            compiler = new TypstSandboxCompiler();
-                            const mounted = await mountRuntimeFonts(await resolveLocalFonts(), compiler);
-                            pdfFonts = mounted.effectiveFonts;
-                        }
-                        const pdf = await compileDocumentPdf(document!, plan.resources, prepared, compiler,
-                            { signal, reportProgress() {} });
-                        content = pdf.pdfBytes;
-                        partial ||= [...(pdfFonts?.diagnostics ?? []), ...pdf.diagnostics].some(diagnostic => diagnostic.severity !== 'info' && (request.includeAssets || !expectedMissingResource.has(diagnostic.code)));
-                        break;
-                    }
-                }
-                signal.throwIfAborted();
-                const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
-                    record: { exportedAt: 0, format: request.format, status: partial ? 'partial' : 'ok',
-                        ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) } };
-                if (request.delivery === 'folderWriter') {
-                    await writeToFolder(group.files, directory!);
-                    await finalize([group]);
-                } else groups.push(group);
+                groups.push(await renderGroup(item, plans[index]));
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Export format or delivery failed', item.key, error);

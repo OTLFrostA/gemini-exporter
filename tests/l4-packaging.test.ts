@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/core/export/packaging/index.js';
+import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/core/export/packaging/index.js';
 import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
 import type { PreparedResources } from '../src/core/resources/resourceResult.js';
@@ -36,6 +36,16 @@ test('Packaging reserves batch paths case-insensitively and keeps resource IDs l
     assert.deepEqual(Object.values(plans[0].resources), ['assets/123456_Photo.png', 'assets/123456_photo_2.png']);
     assert.deepEqual(Object.values(plans[1].resources), ['assets/123456_Photo_3.png', 'assets/123456_photo_4.png']);
     assert.equal(plans[0].resources.failed, undefined);
+});
+test('Incremental path planner preserves the exact batch namespace and bindings', () => {
+    const first = conversation();
+    const second = conversation('chat');
+    const planNext = createExportPathPlanner('markdown');
+    const sequential = [planNext(first, prepared), planNext(second, prepared)];
+    const batch = planExportPaths([{ conversation: first, prepared }, { conversation: second, prepared }], 'markdown');
+    assert.deepEqual(sequential, batch);
+    assert.equal(sequential[1].fileName, 'chat_123456_2.md');
+    assert.equal(sequential[1].resources.a, 'assets/123456_Photo_3.png');
 });
 test('Packaging reserves long sanitized collision suffixes without writer truncation', () => {
     const c = conversation('z'.repeat(200));

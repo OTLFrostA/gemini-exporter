@@ -131,6 +131,27 @@ test('resource failure yields readable partial and no dangling binding', async (
     assert.equal(result.partial, 1);
     assert.deepEqual(JSON.parse(String(deliveries[0][0].content)).resources, {});
 });
+test('Folder Writer writes each item before acquiring the next and releases prior readers', async () => {
+    seed('first', { assets: true, savedAt: 90 });
+    seed('second', { assets: true, savedAt: 90 });
+    provider.fetchConversationDetail = async (_account, id) => {
+        if (id === 'second') {
+            assert.equal(deliveries.length, 1, 'first item must be written before second preparation');
+            assert.ok(events.includes('record:first'));
+            const old = await state.sourceContext!.acquire(key('first'), { id: 'image', kind: 'image' }, undefined,
+                async () => ({ bytes: new TextEncoder().encode('released') }));
+            assert.equal(new TextDecoder().decode(old.bytes), 'released', 'first item reader must be released');
+        }
+        state.sourceContext!.retain(key(id), 'image', async () => ({ bytes: new TextEncoder().encode(id) }));
+        seed(id, { assets: true });
+    };
+    provider.acquireResource = async (conversationKey, asset, signal) => state.sourceContext!.acquire(
+        conversationKey, asset, signal, async () => ({ bytes: new Uint8Array([9]), mediaType: asset.mediaType }));
+    const result = await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }));
+    assert.equal(result.exported, 2);
+    const images = deliveries.map(group => group.find(file => file.fileName.startsWith('assets/'))!.content as Uint8Array);
+    assert.deepEqual(images.map(bytes => new TextDecoder().decode(bytes)), ['first', 'second']);
+});
 test('resources stay keyed by Conversation as well as asset ID and task context releases', async () => {
     seed('first', { assets: true, savedAt: 90 }); seed('second', { assets: true, savedAt: 90 });
     provider.fetchConversationDetail = async (_account, id) => {
