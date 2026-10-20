@@ -1,7 +1,7 @@
 import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
-import { getIndex, getDetail, listIndexes } from '../../l3a/storageService.js';
+import { getIndex } from '../../l3a/storageService.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
@@ -41,11 +41,6 @@ export async function initPopup(): Promise<void> {
         }
         if (settings) {
             el('activeFormatLabel').textContent = formatName[settings.defaultFormat] || settings.defaultFormat;
-            el<HTMLSelectElement>('format').value = settings.defaultFormat;
-            const en = !document.documentElement.lang.startsWith('zh');
-            el<HTMLInputElement>('langToggle').checked = en;
-            el('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
-            el('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
         }
     };
     const refresh = async () => { settings = await readSettings(); if (active) render(); };
@@ -63,9 +58,6 @@ export async function initPopup(): Promise<void> {
     for (const btn of buttons) btn.addEventListener('click', () => {
         changeSettings({ defaultFormat: btn.dataset.format as GlobalSettings['defaultFormat'] });
     });
-    el<HTMLInputElement>('langToggle').addEventListener('change', () => {
-        changeSettings({ language: el<HTMLInputElement>('langToggle').checked ? 'en' : 'zh' });
-    });
     button.addEventListener('click', () => {
         if (busy || !key || !settings) return;
         const format = settings.defaultFormat;
@@ -73,18 +65,11 @@ export async function initPopup(): Promise<void> {
         const fonts = format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
         busy = true; render();
         status.textContent = text('Preparing export…', '正在准备导出…');
-        el<HTMLElement>('progWrap').style.display = 'block';
-        el<HTMLElement>('bar').style.width = '0%';
         void (async () => {
             const [current, latest] = await Promise.all([readActiveKey(), readSettings(), fonts]);
             if (!current) { key = null; throw new Error(text('No trusted current conversation', '无法确认当前对话')); }
             const result = await runExport({ keys: [current], format, delivery: 'browserDownload',
-                includeAssets: latest.includeAssets, skipUnchanged: false }, {
-                onProgress: p => {
-                    if (!active) return;
-                    el<HTMLElement>('bar').style.width = p.total ? `${Math.round(p.current / p.total * 100)}%` : '0%';
-                }
-            });
+                includeAssets: latest.includeAssets, skipUnchanged: false });
             if (!active) return;
             status.textContent = result.aborted ? text('Cancelled', '已取消')
                 : result.failed.length || !result.exported ? text('Export failed. Try Options.', '导出失败，请在工作台重试。')
@@ -92,7 +77,7 @@ export async function initPopup(): Promise<void> {
                 : text('Download initiated', '已发起下载');
         })().catch(e => { if (active) status.textContent = errorText(e); })
             .finally(() => {
-                if (active) { busy = false; render(); el<HTMLElement>('progWrap').style.display = 'none'; }
+                if (active) { busy = false; render(); }
             });
     });
     render();
@@ -100,20 +85,9 @@ export async function initPopup(): Promise<void> {
         await ensureV2Ready();
         await refresh();
         key = await readActiveKey();
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        el<HTMLElement>('notGeminiNotice').style.display =
-            tab?.url?.startsWith('https://gemini.google.com/') ? 'none' : 'block';
-        const [index, detail, indexes] = await Promise.all([
-            key ? getIndex(key) : Promise.resolve(null),
-            key ? getDetail(key) : Promise.resolve(null),
-            key ? listIndexes(key.accountId) : Promise.resolve([])
-        ]);
+        const index = key ? await getIndex(key) : null;
         el('currentChatTitle').textContent = index?.title || (key ? text('Current conversation', '当前对话')
             : text('No current Gemini conversation', '当前没有 Gemini 对话'));
-        el('countBadge').textContent = String(indexes.length);
-        el('chatTurnBadge').textContent = detail?.messages.length
-            ? text(`${detail.messages.length} messages`, `${detail.messages.length} 条消息`)
-            : text('New chat', '新会话');
         if (!key) status.textContent = text('Open a supported conversation first', '请先打开受支持的对话');
     } catch (error) { status.textContent = errorText(error); }
     render();
