@@ -18,9 +18,8 @@ import { prepareExportResources } from '../src/application/export/prepareExportR
 import { runExport } from '../src/application/export/runExport.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
-import { planExportPaths } from '../src/l4/packaging/index.js';
+import { planExportPaths, buildExportFiles } from '../src/l4/packaging/index.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
-import { PdfResourceError } from '../src/l4/format/pdf/errors.js';
 import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
 import { attemptResource, missingResource, waitForResources } from '../src/shared/resources/resourceResult.js';
 import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
@@ -37,10 +36,10 @@ const image = (id: string, uri: string, name = id + '.png'): DomainAsset => ({
 });
 async function seed(id: string, assets: DomainAsset[] = [
     image('good', goodUri), image('bad', badUri),
-]) {
+], unreferenced: DomainAsset[] = []) {
     const fileIds = assets.filter(asset => asset.kind !== 'image').map(asset => asset.id);
     await ingestDetail(account.id, id, {
-        savedAt: 100, quality: { status: 'complete' }, assets,
+        savedAt: 100, quality: { status: 'complete' }, assets: [...assets, ...unreferenced],
         messages: [{
             role: 'assistant',
             content: [paragraph('Conversation survives resource failure'),
@@ -130,8 +129,82 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
             assert.match(body, /unavailable|missing/i, 'unavailable image remains visibly represented');
             assert.doesNotMatch(body, /https:\/\/source\.example\.test\/bad\.png/);
         }
-        assert.equal((await getExportRecord(exportKey(id)))?.status, 'partial');
+        const record = await getExportRecord(exportKey(id));
+        assert.equal(record?.status, 'partial');
+        assert.equal(record?.format, format);
+        assert.equal(record?.chatTime, 100);
         assert.deepEqual(await readConversation(exportKey(id)), original, 'resource failures cannot rewrite stored Domain');
+    });
+}
+
+for (const format of ['markdown', 'html', 'json'] as const) {
+    test(format + ': includeAssets=false skips acquisition and delivers a complete main file without a ZIP', async t => {
+        const host = v2ExportHost(t);
+        const id = 'without-assets-' + format;
+        await seed(id);
+        const before = await readConversation(exportKey(id));
+        const requests = network(t, () => { throw new Error('No resource should be fetched'); });
+        const result = await runExport(exportRequest([id], { format, includeAssets: false }));
+        assert.equal(result.exported, 1);
+        assert.equal(result.partial, 0);
+        assert.deepEqual(result.failed, []);
+        assert.deepEqual(requests, []);
+        assert.equal(host.clicks(), 1);
+        const extension = { markdown: '.md', html: '.html', json: '.json' }[format];
+        assert.ok(host.filenames[0].endsWith(extension));
+        assert.equal(host.blobs.length, 1);
+        const body = await host.blobs[0].text();
+        assert.match(body, /Conversation survives resource failure/);
+        if (format === 'json') {
+            const archive = JSON.parse(body);
+            assert.equal(archive.conversation.detail.assets.length, 2);
+            assert.deepEqual(archive.resources, {});
+        } else {
+            assert.match(body, /unavailable/i, 'AST resource nodes remain readable without bytes');
+            assert.doesNotMatch(body, /src="assets\/|!\[[^\]]+\]\(assets\//);
+        }
+        assert.equal((await getExportRecord(exportKey(id)))?.status, 'ok');
+        assert.deepEqual(await readConversation(exportKey(id)), before);
+    });
+}
+
+for (const format of ['markdown', 'json'] as const) {
+    test(format + ': resource selection uses AST references for reading formats and all Domain assets for JSON', async t => {
+        const host = v2ExportHost(t); useZip(t);
+        const id = 'unreferenced-resource-' + format;
+        const orphanUri = 'https://source.example.test/orphan.txt';
+        const orphanBytes = new TextEncoder().encode('Unreferenced original');
+        await seed(id, [image('good', goodUri)], [
+            { id: 'orphan', kind: 'file', name: 'orphan.txt', mediaType: 'text/plain', sourceUri: orphanUri },
+        ]);
+        const requests = network(t, url => {
+            if (url === goodUri) return response(png);
+            if (url === orphanUri) return response(orphanBytes, 'text/plain');
+            throw new Error('Unexpected resource URL: ' + url);
+        });
+        const result = await runExport(exportRequest([id], { format, includeAssets: true }));
+        assert.equal(result.exported, 1);
+        assert.equal(result.partial, 0);
+        assert.deepEqual(result.failed, []);
+        assert.deepEqual(requests, format === 'json' ? [goodUri, orphanUri] : [goodUri]);
+        assert.equal(host.clicks(), 1);
+        assert.match(host.filenames[0], /\.zip$/);
+        const files = await zipContents(host.blobs[0]);
+        const main = files.find(file => file.name.endsWith(format === 'json' ? '.json' : '.md'));
+        assert.ok(main);
+        const body = String(await main.async('string'));
+        const orphan = files.find(file => file.name.includes('orphan.txt'));
+        if (format === 'json') {
+            const archive = JSON.parse(body);
+            assert.equal(archive.conversation.detail.assets.length, 2);
+            assert.ok(archive.resources.good);
+            assert.equal(archive.resources.orphan, orphan?.name);
+            assert.deepEqual(await orphan?.async('uint8array'), orphanBytes);
+        } else {
+            assert.equal(orphan, undefined);
+            assert.doesNotMatch(body, /orphan\.txt/);
+        }
+        assert.equal((await getExportRecord(exportKey(id)))?.status, 'ok');
     });
 }
 
@@ -178,6 +251,24 @@ test('a file companion uses its original L1 bytes in the real ZIP files/ namespa
     assert.ok(main);
     assert.ok(String(await main.async('string')).includes(original.name));
     assert.equal((await getExportRecord(exportKey(id)))?.status, 'ok');
+});
+
+test('failed Browser Download start does not commit an ExportRecord', async t => {
+    const host = v2ExportHost(t, () => { throw new Error('Download start failed'); }); useZip(t);
+    const id = 'delivery-start-failed';
+    await seed(id, [image('good', goodUri)]);
+    const requests = network(t, url => {
+        assert.equal(url, goodUri);
+        return response(png);
+    });
+    const result = await runExport(exportRequest([id], { includeAssets: true }));
+    assert.equal(result.aborted, false);
+    assert.equal(result.exported, 0);
+    assert.equal(result.partial, 0);
+    assert.deepEqual(result.failed, [exportKey(id)]);
+    assert.deepEqual(requests, [goodUri]);
+    assert.equal(host.clicks(), 1);
+    assert.equal(await getExportRecord(exportKey(id)), null);
 });
 
 test('resource waiting is abortable and ordinary transport exceptions remain per-asset failures', async () => {
@@ -240,41 +331,92 @@ test('long near-colliding media names get distinct actual ZIP paths and correct 
     assert.equal((await getExportRecord(exportKey(id)))?.status, 'ok');
 });
 
-function fakePdfBytes() {
-    const bytes = new Uint8Array(100);
-    bytes.set(new TextEncoder().encode('%PDF-1.7'));
-    return bytes;
-}
-async function pdfPreparation(id: string) {
-    await seed(id);
+test('PDF Image/File dual-use resource is acquired once, embedded, and delivered as one original file', async t => {
+    v2ExportHost(t);
+    const id = 'pdf-dual-use';
+    await ingestDetail(account.id, id, {
+        savedAt: 100, quality: { status: 'complete' },
+        assets: [image('both', goodUri)],
+        messages: [{ role: 'assistant', content: [
+            { type: 'image', assetId: 'both', alt: 'Embedded image' },
+            { type: 'file', assetId: 'both', label: 'Original image file' },
+        ] }],
+    }, { title: 'Dual-use PDF', titleSource: 'provider', updatedAt: 100 });
     const conversation = await readConversation(exportKey(id));
     assert.ok(conversation);
     const document = composeDomainDocument(conversation, account);
     const refs = collectDocumentResources(document);
-    const prepared = await prepareExportResources(conversation.detail.assets, refs.imageIds,
-        async asset => ({ bytes: asset.id === 'good' ? png : Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10, 1, 2),
-            mediaType: 'image/png', name: asset.name }));
+    assert.deepEqual([...refs.referencedIds], ['both']);
+    assert.deepEqual([...refs.imageIds], ['both']);
+    assert.deepEqual([...refs.fileIds], ['both']);
+    let requests = 0;
+    const prepared = await prepareExportResources(conversation.detail.assets, refs.referencedIds,
+        async () => { requests++; return { bytes: png, mediaType: 'image/png' }; });
     const [plan] = planExportPaths([{ conversation, prepared, fileIds: refs.fileIds }], 'pdf');
-    return { document, prepared, plan };
-}
-
-test('real v2 PDF format retries a decoder-only image error without reacquiring or dropping the healthy image', async t => {
-    v2ExportHost(t);
-    const { document, prepared, plan } = await pdfPreparation('pdf-decoder-retry');
-    const attempts: string[][] = [];
+    assert.equal(plan.externalResourceIds.has('both'), true);
     const compiler: IPdfCompiler = { name: 'PDF compiler host probe',
         async compile(payload, context) {
-            attempts.push([...payload.assetPaths.keys()]);
-            assert.deepEqual((await context.assets.resolve('good'))?.bytes, png);
-            if (attempts.length === 1) throw new PdfResourceError([missingResource('bad', 'image decode failed')]);
+            assert.equal(payload.assetPaths.get('both'), plan.resources.both);
+            assert.deepEqual((await context.assets.resolve('both'))?.bytes, png);
             return { pdfBytes: fakePdfBytes(), diagnostics: [] };
         },
     };
     const pdf = await compileDocumentPdf(document, plan.resources, prepared, compiler,
         { signal: new AbortController().signal, reportProgress() {} });
-    assert.deepEqual(attempts, [['good', 'bad'], ['good']]);
+    assert.ok(!pdf.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED'));
+    const files = buildExportFiles('pdf', plan, pdf.pdfBytes, prepared);
+    assert.equal(files.length, 2);
+    assert.equal(files[1].fileName, plan.resources.both);
+    assert.deepEqual(files[1].content, png);
+    assert.equal(requests, 1);
+});
+
+function fakePdfBytes() {
+    const bytes = new Uint8Array(100);
+    bytes.set(new TextEncoder().encode('%PDF-1.7'));
+    return bytes;
+}
+async function pdfPreparation(id: string, corruptBadImage = false) {
+    await seed(id);
+    const conversation = await readConversation(exportKey(id));
+    assert.ok(conversation);
+    const document = composeDomainDocument(conversation, account);
+    const refs = collectDocumentResources(document);
+    const acquisitions: string[] = [];
+    const prepared = await prepareExportResources(conversation.detail.assets, refs.referencedIds, async asset => {
+        acquisitions.push(asset.id);
+        return { bytes: asset.id === 'good' ? png
+            : corruptBadImage ? Uint8Array.of(1, 2, 3)
+                : Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10, 1, 2),
+            mediaType: 'image/png', name: asset.name };
+    });
+    const [plan] = planExportPaths([{ conversation, prepared, fileIds: refs.fileIds }], 'pdf');
+    return { document, prepared, plan, acquisitions };
+}
+
+test('PDF uses the canonical Packaging image path and reports corrupt acquired bytes as Format omission', async t => {
+    v2ExportHost(t);
+    const { document, prepared, plan, acquisitions } = await pdfPreparation('pdf-image-validation', true);
+    assert.equal(prepared.get('bad')?.ok, true, 'acquisition succeeded; the failure belongs to PDF Format');
+    let compiles = 0;
+    const compiler: IPdfCompiler = { name: 'PDF compiler host probe',
+        async compile(payload, context) {
+            compiles++;
+            assert.deepEqual([...payload.assetPaths.keys()], ['good']);
+            assert.equal(payload.assetPaths.get('good'), plan.resources.good);
+            assert.deepEqual((await context.assets.resolve('good'))?.bytes, png);
+            assert.equal(await context.assets.resolve('bad'), null);
+            assert.match(JSON.stringify(payload.document), /missing-image/);
+            return { pdfBytes: fakePdfBytes(), diagnostics: [] };
+        },
+    };
+    const pdf = await compileDocumentPdf(document, plan.resources, prepared, compiler,
+        { signal: new AbortController().signal, reportProgress() {} });
+    assert.equal(compiles, 1);
+    assert.deepEqual(acquisitions, ['good', 'bad'], 'Format does not reacquire resources');
     assert.equal(String.fromCharCode(...pdf.pdfBytes.subarray(0, 5)), '%PDF-');
-    assert.ok(pdf.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED' && diagnostic.path === 'asset:bad'));
+    assert.ok(pdf.diagnostics.some(diagnostic =>
+        diagnostic.code === 'FORMAT_CONTENT_OMITTED' && diagnostic.path === 'asset:bad'));
 });
 
 test('an unrelated PDF compiler error remains fatal and never becomes a recoverable asset failure', async t => {
