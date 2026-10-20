@@ -45,3 +45,27 @@ jobs:
           if (result.error) throw result.error;
           process.exit(result.status ?? 1);
           NODE
+
+  browser-contracts:
+    name: Storage browser consumers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: node build.js
+      - run: npx playwright install --with-deps chromium
+      - name: Run v2 Storage consumer browser contracts
+        run: |
+          node - <<'NODE'
+          const { spawnSync } = require('node:child_process');
+          const { e2eSuites } = require('./tests/l3a-tier1.json');
+          if (!Array.isArray(e2eSuites) || !e2eSuites.length) throw Error('Missing L3a browser suites');
+          const result = spawnSync('xvfb-run', ['--auto-servernum', 'npx', 'playwright', 'test', ...e2eSuites], {stdio: 'inherit'});
+          if (result.error) throw result.error;
+          process.exit(result.status ?? 1);
+          NODE
