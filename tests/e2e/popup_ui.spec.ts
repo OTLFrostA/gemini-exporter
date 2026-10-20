@@ -5,9 +5,9 @@ test.beforeEach(async({context,extensionId})=>{void extensionId;await seedRegist
 test('Popup renders current bilingual labels and four format controls with durable v2 Settings',async({context,extensionId})=>{
     const options=await openOptions(context,extensionId);await seedConversations(options,[{id:'a',title:'Current title'}]);const page=await openPopup(context,extensionId);
     await expect(page.locator('#currentChatTitle')).toHaveText('Current title');await expect(page.locator('[data-format]')).toHaveCount(4);
-    await expect(page.locator('#btnCurrent')).toHaveText('Export current conversation');await expect(page.locator('#btnOptions')).toBeVisible();
-    await options.locator('#language').selectOption('zh');await expect(page.locator('#btnCurrent')).toHaveText('导出当前对话');
-    await options.locator('#language').selectOption('en');await expect(page.locator('#btnCurrent')).toHaveText('Export current conversation');
+    await expect(page.locator('#btnCurrent')).toHaveText('📥 Export Current Page');await expect(page.locator('#btnOptions')).toBeVisible();
+    await options.locator('#langToggle').uncheck();await expect(page.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
+    await options.locator('#langToggle').check();await expect(page.locator('#btnCurrent')).toHaveText('📥 Export Current Page');
     await page.locator('[data-format="json"]').click();await expect(page.locator('[data-format="json"]')).toHaveAttribute('aria-pressed','true');await expect.poll(async()=> (await storedSettings(page)).defaultFormat).toBe('json');
     for(const enabled of [true,false]) {await options.locator('#devToggle').setChecked(enabled);await expect(page.locator('[data-format]')).toHaveCount(4);await expect(page.locator('[data-format="json_raw"],[data-format="json_openai"]')).toHaveCount(0);}
     await expect(page.locator('#chatSlotBadge,#historyTotalSynced,#btnCopyMarkdown,#btnScreenshot,#previewModal')).toHaveCount(0);
@@ -16,8 +16,8 @@ test('Popup and Options synchronize format in both directions and consume the sa
     const options=await openOptions(context,extensionId);const popup=await openPopup(context,extensionId);
     await popup.locator('[data-format="json"]').click();await expect(options.locator('#format')).toHaveValue('json');
     await options.locator('#format').selectOption('html');await expect(popup.locator('[data-format="html"]')).toHaveAttribute('aria-pressed','true');
-    await options.locator('#language').selectOption('zh');await expect(popup.locator('#btnCurrent')).toHaveText('导出当前对话');
-    await popup.reload();await expect(popup.locator('[data-format="html"]')).toHaveAttribute('aria-pressed','true');await expect(popup.locator('#btnCurrent')).toHaveText('导出当前对话');
+    await options.locator('#langToggle').uncheck();await expect(popup.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
+    await popup.reload();await expect(popup.locator('[data-format="html"]')).toHaveAttribute('aria-pressed','true');await expect(popup.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
 });
 test('Popup rejects malformed current context without download and allows retry after a transport failure',async({context,extensionId})=>{
     const options=await openOptions(context,extensionId);await seedConversations(options,[{id:'a'}]);const popup=await openPopup(context,extensionId);await expect(popup.locator('#btnCurrent')).toBeEnabled();
