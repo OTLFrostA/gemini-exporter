@@ -131,16 +131,19 @@ test('UI v2: Badge owns visibility-triggered count Pull without exposing a Runti
     await expect.poll(() => read(page, 'countRequests')).toBe(2);
     await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
 });
-test('UI v2: Badge drag saves only Settings on pointerup, ignores ordinary clicks and resizes', async ({ page }) => {
+test('UI v2: Badge drag sends position to Runtime on pointerup, ignores ordinary clicks and resizes', async ({ page }) => {
     await mount(page,'badge'); await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
     await expect(page.locator('#geminiExportBadge .pulse')).toHaveCount(1);
     await expect(page.locator('#geminiExportBadge')).toHaveCSS('background-color', 'rgb(15, 16, 26)');
     const badge=page.locator('#geminiExportBadge'); const before=await badge.boundingBox();
     await page.mouse.move(before!.x+15,before!.y+10);await page.mouse.down();await page.mouse.move(before!.x-100,before!.y-80);
     expect(await read(page,'patches')).toEqual([]);await page.mouse.up();
-    const patches=await read(page,'patches');expect(patches).toHaveLength(1);expect(patches[0].badgePosition).toBeTruthy();
+    const updates=(await read(page,'messages')).filter((m: {action: string})=>m.action==='updateBadgePosition');
+    expect(updates).toHaveLength(1); expect(updates[0].position).toMatchObject({left: expect.any(Number), top: expect.any(Number)});
+    expect(await read(page,'patches')).toEqual([]);
     expect(await read(page,'events')).not.toContain('openOptions');
-    await page.setViewportSize({width:900,height:700});expect(await read(page,'patches')).toHaveLength(1);
+    await page.setViewportSize({width:900,height:700});
+    expect((await read(page,'messages')).filter((m: {action: string})=>m.action==='updateBadgePosition')).toHaveLength(1);
     await badge.click(); expect(await read(page,'events')).toContain('openOptions');
     expect(await page.evaluate(()=>Object.keys(localStorage))).toEqual([]);
 });
