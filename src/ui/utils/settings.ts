@@ -20,7 +20,7 @@ export function labelPage(): void {
     document.querySelectorAll<HTMLElement>('[data-en][data-zh], [data-ui-en][data-ui-zh]').forEach(el => {
         el.textContent = text(el.dataset.en ?? el.dataset.uiEn!, el.dataset.zh ?? el.dataset.uiZh!);
     });
-    const copy = UI_COPY[language];
+    const copy = UI_COPY[language === 'zh' ? 'zh' : 'en'];
     for (const el of document.querySelectorAll<HTMLElement>('[data-i18n]')) {
         if (el.id === 'currentChatTitle' || el.id === 'chatTurnBadge' || el.id === 'dirLabel' || el.id === 'log') continue;
         const label = copy[el.dataset.i18n!];
