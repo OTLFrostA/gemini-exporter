@@ -22,3 +22,7 @@ browser specs. Those specs mock owner ports. `tests/e2e/production_v2.spec.ts`
 separately loads the built extension and exercises real Application/Storage,
 downloads, PDF sandbox, passive capture and Background Live Save with fixture
 network responses. Both are Tier 1, without a live Google account.
+
+Theme preference is stored with Global Settings (`theme: 'dark' | 'light'`); existing installations
+default to the original Dark UI. Popup and Options share the switch and Light palette.
+The content Badge applies the preference to itself without changing Gemini's page theme.

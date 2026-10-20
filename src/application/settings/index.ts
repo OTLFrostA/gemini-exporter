@@ -7,6 +7,7 @@ export interface GlobalSettings {
     includeAssets: boolean;
     enabledDisk: boolean;
     developerMode: boolean;
+    theme?: 'dark' | 'light';
     language?: 'zh' | 'en';
     badgePosition?: { left: number; top: number };
     lastSeenFeatureVersion?: string;

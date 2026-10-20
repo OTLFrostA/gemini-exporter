@@ -42,19 +42,20 @@ input[type=checkbox].toggle::after{
 input[type=checkbox].toggle:checked{background:linear-gradient(135deg,var(--accent),var(--accent2))}
 input[type=checkbox].toggle:checked::after{transform:translateX(12px);background:white}
 </style>
+<link rel="stylesheet" href="/src/ui/shared/theme.css">
 </head>
 <body>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
   <div style="display:flex;align-items:center;gap:6px">
     <b style="font-size:13px;">Gemini Exporter</b>
   </div>
-
+  <button id="btnThemeToggle" type="button" class="ghost theme-switch" aria-label="切换到浅色模式" title="切换到浅色模式">☀</button>
 </div>
 
 <!-- Card 1: Active Chat Awareness -->
 <div id="chatInfoCard" class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-    <span id="currentChatLabel" class="label" style="margin:0;color:#818cf8;" data-i18n="currentChatLabel">当前会话</span>
+    <span id="currentChatLabel" class="label" style="margin:0;color:var(--current-chat-accent, #818cf8);" data-i18n="currentChatLabel">当前会话</span>
   </div>
   <div id="currentChatContent">
     <div id="currentChatTitle" style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:5px;" data-i18n="detectingChat">正在识别当前会话...</div>

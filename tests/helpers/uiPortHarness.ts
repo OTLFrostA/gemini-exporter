@@ -132,6 +132,7 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
     }, { A, B, patch });
     await page.goto('https://ui.test/' + query);
     await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/guidance/tourGuide.css'), 'utf8') });
+    await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/shared/theme.css'), 'utf8') });
     if (kind === 'badge') {
         // Production injects this through manifest.json; the isolated UI harness must do the same.
         await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/badge/content.css'), 'utf8') });

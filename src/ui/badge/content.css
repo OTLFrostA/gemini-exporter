@@ -85,3 +85,20 @@
     animation: geminiExportPulse 1s infinite ease-in-out alternate;
 }
 
+
+/* Theme belongs only to the extension badge; do not theme Gemini's host page. */
+#geminiExportBadge[data-theme="light"] {
+    background: #ffffff;
+    color: #182136;
+    border-color: #d9dfeb;
+    box-shadow: 0 4px 16px rgba(29, 42, 73, 0.16);
+}
+#geminiExportBadge[data-theme="light"]:hover {
+    background: #f0f3fa;
+    border-color: #655ee8;
+}
+#geminiExportBadge[data-theme="light"].live-save-warning {
+    background: #fff7e6;
+    color: #9a5307;
+    border-color: #e5a03f;
+}

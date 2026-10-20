@@ -11,7 +11,7 @@ test('UI v2: Popup four formats use one request, preserve enabledDisk, include a
         await expect(page.locator(hiddenOfProductScope)).toHaveCount(0);
     }
     await expect(page.locator('#btnCurrent')).toBeEnabled();
-    await expect(page.locator('button')).toHaveCount(6);
+    await expect(page.locator('button')).toHaveCount(7);
     await expect(page.locator('#currentChatTitle')).toHaveText('<img src=x onerror=alert(1)>');
     for (const format of ['markdown','html','json','pdf']) {
         await page.locator(`[data-format="${format}"]`).click();
@@ -24,6 +24,43 @@ test('UI v2: Popup four formats use one request, preserve enabledDisk, include a
     expect((await read(page,'settings')).enabledDisk).toBe(true);
     expect((await read(page,'events')).slice(-3)).toEqual(['fonts','context','export']);
 });
+test('UI v2: Options can toggle Light and Dark, persisting a shared preference', async ({ page }) => {
+    await mount(page, 'options');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.locator('#btnThemeToggle')).toHaveAttribute('aria-label', 'Switch to light mode');
+    await page.locator('#btnThemeToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(245, 247, 252)');
+    await expect(page.locator('.card-left')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(page.locator('#btnThemeToggle')).toHaveAttribute('aria-label', 'Switch to dark mode');
+    expect((await read(page, 'settings')).theme).toBe('light');
+    expect(await read(page, 'patches')).toContainEqual({ theme: 'light' });
+    await page.locator('#btnThemeToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
+});
+
+test('UI v2: Popup loads the shared Light preference and can switch to Dark', async ({ page }) => {
+    await mount(page, 'popup', { settings: { theme: 'light' } });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.locator('#chatInfoCard')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await page.locator('#btnThemeToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    expect((await read(page, 'settings')).theme).toBe('dark');
+});
+
+test('UI v2: Light mode styles the Tour', async ({ page }) => {
+    await mount(page, 'options', { settings: { theme: 'light' } }, '?startTour=1');
+    await expect(page.locator('.tour-popover')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+});
+
+test('UI v2: Light Badge does not modify Gemini page theme', async ({ page }) => {
+    await mount(page, 'badge', { settings: { theme: 'light' } });
+    await expect(page.locator('#geminiExportBadge')).toHaveAttribute('data-theme', 'light');
+    await expect(page.locator('#geminiExportBadge')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light');
+});
+
 test('UI v2: Popup blocks unknown context, supports index-less trusted key and partial result', async ({ page }) => {
     await mount(page,'popup',{indexes:[],partial:true}); await expect(page.locator('#btnCurrent')).toBeEnabled();
     await page.locator('#btnCurrent').click(); await expect(page.locator('#status')).toContainText('some content is missing');

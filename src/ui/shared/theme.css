@@ -1,0 +1,132 @@
+/* Light palette for extension Popup, Options and Tour.
+   Keep the existing dark rules untouched to preserve the original appearance. */
+.theme-switch {
+  flex: none;
+  width: 30px;
+  min-width: 30px;
+  height: 28px;
+  padding: 0;
+  font-size: 17px;
+  line-height: 1;
+}
+.theme-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f7fc;
+  --card: #ffffff;
+  --card-inner: #f5f7fc;
+  --border: #d6dfeb;
+  --border-focus: #9caad0;
+  --text: #1e293b;
+  --muted: #53627a;
+  --accent: #4f46e5;
+  --accent2: #087f91;
+  --ok: #059669;
+  --warn: #a16207;
+  --danger: #b42336;
+  --text-muted: #53627a;
+  --destructive-text: #b42336;
+  --destructive-border: #e2a8b0;
+  --subtle-button-border: #d6dfeb;
+  --diagnostic-text: #3546ae;
+  --current-chat-accent: #4338ca;
+
+  --tour-bg: #ffffff;
+  --tour-border: #d6dfeb;
+  --tour-text: #1e293b;
+  --tour-muted: #53627a;
+}
+:root[data-theme="light"] .ghost { background: #f0f3f9; }
+:root[data-theme="light"] .ghost:hover { background: #e6ebf5; }
+:root[data-theme="light"] button.ghost:disabled {
+  background: #eff2f8;
+  color: #8390a2;
+  border-color: #d6dfeb;
+}
+:root[data-theme="light"] input[type=checkbox].toggle { background: #cbd5e1; }
+:root[data-theme="light"] .feedback-card:hover,
+:root[data-theme="light"] .item:hover { background: #e9eef8; }
+:root[data-theme="light"] .progress { background: #e2e8f0; }
+:root[data-theme="light"] .badge {
+  background: #eef2ff;
+  color: #4338ca;
+}
+:root[data-theme="light"] .badge.inactive {
+  background: #f1f4f9;
+  color: #64748b;
+  border-color: #d6dfeb;
+}
+:root[data-theme="light"] .tab-group { background: #edf1f8; }
+:root[data-theme="light"] .tab-btn:hover { background: rgba(49, 65, 104, 0.08); }
+:root[data-theme="light"] .tab-btn.active {
+  box-shadow: 0 1px 4px rgba(36, 46, 72, 0.16);
+}
+:root[data-theme="light"] select:disabled {
+  background: #edf1f8;
+  color: #8390a2;
+}
+:root[data-theme="light"] .log::-webkit-scrollbar-thumb,
+:root[data-theme="light"] ::-webkit-scrollbar-thumb { background: #bbc6d9; }
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #93a3c0; }
+:root[data-theme="light"] #list::-webkit-scrollbar-track,
+:root[data-theme="light"] .list::-webkit-scrollbar-track {
+  background: rgba(241, 245, 251, 0.85) !important;
+}
+:root[data-theme="light"] #list::-webkit-scrollbar-thumb,
+:root[data-theme="light"] .list::-webkit-scrollbar-thumb {
+  background: #aab8d1 !important;
+  border-color: rgba(241, 245, 251, 0.85) !important;
+}
+:root[data-theme="light"] #list::-webkit-scrollbar-thumb:hover,
+:root[data-theme="light"] .list::-webkit-scrollbar-thumb:hover {
+  background: #8295b9 !important;
+}
+:root[data-theme="light"] #list .status-exported {
+  color: #047857;
+  border-color: #9ed5c2;
+  background: #e0f8ed;
+}
+:root[data-theme="light"] #list .status-partial {
+  color: #b42336;
+  border-color: #e7b0b8;
+  background: #fff0f2;
+}
+
+/* Newbie Tour inherits the extension choice, including open overlays. */
+:root[data-theme="light"] .tour-popover {
+  box-shadow: 0 16px 36px rgba(27, 39, 62, 0.2), 0 0 0 1px rgba(35, 45, 70, 0.05);
+}
+:root[data-theme="light"] .tour-backdrop { background: rgba(21, 30, 48, 0.48); }
+:root[data-theme="light"] .tour-spotlight {
+  outline-color: rgba(79, 70, 229, 0.7);
+}
+:root[data-theme="light"] .tour-title { color: var(--tour-text); }
+:root[data-theme="light"] .tour-content { color: #3b4a62; }
+:root[data-theme="light"] .tour-step-badge { color: #4338ca; }
+:root[data-theme="light"] .tour-step-badge.tour-feature-badge { color: #075985; }
+:root[data-theme="light"] .tour-close-btn:hover {
+  color: #1e293b;
+  background: #edf1f8;
+}
+:root[data-theme="light"] .tour-action-box { background: #f5f7fc; }
+:root[data-theme="light"] .tour-action-btn.secondary,
+:root[data-theme="light"] .tour-nav-btn {
+  background: #eef2fa;
+  color: #1e293b;
+}
+:root[data-theme="light"] .tour-action-btn.secondary:hover,
+:root[data-theme="light"] .tour-nav-btn:hover { background: #e3e9f6; }
+:root[data-theme="light"] .tour-status-indicator.ok,
+:root[data-theme="light"] .tour-status-indicator.tour-status-ok {
+  color: #047857 !important;
+}
+:root[data-theme="light"] .tour-status-indicator.warn,
+:root[data-theme="light"] .tour-status-indicator.tour-status-warn {
+  color: #a16207 !important;
+}
+:root[data-theme="light"] .tour-footer { border-top-color: #e4e8f1; }
+:root[data-theme="light"] .tour-skip-btn:hover { color: #1e293b; }
+:root[data-theme="light"] .tour-action-hint { color: #4338ca; }
