@@ -8,7 +8,11 @@ afterEach(async () => { await page?.close(); });
 after(async () => { await browser?.close(); });
 async function open(patch: Record<string, unknown> = {}) {
     page = await browser.newPage(); await mount(page, 'options', patch);
-    await page.locator('#accountName').waitFor(); return page;
+    // Multi-account v2 intentionally blanks #accountName and displays the
+    // selector. Wait for the actual Account options (also present for a single
+    // account, where the selector itself is hidden) rather than nonempty text.
+    await page.locator('#accountIdSelect option').first().waitFor({ state: 'attached' });
+    return page;
 }
 const rows = [
     { key: { accountId: A, conversationId: 'one' }, title: 'Alpha', updatedAt: 10 },
