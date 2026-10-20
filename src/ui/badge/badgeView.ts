@@ -40,7 +40,7 @@ export async function refreshAccount(): Promise<void> {
     if (id) await refreshIndexCount(id);
 }
 /** Runtime calls this only for already observed, successfully committed Index updates. */
-export async function refreshIndexCount(id: string): Promise<void> {
+async function refreshIndexCount(id: string): Promise<void> {
     if (id !== accountId || !alive) return;
     try {
         const response = await chrome.runtime.sendMessage({ action: 'getLocalIndexCount', accountId: id });
@@ -51,7 +51,7 @@ export async function refreshIndexCount(id: string): Promise<void> {
     render();
 }
 /** One final result per task. Null/skipped do not create a notification. */
-export function showLiveSaveResult(result: ExportResult | null, id = getAccountContext()?.accountId): void {
+function showLiveSaveResultImpl(result: ExportResult | null, id = getAccountContext()?.accountId): void {
     if (!result || !alive || !id || id !== accountId) return;
     const outcome = result.failed.length || result.aborted ? 'failed'
         : result.exported && result.partial ? 'partial' : result.exported ? 'ok' : null;
@@ -59,12 +59,12 @@ export function showLiveSaveResult(result: ExportResult | null, id = getAccountC
     clearFeedback(); feedback = outcome; render();
     timer = setTimeout(() => { feedback = null; timer = undefined; render(); }, 3000);
 }
-export function showLiveSaveError(id = getAccountContext()?.accountId): void {
+function showLiveSaveErrorImpl(id = getAccountContext()?.accountId): void {
     if (!alive || id !== accountId) return;
     clearFeedback(); feedback = 'failed'; render();
     timer = setTimeout(() => { feedback = null; timer = undefined; render(); }, 3000);
 }
-export function ensureBadge(options: { onClick?: (event: MouseEvent) => void } = {}): HTMLElement | null {
+function ensureBadgeImpl(options: { onClick?: (event: MouseEvent) => void } = {}): HTMLElement | null {
     if (typeof document === 'undefined') return null;
     if (badge) { if (!badge.isConnected) (document.body || document.documentElement).append(badge); return badge; }
     badge = document.createElement('div'); badge.id = 'geminiExportBadge'; alive = true;
@@ -120,5 +120,9 @@ export function ensureBadge(options: { onClick?: (event: MouseEvent) => void } =
     });
     void refreshSettings().catch(console.warn); route(); return badge;
 }
-export const BadgeView = { ensureBadge, refreshAccount, refreshIndexCount, showLiveSaveResult, showLiveSaveError };
+// Public UI API only. Internal implementations are deliberately unchanged in this PR.
+export const ensureBadge: () => HTMLElement | null = ensureBadgeImpl;
+export const showLiveSaveResult: (result: ExportResult | null, accountId: string) => void = showLiveSaveResultImpl;
+export const showLiveSaveError: (accountId: string) => void = showLiveSaveErrorImpl;
+export const BadgeView = { ensureBadge, refreshAccount, showLiveSaveResult, showLiveSaveError };
 export default BadgeView;
