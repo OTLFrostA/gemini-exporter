@@ -40,7 +40,10 @@ test('v2 AST passes through all three real L4 text/Typst backends without a comp
     assert.ok(html.html.includes('assets/Chosen%20name.png'));
     assert.ok(html.html.includes('files/report.txt'));
     assert.ok(html.html.includes('private outline'));
-    assert.deepEqual(html.diagnostics, []);
+    // The v2 HTML renderer reports an informational diagnostic for a future
+    // unsupported node instead of silently losing the source fact.
+    assert.deepEqual(html.diagnostics.map(d => d.code), ['HTML_UNKNOWN_BLOCK']);
+    assert.equal(html.diagnostics.some(d => d.code === 'FORMAT_CONTENT_OMITTED'), false);
     assert.ok(md.includes('## Heading &lt;unsafe&gt;'));
     assert.ok(md.includes('assets/Chosen%20name.png'));
     assert.ok(md.includes('files/report.txt'));
