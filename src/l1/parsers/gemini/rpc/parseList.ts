@@ -151,7 +151,7 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
             return {
                 // Only the known explicit terminal slot may certify a natural
                 // end; a missing/unrecognized token is not terminal evidence.
-                ...listResult(convs, nextToken, rows, nextToken === null && inner[1] === null),
+                ...listResult(convs, nextToken, rows, nextToken === null && (inner.length === 0 || inner[1] === null)),
                 _raw: inner
             };
         } catch (e: unknown) {

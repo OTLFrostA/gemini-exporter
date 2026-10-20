@@ -1,5 +1,6 @@
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { ingestIndexes } from '../src/runtime/api/domainIngestion.js';
+import { ingestDetail as commitDetail } from '../src/l2/ingestion.js';
 import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -71,10 +72,14 @@ test('L1 callback stop never overrides a real source terminal', async () => {
     assert.equal(await provider([list([row()])]).listConversations({ ...options(), onPageCommitted: async () => true }), 'source_end');
     assert.equal(await provider([list([row()], 'tC_NEXT_PAGE_123456789')]).listConversations({ ...options(), onPageCommitted: async () => true }), 'stopped');
 });
-test('L1 preserves row counts independently of Domain deduplication', async () => {
+test('L1 counts committed source rows but refuses to trust duplicate IDs across pages', async () => {
     const counts: number[] = [];
-    await provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row()])]).listConversations({ ...options(), onPageCommitted: async info => { counts.push(info.totalObserved); return false; } });
-    assert.deepEqual(counts, [1, 2]); assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
+    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row()])]).listConversations({
+        ...options(), onPageCommitted: async info => { counts.push(info.totalObserved); return false; },
+    }), /Unverified Gemini list page/);
+    assert.deepEqual(counts, [1, 2], 'progress describes committed rows, not unique local Index records');
+    assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
+    assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range ?? null, null);
 });
 test('L1 propagates commit failure without callback or another request', async () => {
     storage.fail(`conversations_${ACCOUNT_UUID}`);
@@ -87,7 +92,7 @@ test('L1 propagates network errors even after a committed page', async () => {
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
 });
 test('L1 rejects malformed pages and cursor loops', async () => {
-    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row()], 'tC_NEXT_PAGE_123456789')]).listConversations(options()), /cursor loop/);
+    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row('different_chat_456', 1700000040)], 'tC_NEXT_PAGE_123456789')]).listConversations(options()), /cursor loop/);
     await assert.rejects(provider([parseList('garbage')]).listConversations(options()), /list failed/);
 });
 test('L1 abort never reports exhaustion or starts another page', async () => {
@@ -108,9 +113,12 @@ test('L1 rejects account mismatch and route changes before acquisition', async (
 test('L1 unknown identity can retain rows but emits no trusted scanHead', async () => {
     const defaultId = '10000000-0000-4000-8000-000000000003';
     let head: unknown;
-    await provider([list([row()])]).listConversations({ ...options(), accountId: defaultId,
-        onPageCommitted: async info => { head = info.scanHead; return false; } });
-    assert.equal(head, undefined); assert.equal(await getCoverage(defaultId, 'recent'), null);
+    await assert.rejects(provider([list([row()])]).listConversations({ ...options(), accountId: defaultId,
+        onPageCommitted: async info => { head = info.scanHead; return false; },
+    }), /Unverified Gemini list endpoint/);
+    assert.equal(head, undefined);
+    assert.equal((await getConversations(defaultId)).length, 1, 'unknown identity still admits source Index facts');
+    assert.equal(await getCoverage(defaultId, 'recent'), null);
 });
 test('L1 unknown Bard errors cannot become a history-window terminal', () => {
     for (const error of ['BardErrorInfo: cursor expired', '["BardErrorInfo",9999]']) {
@@ -154,6 +162,45 @@ test('L1 passive observed detail chain shares active source assembly', async () 
     assert.ok(stored); assert.equal(stored.quality.status, 'complete');
     assert.equal(stored.messages.length, 4);
 });
+test('L1 passive Live Save is driven only by committed Detail changed, not duplicate capture', async () => {
+    const changed: string[] = [];
+    const resources = createSourceResourceContext();
+    const retained: string[] = [];
+    const retainParsed = resources.retainParsed.bind(resources);
+    resources.retainParsed = (key, parsed) => { retained.push(key.conversationId); retainParsed(key, parsed); };
+    init({ resources, onDetailChanged: key => changed.push(key.conversationId) });
+    try {
+        const capture = sourceEvent(detailWire(), { detailRequest: { conversationId: 'source_chat_123', requestCursor: null } });
+        await handleWindowMessage(capture);
+        await handleWindowMessage(capture);
+        assert.deepEqual(changed, ['source_chat_123'], 'same snapshot is not a second content change');
+        assert.deepEqual(retained, ['source_chat_123', 'source_chat_123'], 'accepted same-content candidates may refresh task bytes');
+        assert.equal((await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }))?.quality.status, 'complete');
+    } finally { resources.release(); }
+});
+
+test('L1 rejected passive Detail never retains source bytes or emits Live Save', async () => {
+    const key = { accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' };
+    await commitDetail(ACCOUNT_UUID, key.conversationId, {
+        savedAt: 1700000060000, quality: { status: 'complete' },
+        assets: [], messages: [{ role: 'assistant', content: [{ type: 'paragraph',
+            children: [{ type: 'text', text: 'already selected newer body' }] }] }],
+    });
+    const selected = await getDetail(key);
+    let retained = 0, changed = 0;
+    const resources = createSourceResourceContext();
+    resources.retainParsed = () => { retained++; };
+    init({ resources, onDetailChanged: () => { changed++; } });
+    try {
+        await handleWindowMessage(sourceEvent(detailWire(), {
+            detailRequest: { conversationId: key.conversationId, requestCursor: null },
+        }));
+        assert.equal(retained, 0, 'rejected candidates cannot supply export resources');
+        assert.equal(changed, 0, 'rejected candidates cannot schedule Live Save');
+        assert.deepEqual(await getDetail(key), selected, 'L2 remains the sole selector of stored Detail');
+    } finally { resources.release(); }
+});
+
 test('L1 unverified delete notification cannot invoke L2 or emit a committed callback', async () => {
     let observed: unknown;
     init({ onConversationDeleted: (id, accountId) => { observed = [id, accountId]; } });
@@ -186,6 +233,7 @@ test('L1 import submits facts and returns count/status with numerical progress',
 });
 test('L1 ChatGPT body quality is independent of missing image bytes', () => {
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'), conversation: { id: 'chatgpt_123', create_time: 1700000000, update_time: 1700000001, is_archived: false, title: 'Images', current_node: 'node', mapping: {
+        root: { id: 'root', children: ['node'] },
         node: { id: 'node', parent: 'root', children: [], message: { id: 'msg', author: { role: 'assistant', metadata: {} }, recipient: 'all', status: 'finished_successfully', weight: 1, content: { content_type: 'multimodal_text', parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_123' }] } } },
     } }, assetsByNode: new Map() });
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
@@ -288,6 +336,32 @@ test('L1 Takeout hands bound ZIP entries to current resource context', async () 
     } finally { resources.release(); }
 });
 
+
+test('L1 Takeout import discards temporary archive readers when L2 rejects its Detail', async () => {
+    const cid = 'source_chat_123';
+    const key = { accountId: ACCOUNT_UUID, conversationId: cid };
+    const newer = Date.parse('2026-09-04T12:00:00Z');
+    await commitDetail(ACCOUNT_UUID, cid, {
+        savedAt: newer, quality: { status: 'complete' }, messages: [], assets: [],
+    });
+    const selected = await getDetail(key);
+    const html = '<div class="outer-cell"><a href="https://gemini.google.com/app/source_chat_123">Conversation</a>'
+        + '<div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">'
+        + 'Prompted Draw<br>2026-09-02T12:00:00Z<br><img src="picture.png"></div></div>';
+    const archive = { file() {}, files: {
+        'Takeout/Gemini/MyActivity.html': { _data: { uncompressedSize: html.length }, async: async () => html },
+        'Takeout/Gemini/picture.png': { _data: { uncompressedSize: 3 }, async: async () => Uint8Array.of(1, 2, 3) },
+    } };
+    const resources = createSourceResourceContext();
+    let retained = 0;
+    resources.retainParsed = () => { retained++; };
+    resources.retain = () => { retained++; };
+    try {
+        await importTakeout(archive as unknown as File, ACCOUNT_UUID, undefined, resources);
+        assert.equal(retained, 0);
+        assert.deepEqual(await getDetail(key), selected);
+    } finally { resources.release(); }
+});
 
 test('L1 unavailable current bytes fall back to remote locator with signal', async () => {
     const resources = createSourceResourceContext(), original = globalThis.fetch;
