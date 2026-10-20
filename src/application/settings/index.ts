@@ -7,6 +7,7 @@ export interface GlobalSettings {
     includeAssets: boolean;
     enabledDisk: boolean;
     developerMode: boolean;
+    theme?: 'dark' | 'light';
     language?: 'zh' | 'en';
     badgePosition?: { left: number; top: number };
     lastSeenFeatureVersion?: string;
@@ -15,7 +16,7 @@ export interface GlobalSettings {
 
 export async function getSettings(): Promise<GlobalSettings> {
     return { defaultFormat: 'markdown', skipExported: true,
-        includeAssets: true, enabledDisk: false, developerMode: false,
+        includeAssets: true, enabledDisk: false, developerMode: false, theme: 'dark',
         ...await getStoredSettings() };
 }
 export function updateSettings(patch: Partial<GlobalSettings>): Promise<void> {

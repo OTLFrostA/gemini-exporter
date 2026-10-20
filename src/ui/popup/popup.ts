@@ -6,7 +6,7 @@ import { updateSettings, type GlobalSettings } from '../../application/settings/
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
 import { runExport } from '../options/controllers/exportController.js';
-import { readSettings, observeSettings, useSettings, text, errorText, labelPage } from '../shared/settings.js';
+import { readSettings, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
 
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
 export async function readActiveKey(): Promise<ConversationKey | null> {
@@ -34,6 +34,8 @@ export async function initPopup(): Promise<void> {
     const formatName: Record<string, string> = { markdown: 'Markdown', html: 'HTML', pdf: 'PDF', json: 'JSON' };
     const render = () => {
         labelPage();
+        labelThemeToggle(el<HTMLButtonElement>('btnThemeToggle'), settings);
+        el<HTMLButtonElement>('btnThemeToggle').disabled = busy || !settings;
         if (identityLoaded) el('currentChatTitle').textContent = indexTitle || (key
             ? text('Current conversation', '当前对话')
             : text('No current Gemini conversation', '当前没有 Gemini 对话'));
@@ -60,6 +62,9 @@ export async function initPopup(): Promise<void> {
             settings = prior; useSettings(prior); status.textContent = errorText(e);
         }).finally(() => { busy = false; render(); });
     };
+    el<HTMLButtonElement>('btnThemeToggle').addEventListener('click', () => {
+        if (settings) changeSettings({ theme: settings.theme === 'light' ? 'dark' : 'light' });
+    });
     for (const btn of buttons) btn.addEventListener('click', () => {
         changeSettings({ defaultFormat: btn.dataset.format as GlobalSettings['defaultFormat'] });
     });

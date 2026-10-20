@@ -8,7 +8,7 @@ import { startSync } from './controllers/syncController.js';
 import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { renderList } from './views/listView.js';
-import { readSettings, observeSettings, useSettings, labelPage, text, errorText } from '../shared/settings.js';
+import { readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
 
@@ -23,6 +23,7 @@ export async function initWorkbench(): Promise<void> {
     let settings: GlobalSettings;
     let directoryAvailable = false;
     let busy = false;
+    let themeSaving = false;
     let action: Action = null;
     let controller: AbortController | null = null;
     let lastRequest: UIExportRequest | null = null;
@@ -79,6 +80,8 @@ export async function initWorkbench(): Promise<void> {
     };
     const render = () => {
         labelPage();
+        labelThemeToggle(el<HTMLButtonElement>('btnThemeToggle'), settings);
+        el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || busy || themeSaving;
         document.body.dataset.busy = String(busy);
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
         const ids = ['accountIdSelect','format','skipExported','includeAssets','delivery','liveSaveDiskToggle',
@@ -286,6 +289,18 @@ export async function initWorkbench(): Promise<void> {
             try { await updateSettings({ [field]: value }); settings = await readSettings(); }
             catch (error) { settings = prior; throw error; }
         });
+    });
+    el<HTMLButtonElement>('btnThemeToggle').addEventListener('click', () => {
+        if (!settings || busy || themeSaving) return;
+        const previous = settings;
+        const theme = settings.theme === 'light' ? 'dark' : 'light';
+        themeSaving = true;
+        settings = { ...settings, theme };
+        useSettings(settings);
+        render();
+        void updateSettings({ theme }).then(async () => { settings = await readSettings(); })
+            .catch(error => { settings = previous; useSettings(previous); status(errorText(error), 'error'); })
+            .finally(() => { themeSaving = false; render(); });
     });
     el<HTMLInputElement>('langToggle').addEventListener('change', () => {
         const language = el<HTMLInputElement>('langToggle').checked ? 'en' : 'zh';

@@ -3,9 +3,22 @@ import { UI_COPY } from './legacyLabels.js';
 let language = 'en';
 export function useSettings(settings: GlobalSettings, applyDocumentLanguage = true): void {
     language = settings.language ?? (typeof navigator !== 'undefined' && navigator.language.startsWith('zh') ? 'zh' : 'en');
-    if (applyDocumentLanguage && typeof document !== 'undefined') document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
+    // Never change Gemini's host document theme when invoked by the content Badge.
+    if (applyDocumentLanguage && typeof document !== 'undefined') {
+        document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
+        document.documentElement.dataset.theme = settings.theme === 'light' ? 'light' : 'dark';
+    }
 }
 export const text = (en: string, zh: string): string => language === 'zh' ? zh : en;
+export function labelThemeToggle(button: HTMLButtonElement, settings?: GlobalSettings): void {
+    const light = settings?.theme === 'light';
+    const label = light ? text('Switch to dark mode', '切换到深色模式')
+        : text('Switch to light mode', '切换到浅色模式');
+    button.textContent = light ? '☾' : '☀';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-pressed', String(light));
+}
 export async function readSettings(): Promise<GlobalSettings> {
     const settings = await getSettings(); useSettings(settings); return settings;
 }

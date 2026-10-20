@@ -119,7 +119,9 @@ function ensureBadgeImpl(): HTMLElement | null {
     const refreshSettings = async () => {
         const settings = await getSettings();
         if (!alive) return;
-        useSettings(settings, false); render();
+        useSettings(settings, false);
+        if (badge) badge.dataset.theme = settings.theme === 'light' ? 'light' : 'dark';
+        render();
         const signature = JSON.stringify(settings.badgePosition);
         if (signature !== previousPosition && !dragging && !positionChanged && settings.badgePosition) position(settings.badgePosition.left, settings.badgePosition.top);
         previousPosition = signature;

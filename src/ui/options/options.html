@@ -156,6 +156,7 @@
   #list .status-partial {color:#fca5a5;border-color:#713b3b;background:#351b23;}
   #list .meta {font-size:11px;color:var(--muted)}
 </style>
+<link rel="stylesheet" href="/src/ui/shared/theme.css">
 </head>
 <body>
 <header>
@@ -166,6 +167,7 @@
     <span id="accountName" class="stat" style="font-size:11px;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
   </div>
   <div style="display:flex; align-items:center; gap:8px;">
+    <button id="btnThemeToggle" type="button" class="ghost small theme-switch" aria-label="切换到浅色模式" title="切换到浅色模式">☀</button>
     <button id="btnTourGuide" class="ghost small" style="padding:2px 10px; font-size:11px; height:26px; border-radius:20px; gap:4px; display:inline-flex; align-items:center; cursor:pointer;" title="新手教程 / Onboarding Tour" data-i18n-title="tourBtnGuideTip">
       <span>💡</span> <span data-i18n="tourBtnGuide">新手引导</span>
     </button>
@@ -225,7 +227,7 @@
     </div>
     
     <div style="text-align:center; min-height:28px;">
-      <button id="btnCancel" class="ghost small" style="display:none; border-color:#5a2a2a; color:#f0a0a0; margin:0 auto;" data-i18n="btnCancel">终止导出</button>
+      <button id="btnCancel" class="ghost small" style="display:none; border-color:var(--destructive-border, #5a2a2a); color:var(--destructive-text, #f0a0a0); margin:0 auto;" data-i18n="btnCancel">终止导出</button>
     </div>
     
     <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
@@ -236,7 +238,7 @@
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
         <span id="exportFailureTitle" style="color:var(--danger, #f87171); font-weight:600;" data-i18n="exportFailureBannerTitle">部分会话导出失败</span>
         <div style="display:flex; gap:6px;">
-          <button id="btnCopyFailedLog" class="small ghost" style="padding:2px 8px; font-size:11px; border-color:rgba(255,255,255,0.15); color:var(--text);" data-i18n="btnCopyFailedLog">复制错误</button>
+          <button id="btnCopyFailedLog" class="small ghost" style="padding:2px 8px; font-size:11px; border-color:var(--subtle-button-border, rgba(255,255,255,0.15)); color:var(--text);" data-i18n="btnCopyFailedLog">复制错误</button>
           <button id="btnRetryFailed" class="small ghost" style="padding:2px 8px; font-size:11px; border-color:rgba(239,68,68,0.4); color:var(--danger, #f87171);" data-i18n="btnRetryFailed">重试失败项</button>
           <button id="btnDismissFailure" class="small ghost" style="padding:2px 6px; font-size:11px; color:var(--text-muted);" title="关闭" data-i18n-title="btnCloseTip">✕</button>
         </div>
@@ -259,7 +261,7 @@
         <input id="logFilter" type="text" placeholder="过滤关键字 (-排除)" data-i18n-placeholder="logFilterPlaceholder" style="flex:1; min-width:80px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 8px; font-size:11px">
         <button id="btnCopyLog" class="ghost small" style="padding:3px 8px; font-size:11px;" data-i18n="btnCopyLog">复制</button>
         <button id="btnClearLog" class="ghost small" style="padding:3px 8px; font-size:11px;" data-i18n="btnClearLog">清空</button>
-        <button id="btnExportDiag" class="ghost small dev-only" data-i18n="btnExportDiag" data-i18n-title="btnExportDiagTip" title="导出本次同步底层的详细诊断报告 (包含翻页游标、请求体与停滞原因)" style="color:#78a9ff; padding:3px 8px; font-size:11px;">导出诊断</button>
+        <button id="btnExportDiag" class="ghost small dev-only" data-i18n="btnExportDiag" data-i18n-title="btnExportDiagTip" title="导出本次同步底层的详细诊断报告 (包含翻页游标、请求体与停滞原因)" style="color:var(--diagnostic-text, #78a9ff); padding:3px 8px; font-size:11px;">导出诊断</button>
       </div>
       <div id="log" class="log" style="flex:1; overflow-y:auto;" data-i18n="logReady">就绪</div>
     </div>
@@ -296,10 +298,10 @@
         <button id="btnImportTakeout" class="ghost small" style="padding:3px 8px; font-size:11.5px;" data-i18n="btnImportTakeout" data-i18n-title="btnImportTakeoutTip" title="读取 Google Takeout 压缩包，自动补全历史无法扫描的远古对话，并加载离线附件兜底池">📥 导入 Takeout</button>
         <input type="file" id="takeoutFileInput" accept=".zip" style="display:none;">
         <span id="takeoutAccountName" class="stat" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Takeout import target"></span>
-        <button id="btnStopScan" class="ghost small" style="display:none; color:#ff8a8a; border-color:#5a2a2a; padding:3px 8px; font-size:11.5px;" data-i18n="btnStopScan" data-i18n-title="btnStopScanTip" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
+        <button id="btnStopScan" class="ghost small" style="display:none; color:var(--destructive-text, #ff8a8a); border-color:var(--destructive-border, #5a2a2a); padding:3px 8px; font-size:11.5px;" data-i18n="btnStopScan" data-i18n-title="btnStopScanTip" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
         <div id="localDataControls" style="display:flex;gap:4px;align-items:center;margin-left:auto;" aria-label="Local records">
           <button id="btnClearExported" class="ghost small" style="flex:none;padding:3px 8px;font-size:11.5px;" data-ui-en="Clear export records" data-ui-zh="清除导出记录" title="Clears export records only; keeps conversations and files">清除导出记录</button>
-          <button id="btnClearScan" class="ghost small" style="color:#ff8a8a;flex:none;padding:3px 8px;font-size:11.5px;" data-ui-en="Clear scan records" data-ui-zh="清除扫描记录" title="Clears scan coverage and export records; keeps conversations and files">清除扫描记录</button>
+          <button id="btnClearScan" class="ghost small" style="color:var(--destructive-text, #ff8a8a);flex:none;padding:3px 8px;font-size:11.5px;" data-ui-en="Clear scan records" data-ui-zh="清除扫描记录" title="Clears scan coverage and export records; keeps conversations and files">清除扫描记录</button>
         </div>
         <button id="btnForceFullScan" class="ghost small dev-only" style="padding:3px 8px;font-size:11.5px;" data-ui-en="Force full scan" data-ui-zh="强制完整扫描">强制完整扫描</button>
       </div>
