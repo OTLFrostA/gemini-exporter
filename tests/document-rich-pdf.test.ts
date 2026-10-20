@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import type { DocumentAst, DisplayInline } from '../src/l3b/ast/ast.js';
 import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypstCore } from '../src/l4/format/typst/renderTypstCore.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
 import { TypstSandboxCompiler, stripConvertedMath } from '../src/l4/format/pdf/typst/typstSandboxCompiler.js';
@@ -46,7 +47,7 @@ test('rich PDF fields render physical images, including captions of missing pare
                     return context.assets.resolve(id);
                 } } });
             },
-        }, { signal: new AbortController().signal, reportProgress() {} }, { convertMath: () => undefined });
+        }, { signal: new AbortController().signal, reportProgress() {} });
         const extracted = extractPdfText(result.pdfBytes);
         const probe = probePdfLayout(result.pdfBytes);
         assert.equal(probe.pages.reduce((sum, page) => sum + page.imageDraws.length, 0), 8, 'main figure plus seven rich inline placements are physically drawn');
@@ -57,7 +58,7 @@ test('rich PDF fields render physical images, including captions of missing pare
 });
 
 test('font fallback visits converted math in all rich PDF fields', () => {
-    const payload = renderDocumentTypst(fixture(), { main: 'assets/main.png', rich: 'assets/rich.png' }, { convertMath: () => 'x' });
+    const payload = renderDocumentTypstCore(fixture(), { main: 'assets/main.png', rich: 'assets/rich.png' }, {}, { convertMath: () => 'x' });
     assert.equal(stripConvertedMath(payload), 7);
     assert.ok(!JSON.stringify(payload).includes('"typst"'));
 });

@@ -8,6 +8,7 @@ import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentTypst, defaultPdfLayout } from '../src/l4/format/typst/renderTypst.js';
+import { renderTypstFixture } from './helpers/renderTypstFixture.js';
 
 function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-neutral.json', 'utf8'));
@@ -24,7 +25,7 @@ test('one immutable JSON document serves all three backends without losing rich 
     const md = renderDocumentMarkdown(restored, resources, { locale: 'en' });
     const pdf = renderDocumentTypst(restored, resources, { locale: 'en' });
     const html = renderDocumentHtml(restored, resources, { locale: 'en' }).html;
-    assert.ok(md.includes('| H1 |  |') && md.includes('| H2 | H3 |'));
+    assert.ok(md.includes('<table>') && md.includes('colspan="2"') && md.includes('H2') && md.includes('H3'));
     assert.ok(html.includes('colspan="2"') && html.includes('<strong>Rich caption</strong>') && html.includes('<em>Image caption</em>'));
     const table = pdf.messages[0].blocks[2]; assert.equal(table.type, 'table');
     if (table.type !== 'table') throw new Error('Expected table');
@@ -37,17 +38,20 @@ test('one immutable JSON document serves all three backends without losing rich 
     assert.deepEqual(renderDocumentTypst(document, resources), renderDocumentTypst(restored, resources));
 });
 
-test('UI locale, theme and page policy change without mutating Document AST', () => {
+test('Locale changes renderer chrome; HTML and PDF keep fixed internal presentation defaults', () => {
     const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
-    const resources = { image: 'assets/image.png', file: 'assets/report.pdf' }, before = JSON.stringify(document);
-    const en = renderDocumentHtml(document, resources, { locale: 'en', theme: 'light', copyCode: false }).html;
+    const resources = { image: 'assets/image.png', file: 'assets/report.pdf' };
+    const before = JSON.stringify(document);
+    const en = renderDocumentHtml(document, resources, { locale: 'en' }).html;
     const zh = renderDocumentHtml(document, resources, { locale: 'zh' }).html;
-    assert.ok(en.includes('<html>') && en.includes('Thinking Process') && en.includes('light-theme'));
+    assert.ok(en.includes('<html>') && en.includes('Thinking Process'));
+    assert.ok(en.includes('copyCode(this)'), 'code copying is a fixed HTML feature');
+    assert.ok(en.includes('prefers-color-scheme: light'), 'theme follows system CSS instead of public settings');
     assert.ok(zh.includes('Thinking Process') && zh.includes('复制'));
-    assert.ok(!en.includes('<button class="gem-copy-btn"'));
-    const layout = defaultPdfLayout('zh-CN'); layout.page.widthMm = 148;
-    const pdf = renderDocumentTypst(document, resources, { locale: 'en', layout, repeatTableHeader: false });
-    assert.equal(pdf.layout.page.widthMm, 148); assert.equal(pdf.layout.textLanguage, 'zh-CN');
+    const pdf = renderDocumentTypst(document, resources, { locale: 'zh' });
+    assert.deepEqual(pdf.layout, defaultPdfLayout(), 'public Renderer cannot change PDF layout');
+    const table = pdf.messages[0].blocks.find(b => b.type === 'table');
+    assert.ok(table && table.type === 'table' && table.repeatHeader === true);
     assert.ok(renderDocumentMarkdown(document, resources, { locale: 'zh' }).includes('**来源:**'));
     assert.equal(JSON.stringify(document), before);
 });
@@ -77,8 +81,7 @@ test('AST: neutral tree has no output controls and renderers do not import sourc
 test('prepared resource absence is reported by each backend without deleting the display reference', () => {
     const input = fixture(); input.detail.messages[0].reasoning = undefined; input.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
     const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), before = JSON.stringify(document);
-    const diagnostics: import('../src/shared/diagnostics/diagnostic.js').Diagnostic[] = [];
-    const pdf = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic) });
+    const { payload: pdf, diagnostics } = renderTypstFixture(document);
     assert.ok(diagnostics.some(d => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));
     const paragraph = pdf.messages[0].blocks[0]; if (paragraph.type !== 'paragraph') throw new Error('Expected paragraph');
     assert.deepEqual(paragraph.children[0], { type: 'text', text: 'Image unavailable: image.png' });

@@ -9,7 +9,6 @@ import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 
-const time = Date.parse('2026-10-06T00:00:00Z');
 function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-markdown.json', 'utf8'));
 }
@@ -19,7 +18,7 @@ function freeze(value: unknown): void {
     Object.freeze(value); Object.values(value).forEach(freeze);
 }
 
-test('Markdown backend projects spans while the neutral tree retains all headers', () => {
+test('Markdown backend preserves merged table cells while the neutral tree retains all headers', () => {
     const input = fixture(); const before = JSON.stringify(input); freeze(input);
     const composed = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
     assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), composed);
@@ -29,8 +28,8 @@ test('Markdown backend projects spans while the neutral tree retains all headers
     assert.equal(table.headerRows.length, 2); assert.equal(table.rows.length, 1);
     assert.equal(table.headerRows[0][0].colSpan, 2); assert.equal(table.headerRows[0][0].rowSpan, 2);
     const md = renderDocumentMarkdown(composed, { a: 'assets/a.png' });
-    assert.ok(md.includes('|  |  | Second header |'));
-    assert.ok(md.includes('| :--- | ---: | :---: |'));
+    assert.ok(md.includes('<table>') && md.includes('colspan="2"') && md.includes('rowspan="2"'));
+    assert.ok(md.includes('Second header'), 'all authored table headers remain visible');
 });
 
 test('Markdown consumes only JSON display choices, explicit time and prepared paths', () => {
@@ -46,9 +45,9 @@ test('Markdown consumes only JSON display choices, explicit time and prepared pa
     const disclosure = restored.messages[0].blocks.find(block => block.type === 'disclosure');
     if (!disclosure || disclosure.type !== 'disclosure') throw new Error('Expected disclosure');
     disclosure.title = 'Chosen disclosure';
-    const changed = renderDocumentMarkdown(restored, resources, { thoughtInitiallyCollapsed: false });
+    const changed = renderDocumentMarkdown(restored, resources);
     assert.ok(changed.includes('## 🛠 Developer')); assert.ok(changed.includes('> 🌐 **Sources:**\n> [7] [Chosen source]'));
-    assert.ok(changed.includes('<details open>\n<summary>Chosen disclosure</summary>'));
+    assert.ok(changed.includes('<details>\n<summary>Chosen disclosure</summary>'), 'disclosures are collapsed by default');
     assert.ok(renderDocumentMarkdown(document, {}).includes('[Image unavailable:'));
     assert.ok(renderDocumentHtml(document, resources).html.includes('<strong>123</strong>'));
 });
@@ -79,12 +78,12 @@ test('Markdown front matter reads identity and source dates only from Document A
     const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
     document.title = 'true';
     document.metadata!.id = 'null';
-    const markdown = renderDocumentMarkdown(document, {}, { includeFrontMatter: true, exportedAt: time });
+    const markdown = renderDocumentMarkdown(document, {});
     assert.ok(markdown.includes('title: "true"'));
     assert.ok(markdown.includes('id: "null"'));
     assert.ok(!/^url:/m.test(markdown), 'L3b metadata no longer supplies provider URLs');
     assert.ok(markdown.includes('updated: "1970-01-01T00:00:01.000Z"'));
-    assert.ok(markdown.includes(`exported: "${new Date(time).toISOString()}"`));
+    assert.ok(!/^exported:/m.test(markdown), 'renderer must not invent an export timestamp');
     // @ts-expect-error Metadata is required; still reject malformed runtime callers explicitly.
-    assert.throws(() => renderDocumentMarkdown({ ...document, metadata: undefined }, {}, { includeFrontMatter: true }), /metadata is required/);
+    assert.throws(() => renderDocumentMarkdown({ ...document, metadata: undefined }, {}), /metadata is required/);
 });

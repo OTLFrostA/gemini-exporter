@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..');
 let passed = 0;
 {
     const group = manifest.suites;
-    const result = spawnSync(process.execPath, ['-r', './tests/ts_register.js', '--test', ...group], {
+    const result = spawnSync(process.execPath, ['-r', './tests/ts_register.js', '--test', '--test-concurrency=2', ...group], {
         cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
     });
     process.stdout.write(result.stdout ?? '');

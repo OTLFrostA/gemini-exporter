@@ -8,6 +8,7 @@ import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderTypstFixture } from './helpers/renderTypstFixture.js';
 import { unavailableResourceText } from '../src/l4/format/shared/backendPresentation.js';
 
 const account = Object.freeze({ ...fixtureAccount('chatgpt'), email: 'private@example.test', displayName: 'Private name' });
@@ -23,7 +24,7 @@ function input(): DomainConversationWithDetail {
 // Existing renderer/export coverage, separated from AST unit tests.
 test('integration: exported metadata and message order', async () => {
     const domain = validateParserDomain(input());
-    const markdown = renderDocumentMarkdown(composeDomainDocument(domain, account), {}, { exportedAt: Date.parse('2026-01-01T00:00:00Z'), includeFrontMatter: true });
+    const markdown = renderDocumentMarkdown(composeDomainDocument(domain, account), {});
     assert.ok(markdown.includes('provider: "chatgpt"'));
     assert.ok(markdown.indexOf('First body') < markdown.indexOf('Second body'));
     assert.ok((renderDocumentHtml(composeDomainDocument(domain, account), {}).html).includes('Index title'));
@@ -73,25 +74,26 @@ test('integration: renderers express unavailable media', () => {
         assert.ok(renderDocumentMarkdown(document, {}, { locale }).includes(text));
         assert.ok(JSON.stringify(renderDocumentTypst(document, {}, { locale })).includes(text));
     }
-    const diagnostics: string[] = [];
-    const pdf = renderDocumentTypst(document, { photo: 'assets/photo.png' }, { onDiagnostic: d => diagnostics.push(d.code) });
+    const { payload: pdf, diagnostics } = renderTypstFixture(document, { photo: 'assets/photo.png' });
     assert.ok(pdf.messages[1].blocks.some(block => block.type === 'file'), 'PDF file card does not imply download failure');
     assert.deepEqual(diagnostics, []);
 
 });
 
-test('integration: renderer options control code headers and disclosure folding', async () => {
-    const raw = input(); raw.detail.messages[0].reasoning = [{ type: 'code', code: 'thought', language: 'text' }];
+test('integration: renderer format defaults are fixed and do not bypass the AST', () => {
+    const raw = input();
+    raw.detail.messages[0].reasoning = [{ type: 'code', code: 'thought', language: 'text' }];
     raw.detail.messages[0].content = [{ type: 'code', code: 'answer', language: 'js', meta: 'Authored filename' }];
-    const domain = validateParserDomain(raw), document = composeDomainDocument(domain, account);
-    const options = { showCodeHeader: false, thoughtInitiallyCollapsed: false };
-    assert.ok(!renderDocumentHtml(document, {}, options).html.includes('<div class="gem-code-header">'));
-    const markdown = renderDocumentMarkdown(document, {}, options);
-    assert.ok(markdown.includes('<details open>') && markdown.includes('```js\nanswer'));
-    assert.ok(!markdown.includes('Authored filename'));
-    const pdf = renderDocumentTypst(document, {}, options);
-    assert.equal(pdf.messages[0].blocks[1].type === 'code' && pdf.messages[0].blocks[1].header, '');
-    assert.ok(!(renderDocumentMarkdown(document, {}, options)).includes('Authored filename'));
-    assert.ok(!(renderDocumentHtml(document, {}, options).html).includes('<div class="gem-code-header">'));
-
+    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const html = renderDocumentHtml(document, {}).html;
+    assert.ok(html.includes('<div class="gem-code-header">'), 'HTML always has code headers');
+    assert.ok(html.includes('copyCode(this)'), 'HTML keeps its fixed copy control');
+    assert.ok(html.includes('<details class="gem-thoughts">'), 'HTML disclosures default to collapsed');
+    const markdown = renderDocumentMarkdown(document, {});
+    assert.ok(markdown.includes('<details>') && markdown.includes('```js\nanswer'));
+    assert.ok(markdown.includes('Authored filename'), 'authored code metadata remains readable');
+    const pdf = renderDocumentTypst(document, {});
+    const code = pdf.messages[0].blocks.find(block => block.type === 'code');
+    assert.ok(code && code.type === 'code' && code.header.includes('Authored filename'));
+    assert.equal(renderDocumentHtml(document, {}, { locale: 'zh' }).html.includes('Authored filename'), true);
 });

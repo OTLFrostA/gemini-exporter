@@ -31,7 +31,7 @@ test('Packaging reserves batch paths case-insensitively and keeps resource IDs l
     const second = conversation('chat');
     second.index.key.accountId = '10000000-0000-4000-8000-000000000002';
     second.detail.key = { ...second.index.key };
-    const plans = planExportPaths([{ conversation: first, prepared }, { conversation: second, prepared }], 'markdown');
+    const plans = planExportPaths([{ conversation: first, prepared, fileIds: new Set<string>() }, { conversation: second, prepared, fileIds: new Set<string>() }], 'markdown');
     assert.deepEqual(plans.map(p => p.fileName), ['Chat_123456.md', 'chat_123456_2.md']);
     assert.deepEqual(Object.values(plans[0].resources), ['assets/123456_Photo.png', 'assets/123456_photo_2.png']);
     assert.deepEqual(Object.values(plans[1].resources), ['assets/123456_Photo_3.png', 'assets/123456_photo_4.png']);
@@ -41,8 +41,8 @@ test('Incremental path planner preserves the exact batch namespace and bindings'
     const first = conversation();
     const second = conversation('chat');
     const planNext = createExportPathPlanner('markdown');
-    const sequential = [planNext(first, prepared), planNext(second, prepared)];
-    const batch = planExportPaths([{ conversation: first, prepared }, { conversation: second, prepared }], 'markdown');
+    const sequential = [planNext(first, prepared, new Set<string>()), planNext(second, prepared, new Set<string>())];
+    const batch = planExportPaths([{ conversation: first, prepared, fileIds: new Set<string>() }, { conversation: second, prepared, fileIds: new Set<string>() }], 'markdown');
     assert.deepEqual(sequential, batch);
     assert.equal(sequential[1].fileName, 'chat_123456_2.md');
     assert.equal(sequential[1].resources.a, 'assets/123456_Photo_3.png');
@@ -51,7 +51,7 @@ test('Packaging reserves long sanitized collision suffixes without writer trunca
     const c = conversation('z'.repeat(200));
     c.detail.assets[0].name = 'x'.repeat(68) + '.longextension';
     c.detail.assets[1].name = c.detail.assets[0].name;
-    const plans = planExportPaths(Array.from({ length: 12 }, () => ({ conversation: c, prepared })), 'html');
+    const plans = planExportPaths(Array.from({ length: 12 }, () => ({ conversation: c, prepared, fileIds: new Set<string>() })), 'html');
     const paths = plans.flatMap(p => [p.fileName, ...Object.values(p.resources)]);
     assert.equal(new Set(paths.map(p => p.toLowerCase())).size, paths.length);
     paths.forEach(assertExportPath);
@@ -59,13 +59,13 @@ test('Packaging reserves long sanitized collision suffixes without writer trunca
 test('Packaging sanitizes traversal, encoded separators and reserved filenames before binding', () => {
     const c = conversation();
     c.detail.assets[0].name = '../../%2e%2e%2fCON.png';
-    const [plan] = planExportPaths([{ conversation: c, prepared }], 'json');
+    const [plan] = planExportPaths([{ conversation: c, prepared, fileIds: new Set<string>() }], 'json');
     Object.values(plan.resources).forEach(assertExportPath);
     assert.ok(!plan.resources.a.includes('%'));
 });
 for (const format of ['markdown', 'html', 'json'] as const) {
     test(`${format}: each binding becomes an external file, with main first and unchanged bytes`, async () => {
-        const [plan] = planExportPaths([{ conversation: conversation(), prepared }], format);
+        const [plan] = planExportPaths([{ conversation: conversation(), prepared, fileIds: new Set<string>() }], format);
         const files = buildExportFiles(format, plan, 'body', prepared);
         assert.deepEqual(files.map(f => f.fileName), [plan.fileName, ...Object.values(plan.resources)]);
         assert.deepEqual(Object.keys(files[0]).sort(), ['content', 'fileName', 'mimeType']);
@@ -80,9 +80,10 @@ for (const format of ['markdown', 'html', 'json'] as const) {
         assert.ok(!Object.keys(zip.files).some(path => path.startsWith('gemini_export/')));
     });
 }
-test('Packaging rejects dangling external bindings before Delivery; PDF emits only main', () => {
-    const [plan] = planExportPaths([{ conversation: conversation(), prepared }], 'pdf');
+test('Packaging rejects dangling external bindings before Delivery; Image-only PDF emits only main', () => {
+    const [plan] = planExportPaths([{ conversation: conversation(), prepared, fileIds: new Set<string>() }], 'pdf');
     assert.throws(() => buildExportFiles('markdown', plan, 'body', new Map()), /Bound resource unavailable/);
+    assert.equal(plan.externalResourceIds.size, 0, 'PDF without AST File references embeds images only');
     assert.equal(buildExportFiles('pdf', plan, new Uint8Array([1]), prepared).length, 1);
 });
 test('ZIP decision uses actual flattened files and delivery, never format or batch count', async () => {
@@ -115,7 +116,7 @@ test('Format references resolve to the same planned ZIP entries for Markdown, HT
     const account = fixtureAccountFor(c);
     const document = composeDomainDocument(c, account);
     for (const format of ['markdown', 'html', 'json'] as const) {
-        const [plan] = planExportPaths([{ conversation: c, prepared }], format);
+        const [plan] = planExportPaths([{ conversation: c, prepared, fileIds: new Set<string>() }], format);
         const content = format === 'markdown' ? renderDocumentMarkdown(document, plan.resources)
             : format === 'html' ? renderDocumentHtml(document, plan.resources).html
             : serializeDomainJson(c, account, plan.resources);
@@ -123,7 +124,8 @@ test('Format references resolve to the same planned ZIP entries for Markdown, HT
         const [packed] = await packageExportFiles([files], 'browserDownload');
         const zip = await JSZip.loadAsync(await (packed.content as Blob).arrayBuffer());
         for (const path of Object.values(plan.resources)) {
-            assert.ok(content.includes(path), `${format} reference: ${path}`);
+            const encoded = path.split('/').map(encodeURIComponent).join('/');
+            assert.ok(content.includes(format === 'json' ? path : encoded), `${format} reference: ${path}`);
             assert.ok(zip.file(path), `${format} entry: ${path}`);
         }
     }
@@ -142,7 +144,7 @@ test('Packaging adds missing resource extensions and preserves existing ones', (
     const resources: PreparedResources = new Map(c.detail.assets.map(asset => [asset.id, {
         ok: true, resourceId: asset.id, value: { bytes, mediaType: asset.mediaType },
     }]));
-    const [plan] = planExportPaths([{ conversation: c, prepared: resources }], 'markdown');
+    const [plan] = planExportPaths([{ conversation: c, prepared: resources, fileIds: new Set<string>() }], 'markdown');
     assert.deepEqual(Object.values(plan.resources), [
         'assets/123456_Generated Image.png', 'assets/123456_Generated Image_2.png',
         'files/123456_Notes.md', 'files/123456_unnamed.id.bin',

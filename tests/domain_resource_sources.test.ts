@@ -23,14 +23,14 @@ test('renaming source archive paths cannot change Domain identity or Packaging d
     assert.deepEqual(asset.sourceUri, 'https://example.test/photo');
     assert.equal(asset.name, 'Authored photo');
     const prepared: PreparedResources = new Map([[asset.id, { ok: true, resourceId: asset.id, value: { bytes: new Uint8Array([1]), mediaType: 'image/png' } }]]);
-    const firstPlan = planExportPaths([{ conversation: first.conversation, prepared }], 'markdown')[0];
-    const secondPlan = planExportPaths([{ conversation: second.conversation, prepared }], 'markdown')[0];
+    const firstPlan = planExportPaths([{ conversation: first.conversation, prepared, fileIds: new Set<string>() }], 'markdown')[0];
+    const secondPlan = planExportPaths([{ conversation: second.conversation, prepared, fileIds: new Set<string>() }], 'markdown')[0];
     assert.deepEqual(firstPlan, secondPlan);
     assert.ok(firstPlan.resources[asset.id].endsWith('Authored photo.png'));
     assert.ok(!JSON.stringify(firstPlan).includes('old/photo'));
     const restored = JSON.parse(JSON.stringify(first.conversation));
     assert.deepEqual(restored, first.conversation);
-    assert.deepEqual(planExportPaths([{ conversation: restored, prepared }], 'markdown')[0], firstPlan);
+    assert.deepEqual(planExportPaths([{ conversation: restored, prepared, fileIds: new Set<string>() }], 'markdown')[0], firstPlan);
 });
 
 test('same export destination cannot collapse resources from different sources', () => {

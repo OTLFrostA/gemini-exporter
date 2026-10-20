@@ -23,7 +23,7 @@ async function mount(resources: Record<string, ResourceBytes | ResourceFailure>,
             }
             return { pdfBytes: new TextEncoder().encode('%PDF-1.7\n' + ' '.repeat(80)), diagnostics: [] };
         },
-    }, { signal: new AbortController().signal, reportProgress() {} }, { convertMath: () => undefined });
+    }, { signal: new AbortController().signal, reportProgress() {} });
     assert.equal(JSON.stringify(document), before);
     return { pathMap, mounts, diagnostics: result.diagnostics };
 }
@@ -66,7 +66,7 @@ for (const [id, resource, code] of [
     test(`invalid image is omitted with a diagnostic: ${id}`, async () => {
         const result = await mount({ [id]: resource });
         assert.equal(result.pathMap.get(id), undefined);
-        assert.deepEqual(codesFor(result, id), [code]);
+        assert.deepEqual(codesFor(result, id), [code, 'FORMAT_CONTENT_OMITTED']);
     });
 }
 test('same filenames or duplicate bytes never change Packaging paths', async () => {
@@ -91,7 +91,7 @@ test('50 MiB binary gate accepts the actual boundary and rejects one byte above 
     const over = new Uint8Array(MAX_ASSET_BYTES + 1);
     const refused = await mount({ huge: { bytes: over, mediaType: 'image/png' } });
     assert.equal(refused.pathMap.size, 0);
-    assert.deepEqual(codesFor(refused, 'huge'), ['ASSET_TOO_LARGE']);
+    assert.deepEqual(codesFor(refused, 'huge'), ['ASSET_TOO_LARGE', 'FORMAT_CONTENT_OMITTED']);
 });
 test('unprepared, absent and failed images never acquire bytes in the offline stage', async () => {
     const previous = globalThis.fetch;
