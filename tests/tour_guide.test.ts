@@ -52,7 +52,9 @@ test('tourGuide - action-driven advancement covers scan, selection, format, expo
     await page.locator('#list .item input').first().check(); await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Choose a format');
     await page.locator('#format').selectOption('html'); await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Export selected conversations');
     await page.locator('#btnExport').click(); await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Live Save');
-    // A directory click is also a legitimate step action, even if the user cancels the picker.
+    // The tour now shows the folder card: select the local destination first.
+    await page.locator('input[name="delivery"][value="folderWriter"]').check();
+    // A directory click advances the step once the folder is selected.
     await page.locator('#btnSetDir').click(); await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Optional feedback');
     // Prevent external navigation; the actual DOM click still advances the current step.
     await page.locator('#feedbackBox').evaluate(el => el.addEventListener('click', event => event.preventDefault()));
