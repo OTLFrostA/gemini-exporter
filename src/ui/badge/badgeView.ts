@@ -1,4 +1,4 @@
-import { getSettings, updateSettings } from '../../application/settings/index.js';
+import { getSettings } from '../../application/settings/index.js';
 import type { ExportResult } from '../../application/export/types.js';
 import { getAccountContext, resolveCurrentAccount } from '../../runtime/content/accountContext.js';
 import { registerCleanup } from '../../runtime/content/cleanupRegistry.js';
@@ -104,7 +104,10 @@ function ensureBadgeImpl(): HTMLElement | null {
         badge!.releasePointerCapture(event.pointerId);
         if (moved) {
             const rect = badge!.getBoundingClientRect();
-            void updateSettings({ badgePosition: { left: Math.round(rect.left), top: Math.round(rect.top) } }).catch(console.warn);
+            void chrome.runtime.sendMessage({ action: 'updateBadgePosition',
+                position: { left: Math.round(rect.left), top: Math.round(rect.top) } })
+                .then(reply => { if (!reply?.ok) throw new Error(reply?.error ?? 'Badge position update failed'); })
+                .catch(console.warn);
         }
     });
     badge.addEventListener('pointercancel', () => { dragging = false; moved = true; });
