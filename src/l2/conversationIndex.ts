@@ -8,6 +8,9 @@ export interface DomainConversationIndex {
     createdAt?: number;
     updatedAt?: number;
 }
+
+/** Public schema name from the frozen L2 interface contract. */
+export type ConversationIndex = DomainConversationIndex;
 export type ConversationIndexPatch = Partial<Omit<DomainConversationIndex, 'key'>>;
 const keys = new Set(['key', 'title', 'titleSource', 'createdAt', 'updatedAt']);
 export function restoreConversationIndex(value: unknown): DomainConversationIndex {

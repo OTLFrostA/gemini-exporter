@@ -2,10 +2,9 @@ import { isDurableSourceUri } from './sourceUri.js';
 import { readConversationKey, sameConversationKey } from './conversationKey.js';
 import type { TableBlock } from './content/blocks.js';
 import { MAX_TABLE_COLUMNS, MAX_TABLE_ROW_SPAN, tableCellPlacements } from './content/tableLayout.js';
-import type { DeepReadonly } from './readonly.js';
-import type { DomainConversationDetail } from './conversationDetail.js';
+import type { DomainConversationDetail, ConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
-import type { DomainConversationWithDetail } from './conversation.js';
+import type { DomainConversation, DomainConversationWithDetail } from './conversation.js';
 import { restoreConversationIndex } from './conversationIndex.js';
 import type { DomainConversationIndex } from './conversationIndex.js';
 
@@ -107,8 +106,8 @@ declare const trustedDomain: unique symbol;
 export type TrustedDomainBody = DomainConversationDetail & { readonly [trustedDomain]: true };
 export interface TrustedDomain extends DomainConversationWithDetail { detail: TrustedDomainBody }
 
-/** Consumer view only; builders and trust construction retain their existing contracts. */
-export type ReadonlyDomain = DeepReadonly<TrustedDomain>;
+/** Frozen public read view: structural Index plus required Detail; no brand or DTO. */
+export type ReadonlyDomain = Readonly<DomainConversation & { detail: ConversationDetail }>;
 
 /** Body trust survives metadata changes; no flat snapshot is constructed. */
 export function selectConversationBody(conversation: TrustedDomain): TrustedDomainBody { return conversation.detail; }

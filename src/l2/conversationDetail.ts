@@ -75,6 +75,9 @@ export interface DomainConversationDetail {
     messages: DomainMessage[];
 }
 
+/** Public schema name from the frozen L2 interface contract. */
+export type ConversationDetail = DomainConversationDetail;
+
 /** Select a single snapshot; neither message count nor local capture time proves coverage. */
 export function selectConversationDetail<T extends { detail: DomainConversationDetail }>(
     existing: T | undefined, incoming: T,
