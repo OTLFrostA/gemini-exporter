@@ -1,12 +1,12 @@
-import { v2Account, v2Key, V2_SECOND_ACCOUNT_ID } from './helpers/l4V2Fixtures.js';
-import type { ReadonlyDomain } from '../src/l2/runtimeValidation.js';
+import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
+import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
-// Compile-time check of frozen L2 v2 schema without executing its implementation.
-const v2Input = <T extends ReadonlyDomain>(conversation: T): T => conversation;
-const native = { account: v2Account('test-provider'),
-    conversation: v2Input({ index: { key: v2Key('opaque-id'),   titleSource: "derived",   title: 'Portable archive', createdAt: 0 }, detail: { key: v2Key('opaque-id'), quality: { status: 'partial' }, assets: [
+import type { DomainFixture } from './helpers/domainFixture.js';
+import { assertDomainClosure } from '../src/l2/closure.js';
+const native: DomainFixture = { account: fixtureAccount('test-provider'),
+    conversation: validateParserDomain({ index: { key: fixtureKey(String('opaque-id'), 'test-provider'),   titleSource: "derived",   title: 'Portable archive', createdAt: 0 }, detail: { key: fixtureKey(String('opaque-id'), 'test-provider'), quality: { status: 'partial' }, assets: [
             { id: 'image', kind: 'image', name: 'image.png', mediaType: 'image/png', sourceUri: 'https://example.test/image.png' },
             { id: 'file', kind: 'file', name: 'report.pdf', mediaType: 'application/pdf', byteLength: 42 } ], messages: [{ id: 'system', role: 'system', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Instruction' }] }] },
             { id: 'answer', role: 'assistant', timestamp: 0, model: 'Source model',
@@ -24,7 +24,7 @@ test('Archive v1 preserves trusted Domain and Account with flat Packaging bindin
     assert.deepEqual(Object.keys(archive), ['format', 'version', 'account', 'conversation', 'resources']);
     assert.equal(archive.format, 'gemini-exporter-domain'); assert.equal(archive.version, 1);
     assert.deepEqual(archive.account, native.account);
-    assert.deepEqual(archive.conversation, native.conversation);
+    assert.deepEqual(archive.conversation, native.conversation); assertDomainClosure(archive.conversation.detail);
     assert.deepEqual(archive.resources, bindings);
     assert.deepEqual(native, before);
 });
@@ -37,7 +37,7 @@ test('no resource bytes still preserves all Asset facts and only Detail savedAt'
     assert.deepEqual(archive.conversation.detail.assets, native.conversation.detail.assets);
 });
 test('Archive refuses mismatched accounts and mismatched conversation keys', () => {
-    assert.throws(() => serializeDomainJson(native.conversation, v2Account('other', V2_SECOND_ACCOUNT_ID), {}), /mismatch/);
+    assert.throws(() => serializeDomainJson(native.conversation, fixtureAccount('other'), {}), /mismatch/);
     const conversation = { ...native.conversation, detail: { ...native.conversation.detail,
         key: { ...native.conversation.detail.key, conversationId: 'other' } } };
     assert.throws(() => serializeDomainJson(conversation, native.account, {}), /mismatch/);
