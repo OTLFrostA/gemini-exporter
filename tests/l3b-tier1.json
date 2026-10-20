@@ -2,10 +2,10 @@
   "suites": [
     "tests/ast-composer.test.ts",
     "tests/document-ast-contract.test.ts",
-    "tests/asset-presentation.test.ts",
     "tests/domain-ast-projection.test.ts"
   ],
   "integrationSuites": [
+    "tests/asset-presentation.test.ts",
     "tests/document-ast-integration.test.ts",
     "tests/document-feature-matrix.test.ts",
     "tests/document-file-badge.test.ts",
