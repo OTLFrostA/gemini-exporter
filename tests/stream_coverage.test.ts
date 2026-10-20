@@ -86,3 +86,13 @@ test('Coverage facts require safe-integer Unix milliseconds, not merely finite n
     assert.deepEqual(readStreamCoverage({ range: { head: { id: 'head', time: 100 }, tail: { id: 'tail', time: 0 } } }),
         { range: { head: { id: 'head', time: 100 }, tail: { id: 'tail', time: 0 } } });
 });
+
+test('replayed Coverage observations identify keys by ID and source time, not object property order', () => {
+    const s = new CoverageSession();
+    const head = page([100], null, 'next');
+    assert.deepEqual(s.observe(emptyStream(), head), emptyStream());
+    const replay = { ...head, keys: [{ time: 100, id: 'id100' }] };
+    assert.deepEqual(s.observe(emptyStream(), replay), emptyStream());
+    const tail = page([80], 'next');
+    assert.deepEqual(s.observe(emptyStream(), tail), { range: { head: head.keys[0], tail: tail.keys[0] } });
+});

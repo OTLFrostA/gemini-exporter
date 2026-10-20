@@ -17,7 +17,8 @@ const samePage = (a: PageObservation<unknown>, b: PageObservation<unknown>) =>
     a.providerId === b.providerId && a.accountId === b.accountId && a.streamId === b.streamId
     && a.requestedAt === b.requestedAt && a.nextCursor === b.nextCursor && a.ordered === b.ordered
     && a.requestKnown === b.requestKnown && a.valid === b.valid && a.terminal === b.terminal
-    && JSON.stringify(a.keys) === JSON.stringify(b.keys);
+    && a.keys.length === b.keys.length
+    && a.keys.every((key, i) => key.id === b.keys[i].id && key.time === b.keys[i].time);
 
 /** Ephemeral cursor evidence. Only a verified terminal chain establishes a new durable range. */
 export class CoverageSession {

@@ -183,3 +183,22 @@ test('Index atomic update rejects duplicate/foreign decision keys and rolls back
         assert.equal((await getIndex(two))?.updatedAt, 20);
     } finally { env.restore(); }
 });
+
+test('Detail admission compares semantic JSON facts, not object property insertion order', async () => {
+    const env = indexStorage(), key = fixtureKey('same-facts-key-order');
+    try {
+        const facts = { messages: [{ role: 'assistant' as const, content: [] }], assets: [{ id: 'a', kind: 'image' as const }],
+            quality: { status: 'complete' as const }, savedAt: 10 };
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true });
+        const writes = env.writes();
+        const equivalent = { quality: { status: 'complete' as const }, assets: [{ kind: 'image' as const, id: 'a' }],
+            messages: [{ content: [], role: 'assistant' as const }], savedAt: 10 };
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, equivalent),
+            { accepted: true, changed: false });
+        assert.equal(env.writes(), writes, 'a duplicate material snapshot must not write again');
+        const versionOnly = { ...equivalent, savedAt: 11 };
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, versionOnly),
+            { accepted: true, changed: false });
+        assert.equal((await getDetail(key))?.savedAt, 11);
+    } finally { env.restore(); }
+});
