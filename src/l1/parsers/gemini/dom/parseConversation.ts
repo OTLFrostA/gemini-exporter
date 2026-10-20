@@ -72,8 +72,11 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
         }
         if (!markup.trim() && !attachments.length) continue;
         const sourceId = node.getAttribute?.('data-message-id');
-        const time = node.querySelector('time[datetime]')?.getAttribute('datetime') ?? node.getAttribute?.('data-timestamp-ms');
-        const timestamp = time ? (Number.isFinite(Number(time)) ? Number(time) : Date.parse(time)) : undefined;
+        const isoTime = node.querySelector('time[datetime]')?.getAttribute('datetime');
+        const dataTime = node.getAttribute?.('data-timestamp-ms');
+        // The DOM attribute is explicitly milliseconds; datetime is a date string.
+        const sourceTime = isoTime ? Date.parse(isoTime) : dataTime ? Number(dataTime) : NaN;
+        const timestamp = Number.isSafeInteger(sourceTime) && sourceTime > 0 ? sourceTime : undefined;
         const model = node.getAttribute?.('data-model-name') ?? node.querySelector('[data-model-name]')?.getAttribute('data-model-name');
         messages.push({ role, ...(sourceId ? { id: sourceId } : {}), ...(model ? { model } : {}),
             ...(timestamp !== undefined && Number.isFinite(timestamp) ? { timestamp } : {}),
