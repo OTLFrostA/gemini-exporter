@@ -1,0 +1,47 @@
+name: L3a Consumer Contract Tests
+
+on:
+  pull_request:
+    branches: [dev/v2]
+    paths:
+      - '.github/workflows/l3a-consumers.yml'
+      - 'tests/l3a-tier1.json'
+      - 'tests/**'
+      - 'src/l3a/**'
+      - 'src/l2/**'
+      - 'src/application/**'
+      - 'src/runtime/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  consumer-contracts:
+    name: Storage ${{ matrix.group }}
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [integrationSuites, consumerSuites]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Run consumer contracts without unrelated whole-repo typecheck
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          node - <<'NODE'
+          const { spawnSync } = require('node:child_process');
+          const manifest = require('./tests/l3a-tier1.json');
+          const tests = manifest[process.env.GROUP];
+          if (!Array.isArray(tests) || !tests.length) throw Error('Missing L3a consumer tests');
+          const result = spawnSync(process.execPath, ['scripts/test-unit.cjs', ...tests], {stdio: 'inherit'});
+          if (result.error) throw result.error;
+          process.exit(result.status ?? 1);
+          NODE
