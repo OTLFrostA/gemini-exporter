@@ -170,7 +170,12 @@ export async function initWorkbench(): Promise<void> {
         settings = await readSettings();
         if (result.reason === 'provider_limit' && !settings.takeoutPromptCompleted) openModal('takeoutLimitModal');
     }, true);
-    const openModal = (id: string) => { el<HTMLElement>(id).style.display = 'flex'; };
+    const openModal = (id: string) => {
+        if (id === 'takeoutLimitModal') el('takeoutLimitPromptText').textContent = text(
+            'Gemini confirmed an online history access limit. Import your Google Takeout ZIP to recover older conversations.',
+            'Gemini 已确认在线历史访问范围受限。可以导入 Google Takeout ZIP 补全更早的会话。');
+        el<HTMLElement>(id).style.display = 'flex';
+    };
     const closeModal = (id: string) => { el<HTMLElement>(id).style.display = 'none'; };
     const acknowledgeTakeout = () => {
         closeModal('takeoutLimitModal');
