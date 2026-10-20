@@ -1,227 +1,190 @@
-import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
-import * as DomainAdmission from '../src/l2/ingestion.js';
+/**
+ * V2 replacement for the retired BatchWorker/fetchChatDetail/resolveChat APIs.
+ * Keep real Gemini L1 parsing/Provider, L2 admission, L3a IndexedDB and
+ * L3b/L4 presentation. Only Provider network transport and tab slot are faked.
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { StorageService as catalogStorage } from '../src/l3a/storageService.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { sourceDetail, sourceList, sourceMessage, activityHtml, takeoutArchive } from './helpers/l1SourceFixture.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { ConfirmedGeminiConversationNotFound } from '../src/l1/client/gemini/geminiClient.js';
+import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { ingestDetail } from '../src/l2/ingestion.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import { getDetail, getIndex, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
+import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+
 useIndexStorage();
-import { indexFixture } from './helpers/indexFixture.js';
-const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { __clearDomainMemory } = require('../src/l3a/domain/domainStore.js');
-export {};
-const test = require('node:test');
-const assert = require('node:assert/strict');
+const account = fixtureAccount('gemini');
+const key = (conversationId: string) => ({ accountId: account.id, conversationId });
+function native(id: string, title: string, answer: string, updatedAt = 1800000000000) {
+    const result = sourceDetail({ id, title, updatedAt,
+        messages: [sourceMessage('r_' + id, answer, 'model')] });
+    result.conversation.detail.savedAt = updatedAt;
+    result.conversation.detail.quality.status = 'complete';
+    return result;
+}
+function provider(getConversationDetail: (conversationId: string, slot?: string | null) =>
+    Promise<ReturnType<typeof native>>, route: (accountId: string) => Promise<string> = async () => 'u0') {
+    return new GeminiProvider({
+        getConversationList: async () => sourceList(),
+        getConversationDetail,
+    }, route);
+}
 
-const {
-    fetchChatDetail,
-    resolveChat,
-    resolveConversationData,
-} = require('../src/core/engine/export/batchWorker.js');
-
-test('Track C1: direct vs runtime fetch fallback preserves exact transport cascade', async () => {
-    // 1. Direct TabService success
-    const mockDirectTabService = {
-        sendToGeminiTab: async () => ({
-            success: true, domainEnvelopeVersion: 3,
-            data: historicalFixture({ id: 'chat_direct_1', title: 'Direct Tab Chat', messages: [] })
-        })
-    };
-    let runtimeCalled = false;
-    const mockRuntimeSender = async () => {
-        runtimeCalled = true;
-        return { success: true };
-    };
-
-    const directResult = await fetchChatDetail(
-        { id: 'chat_direct_1' },
-        0,
-        1,
-        '10000000-0000-4000-8000-000000000001',
-        false,
-        'md',
-        null,
-        { tabService: mockDirectTabService, messageSender: mockRuntimeSender }
-    );
-    assert.equal(directResult.success, true);
-    assert.equal(directResult.results?.[0]?.conversation?.index.title, 'Direct Tab Chat');
-    assert.equal(runtimeCalled, false, 'Runtime sender must not be called when direct transport succeeds');
-
-    // 2. Explicit direct error: must return error directly and NOT fall back to runtime sender
-    const mockDirectErrorTabService = {
-        sendToGeminiTab: async () => ({
-            success: false,
-            error: 'Explicit direct rpc failure'
-        })
-    };
-    runtimeCalled = false;
-    const directErrResult = await fetchChatDetail(
-        { id: 'chat_direct_err' },
-        0,
-        1,
-        '10000000-0000-4000-8000-000000000001',
-        false,
-        'md',
-        null,
-        { tabService: mockDirectErrorTabService, messageSender: mockRuntimeSender }
-    );
-    assert.equal(directErrResult.success, false);
-    assert.match(String(directErrResult.error), /Explicit direct rpc failure/);
-    assert.equal(runtimeCalled, false, 'Explicit direct error must not cascade to runtime sender');
-
-    // 3. Malformed direct envelope: must return Malformed direct response envelope
-    const mockDirectMalformedTabService = {
-        sendToGeminiTab: async () => 'unexpected string response'
-    };
-    runtimeCalled = false;
-    const malformedResult = await fetchChatDetail(
-        { id: 'chat_direct_malformed' },
-        0,
-        1,
-        '10000000-0000-4000-8000-000000000001',
-        false,
-        'md',
-        null,
-        { tabService: mockDirectMalformedTabService, messageSender: mockRuntimeSender }
-    );
-    assert.equal(malformedResult.success, false);
-    assert.match(malformedResult.error, /unreadable/i);
-    assert.equal(runtimeCalled, false, 'Malformed direct response envelope must settle without falling back');
-
-    // 4. TabService throws or absent -> cascades to messageSender (runtime/chrome fallback)
-    const mockFailingTabService = {
-        sendToGeminiTab: async () => {
-            throw new Error('Tab communication dropped');
-        }
-    };
-    let remotePayload: unknown = null;
-    const mockFallbackSender = (msg: unknown, callback?: (res: unknown) => void) => {
-        remotePayload = msg;
-        callback?.({
-            success: true, domainEnvelopeVersion: 3,
-            results: [historicalFixture({ id: 'chat_remote_1', title: 'Remote Fallback Chat', messages: [] })]
-        });
-    };
-    const fallbackResult = await fetchChatDetail(
-        { id: 'chat_remote_1' },
-        0,
-        1,
-        '10000000-0000-4000-8000-000000000001',
-        false,
-        'md',
-        null,
-        { tabService: mockFailingTabService, messageSender: mockFallbackSender }
-    );
-    assert.equal(fallbackResult.success, true);
-    assert.equal(fallbackResult.results?.[0]?.conversation?.index.title, 'Remote Fallback Chat');
-    assert.deepEqual(remotePayload, {
-        action: 'fetchBatch',
-        ids: [{ id: 'chat_remote_1' }],
-        format: 'md',
-        skipExported: false,
-        globalOffset: 0,
-        globalTotal: 1,
-        accountId: '10000000-0000-4000-8000-000000000001',
-    }, 'fallback must carry the requested ID, account, format and progress to the runtime');
-});
-
-test('Track C1: abort signal cleanup and single-settle', async () => {
-    // 1. Pre-aborted signal settles immediately with abort error
-    const controller = new AbortController();
-    controller.abort();
-
-    let tabCalled = false;
-    const mockTabService = {
-        sendToGeminiTab: async () => {
-            tabCalled = true;
-            return { success: true };
-        }
-    };
-
-    const abortedResult = await fetchChatDetail(
-        { id: 'chat_aborted_1' },
-        0,
-        1,
-        '10000000-0000-4000-8000-000000000001',
-        false,
-        'md',
-        controller.signal,
-        { tabService: mockTabService }
-    );
-    assert.equal(abortedResult.success, false);
-    assert.match(String(abortedResult.error), /abort/i);
-    assert.equal(tabCalled, false, 'Aborted signal must prevent transport execution');
-
-    // 2. Mid-flight abort settles cleanly
-    const liveController = new AbortController();
-    const hangTabService = {
-        sendToGeminiTab: () => new Promise(() => {})
-    };
-    const pendingPromise = fetchChatDetail(
-        { id: 'chat_aborted_2' },
-        0,
-        1,
-        '10000000-0000-4000-8000-000000000001',
-        false,
-        'md',
-        liveController.signal,
-        { tabService: hangTabService }
-    );
-    liveController.abort();
-    const midFlightResult = await pendingPromise;
-    assert.equal(midFlightResult.success, false);
-    assert.match(String(midFlightResult.error), /abort/i);
-});
-
-test('C1 review: malformed raw replies are reportable failures rather than native results', async () => {
-    const payload = { messages: [{ role: 'model', content: 'raw' }], extension: 17 };
-    const direct = await fetchChatDetail({ id: 'c_raw' }, 0, 1, '10000000-0000-4000-8000-000000000001', false, 'md', null, {
-        tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 3, data: payload }) }
-    });
-    assert.equal(direct.success, false);
-    assert.equal(direct.results, undefined);
-    const runtime = await fetchChatDetail({ id: 'c_raw' }, 0, 1, '10000000-0000-4000-8000-000000000001', false, 'md', null, {
-        tabService: { sendToGeminiTab: async () => null },
-        messageSender: (_msg: unknown, callback: (value: unknown) => void) => callback({ results: [payload], error: 0 })
-    });
-    assert.equal(runtime.success, false);
-    assert.equal(runtime.results, undefined);
-    const error = await fetchChatDetail({ id: 'c_raw' }, 0, 1, '10000000-0000-4000-8000-000000000001', false, 'md', null, {
-        tabService: { sendToGeminiTab: async () => ({ error: { code: 403 } }) }
-    });
-    assert.equal(error.success, false);
-    assert.equal(typeof error.error, 'string');
-});
-
-test('runtime detail recovery prefers native online, then native Takeout, then durable Domain', async () => {
-    const id = 'cascade_test'; const slot = '10000000-0000-4000-8000-000000000001';
-    const make = (text: string) => historicalFixture({ id, title: text, messages: [{ role: 'model', content: text }] });
-    const online = make('online'), offline = make('offline'), stored = make('stored'); let calls = 0;
-    const takeout = { getTakeoutOfflineChat() { calls++; return offline; } };
-    const direct = await resolveConversationData(online, id, null, takeout, slot, undefined, 'online');
-    assert.strictEqual(direct.result, online);
-    assert.equal(direct.source, 'online');
-    assert.equal(calls, 0, 'valid online detail must never consult Takeout');
-    const fromTakeout = await resolveConversationData({ error: 'offline' }, id, null, takeout, slot);
-    assert.strictEqual(fromTakeout.result, offline);
-    assert.equal(fromTakeout.source, 'takeout');
-    assert.equal(calls, 1);
+test('C1: native online Detail flows through real L1 -> L2 -> L3a; no BatchWorker envelope is persisted', async () => {
+    const id = 'c1-online-1';
+    const resourceContext = createSourceResourceContext();
+    const parsed = native(id, 'Source RPC title', 'Provider model answer');
+    parsed.conversation.detail.assets.push({ id: 'diagram', kind: 'image', name: 'diagram.png', mediaType: 'image/png' });
+    parsed.conversation.detail.messages[0].content.push({ type: 'image', assetId: 'diagram' });
+    parsed.acquisitionHints = { diagram: { dataBase64: 'AQID' } };
+    const requests: Array<{ id: string; slot: string | null | undefined }> = [];
+    const actual = new GeminiProvider({
+        getConversationList: async () => sourceList(),
+        getConversationDetail: async (conversationId, slot) => {
+            requests.push({ id: conversationId, slot });
+            return parsed;
+        },
+    }, async () => 'u0', resourceContext);
     try {
-        await admitFixtures(slot, [stored]);
-        const recovered = await resolveConversationData({ error: 'offline' }, id, null, null, slot);
-        assert.equal(recovered.source, 'local_snapshot', 'durable fallback must be marked as a local snapshot');
-        assert.deepEqual(recovered.result.conversation.detail.messages, stored.conversation.detail.messages);
-        assert.equal(recovered.result.conversation.index.title, stored.conversation.index.title);
-        const rejected = await resolveChat({ id, messages: [{ role: 'model', content: 'legacy runtime' }] }, { id: 'unmigrated' }, null, null, slot);
-        assert.equal(rejected.isError, true); assert.equal(rejected.chat, undefined);
-    } finally { __clearDomainMemory(); }
+        await actual.fetchConversationDetail(account.id, id);
+        assert.deepEqual(requests, [{ id, slot: 'u0' }]);
+        const saved = await readConversation(key(id));
+        assert.ok(saved);
+        assert.equal(saved.index.title, 'Source RPC title');
+        assert.equal(saved.index.titleSource, 'provider');
+        assert.equal(saved.detail.quality.status, 'complete');
+        assert.equal(saved.detail.messages.length, 1);
+        assert.match(JSON.stringify(saved.detail.messages), /Provider model answer/);
+        assert.ok(!JSON.stringify(saved).includes('AQID'), 'acquisition hints are task-only');
+        assert.equal(await getDetail({ ...key(id), accountId: '10000000-0000-4000-8000-000000000002' }), null);
+        const bytes = await actual.acquireResource(key(id), saved.detail.assets[0]);
+        assert.deepEqual([...bytes.bytes], [1, 2, 3]);
+        const document = composeDomainDocument(saved, account);
+        assert.match(renderDocumentMarkdown(document, {}), /Provider model answer/);
+    } finally { resourceContext.release(); }
 });
 
-test('native resolver retains unknown source blocks and arbitrates titles without reparsing', async () => {
-    const native = historicalFixture({ id: 'native-title', title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' }, messages: [{ role: 'tool', content: { untouched: true } }] });
-    const list = indexFixture({ id: 'native-title', title: 'Takeout title', titleSource: 'takeout' });
-    await admitFixture('10000000-0000-4000-8000-000000000001', native);
-    const resolved = await resolveChat(native, { id: 'native-title' }, list, null, '10000000-0000-4000-8000-000000000001');
-    assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.index.title, 'RPC title');
-    assert.deepEqual(resolved.chat.conversation.detail.messages, native.conversation.detail.messages);
-    assert.equal(resolved.chat.conversation.detail.messages[0].role, 'unknown');
-    const deleted = await resolveChat({ id: 'deleted-native', error: 'Conversation not found', isDeleted: true }, { id: 'deleted-native' }, null, null, '10000000-0000-4000-8000-000000000001');
-    assert.equal(deleted.isConfirmedDeleted, true); assert.equal(deleted.chat, undefined);
+test('C1: pre-cancelled and in-flight AbortSignal stop v2 acquisition without admitting Detail', async () => {
+    const cancelled = new AbortController();
+    cancelled.abort();
+    let called = 0;
+    const skipped = provider(async id => { called++; return native(id, 'Not fetched', 'Should not appear'); });
+    await assert.rejects(skipped.fetchConversationDetail(account.id, 'c1-preabort', cancelled.signal),
+        (error: unknown) => error instanceof Error && error.name === 'AbortError');
+    assert.equal(called, 0);
+    assert.equal(await getDetail(key('c1-preabort')), null);
+
+    let release!: () => void, entered!: () => void;
+    const gated = new Promise<void>(resolve => { release = resolve; });
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const pending = provider(async id => {
+        entered();
+        await gated;
+        return native(id, 'Late response', 'Should never commit');
+    });
+    const controller = new AbortController();
+    const operation = pending.fetchConversationDetail(account.id, 'c1-midflight', controller.signal);
+    await started;
+    controller.abort();
+    release();
+    await assert.rejects(operation,
+        (error: unknown) => error instanceof Error && error.name === 'AbortError');
+    assert.equal(await getIndex(key('c1-midflight')), null);
+    assert.equal(await getDetail(key('c1-midflight')), null);
+});
+
+test('C1: verified account route change and foreign Detail identity fail closed', async () => {
+    const id = 'c1-owned', reply = native(id, 'Trusted title', 'Trusted body');
+    let calls = 0;
+    const changed = provider(async () => reply, async () => ++calls === 1 ? 'u0' : 'u1');
+    await assert.rejects(changed.fetchConversationDetail(account.id, id), /route changed/);
+    assert.equal(await getDetail(key(id)), null);
+
+    const foreign = provider(async () => native('other-conversation', 'Foreign', 'Foreign body'));
+    await assert.rejects(foreign.fetchConversationDetail(account.id, id), /Detail identity mismatch/);
+    assert.equal(await getDetail(key('other-conversation')), null);
+    assert.equal(await getDetail(key(id)), null);
+});
+
+test('C1: malformed native body fails L2 schema validation without replacing a trusted stored snapshot', async () => {
+    const id = 'c1-untrusted';
+    await ingestDetail(account.id, id, {
+        savedAt: 100, quality: { status: 'complete' }, assets: [],
+        messages: [{ role: 'assistant', content: [{
+            type: 'paragraph', children: [{ type: 'text', text: 'Last trusted answer' }],
+        }] }],
+    }, { title: 'Saved title', titleSource: 'user', updatedAt: 100 });
+    const before = await readConversation(key(id));
+    const broken = native(id, 'Malformed reply', 'Untrusted text');
+    broken.conversation.detail.messages[0].role = 'model' as never;
+    await assert.rejects(provider(async () => broken).fetchConversationDetail(account.id, id), /Domain contract/);
+    assert.deepEqual(await readConversation(key(id)), before);
+});
+
+test('C1: incomplete Takeout survives transient online failure; a newer complete native response supersedes its body', async () => {
+    const id = 'c1-history';
+    const imported = await importTakeout(takeoutArchive(activityHtml('<p>Takeout offline answer</p>', id)), account.id);
+    assert.equal(imported.imported, 1);
+    const offline = await readConversation(key(id));
+    assert.ok(offline);
+    assert.equal(offline.detail.quality.status, 'partial');
+    const unavailable = provider(async () => { throw new Error('transient provider network error'); });
+    await assert.rejects(unavailable.fetchConversationDetail(account.id, id), /transient provider network error/);
+    assert.deepEqual(await readConversation(key(id)), offline, 'failed L1 fetch cannot erase durable L2 Detail');
+
+    const online = native(id, 'Updated RPC answer', 'Full online answer', 1893456000000);
+    await provider(async () => online).fetchConversationDetail(account.id, id);
+    const stored = await readConversation(key(id));
+    assert.ok(stored);
+    assert.equal(stored.detail.quality.status, 'complete');
+    assert.match(JSON.stringify(stored.detail.messages), /Full online answer/);
+    assert.equal(stored.index.title, 'Updated RPC answer');
+    assert.equal(stored.index.titleSource, 'provider');
+});
+
+test('C1: unknown semantic blocks remain readable without reconstructing obsolete legacy messages', async () => {
+    const id = 'c1-unknown';
+    await ingestDetail(account.id, id, {
+        savedAt: 101, quality: { status: 'complete' }, assets: [],
+        messages: [{ role: 'unknown', content: [{
+            type: 'unknown', sourceType: 'provider-tool', text: 'Opaque but readable tool result',
+        }] }],
+    }, { title: 'Unexpected source role', titleSource: 'derived', updatedAt: 101 });
+    const saved = await readConversation(key(id));
+    assert.ok(saved);
+    assert.equal(saved.detail.messages[0].role, 'unknown');
+    assert.deepEqual(saved.detail.messages[0].content, [{
+        type: 'unknown', sourceType: 'provider-tool', text: 'Opaque but readable tool result',
+    }]);
+    const rendered = renderDocumentMarkdown(composeDomainDocument(saved, account), {});
+    assert.match(rendered, /Opaque but readable tool result/);
+    assert.match(rendered, /provider-tool/);
+});
+
+test('C1: only an exactly confirmed provider deletion removes v2 Index, Detail and ExportRecord', async () => {
+    const target = 'c1-delete', other = 'c1-preserve';
+    for (const id of [target, other]) {
+        await ingestDetail(account.id, id, {
+            savedAt: 100, quality: { status: 'complete' }, assets: [],
+            messages: [{ role: 'assistant', content: [] }],
+        }, { title: id, titleSource: 'provider', updatedAt: 100 });
+        await putExportRecord(key(id), { exportedAt: 200, format: 'markdown', status: 'ok' });
+    }
+    const wrongReply = provider(async () => { throw new ConfirmedGeminiConversationNotFound('c_' + other); });
+    await assert.rejects(wrongReply.fetchConversationDetail(account.id, target), /Confirmed Gemini Detail not found/);
+    assert.ok(await getDetail(key(target)), 'wrong request identity cannot authorize deletion');
+
+    const confirmed = provider(async () => { throw new ConfirmedGeminiConversationNotFound('c_' + target); });
+    await assert.rejects(confirmed.fetchConversationDetail(account.id, target), /conversation_not_found/);
+    assert.equal(await getIndex(key(target)), null);
+    assert.equal(await getDetail(key(target)), null);
+    assert.equal(await getExportRecord(key(target)), null);
+    assert.ok(await getDetail(key(other)), 'another conversation is preserved');
+    assert.equal((await getExportRecord(key(other)))?.status, 'ok');
 });
