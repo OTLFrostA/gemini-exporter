@@ -108,6 +108,10 @@ test('MAIN fetch → isolated L1 → Background L2 commits in extension IDB and 
         window.postMessage({ action: 'runLiveSave', key: { accountId: 'fake', conversationId: 'passive' } }, location.origin);
     });
     await expect.poll(() => page.evaluate(async accountId => (await Reflect.get(globalThis, 'productionProbe').listIndexes(accountId)).length, accountId)).toBe(1);
+    // Badge v2 deliberately pulls counts on visibility restoration (and every ~60s),
+    // not on an Index-commit push. Exercise that existing refresh boundary.
+    await source.bringToFront();
+    await source.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     await expect(source.locator('#geminiExportBadge')).toContainText('1');
     expect(await page.evaluate(async accountId => Object.keys(await Reflect.get(globalThis, 'productionProbe').listExportRecords(accountId)).length, accountId)).toBe(0);
     expect(await source.evaluate(async () => (await indexedDB.databases()).map(db => db.name))).not.toContain('gemini_exporter_v2');
