@@ -11,8 +11,8 @@ const key = { accountId: '12345678-1234-4234-8234-123456789abc', conversationId:
 function load(file: string, stubs: Record<string, unknown> = {}) {
     const original = Module._load;
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
-        const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\\.ts$/, '.js') : request;
-        const dependency = Object.keys(stubs).find(name => resolved === path.resolve(root, name).replace(/\\.ts$/, '.js'));
+        const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
+        const dependency = Object.keys(stubs).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
         return dependency ? stubs[dependency] : original.call(this, request, parent, ...args);
     };
     try {
