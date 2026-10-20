@@ -26,12 +26,12 @@ export async function openOptions(context: BrowserContext,extensionId: string) {
     await exposeUIStorage(page);await page.evaluate(async()=>Reflect.get(globalThis,'uiFixture').updateSettings({language:'en',lastSeenFeatureVersion:'999.0.0'}));
     await page.reload();await exposeUIStorage(page);await expect(page.locator('body')).toHaveAttribute('data-busy','false');return page;
 }
-export async function seedConversations(page:Page,rows: readonly ({id:string;body?:string;missingAsset?:boolean}&Partial<Omit<DomainConversationIndex,'key'>>)[],records:Record<string,ExportRecord>={}) {
+export async function seedConversations(page:Page,rows: readonly ({id:string;body?:string;question?:string;missingAsset?:boolean}&Partial<Omit<DomainConversationIndex,'key'>>)[],records:Record<string,ExportRecord>={}) {
     await page.evaluate(async({rows,records,accountId})=>{
         const api=Reflect.get(globalThis,'uiFixture');
         for(const row of rows) {
             await api.ingestDetail(accountId,row.id,{savedAt:100,quality:{status:'complete'},assets:row.missingAsset?[{id:'image',kind:'image',sourceUri:'photo.png',name:'photo.png'}]:[],messages:[
-                {role:'user',content:[{type:'paragraph',children:[{type:'text',text:`Question ${row.id}`}]}]},
+                {role:'user',content:[{type:'paragraph',children:[{type:'text',text:row.question??`Question ${row.id}`}]}]},
                 {role:'assistant',content:[{type:'paragraph',children:[{type:'text',text:row.body??`Answer ${row.id}`}]},...(row.missingAsset?[{type:'image',assetId:'image'}]:[])]}
             ]},{title:row.title??row.id,titleSource:row.titleSource??'provider',updatedAt:row.updatedAt??100});
         }

@@ -1,44 +1,34 @@
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-const LiveStorageManager = require('../src/l3a/liveStorageManager.js');
-test('non-Markdown formats suppress live save config and both write routes', async () => {
-    const { STORAGE_KEYS } = require('../src/shared/utils/constants.js');
-    const { handleLiveSaveViaHandle } = require('../src/runtime/background/liveSaveHandler.js');
-    const { writeLiveSaveMarkdown } = require('../src/core/engine/liveSaveWriter.js');
-    const { saveFormat } = require('../src/l3a/formatStore.js');
-    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    const data: Record<string, any> = {};
-    (global as any).chrome = { storage: { local: {
-        get: async () => ({ ...data }),
-        set: async (patch: any) => { Object.assign(data, patch); }
-    } } };
+// Cross-module behavior: real Application settings, L3a persistence, and Runtime Live Save.
+// Only the browser and IndexedDB host surfaces are provided by indexStorage.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { indexStorage } from './helpers/indexStorage.js';
+import { fixtureKey } from './helpers/domainFixture.js';
+import { getSettings, updateSettings, isLiveSaveEffective } from '../src/application/settings/index.js';
+import { getStoredSettings, getExportRecord } from '../src/l3a/storageService.js';
+import { runLiveSave } from '../src/runtime/background/liveSaveHandler.js';
+
+test('non-Markdown formats pause Live Save without discarding its v2 setting', async () => {
+    const env = indexStorage();
+    const key = fixtureKey('live-v2');
     try {
-        for (const format of ['pdf', 'html', 'json']) {
-            data[STORAGE_KEYS.FORMAT] = format;
-            data[STORAGE_KEYS.LIVE_SAVE_CONFIG] = { enabledDisk: true };
-            assert.strictEqual((await LiveStorageManager.getLiveConfig()).enabledDisk, false);
-            assert.strictEqual((await LiveStorageManager.setLiveConfig({ enabledDisk: true })).enabledDisk, false);
-            const result = await handleLiveSaveViaHandle({});
-            assert.strictEqual(result.error, 'live_save_requires_markdown');
-            let written = false;
-            await assert.rejects(writeLiveSaveMarkdown({ writeFile: async () => { written = true; } },
-                { chat: {}, safeTitle: 'Test', nid: 'abcdef' },
-                { formatter: { formatMarkdownDocument: async () => ({ content: '# Test' }) } }), /only supports Markdown/);
-            assert.strictEqual(written, false);
+        await updateSettings({ enabledDisk: true, defaultFormat: 'markdown' });
+        assert.equal(isLiveSaveEffective(await getSettings(), true), true);
+        for (const format of ['pdf', 'html', 'json'] as const) {
+            await updateSettings({ defaultFormat: format });
+            const settings = await getSettings();
+            assert.equal(settings.enabledDisk, true, 'format changes preserve the user intent');
+            assert.equal(isLiveSaveEffective(settings, true), false);
+            assert.equal(await runLiveSave(key), null, 'Runtime must not export a non-Markdown live save');
+            assert.equal(await getExportRecord(key), null, 'no delivery or export record was created');
         }
-        data[STORAGE_KEYS.FORMAT] = 'markdown';
-        await LiveStorageManager.setLiveConfig({ enabledDisk: true });
-        await saveFormat('pdf');
-        assert.strictEqual(data[STORAGE_KEYS.LIVE_SAVE_CONFIG].enabledDisk, false);
-        await saveFormat('markdown');
-        assert.strictEqual((await LiveStorageManager.getLiveConfig()).enabledDisk, false);
-        await LiveStorageManager.setLiveConfig({ enabledDisk: true });
-        assert.strictEqual((await LiveStorageManager.getLiveConfig()).enabledDisk, true);
-        await Promise.all([saveFormat('html'), saveFormat('markdown')]);
-        assert.strictEqual(data[STORAGE_KEYS.FORMAT], 'markdown');
+        await updateSettings({ defaultFormat: 'markdown' });
+        assert.equal(isLiveSaveEffective(await getSettings(), false), false);
+        await assert.rejects(runLiveSave(key), /Choose a Live Save directory/, 'a Markdown live save still requires a writable folder');
+        assert.equal((await getStoredSettings()).enabledDisk, true);
+        await updateSettings({ enabledDisk: false });
+        assert.equal(await runLiveSave(key), null);
     } finally {
-        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
-        else delete (global as any).chrome;
+        env.restore();
     }
 });

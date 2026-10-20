@@ -53,7 +53,7 @@ test('L1 → L2 → Composer → Format → Packaging keeps account, resource id
         const prepared: PreparedResources = new Map([['diagram', { ok: true, resourceId: 'diagram', value: acquired }]]);
         __setModuleOverride('JSZip', JSZip);
         for (const format of ['markdown', 'html', 'json'] as const) {
-            const [plan] = planExportPaths([{ conversation: domain, prepared }], format);
+            const [plan] = planExportPaths([{ conversation: domain, prepared, fileIds: format === 'json' ? new Set<string>() : collectDocumentResources(document).fileIds }], format);
             const content: string = format === 'markdown' ? renderDocumentMarkdown(document, plan.resources)
                 : format === 'html' ? renderDocumentHtml(document, plan.resources).html
                 : serializeDomainJson(domain, committedAccount, plan.resources);
