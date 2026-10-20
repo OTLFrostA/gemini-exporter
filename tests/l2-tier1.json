@@ -1,15 +1,16 @@
 {
   "suites": [
-    "tests/l2_account_registry.test.ts",
     "tests/domain_admission_rules.test.ts",
+    "tests/domain_runtime_validation.test.ts",
+    "tests/stream_coverage.test.ts",
+    "tests/l2-v2-unit-mocked.test.ts"
+  ],
+  "integrationSuites": [
+    "tests/l2_account_registry.test.ts",
     "tests/domain_admission_storage.test.ts",
     "tests/conversation_index_storage.test.ts",
     "tests/conversation_repository.test.ts",
-    "tests/domain_runtime_validation.test.ts",
     "tests/coverage_atomic_admission.test.ts",
-    "tests/stream_coverage.test.ts"
-  ],
-  "integrationSuites": [
     "tests/account_registry.test.ts",
     "tests/domain_trust_counts.test.ts",
     "tests/domain_conversation_detail.test.ts",
