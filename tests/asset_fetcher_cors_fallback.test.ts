@@ -16,13 +16,10 @@ test('assetFetcher - toHighRes preserves gstatic.com thumbnail URLs without corr
     assert.ok(transformedLh3.includes('=s1024-rj'), 'googleusercontent URLs should still be upgraded');
 });
 
-test('assetFetcher & attachments - bare /gg/ and /rd-gg/ URLs normalize to authoritative =s0 rendition', () => {
-    const { highResVariant } = require('../src/l1/client/gemini/geminiImageUrl.js');
+test('assetFetcher - Google image URL normalization is entirely Runtime-local', () => {
+    // L1 owns highResVariant, which has its own tests. This suite must not load
+    // its real implementation just to exercise Runtime's toHighRes capability.
     const bareGg = 'https://lh3.googleusercontent.com/gg/AN-53XYZ1234567890';
-    assert.strictEqual(highResVariant(bareGg), `${bareGg}=s0`, 'highResVariant appends =s0 to bare /gg/');
-    assert.strictEqual(highResVariant(`${bareGg}?authuser=0`), `${bareGg}=s0?authuser=0`, 'highResVariant preserves queries on bare /gg/');
-    assert.strictEqual(highResVariant(`${bareGg}=s512-rj?authuser=0`), `${bareGg}=s0?authuser=0`, 'highResVariant replaces =s512-rj with =s0');
-
     assert.strictEqual(toHighRes(bareGg), `${bareGg}=s0?alr=yes`, 'toHighRes appends =s0 and ?alr=yes to bare /gg/');
     assert.strictEqual(toHighRes(`${bareGg}?authuser=0`), `${bareGg}=s0?authuser=0&alr=yes`, 'toHighRes preserves queries and ensures alr=yes');
     assert.strictEqual(toHighRes(`${bareGg}=s0`), `${bareGg}=s0?alr=yes`, 'toHighRes avoids duplicating =s0');
