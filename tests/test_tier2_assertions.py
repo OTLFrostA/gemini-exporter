@@ -300,7 +300,7 @@ class DiskContentTests(unittest.TestCase):
                 return {'clicked': True}
         cdp.eval.side_effect = export_now
         with patch('scripts.framework.actions.time.sleep'), \
-             patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}):
+             patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}):
             result = CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1)
         self.assertEqual(result, str(path))
         cdp.call.assert_called_once_with('Browser.setDownloadBehavior', {
@@ -316,7 +316,7 @@ class DiskContentTests(unittest.TestCase):
         cdp.call.return_value = {'result': {}}
         cdp.eval.side_effect = [True, {'clicked': False}]
         with patch('scripts.framework.actions.time.sleep') as sleep, \
-             patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}):
+             patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}):
             self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
         sleep.assert_not_called()  # Never enter the download wait after a missed click.
 
@@ -992,7 +992,7 @@ class CoverageTests(unittest.TestCase):
         ctx.chat_records = [{'chat_id': CID}]
         ctx.connect_options.return_value.eval.return_value = {'matched': [OTHER], 'missing': [CID]}
         with patch.object(CDPActions, 'wait_for_export_idle', return_value=True), \
-             patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}):
+             patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}):
             with self.assertRaises(RuntimeError): select_format_targets(ctx.connect_options(), ctx, 'html')
 
     def test_html_and_pdf_cases_reject_wrong_archive_targets(self):
@@ -1053,7 +1053,7 @@ class CoverageTests(unittest.TestCase):
                 ctx.connect_options.return_value.eval.side_effect = [
                     {'count': 6, 'log': 'old'}, True, {'busy': False, 'log': 'Delivery initiated: 0; partial: 0; skipped: 6; failed: 0'}, partial]
                 with patch('scripts.framework.cases.export.install_probe'), \
-                     patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}), \
+                     patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
                      patch.object(CDPActions, 'clear_search_workbench'), \
                      patch.object(CDPActions, 'trigger_export_zip', return_value=str(path)):
                     self.assertEqual(FastSkipExportedCase().execute(ctx)[0], expected)
@@ -1078,7 +1078,7 @@ class CoverageTests(unittest.TestCase):
 
                 cdp.eval.side_effect = respond
                 with patch('scripts.framework.cases.export.install_probe'), \
-                     patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}), \
+                     patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
                      patch.object(CDPActions, 'clear_search_workbench'):
                     ok, message, _ = FastSkipExportedCase().execute(ctx)
                 self.assertFalse(ok)
@@ -1093,7 +1093,7 @@ class CoverageTests(unittest.TestCase):
                 ctx.connect_options.return_value.eval.side_effect = [
                     {'count':6,'log':'old'},True,{'busy':False,'log':result}]
                 with patch('scripts.framework.cases.export.install_probe'), \
-                     patch.object(CDPActions, 'configure_export_controls', return_value={'ok': True}), \
+                     patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
                      patch.object(CDPActions,'clear_search_workbench'):
                     self.assertFalse(FastSkipExportedCase().execute(ctx)[0])
 

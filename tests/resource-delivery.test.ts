@@ -63,9 +63,12 @@ async function zipContents(blob: Blob) {
 }
 function network(t: TestContext, get: (url: string, signal?: AbortSignal) => Response | Promise<Response>) {
     const previousFetch = globalThis.fetch;
-    const previousTabs = Object.getOwnPropertyDescriptor(globalThis.chrome, 'tabs');
+    // Keep the exact Chrome host instance; v2ExportHost may restore the global
+    // before this test-specific network teardown runs.
+    const chrome = globalThis.chrome;
+    const previousTabs = Object.getOwnPropertyDescriptor(chrome, 'tabs');
     const requests: string[] = [];
-    Object.defineProperty(globalThis.chrome, 'tabs', { configurable: true, value: {
+    Object.defineProperty(chrome, 'tabs', { configurable: true, value: {
         query: async () => [{ id: 21, url: 'https://gemini.google.com/app/resource' }],
         sendMessage: async () => ({ ok: true, accountContext: {
             accountId: account.id, providerId: 'gemini', slot: 'u0',
@@ -78,8 +81,8 @@ function network(t: TestContext, get: (url: string, signal?: AbortSignal) => Res
     }) as typeof fetch;
     t.after(() => {
         globalThis.fetch = previousFetch;
-        if (previousTabs) Object.defineProperty(globalThis.chrome, 'tabs', previousTabs);
-        else Reflect.deleteProperty(globalThis.chrome, 'tabs');
+        if (previousTabs) Object.defineProperty(chrome, 'tabs', previousTabs);
+        else Reflect.deleteProperty(chrome, 'tabs');
     });
     return requests;
 }
