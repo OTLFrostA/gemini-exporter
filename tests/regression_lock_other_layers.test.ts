@@ -219,9 +219,9 @@ test('verified v2 Runtime account routing never falls back to a different Gemini
             { id: 1, active: true, url: 'https://gemini.google.com/u/0/app/a' },
             { id: 2, active: false, url: 'https://gemini.google.com/u/1/app/b' },
         ],
-        sendMessage: async (id: number) => ({ ok: true, accountContext: {
-            accountId: id === 1 ? account.id : account.id, providerId: 'gemini',
-        } }),
+        sendMessage: (_id: number, _message: unknown, reply: (value: unknown) => void) => {
+            reply({ ok: true, accountContext: { accountId: account.id, providerId: 'gemini' } });
+        },
     } });
     t.after(() => {
         if (priorTabs) Object.defineProperty(globalThis.chrome, 'tabs', priorTabs);
