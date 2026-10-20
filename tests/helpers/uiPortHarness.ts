@@ -104,10 +104,12 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
         });
         build.onLoad({ filter: /.*/, namespace: 'ui-mock' }, () => ({ contents: mock, loader: 'js' }));
     } }] });
+    const rootSource = root.replace(/\\/g, '/') + '/src/';
     for (const input of Object.keys(bundle.metafile?.inputs ?? {})) {
         const normalized = input.replace(/\\/g, '/');
-        const srcAt = normalized.indexOf('src/');
-        if (srcAt !== -1 && !normalized.slice(srcAt + 4).startsWith('ui/')) {
+        const owner = normalized.startsWith('src/') ? normalized.slice(4)
+            : normalized.startsWith(rootSource) ? normalized.slice(rootSource.length) : null;
+        if (owner !== null && !owner.startsWith('ui/')) {
             throw new Error(`UI mock harness bundled non-UI production owner: ${input}`);
         }
     }
