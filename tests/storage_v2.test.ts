@@ -328,3 +328,28 @@ test('storage v2 scan cleanup rolls back Coverage and ExportRecords together on 
     assert.deepEqual(result, { rejected: true, coverage: { range: null },
         record: { exportedAt: 1, format: 'markdown', status: 'ok' } });
 });
+
+
+test('storage v2 uses the correct native put signature for each key mode', async () => {
+    const result = await page.evaluate(async () => {
+        const nativePut = IDBObjectStore.prototype.put;
+        const calls: Array<[string, number]> = [];
+        IDBObjectStore.prototype.put = function(this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+            if (this.name === 'exportRecords' || this.name === 'directoryHandles')
+                calls.push([this.name, arguments.length]);
+            return arguments.length === 1 ? nativePut.call(this, value) : nativePut.call(this, value, key);
+        };
+        try {
+            const key = { accountId: 'a', conversationId: 'check' };
+            const record = { exportedAt: 1, format: 'markdown' as const, status: 'ok' as const };
+            await window.storage.putExportRecord(key, record);
+            await window.storage.setDirectoryHandle(await navigator.storage.getDirectory());
+            return { calls, record: await window.storage.getExportRecord(key),
+                handle: (await window.storage.getDirectoryHandle())?.kind };
+        } finally {
+            IDBObjectStore.prototype.put = nativePut;
+        }
+    });
+    assert.deepEqual(result, { calls: [['exportRecords', 1], ['directoryHandles', 2]],
+        record: { exportedAt: 1, format: 'markdown', status: 'ok' }, handle: 'directory' });
+});
