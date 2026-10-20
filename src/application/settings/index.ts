@@ -16,7 +16,7 @@ export interface GlobalSettings {
 
 export async function getSettings(): Promise<GlobalSettings> {
     return { defaultFormat: 'markdown', skipExported: true,
-        includeAssets: true, enabledDisk: false, developerMode: false, theme: 'dark',
+        includeAssets: true, enabledDisk: false, developerMode: false,
         ...await getStoredSettings() };
 }
 export function updateSettings(patch: Partial<GlobalSettings>): Promise<void> {
