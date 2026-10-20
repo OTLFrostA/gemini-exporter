@@ -1,18 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
 const uuid = '12345678-1234-4234-8234-123456789abc';
+const otherUuid = '87654321-4321-4321-8321-cba987654321';
 const account = { id: uuid, providerId: 'gemini', providerAccountId: 'gaia' };
 const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.google.com/app' };
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
+    const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
+        'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
-        const key = Object.keys(stubs).find(key => resolved === path.resolve(root, key).replace(/\.ts$/, '.js'));
-        if (key) return stubs[key];
+        const key = Object.keys(ports).find(key => resolved === path.resolve(root, key).replace(/\.ts$/, '.js'));
+        if (key) return ports[key as keyof typeof ports];
+        if (request.startsWith('.')) assertRuntimeUnitBoundary(resolved, root);
         return original.call(this, request, parent, ...args);
     };
     try {
