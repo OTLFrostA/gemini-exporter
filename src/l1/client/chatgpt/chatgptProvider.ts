@@ -144,8 +144,8 @@ export class ChatGPTProvider implements AIProvider {
         const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
         signal?.throwIfAborted();
         const index = parsed.conversation.index;
-        await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
-        this.resources?.retainParsed({ accountId, conversationId }, parsed);
+        const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
+        if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
         signal?.throwIfAborted();
