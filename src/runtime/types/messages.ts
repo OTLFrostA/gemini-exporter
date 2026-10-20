@@ -4,6 +4,7 @@ export const MESSAGE_ACTIONS = {
     ENSURE_V2_READY: 'ensureV2Ready',
     DOMAIN_INGEST: 'domainIngest',
     GET_LOCAL_INDEX_COUNT: 'getLocalIndexCount',
+    UPDATE_BADGE_POSITION: 'updateBadgePosition',
     RUN_LIVE_SAVE: 'runLiveSave',
     GET_ACCOUNT_CONTEXT: 'getAccountContext',
     ACCOUNT_REGISTRY: 'accountRegistry',

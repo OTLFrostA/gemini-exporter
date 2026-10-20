@@ -3,10 +3,11 @@ import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
 import { initTabActionListeners } from './tabAction.js';
 import { ensureV2Ready } from './readiness.js';
-import { assertExtensionSender, object, requireCurrentContentAccount } from './contentSender.js';
+import { assertContentSender, assertExtensionSender, object, requireCurrentContentAccount } from './contentSender.js';
 import { listIndexes } from '../../l3a/storageService.js';
 import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
+import { updateSettings } from '../../application/settings/index.js';
 
 initSessionAccessLevel();
 initLifecycleListeners();
@@ -17,7 +18,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     if (handleDomainIngestionMessage(message, sender, respond)) return true;
     if (handleAccountRegistryMessage(message, sender, respond)) return true;
     if (!message || typeof message !== 'object' || !('action' in message)
-        || !['ensureV2Ready', 'getLocalIndexCount', 'runLiveSave', 'openOptions', 'openGeminiPage', 'reloadGeminiTab'].includes(String(message.action))) return false;
+        || !['ensureV2Ready', 'getLocalIndexCount', 'updateBadgePosition', 'runLiveSave', 'openOptions', 'openGeminiPage', 'reloadGeminiTab'].includes(String(message.action))) return false;
     void (async () => {
         try {
             assertExtensionSender(sender);
@@ -35,6 +36,17 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
             }
             await ensureV2Ready();
             if (request.action === 'ensureV2Ready') { respond({ ok: true }); return; }
+            if (request.action === 'updateBadgePosition') {
+                assertContentSender(sender);
+                const position = object(request.position);
+                if (Object.keys(position).some(key => key !== 'left' && key !== 'top')
+                    || typeof position.left !== 'number' || !Number.isFinite(position.left)
+                    || typeof position.top !== 'number' || !Number.isFinite(position.top)) {
+                    throw new TypeError('Expected finite Badge position coordinates');
+                }
+                await updateSettings({ badgePosition: { left: position.left, top: position.top } });
+                respond({ ok: true }); return;
+            }
             const key = request.action === 'runLiveSave' ? readConversationKey(request.key) : null;
             const account = await requireCurrentContentAccount(sender, key ? key.accountId : request.accountId);
             if (key) respond({ ok: true, result: await runLiveSave(key) });
