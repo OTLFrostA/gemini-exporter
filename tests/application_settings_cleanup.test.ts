@@ -40,7 +40,7 @@ test('Live Save format and directory changes pause effectiveness without mutatin
     assert.equal(events.filter(event => event === 'settings-write').length, 5);
 });
 test('Settings IO failures propagate instead of silently manufacturing defaults or claiming success', async () => {
-    state.failRead = true; await assert.rejects(getSettings(), /read failed/);
+    state.failSettingsRead = true; await assert.rejects(getSettings(), /read failed/);
     state.failSettingsWrite = true; await assert.rejects(updateSettings({ language: 'en' }), /write failed/);
     assert.deepEqual(events, []);
 });
