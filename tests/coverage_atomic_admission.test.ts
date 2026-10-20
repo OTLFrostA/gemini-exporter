@@ -97,3 +97,18 @@ test('Failed Coverage commit does not publish a partial in-memory cursor chain',
         assert.equal((await getCoverage(accountId, 'recent'))?.range, null);
     } finally { env.restore(); }
 });
+
+test('a disjoint committed replacement cannot authorize an early stop from an obsolete baseline', async () => {
+    const env = indexStorage();
+    try {
+        await seedCoverage(accountId, 'recent', baseline);
+        const head = page([130, 110], null, 'tail');
+        await CoverageAdmission.recordPageCoverage(accountId, head);
+        await CoverageAdmission.recordPageCoverage(accountId, page([95], 'tail', 'more'));
+        const replacement = { range: { head: { id: 'new500', time: 500 }, tail: { id: 'new400', time: 400 } } };
+        await seedCoverage(accountId, 'recent', replacement);
+        const { providerId: _provider, accountId: _account, items: _items, ...scanHead } = head;
+        assert.equal(await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead), false);
+        assert.deepEqual(await getCoverage(accountId, 'recent'), replacement);
+    } finally { env.restore(); }
+});

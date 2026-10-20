@@ -1,7 +1,7 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { acceptDetailFacts, validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
+import { acceptDetailFacts, validateParserDomain, restoreDomainSnapshot, withSourceVersion } from '../src/l2/runtimeValidation.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 function valid(): DomainConversationWithDetail {
@@ -147,7 +147,6 @@ test('trusted parser bodies are reused internally but copied IPC facts must pass
 });
 
 test('withSourceVersion rejects unsafe or fractional source timestamps', () => {
-    const { withSourceVersion } = require('../src/l2/runtimeValidation.js') as typeof import('../src/l2/runtimeValidation.js');
     const trusted = validateParserDomain(valid());
     for (const savedAt of [0.5, Number.MAX_SAFE_INTEGER + 1, Infinity])
         assert.throws(() => withSourceVersion(trusted, savedAt), TypeError);
