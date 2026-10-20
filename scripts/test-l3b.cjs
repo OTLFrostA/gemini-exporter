@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 const { spawnSync } = require('node:child_process');
 
-const suites = [
-    'tests/ast-composer.test.ts',
-    'tests/domain-ast-projection.test.ts',
-    'tests/document-ast-contract.test.ts',
-];
+// The same owner list is consumed by both the L3b-only and cross-module L3 runners.
+const { suites } = require('../tests/l3b-tier1.json');
 for (const args of [
     ['-r', './tests/ts_register.js', '--test', '--test-concurrency=1', ...suites],
     ['node_modules/typescript/bin/tsc', '--ignoreConfig', '--noEmit', '--strict', '--skipLibCheck',
