@@ -1,4 +1,4 @@
-// Resolves CJK and Latin fonts from the OS via window.queryLocalFonts() to avoid
+// Resolves CJK, Latin, and code monospace fonts via window.queryLocalFonts() to avoid
 // bundling multi-megabyte CJK font files in the extension package.
 import type { Diagnostic } from '../../../../../shared/diagnostics/diagnostic.js';
 
@@ -28,6 +28,7 @@ export interface LocalFontResolution {
 export interface LocalFontRequest {
     cjk?: readonly string[];
     latin?: readonly string[];
+    mono?: readonly string[];
     limit?: number;
 }
 
@@ -56,6 +57,15 @@ export const LATIN_FONT_STACK: readonly string[] = [
     'Inter',
     'Noto Sans',
     'DejaVu Sans',
+];
+
+/** Matches font-mono in the PDF Typst template; the browser only mounts selected files. */
+export const MONO_FONT_STACK: readonly string[] = [
+    'SF Mono',
+    'Menlo',
+    'Monaco',
+    'JetBrains Mono',
+    'DejaVu Sans Mono',
 ];
 
 export interface LocalFontCandidate {
@@ -278,6 +288,7 @@ function toResolved(entry: LocalFontEntry): ResolvedLocalFont {
 export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise<LocalFontResolution> {
     const cjk = request.cjk ?? CJK_FONT_STACK;
     const latin = request.latin ?? LATIN_FONT_STACK;
+    const mono = request.mono ?? MONO_FONT_STACK;
     const limit = request.limit ?? 8;
 
     const query = await queryLocalFontsProvider();
@@ -308,9 +319,10 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
 
     const diagnostics: Diagnostic[] = [];
     const fonts: ResolvedLocalFont[] = [];
+    const monoFonts: ResolvedLocalFont[] = [];
     const claimedEntries = new Set<number>();
 
-    const resolveStack = (stack: readonly string[], label: string): void => {
+    const resolveStack = (stack: readonly string[], label: string, selected: ResolvedLocalFont[] = fonts): void => {
         const candidates = rankLocalFontCandidates(query.fonts, stack, claimedEntries);
         for (const family of stack) {
             const best = bestCandidateForFamily(candidates, family);
@@ -338,19 +350,27 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
                     message: `Requested ${label} font "${family}" resolved to non-Regular style "${best.style}" (${best.postscriptName}); pagination is computed against this style, not a silent Regular.`,
                 });
             }
-            fonts.push(toResolved(best.entry));
+            selected.push(toResolved(best.entry));
         }
     };
 
     resolveStack(cjk, 'CJK');
     resolveStack(latin, 'Latin');
+    resolveStack(mono, 'Mono', monoFonts);
 
-    const limited = fonts.slice(0, Math.max(0, limit));
-    if (limited.length < fonts.length) {
+    // At the default 8-font cap the CJK stack can fill the entire budget.
+    // Keep one real monospace face if installed, rather than allowing code
+    // blocks to silently use proportional body fonts. A caller explicitly
+    // requesting limit=1 retains the original prose-first priority.
+    const budget = Math.max(0, Math.floor(limit));
+    const reserveMono = monoFonts.length > 0 && budget > 0 && (budget > 1 || fonts.length === 0);
+    const limited = fonts.slice(0, budget - (reserveMono ? 1 : 0));
+    if (reserveMono) limited.push(monoFonts[0]);
+    if (limited.length < fonts.length + monoFonts.length) {
         diagnostics.push({
             severity: 'info',
             code: 'TYPST_LOCAL_FONTS_TRUNCATED',
-            message: `Resolved ${fonts.length} local fonts but limit=${limit} keeps the first ${limited.length} in priority order.`,
+            message: `Resolved ${fonts.length + monoFonts.length} local fonts but limit=${limit} keeps ${limited.length} in CJK/Latin order with a reserved Mono face when available.`,
         });
     }
 
