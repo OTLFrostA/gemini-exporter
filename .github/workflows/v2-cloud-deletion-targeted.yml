@@ -1,0 +1,23 @@
+name: V2 cloud deletion E2E targeted verification (temporary)
+on:
+  pull_request:
+    branches: [dev/v2]
+    paths:
+      - 'tests/e2e/cloud_deletion_isolation.spec.ts'
+      - '.github/workflows/v2-cloud-deletion-targeted.yml'
+jobs:
+  targeted-cloud-deletion-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build extension distribution
+        run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run v2 cloud deletion Playwright suite
+        run: npx playwright test tests/e2e/cloud_deletion_isolation.spec.ts --workers=1 --retries=0
