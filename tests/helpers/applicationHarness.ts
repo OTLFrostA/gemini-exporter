@@ -3,7 +3,7 @@ import type { Account } from '../../src/l2/accountRegistry.js';
 import type { Diagnostic } from '../../src/shared/diagnostics/diagnostic.js';
 import type { DomainConversationIndex } from '../../src/l2/conversationIndex.js';
 import type { TrustedDomainBody } from '../../src/l2/runtimeValidation.js';
-import { restoreDomainDetail } from '../../src/l2/runtimeValidation.js';
+import { restoreDomainDetail, restoreDomainSnapshot } from '../../src/l2/runtimeValidation.js';
 import type { ExportRecord, ExportRequest } from '../../src/application/export/types.js';
 import type { GlobalSettings } from '../../src/application/settings/index.js';
 import type { AIProvider } from '../../src/l1/client/aiProvider.js';
@@ -89,6 +89,13 @@ const storage = {
     },
 };
 stubModule('../../src/l3a/storageService.js', storage);
+// L2 public read contract is mocked here until its independent interface migration lands.
+// Do not couple Application tests to the transitional physical Storage read implementation.
+stubModule('../../src/l2/readConversation.js', { async readConversation(conversationKey: ConversationKey) {
+    if (state.failRead) throw new Error('read failed');
+    const index = indexes.get(address(conversationKey)), detail = details.get(address(conversationKey));
+    return index && detail ? restoreDomainSnapshot({ index, detail }) : null;
+} });
 stubModule('../../src/runtime/api/accountRegistry.js', { async getAccount(id: string) {
     return state.accountOverride === undefined ? { ...account, id } : state.accountOverride;
 } });
