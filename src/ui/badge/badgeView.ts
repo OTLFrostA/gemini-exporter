@@ -9,10 +9,23 @@ let accountId: string | null = null;
 let count: number | null = null;
 let feedback: 'ok' | 'partial' | 'failed' | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let countPoll: ReturnType<typeof setInterval> | undefined;
 let dragging = false;
 let alive = false;
 let positionChanged = false;
 const clearFeedback = () => { clearTimeout(timer); timer = undefined; feedback = null; };
+const stopCountPolling = () => {
+    if (countPoll !== undefined) clearInterval(countPoll);
+    countPoll = undefined;
+};
+const startCountPolling = () => {
+    stopCountPolling();
+    if (!alive || !accountId || document.hidden) return;
+    countPoll = setInterval(() => {
+        const id = accountId;
+        if (id) void loadIndexCount(id);
+    }, 60_000);
+};
 function render(): void {
     const label = badge?.querySelector('#geminiExportBadgeText');
     if (!label) return;
@@ -31,16 +44,19 @@ function position(left: number, top: number): void {
 }
 export async function refreshAccount(): Promise<void> {
     const cachedId = getAccountContext()?.accountId ?? null;
-    if (cachedId !== accountId) { accountId = null; count = null; clearFeedback(); render(); }
+    if (cachedId !== accountId) {
+        accountId = null; count = null; clearFeedback(); stopCountPolling(); render();
+    }
     const context = await resolveCurrentAccount();
     if (!alive) return;
     const id = context?.accountId ?? null;
     if (id !== (getAccountContext()?.accountId ?? null) || accountId === id) return;
     accountId = id; count = null; clearFeedback(); render();
-    if (id) await refreshIndexCount(id);
+    startCountPolling();
+    if (id && !document.hidden) await loadIndexCount(id);
 }
-/** Runtime calls this only for already observed, successfully committed Index updates. */
-export async function refreshIndexCount(id: string): Promise<void> {
+/** Badge owns its count Pull. No index-commit callback is part of the public UI contract. */
+async function loadIndexCount(id: string): Promise<void> {
     if (id !== accountId || !alive) return;
     try {
         const response = await chrome.runtime.sendMessage({ action: 'getLocalIndexCount', accountId: id });
@@ -51,7 +67,7 @@ export async function refreshIndexCount(id: string): Promise<void> {
     render();
 }
 /** One final result per task. Null/skipped do not create a notification. */
-export function showLiveSaveResult(result: ExportResult | null, id = getAccountContext()?.accountId): void {
+export function showLiveSaveResult(result: ExportResult | null, id: string): void {
     if (!result || !alive || !id || id !== accountId) return;
     const outcome = result.failed.length || result.aborted ? 'failed'
         : result.exported && result.partial ? 'partial' : result.exported ? 'ok' : null;
@@ -59,12 +75,12 @@ export function showLiveSaveResult(result: ExportResult | null, id = getAccountC
     clearFeedback(); feedback = outcome; render();
     timer = setTimeout(() => { feedback = null; timer = undefined; render(); }, 3000);
 }
-export function showLiveSaveError(id = getAccountContext()?.accountId): void {
+export function showLiveSaveError(id: string): void {
     if (!alive || id !== accountId) return;
     clearFeedback(); feedback = 'failed'; render();
     timer = setTimeout(() => { feedback = null; timer = undefined; render(); }, 3000);
 }
-export function ensureBadge(options: { onClick?: (event: MouseEvent) => void } = {}): HTMLElement | null {
+export function ensureBadge(): HTMLElement | null {
     if (typeof document === 'undefined') return null;
     if (badge) { if (!badge.isConnected) (document.body || document.documentElement).append(badge); return badge; }
     badge = document.createElement('div'); badge.id = 'geminiExportBadge'; alive = true;
@@ -95,7 +111,7 @@ export function ensureBadge(options: { onClick?: (event: MouseEvent) => void } =
     });
     badge.addEventListener('pointercancel', () => { dragging = false; moved = true; });
     const open = () => { void chrome.runtime.sendMessage({ action: 'openOptions' }).catch(console.warn); };
-    badge.addEventListener('click', event => { if (moved) { moved = false; event.preventDefault(); return; } if (options.onClick) options.onClick(event); else open(); });
+    badge.addEventListener('click', event => { if (moved) { moved = false; event.preventDefault(); return; } open(); });
     badge.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
     (document.body || document.documentElement).append(badge); render();
     let previousPosition: string | undefined;
@@ -110,15 +126,26 @@ export function ensureBadge(options: { onClick?: (event: MouseEvent) => void } =
     const stop = observeSettings(() => { positionChanged = dragging; void refreshSettings().catch(console.warn); });
     const resize = () => { if (badge) { const rect = badge.getBoundingClientRect(); position(rect.left, rect.top); } };
     window.addEventListener('resize', resize);
-    // Existing Runtime route notifications; no observer or polling for counts.
-    const route = () => { void refreshAccount().catch(() => { accountId = null; count = null; clearFeedback(); render(); }); };
+    // Runtime reports identity changes; count refresh is independently scheduled by Badge.
+    const route = () => { void refreshAccount().catch(() => { accountId = null; count = null; clearFeedback(); stopCountPolling(); render(); }); };
+    const visibility = () => {
+        if (document.hidden) { stopCountPolling(); return; }
+        const previousId = accountId;
+        void refreshAccount().then(() => {
+            if (!alive || document.hidden) return;
+            startCountPolling();
+            if (accountId && accountId === previousId) void loadIndexCount(accountId);
+        }).catch(() => { accountId = null; count = null; clearFeedback(); stopCountPolling(); render(); });
+    };
     window.addEventListener('gemini:locationchange', route); window.addEventListener('popstate', route);
+    document.addEventListener('visibilitychange', visibility);
     registerCleanup(() => {
-        alive = false; clearFeedback(); stop(); window.removeEventListener('resize', resize);
+        alive = false; clearFeedback(); stopCountPolling(); stop(); window.removeEventListener('resize', resize);
         window.removeEventListener('gemini:locationchange', route); window.removeEventListener('popstate', route);
+        document.removeEventListener('visibilitychange', visibility);
         badge?.remove(); badge = null; accountId = null; count = null; positionChanged = false; dragging = false;
     });
     void refreshSettings().catch(console.warn); route(); return badge;
 }
-export const BadgeView = { ensureBadge, refreshAccount, refreshIndexCount, showLiveSaveResult, showLiveSaveError };
+export const BadgeView = { ensureBadge, refreshAccount, showLiveSaveResult, showLiveSaveError };
 export default BadgeView;
