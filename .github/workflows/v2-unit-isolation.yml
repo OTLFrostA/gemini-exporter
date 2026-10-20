@@ -29,5 +29,7 @@ jobs:
       - run: npm ci
       - name: Install Chromium for native L3a and UI test surfaces
         run: npx playwright install --with-deps chromium
+      - name: Type-check mocked ports against latest v2 owner definitions
+        run: npm run test:v2:unit-ports
       - name: Run every v2 module-unit suite with real-external-module guard
         run: npm run test:v2:unit-isolation
