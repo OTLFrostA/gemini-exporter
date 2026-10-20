@@ -145,7 +145,7 @@ test('L4 FsWriter serializes concurrent writes targeting the same physical path'
     assert.equal(current, 'second');
 });
 
-test('Runtime's supported image extension inference still retains MIME and URL fallbacks', () => {
+test('Runtime image extension inference retains MIME and URL fallbacks', () => {
     assert.equal(inferImageExt('image/png'), 'png');
     assert.equal(inferImageExt('image/webp'), 'webp');
     assert.equal(inferImageExt('image/gif'), 'gif');
