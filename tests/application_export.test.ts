@@ -307,11 +307,13 @@ test('L4 packaging failure prevents Browser delivery and does not overwrite prev
 });
 test('one L4 formatting failure does not block a different pending conversation', async () => {
     seed(); seed('second');
-    state.failRender = 'markdown';
-    const failed = await runExport(request({ keys: [key(), key('second')] }));
-    assert.deepEqual(failed.failed, [key(), key('second')]);
-    assert.equal(failed.exported, 0);
-    assert.equal(deliveries.length, 0);
+    state.failRender = 'markdown'; state.failRenderKey = 'first';
+    const result = await runExport(request({ keys: [key(), key('second')] }));
+    assert.deepEqual(result.failed, [key()]);
+    assert.equal(result.exported, 1);
+    assert.equal(deliveries.length, 1);
+    assert.equal(state.packages[0].groups, 1);
+    assert.equal(records.has(address(key('second'))), true);
 });
 test('Browser batch Record failure counts only committed records without a second delivery', async () => {
     seed(); seed('second'); state.failRecord = 'first';
