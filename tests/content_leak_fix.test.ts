@@ -46,13 +46,16 @@ test('Runtime SPA observer handles page-world URL changes and releases every tim
         assert.equal(count('popstate'), 1);
         assert.equal(count('gemini:locationchange'), 1);
         (globalThis as any).location.href = 'https://gemini.google.com/app/b';
-        intervals.values().next().value();
+        const firstPulse = intervals.values().next().value;
+        assert.ok(firstPulse);
+        firstPulse();
         assert.deepEqual(events, ['old']);
 
         const first = intervals.keys().next().value;
+        assert.notEqual(first, undefined);
         const pushState = (globalThis as any).history.pushState;
         observer!.hookHistoryEvents(() => events.push('new'));
-        assert.equal(intervals.has(first), false);
+        assert.equal(intervals.has(first!), false);
         assert.equal(intervals.size, 1);
         assert.strictEqual((globalThis as any).history.pushState, pushState, 'same-document history must only be wrapped once');
         assert.equal(count('popstate'), 1);
