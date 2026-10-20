@@ -43,7 +43,7 @@ interface PendingExport {
     prepared: PreparedResources;
     fileIds: ReadonlySet<string>;
 }
-interface ExportGroup { key: ConversationKey; record: ExportRecord; files: ExportArtifact[] }
+interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
 
 /** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
 export async function runExport(request: ExportRequest, options: {
@@ -118,7 +118,7 @@ export async function runExport(request: ExportRequest, options: {
         }
         signal.throwIfAborted();
         const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
-            record: { exportedAt: 0, format: request.format, status: partial ? 'partial' : 'ok',
+            record: { format: request.format, status: partial ? 'partial' : 'ok',
                 ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) } };
         return group;
     };
