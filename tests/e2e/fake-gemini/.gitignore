@@ -1,0 +1,4 @@
+# Local authenticated calibration artifacts must never be committed.
+private/
+*.har
+*.cookies.json
