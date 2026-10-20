@@ -51,5 +51,19 @@
     "tests/e2e/domain_storage_extension.spec.ts",
     "tests/e2e/production_v2.spec.ts",
     "tests/e2e/tier2_v2_probes.spec.ts"
+  ],
+  "indirectConsumerSuites": [
+    "tests/domain_downstream_boundaries.test.ts",
+    "tests/incr_scan_until_unchanged.test.ts",
+    "tests/istakeout_unify.test.ts",
+    "tests/provider-chatgpt-tree.test.ts",
+    "tests/provider_abstraction.test.ts",
+    "tests/provider_adapter.test.ts",
+    "tests/provider_neutral.test.ts",
+    "tests/rpc_list_ingest.test.ts",
+    "tests/sync_provider_contract.test.ts",
+    "tests/takeout_engine.test.ts",
+    "tests/takeout_generated_reconciliation.test.ts",
+    "tests/takeout_transact.test.ts"
   ]
 }
