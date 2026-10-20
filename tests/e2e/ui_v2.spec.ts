@@ -77,7 +77,10 @@ test('UI v2: settings preserve Live Save intent, record cleanup never deletes co
 });
 test('UI v2: Takeout file input directly imports into current account and reports partial', async ({ page }) => {
     await mount(page,'options'); await page.locator('#accountIdSelect').selectOption(B);
-    await page.locator('#takeoutFileInput').setInputFiles({name:'Takeout.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')});
+    const chooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#btnImportTakeout').click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles({name:'Takeout.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')});
     await expect(page.locator('#status')).toHaveText('Imported 2 conversations (partial)');
     expect(await read(page,'imports')).toEqual([B]); expect(await read(page,'patches')).toContainEqual({takeoutPromptCompleted:true});
 });
