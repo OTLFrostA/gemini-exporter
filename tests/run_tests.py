@@ -660,52 +660,48 @@ def test_takeout_limit_modal_and_wall_detection():
 
 
 def test_stage1_architecture_ssot_and_state_isolation():
-    # 1. Verify per-slot aborts in background.ts/js (or modular src/runtime/background/)
-    bg_dir = os.path.join(BASE_DIR, "src/runtime/background")
-    if os.path.isdir(bg_dir):
-        bg_code = ""
-        for bf_name in sorted(os.listdir(bg_dir)):
-            if bf_name.endswith(".ts") or bf_name.endswith(".js"):
-                with open(os.path.join(bg_dir, bf_name), "r", encoding="utf-8") as bf:
-                    bg_code += bf.read() + "\n"
-    else:
-        bg_ts = os.path.join(BASE_DIR, "src/runtime/background/background.ts")
-        bg_js_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/runtime/background/background.js")
-        with open(bg_js_path, "r", encoding="utf-8") as f:
-            bg_code = f.read()
-    assert "__bgAborts" in bg_code and "Map" in bg_code, "background.js must isolate abort flags per account slot using Map"
-    assert not re.search(r'let\s+__bgAborted\s*=\s*(?:false|true);', bg_code), "background.js must not contain mutable global __bgAborted"
-    assert "isSlotAborted" in bg_code and "setSlotAborted" in bg_code, "background.js must provide slot-aware abort helpers"
+    # The former Stage 1 implementation (per-slot __bgAborts, Takeout cache,
+    # Content syncEngine, Options-side merging and exportEngine) was removed
+    # by v2. Verify the *current* responsibility boundaries instead.
+    def read(path):
+        with open(os.path.join(BASE_DIR, path), encoding="utf-8") as source:
+            return source.read()
 
-    # 2. Verify per-slot Takeout cache in takeoutEngine
-    takeout_ts = os.path.join(BASE_DIR, "src/l1/imports/takeoutEngine.ts")
-    takeout_path = takeout_ts if os.path.isfile(takeout_ts) else os.path.join(BASE_DIR, "src/l1/imports/takeoutEngine.js")
-    with open(takeout_path, "r", encoding="utf-8") as f:
-        takeout_code = f.read()
-    assert "__accountTakeouts" in takeout_code and "Map" in takeout_code, "takeoutEngine must isolate takeout dictionaries per account slot"
-    assert "getStore" in takeout_code, "takeoutEngine must route through getStore(slot)"
+    # Scan cancellation and concurrent-run isolation belong to Application.
+    scan = read("src/application/sync/scanController.ts")
+    background = read("src/runtime/background/background.ts")
+    assert "signal?: AbortSignal" in scan and "options.signal?.throwIfAborted()" in scan, "Scan must respect its own AbortSignal"
+    assert "new Set<string>()" in scan and "active.has(accountId)" in scan and "active.delete(accountId)" in scan, "Active Scan runs must be account-scoped and released"
+    assert "__bgAborts" not in background and "__bgAborted" not in background, "Background must not restore parallel v1 abort flags"
 
-    # 3. Verify SSoT compareConversations in syncEngine.ts and options.js
-    sync_ts = os.path.join(BASE_DIR, "src/runtime/content/syncEngine.ts")
-    sync_js_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/runtime/content/syncEngine.js")
-    with open(sync_js_path, "r", encoding="utf-8") as f:
-        sync_code = f.read()
-    assert "compareConversations" in sync_code, "syncEngine.js upsertConversations must use compareConversations SSoT"
+    # Takeout is an explicit input + target Account, not an ambient per-slot cache.
+    takeout = read("src/l1/imports/takeout/importTakeout.ts")
+    assert "importTakeout(file: File, accountId:" in takeout and "getAccount(accountId)" in takeout, "Takeout must resolve its explicit trusted Account"
+    assert "ingestDetail(accountId, id," in takeout, "L1 Takeout must admit parsed facts through L2"
+    assert "resources.retainParsed" in takeout and "__accountTakeouts" not in takeout, "Takeout must not retain a global resource/Domain cache"
 
-    options_ts = os.path.join(BASE_DIR, "src/ui/options/options.ts")
-    options_js_path = options_ts if os.path.isfile(options_ts) else os.path.join(BASE_DIR, "src/ui/options/options.js")
-    with open(options_js_path, "r", encoding="utf-8") as f:
-        options_code = f.read()
-    assert "compareConversations" in options_code, "options.js loadStore must use compareConversations SSoT"
+    # L2 exclusively owns both Index and Detail selection; Options only reads
+    # the resulting facts for display.
+    index = read("src/l2/conversationIndex.ts")
+    detail = read("src/l2/conversationDetail.ts")
+    ingestion = read("src/l2/ingestion.ts")
+    options = read("src/ui/options/options.ts")
+    assert "mergeConversationIndex" in index and "resolveTitle" in index, "L2 must own Index/title arbitration"
+    assert "selectConversationDetail" in detail and "sameConversationKey" in detail, "L2 must select only same-key Detail"
+    assert "mergeConversationIndex" in ingestion and "selectConversationDetail" in ingestion, "L2 must reuse both domain selection contracts"
+    assert "ConversationViewState" in options and "renderList" in options, "Options must render a read-only Domain projection"
+    assert "compareConversations" not in options, "Options must not restore a competing conversation merge"
 
-    # 4. Verify SSoT sanitizeFileName and cleanTitle delegation in exportEngine
-    export_ts = os.path.join(BASE_DIR, "src/application/exportEngine.ts")
-    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/application/exportEngine.js")
-    with open(export_path, "r", encoding="utf-8") as f:
-        export_code = f.read()
-    assert "sanitizeFileName" in export_code, "exportEngine sanitizeFileName must delegate to GeminiUtils SSoT"
+    # Packaging owns *all* physical paths; Application never invents a second
+    # source-title/file-name or export-engine path policy.
+    packaging = read("src/l4/packaging/index.ts")
+    export = read("src/application/export/runExport.ts")
+    assert "buildExportFileName" in packaging and "sanitizeFileName" in packaging and "assertExportPath" in packaging, "L4 must own safe and unique export paths"
+    assert "createExportPathPlanner" in export and "packageExportFiles" in export, "Application must use L4 Packaging"
+    assert "sanitizeFileName" not in export, "Application must not independently name exported files"
 
-    print("  ✓ Stage 1 Architecture: SSoT consolidation and per-slot state isolation verified")
+    print("  ✓ V2 Stage 1: per-account Scan isolation, task-owned Takeout, L2 selection and L4 paths verified")
+
 
 def test_storage_keys_and_constants_ssot():
     constants_path = os.path.join(BASE_DIR, "src/shared/utils/constants.ts")
