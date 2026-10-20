@@ -1,4 +1,4 @@
-import { key, address, reset, events, state, records, indexes, details, seed } from './helpers/applicationHarness.js';
+import { key, reset, events, state } from './helpers/applicationHarness.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getSettings, updateSettings, isLiveSaveEffective } from '../src/application/settings/index.js';
@@ -44,24 +44,21 @@ test('Settings IO failures propagate instead of silently manufacturing defaults 
     state.failSettingsWrite = true; await assert.rejects(updateSettings({ language: 'en' }), /write failed/);
     assert.deepEqual(events, []);
 });
-test('record cleanup atomically clears only the requested account and does not touch Domain', async () => {
-    seed();
-    const record = { exportedAt: 1, format: 'markdown' as const, status: 'ok' as const };
-    records.set(address(key()), record); records.set(address(key('second')), record);
-    const other = { accountId: '10000000-0000-4000-8000-000000000002', conversationId: 'first' };
-    records.set(address(other), record);
+test('clearExportRecords delegates exactly once to the account-scoped Storage port', async () => {
     await clearLocalExportRecords(key().accountId);
-    assert.deepEqual(events, [`clear-export:${key().accountId}`]);
-    assert.equal(records.size, 1); assert.equal(records.has(address(other)), true); assert.equal(indexes.size, 1);
+    assert.deepEqual(events, ['clear-export:' + key().accountId]);
 });
-test('scan cleanup clears coverage and export history, preserving Index and Detail', async () => {
-    seed(); records.set(address(key()), { exportedAt: 1, format: 'markdown', status: 'ok' });
+test('clearScanRecords delegates one combined Storage transaction, never separate Export cleanup', async () => {
     await clearLocalScanRecords(key().accountId);
-    assert.deepEqual(events, [`clear-scan:${key().accountId}`]);
-    assert.equal(indexes.size, 1); assert.equal(details.size, 1); assert.equal(records.size, 0);
+    assert.deepEqual(events, ['clear-scan:' + key().accountId]);
 });
-test('scan cleanup failure propagates without deleting Domain or claiming success', async () => {
-    seed(); state.failDelete = 'coverage';
+test('clearExportRecords propagates a failed Storage transaction', async () => {
+    state.failDelete = 'record';
+    await assert.rejects(clearLocalExportRecords(key().accountId), /delete failed/);
+    assert.deepEqual(events, ['clear-export:' + key().accountId]);
+});
+test('clearScanRecords propagates a failed Storage transaction without triggering another call', async () => {
+    state.failDelete = 'coverage';
     await assert.rejects(clearLocalScanRecords(key().accountId), /coverage failed/);
-    assert.equal(indexes.size, 1); assert.equal(details.size, 1);
+    assert.deepEqual(events, ['clear-scan:' + key().accountId]);
 });
