@@ -19,9 +19,9 @@ const keyPort: Pick<typeof import('../src/l2/conversationKey.js'), 'sameConversa
         return left.accountId === right.accountId && left.conversationId === right.conversationId;
     },
 };
-let serializer: typeof import('../src/l4/format/json/serializeDomainJson.js').serializeDomainJson;
+let serializer!: typeof import('../src/l4/format/json/serializeDomainJson.js').serializeDomainJson;
 try {
-    Module._load = function(request: string, parent: unknown, isMain: boolean) {
+    Module._load = function(this: unknown, request: string, parent: unknown, isMain: boolean) {
         if (request.endsWith('/l2/accountRegistry.js')) return accountPort;
         if (request.endsWith('/l2/conversationKey.js')) return keyPort;
         return previousLoad.call(this, request, parent, isMain);
