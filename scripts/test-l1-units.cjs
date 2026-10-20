@@ -21,6 +21,7 @@ const suites = {
         'tests/l1-outbound-contract.test.ts',
         'tests/provider_contract.test.ts',
         'tests/provider_degrade.test.ts',
+        'tests/retry_utils.test.ts',
     ],
     sniffer: [
         'tests/l1-sniffer-v2-mocked.test.ts',
