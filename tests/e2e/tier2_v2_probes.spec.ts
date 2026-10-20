@@ -163,9 +163,9 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
     expect(stored.domain.detail.messages).toHaveLength(2);
 });
 
-test('Tier 2 Scan observer rejects idle clicks, partial limits and changed accounts, including synchronous completion', async ({ context }) => {
+test('Tier 2 Scan observer preserves provider and local page limit reasons and rejects changed accounts', async ({ context }) => {
     const page = await context.newPage();
-    for (const kind of ['idle','partial','changed','resolved','complete']) {
+    for (const kind of ['idle','provider_limit','max_pages','changed','resolved','complete']) {
         await page.setContent('<body data-busy="false"><select id="accountIdSelect"><option value="account">Account</option><option value="other">Other</option></select><button id="btnSyncAll">Scan</button><p id="status"></p></body>');
         await page.evaluate(kind => {
             document.getElementById('btnSyncAll')!.onclick = () => {
@@ -181,7 +181,9 @@ test('Tier 2 Scan observer rejects idle clicks, partial limits and changed accou
                     return;
                 }
                 if (kind === 'resolved') (document.getElementById('accountIdSelect') as HTMLSelectElement).value = 'other';
-                document.getElementById('status')!.textContent = kind === 'partial' ? 'Source online access limit · 1 / 2' : 'Reached the end of this Recent source · 1 / 2';
+                document.getElementById('status')!.textContent = kind === 'provider_limit' ? 'Source online access limit · 1 / 2'
+                    : kind === 'max_pages' ? 'Local page budget reached · 1 / 2'
+                    : 'Reached the end of this Recent source · 1 / 2';
                 document.body.dataset.busy = 'false';
             };
         },kind);
@@ -189,7 +191,7 @@ test('Tier 2 Scan observer rejects idle clicks, partial limits and changed accou
         const evidence = await page.evaluate(() => Reflect.get(window,'__tier2ScanEvidence'));
         if (kind === 'idle') expect(evidence.finished).toBe(false);
         else if (kind === 'changed') expect(evidence.error).toMatch(/account changed/);
-        else expect(evidence.response.status).toBe(kind === 'partial' ? 'partial_limit':'complete');
+        else expect(evidence.response.status).toBe(kind === 'provider_limit' || kind === 'max_pages' ? kind : 'complete');
     }
 });
 
