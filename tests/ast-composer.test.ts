@@ -104,6 +104,7 @@ test('Reasoning, content and explicitly attached resources retain their source o
     const resources = collectDocumentResources(document);
     assert.deepEqual([...resources.referencedIds], ['photo', 'file']);
     assert.deepEqual([...resources.imageIds], ['photo']);
+    assert.deepEqual([...resources.fileIds], ['file']);
     assert.doesNotMatch(JSON.stringify(document), /unowned|contentMarkdown|placeholder|savedAt|quality/);
 });
 
@@ -121,11 +122,29 @@ test('Resource query visits nested inlines, table cells, captions and descriptio
     freeze(document); const before = JSON.stringify(document);
     const first = collectDocumentResources(document), second = collectDocumentResources(document);
     assert.deepEqual(first.imageIds, new Set(['nested', 'header', 'cell', 'table-caption', 'figure', 'caption', 'description']));
-    assert.deepEqual(first.referencedIds, new Set([...first.imageIds, 'file']));
-    first.referencedIds.clear(); first.imageIds.clear();
+    assert.deepEqual(first.fileIds, new Set(['file']));
+    assert.deepEqual(first.referencedIds, new Set([...first.imageIds, ...first.fileIds]));
+    first.referencedIds.clear(); first.imageIds.clear(); first.fileIds.clear();
     assert.equal(second.referencedIds.size, 8);
+    assert.deepEqual(second.fileIds, new Set(['file']));
     assert.equal(JSON.stringify(document), before);
-    assert.deepEqual(collectDocumentResources({ ...document, messages: [] }), { referencedIds: new Set(), imageIds: new Set() });
+    assert.deepEqual(collectDocumentResources({ ...document, messages: [] }), { referencedIds: new Set(), imageIds: new Set(), fileIds: new Set() });
+});
+
+test('Resource query classifies shared IDs by AST node use, not Domain asset kind', () => {
+    const document: DocumentAst = {
+        title: 'T', metadata: { id: 'x', provider: 'test' }, messages: [{
+            role: 'assistant', blocks: [
+                { type: 'image', resourceId: 'shared', alt: 'Image' },
+                { type: 'file', resourceId: 'shared', label: 'Same image as attachment', kind: 'image' },
+                { type: 'file', resourceId: 'file-only', label: 'File', kind: 'image' },
+            ],
+        }],
+    };
+    const refs = collectDocumentResources(document);
+    assert.deepEqual(refs.imageIds, new Set(['shared']));
+    assert.deepEqual(refs.fileIds, new Set(['shared', 'file-only']));
+    assert.deepEqual(refs.referencedIds, new Set(['shared', 'file-only']));
 });
 
 test('Table projection preserves merged positions, original captions and column alignments', () => {
