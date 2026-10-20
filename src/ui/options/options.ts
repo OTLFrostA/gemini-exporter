@@ -22,8 +22,6 @@ export async function initWorkbench(): Promise<void> {
     const state = new ConversationViewState();
     let settings: GlobalSettings;
     let directoryAvailable = false;
-    // This is a per-Options-page choice, not a persisted GlobalSettings preference.
-    let delivery: UIExportRequest['delivery'] = 'browserDownload';
     let busy = false;
     let themeSaving = false;
     let action: Action = null;
@@ -92,10 +90,12 @@ export async function initWorkbench(): Promise<void> {
             'btnSyncAll','btnForceFullScan','btnImportTakeout'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         el('delivery').setAttribute('aria-label', text('Export to', '导出到'));
+        const folderSelected = settings?.exportDelivery === 'folderWriter';
         for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="delivery"]')) {
-            radio.checked = radio.value === delivery;
+            radio.checked = radio.value === (settings?.exportDelivery ?? 'browserDownload');
             radio.disabled = busy || !settings;
         }
+        el('localFolderControls').classList.toggle('is-disabled', !folderSelected);
         const selector = el<HTMLSelectElement>('accountIdSelect');
         selector.setAttribute('aria-label', text('Account', '账户'));
         el('chatSearchInput').setAttribute('aria-label', text('Search title or ID', '搜索标题或 ID'));
@@ -127,19 +127,22 @@ export async function initWorkbench(): Promise<void> {
             el<HTMLInputElement>('langToggle').checked = en;
             el<HTMLElement>('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
             el<HTMLElement>('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
-            // Preserve the established Markdown-only rule without resetting enabledDisk.
+            // Changing the export destination or format pauses Live Save without forgetting intent.
             el<HTMLInputElement>('liveSaveDiskToggle').checked = settings.enabledDisk;
-            el<HTMLInputElement>('liveSaveDiskToggle').disabled = busy || settings.defaultFormat !== 'markdown';
+            el<HTMLInputElement>('liveSaveDiskToggle').disabled =
+                busy || !folderSelected || settings.defaultFormat !== 'markdown' || !directoryAvailable;
             const liveStatus = el<HTMLElement>('liveSaveStatus');
             liveStatus.hidden = !settings.enabledDisk;
             liveStatus.textContent = isLiveSaveEffective(settings, directoryAvailable)
                 ? text('Live Save active', '实时保存已开启')
-                : settings.defaultFormat !== 'markdown'
-                    ? text('Paused: Markdown only; switch back to resume', '已暂停 · 仅支持 Markdown，切回后恢复')
-                    : text('Paused: authorize a folder to resume', '已暂停 · 请选择或重新授权文件夹');
+                : !folderSelected
+                    ? text('Paused: select local folder to resume', '已暂停 · 选择本地文件夹后恢复')
+                    : settings.defaultFormat !== 'markdown'
+                        ? text('Paused: Markdown only; switch back to resume', '已暂停 · 仅支持 Markdown，切回后恢复')
+                        : text('Paused: authorize a folder to resume', '已暂停 · 请选择或重新授权文件夹');
         }
-        // Manual folder delivery and Live Save share a single capability.
-        // Keep the folder card visible for both choices, regardless of manual export destination.
+        // The folder picker and Live Save share a handle and depend on folder delivery.
+        el<HTMLButtonElement>('btnSetDir').disabled = busy || !folderSelected;
         const handle = Directory.getDirHandle();
         const pending = Directory.getPendingPermissionHandle();
         const folderName = handle?.name || pending?.name;
@@ -233,7 +236,8 @@ export async function initWorkbench(): Promise<void> {
         if (busy || !state.keys().length || !settings) return;
         const format = settings.defaultFormat;
         const fonts = format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
-        void exportRequest({ keys: state.keys(), format, delivery,
+        void exportRequest({ keys: state.keys(), format,
+            delivery: settings.exportDelivery ?? 'browserDownload',
             includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported }, fonts);
     });
     el('btnRetryFailed').addEventListener('click', () => {
@@ -248,7 +252,7 @@ export async function initWorkbench(): Promise<void> {
             .catch(e => status(errorText(e), 'error'));
     });
     el('btnSetDir').addEventListener('click', () => {
-        if (busy) return;
+        if (busy || settings?.exportDelivery !== 'folderWriter') return;
         const permission = Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
         void perform('cleanup', async () => {
             if (!await permission) throw new Error(text('Folder permission denied', '目录权限被拒绝'));
@@ -258,9 +262,16 @@ export async function initWorkbench(): Promise<void> {
     });
     el('delivery').addEventListener('change', event => {
         const input = event.target;
-        if (!(input instanceof HTMLInputElement) || input.name !== 'delivery' || !input.checked) return;
-        delivery = input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
-        render();
+        if (!(input instanceof HTMLInputElement) || input.name !== 'delivery' || !input.checked || busy || !settings) return;
+        const exportDelivery: UIExportRequest['delivery'] =
+            input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
+        if (settings.exportDelivery === exportDelivery) return;
+        const previous = settings;
+        settings = { ...settings, exportDelivery };
+        void perform('cleanup', async () => {
+            try { await updateSettings({ exportDelivery }); settings = await readSettings(); }
+            catch (error) { settings = previous; throw error; }
+        });
     });
     const fileInput = el<HTMLInputElement>('takeoutFileInput');
     el('btnImportTakeout').addEventListener('click', () => { if (!busy) fileInput.click(); });
@@ -308,6 +319,8 @@ export async function initWorkbench(): Promise<void> {
         devToggle: 'developerMode' } as const;
     for (const [id, field] of Object.entries(settingControls)) el<HTMLInputElement>(id).addEventListener('change', () => {
         const input = el<HTMLInputElement>(id);
+        // A disabled Live Save switch must never mutate persisted intent.
+        if (input.disabled) { render(); return; }
         const value = input.type === 'checkbox' ? input.checked : input.value;
         const prior = settings; settings = { ...settings, [field]: value };
         void perform('cleanup', async () => {
