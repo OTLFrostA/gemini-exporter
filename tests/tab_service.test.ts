@@ -1,210 +1,142 @@
-import { bindTabAccounts } from './helpers/tabAccounts.js';
 import test from 'node:test';
-import assert from 'node:assert';
+import assert from 'node:assert/strict';
+import path from 'node:path';
 
-import * as TabService from '../src/runtime/capabilities/tabService.js';
-
-
-
-test('TabService - getGeminiTab handles missing API and empty queries', async () => {
-    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+const Module = require('node:module');
+const root = path.resolve(__dirname, '..');
+const A = '12345678-1234-4234-8234-123456789abc';
+const B = '87654321-4321-4321-8321-cba987654321';
+const accounts: Record<string, unknown> = {
+    [A]: { id: A, providerId: 'gemini', providerAccountId: 'gaia-a' },
+    [B]: { id: B, providerId: 'gemini', providerAccountId: 'gaia-b' },
+};
+function load(stubs: Record<string, unknown> = {}) {
+    const original = Module._load;
+    Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
+        const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
+        const key = Object.keys(stubs).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
+        if (key) return stubs[key];
+        return original.call(this, request, parent, ...args);
+    };
     try {
-        (global as any).chrome = undefined;
-        const noApiTab = await TabService.getGeminiTab('u0');
-        assert.strictEqual(noApiTab, null, 'Should return null when chrome.tabs is undefined');
+        const file = path.resolve(root, 'src/runtime/capabilities/tabService.ts');
+        delete require.cache[require.resolve(file)];
+        return require(file);
+    } finally { Module._load = original; }
+}
+function router() {
+    return load({
+        'src/l3a/storageService.js': { getAccount: async (id: string) => accounts[id] ?? null },
+        'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} }
+    });
+}
+function withChrome(t: { after: (fn: () => void) => void }, value: unknown) {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    (globalThis as any).chrome = value;
+    t.after(() => {
+        if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+    });
+}
 
-        (global as any).chrome = {
-            tabs: {
-                query: async () => []
-            }
-        };
-        const emptyTab = await TabService.getGeminiTab('u0');
-        assert.strictEqual(emptyTab, null, 'Should return null when no tabs match');
-    } finally {
-        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
-        else delete (global as any).chrome;
-    }
+test('Tab routing requires a registered real Account UUID, not a Gemini URL slot', async t => {
+    withChrome(t, { runtime: {}, tabs: { query: async () => [{ id: 1 }] } });
+    const route = router();
+    await assert.rejects(route.getGeminiTab(), /UUID/);
+    await assert.rejects(route.resolveAccountTab('u0'), /UUID/);
+    await assert.rejects(route.resolveAccountTab('https://gemini.google.com/u/0/app'), /UUID/);
+    await assert.rejects(route.resolveAccountTab(B.replace(/.$/, 'x')), /UUID|supported|matches/);
+    await assert.rejects(route.getAITab('chatgpt', A), /production Content Script/);
 });
 
-test('TabService - getGeminiTab slot matching and active fallback', async () => {
-    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    try {
-        (global as any).chrome = {
-            tabs: {
-                query: async () => [
-                    { id: 10, url: 'https://gemini.google.com/app', active: false },
-                    { id: 20, url: 'https://gemini.google.com/u/1/app', active: false },
-                    { id: 30, url: 'https://gemini.google.com/u/2/app', active: true }
-                ]
-            }
-        };
-
-        bindTabAccounts({10:'10000000-0000-4000-8000-000000000001',20:'10000000-0000-4000-8000-000000000002',30:'10000000-0000-4000-8000-000000000003'});
-        const tabU1 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000002');
-        assert.strictEqual(tabU1?.id, 20, 'Should match tab with /u/1/');
-
-        const tabU2 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000003');
-        assert.strictEqual(tabU2?.id, 30, 'Should match tab with /u/2/');
-
-        const tabU3 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000004');
-        assert.strictEqual(tabU3, null, 'Should return null when requested slot is not open');
-
-        const tabU0 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000001');
-        assert.strictEqual(tabU0?.id, 10, 'Should match default u0 tab without /u/N/');
-
-        const tabDefault = await TabService.getGeminiTab();
-        assert.strictEqual(tabDefault?.id, 30, 'Should fallback to active tab when no slot is specified');
-    } finally {
-        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
-        else delete (global as any).chrome;
-    }
-});
-
-test('TabService - sendToGeminiTab failover across candidates and timeouts', async () => {
-    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    try {
-        (global as any).chrome = undefined;
-        await assert.rejects(
-            () => TabService.sendToGeminiTab({ action: 'ping' }),
-            /chrome\.tabs API 不可用/
-        );
-
-        let attempts: any[] = [];
-        (global as any).chrome = {
-            tabs: {
-                query: async () => [
-                    { id: 101, url: 'https://gemini.google.com/app', active: false },
-                    { id: 102, url: 'https://gemini.google.com/app', active: true }
-                ],
-                sendMessage: (tabId: any, msg: any, cb: any) => {
-                    attempts.push(tabId);
-                    if (tabId === 102) {
-                        (global as any).chrome.runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
-                        cb(null);
-                    } else {
-                        (global as any).chrome.runtime.lastError = null;
-                        cb({ success: true, fromTab: tabId });
-                    }
-                }
-            },
-            runtime: { lastError: null }
-        };
-
-        const res = await TabService.sendToGeminiTab({ action: 'ping' });
-        assert.deepStrictEqual(res, { success: true, fromTab: 101 }, 'Should fail over to next candidate');
-        assert.deepStrictEqual(attempts, [102, 101], 'Should try active tab first then next candidate');
-
-        // Test all candidate tabs failing with connection error
-        (global as any).chrome.tabs.sendMessage = (_tabId: any, _msg: any, cb: any) => {
-            (global as any).chrome.runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
-            cb(null);
-        };
-        await assert.rejects(
-            () => TabService.sendToGeminiTab({ action: 'ping' }),
-            /未能与 Gemini 建立连接，请刷新.*页面后重试/
-        );
-
-        let timeoutRecorded: any = null;
-        const origSetTimeout = global.setTimeout;
-        (global as any).setTimeout = (fn: any, ms: any) => {
-            timeoutRecorded = ms;
-            return origSetTimeout(fn, 1000000);
-        };
-        try {
-            (global as any).chrome.runtime.lastError = null;
-            (global as any).chrome.tabs.sendMessage = (tabId: any, msg: any, cb: any) => {
-                cb({ ok: true });
-            };
-            await TabService.sendToGeminiTab({ action: 'deepScan' });
-            assert.strictEqual(timeoutRecorded, 300000, 'deepScan action should default to 300000ms');
-
-            await TabService.sendToGeminiTab({ action: 'fetchHistory' });
-            assert.strictEqual(timeoutRecorded, 25000, 'other actions should default to 25000ms');
-
-            await TabService.sendToGeminiTab({ action: 'fetchHistory' }, undefined, 12345);
-            assert.strictEqual(timeoutRecorded, 12345, 'explicit timeoutMs should be respected');
-        } finally {
-            global.setTimeout = origSetTimeout;
+test('Verified Provider + Account match wins over first tab or URL slot; active match is preferred', async t => {
+    const probes: number[] = [];
+    withChrome(t, { runtime: { lastError: null }, tabs: {
+        query: async () => [
+            { id: 1, active: false, url: 'https://gemini.google.com/u/0/app' },
+            { id: 2, active: false, url: 'https://gemini.google.com/u/1/app' },
+            { id: 3, active: true, url: 'https://gemini.google.com/u/0/app' }
+        ],
+        sendMessage: (id: number, message: any, callback: Function) => {
+            assert.equal(message.action, 'getAccountContext');
+            probes.push(id);
+            callback({ ok: true, accountContext: { accountId: id === 1 ? B : A,
+                providerId: id === 2 ? 'chatgpt' : 'gemini' } });
         }
-    } finally {
-        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
-        else delete (global as any).chrome;
-    }
+    } });
+    const route = router();
+    assert.equal((await route.resolveAccountTab(A)).id, 3);
+    assert.deepEqual(probes, [3]); // matching active tab, no first-tab fallback
+    assert.equal((await route.getGeminiTab(A)).id, 3);
 });
 
-test('TabService - checkGeminiStatus lifecycle results', async () => {
-    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    try {
-        (global as any).chrome = undefined;
-        const noApi = await TabService.checkGeminiStatus();
-        assert.strictEqual(noApi.status, 'NO_TABS_API');
-
-        (global as any).chrome = {
-            tabs: {
-                query: async () => []
-            }
-        };
-        const noTab = await TabService.checkGeminiStatus();
-        assert.strictEqual(noTab.status, 'NO_TAB');
-
-        (global as any).chrome = {
-            tabs: {
-                query: async () => [{ id: 55, url: 'https://gemini.google.com/app', active: true }],
-                sendMessage: (tabId: any, msg: any, cb: any) => {
-                    cb({ ok: true, version: '1.0' });
-                }
-            },
-            runtime: { lastError: null }
-        };
-        const connected = await TabService.checkGeminiStatus();
-        assert.strictEqual(connected.status, 'CONNECTED');
-        assert.strictEqual(connected.tab?.id, 55);
-        assert.deepStrictEqual(connected.response, { ok: true, version: '1.0' });
-
-        (global as any).chrome.tabs.sendMessage = (tabId: any, msg: any, cb: any) => {
-            (global as any).chrome.runtime.lastError = { message: 'Port closed' };
-            cb(null);
-        };
-        const needRefresh = await TabService.checkGeminiStatus();
-        assert.strictEqual(needRefresh.status, 'NEED_REFRESH');
-        assert.strictEqual(needRefresh.error, 'Port closed');
-    } finally {
-        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
-        else delete (global as any).chrome;
-    }
+test('Ambiguous Scan target fails without guessing; explicit preference and a unique live UUID work', async t => {
+    let accepted: Record<number, string | null> = { 1: A, 2: B, 3: A };
+    withChrome(t, { runtime: { lastError: null }, tabs: {
+        query: async () => [{ id: 1 }, { id: 2 }, { id: 3 }],
+        sendMessage: (id: number, _: unknown, callback: Function) =>
+            callback({ ok: true, accountContext: accepted[id] ? { accountId: accepted[id], providerId: 'gemini' } : null }),
+    } });
+    const route = router();
+    await assert.rejects(route.resolveScanTarget(), /Multiple Gemini accounts/);
+    assert.equal(await route.resolveScanTarget(A), A);
+    assert.equal(await route.resolveScanTarget(B), B);
+    accepted = { 1: A, 2: null, 3: A };
+    assert.equal(await route.resolveScanTarget(), A);
+    accepted = { 1: null, 2: null, 3: null };
+    await assert.rejects(route.resolveScanTarget(), /Open Gemini/);
 });
 
-test('TabService - openGeminiPage and reloadGeminiTab fallback delegation', async () => {
-    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+test('Unknown/default source identity is not a Scan target even if Content replies ok', async t => {
+    accounts[B] = { id: B, providerId: 'gemini', providerAccountId: 'default' };
     try {
-        let createdUrl: any = null;
-        let reloadedTabId: any = null;
-        (global as any).chrome = {
-            tabs: {
-                create: async (opts: any) => { createdUrl = opts.url; return { id: 99 }; },
-                reload: async (id: any) => { reloadedTabId = id; }
+        withChrome(t, { runtime: { lastError: null }, tabs: {
+            query: async () => [{ id: 5 }],
+            sendMessage: (_: number, __: unknown, cb: Function) => cb({ ok: true, accountContext: { accountId: B, providerId: 'gemini' } })
+        } });
+        await assert.rejects(router().resolveScanTarget(B), /Open Gemini/);
+    } finally { accounts[B] = { id: B, providerId: 'gemini', providerAccountId: 'gaia-b' }; }
+});
+
+test('Content operation fixes target Account once and never fails over after send failure', async t => {
+    const sends: Array<{ id: number; action: string; accountId?: string }> = [];
+    withChrome(t, { runtime: { lastError: null }, tabs: {
+        query: async () => [{ id: 9, active: true }, { id: 10 }],
+        sendMessage: (id: number, message: any, cb: Function) => {
+            sends.push({ id, action: message.action, accountId: message.accountId });
+            if (message.action === 'getAccountContext') cb({ ok: true, accountContext: { accountId: A, providerId: 'gemini' } });
+            else {
+                (globalThis as any).chrome.runtime.lastError = { message: 'Tab navigated' };
+                cb(undefined);
+                (globalThis as any).chrome.runtime.lastError = null;
             }
-        };
+        },
+    } });
+    await assert.rejects(router().sendToGeminiTab({ action: 'getImageBlob', url: 'https://lh3.googleusercontent.com/x' }, A), /Tab navigated/);
+    assert.deepEqual(sends.filter(value => value.action === 'getImageBlob'), [{ id: 9, action: 'getImageBlob', accountId: A }]);
+    await assert.rejects(router().sendToGeminiTab({ action: 'getImageBlob' }), /UUID/);
+    await assert.rejects(router().sendToAITab('chatgpt', { action: 'ping' }, A), /production Content Script/);
+});
 
-        await TabService.openGeminiPage();
-        assert.strictEqual(createdUrl, 'https://gemini.google.com/app');
+test('Uninjected/closed tab errors are never successful delivery acknowledgements', async t => {
+    withChrome(t, { runtime: { lastError: null }, tabs: {
+        query: async () => [{ id: 12 }],
+        sendMessage: (_id: number, _msg: unknown, callback: Function) => callback(undefined),
+    } });
+    const route = router();
+    await assert.rejects(route.sendTabMessage(12, { action: 'ping' }, 15), /no response/);
+    await assert.rejects(route.resolveAccountTab(A), /No open Provider Tab/);
+    assert.equal((await route.checkGeminiStatus(A)).status, 'ERROR');
+});
 
-        await TabService.reloadGeminiTab(99);
-        assert.strictEqual(reloadedTabId, 99);
-
-        let runtimeMsg: any = null;
-        (global as any).chrome = {
-            runtime: {
-                sendMessage: async (msg: any) => { runtimeMsg = msg; }
-            }
-        };
-        await TabService.openGeminiPage();
-        assert.deepStrictEqual(runtimeMsg, { action: 'openGeminiPage' });
-
-        await TabService.reloadGeminiTab(77);
-        assert.deepStrictEqual(runtimeMsg, { action: 'reloadGeminiTab', tabId: 77 });
-    } finally {
-        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
-        else delete (global as any).chrome;
-    }
+test('Explicit navigation requests only succeed after Background returned ok:true', async t => {
+    const seen: unknown[] = [];
+    withChrome(t, { runtime: { sendMessage: async (msg: any) => {
+        seen.push(msg);
+        return msg.action === 'openGeminiPage' ? { ok: true, tabId: 55 } : { ok: false, error: 'Wrong Tab' };
+    } } });
+    const route = router();
+    assert.deepEqual(await route.openGeminiPage(), { ok: true, tabId: 55 });
+    await assert.rejects(route.reloadGeminiTab(7), /Wrong Tab/);
+    assert.deepEqual(seen, [{ action: 'openGeminiPage' }, { action: 'reloadGeminiTab', tabId: 7 }]);
 });
