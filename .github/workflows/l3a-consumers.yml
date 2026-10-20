@@ -6,11 +6,11 @@ on:
     paths:
       - '.github/workflows/l3a-consumers.yml'
       - 'tests/l3a-tier1.json'
-      - 'tests/**'
+      - 'tests/helpers/indexStorage.ts'
+      - 'tests/conversation_repository_other_layers.test.ts'
+      - 'tests/exportedids_readpath_normalization.test.ts'
       - 'src/l3a/**'
       - 'src/l2/**'
-      - 'src/application/**'
-      - 'src/runtime/**'
   workflow_dispatch:
 
 permissions:
