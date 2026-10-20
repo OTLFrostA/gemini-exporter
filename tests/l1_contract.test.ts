@@ -337,6 +337,32 @@ test('L1 Takeout hands bound ZIP entries to current resource context', async () 
 });
 
 
+test('L1 Takeout import discards temporary archive readers when L2 rejects its Detail', async () => {
+    const cid = 'source_chat_123';
+    const key = { accountId: ACCOUNT_UUID, conversationId: cid };
+    const newer = Date.parse('2026-09-04T12:00:00Z');
+    await commitDetail(ACCOUNT_UUID, cid, {
+        savedAt: newer, quality: { status: 'complete' }, messages: [], assets: [],
+    });
+    const selected = await getDetail(key);
+    const html = '<div class="outer-cell"><a href="https://gemini.google.com/app/source_chat_123">Conversation</a>'
+        + '<div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">'
+        + 'Prompted Draw<br>2026-09-02T12:00:00Z<br><img src="picture.png"></div></div>';
+    const archive = { file() {}, files: {
+        'Takeout/Gemini/MyActivity.html': { _data: { uncompressedSize: html.length }, async: async () => html },
+        'Takeout/Gemini/picture.png': { _data: { uncompressedSize: 3 }, async: async () => Uint8Array.of(1, 2, 3) },
+    } };
+    const resources = createSourceResourceContext();
+    let retained = 0;
+    resources.retainParsed = () => { retained++; };
+    resources.retain = () => { retained++; };
+    try {
+        await importTakeout(archive as unknown as File, ACCOUNT_UUID, undefined, resources);
+        assert.equal(retained, 0);
+        assert.deepEqual(await getDetail(key), selected);
+    } finally { resources.release(); }
+});
+
 test('L1 unavailable current bytes fall back to remote locator with signal', async () => {
     const resources = createSourceResourceContext(), original = globalThis.fetch;
     const key = { accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' };
