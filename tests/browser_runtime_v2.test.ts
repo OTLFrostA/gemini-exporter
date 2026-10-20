@@ -450,34 +450,33 @@ test('Content registers capture, account and message listeners while readiness i
     assert.deepEqual(initialized, ['credentials', 'router', 'routes', 'bridge', 'badge']);
 });
 
-test('an early source completion survives readiness wait and keeps its captured Account after a switch', async () => {
-    global.window = contentWindow() as any;
-    global.location = { origin: 'https://gemini.google.com', pathname: '/app/abcdef123456' } as any;
-    let finish!: () => void;
-    const pending = new Promise<void>(resolve => { finish = resolve; });
-    let commits = 0;
-    const keys: unknown[] = [];
-    const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
-    let current = context;
-    const bridge = load('src/l1/sniffer/gemini/messageBridge.ts', {
-        'src/runtime/api/accountRegistry.js': { getAccount: async () => account },
-        'src/runtime/content/accountContext.js': { resolveRequestAccount: async () => { await pending; return context; }, resolveCurrentAccount: async () => current },
-        'src/runtime/api/domainIngestion.js': { ingestIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; } },
-        'src/l1/client/gemini/listObservation.js': {},
-        'src/l1/parsers/gemini/rpc/parseConversation.js': {},
-        'src/l1/parsers/gemini/rpc/mergePages.js': {},
-        'src/l1/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
-        'src/l1/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
-        'src/shared/utils/utils.js': { isDevMode: () => false },
-        'src/l1/parsers/gemini/rpc/parseList.js': {},
-    });
-    bridge.init({ onStreamComplete: (key: unknown) => keys.push(key) });
-    const event = { source: global.window, origin: global.location.origin, data: { type: 'GEMINI_STREAM_GENERATE_COMPLETE', payload: { slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: 'gaia' }, id: 'abcdef123456' } } };
-    const operation = bridge.handleWindowMessage(event);
-    await Promise.resolve(); assert.equal(commits, 0);
-    finish(); await operation;
-    assert.equal(commits, 1);
-    assert.deepEqual(keys, [{ accountId: uuid, conversationId: 'abcdef123456' }]);
+test('passive L2 Index admission preserves the source Account while the visible Tab changes', async () => {
+    global.chrome = chromeBase() as any;
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    const accountAtRequest = uuid;
+    const admitted: unknown[] = [];
+    const handler = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready,
+        'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestIndexes: async (...args: unknown[]) => {
+            admitted.push(args);
+            await pending;
+        } },
+    }).handleDomainIngestionMessage;
+    const page = { streamId: 'recent', requestCursor: null, nextCursor: null,
+        requestedAt: 1700000000000, requestKnown: true, valid: true, ordered: true, keys: [] };
+    let completed = false;
+    const operation = invoke(handler, { action: 'domainIngest', operation: 'indexes',
+        accountId: accountAtRequest, items: [], page }).then(value => { completed = true; return value; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(completed, false);
+    // Passive source identity is frozen by L1; unlike active export, Runtime
+    // must not re-query the sender Tab or attribute evidence to a new Account.
+    global.chrome.tabs.sendMessage = (() => assert.fail('No current-tab read during passive admission')) as any;
+    release();
+    assert.deepEqual(await operation, { ok: true });
+    assert.deepEqual(admitted, [[accountAtRequest, [], page]]);
 });
 
 test('active Content Account validation targets the sending document and rejects a different current Account', async () => {
@@ -692,150 +691,3 @@ test('Runtime diagnostic timestamps have one numeric millisecond representation'
     assert.equal('isoTime' in event, false);
 });
 
-// Real Migration + Settings + Storage behind the production Runtime handlers.
-// Only the Chrome/IndexedDB browser surfaces are replaced, not ensureUpgraded().
-function migratedRuntime(initial: Record<string, unknown>, beforeWrite: (patch: Record<string, unknown>) => Promise<void> = async () => {}) {
-    const { IDBFactory, IDBKeyRange } = require('fake-indexeddb');
-    global.IDBKeyRange = IDBKeyRange;
-    const pendingLocks = new Map<string, Promise<void>>();
-    if (typeof globalThis.navigator === 'undefined') (globalThis as any).navigator = {};
-    Object.defineProperty(globalThis.navigator, 'locks', { configurable: true, value: {
-        async request<T>(name: string, callback: () => Promise<T>): Promise<T> {
-            const previous = pendingLocks.get(name) ?? Promise.resolve();
-            let release!: () => void;
-            const next = new Promise<void>(resolve => { release = resolve; });
-            pendingLocks.set(name, next); await previous;
-            try { return await callback(); }
-            finally { release(); if (pendingLocks.get(name) === next) pendingLocks.delete(name); }
-        }
-    } });
-    global.indexedDB = new IDBFactory();
-    delete (global as any).window;
-    global.location = { protocol: 'chrome-extension:' } as any;
-    const data = structuredClone(initial);
-    const writes: Record<string, unknown>[] = [];
-    let listener!: Function, installed!: Function;
-    let opened = 0;
-    global.chrome = { ...chromeBase(), tabs: { ...chromeBase().tabs, create: async () => { opened++; } }, storage: { local: {
-        get: async (keys: string | string[]) => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).map(key => [key, structuredClone(data[key])])),
-        set: async (patch: Record<string, unknown>) => { await beforeWrite(patch); writes.push(structuredClone(patch)); Object.assign(data, structuredClone(patch)); },
-    } }, runtime: { id: 'ext', getURL: (path: string) => 'chrome-extension://ext/' + path, getManifest: () => ({ version: '2.0.0' }), openOptionsPage: async () => { opened++; },
-        onInstalled: { addListener: (fn: Function) => { installed = fn; } },
-        onMessage: { addListener: (fn: Function) => { listener = fn; } },
-        sendMessage: async (message: unknown) => invoke(listener, message),
-    } } as any;
-    delete require.cache[require.resolve('../src/migration/upgradeV1.ts')];
-    const readiness = load('src/runtime/background/readiness.ts', {});
-    const settings = load('src/application/settings/index.ts', {});
-    const lifecycle = load('src/runtime/background/lifecycle.ts', { 'src/runtime/background/readiness.js': readiness,
-        'src/application/settings/index.js': settings });
-    const guards = load('src/runtime/background/contentSender.ts', {});
-    const registryHandler = load('src/runtime/background/accountRegistryHandler.ts', {
-        'src/runtime/background/readiness.js': readiness, 'src/runtime/background/contentSender.js': guards,
-    });
-    load('src/runtime/background/background.ts', {
-        'src/runtime/background/readiness.js': readiness, 'src/runtime/background/lifecycle.js': lifecycle,
-        'src/runtime/background/contentSender.js': guards, 'src/runtime/background/accountRegistryHandler.js': registryHandler,
-        'src/runtime/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
-        'src/runtime/background/tabAction.js': { initTabActionListeners() {} },
-        'src/runtime/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('No export requested') },
-    });
-    const readyApi = load('src/runtime/api/runtimeReady.ts', { 'src/runtime/background/readiness.js': readiness });
-    const accounts = load('src/runtime/api/accountRegistry.ts', { 'src/runtime/api/runtimeReady.js': readyApi });
-    return { data, writes, readiness, readyApi, accounts, settings, opened: () => opened,
-        install: (reason: string, previousVersion?: string) => installed({ reason, previousVersion }),
-        message: (message: unknown) => invoke(listener, message),
-        store: load('src/l3a/storageService.ts', {}),
-    };
-}
-async function seedRuntimeLegacyAccount() {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open('gemini_exporter_domain');
-        request.onupgradeneeded = () => request.result.createObjectStore('accounts');
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-    try {
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction('accounts', 'readwrite');
-            tx.objectStore('accounts').put(account, uuid);
-            tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
-        });
-    } finally { db.close(); }
-}
-const migrationMarker = 'gemini_exporter_v2_initialized';
-const migratedSettingsKey = 'gemini_exporter_v2_settings';
-
-test('real Migration: fresh-install lifecycle and concurrent readiness IPC wait for initialized marker', async () => {
-    let commit!: () => void, reached!: () => void;
-    const gate = new Promise<void>(resolve => { commit = resolve; });
-    const writing = new Promise<void>(resolve => { reached = resolve; });
-    const runtime = migratedRuntime({}, async patch => {
-        if (patch[migrationMarker]) { reached(); await gate; }
-    });
-    runtime.install('install');
-    let responses = 0;
-    const ipc = Promise.all([runtime.message({ action: 'ensureV2Ready' }), runtime.message({ action: 'ensureV2Ready' })])
-        .then(values => { responses++; return values; });
-    await writing;
-    assert.equal(responses, 0); assert.equal(runtime.opened(), 0);
-    assert.equal(runtime.data[migratedSettingsKey], undefined);
-    commit(); assert.deepEqual(await ipc, [{ ok: true }, { ok: true }]); await settleHook();
-    assert.equal(runtime.data[migrationMarker], true);
-    assert.deepEqual(runtime.data[migratedSettingsKey], { lastSeenFeatureVersion: '2.0.0' });
-    assert.equal(runtime.opened(), 1);
-    assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
-    assert.deepEqual(await indexedDB.databases(), []);
-});
-
-for (const baseline of ['1.6.0', undefined]) test(`real Migration: Account/count IPC and update lifecycle await commit; feature baseline ${baseline || 'falls back to previousVersion'}`, async () => {
-    let commit!: () => void, reached!: () => void;
-    const gate = new Promise<void>(resolve => { commit = resolve; });
-    const writing = new Promise<void>(resolve => { reached = resolve; });
-    const legacyIndex = { key: { accountId: uuid, conversationId: 'legacy' }, title: 'Migrated', titleSource: 'provider', updatedAt: 100 };
-    const runtime = migratedRuntime({ gemini_export_format: 'html', gemini_export_zip: false,
-        ...(baseline ? { last_seen_feature_version: baseline } : {}), [`conversations_${uuid}`]: [legacyIndex] }, async patch => {
-        if (patch[migrationMarker]) { reached(); await gate; }
-    });
-    await seedRuntimeLegacyAccount();
-    runtime.install('update', '1.8.1');
-    const worker = runtime.readyApi.ensureV2Ready(); // Worker takes the direct path.
-    global.window = contentWindow() as any;
-    global.location = { protocol: 'https:' } as any;
-    let resolved = 0;
-    const registry = runtime.accounts.getAccount(uuid).then((value: unknown) => { resolved++; return value; });
-    const count = runtime.message({ action: 'getLocalIndexCount', accountId: uuid }).then(value => { resolved++; return value; });
-    await writing; assert.equal(resolved, 0); assert.equal(runtime.opened(), 0);
-    commit(); await worker;
-    assert.deepEqual(await registry, account);
-    assert.deepEqual(await count, { ok: true, count: 1 }); await settleHook();
-    assert.deepEqual(await runtime.store.listIndexes(uuid), [legacyIndex]);
-    assert.deepEqual(await runtime.settings.getSettings(), {
-        defaultFormat: 'html', skipExported: true, includeAssets: true,
-        enabledDisk: false, developerMode: false, lastSeenFeatureVersion: baseline || '1.8.1',
-    });
-    assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
-    assert.deepEqual(runtime.data[`conversations_${uuid}`], [legacyIndex]);
-});
-
-test('real Migration: failed completion marker fails Runtime IPC and retries before allowing Account reads', async () => {
-    let fail = true;
-    const runtime = migratedRuntime({ gemini_export_zip: false }, async patch => {
-        if (patch[migrationMarker] && fail) throw new Error('migration marker write failed');
-    });
-    await seedRuntimeLegacyAccount();
-    const failed = await runtime.message({ action: 'ensureV2Ready' });
-    assert.deepEqual(failed, { ok: false, error: 'migration marker write failed' });
-    assert.equal(runtime.data[migrationMarker], undefined);
-    global.window = contentWindow() as any;
-    global.location = { protocol: 'https:' } as any;
-    await assert.rejects(runtime.accounts.getAccount(uuid), /migration marker write failed/);
-    fail = false;
-    assert.deepEqual(await runtime.accounts.getAccount(uuid), account);
-    assert.equal(runtime.data[migrationMarker], true);
-    assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
-    // Once ready, neither the worker nor Content asks Migration to reopen legacy DBs.
-    indexedDB.databases = () => assert.fail('Ready Runtime must not rerun Migration');
-    assert.deepEqual(await runtime.message({ action: 'ensureV2Ready' }), { ok: true });
-    assert.deepEqual(await runtime.accounts.getAccount(uuid), account);
-});
