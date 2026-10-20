@@ -1,209 +1,169 @@
-import { useAccountRuntime } from './helpers/accountRuntime.js';
-useAccountRuntime();
 import test from 'node:test';
-import assert from 'node:assert';
+import assert from 'node:assert/strict';
+import path from 'node:path';
 
-// S1: content messageRouter fail-closed + exactly-once responder.
+const Module = require('node:module');
+const root = path.resolve(__dirname, '..');
+const A = '12345678-1234-4234-8234-123456789abc';
+const B = '87654321-4321-4321-8321-cba987654321';
+const account = { providerId: 'gemini', accountId: A, slot: 'u0' };
+const page = 'https://gemini.google.com/app/abcdef123456';
 
-const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-const listeners: Array<(msg: any, sender: any, sendResponse: any) => any> = [];
-(global as any).chrome = {
-    runtime: {
-        onMessage: { addListener: (fn: any) => { listeners.push(fn); } },
-        lastError: null,
-        sendMessage: (_msg: any, _cb?: any) => {},
-    },
-};
-
-const { init } = require('../src/runtime/content/messageRouter.ts');
-const { ProviderRegistry } = require('../src/l1/client/providerRegistry.ts');
-test.after(() => {
-    listeners.length = 0;
-    if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);
-    else Reflect.deleteProperty(globalThis, 'chrome');
-});
-
-function lastListener() {
-    return listeners[listeners.length - 1];
-}
-
-async function dispatch(msg: any, waitMs = 2000): Promise<{ responses: any[]; returned: any }> {
-    const responses: any[] = [];
-    const returned = lastListener()(msg, {}, (r: any) => { responses.push(r); });
-    const deadline = Date.now() + waitMs;
-    while (responses.length === 0 && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 25));
-    }
-    // Give exactly-once guard a chance to (incorrectly) fire twice.
-    await new Promise((r) => setTimeout(r, 50));
-    return { responses, returned };
-}
-
-function freshInit(deps: any) {
-    listeners.length = 0;
-    init(deps);
-}
-
-test('S1 - ping responds exactly once with ok:true', async () => {
-    freshInit({});
-    const { responses } = await dispatch({ action: 'ping' });
-    assert.strictEqual(responses.length, 1, 'exactly one response');
-    assert.strictEqual(responses[0].ok, true);
-});
-
-test('S1 - synchronous throw in dispatch becomes a structured failure, not a hang', async () => {
-    freshInit({
-        scraper: { getScrollContainer: () => { throw new Error('boom'); } },
-    });
-    const { responses } = await dispatch({ action: 'getScrollContainer' });
-    assert.strictEqual(responses.length, 1, 'exactly one response despite throw');
-    const r = responses[0];
-    assert.strictEqual(r.ok, false);
-    assert.strictEqual(r.success, false);
-    assert.ok(String(r.error).includes('boom'), `error mentions cause, got: ${r.error}`);
-});
-
-test('S1 - unknown action is a structured failure', async () => {
-    freshInit({});
-    const { responses } = await dispatch({ action: 'noSuchAction' });
-    assert.strictEqual(responses.length, 1);
-    assert.strictEqual(responses[0].ok, false);
-    assert.strictEqual(responses[0].success, false);
-    assert.ok(String(responses[0].error).includes('unknown action'));
-});
-
-test('S1 - getConversationDetail with no provider result and no scraper fails closed', async () => {
-    // Make the default provider resolve to "no detail" without network.
-    const provider = ProviderRegistry.getDefault();
-    assert.ok(provider, 'default provider registered');
-    const orig = provider.fetchConversationDetail;
-    provider.fetchConversationDetail = async () => null;
-    try {
-        freshInit({ syncEngine: null, scraper: null, assets: null, storage: null });
-        const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'c_123' });
-        assert.strictEqual(responses.length, 1, 'port must not hang when no fetch path exists');
-        const r = responses[0];
-        assert.strictEqual(r.ok, false);
-        assert.strictEqual(r.success, false);
-        assert.match(String(r.error), /conversation detail unavailable/, 'missing acquisition paths fail closed with a useful reason');
-    } finally {
-        provider.fetchConversationDetail = orig;
-    }
-});
-
-test('S1 - getConversationDetail intercepts BardErrorInfo 1167 directly without falling back to DOM scraper', async () => {
-    const provider = ProviderRegistry.getDefault();
-    assert.ok(provider, 'default provider registered');
-    const orig = provider.fetchConversationDetail;
-    provider.fetchConversationDetail = async () => {
-        throw new Error('rpc error (BardErrorInfo: 1167) inaccessible or deleted');
+function load(stubs: Record<string, unknown>) {
+    const original = Module._load;
+    Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
+        const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
+        const key = Object.keys(stubs).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
+        return key ? stubs[key] : original.call(this, request, parent, ...args);
     };
-    let scraperCalled = false;
-    let prunedId = '';
-    let availability = '';
-    const mockStorage = {
-        setConversationAvailability: async (_slot: string, _id: string, state: string) => { availability = state; },
-        removeConversation: async (_slot: string, id: string) => {
-            prunedId = id;
+    try {
+        const file = path.resolve(root, 'src/runtime/content/messageRouter.ts');
+        delete require.cache[require.resolve(file)];
+        return require(file);
+    } finally { Module._load = original; }
+}
+
+function setup(t: { after: (cleanup: () => void) => void }, overrides: {
+    account?: () => Promise<unknown>;
+    current?: (account: unknown) => boolean;
+    file?: (message: unknown, reply: (value: unknown) => void) => Promise<void>;
+    image?: (message: unknown, reply: (value: unknown) => void) => Promise<void>;
+} = {}) {
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    const added: Function[] = [], removed: Function[] = [], cleanups: Array<() => void> = [];
+    (globalThis as any).location = { href: page };
+    (globalThis as any).chrome = { runtime: {
+        id: 'extension',
+        onMessage: {
+            addListener: (fn: Function) => added.push(fn),
+            removeListener: (fn: Function) => removed.push(fn)
+        }
+    } };
+    const assets = { AssetFetcher: {
+        handleGetFileBlob: overrides.file || (async (_: unknown, reply: Function) => reply({ success: true, dataBase64: 'AA==', size: 1 })),
+        handleGetImageBlob: overrides.image || (async (_: unknown, reply: Function) => reply({ success: true, dataBase64: 'AQ==', size: 1 })),
+    } };
+    load({
+        'src/runtime/content/accountContext.js': {
+            resolveCurrentAccount: overrides.account || (async () => account),
+            isCurrentAccount: overrides.current || (() => true),
         },
-        getLastSync: async () => ({ count: 0 }),
-        getConversations: async () => []
-    };
-    try {
-        freshInit({
-            syncEngine: null,
-            scraper: {
-                contentFetchChatDetail: async () => {
-                    scraperCalled = true;
-                    return { id: 'c_del_123', messages: [] };
-                }
-            },
-            assets: null,
-            storage: mockStorage,
-        });
-        const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'c_del_123' });
-        assert.strictEqual(responses.length, 1, 'exactly one response');
-        assert.strictEqual(scraperCalled, false, 'Must NOT fall back to DOM scraper when cloud confirms deletion');
-        assert.strictEqual(prunedId, '', 'Cloud deletion must retain local archive');
-        assert.strictEqual(availability, 'deleted');
-        const r = responses[0];
-        assert.strictEqual(r.success, true);
-        assert.strictEqual(r.data.isDeleted, true);
-        assert.strictEqual(r.data.id, 'c_del_123');
-    } finally {
-        provider.fetchConversationDetail = orig;
+        'src/runtime/capabilities/assetFetcher.js': assets,
+        'src/runtime/content/cleanupRegistry.js': { registerCleanup: (fn: () => void) => { cleanups.push(fn); return () => {}; } },
+        'src/shared/utils/constants.js': { getExtensionVersion: () => 'v2' },
+    }).init();
+    assert.equal(added.length, 1);
+    t.after(() => {
+        cleanups.forEach(fn => fn());
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+        if (originalLocation) Object.defineProperty(globalThis, 'location', originalLocation);
+        else Reflect.deleteProperty(globalThis, 'location');
+    });
+    const sender = { id: 'extension' };
+    async function request(message: unknown, source: unknown = sender) {
+        let calls = 0;
+        let finish!: (value: any) => void;
+        const done = new Promise<any>(resolve => { finish = resolve; });
+        const returned = added[0](message, source, (value: unknown) => { calls++; finish(value); });
+        assert.equal(returned, true);
+        const value = await done;
+        await Promise.resolve();
+        assert.equal(calls, 1);
+        return value;
+    }
+    return { request, listener: added[0], removed, cleanups, sender };
+}
+
+test('Content IPC only handles the four supported actions, never an old Scan command', t => {
+    const { listener, sender } = setup(t);
+    for (const action of ['fetchBatch', 'getScrollContainer', 'abortSync', 'deepScan', 'domainStorage', 'notAnAction']) {
+        let responses = 0;
+        assert.equal(listener({ action }, sender, () => { responses++; }), false);
+        assert.equal(responses, 0);
     }
 });
 
-
-for (const failure of ['HTTP 401', 'HTTP 403', 'HTTP 429', 'request timeout', 'parse error']) {
-    test('S1 - non-deletion error retains archive and does not mark deleted: ' + failure, async () => {
-        const provider = ProviderRegistry.getDefault();
-        const original = provider.fetchConversationDetail;
-        provider.fetchConversationDetail = async () => { throw new Error(failure); };
-        let marked = false;
-        let removed = false;
-        try {
-            freshInit({ syncEngine: null, assets: null,
-                storage: { setConversationAvailability: async () => { marked = true; }, removeConversation: async () => { removed = true; } },
-                scraper: { contentFetchChatDetail: async () => ({ id: 'auth_failure', error: failure, isDeleted: false }) }
-            });
-            const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'auth_failure', accountSlot: '10000000-0000-4000-8000-000000000002' });
-            assert.equal(responses.length, 1);
-            assert.equal(responses[0].data.isDeleted, false);
-            assert.equal(responses[0].data.isEmpty, true, 'transient failures do not imply a deleted cloud conversation');
-            assert.equal(marked, false);
-            assert.equal(removed, false);
-        } finally { provider.fetchConversationDetail = original; }
-    });
-}
-
-test('S1 - cloud availability write failure retains deletion evidence without deleting archive or hanging', async () => {
-    const provider = ProviderRegistry.getDefault(); const original = provider.fetchConversationDetail;
-    provider.fetchConversationDetail = async () => { throw new Error('HTTP 404'); };
-    let removed = false;
-    try {
-        freshInit({ syncEngine: null, scraper: null, assets: null,
-            storage: { setConversationAvailability: async () => { throw new Error('quota failure'); }, removeConversation: async () => { removed = true; } } });
-        const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'write_fail' });
-        assert.equal(responses.length, 1); assert.equal(responses[0].success, true);
-        assert.equal(responses[0].data.isDeleted, true); assert.equal(removed, false);
-    } finally { provider.fetchConversationDetail = original; }
+test('Ping responds once with version; foreign extension sender fails closed', async t => {
+    const { request } = setup(t);
+    assert.deepEqual(await request({ action: 'ping' }), { ok: true, version: 'v2' });
+    assert.match((await request({ action: 'ping' }, { id: 'foreign' })).error, /Foreign extension sender/);
 });
 
-for (const failure of ['memory', 'ui-throw', 'ui-reject']) {
-    test('S1 - deletion side effects remain independent: ' + failure, async () => {
-        const provider = ProviderRegistry.getDefault(); const original = provider.fetchConversationDetail;
-        const originalSend = chrome.runtime.sendMessage;
-        const originalWarn = console.warn;
-        const warnings: unknown[][] = [];
-        const order: string[] = [];
-        provider.fetchConversationDetail = async () => { throw new Error('HTTP 404'); };
-        console.warn = (...args: unknown[]) => { warnings.push(args); };
-        Reflect.set(chrome.runtime, 'sendMessage', (message: {action:string}) => {
-            if (message.action === 'accountRegistry') return Reflect.apply(originalSend, chrome.runtime, [message]);
-            order.push('ui');
-            if (failure === 'ui-throw') throw new Error('UI unavailable');
-            if (failure === 'ui-reject') return Promise.reject(new Error('UI unavailable'));
-        });
-        try {
-            freshInit({ assets: null, scraper: null,
-                syncEngine: { markConfirmedDeleted: () => {
-                    order.push('memory');
-                    if (failure === 'memory') throw new Error('Memory marker unavailable');
-                } },
-                storage: { setConversationAvailability: async () => { order.push('storage'); throw new Error('quota failure'); } }
-            });
-            const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'isolated_deletion' });
-            assert.equal(responses.length, 1); assert.equal(responses[0].success, true);
-            assert.equal(responses[0].data.isDeleted, true);
-            assert.deepEqual(order, ['memory', 'storage', 'ui']);
-            assert.match(warnings.map(args => args.join(' ')).join(' '), /quota failure/);
-            if (failure === 'memory') assert.match(warnings.map(args => args.join(' ')).join(' '), /Memory marker unavailable/);
-        } finally {
-            provider.fetchConversationDetail = original;
-            chrome.runtime.sendMessage = originalSend;
-            console.warn = originalWarn;
+test('Account and current Conversation ID come from the same document URL snapshot', async t => {
+    const { request } = setup(t);
+    assert.deepEqual(await request({ action: 'getAccountContext' }),
+        { ok: true, accountContext: account, conversationId: 'abcdef123456' });
+});
+
+test('Navigation during account resolution cannot return a mismatched Tab identity', async t => {
+    const { request } = setup(t, {
+        account: async () => { (globalThis as any).location.href = 'https://gemini.google.com/app/another123456'; return account; }
+    });
+    const result = await request({ action: 'getAccountContext' });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /Page changed/);
+});
+
+test('Resource requests are restricted to the current Account and expected HTTPS origins', async t => {
+    let calls = 0;
+    const { request } = setup(t, { file: async (msg, respond) => {
+        calls++;
+        assert.deepEqual(msg, { url: 'https://lh3.googleusercontent.com/file.png' });
+        respond({ success: true, dataBase64: 'AA==', size: 1 });
+    } });
+    for (const body of [
+        { accountId: B, url: 'https://lh3.googleusercontent.com/file.png' },
+        { accountId: A, url: 'https://evil.example/attachment' },
+        { accountId: A, url: 'data:image/png;base64,AA==' },
+        { accountId: A, url: 'http://lh3.googleusercontent.com/file.png' },
+        { accountId: A, url: 'https://google.com.evil.example/file.png' }
+    ]) {
+        const result = await request({ action: 'getFileBlob', ...body });
+        assert.equal(result.ok, false);
+        assert.equal(result.success, false);
+    }
+    assert.equal(calls, 0);
+    assert.deepEqual(await request({ action: 'getFileBlob', accountId: A, url: 'https://lh3.googleusercontent.com/file.png' }),
+        { success: true, dataBase64: 'AA==', size: 1 });
+    assert.equal(calls, 1);
+});
+
+test('Resource result is discarded if the account changes during asynchronous acquisition', async t => {
+    let current: unknown = account;
+    const { request } = setup(t, {
+        account: async () => current,
+        file: async (_: unknown, reply: (value: unknown) => void) => {
+            current = { ...account, accountId: B };
+            reply({ success: true, dataBase64: 'SECRET' });
         }
     });
-}
+    const response = await request({ action: 'getFileBlob', accountId: A, url: 'https://lh3.googleusercontent.com/file.png' });
+    assert.equal(response.ok, false);
+    assert.match(response.error, /Account changed/);
+    assert.equal('dataBase64' in response, false);
+});
+
+test('Resource handler must reply and may never transmit raw bytes or oversized JSON', async t => {
+    let result: unknown;
+    const { request } = setup(t, { image: async (_: unknown, reply: (value: unknown) => void) => {
+        if (result !== undefined) reply(result);
+    } });
+    const payload = { action: 'getImageBlob', accountId: A, url: 'https://lh3.googleusercontent.com/photo' };
+    result = { success: true, dataBuffer: new ArrayBuffer(4) };
+    assert.match((await request(payload)).error, /flat JSON/);
+    result = { success: true, size: 51 * 1024 * 1024, dataBase64: 'AA==' };
+    assert.match((await request(payload)).error, /IPC size limit/);
+    result = { success: true, dataBase64: 'AA==' };
+    assert.equal((await request(payload)).success, true);
+    result = undefined;
+    assert.match((await request(payload)).error, /no result/);
+});
+
+test('Content handler unregisters exactly its own listener during reinjection cleanup', t => {
+    const { listener, cleanups, removed } = setup(t);
+    assert.equal(cleanups.length, 1);
+    cleanups[0]();
+    assert.deepEqual(removed, [listener]);
+});
