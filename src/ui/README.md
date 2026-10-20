@@ -18,11 +18,13 @@ upstream modules. Browser multiple-file output automatically becomes ZIP; the UI
 does not choose packaging. Scan resolves a verified online account through Runtime.
 
 The Options sidebar displays **Browser download** and **Save to local folder**
-as two always-visible radio choices for manual exports. The local folder card
-also contains the shared folder picker and **Live Save** option; selecting that
-radio is *not* required to use background Live Save. Live Save remains
-Markdown-only: switching the export format pauses the workflow while retaining
-the enabled intention, and restoring Markdown with a valid folder resumes it.
+as two always-visible radio choices. The local folder card has two aligned rows
+for folder authorization and **Live Save**. When browser download is selected,
+both controls are disabled and grayed out; background Live Save also pauses.
+The chosen destination persists as Application `exportDelivery` Settings. Returning
+to the local folder resumes the saved Live Save preference if Markdown is selected
+and folder permission is valid. Switching to other formats pauses without
+discarding the enabled preference.
 
 `node scripts/test-ui.cjs` runs whole-project TypeScript, UI unit tests and UI
 browser specs. Those specs mock owner ports. `tests/e2e/production_v2.spec.ts`
