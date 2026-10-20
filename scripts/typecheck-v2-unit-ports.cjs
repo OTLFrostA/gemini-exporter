@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * Type-check ONLY the isolated unit mocks (and their contract-focused new
- * tests) against the actual exported TypeScript definitions from dev/v2.
- * Do not hide diagnostics in these files or globally suppress strict errors.
- * Existing unrelated cross-module/legacy diagnostics are a separate global CI
- * concern and are not part of this scoped unit-port acceptance gate.
+ * Check only the isolated v2 unit-port mocks against real owner definitions.
+ * TypeScript 7 is a native compiler with no in-process JS Compiler API such
+ * as ts.sys or createProgram. Use the supported tsc CLI instead, retaining the
+ * project compiler options and avoiding unrelated repository-wide diagnostics.
  */
-const ts = require('typescript');
+const { spawnSync } = require('node:child_process');
+const { mkdtempSync, writeFileSync, rmSync } = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
+
 const root = path.resolve(__dirname, '..');
-const files = [
+const relativeFiles = [
     'tests/helpers/l1V2UnitMocks.ts',
     'tests/helpers/l2V2UnitHarness.ts',
     'tests/l2-v2-unit-mocked.test.ts',
@@ -21,22 +23,43 @@ const files = [
     'tests/helpers/runtimeV2ContractMocks.ts',
     'tests/helpers/uiV2Mocks.ts',
     'tests/migration-v2-mocked.test.ts',
-].map(file => path.join(root, file));
+];
+const files = relativeFiles.map(file => path.join(root, file));
 const included = new Set(files.map(file => path.resolve(file)));
-const configPath = ts.findConfigFile(root, ts.sys.fileExists, 'tsconfig.json');
-if (!configPath) throw new Error('Missing tsconfig.json');
-const read = ts.readConfigFile(configPath, ts.sys.readFile);
-if (read.error) throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, '\n'));
-const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, root);
-const program = ts.createProgram(files, { ...parsed.options, noEmit: true });
-const diagnostics = ts.getPreEmitDiagnostics(program).filter(diagnostic =>
-    diagnostic.file && included.has(path.resolve(diagnostic.file.fileName)));
-if (diagnostics.length) {
-    process.stderr.write(ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-        getCanonicalFileName: file => file,
-        getCurrentDirectory: () => root,
-        getNewLine: () => '\n',
+const temporary = mkdtempSync(path.join(os.tmpdir(), 'gemini-v2-unit-ports-'));
+try {
+    const configPath = path.join(temporary, 'tsconfig.json');
+    writeFileSync(configPath, JSON.stringify({
+        extends: path.join(root, 'tsconfig.json'),
+        files,
+        include: [],
+        exclude: [],
+        compilerOptions: { noEmit: true },
     }));
-    process.exit(1);
+    const command = path.join(root, 'node_modules', '.bin', 'tsc');
+    const run = spawnSync(command, ['--project', configPath, '--pretty', 'false'], {
+        cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+    });
+    if (run.error) throw run.error;
+    const output = [run.stdout, run.stderr].filter(Boolean).join('\n');
+    const diagnostics = output.split(/\r?\n/).filter(line => /\berror TS\d+:/.test(line));
+    const fileOf = line => /^\s*(.+?)\(\d+,\d+\): error TS\d+:/.exec(line)?.[1];
+    const scoped = diagnostics.filter(line => {
+        const file = fileOf(line);
+        return file !== undefined && included.has(path.resolve(root, file));
+    });
+    if (scoped.length) {
+        process.stderr.write(scoped.join('\n') + '\n');
+        process.exitCode = 1;
+    } else if (run.status !== 0 && !diagnostics.length) {
+        // Compiler configuration and process failures are never suppressed.
+        process.stderr.write(output + '\n');
+        process.exitCode = run.status ?? 1;
+    } else {
+        console.log('V2 unit-port types: ' + files.length +
+            ' mock/test files checked against actual module definitions; 0 scoped diagnostics' +
+            (diagnostics.length ? ' (' + diagnostics.length + ' unrelated diagnostics in imported files)' : ''));
+    }
+} finally {
+    rmSync(temporary, { recursive: true, force: true });
 }
-console.log('V2 unit-port types: ' + files.length + ' mock/test files checked against actual module definitions; 0 scoped diagnostics');
