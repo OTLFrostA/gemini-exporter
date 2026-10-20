@@ -28,12 +28,14 @@ test('Skip accepts zero epoch-ms but rejects fractional, nonfinite and unsafe so
 for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
     test(`${format} uses local Domain, shared resources, then delivery before the minimal Record`, async () => {
         seed();
+        const startedAt = Date.now();
         const result = await runExport(request({ format }));
         assert.equal(result.exported, 1); assert.equal(result.partial, 0);
         assert.deepEqual(events, ['delivery', 'record:first']);
         const record = records.get(address(key()))!;
         assert.deepEqual(Object.keys(record).sort(), ['chatTime', 'exportedAt', 'format', 'status']);
         assert.equal(record.chatTime, 100); assert.equal(record.format, format);
+        assert.ok(record.exportedAt >= startedAt && record.exportedAt <= Date.now(), 'delivery record uses real epoch-ms');
         assert.equal(deliveries[0].length, 1);
         if (format !== 'pdf') assert.match(String(deliveries[0][0].content), /Body first/);
         if (format === 'pdf') assert.equal(state.disposed, 1);
@@ -104,7 +106,7 @@ test('PDF ordinary renderer diagnostics do not mark partial, but FORMAT_CONTENT_
     assert.equal(second.exported, 1); assert.equal(second.partial, 1);
     assert.equal(records.get(address(key()))?.status, 'partial');
 });
-test('Popup bypasses records; Options and Live Save can Skip', async () => {
+test('skipUnchanged opt-in uses the matching Record; false always performs the export', async () => {
     seed(); records.set(address(key()), previous);
     assert.equal((await runExport(request({ skipUnchanged: true }))).skipped, 1);
     assert.equal((await runExport(request())).exported, 1);
@@ -161,7 +163,7 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         }
     });
 }
-test('batch planning consistently reserves colliding file names for separate conversations', async () => {
+test('Folder shared path planner reserves colliding file names for separate conversations', async () => {
     const first = seed('alpha_sameid'), second = seed('beta_sameid');
     first.index.title = 'Collision';
     second.index.title = 'Collision';
@@ -243,7 +245,7 @@ test('resource preparation retains failure results and propagates Abort', async 
     }, controller.signal), { name: 'AbortError' });
 });
 for (const delivery of ['browserDownload', 'folderWriter'] as const) {
-    test(`${delivery} ZIP failure fails only actual participants, never overwrites old records`, async () => {
+    test(`${delivery} delivery failure affects only participating keys and preserves old records`, async () => {
         seed(); seed('second'); seed('skipped');
         records.set(address(key()), previous); records.set(address(key('skipped')), previous);
         state.failDelivery = 1;
