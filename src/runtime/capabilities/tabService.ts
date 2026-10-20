@@ -19,6 +19,7 @@ export async function sendTabMessage(tabId: number, message: unknown, timeout = 
             chrome.tabs.sendMessage(tabId, message, response => {
                 const error = chrome.runtime.lastError;
                 if (error) settle(new Error(error.message || 'Provider Tab unavailable'));
+                else if (response === undefined) settle(new Error('Provider Tab returned no response'));
                 else settle(undefined, response);
             });
         } catch (error) {
@@ -92,8 +93,16 @@ export async function sendToAITab(providerId: string, message: unknown, accountI
     if (providerId !== 'gemini') throw new Error('Provider has no production Content Script');
     return sendToGeminiTab(message, accountId, timeoutMs);
 }
-export function openGeminiPage(): Promise<unknown> { return chrome.runtime.sendMessage({ action: 'openGeminiPage' }); }
-export function reloadGeminiTab(tabId?: number): Promise<unknown> { return chrome.runtime.sendMessage({ action: 'reloadGeminiTab', tabId }); }
+async function requestTabNavigation(message: { action: 'openGeminiPage' } | { action: 'reloadGeminiTab'; tabId?: number }): Promise<unknown> {
+    const response: unknown = await chrome.runtime.sendMessage(message);
+    if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true) {
+        throw new Error(response && typeof response === 'object' && 'error' in response
+            ? String(response.error) : 'Provider Tab navigation failed');
+    }
+    return response;
+}
+export function openGeminiPage(): Promise<unknown> { return requestTabNavigation({ action: 'openGeminiPage' }); }
+export function reloadGeminiTab(tabId?: number): Promise<unknown> { return requestTabNavigation({ action: 'reloadGeminiTab', tabId }); }
 export const TabService = { resolveScanTarget, resolveAccountTab, getGeminiTab, sendToGeminiTab, checkGeminiStatus,
     getAITab, sendToAITab, openGeminiPage, reloadGeminiTab };
 export default TabService;
