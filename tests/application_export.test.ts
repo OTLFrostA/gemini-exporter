@@ -101,6 +101,16 @@ test('Export resolves renderer language once per task and JSON does not read ren
     assert.equal((await runExport(request({ format: 'json' }))).exported, 1);
     assert.equal(state.settingsReads, 0);
 });
+test('HTML warning diagnostics keep ok, while L4 content omission produces partial', async () => {
+    seed();
+    state.htmlDiagnostics = [{ severity: 'warning', code: 'FONT_SUBSTITUTED', message: 'fallback' }];
+    const first = await runExport(request({ format: 'html' }));
+    assert.equal(first.exported, 1); assert.equal(first.partial, 0);
+    state.htmlDiagnostics = [{ severity: 'warning', code: 'FORMAT_CONTENT_OMITTED', message: 'omitted' }];
+    const second = await runExport(request({ format: 'html' }));
+    assert.equal(second.exported, 1); assert.equal(second.partial, 1);
+    assert.equal(records.get(address(key()))?.status, 'partial');
+});
 test('PDF ordinary renderer diagnostics do not mark partial, but FORMAT_CONTENT_OMITTED does', async () => {
     seed();
     state.pdfDiagnostics = [{ severity: 'warning', code: 'TYPST_LOCAL_FONT_READ_FAILED', message: 'fallback used' }];
@@ -237,6 +247,17 @@ test('resource preparation passes ConversationKey independently for identical as
     assert.equal(state.releasedContexts, 1);
     assert.deepEqual(state.releasedKeys, ['first', 'second']);
 });
+test('AST resource reference selection is delegated to L3b and forwarded by Application', async () => {
+    seed('first', { assets: true });
+    // The fake L3b returns a controlled set, not a traversed AST.
+    const { references } = require('./helpers/applicationHarness.js') as typeof import('./helpers/applicationHarness.js');
+    references.set('first', { referencedIds: ['file'], fileIds: ['file'], imageIds: [] });
+    const result = await runExport(request({ format: 'markdown' }));
+    assert.equal(result.exported, 1);
+    assert.deepEqual(events.filter(event => event.startsWith('acquire:')), ['acquire:file']);
+    assert.deepEqual(state.browserPlans[0].fileIds, ['file']);
+    assert.deepEqual(state.browserPlans[0].preparedIds, ['file']);
+});
 test('resource preparation retains failure results and propagates Abort', async () => {
     const controller = new AbortController();
     const prepared = await prepareExportResources([{ id: 'empty', kind: 'file' }], new Set(['empty', 'missing']),
@@ -264,7 +285,35 @@ for (const delivery of ['browserDownload', 'folderWriter'] as const) {
         assert.equal(result.aborted, true); assert.equal(result.exported, delivery === 'browserDownload' ? 2 : 1); assert.deepEqual(result.failed, []);
     });
 }
-test('ZIP Record failure counts only committed records without a second delivery', async () => {
+test('Browser uses one L4 batch plan and one final delivery for multiple prepared conversations', async () => {
+    seed(); seed('second');
+    const result = await runExport(request({ keys: [key(), key('second')] }));
+    assert.equal(result.exported, 2);
+    assert.deepEqual(state.browserPlans.map(plan => plan.key), ['first', 'second']);
+    assert.equal(state.folderPlannerCreations.length, 0);
+    assert.deepEqual(state.packages, [{ delivery: 'browserDownload', groups: 2, files: 2 }]);
+    assert.deepEqual(events, ['delivery', 'record:first', 'record:second']);
+    assert.equal(deliveries.length, 1);
+});
+test('L4 packaging failure prevents Browser delivery and does not overwrite previous Records', async () => {
+    seed(); seed('second');
+    records.set(address(key()), previous);
+    state.failPackage = true;
+    const result = await runExport(request({ keys: [key(), key('second')] }));
+    assert.equal(result.exported, 0);
+    assert.deepEqual(result.failed, [key(), key('second')]);
+    assert.equal(deliveries.length, 0);
+    assert.equal(records.get(address(key())), previous);
+});
+test('one L4 formatting failure does not block a different pending conversation', async () => {
+    seed(); seed('second');
+    state.failRender = 'markdown';
+    const failed = await runExport(request({ keys: [key(), key('second')] }));
+    assert.deepEqual(failed.failed, [key(), key('second')]);
+    assert.equal(failed.exported, 0);
+    assert.equal(deliveries.length, 0);
+});
+test('Browser batch Record failure counts only committed records without a second delivery', async () => {
     seed(); seed('second'); state.failRecord = 'first';
     const result = await runExport(request({ keys: [key(), key('second')] }));
     assert.equal(result.exported, 1); assert.deepEqual(result.failed, [key()]); assert.equal(deliveries.length, 1);
