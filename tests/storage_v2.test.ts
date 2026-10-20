@@ -328,3 +328,25 @@ test('storage v2 scan cleanup rolls back Coverage and ExportRecords together on 
     assert.deepEqual(result, { rejected: true, coverage: { range: null },
         record: { exportedAt: 1, format: 'markdown', status: 'ok' } });
 });
+
+
+test('storage v2 uses in-line and out-of-line IndexedDB put signatures correctly', async () => {
+    const result = await page.evaluate(async () => {
+        const originalPut = IDBObjectStore.prototype.put;
+        const calls: Array<[string, number]> = [];
+        IDBObjectStore.prototype.put = function(this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+            if (this.name === 'exportRecords' || this.name === 'directoryHandles')
+                calls.push([this.name, arguments.length]);
+            return arguments.length === 1 ? originalPut.call(this, value) : originalPut.call(this, value, key);
+        };
+        try {
+            await window.storage.putExportRecord({ accountId: 'a', conversationId: 'one' },
+                { exportedAt: 1, format: 'markdown', status: 'ok' });
+            await window.storage.setDirectoryHandle(await navigator.storage.getDirectory());
+        } finally {
+            IDBObjectStore.prototype.put = originalPut;
+        }
+        return calls;
+    });
+    assert.deepEqual(result, [['exportRecords', 1], ['directoryHandles', 2]]);
+});
