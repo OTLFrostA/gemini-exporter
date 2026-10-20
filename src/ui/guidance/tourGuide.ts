@@ -47,10 +47,10 @@ function overlay(target: HTMLElement | null, title: string, description: string,
             right: Math.max(...bounds.map(item => item.right)),
             bottom: Math.max(...bounds.map(item => item.bottom)),
         } : null;
-        const height = hole ? hole.bottom - hole.top : 0;
+        const holeHeight = hole ? hole.bottom - hole.top : 0;
         const w = innerWidth, h = innerHeight;
-        const boxes = hole ? [[0, 0, w, Math.max(0, hole.top)], [0, hole.top, Math.max(0, hole.left), height],
-            [hole.right, hole.top, Math.max(0, w - hole.right), height], [0, hole.bottom, w, Math.max(0, h - hole.bottom)]] : [[0, 0, w, h]];
+        const boxes = hole ? [[0, 0, w, Math.max(0, hole.top)], [0, hole.top, Math.max(0, hole.left), holeHeight],
+            [hole.right, hole.top, Math.max(0, w - hole.right), holeHeight], [0, hole.bottom, w, Math.max(0, h - hole.bottom)]] : [[0, 0, w, h]];
         for (const [left, top, width, height] of boxes) {
             const panel = document.createElement('div'); panel.className = 'tour-backdrop';
             Object.assign(panel.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
