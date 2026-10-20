@@ -69,9 +69,11 @@ export function ensureBadge(options: { onClick?: (event: MouseEvent) => void } =
     if (badge) { if (!badge.isConnected) (document.body || document.documentElement).append(badge); return badge; }
     badge = document.createElement('div'); badge.id = 'geminiExportBadge'; alive = true;
     badge.setAttribute('role', 'button'); badge.tabIndex = 0;
-    Object.assign(badge.style, { position: 'fixed', right: '16px', bottom: '16px', zIndex: '99999',
-        padding: '10px 14px', borderRadius: '20px', background: '#5146cc', color: 'white', cursor: 'pointer', touchAction: 'none', font: '13px system-ui' });
-    const label = document.createElement('span'); label.id = 'geminiExportBadgeText'; badge.append(label);
+    // Restore main's styled badge and pulse; keep v2 identity/count/drag lifecycle.
+    // The stylesheet is already injected by manifest.json. Inline styles here previously overrode it.
+    const pulse = document.createElement('span'); pulse.className = 'pulse';
+    const label = document.createElement('span'); label.id = 'geminiExportBadgeText';
+    badge.append(pulse, label);
     let moved = false, startX = 0, startY = 0, left = 0, top = 0;
     badge.addEventListener('pointerdown', event => {
         if (event.button !== 0) return;

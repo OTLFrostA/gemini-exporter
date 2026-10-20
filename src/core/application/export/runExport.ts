@@ -47,6 +47,8 @@ interface ExportGroup { key: ConversationKey; record: ExportRecord; files: Expor
 /** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
 export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
+    /** Optional ephemeral error detail for interactive consumers; never persisted. */
+    onFailure?: (key: ConversationKey, message: string) => void;
     signal?: AbortSignal;
 } = {}): Promise<ExportResult> {
     const failed: ConversationKey[] = [];
@@ -57,9 +59,13 @@ export async function runExport(request: ExportRequest, options: {
     let compiler: import('../../export/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
     let pdfFonts: import('../../export/typst/fonts/localFontProvider.js').LocalFontResolution | undefined;
     const cancelled = (error: unknown): boolean => signal.aborted || (error instanceof Error && error.name === 'AbortError');
-    const fail = (keys: readonly ConversationKey[]): void => {
+    const fail = (keys: readonly ConversationKey[], error?: unknown): void => {
+        const message = error instanceof Error ? error.message : error === undefined ? 'Export failed' : String(error);
         for (const key of keys) {
-            if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) failed.push(key);
+            if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
+                failed.push(key);
+                options.onFailure?.(key, message);
+            }
         }
     };
     const providerFor = (id: string): AIProvider => {
@@ -81,7 +87,7 @@ export async function runExport(request: ExportRequest, options: {
                 if (group.record.status === 'partial') result.partial++;
             } catch (error) {
                 console.warn('[Gemini Exporter] ExportRecord write failed', group.key, error);
-                fail([group.key]);
+                fail([group.key], error);
             }
         }
     };
@@ -122,7 +128,7 @@ export async function runExport(request: ExportRequest, options: {
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Export preparation failed', key, error);
-                fail([key]);
+                fail([key], error);
             }
         }
         signal.throwIfAborted();
@@ -132,7 +138,7 @@ export async function runExport(request: ExportRequest, options: {
         } catch (error) {
             if (cancelled(error)) throw error;
             console.warn('[Gemini Exporter] Export path planning failed', error);
-            fail(pending.map(item => item.key));
+            fail(pending.map(item => item.key), error);
             return result;
         }
         const groups: ExportGroup[] = [];
@@ -179,7 +185,7 @@ export async function runExport(request: ExportRequest, options: {
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Export format or delivery failed', item.key, error);
-                fail([item.key]);
+                fail([item.key], error);
             }
         }
         signal.throwIfAborted();
@@ -195,7 +201,7 @@ export async function runExport(request: ExportRequest, options: {
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Batch delivery failed', error);
-                fail(groups.map(group => group.key));
+                fail(groups.map(group => group.key), error);
             }
         }
         result.aborted = signal.aborted;

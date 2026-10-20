@@ -38,7 +38,7 @@ test('guidance renders a real modal and prevents overlapping Takeout prompts', a
 test('export status and canonical conversation titles cannot inject HTML', async () => {
     await open(); await page.locator('#list .item').waitFor();
     assert.equal(await page.locator('#list img').count(), 0);
-    assert.equal(await page.locator('#list .item span').textContent(), '<img src=x onerror=alert(1)>');
+    assert.equal(await page.locator('#list .item .chat-title').textContent(), '<img src=x onerror=alert(1)>');
     await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#status img').count(), 0);
 });
@@ -48,8 +48,8 @@ test('source title recognition retains placeholder, identifier and real-title ca
 });
 test('list displays source activity and latest ExportRecord without inferring another updated state', async () => {
     await open({ indexes: rows, records }); await page.locator('#list .item').first().waitFor();
-    assert.deepEqual(await page.locator('#list .item span').allTextContents(), ['Beta', 'Alpha']);
-    assert.match(await page.locator('[data-chat-id=one] small').textContent() ?? '', /Partial export.*markdown/);
+    assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), ['Beta', 'Alpha']);
+    assert.match(await page.locator('[data-chat-id=one] small').textContent() ?? '', /Last export.*markdown.*Partial export/);
     assert.match(await page.locator('[data-chat-id=two] small').textContent() ?? '', /No export record/);
 });
 test('new or updated conversations remain unselected until explicitly selected', async () => {
@@ -68,9 +68,9 @@ test('list history refresh displays the latest persisted record after focus', as
     await page.waitForFunction(() => document.querySelector('[data-chat-id=one] small')?.textContent?.includes('Last export · json'));
 });
 test('clicking the actual list label toggles its checkbox and selection statistic', async () => {
-    await open({ indexes: rows }); await page.locator('[data-chat-id=one] span').click();
+    await open({ indexes: rows }); await page.locator('[data-chat-id=one] .chat-title').click();
     assert.equal(await page.locator('[data-chat-id=one] input').isChecked(), true);
-    assert.equal(await page.locator('#selectedStat').textContent(), '1 selected');
+    assert.equal(await page.locator('#selectedStat').textContent(), '1 of 2 selected');
 });
 test('status updates replace previous progress text instead of duplicating log rows', async () => {
     await open({ holdScan: true }); await page.locator('#btnSyncAll').click();
@@ -93,10 +93,13 @@ test('scan progress exposes committed page counts and returns controls to idle',
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
 });
-test('record filters show exported and unexported rows including partial history', async () => {
+test('record filters keep partial exports in incomplete and failed views', async () => {
     await open({ indexes: rows, records }); await page.locator('#chatFilterSelect').selectOption('exported');
-    assert.deepEqual(await page.locator('#list .item span').allTextContents(), ['Alpha']);
-    await page.locator('#chatFilterSelect').selectOption('unexported'); assert.deepEqual(await page.locator('#list .item span').allTextContents(), ['Beta']);
+    assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), []);
+    await page.locator('#chatFilterSelect').selectOption('unexported');
+    assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), ['Beta','Alpha']);
+    await page.locator('#chatFilterSelect').selectOption('failed');
+    assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), ['Alpha']);
 });
 test('select visible selects only matching rows and clearing selection leaves hidden rows unselected', async () => {
     await open({ indexes: rows }); await page.locator('#chatSearchInput').fill('Alpha'); await page.locator('#btnSelectAll').click();
