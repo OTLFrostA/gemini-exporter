@@ -44,27 +44,29 @@
   .feedback-card:hover .feedback-arrow{opacity:1;transform:translate(1px,-1px);color:var(--accent2);}
   .feedback-card:active{transform:scale(0.99);}
   .feedback-arrow{font-size:12px;opacity:0.6;flex:none;transition:opacity 0.15s ease,transform 0.15s ease,color 0.15s ease;}
-  /* Export and Live Save are separate actions with a shared folder capability. */
+  /* Both export destinations are always visible as radio cards, not tabs. */
   .export-preferences{display:flex;flex-direction:column;gap:10px;background:var(--card-inner);padding:12px;border-radius:10px;border:1px solid var(--border)}
   .export-format-row{display:flex;align-items:center;gap:12px;font-size:13px;min-height:32px}
   .export-format-row select{flex:1;min-width:0;height:32px;padding:4px 8px}
   .export-skip-row{display:flex;gap:8px;align-items:center;font-size:12px;min-height:24px;cursor:pointer}
   .export-destination{display:flex;flex-direction:column;gap:8px}
   .settings-heading{font-size:12px;font-weight:600;color:var(--text)}
-  .delivery-segment{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:4px;background:var(--card-inner);border:1px solid var(--border);border-radius:10px}
-  .delivery-option{position:relative;cursor:pointer;min-width:0}
-  .delivery-option input{position:absolute;opacity:0;width:1px;height:1px}
-  .delivery-option span{display:flex;align-items:center;justify-content:center;min-height:32px;padding:4px 5px;color:var(--muted);font-size:12px;border:1px solid transparent;border-radius:7px;white-space:nowrap}
-  .delivery-option input:checked+span{background:var(--card);color:var(--text);border-color:var(--border-focus);box-shadow:0 1px 4px rgba(0,0,0,.12)}
-  .delivery-option input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
-  .delivery-option input:disabled+span{opacity:.45;cursor:default}
-  .dir-slot{min-width:0}
-  .settings-dir-box{display:flex;align-items:center;gap:8px;background:var(--card-inner);padding:9px 10px;border-radius:10px;border:1px solid var(--border);min-width:0}
+  .delivery-choices{display:flex;flex-direction:column;gap:8px}
+  .delivery-card{min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);transition:border-color .15s ease,background .15s ease}
+  .delivery-card:has(.delivery-choice input:checked){border-color:var(--accent);background:var(--card)}
+  .delivery-card:has(.delivery-choice input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+  .delivery-choice{display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer}
+  .delivery-choice input[type=radio]{width:16px;height:16px;flex:none;margin:0;accent-color:var(--accent);cursor:pointer}
+  .delivery-choice input[type=radio]:disabled{cursor:default}
+  .delivery-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .delivery-title{font-size:13px;font-weight:600}
+  .delivery-description{font-size:11px;color:var(--muted)}
+  .local-card-details{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
+  .settings-dir-box{display:flex;align-items:center;gap:8px;background:var(--card-inner);padding:8px;border-radius:8px;border:1px solid var(--border);min-width:0}
   .dir-meta{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
   .dir-meta .stat{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .dir-meta small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .settings-divider{height:1px;background:var(--border);flex:none}
-  .live-save-section{display:flex;flex-direction:column;gap:8px;flex:none}
   .live-save-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;cursor:pointer}
   .live-save-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
   .live-save-title{font-size:13px;font-weight:600}
@@ -236,24 +238,43 @@
 
     <div class="export-destination">
       <div class="settings-heading" data-ui-en="Export to" data-ui-zh="导出到">导出到</div>
-      <div id="delivery" class="delivery-segment" role="radiogroup" aria-label="导出到">
-        <label class="delivery-option">
-          <input type="radio" name="delivery" value="browserDownload" checked>
-          <span data-ui-en="Browser download" data-ui-zh="浏览器下载">浏览器下载</span>
-        </label>
-        <label class="delivery-option">
-          <input type="radio" name="delivery" value="folderWriter">
-          <span data-ui-en="Local folder" data-ui-zh="本地文件夹">本地文件夹</span>
-        </label>
-      </div>
-      <div id="manualDirSlot" class="dir-slot" hidden>
-        <div id="dirBox" class="settings-dir-box">
-          <span aria-hidden="true">📁</span>
-          <div class="dir-meta">
-            <div id="dirLabel" class="stat" title="当前文件夹">未选择文件夹</div>
-            <small id="dirPermissionLabel"></small>
+      <div id="delivery" class="delivery-choices" role="radiogroup" aria-label="Export destination">
+        <div class="delivery-card">
+          <label class="delivery-choice">
+            <input type="radio" name="delivery" value="browserDownload" checked>
+            <span class="delivery-copy">
+              <span class="delivery-title" data-ui-en="Browser download" data-ui-zh="浏览器下载">浏览器下载</span>
+              <span class="delivery-description" data-ui-en="Save using your browser" data-ui-zh="使用浏览器下载设置">使用浏览器下载设置</span>
+            </span>
+          </label>
+        </div>
+        <div class="delivery-card">
+          <label class="delivery-choice">
+            <input type="radio" name="delivery" value="folderWriter">
+            <span class="delivery-copy">
+              <span class="delivery-title" data-ui-en="Save to local folder" data-ui-zh="保存到本地文件夹">保存到本地文件夹</span>
+              <span class="delivery-description" data-ui-en="Write directly to a chosen folder" data-ui-zh="直接写入指定文件夹">直接写入指定文件夹</span>
+            </span>
+          </label>
+          <div class="local-card-details">
+            <div id="dirBox" class="settings-dir-box">
+              <span aria-hidden="true">📁</span>
+              <div class="dir-meta">
+                <div id="dirLabel" class="stat" title="当前文件夹">未选择文件夹</div>
+                <small id="dirPermissionLabel"></small>
+              </div>
+              <button id="btnSetDir" type="button" class="ghost small">选择文件夹</button>
+            </div>
+            <div class="settings-divider"></div>
+            <label id="liveSaveControls" class="live-save-row" data-i18n-title="liveSaveDiskTip" title="仅支持 Markdown；切换其他格式时暂停并保留开启状态">
+              <span class="live-save-copy">
+                <span class="live-save-title" data-i18n="liveSaveDisk">实时保存</span>
+                <span class="live-save-hint" data-ui-en="Automatically save updates to this folder" data-ui-zh="自动保存对话更新到此文件夹">自动保存对话更新到此文件夹</span>
+              </span>
+              <input type="checkbox" id="liveSaveDiskToggle" class="toggle">
+            </label>
+            <small id="liveSaveStatus" role="status" aria-live="polite" hidden></small>
           </div>
-          <button id="btnSetDir" type="button" class="ghost small">选择文件夹</button>
         </div>
       </div>
     </div>
@@ -280,19 +301,6 @@
         </div>
       </div>
       <div id="exportFailureList" style="max-height:140px; overflow-y:auto; color:var(--text-muted); font-size:11px; line-height:1.4;"></div>
-    </div>
-
-    <div class="settings-divider"></div>
-    <div class="live-save-section">
-      <label id="liveSaveControls" class="live-save-row" data-i18n-title="liveSaveDiskTip" title="实时保存仅支持 Markdown；切换其他格式会暂停但保留开启状态">
-        <span class="live-save-copy">
-          <span class="live-save-title" data-i18n="liveSaveDisk">实时保存</span>
-          <span class="live-save-hint" data-ui-en="Automatically save conversation updates" data-ui-zh="自动保存对话更新">自动保存对话更新</span>
-        </span>
-        <input type="checkbox" id="liveSaveDiskToggle" class="toggle">
-      </label>
-      <small id="liveSaveStatus" role="status" aria-live="polite" hidden></small>
-      <div id="liveDirSlot" class="dir-slot" hidden></div>
     </div>
 
     <div id="logSection" class="dev-only" style="display:flex; flex-direction:column; gap:8px; flex:1; overflow:hidden; margin-top:4px;">
