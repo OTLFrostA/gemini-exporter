@@ -88,8 +88,8 @@ export function indexStorage(seed: Record<string, unknown> = {}, options: { seed
 }
 
 /** Catalog-aware application tests use the same storage boundary as production reads. */
-export function useIndexStorage(): void {
+export function useIndexStorage(options: { seedAccounts?: boolean } = {}): void {
     let environment: ReturnType<typeof indexStorage>;
-    beforeEach(async () => { environment = indexStorage(); await environment.ready; });
+    beforeEach(async () => { environment = indexStorage({}, options); await environment.ready; });
     afterEach(() => { environment.restore(); });
 }
