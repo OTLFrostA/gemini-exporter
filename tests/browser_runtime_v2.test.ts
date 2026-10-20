@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary } from './helpers/runtimeV2ContractMocks.js';
+import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary, v2Settings, v2IndexFixtures } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -177,7 +177,7 @@ test('Extension ingestion calls the same L2 function after readiness', async () 
 
 function live(settings: object, permission = 'granted', handleExists = true, exporter?: Function) {
     return load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => settings },
+        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }) },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; } } : null },
         'src/application/export/runExport.js': { runExport: exporter || (() => assert.fail('Unexpected Export')) },
     }).runLiveSave;
@@ -207,7 +207,7 @@ test('Live Save returns the exact unified result and request, including skip/par
 test('Worker Live Save scopes KeepAlive to the active export and releases it on failure', async () => {
     const trace: string[] = [];
     const save = load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => ({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: true }) },
+        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true }) },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted' }) },
         'src/application/export/runExport.js': { runExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
         'src/runtime/background/keepAlive.js': { startKeepAlive: () => { trace.push('start'); return () => trace.push('stop'); } },
@@ -330,7 +330,7 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
         getManifest: () => ({ version: '2.0.0' }), getURL: (path: string) => 'chrome-extension://ext/' + path }, tabs: { create: async ({url}: {url: string}) => { assert.match(url, /options.html\?startTour=1$/); order.push('open'); } } } as any;
     const lifecycle = load('src/runtime/background/lifecycle.ts', {
         'src/runtime/background/readiness.js': { ensureV2Ready: async () => { order.push('ready'); } },
-        'src/application/settings/index.js': { getSettings: async () => ({}), updateSettings: async (patch: unknown) => { order.push(patch); } },
+        'src/application/settings/index.js': { getSettings: async () => v2Settings, updateSettings: async (patch: unknown) => { order.push(patch); } },
     });
     lifecycle.initLifecycleListeners();
     install({ reason: 'install' }); await new Promise(resolve => setImmediate(resolve));
@@ -355,7 +355,7 @@ test('Background count, Badge position and Live Save follow their public IPC con
         'src/runtime/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
         'src/runtime/background/tabAction.js': { initTabActionListeners: () => {} },
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
-        'src/l3a/storageService.js': { listIndexes: async (id: string) => { assert.equal(id, uuid); return [{}, {}]; } },
+        'src/l3a/storageService.js': { listIndexes: async (id: string) => { assert.equal(id, uuid); return v2IndexFixtures(id); } },
         'src/application/settings/index.js': { updateSettings: async (patch: unknown) => { badgePatch = patch; badgeWrites++; } },
         'src/runtime/background/liveSaveHandler.js': { runLiveSave: async () => null },
     });
