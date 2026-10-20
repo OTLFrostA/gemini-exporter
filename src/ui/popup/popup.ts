@@ -11,8 +11,8 @@ import { readSettings, observeSettings, useSettings, text, errorText, labelPage 
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
 export async function readActiveKey(): Promise<ConversationKey | null> {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id === undefined) return null;
-    const raw = await sendTabMessage(tab.id, { action: 'getAccountContext' });
+    if (tab?.id === undefined || tab.url && !tab.url.startsWith('https://gemini.google.com/')) return null;
+    const raw = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
     if (!raw || typeof raw !== 'object') return null;
     const response = raw as { ok?: unknown; accountContext?: { accountId?: unknown; providerId?: unknown }; conversationId?: unknown };
     if (response.ok !== true || !isAccountId(response.accountContext?.accountId)
