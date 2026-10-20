@@ -34,7 +34,7 @@ require.cache[filename] = { id: filename, filename, loaded: true, exports: {
 const { runExport }: typeof import('../src/application/export/runExport.js') = require('../src/application/export/runExport.js');
 
 function environment() {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     const location = Object.getOwnPropertyDescriptor(globalThis, 'location');
     Object.defineProperty(globalThis, 'location', { configurable: true, value: { protocol: 'chrome-extension:' } });
     return { ...env, restore() {
