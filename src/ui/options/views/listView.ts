@@ -7,7 +7,7 @@ import { text } from '../../shared/settings.js';
 function viewStatus(record: ExportRecord | undefined) {
     if (!record) return { label: text('No export record', '无导出记录'), className: '' };
     if (record.status === 'partial') return { label: text('Partial export', '部分导出'), className: 'status-partial' };
-    return { label: text('Last export', '上次导出'), className: 'status-exported' };
+    return { label: text('Last export complete', '上次导出完整'), className: 'status-exported' };
 }
 function date(value: number | undefined): string {
     return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString();
