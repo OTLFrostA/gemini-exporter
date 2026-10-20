@@ -185,7 +185,10 @@ export function processChatGPTMapping(
     const startId =
         conversation.current_node
         || Object.values(conversation.mapping).find((n) => !n.children || n.children.length === 0)?.id;
-    if (!startId) throw new Error('Failed to find start node.');
+    // An empty or disconnected source tree has no renderable branch. The
+    // parser's branchCoverage() records 'unknown'; do not fabricate a complete
+    // Detail or turn this valid incomplete source fact into an acquisition crash.
+    if (!startId) return [];
     return extractChatGPTLinearNodes(conversation.mapping, startId);
 }
 
