@@ -17,7 +17,14 @@ export const listExportRecords = async id => h.records[id]||{};
 export const getIndex = async key => h.indexes.find(x=>x.key.accountId===key.accountId&&x.key.conversationId===key.conversationId)||null;
 export const getDetail = async () => ({ messages: [] });
 export const getAccount = async id => h.accounts.find(a=>a.id===id)||null;
-export const getOrCreateAccount = async () => {h.events.push('create');return h.accounts[0];};
+export const getOrCreateAccount = async (providerId, providerAccountId) => {
+ h.events.push('create');
+ const existing = h.accounts.find(a => a.providerId === providerId && a.providerAccountId === providerAccountId);
+ if (existing) return existing;
+ const account = { id: '11111111-1111-4111-8111-111111111111', providerId, providerAccountId };
+ h.accounts.push(account);
+ return account;
+};
 export const isAccountId = id => typeof id==='string' && id.length===36;
 export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
  if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
