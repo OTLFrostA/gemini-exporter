@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary, v2IndexFixtures } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -12,10 +13,14 @@ const key = { accountId: A, conversationId: 'abcdef123456' };
 
 function load(file: string, stubs: Record<string, unknown> = {}) {
     const original = Module._load;
+    const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([A, B]),
+        'src/l2/conversationKey.js': mockConversationKey([A, B]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
-        const key = Object.keys(stubs).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
-        return key ? stubs[key] : original.call(this, request, parent, ...args);
+        const key = Object.keys(ports).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
+        if (key) return ports[key as keyof typeof ports];
+        if (request.startsWith('.')) assertRuntimeUnitBoundary(resolved, root);
+        return original.call(this, request, parent, ...args);
     };
     try {
         const filename = path.resolve(root, file);
@@ -89,7 +94,7 @@ function setup(t: { after: (fn: () => void) => void }, overrides: {
         'src/runtime/background/contentSender.js': security,
         'src/l3a/storageService.js': { listIndexes: async (id: string) => {
             indexQueries.push(id);
-            return overrides.indexes ? overrides.indexes(id) : [{}, {}];
+            return overrides.indexes ? overrides.indexes(id) : v2IndexFixtures(id);
         } },
         'src/application/settings/index.js': { updateSettings: overrides.settings || (async patch => {
             receivedAccount = patch;

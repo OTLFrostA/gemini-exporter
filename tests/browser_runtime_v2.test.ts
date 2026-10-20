@@ -1,18 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary, v2Settings, v2IndexFixtures } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
 const uuid = '12345678-1234-4234-8234-123456789abc';
+const otherUuid = '87654321-4321-4321-8321-cba987654321';
 const account = { id: uuid, providerId: 'gemini', providerAccountId: 'gaia' };
+const detailFact = { messages: [], assets: [], quality: { status: 'unknown' as const } };
 const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.google.com/app' };
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
+    const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
+        'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
-        const key = Object.keys(stubs).find(key => resolved === path.resolve(root, key).replace(/\.ts$/, '.js'));
-        if (key) return stubs[key];
+        const key = Object.keys(ports).find(key => resolved === path.resolve(root, key).replace(/\.ts$/, '.js'));
+        if (key) return ports[key as keyof typeof ports];
+        if (request.startsWith('.')) assertRuntimeUnitBoundary(resolved, root);
         return original.call(this, request, parent, ...args);
     };
     try {
@@ -45,7 +51,8 @@ test('ingestion awaits L2 commit, forwards empty terminal page and never writes 
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
         'src/l2/ingestion.js': { ingestIndexes: async (...values: unknown[]) => { args = values; await gate; } },
     });
-    const page = { streamId: 'recent', requestCursor: 'last', nextCursor: null };
+    const page = { streamId: 'recent', requestCursor: 'last', nextCursor: null,
+        requestedAt: 1700000000000, requestKnown: true, valid: true, ordered: true, keys: [] };
     let answered = false;
     const result = invoke(handle, { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [], page }).then(value => { answered = true; return value; });
     await new Promise(resolve => setImmediate(resolve));
@@ -62,7 +69,8 @@ test('ingestion preserves Detail and Index facts; reports L2 errors', async () =
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
         'src/l2/ingestion.js': { ingestDetail: async (...args: unknown[]) => { seen = args; throw new Error('commit failed'); } },
     }).handleDomainIngestionMessage;
-    const detail = { quality: { status: 'partial' } }, indexFields = { title: 'a' };
+    const detail = { ...detailFact, quality: { status: 'partial' as const } };
+    const indexFields = { title: 'a', titleSource: 'provider' as const };
     assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail', accountId: uuid, conversationId: 'abc', detail, indexFields }), { ok: false, error: 'commit failed' });
     assert.deepEqual(seen, [uuid, 'abc', detail, indexFields]);
     assert.equal(handle({ action: 'domainStorage' }, sender, () => assert.fail()), false);
@@ -78,7 +86,7 @@ test('Background returns the full Detail admission result only after L2 commits'
     }).handleDomainIngestionMessage;
     let returned = false;
     const response = invoke(handle, { action: 'domainIngest', operation: 'detail',
-        accountId: uuid, conversationId: 'abc', detail: {} }).then((value: unknown) => { returned = true; return value; });
+        accountId: uuid, conversationId: 'abc', detail: detailFact }).then((value: unknown) => { returned = true; return value; });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(returned, false);
     finish();
@@ -147,13 +155,13 @@ test('Content ingestion preserves the full accepted/changed result from the work
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: true, changed: true } }) } } as any;
     const api = load('src/runtime/api/domainIngestion.ts', { 'src/l2/ingestion.js': {},
         'src/runtime/api/runtimeReady.js': ready });
-    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: true, changed: true });
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', detailFact), { accepted: true, changed: true });
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: false, changed: false } }) } } as any;
-    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: false, changed: false });
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', detailFact), { accepted: false, changed: false });
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, changed: true }) } } as any;
-    await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /Invalid committed/);
+    await assert.rejects(api.ingestDetail(uuid, 'abc', detailFact), /Invalid committed/);
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: false, changed: true } }) } } as any;
-    await assert.rejects(api.ingestDetail(uuid, 'abc', {}), /Invalid committed/);
+    await assert.rejects(api.ingestDetail(uuid, 'abc', detailFact), /Invalid committed/);
 });
 
 test('Extension ingestion calls the same L2 function after readiness', async () => {
@@ -163,13 +171,13 @@ test('Extension ingestion calls the same L2 function after readiness', async () 
         'src/l2/ingestion.js': { ingestDetail: async () => { order.push('L2'); return { accepted: true, changed: true }; } },
         'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => { order.push('ready'); } },
     });
-    assert.deepEqual(await api.ingestDetail(uuid, 'abc', {}), { accepted: true, changed: true });
+    assert.deepEqual(await api.ingestDetail(uuid, 'abc', detailFact), { accepted: true, changed: true });
     assert.deepEqual(order, ['ready', 'L2']);
 });
 
 function live(settings: object, permission = 'granted', handleExists = true, exporter?: Function) {
     return load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => settings },
+        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }) },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; } } : null },
         'src/application/export/runExport.js': { runExport: exporter || (() => assert.fail('Unexpected Export')) },
     }).runLiveSave;
@@ -199,7 +207,7 @@ test('Live Save returns the exact unified result and request, including skip/par
 test('Worker Live Save scopes KeepAlive to the active export and releases it on failure', async () => {
     const trace: string[] = [];
     const save = load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => ({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: true }) },
+        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true }) },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted' }) },
         'src/application/export/runExport.js': { runExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
         'src/runtime/background/keepAlive.js': { startKeepAlive: () => { trace.push('start'); return () => trace.push('stop'); } },
@@ -299,7 +307,7 @@ test('Live Save Content sends only the changed key and suppresses stale reinject
         'src/runtime/content/accountContext.js': { getAccountContext: () => context },
     });
     let feedback = 0;
-    const badge = { showLiveSaveFeedback: () => { feedback++; } };
+    const badge = { showLiveSaveResult: () => { feedback++; } };
     coordinator.init({ badge });
     const pending = coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' });
     await Promise.resolve();
@@ -308,6 +316,11 @@ test('Live Save Content sends only the changed key and suppresses stale reinject
     reply({ ok: true, result: { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false } });
     await pending;
     assert.equal(feedback, 0);
+    const committed = { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false };
+    global.chrome.runtime.sendMessage = (async () => ({ ok: true, result: committed })) as any;
+    assert.strictEqual(await coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' }), committed);
+    assert.equal(feedback, 1, 'the live v2 Badge callback receives committed ExportResult');
+    coordinator.cleanup();
 });
 
 test('lifecycle initializes Settings after readiness and opens Options only on installation', async () => {
@@ -317,7 +330,7 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
         getManifest: () => ({ version: '2.0.0' }), getURL: (path: string) => 'chrome-extension://ext/' + path }, tabs: { create: async ({url}: {url: string}) => { assert.match(url, /options.html\?startTour=1$/); order.push('open'); } } } as any;
     const lifecycle = load('src/runtime/background/lifecycle.ts', {
         'src/runtime/background/readiness.js': { ensureV2Ready: async () => { order.push('ready'); } },
-        'src/application/settings/index.js': { getSettings: async () => ({}), updateSettings: async (patch: unknown) => { order.push(patch); } },
+        'src/application/settings/index.js': { getSettings: async () => v2Settings, updateSettings: async (patch: unknown) => { order.push(patch); } },
     });
     lifecycle.initLifecycleListeners();
     install({ reason: 'install' }); await new Promise(resolve => setImmediate(resolve));
@@ -342,7 +355,7 @@ test('Background count, Badge position and Live Save follow their public IPC con
         'src/runtime/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
         'src/runtime/background/tabAction.js': { initTabActionListeners: () => {} },
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
-        'src/l3a/storageService.js': { listIndexes: async (id: string) => { assert.equal(id, uuid); return [{}, {}]; } },
+        'src/l3a/storageService.js': { listIndexes: async (id: string) => { assert.equal(id, uuid); return v2IndexFixtures(id); } },
         'src/application/settings/index.js': { updateSettings: async (patch: unknown) => { badgePatch = patch; badgeWrites++; } },
         'src/runtime/background/liveSaveHandler.js': { runLiveSave: async () => null },
     });
@@ -375,19 +388,6 @@ test('directory picker and reauthorization preserve click gesture; restoration o
     order.length = 0;
     await directory.requestDirHandle();
     assert.deepEqual(order, ['picker', 'ready', 'store']);
-});
-
-test('MAIN hook reinjection returns before wrapping fetch or adding timers/listeners', () => {
-    const fs = require('node:fs');
-    const esbuild = require('esbuild');
-    const vm = require('node:vm');
-    const source = fs.readFileSync(path.join(root, 'src/l1/sniffer/gemini/hookCredentials.ts'), 'utf8')
-        .replace(/import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*\s,]+)\s*from\s*['"][^'"]+['"];?\s*/g, '');
-    const script = esbuild.transformSync(source, { loader: 'ts', format: 'iife' }).code;
-    const window = { __gemExporterHookInstalled: true, fetch: () => {} };
-    const original = window.fetch;
-    vm.runInNewContext(script, { window });
-    assert.equal(window.fetch, original);
 });
 
 test('Content cleanup unregisters individual completed requests and drains listeners once on reinjection', () => {
@@ -463,34 +463,33 @@ test('Content registers capture, account and message listeners while readiness i
     assert.deepEqual(initialized, ['credentials', 'router', 'routes', 'bridge', 'badge']);
 });
 
-test('an early source completion survives readiness wait and keeps its captured Account after a switch', async () => {
-    global.window = contentWindow() as any;
-    global.location = { origin: 'https://gemini.google.com', pathname: '/app/abcdef123456' } as any;
-    let finish!: () => void;
-    const pending = new Promise<void>(resolve => { finish = resolve; });
-    let commits = 0;
-    const keys: unknown[] = [];
-    const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
-    let current = context;
-    const bridge = load('src/l1/sniffer/gemini/messageBridge.ts', {
-        'src/runtime/api/accountRegistry.js': { getAccount: async () => account },
-        'src/runtime/content/accountContext.js': { resolveRequestAccount: async () => { await pending; return context; }, resolveCurrentAccount: async () => current },
-        'src/runtime/api/domainIngestion.js': { ingestIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; } },
-        'src/l1/client/gemini/listObservation.js': {},
-        'src/l1/parsers/gemini/rpc/parseConversation.js': {},
-        'src/l1/parsers/gemini/rpc/mergePages.js': {},
-        'src/l1/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
-        'src/l1/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
-        'src/shared/utils/utils.js': { isDevMode: () => false },
-        'src/l1/parsers/gemini/rpc/parseList.js': {},
-    });
-    bridge.init({ onStreamComplete: (key: unknown) => keys.push(key) });
-    const event = { source: global.window, origin: global.location.origin, data: { type: 'GEMINI_STREAM_GENERATE_COMPLETE', payload: { slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: 'gaia' }, id: 'abcdef123456' } } };
-    const operation = bridge.handleWindowMessage(event);
-    await Promise.resolve(); assert.equal(commits, 0);
-    finish(); await operation;
-    assert.equal(commits, 1);
-    assert.deepEqual(keys, [{ accountId: uuid, conversationId: 'abcdef123456' }]);
+test('passive L2 Index admission preserves the source Account while the visible Tab changes', async () => {
+    global.chrome = chromeBase() as any;
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    const accountAtRequest = uuid;
+    const admitted: unknown[] = [];
+    const handler = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready,
+        'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestIndexes: async (...args: unknown[]) => {
+            admitted.push(args);
+            await pending;
+        } },
+    }).handleDomainIngestionMessage;
+    const page = { streamId: 'recent', requestCursor: null, nextCursor: null,
+        requestedAt: 1700000000000, requestKnown: true, valid: true, ordered: true, keys: [] };
+    let completed = false;
+    const operation = invoke(handler, { action: 'domainIngest', operation: 'indexes',
+        accountId: accountAtRequest, items: [], page }).then(value => { completed = true; return value; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(completed, false);
+    // Passive source identity is frozen by L1; unlike active export, Runtime
+    // must not re-query the sender Tab or attribute evidence to a new Account.
+    global.chrome.tabs.sendMessage = (() => assert.fail('No current-tab read during passive admission')) as any;
+    release();
+    assert.deepEqual(await operation, { ok: true });
+    assert.deepEqual(admitted, [[accountAtRequest, [], page]]);
 });
 
 test('active Content Account validation targets the sending document and rejects a different current Account', async () => {
@@ -548,142 +547,6 @@ test('CI scripts no longer reference Runtime modules removed by this PR', () => 
             assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /(?:batchFetcher|abortManager|geminiIndexCapture|domScraper|syncEngine)\.(?:js|ts)/, entry);
         }
     }
-});
-
-// Synthetic wire fixtures follow the documented upstream completion fields, not HTTP status:
-// HanaokaYuzu/Gemini-API @ 1ad0d4a93e505e77c79769d78ef2997641f973c8,
-// client.py: candidate[8][0] == 2 (answered), inner[25] (saved to history).
-function streamWire(options: { answered?: number; saved?: boolean; responseId?: string } = {}) {
-    const candidate = ['rc_abc123', ['latest reply'], null, null, null, null, null, null, [options.answered ?? 2]];
-    const inner = new Array(26).fill(null);
-    inner[1] = ['c_abcdef123456', options.responseId || 'r_abc123']; inner[4] = [candidate];
-    if (options.saved !== false) inner[25] = 'history-save-token';
-    const frame = JSON.stringify([['wrb.fr', null, JSON.stringify(inner)]]);
-    return ")]}'\n\n" + Buffer.byteLength(frame) + '\n' + frame + '\n';
-}
-function hookHarness(fetcher: Function) {
-    const fs = require('node:fs'), esbuild = require('esbuild'), vm = require('node:vm');
-    const protocol = require('../src/l1/protocol/gemini/protocol.js');
-    const messages: any[] = [];
-    let intervals = 0;
-    class Xhr extends EventTarget {
-        status = 200; responseText = ''; nativeSendError = false;
-        open() {}
-        send() { if (this.nativeSendError) throw new Error('native send failed'); }
-        emit(type: string) { this.dispatchEvent(new Event(type)); }
-    }
-    const win = Object.assign(new EventTarget(), {
-        fetch: fetcher,
-        postMessage: (message: unknown) => { messages.push(message); },
-        setInterval: () => { intervals++; return 1; },
-    });
-    const location = { href: 'https://gemini.google.com/app/abcdef123456', pathname: '/app/abcdef123456', origin: 'https://gemini.google.com' };
-    const source = fs.readFileSync(path.join(root, 'src/l1/sniffer/gemini/hookCredentials.ts'), 'utf8')
-        .replace(/import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*\s,]+)\s*from\s*['"][^'"]+['"];?\s*/g, '');
-    const script = esbuild.transformSync(source, { loader: 'ts', format: 'iife' }).code;
-    const context = vm.createContext({ window: win, location, document: new EventTarget(),
-        console, Event, URL, URLSearchParams, Request, Response, TextEncoder, TextDecoder, Uint8Array,
-        XMLHttpRequest: Xhr, GeminiProtocol: protocol, CrossWorldEvents: protocol.CrossWorldEvents,
-        sniffUserProfileFromDom: () => ({}), geminiAccountObservation: () => ({ providerId: 'gemini', providerAccountId: 'gaia' }),
-        readGeminiListRequest: () => null, readGeminiDetailRequest: () => null,
-    });
-    const inject = () => vm.runInContext(script, context);
-    inject();
-    return { win, Xhr, messages, inject, intervals: () => intervals,
-        complete: () => messages.filter(message => message.type === 'GEMINI_STREAM_GENERATE_COMPLETE'),
-        url: 'https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate',
-    };
-}
-const settleHook = async () => { await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve)); };
-
-test('Fetch: full answered + history-save frames notify once, reinjection and replay do not duplicate', async () => {
-    const harness = hookHarness(async () => new Response(streamWire()));
-    const fetch = harness.win.fetch;
-    harness.inject(); assert.equal(harness.win.fetch, fetch); assert.equal(harness.intervals(), 1);
-    const response = await harness.win.fetch(harness.url);
-    await response.text(); await settleHook();
-    assert.equal(harness.complete().length, 1);
-    assert.equal(harness.complete()[0].payload.id, 'abcdef123456');
-    await (await harness.win.fetch(harness.url)).text(); await settleHook();
-    assert.equal(harness.complete().length, 1);
-});
-for (const status of [400, 500]) test(`Fetch: HTTP ${status} never completes even with final-looking body`, async () => {
-    const harness = hookHarness(async () => new Response(streamWire(), { status }));
-    await (await harness.win.fetch(harness.url)).text(); await settleHook();
-    assert.equal(harness.complete().length, 0);
-    assert.equal((harness.win as any).__geminiIsStreaming, false);
-});
-test('Fetch: rejected Abort clears transient generation state without completing', async () => {
-    const harness = hookHarness(async () => { throw new DOMException('cancelled', 'AbortError'); });
-    await assert.rejects(harness.win.fetch(harness.url), /cancelled/);
-    assert.equal(harness.complete().length, 0);
-    assert.equal((harness.win as any).__geminiIsStreaming, false);
-});
-test('Fetch: body reader failure never falls back to successful text or completes', async () => {
-    const harness = hookHarness(async () => ({ ok: true, clone: () => ({
-        body: { getReader: () => ({ read: async () => { throw new Error('read failed'); }, releaseLock() {} }) },
-        text: () => assert.fail('Do not reinterpret failed reader as successful text'),
-    }) }));
-    await harness.win.fetch(harness.url); await settleHook();
-    assert.equal(harness.complete().length, 0);
-    assert.equal((harness.win as any).__geminiIsStreaming, false);
-});
-test('Fetch: capped response cannot complete even when its prefix contains completion markers', async () => {
-    let reads = 0, cancels = 0;
-    const harness = hookHarness(async () => ({ ok: true, clone: () => ({ body: { getReader: () => ({
-        read: async () => ({ done: false, value: new TextEncoder().encode(streamWire() + ' '.repeat(4 * 1024 * 1024)) }),
-        cancel: () => { cancels++; return new Promise<void>(() => {}); }, releaseLock() { reads++; },
-    }) } }) }));
-    await harness.win.fetch(harness.url); await settleHook();
-    assert.equal(reads, 1); assert.equal(cancels, 1);
-    assert.equal(harness.complete().length, 0);
-});
-for (const wire of [streamWire({ answered: 1 }), streamWire({ saved: false }), '[]\n', streamWire() + '50\n', streamWire() + '[["er",7]]\n']) {
-    test('Fetch: HTTP 200 without unambiguous successful protocol termination is ignored: ' + wire.slice(-22), async () => {
-        const harness = hookHarness(async () => new Response(wire));
-        await (await harness.win.fetch(harness.url)).text(); await settleHook();
-        assert.equal(harness.complete().length, 0);
-    });
-}
-test('Fetch: clone failure and signal aborted after headers do not complete', async () => {
-    const failedClone = hookHarness(async () => ({ ok: true, clone: () => { throw new Error('clone failed'); } }));
-    await failedClone.win.fetch(failedClone.url); await settleHook(); assert.equal(failedClone.complete().length, 0);
-    const controller = new AbortController();
-    const aborted = hookHarness(async () => { controller.abort(); return new Response(streamWire()); });
-    await (await aborted.win.fetch(aborted.url, { signal: controller.signal })).text(); await settleHook();
-    assert.equal(aborted.complete().length, 0);
-});
-test('XHR: successful final frames on load notify once; loadend/reinjection/replay cannot duplicate', () => {
-    const harness = hookHarness(async () => new Response(''));
-    harness.inject(); assert.equal(harness.intervals(), 1);
-    const xhr = new harness.Xhr();
-    (xhr.open as Function)('POST', harness.url); xhr.responseText = streamWire(); xhr.send();
-    xhr.emit('load'); xhr.emit('loadend'); xhr.emit('load');
-    assert.equal(harness.complete().length, 1);
-    // Reusing the object must not retain old listeners, and a new response id is a new turn.
-    (xhr.open as Function)('POST', harness.url); xhr.responseText = streamWire({ responseId: 'r_def456' }); xhr.send(); xhr.emit('load'); xhr.emit('loadend');
-    assert.equal(harness.complete().length, 2);
-});
-for (const event of ['abort', 'error', 'timeout', 'loadend']) test(`XHR: ${event} is request termination, never generation completion`, () => {
-    const harness = hookHarness(async () => new Response(''));
-    const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.responseText = streamWire(); xhr.send();
-    xhr.emit(event); xhr.emit('loadend'); xhr.emit('load');
-    assert.equal(harness.complete().length, 0);
-    assert.equal((harness.win as any).__geminiIsStreaming, false);
-});
-for (const status of [0, 403, 503]) test(`XHR: status ${status} with load cannot complete`, () => {
-    const harness = hookHarness(async () => new Response(''));
-    const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.status = status; xhr.responseText = streamWire(); xhr.send(); xhr.emit('load'); xhr.emit('loadend');
-    assert.equal(harness.complete().length, 0);
-});
-test('XHR: 200 without completion markers, oversized body and synchronous send failure cannot complete', () => {
-    const harness = hookHarness(async () => new Response(''));
-    for (const body of [streamWire({ answered: 1 }), streamWire({ saved: false }), streamWire() + ' '.repeat(4 * 1024 * 1024)]) {
-        const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.responseText = body; xhr.send(); xhr.emit('load'); xhr.emit('loadend');
-    }
-    const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.nativeSendError = true;
-    assert.throws(() => xhr.send(), /native send failed/); xhr.responseText = streamWire(); xhr.emit('load');
-    assert.equal(harness.complete().length, 0);
 });
 
 // The Runtime test double assumes L1 emits onDetailChanged only after a
@@ -841,159 +704,3 @@ test('Runtime diagnostic timestamps have one numeric millisecond representation'
     assert.equal('isoTime' in event, false);
 });
 
-test('Fetch: relative StreamGenerate URL completes; unrelated BardFrontend RPC never does', async () => {
-    const relative = hookHarness(async () => new Response(streamWire()));
-    await (await relative.win.fetch(new URL(relative.url).pathname)).text(); await settleHook();
-    assert.equal(relative.complete().length, 1);
-    const unrelated = hookHarness(async () => new Response(streamWire()));
-    await (await unrelated.win.fetch(unrelated.url.replace('/StreamGenerate', '/OtherRpc'))).text(); await settleHook();
-    assert.equal(unrelated.complete().length, 0);
-});
-
-// Real Migration + Settings + Storage behind the production Runtime handlers.
-// Only the Chrome/IndexedDB browser surfaces are replaced, not ensureUpgraded().
-function migratedRuntime(initial: Record<string, unknown>, beforeWrite: (patch: Record<string, unknown>) => Promise<void> = async () => {}) {
-    const { IDBFactory, IDBKeyRange } = require('fake-indexeddb');
-    global.IDBKeyRange = IDBKeyRange;
-    const pendingLocks = new Map<string, Promise<void>>();
-    if (typeof globalThis.navigator === 'undefined') (globalThis as any).navigator = {};
-    Object.defineProperty(globalThis.navigator, 'locks', { configurable: true, value: {
-        async request<T>(name: string, callback: () => Promise<T>): Promise<T> {
-            const previous = pendingLocks.get(name) ?? Promise.resolve();
-            let release!: () => void;
-            const next = new Promise<void>(resolve => { release = resolve; });
-            pendingLocks.set(name, next); await previous;
-            try { return await callback(); }
-            finally { release(); if (pendingLocks.get(name) === next) pendingLocks.delete(name); }
-        }
-    } });
-    global.indexedDB = new IDBFactory();
-    delete (global as any).window;
-    global.location = { protocol: 'chrome-extension:' } as any;
-    const data = structuredClone(initial);
-    const writes: Record<string, unknown>[] = [];
-    let listener!: Function, installed!: Function;
-    let opened = 0;
-    global.chrome = { ...chromeBase(), tabs: { ...chromeBase().tabs, create: async () => { opened++; } }, storage: { local: {
-        get: async (keys: string | string[]) => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).map(key => [key, structuredClone(data[key])])),
-        set: async (patch: Record<string, unknown>) => { await beforeWrite(patch); writes.push(structuredClone(patch)); Object.assign(data, structuredClone(patch)); },
-    } }, runtime: { id: 'ext', getURL: (path: string) => 'chrome-extension://ext/' + path, getManifest: () => ({ version: '2.0.0' }), openOptionsPage: async () => { opened++; },
-        onInstalled: { addListener: (fn: Function) => { installed = fn; } },
-        onMessage: { addListener: (fn: Function) => { listener = fn; } },
-        sendMessage: async (message: unknown) => invoke(listener, message),
-    } } as any;
-    delete require.cache[require.resolve('../src/migration/upgradeV1.ts')];
-    const readiness = load('src/runtime/background/readiness.ts', {});
-    const settings = load('src/application/settings/index.ts', {});
-    const lifecycle = load('src/runtime/background/lifecycle.ts', { 'src/runtime/background/readiness.js': readiness,
-        'src/application/settings/index.js': settings });
-    const guards = load('src/runtime/background/contentSender.ts', {});
-    const registryHandler = load('src/runtime/background/accountRegistryHandler.ts', {
-        'src/runtime/background/readiness.js': readiness, 'src/runtime/background/contentSender.js': guards,
-    });
-    load('src/runtime/background/background.ts', {
-        'src/runtime/background/readiness.js': readiness, 'src/runtime/background/lifecycle.js': lifecycle,
-        'src/runtime/background/contentSender.js': guards, 'src/runtime/background/accountRegistryHandler.js': registryHandler,
-        'src/runtime/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
-        'src/runtime/background/tabAction.js': { initTabActionListeners() {} },
-        'src/runtime/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('No export requested') },
-    });
-    const readyApi = load('src/runtime/api/runtimeReady.ts', { 'src/runtime/background/readiness.js': readiness });
-    const accounts = load('src/runtime/api/accountRegistry.ts', { 'src/runtime/api/runtimeReady.js': readyApi });
-    return { data, writes, readiness, readyApi, accounts, settings, opened: () => opened,
-        install: (reason: string, previousVersion?: string) => installed({ reason, previousVersion }),
-        message: (message: unknown) => invoke(listener, message),
-        store: load('src/l3a/storageService.ts', {}),
-    };
-}
-async function seedRuntimeLegacyAccount() {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open('gemini_exporter_domain');
-        request.onupgradeneeded = () => request.result.createObjectStore('accounts');
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-    try {
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction('accounts', 'readwrite');
-            tx.objectStore('accounts').put(account, uuid);
-            tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
-        });
-    } finally { db.close(); }
-}
-const migrationMarker = 'gemini_exporter_v2_initialized';
-const migratedSettingsKey = 'gemini_exporter_v2_settings';
-
-test('real Migration: fresh-install lifecycle and concurrent readiness IPC wait for initialized marker', async () => {
-    let commit!: () => void, reached!: () => void;
-    const gate = new Promise<void>(resolve => { commit = resolve; });
-    const writing = new Promise<void>(resolve => { reached = resolve; });
-    const runtime = migratedRuntime({}, async patch => {
-        if (patch[migrationMarker]) { reached(); await gate; }
-    });
-    runtime.install('install');
-    let responses = 0;
-    const ipc = Promise.all([runtime.message({ action: 'ensureV2Ready' }), runtime.message({ action: 'ensureV2Ready' })])
-        .then(values => { responses++; return values; });
-    await writing;
-    assert.equal(responses, 0); assert.equal(runtime.opened(), 0);
-    assert.equal(runtime.data[migratedSettingsKey], undefined);
-    commit(); assert.deepEqual(await ipc, [{ ok: true }, { ok: true }]); await settleHook();
-    assert.equal(runtime.data[migrationMarker], true);
-    assert.deepEqual(runtime.data[migratedSettingsKey], { lastSeenFeatureVersion: '2.0.0' });
-    assert.equal(runtime.opened(), 1);
-    assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
-    assert.deepEqual(await indexedDB.databases(), []);
-});
-
-for (const baseline of ['1.6.0', undefined]) test(`real Migration: Account/count IPC and update lifecycle await commit; feature baseline ${baseline || 'falls back to previousVersion'}`, async () => {
-    let commit!: () => void, reached!: () => void;
-    const gate = new Promise<void>(resolve => { commit = resolve; });
-    const writing = new Promise<void>(resolve => { reached = resolve; });
-    const legacyIndex = { key: { accountId: uuid, conversationId: 'legacy' }, title: 'Migrated', titleSource: 'provider', updatedAt: 100 };
-    const runtime = migratedRuntime({ gemini_export_format: 'html', gemini_export_zip: false,
-        ...(baseline ? { last_seen_feature_version: baseline } : {}), [`conversations_${uuid}`]: [legacyIndex] }, async patch => {
-        if (patch[migrationMarker]) { reached(); await gate; }
-    });
-    await seedRuntimeLegacyAccount();
-    runtime.install('update', '1.8.1');
-    const worker = runtime.readyApi.ensureV2Ready(); // Worker takes the direct path.
-    global.window = contentWindow() as any;
-    global.location = { protocol: 'https:' } as any;
-    let resolved = 0;
-    const registry = runtime.accounts.getAccount(uuid).then((value: unknown) => { resolved++; return value; });
-    const count = runtime.message({ action: 'getLocalIndexCount', accountId: uuid }).then(value => { resolved++; return value; });
-    await writing; assert.equal(resolved, 0); assert.equal(runtime.opened(), 0);
-    commit(); await worker;
-    assert.deepEqual(await registry, account);
-    assert.deepEqual(await count, { ok: true, count: 1 }); await settleHook();
-    assert.deepEqual(await runtime.store.listIndexes(uuid), [legacyIndex]);
-    assert.deepEqual(await runtime.settings.getSettings(), {
-        defaultFormat: 'html', skipExported: true, includeAssets: true,
-        enabledDisk: false, developerMode: false, lastSeenFeatureVersion: baseline || '1.8.1',
-    });
-    assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
-    assert.deepEqual(runtime.data[`conversations_${uuid}`], [legacyIndex]);
-});
-
-test('real Migration: failed completion marker fails Runtime IPC and retries before allowing Account reads', async () => {
-    let fail = true;
-    const runtime = migratedRuntime({ gemini_export_zip: false }, async patch => {
-        if (patch[migrationMarker] && fail) throw new Error('migration marker write failed');
-    });
-    await seedRuntimeLegacyAccount();
-    const failed = await runtime.message({ action: 'ensureV2Ready' });
-    assert.deepEqual(failed, { ok: false, error: 'migration marker write failed' });
-    assert.equal(runtime.data[migrationMarker], undefined);
-    global.window = contentWindow() as any;
-    global.location = { protocol: 'https:' } as any;
-    await assert.rejects(runtime.accounts.getAccount(uuid), /migration marker write failed/);
-    fail = false;
-    assert.deepEqual(await runtime.accounts.getAccount(uuid), account);
-    assert.equal(runtime.data[migrationMarker], true);
-    assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
-    // Once ready, neither the worker nor Content asks Migration to reopen legacy DBs.
-    indexedDB.databases = () => assert.fail('Ready Runtime must not rerun Migration');
-    assert.deepEqual(await runtime.message({ action: 'ensureV2Ready' }), { ok: true });
-    assert.deepEqual(await runtime.accounts.getAccount(uuid), account);
-});

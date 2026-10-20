@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { mockAccountRegistry, assertRuntimeUnitBoundary } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -12,10 +13,12 @@ const accounts: Record<string, unknown> = {
 };
 function load(stubs: Record<string, unknown> = {}) {
     const original = Module._load;
+    const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([A, B]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
-        const key = Object.keys(stubs).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
-        if (key) return stubs[key];
+        const key = Object.keys(ports).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
+        if (key) return ports[key as keyof typeof ports];
+        if (request.startsWith('.')) assertRuntimeUnitBoundary(resolved, root);
         return original.call(this, request, parent, ...args);
     };
     try {

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { assertRuntimeUnitBoundary, v2Settings } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -13,7 +14,9 @@ function load(file: string, stubs: Record<string, unknown> = {}) {
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
         const dependency = Object.keys(stubs).find(name => resolved === path.resolve(root, name).replace(/\.ts$/, '.js'));
-        return dependency ? stubs[dependency] : original.call(this, request, parent, ...args);
+        if (dependency) return stubs[dependency];
+        if (request.startsWith('.')) assertRuntimeUnitBoundary(resolved, root);
+        return original.call(this, request, parent, ...args);
     };
     try {
         const filename = path.resolve(root, file);
@@ -92,7 +95,7 @@ test('disabled and non-Markdown Live Save never check directory or invoke an exp
         { enabledDisk: true, defaultFormat: 'pdf', includeAssets: false },
     ]) {
         const live = load('src/runtime/background/liveSaveHandler.ts', {
-            'src/application/settings/index.js': { getSettings: async () => settings },
+            'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }) },
             'src/l3a/storageService.js': { getDirectoryHandle: () => assert.fail('No directory lookup for inactive Live Save') },
             'src/application/export/runExport.js': { runExport: () => assert.fail('Unexpected second writer') },
             'src/runtime/background/keepAlive.js': { startKeepAlive: () => assert.fail('No keepalive for inactive export') },
@@ -105,7 +108,7 @@ test('missing or ungranted directory fails without mutating user Settings or pro
     const settings = { enabledDisk: true, defaultFormat: 'markdown', includeAssets: true };
     for (const handle of [null, { queryPermission: async () => 'prompt', requestPermission: () => assert.fail('Worker must not request user permission') }]) {
         const live = load('src/runtime/background/liveSaveHandler.ts', {
-            'src/application/settings/index.js': { getSettings: async () => settings },
+            'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }) },
             'src/l3a/storageService.js': { getDirectoryHandle: async () => handle },
             'src/application/export/runExport.js': { runExport: () => assert.fail('Export must not run') },
             'src/runtime/background/keepAlive.js': { startKeepAlive: () => assert.fail('KeepAlive must not start') },
@@ -119,7 +122,7 @@ test('Live Save calls the single Application Export with fixed Markdown/Folder a
     const result = { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false };
     const steps: string[] = [];
     const live = load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => ({ enabledDisk: true, defaultFormat: 'markdown', includeAssets: false }) },
+        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true, includeAssets: false }) },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async (request: unknown) => {
             assert.deepEqual(request, { mode: 'readwrite' });
             return 'granted';
