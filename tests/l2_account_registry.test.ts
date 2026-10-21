@@ -6,7 +6,7 @@ import { findAccount, readAccount, readAccountRegistry, readAccountParameters } 
 import { getAccount, listAccounts, putAccount } from '../src/l3a/storageService.js';
 
 test('L2 AccountRegistry stores one UUID per provider identity, including concurrent discovery', async () => {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     try {
         const identities = await Promise.all(Array.from({ length: 8 },
             () => getOrCreateAccount('gemini', 'source-account')));
@@ -18,7 +18,7 @@ test('L2 AccountRegistry stores one UUID per provider identity, including concur
 });
 
 test('L2 AccountRegistry isolates providers and remote identities, not emails', async () => {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     try {
         const a = await getOrCreateAccount('gemini', 'first', 'shared@example.com');
         const b = await getOrCreateAccount('gemini', 'second', 'shared@example.com');
@@ -30,7 +30,7 @@ test('L2 AccountRegistry isolates providers and remote identities, not emails', 
 });
 
 test('L2 AccountRegistry updates display fields without changing identity or erasing missing fields', async () => {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     try {
         const initial = await getOrCreateAccount('gemini', 'first', 'old@example.com', 'Original');
         const updated = await getOrCreateAccount('gemini', 'first', 'new@example.com');
@@ -45,7 +45,7 @@ test('L2 AccountRegistry updates display fields without changing identity or era
 });
 
 test('L2 promotes the sole default to verified identity in place without losing its UUID', async () => {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     try {
         const fallback = await getOrCreateAccount('gemini', 'default', 'borrowed@example.com', 'Unknown');
         assert.equal(fallback.providerAccountId, 'default');
@@ -64,7 +64,7 @@ test('L2 promotes the sole default to verified identity in place without losing 
 });
 
 test('L2 keeps distinct verified identities and routes unknown data to a stable real account', async () => {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     try {
         const b = await getOrCreateAccount('gemini', 'gaia-b');
         const a = await getOrCreateAccount('gemini', 'gaia-a');
@@ -78,7 +78,7 @@ test('L2 keeps distinct verified identities and routes unknown data to a stable 
 });
 
 test('L2 serializes concurrent default and real admissions without duplicate placeholders', async () => {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     try {
         await Promise.all([
             getOrCreateAccount('gemini', 'default'),
@@ -93,7 +93,7 @@ test('L2 serializes concurrent default and real admissions without duplicate pla
 });
 
 test('L2 identity cannot be rewritten for a saved UUID; migration upsert can retain a new UUID', async () => {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     try {
         const saved = await getOrCreateAccount('gemini', 'original');
         await assert.rejects(putAccount({ ...saved, providerAccountId: 'changed' }), /identity/i);
@@ -107,7 +107,7 @@ test('L2 identity cannot be rewritten for a saved UUID; migration upsert can ret
 });
 
 test('L2 Account validation rejects invalid identities and preserves existing records after failed writes', async () => {
-    const env = indexStorage();
+    const env = indexStorage({}, { seedAccounts: false });
     try {
         const saved = await getOrCreateAccount('gemini', 'first');
         for (const invalid of [

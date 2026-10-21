@@ -18,7 +18,20 @@ output writes each conversation group and finalizes its ExportRecord only after
 actual delivery. Cancellation preserves records for already delivered groups.
 There is no `useZip` option or alternate Live Save writer. Live Save submits
 Markdown + Folder Writer with `skipUnchanged: false` after a changed passive Detail
-commit; Application remains responsible for workflow and record decisions.
+commit or a verified reply-completion event. Following the 2026-10-20 design decision,
+reply completion requires an answered candidate and a complete successful response,
+without a separate cloud-history persistence token. It sets `refreshDetail: true`
+on unified Export: Application acquires
+full source Detail through L1 Client, then rereads accepted L2 Domain before export.
+Sniffer only observes and admits facts; it never initiates acquisition. With disk
+saving disabled (or a different default format), verified completion still calls
+Application `refreshConversation` to update L2 source facts and the updated badge,
+without resource download, file delivery or an ExportRecord write. Passive Detail
+events do not trigger active acquisition. An unavailable writable directory fails
+before the disk-export workflow starts. Same-Key
+saves are serialized with coalesced trailing events so later replies are retained.
+A transient refresh failure may export usable cached Detail as partial; confirmed
+remote deletion never falls back. Application owns workflow and record decisions.
 
 `python3 tests/run_tests.py --filter application` runs workflow unit tests with
 external IO doubles. `npm test` also runs cross-module suites and production

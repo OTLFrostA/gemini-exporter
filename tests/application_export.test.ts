@@ -353,3 +353,23 @@ test('Storage read failure is reported, never treated as a missing snapshot foll
     const result = await runExport(request());
     assert.deepEqual(result.failed, [key()]); assert.deepEqual(events, []);
 });
+
+test('completed reply refreshes even matching cached versions and exports committed replacement', async () => {
+    seed(); records.set(address(key()), previous);
+    provider.fetchConversationDetail = async () => {
+        events.push('refresh');
+        const { detail } = seed();
+        detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'New completed reply' }] }];
+    };
+    const result = await runExport(request({ skipUnchanged: true }), { refreshDetail: true });
+    assert.equal(result.exported, 1); assert.equal(result.skipped, 0);
+    assert.deepEqual(events, ['refresh', 'delivery', 'record:first']);
+    assert.match(JSON.stringify(state.compositions[0]), /New completed reply/);
+});
+test('completed reply refresh failure cannot claim the cached matching version is current', async () => {
+    seed();
+    provider.fetchConversationDetail = async () => { throw new Error('offline'); };
+    const result = await runExport(request(), { refreshDetail: true });
+    assert.equal(result.exported, 1); assert.equal(result.partial, 1);
+    assert.equal(records.get(address(key()))?.status, 'partial');
+});

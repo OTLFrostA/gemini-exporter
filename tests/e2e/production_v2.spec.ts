@@ -1,4 +1,5 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
+import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
@@ -192,4 +193,97 @@ test('passive Detail commit triggers Background Live Save and writes the real fi
     });
     const written = await read(); expect(written).toHaveLength(1); expect(written[0].text).toContain('Answer from passive capture');
 
+});
+
+
+const tier2Scripts = JSON.parse(execFileSync('python3', ['-c',
+    'import json; from scripts.framework.v2_probe import probe_bundle; from scripts.framework.gemini_dual_parse import INSTALL_CAPTURE; print(json.dumps(dict(probe=probe_bundle(),capture=INSTALL_CAPTURE)))'],
+    { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 })) as { probe: string; capture: string };
+
+test('Tier 2 Skip preparation rejects stale, partial, wrong-format and unsafe versions before choosing a current record', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId);
+    const ids = ['stale', 'partial', 'wrong-format', 'unsafe', 'current', 'unexported'];
+    await seed(page, ids);
+    await page.evaluate(async ({ accountId, ids }) => {
+        const api = Reflect.get(globalThis, 'productionProbe');
+        for (const id of ids.slice(0, -1)) await api.putExportRecord({ accountId, conversationId: id }, {
+            format: id === 'wrong-format' ? 'html' : 'markdown', status: id === 'partial' ? 'partial' : 'ok',
+            exportedAt: 200, chatTime: id === 'stale' ? 99 : id === 'unsafe' ? 100.5 : 100,
+        });
+    }, { accountId, ids });
+    await page.evaluate(tier2Scripts.probe);
+    const eligible = await page.evaluate(() => Reflect.get(globalThis, '__tier2V2').skipEligibleIds());
+    expect(eligible).toEqual(['current']);
+    // Run the actual two selection scripts from the Tier 2 case, in the browser.
+    const selections = JSON.parse(execFileSync('python3', ['-c',
+        "import ast,json; tree=ast.parse(open('scripts/framework/cases/export.py').read()); cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='FastSkipExportedCase'); print(json.dumps([n.value for n in ast.walk(cls) if isinstance(n,ast.Constant) and isinstance(n.value,str) and 'const items = Array.from' in n.value]))"], { encoding: 'utf8' })) as string[];
+    for (const script of selections) {
+        const result = await page.evaluate(script);
+        if (result && typeof result === 'object' && 'exportedId' in result) expect(result.exportedId).toBe('current');
+    }
+});
+
+test('Tier 2 native audit acquires raw Detail even when manual export would use complete cached Domain', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId); await seed(page);
+    const source = await sourcePage(context);
+    await page.evaluate(tier2Scripts.probe);
+    let requests = 0;
+    const wire = JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_production', 'r_question'], [1700000000, 0], [['Question production']], [[['rc_question', [['Current native answer']]]]]]], null])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_production', 'Current title', null, null, null, [1700000000, 0]]]])],
+    ]);
+    await page.route('https://gemini.google.com/**/batchexecute*', route => {
+        requests++; return route.fulfill({ contentType: 'application/json', body: wire });
+    });
+    await page.locator('#btnSelectAll').click();
+    const first = page.waitForEvent('download'); await page.locator('#btnExport').click(); await first;
+    expect(requests, 'cached export cannot itself supply native evidence').toBe(0);
+    await page.evaluate(tier2Scripts.capture);
+    await page.evaluate(() => Reflect.get(globalThis, '__tier2V2').refreshForNativeAudit(['production']));
+    expect(requests).toBeGreaterThan(0);
+    const captured = await page.evaluate(async () => {
+        const state = Reflect.get(globalThis, '__geminiDualCapture'); await Promise.all(state.pending); return state.replies.production;
+    });
+    expect(captured[0].text).toBe(wire);
+    await page.locator('#skipExported').uncheck();
+    const next = page.waitForEvent('download'); await page.locator('#btnExport').click();
+    expect(await readFile((await (await next).path())!, 'utf8')).toContain('Current native answer');
+    await source.close();
+});
+
+test('completed reply with Live Save off refreshes current source and reorders the open Options view without focus or reload', async ({ context, extensionId }) => {
+    const id = 'abcdef123456';
+    const page = await workbench(context, extensionId); await seed(page, [id, 'newer']);
+    await page.evaluate(async ({ accountId, id }) => {
+        const api = Reflect.get(globalThis, 'productionProbe');
+        await api.ingestIndexes(accountId, [{ conversationId: 'newer', fields: { updatedAt: 200 } }]);
+        await api.putExportRecord({ accountId, conversationId: id }, { format: 'markdown', status: 'ok', chatTime: 100, exportedAt: 200 });
+        await api.patchStoredSettings({ enabledDisk: false });
+    }, { accountId, id });
+    await page.reload(); await page.evaluate(bundle);
+    expect(await page.locator('#list .item').first().getAttribute('data-chat-id')).toBe('newer');
+    const source = await sourcePage(context);
+    const wire = JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_' + id, 'r_question'], [1700000000, 0], [['Final prompt']], [[['rc_question', [['Final appended answer']]]]]]], null])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_' + id, 'Current continued title', null, null, null, [1700000000, 0]]]])],
+    ]);
+    let acquisitions = 0;
+    await context.route('https://gemini.google.com/**/batchexecute*', route => {
+        acquisitions++; return route.fulfill({ contentType: 'application/json', body: wire });
+    });
+    const fixture = JSON.parse(await readFile(path.resolve(__dirname, '../fixtures/gemini_answered_stream.json'), 'utf8'));
+    const frame = JSON.stringify(fixture.frames[0]);
+    await source.route('**/StreamGenerate*', route => route.fulfill({ contentType: 'application/json', body: ")]}'\n\n" + (frame.length + 2) + '\n' + frame + '\n' }));
+    await source.evaluate(async () => {
+        await fetch('/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate', { method: 'POST', body: 'f.req=test' });
+    });
+    await expect.poll(() => acquisitions).toBeGreaterThan(0);
+    await expect(page.locator('#list .item').first()).toHaveAttribute('data-chat-id', id);
+    const state = await page.evaluate(async ({ accountId, id }) => {
+        const api = Reflect.get(globalThis, 'productionProbe'), key = { accountId, conversationId: id };
+        return { index: await api.getIndex(key), detail: await api.getDetail(key), record: await api.getExportRecord(key) };
+    }, { accountId, id });
+    expect(state.index.updatedAt).toBe(1700000000000);
+    expect(state.record.chatTime).toBe(100);
+    expect(JSON.stringify(state.detail)).toContain('Final appended answer');
 });

@@ -19,14 +19,12 @@ test('MAIN hook reinjection returns before wrapping fetch or adding timers/liste
 });
 
 
-// Synthetic wire fixtures follow the documented upstream completion fields, not HTTP status:
-// HanaokaYuzu/Gemini-API @ 1ad0d4a93e505e77c79769d78ef2997641f973c8,
-// client.py: candidate[8][0] == 2 (answered), inner[25] (saved to history).
-function streamWire(options: { answered?: number; saved?: boolean; responseId?: string } = {}) {
+// Completion requires an answered candidate and a complete response, not HTTP status.
+// The fixture has no cloud-history persistence token. Application acquires Detail.
+function streamWire(options: { answered?: number; responseId?: string } = {}) {
     const candidate = ['rc_abc123', ['latest reply'], null, null, null, null, null, null, [options.answered ?? 2]];
-    const inner = new Array(26).fill(null);
+    const inner = new Array(5).fill(null);
     inner[1] = ['c_abcdef123456', options.responseId || 'r_abc123']; inner[4] = [candidate];
-    if (options.saved !== false) inner[25] = 'history-save-token';
     const frame = JSON.stringify([['wrb.fr', null, JSON.stringify(inner)]]);
     return ")]}'\n\n" + Buffer.byteLength(frame) + '\n' + frame + '\n';
 }
@@ -65,7 +63,7 @@ function hookHarness(fetcher: Function) {
 }
 const settleHook = async () => { await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve)); };
 
-test('Fetch: full answered + history-save frames notify once, reinjection and replay do not duplicate', async () => {
+test('Fetch: answered frames without a persistence token notify once, reinjection and replay do not duplicate', async () => {
     const harness = hookHarness(async () => new Response(streamWire()));
     const fetch = harness.win.fetch;
     harness.inject(); assert.equal(harness.win.fetch, fetch); assert.equal(harness.intervals(), 1);
@@ -100,14 +98,14 @@ test('Fetch: body reader failure never falls back to successful text or complete
 test('Fetch: capped response cannot complete even when its prefix contains completion markers', async () => {
     let reads = 0, cancels = 0;
     const harness = hookHarness(async () => ({ ok: true, clone: () => ({ body: { getReader: () => ({
-        read: async () => ({ done: false, value: new TextEncoder().encode(streamWire() + ' '.repeat(4 * 1024 * 1024)) }),
+        read: async () => ({ done: false, value: new TextEncoder().encode(streamWire() + ' '.repeat(101 * 1024 * 1024)) }),
         cancel: () => { cancels++; return new Promise<void>(() => {}); }, releaseLock() { reads++; },
     }) } }) }));
     await harness.win.fetch(harness.url); await settleHook();
     assert.equal(reads, 1); assert.equal(cancels, 1);
     assert.equal(harness.complete().length, 0);
 });
-for (const wire of [streamWire({ answered: 1 }), streamWire({ saved: false }), '[]\n', streamWire() + '50\n', streamWire() + '[["er",7]]\n']) {
+for (const wire of [streamWire({ answered: 1 }), '[]\n', streamWire() + '50\n', streamWire() + '[["er",7]]\n']) {
     test('Fetch: HTTP 200 without unambiguous successful protocol termination is ignored: ' + wire.slice(-22), async () => {
         const harness = hookHarness(async () => new Response(wire));
         await (await harness.win.fetch(harness.url)).text(); await settleHook();
@@ -147,7 +145,7 @@ for (const status of [0, 403, 503]) test(`XHR: status ${status} with load cannot
 });
 test('XHR: 200 without completion markers, oversized body and synchronous send failure cannot complete', () => {
     const harness = hookHarness(async () => new Response(''));
-    for (const body of [streamWire({ answered: 1 }), streamWire({ saved: false }), streamWire() + ' '.repeat(4 * 1024 * 1024)]) {
+    for (const body of [streamWire({ answered: 1 }), streamWire() + ' '.repeat(101 * 1024 * 1024)]) {
         const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.responseText = body; xhr.send(); xhr.emit('load'); xhr.emit('loadend');
     }
     const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.nativeSendError = true;
@@ -165,3 +163,52 @@ test('Fetch: relative StreamGenerate URL completes; unrelated BardFrontend RPC n
     assert.equal(unrelated.complete().length, 0);
 });
 
+
+test('Fetch: live newline-inclusive frame lengths are accepted and corrupt lengths are rejected', async () => {
+    const wire = streamWire().replace(/\n(\d+)\n/, (_match, count) => '\n' + (Number(count) + 2) + '\n');
+    const valid = hookHarness(async () => new Response(wire));
+    await (await valid.win.fetch(valid.url)).text(); await settleHook();
+    assert.equal(valid.complete().length, 1);
+    const corrupt = hookHarness(async () => new Response(wire.replace(/\n(\d+)\n/, (_match, count) => '\n' + (Number(count) + 1) + '\n')));
+    await (await corrupt.win.fetch(corrupt.url)).text(); await settleHook();
+    assert.equal(corrupt.complete().length, 0);
+});
+
+test('Fetch: sanitized live answered frame with newline-inclusive length triggers completion', async () => {
+    const fixture = require('./fixtures/gemini_answered_stream.json');
+    const wire = ")]}'\n\n" + fixture.frames.map((frame: unknown) => {
+        const json = JSON.stringify(frame);
+        return (Buffer.byteLength(json) + 2) + '\n\n' + json + '\n';
+    }).join('');
+    const harness = hookHarness(async () => new Response(wire));
+    await (await harness.win.fetch(harness.url)).text(); await settleHook();
+    assert.equal(harness.complete().length, 1);
+    assert.equal(harness.complete()[0].payload.id, 'abcdef123456');
+});
+
+test('Fetch: live Unicode frame lengths count UTF-16 units rather than UTF-8 bytes', async () => {
+    const inner = [null, ['c_abcdef123456', 'r_abc123'], null, null,
+        [['rc_abc123', ['公式：α + β，中文与 🌿'], null, null, null, null, null, null, [2]]]];
+    const frame = JSON.stringify([['wrb.fr', null, JSON.stringify(inner)]]);
+    assert.notEqual(frame.length, Buffer.byteLength(frame));
+    const harness = hookHarness(async () => new Response(")]}'\n\n" + (frame.length + 2) + '\n\n' + frame + '\n'));
+    await (await harness.win.fetch(harness.url)).text(); await settleHook();
+    assert.equal(harness.complete().length, 1);
+});
+
+for (const transport of ['Fetch', 'XHR']) test(`${transport}: cumulative stream above 3 MiB reaches the final answered frame`, async () => {
+    // Repeated growing snapshots make a modest answer a large cumulative stream.
+    const progress = streamWire({ answered: 1 }).replace('latest reply', 'x'.repeat(8192));
+    const line = progress.split('\n').filter(value => value.startsWith('[['))[0];
+    const wire = ")]}'\n\n" + ((line.length + 2) + '\n' + line + '\n').repeat(480) + streamWire().split('\n').slice(2).join('\n');
+    assert.ok(Buffer.byteLength(wire) > 3 * 1024 * 1024);
+    const harness = hookHarness(async () => new Response(wire));
+    if (transport === 'Fetch') {
+        await (await harness.win.fetch(harness.url)).text(); await settleHook();
+    } else {
+        const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url);
+        xhr.responseText = wire; xhr.send(); xhr.emit('load');
+    }
+    assert.equal(harness.complete().length, 1);
+    assert.equal(harness.complete()[0].payload.id, 'abcdef123456');
+});

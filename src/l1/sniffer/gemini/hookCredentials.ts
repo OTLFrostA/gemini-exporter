@@ -170,12 +170,12 @@ declare global {
         } catch { return false; }
     }
 
-    // Observed Gemini wire signals: candidate[8][0] == 2 means answered;
-    // inner[25] is the history-save marker. Require both, complete JSON frames and EOF.
-    // No marker/unknown protocol/transport-only trailer is evidence of success.
+    // candidate[8][0] == 2 means answered. Require complete JSON frames and EOF.
+    // This signals generation completion; Application must acquire actual Detail.
+    // Transport-only trailers and unknown/error responses cannot complete a turn.
     function completedTurn(text: string): { conversationId: string; responseId: string } | null {
         let identity: { conversationId: string; responseId: string } | null = null;
-        let answered = false, saved = false;
+        let answered = false;
         try {
             let expectedLength: number | undefined;
             for (const line of text.split('\n').map(value => value.trim()).filter(Boolean)) {
@@ -184,7 +184,12 @@ declare global {
                     if (expectedLength !== undefined) return null;
                     expectedLength = Number(line); continue;
                 }
-                if (expectedLength !== undefined && new TextEncoder().encode(line).length !== expectedLength) return null;
+                if (expectedLength !== undefined) {
+                    const bytes = new TextEncoder().encode(line).length;
+                    // Live StreamGenerate counts UTF-16 code units, including
+                    // surrounding LFs. Legacy captures use bare UTF-8 byte lengths.
+                    if (expectedLength !== bytes && expectedLength !== line.length + 2) return null;
+                }
                 expectedLength = undefined;
                 const rows: unknown = JSON.parse(line);
                 if (!Array.isArray(rows)) return null;
@@ -207,10 +212,9 @@ declare global {
                             && typeof candidate[0] === 'string' && candidate[0].startsWith('rc_')
                             && Array.isArray(candidate[8]) && candidate[8][0] === 2);
                     }
-                    if (typeof inner[25] === 'string' && inner[25]) saved = true;
                 }
             }
-            return expectedLength === undefined && answered && saved ? identity : null;
+            return expectedLength === undefined && answered ? identity : null;
         } catch { return null; }
     }
     let lastCompletedTurn: string | undefined;
@@ -317,6 +321,8 @@ declare global {
     }
 
     const BATCHEXECUTE_SNIFF_CAP = 3 * 1024 * 1024;
+    // Growing answer snapshots can exceed the RPC capture budget cumulatively.
+    const STREAM_SNIFF_CAP = 100 * 1024 * 1024;
 
     async function readCappedText(response: Response, cap: number = BATCHEXECUTE_SNIFF_CAP): Promise<{ text: string; truncated: boolean }> {
         const body = response.body;
@@ -417,7 +423,7 @@ declare global {
                 } else if (isStreamUrl(input)) {
                     if (!response.ok) { window.__geminiIsStreaming = false; return response; }
                     try {
-                        void readCappedText(response.clone()).then(({ text, truncated }) => {
+                        void readCappedText(response.clone(), STREAM_SNIFF_CAP).then(({ text, truncated }) => {
                             if (!truncated && !(init?.signal?.aborted)
                                 && !(typeof Request !== 'undefined' && input instanceof Request && input.signal.aborted)) {
                                 broadcastStreamComplete(input, text, requestAccountObservation, requestSlot);
@@ -487,7 +493,7 @@ declare global {
                         window.__geminiIsStreaming = false;
                         if (event.type !== 'load' || this.status < 200 || this.status >= 300) return;
                         try {
-                            if (this.responseText.length <= BATCHEXECUTE_SNIFF_CAP) {
+                            if (this.responseText.length <= STREAM_SNIFF_CAP) {
                                 broadcastStreamComplete(url, this.responseText, requestAccountObservation, requestSlot);
                             }
                         } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }

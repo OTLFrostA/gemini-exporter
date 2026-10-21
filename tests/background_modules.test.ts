@@ -10,6 +10,7 @@ const key = { accountId: '12345678-1234-4234-8234-123456789abc', conversationId:
 // Isolate Runtime from business-layer implementations undergoing v2 migration.
 // Stubs preserve the published Settings, Storage and Application contracts.
 function load(file: string, stubs: Record<string, unknown> = {}) {
+    stubs = { 'src/application/conversations/refreshConversation.js': { refreshConversation: () => assert.fail('Unexpected source refresh') }, ...stubs };
     const original = Module._load;
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;

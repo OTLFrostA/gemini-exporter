@@ -12,8 +12,8 @@ test('directory authorization is explicit; enabled intention and the real stored
     await page.locator('#btnSetDir').click();await expect(page.locator('#btnSetDir')).toBeEnabled();
     await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();await page.locator('#liveSaveDiskToggle').check();
     await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
-    expect(await page.evaluate(()=>Reflect.get(window,'pickerCalls'))).toBe(1);expect((await storedSettings(page)).enabledDisk).toBe(true);
-    expect((await storedSettings(page)).exportDelivery).toBe('folderWriter');
+    expect(await page.evaluate(()=>Reflect.get(window,'pickerCalls'))).toBe(1);await expect.poll(async()=>(await storedSettings(page)).enabledDisk).toBe(true);
+    await expect.poll(async()=>(await storedSettings(page)).exportDelivery).toBe('folderWriter');
     expect(await page.evaluate(async()=>!!await Reflect.get(globalThis,'uiFixture').getDirectoryHandle())).toBe(true);
     await page.reload();await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
 });
@@ -34,7 +34,7 @@ test('Background Live Save and manual folder delivery use the same planned filen
     // Switching to browser delivery pauses Live Save, but manual download remains available.
     await page.locator('input[name="delivery"][value="browserDownload"]').check();
     await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
-    expect((await storedSettings(page)).exportDelivery).toBe('browserDownload');
+    await expect.poll(async()=>(await storedSettings(page)).exportDelivery).toBe('browserDownload');
     await page.locator('#btnSelectAll').click();const pending=page.waitForEvent('download');await page.locator('#btnExport').click();const download=await pending;expect(download.suggestedFilename()).toBe(files[0].name);expect(await readFile((await download.path())!,'utf8')).toBe(files[0].text);
 });
 test('non-Markdown formats pause effective saving across Options, Popup and reload while preserving enabledDisk',async({context,extensionId})=>{
