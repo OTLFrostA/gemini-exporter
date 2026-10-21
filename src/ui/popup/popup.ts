@@ -30,12 +30,14 @@ export async function initPopup(): Promise<void> {
     let indexTitle: string | null = null;
     let identityLoaded = false;
     let busy = false, active = true;
+    let themeSaving = false;
     const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-format]')];
     const formatName: Record<string, string> = { markdown: 'Markdown', html: 'HTML', pdf: 'PDF', json: 'JSON' };
     const render = () => {
         labelPage();
         labelThemeToggle(el<HTMLButtonElement>('btnThemeToggle'), settings);
-        el<HTMLButtonElement>('btnThemeToggle').disabled = busy || !settings;
+        // Appearance is independent of exporting or updating another preference.
+        el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || themeSaving;
         if (identityLoaded) el('currentChatTitle').textContent = indexTitle || (key
             ? text('Current conversation', '当前对话')
             : text('No current Gemini conversation', '当前没有 Gemini 对话'));
@@ -63,7 +65,19 @@ export async function initPopup(): Promise<void> {
         }).finally(() => { busy = false; render(); });
     };
     el<HTMLButtonElement>('btnThemeToggle').addEventListener('click', () => {
-        if (settings) changeSettings({ theme: settings.theme === 'light' ? 'dark' : 'light' });
+        if (!settings || themeSaving) return;
+        const previousTheme = settings.theme;
+        const theme = previousTheme === 'light' ? 'dark' : 'light';
+        themeSaving = true;
+        settings = { ...settings, theme };
+        useSettings(settings); render();
+        void updateSettings({ theme }).then(refresh)
+            .catch(error => {
+                settings = { ...settings, theme: previousTheme };
+                useSettings(settings);
+                status.textContent = errorText(error);
+            })
+            .finally(() => { themeSaving = false; render(); });
     });
     for (const btn of buttons) btn.addEventListener('click', () => {
         changeSettings({ defaultFormat: btn.dataset.format as GlobalSettings['defaultFormat'] });
