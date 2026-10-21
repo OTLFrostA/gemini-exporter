@@ -73,9 +73,14 @@ export async function resolveCurrentAccount(observed?: Omit<Account, 'id'> | nul
         if (before !== generation) return pending ? pending.result : getAccountContext();
         return resolveCurrentAccount(fresh, capturedSlot);
     }
-    const observation = observed === null
-        ? { providerId: 'gemini', providerAccountId: DEFAULT_ACCOUNT_KEY }
-        : readAccountParameters(observed);
+    // Read-only page/Badge/Popup discovery must not allocate a placeholder.
+    if (observed === null) {
+        const changed = binding !== null;
+        invalidateAccountContext();
+        if (changed) onAccountChanged?.();
+        return null;
+    }
+    const observation = readAccountParameters(observed);
     if (observation.providerId !== 'gemini') throw new TypeError('Wrong account observation provider');
     const current = getAccountContext();
     const signature = JSON.stringify([capturedSlot, observation]);
