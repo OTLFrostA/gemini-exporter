@@ -26,7 +26,7 @@ test('list badges distinguish success, later activity, incomplete exports and mi
         await expect(page.locator(`[data-chat-id="${id}"] .status-tag`)).toHaveCount(0);
         await expect(page.locator(`[data-chat-id="${id}"] .meta`)).not.toContainText('No export record');
     }
-    await expect(page.locator('[data-chat-id="exported"] .status-exported')).toContainText(/^Export successful \\(.+\\)$/);
+    await expect(page.locator('[data-chat-id="exported"] .status-exported')).toContainText(/^Export successful \(.+\)$/);
     await expect(page.locator('[data-chat-id="updated"] .status-updated')).toHaveText('Updated');
     await expect(page.locator('[data-chat-id="partial"] .status-partial')).toHaveText('Incomplete export');
     await expect(page.locator('[data-chat-id="partial_updated"] .status-partial')).toHaveText('Incomplete export');
