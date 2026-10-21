@@ -1,5 +1,5 @@
-// Resolves CJK, Latin, and code monospace fonts via window.queryLocalFonts() to avoid
-// bundling multi-megabyte CJK font files in the extension package.
+// Resolves optional CJK, Latin, and monospace device fonts via window.queryLocalFonts().
+// Bundled text and math fonts keep offline exports readable without this permission.
 import type { Diagnostic } from '../../../../../shared/diagnostics/diagnostic.js';
 
 export interface LocalFontEntry {
@@ -272,6 +272,7 @@ export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
 }
 
 export const BUNDLED_MATH_FALLBACK = 'NewCMMath (bundled, math only)';
+export const BUNDLED_TEXT_FALLBACK = 'Noto Sans CJK SC / Noto Sans Mono (bundled, text)';
 export const SYSTEM_FALLBACK = 'Typst system default (last resort)';
 
 function toResolved(entry: LocalFontEntry): ResolvedLocalFont {
@@ -302,20 +303,19 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
                 : query.reason === 'permission-denied'
                   ? 'TYPST_LOCAL_FONTS_DENIED'
                   : 'TYPST_LOCAL_FONTS_QUERY_FAILED';
-        const severity = query.reason === 'permission-denied' ? 'warning' : 'error';
         return {
             fonts: [],
             diagnostics: [
                 {
-                    severity,
+                    severity: 'warning',
                     code,
                     message:
                         `${query.detail} No local fonts will be mounted; the sandbox must compile ` +
-                        `with bundled fonts only (${BUNDLED_MATH_FALLBACK}). Pagination may differ from ` +
-                        `a device with local CJK fonts -- this is a known, reported degradation, not a silent swap.`,
+                        `with bundled fonts (${BUNDLED_MATH_FALLBACK}; ${BUNDLED_TEXT_FALLBACK}). ` +
+                        `Local font access is optional; text remains available offline.`,
                 },
             ],
-            fallbackChain: [BUNDLED_MATH_FALLBACK, SYSTEM_FALLBACK],
+            fallbackChain: [BUNDLED_MATH_FALLBACK, BUNDLED_TEXT_FALLBACK, SYSTEM_FALLBACK],
             localFontsAvailable: false,
         };
     }
@@ -380,6 +380,7 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
     const chain = [
         ...limited.map((f) => `${f.family} (local, ${f.postscriptName})`),
         BUNDLED_MATH_FALLBACK,
+        BUNDLED_TEXT_FALLBACK,
         SYSTEM_FALLBACK,
     ];
 

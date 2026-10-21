@@ -38,6 +38,8 @@
   "Monaco",
   "JetBrains Mono",
   "DejaVu Sans Mono",
+  "Noto Sans Mono",
+  "Noto Sans CJK SC",
 )
 
 #let font-math = (

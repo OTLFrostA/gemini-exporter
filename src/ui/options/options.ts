@@ -9,6 +9,7 @@ import { startSync } from './controllers/syncController.js';
 import type { ScanResult } from '../../application/sync/scanController.js';
 import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
+import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 import { renderList } from './views/listView.js';
 import { readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
@@ -34,6 +35,7 @@ export async function initWorkbench(): Promise<void> {
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
     let folderSuggestionPending = false;
+    let connectionError: string | null = null;
     // Browser batches are only staged until their final download is initiated.
     const preparedExportKeys = new Set<string>();
     const log: LogEntry[] = [];
@@ -53,6 +55,7 @@ export async function initWorkbench(): Promise<void> {
         el('log').scrollTop = el('log').scrollHeight;
     };
     const status = (message: string, level: Level = 'info') => {
+        connectionError = null;
         // Only one of the progress label and final/status line is visible at a time.
         el('progText').textContent = '';
         el<HTMLElement>('progText').style.display = 'none';
@@ -180,7 +183,18 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLButtonElement>('btnExport').disabled ||= !settings || folderSuggestionPending;
         showFailures();
     };
-    const refresh = async () => { await state.refresh(); render(); };
+    const refresh = async () => {
+        await state.refresh(); render();
+        const previousError = connectionError;
+        const accountId = state.accountId;
+        if (!previousError || busy || !accountId) return;
+        try {
+            const connected = await resolveScanTarget(accountId);
+            // An intervening operation/account switch must keep its own status.
+            if (connected === accountId && state.accountId === accountId && !busy && connectionError === previousError)
+                status(text('Gemini connected. Sync conversations to refresh history.', 'Gemini 已连接，可同步会话更新历史。'));
+        } catch { /* Keep actionable guidance until a verified Content source is available. */ }
+    };
     const select = async (id: string) => {
         if (id !== state.accountId) { lastRequest = null; failed = []; dismissedFailures = false; }
         state.selectAccount(id); render(); await refresh();
@@ -197,7 +211,12 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLElement>('status').style.display = 'block';
         render();
         try { await task(); }
-        catch (error) { status(errorText(error), 'error'); }
+        catch (error) {
+            status(errorText(error), 'error');
+            if (kind === 'scan' && error instanceof Error &&
+                error.message === 'Open Gemini, log in and refresh the page before scanning.')
+                connectionError = error.message;
+        }
         finally {
             try { await refresh(); } catch (error) { status(errorText(error), 'error'); }
             busy = false; action = null; controller = null; render();

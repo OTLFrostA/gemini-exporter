@@ -1,7 +1,7 @@
 import type { Diagnostic as RenderDiagnostic } from '../../../../../shared/diagnostics/diagnostic.js';
 import type { IPdfCompiler } from '../../pdfCompiler.js';
 import type { RuntimeFontConsumer } from '../typstSandboxCompiler.js';
-import { BUNDLED_MATH_FALLBACK, SYSTEM_FALLBACK, type LocalFontResolution } from './localFontProvider.js';
+import { BUNDLED_MATH_FALLBACK, BUNDLED_TEXT_FALLBACK, SYSTEM_FALLBACK, type LocalFontResolution } from './localFontProvider.js';
 
 export interface MountedRuntimeFonts {
     readonly mountedCount: number;
@@ -53,7 +53,7 @@ export async function mountRuntimeFonts(
     const effectiveFonts: LocalFontResolution = {
         fonts: [],
         diagnostics: [...resolution.diagnostics, ...diagnostics],
-        fallbackChain: [...names, BUNDLED_MATH_FALLBACK, SYSTEM_FALLBACK],
+        fallbackChain: [...names, BUNDLED_MATH_FALLBACK, BUNDLED_TEXT_FALLBACK, SYSTEM_FALLBACK],
         localFontsAvailable: bytes.length > 0,
     };
     return { mountedCount: bytes.length, mountedNames: names, diagnostics, effectiveFonts };

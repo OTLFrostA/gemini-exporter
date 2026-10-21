@@ -9,6 +9,7 @@ import { preprocessGeminiMarkdown, normalizeGeminiTexAliases } from './markdownC
 import { geminiStructuredToContent, type GeminiSourceCitations } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
 import { normalizeTextUnderscores } from '../../../../shared/utils/latexCompatibility.js';
+import { hasLiteralMathText, recoverLiteralMath } from './literalMathRecovery.js';
 
 /** Work only on parsed math nodes; code, user prose and file names stay literal. */
 function normalizeGeminiMath(blocks: BlockNode[]): BlockNode[] {
@@ -52,14 +53,25 @@ export function cleanGeminiBody(text: string): string {
 export function parseGeminiBody(
     content: unknown,
     structuredContent?: unknown,
-    context: MarkdownParseContext & { sourceCitations?: GeminiSourceCitations } = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
+    context: MarkdownParseContext & { sourceCitations?: GeminiSourceCitations; recoverLiteralMath?: boolean } = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
 ): BlockNode[] {
     const cleaned = typeof content === 'string' ? cleanGeminiBody(content) : '';
     if (structuredContent) {
         // Malformed provider data must never prevent the visible raw body from being exported.
         try {
             const structured = geminiStructuredToContent(structuredContent, context.sourceCitations);
-            if (structured !== null && (structured.length > 0 || !cleaned.trim())) return normalizeGeminiMath(structured);
+            if (structured !== null && (structured.length > 0 || !cleaned.trim())) {
+                if (context.recoverLiteralMath !== false && cleaned.includes('$') && hasLiteralMathText(structured)) {
+                    const markdown = parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
+                        ...context, diagnostics: [], lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true,
+                    });
+                    const recovered = recoverLiteralMath(structured, markdown);
+                    if (recovered) context.diagnostics.push({ severity: 'info', code: 'GEMINI_LITERAL_MATH_RECOVERED',
+                        message: 'Recovered native literal math from the matching raw Markdown paragraph',
+                        sourceRef: context.sourceRef, details: { recovered } });
+                }
+                return normalizeGeminiMath(structured);
+            }
         } catch {
             // Includes malformed annotation arrays and nested provider containers.
         }

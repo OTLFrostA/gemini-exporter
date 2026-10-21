@@ -1,5 +1,5 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
-import { openOptions, seedConversations, storedSettings } from './uiFixture';
+import { exposeUIStorage, openOptions, seedConversations, storedSettings } from './uiFixture';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -58,9 +58,16 @@ test('closing a displayed batch suggestion permanently dismisses it without star
 
     await page.reload();
     await expect(page.locator('#list .item')).toHaveCount(21);
+    await exposeUIStorage(page);
     await page.locator('#btnSelectAll').click();
     const pending = page.waitForEvent('download');
     await page.locator('#btnExport').click();
     await pending;
     await expect(page.locator('#directWriteModal')).toBeHidden();
+    // A download starts before the export records commit; await the completed task before teardown.
+    await expect(page.locator('#status')).toContainText('Delivery initiated: 21', { timeout: 30000 });
+    await expect.poll(async () => page.evaluate(async () =>
+        Object.keys(await Reflect.get(globalThis, 'uiFixture')
+            .listExportRecords('10000000-0000-4000-8000-000000000001')).length),
+        { timeout: 30000 }).toBe(21);
 });

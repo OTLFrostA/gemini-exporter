@@ -126,14 +126,11 @@ export function differences(left: Value | undefined, right: Value | undefined, p
 
 export function auditGeminiEvidence(evidence: GeminiDetailEvidence) {
     const context = { account: fixtureAccount(), providerId: 'gemini' as const };
-    const native = parseGeminiDetailEvidence(structuredClone(evidence), context);
-    const markdownEvidence = structuredClone(evidence);
-    for (const message of markdownEvidence.messages) {
-        // Force the raw Markdown branch; never serialize the native AST to manufacture its input.
-        delete message.structuredContent;
-        delete message.structuredExtraction;
-    }
-    const markdown = parseGeminiDetailEvidence(markdownEvidence, context);
+    const native = parseGeminiDetailEvidence(structuredClone(evidence), { ...context, bodyRepresentation: 'structured' });
+    // Force only the body branch. Native file-chip metadata still closes the
+    // same references in either branch, including actual production fallback.
+    // Never serialize the native AST to manufacture the Markdown input.
+    const markdown = parseGeminiDetailEvidence(structuredClone(evidence), { ...context, bodyRepresentation: 'markdown' });
     const messages: MessageAudit[] = [];
     evidence.messages.forEach((source, index) => {
         if (source.role !== 'model') return;

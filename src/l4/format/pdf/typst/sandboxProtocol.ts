@@ -29,6 +29,8 @@ export const TYPST_WASM_PATH = 'src/l4/format/pdf/sandbox/vendor/typst_ts_web_co
 
 export const BUNDLED_FONT_PATHS: readonly string[] = [
     'src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf',
+    'src/l4/format/pdf/sandbox/fonts/NotoSansCJKsc-Regular.otf',
+    'src/l4/format/pdf/sandbox/fonts/NotoSansMono-Variable.ttf',
 ];
 
 export interface ParsedProtocolMessage {

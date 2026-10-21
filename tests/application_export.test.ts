@@ -1,4 +1,5 @@
-import { account, key, address, seed, request, reset, records, events, deliveries, state, provider, indexes, details, contexts } from './helpers/applicationHarness.js';
+import { account, key, address, seed, request, reset, records, events, deliveries, state, provider, indexes, details, contexts, references } from './helpers/applicationHarness.js';
+import { ResourceHttpError } from '../src/shared/resources/resourceResult.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runExport, shouldSkipExport } from '../src/application/export/runExport.js';
@@ -388,4 +389,71 @@ test('metadata-only export does not reacquire inline file bytes', async () => {
     delete detail.assets[1].sourceUri;
     await runExport(request({ includeAssets: false }));
     assert.equal(events.includes('refresh'), false);
+});
+
+for (const status of [401, 403, 404, 410]) {
+    test(`cached resource HTTP ${status} refreshes once and exports the committed replacement identity`, async () => {
+        seed('first', { assets: true });
+        provider.acquireResource = async (_key, asset) => {
+            events.push('acquire:' + asset.id);
+            if (asset.id === 'image') throw new ResourceHttpError(status);
+            return { bytes: new Uint8Array([4, 5, 6]) };
+        };
+        provider.fetchConversationDetail = async () => {
+            events.push('refresh');
+            const { detail } = seed('first', { assets: true });
+            detail.assets[0].id = 'replacement';
+            detail.assets[0].sourceUri = 'https://example.com/fresh.png';
+            references.set('first', { referencedIds: ['replacement', 'file'], imageIds: ['replacement'], fileIds: ['file'] });
+        };
+        const result = await runExport(request());
+        assert.equal(result.partial, 0);
+        assert.equal(records.get(address(key()))?.status, 'ok');
+        assert.equal(events.filter(event => event === 'refresh').length, 1);
+        assert.deepEqual(state.browserPlans[0].preparedIds, ['replacement', 'file']);
+        assert.ok(state.rendererCalls[0].bindings.replacement);
+        assert.equal(state.rendererCalls[0].bindings.image, undefined);
+    });
+}
+test('persistent resource restriction stays partial after one refresh; server failures do not refresh', async () => {
+    for (const status of [403, 500]) {
+        reset(); seed('first', { assets: true });
+        provider.acquireResource = async () => { throw new ResourceHttpError(status); };
+        const result = await runExport(request());
+        assert.equal(result.partial, 1);
+        assert.equal(events.filter(event => event === 'refresh').length, status === 403 ? 1 : 0);
+    }
+});
+for (const reason of ['offline', 'conversation_not_found', 'abort']) {
+    test(`resource recovery refresh ${reason} preserves failure and cancellation semantics`, async () => {
+        seed('first', { assets: true });
+        provider.acquireResource = async () => { throw new ResourceHttpError(403); };
+        provider.fetchConversationDetail = async () => {
+            if (reason === 'abort') throw new DOMException('Aborted', 'AbortError');
+            throw new Error(reason);
+        };
+        const result = await runExport(request());
+        assert.equal(result.exported, reason === 'offline' ? 1 : 0);
+        assert.equal(result.partial, reason === 'offline' ? 1 : 0);
+        assert.equal(result.otherPartial ?? 0, 0);
+        assert.equal(result.aborted, reason === 'abort');
+        assert.equal(deliveries.length, reason === 'offline' ? 1 : 0);
+    });
+}
+
+test('successful resource recovery also resolves an earlier transient body refresh failure', async () => {
+    seed('first', { assets: true, savedAt: 99 });
+    let calls = 0;
+    provider.fetchConversationDetail = async () => {
+        if (++calls === 1) throw new Error('transient offline');
+        seed('first', { assets: true });
+    };
+    provider.acquireResource = async () => {
+        if (calls === 1) throw new ResourceHttpError(403);
+        return { bytes: new Uint8Array([1]) };
+    };
+    const result = await runExport(request());
+    assert.equal(calls, 2);
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 0);
 });

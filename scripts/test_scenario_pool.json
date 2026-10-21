@@ -1,48 +1,5 @@
 [
   {
-    "id": "geodesy_great_circle_antipodal_routes",
-    "title": "Geodesy: great-circle routes and antipodal numerical conditioning",
-    "domain": "geodesy_spherical_navigation",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an original educational globe illustration showing two synthetic locations, their great-circle route and the longer alternative arc. Label latitude, longitude and central angle; clearly identify the illustration as schematic, not a navigation chart.",
-      "Derive spherical great-circle distance and initial bearing in LaTeX. State angular units, longitude wrapping and the difference between spherical and ellipsoidal Earth models. Explain why bearing is undefined for coincident or exactly antipodal points.",
-      "Write complete runnable standard-library Python using a numerically robust central-angle formula. Validate inputs and test coincident points, dateline crossing, poles, almost-antipodal pairs, symmetry and nonnegative distances.",
-      "Provide a Markdown table of synthetic coordinate pairs with expected central angles, distances for a stated sphere radius and initial bearings where defined. Include units, explicit tolerances and a comparison with a less stable inverse-cosine formula.",
-      "Write a bilingual reproducibility report connecting the diagram, formulas and implementation. Explain route interpolation near antipodes, rounding error and why this teaching calculation is insufficient for aircraft navigation."
-    ]
-  },
-  {
-    "id": "operations_research_inventory_newsvendor_quantiles",
-    "title": "Inventory planning: discrete newsvendor quantiles and reproducible expected cost",
-    "domain": "operations_research_inventory_uncertainty",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic single-period inventory problem with a finite demand distribution, purchase cost, selling price and salvage value. State units and assumptions and provide a valid probability mass function.",
-      "Derive expected profit and equivalent underage/overage costs in LaTeX. Show how the critical fractile determines a discrete optimal order quantity and explain ties without assuming differentiability.",
-      "Write complete runnable standard-library Python that validates the demand distribution, evaluates all feasible integer quantities and finds every optimal quantity within a stated numerical tolerance.",
-      "Provide a Markdown table of order quantity, expected sales, expected leftovers, expected shortage and expected profit for the synthetic example. Check probability normalization and show the units of every monetary column.",
-      "Demonstrate a seeded Monte Carlo check in Python and compare its estimated profit against exact enumeration. Distinguish sampling error from an implementation bug and avoid treating a single run as a guarantee.",
-      "Analyze boundary cases: zero demand, deterministic demand, zero overage cost, zero underage cost and invalid negative probabilities. Explain when an optimum is nonunique or a finite search range requires justification.",
-      "Construct a sensitivity table for several synthetic salvage values and shortage penalties. Explain the resulting optimal quantities through the critical fractile and identify parameter regimes outside the assumed model.",
-      "Write a detailed Chinese-English reproducibility report explaining all assumptions, verification checks and limitations, including demand censoring, lead times and repeat ordering. Include a small terminology glossary."
-    ]
-  },
-  {
     "id": "hydraulics_torricelli_tank_drainage",
     "title": "Hydraulics: tank drainage, event detection and dimensional checks",
     "domain": "hydraulics_tank_drainage",
@@ -414,6 +371,48 @@
       "Provide a Markdown table comparing weak, uniform and concentrated synthetic priors for identical observations. Include posterior mean, predictive mean and predictive variance with clear numerical precision.",
       "Explain prior sensitivity and model misspecification under dependent observations. Show a reproducible grid of prior parameters and report its results without presenting it as empirical calibration evidence.",
       "Write a detailed bilingual reproducibility report separating synthetic observations, probability computations, uncertainty interpretations and limitations from changing defect rates or nonexchangeable sampling."
+    ]
+  },
+  {
+    "id": "photogrammetry_rectified_stereo_depth",
+    "title": "Photogrammetry: rectified stereo depth and uncertainty",
+    "domain": "photogrammetry_stereo_geometry",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original schematic of a rectified stereo camera pair viewing synthetic objects at two depths. Label baseline, focal length, image planes and disparity. Clearly distinguish the schematic from a calibrated measurement.",
+      "Derive Z=fB/d in LaTeX with consistent pixel and metre units. Explain the assumptions, sign conventions and why zero disparity does not imply a finite measured depth.",
+      "Write runnable standard-library Python converting disparities into depths with input validation and first-order uncertainty propagation. Test invalid baselines, zero disparity and sensitivity at long range.",
+      "Create a Markdown table of synthetic disparities, depths and uncertainties. Cross-check an example independently and explain the linear approximation near small disparities.",
+      "Write a bilingual reproducibility report connecting the image, geometry and implementation. Discuss occlusions, calibration errors, nonrectified images and why schematic pixels cannot calibrate real cameras."
+    ]
+  },
+  {
+    "id": "mechanism_design_second_price_auction",
+    "title": "Mechanism design: second-price auctions and exact utility checks",
+    "domain": "mechanism_design_auctions",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic sealed-bid single-item second-price auction with private values and deterministic tie breaking. Provide a Markdown table of bidders, values and bids, and state all utility assumptions.",
+      "Derive winner payment and utility in LaTeX. Give a case-by-case weak-dominance argument for truthful bidding while distinguishing weak dominance from a unique equilibrium.",
+      "Write complete runnable standard-library Python implementing allocation, payment and utility with deterministic tie handling and validation of finite nonnegative bids.",
+      "Enumerate a small integer bid grid for one bidder against fixed opponents. Provide a Markdown table checking that truthful bidding weakly dominates every alternative on this finite domain.",
+      "Test one bidder, all-zero bids, tied highest bids, and bids above value. Explain how the empty-opponent payment is defined and verify the payment never exceeds the winning bid.",
+      "Compare first-price and second-price outcomes on identical synthetic values. Explain why a truthful-bidding argument for the second-price rule does not transfer to the first-price rule.",
+      "Analyze a reserve-price extension with an explicit unsold outcome. Give code and boundary tests for bids equal to the reserve and distinguish bidder utility from seller revenue.",
+      "Write a detailed Chinese-English reproducibility report with formulas, tables, test results and limitations covering correlated values, budgets, collusion and repeated auctions."
     ]
   }
 ]

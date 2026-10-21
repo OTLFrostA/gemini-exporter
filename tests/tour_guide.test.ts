@@ -145,3 +145,22 @@ test('tourGuide - a replaced list row becomes the live spotlight target after sc
     await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Choose a format');
     assert.equal(await page.evaluate(() => Reflect.get(window, 'testUi').tour.isActive()), true);
 });
+
+
+test('tourGuide - final action stays inside the viewport immediately after resize', async () => {
+    await open();
+    await page.setViewportSize({ width: 1280, height: 1080 });
+    await start(6);
+    await page.waitForTimeout(350);
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 640, height: 360 }]) {
+        await page.setViewportSize(viewport);
+        const card = await page.locator('.tour-popover').boundingBox();
+        const finish = await page.getByRole('button', { name: 'Start using', exact: true }).boundingBox();
+        assert.ok(card && card.x >= 11 && card.y >= 11);
+        assert.ok(card.x + card.width <= viewport.width - 11 && card.y + card.height <= viewport.height - 11);
+        assert.ok(finish && finish.y >= 0 && finish.y + finish.height <= viewport.height,
+            'Completion must be visible without Playwright scrolling it into view');
+    }
+    await page.getByRole('button', { name: 'Start using', exact: true }).click();
+    assert.equal(await page.locator('.tour-overlay-container').count(), 0);
+});

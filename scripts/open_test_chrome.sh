@@ -3,7 +3,16 @@
 
 set -e
 
-PROFILE_DIR="$HOME/.gemini-exporter-test-profile"
+PROFILE_DIR="${GEMINI_EXPORTER_TEST_PROFILE:-$HOME/.gemini-exporter-test-profile}"
+START_URL="https://gemini.google.com"
+CHROME_EXTRA_ARGS=()
+for arg in "$@"; do
+  if [ "$arg" = "--no-gemini" ]; then
+    START_URL="about:blank"
+  else
+    CHROME_EXTRA_ARGS+=("$arg")
+  fi
+done
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # 跨平台自动探测 Google Chrome 路径
 CHROME_BIN=""
@@ -53,4 +62,4 @@ exec "$CHROME_BIN" \
   --enable-unsafe-extension-debugging \
   --no-first-run \
   --no-default-browser-check \
-  "https://gemini.google.com" "$@"
+  "$START_URL" "${CHROME_EXTRA_ARGS[@]}"
