@@ -285,5 +285,63 @@ class InpageBadgeTests(unittest.TestCase):
         ctx.connect_gemini.return_value.close.assert_called_once()
 
 
+class TestWorkspaceReinstall(unittest.TestCase):
+    @patch("subprocess.run")
+    @patch("scripts.framework.actions.time.sleep")
+    @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
+    @patch("scripts.framework.actions.CDPConnection")
+    @patch("scripts.framework.actions.get_extension_id", return_value="unrelated-extension")
+    def test_reinstall_only_uninstalls_the_id_returned_for_workspace(self, discover, connection, ws, sleep, build):
+        from scripts.framework.actions import CDPActions
+        client = connection.return_value
+        client.call.side_effect = [{"result": {"id": "workspace-id"}}, {"result": {}}, {"result": {"id": "workspace-id"}}]
+        self.assertEqual(CDPActions.reinstall_extension(repo_path="/tmp/exporter"), "workspace-id")
+        self.assertEqual(client.call.call_args_list[1].args, ("Extensions.uninstall", {"id": "workspace-id"}))
+        discover.assert_not_called()
+        client.close.assert_called_once()
+
+    @patch("subprocess.run")
+    @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
+    @patch("scripts.framework.actions.CDPConnection")
+    def test_missing_identity_or_uninstall_failure_never_claims_clean_install(self, connection, ws, build):
+        from scripts.framework.actions import CDPActions
+        for responses in ([{"error": {"message": "unsupported"}}],
+                          [{"result": {"id": "workspace-id"}}, {"error": {"message": "uninstall failed"}}]):
+            client = connection.return_value
+            client.reset_mock()
+            client.call.side_effect = responses
+            self.assertIsNone(CDPActions.reinstall_extension(repo_path="/tmp/exporter"))
+            self.assertEqual(client.call.call_count, len(responses))
+            client.close.assert_called_once()
+
+
+class TestExporterIdentity(unittest.TestCase):
+    @patch("scripts.cdp_client.get_tabs")
+    def test_worker_only_inventory_selects_exporter_over_other_extensions(self, tabs):
+        from scripts.cdp_client import get_extension_id
+        tabs.return_value = [
+            {"url": "chrome-extension://other/background.js"},
+            {"url": "chrome-extension://exporter/dist/background/background.js"},
+            {"url": "chrome-extension://exporter/src/ui/options/options.html"},
+        ]
+        self.assertEqual(get_extension_id(), "exporter")
+
+    @patch("scripts.cdp_client.get_tabs")
+    def test_no_known_exporter_never_returns_an_unrelated_extension(self, tabs):
+        from scripts.cdp_client import get_extension_id
+        tabs.return_value = [{"url": "chrome-extension://other/background.js"},
+                             {"url": "chrome-extension://other/options.html"},
+                             {"url": "chrome-extension://other/unrelated/options.html"}]
+        self.assertIsNone(get_extension_id())
+
+    @patch("scripts.cdp_client.get_tabs")
+    def test_ambiguous_exporter_inventory_fails_closed(self, tabs):
+        from scripts.cdp_client import get_extension_id
+        tabs.return_value = [{"url": "chrome-extension://first/dist/background/background.js"},
+                             {"url": "chrome-extension://second/src/ui/options/options.html"}]
+        with self.assertRaisesRegex(RuntimeError, "ambiguous"):
+            get_extension_id()
+
+
 if __name__ == "__main__":
     unittest.main()

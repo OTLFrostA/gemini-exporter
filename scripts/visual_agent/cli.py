@@ -22,11 +22,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from scripts.visual_agent.playground import open_visual_playground
 
 
-def main():
+def parse_args(argv=None):
     common_parser = argparse.ArgumentParser(add_help=False)
-    common_parser.add_argument("--port", type=int, default=9222, help="CDP debug port (default: 9222)")
-    common_parser.add_argument("--target", type=str, default=None, choices=["options", "gemini", "chat", "workbench", "popup"], help="Target page (default: auto-detect from active state)")
-    common_parser.add_argument("--json", action="store_true", help="Output result in structured JSON format")
+    common_parser.add_argument("--port", type=int, default=argparse.SUPPRESS, help="CDP debug port (default: 9222)")
+    common_parser.add_argument("--target", type=str, default=argparse.SUPPRESS, choices=["options", "gemini", "chat", "workbench", "popup"], help="Target page (default: auto-detect from active state)")
+    common_parser.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Output result in structured JSON format")
 
     parser = argparse.ArgumentParser(description="Gemini Exporter Visual Playground CLI", parents=[common_parser])
     subparsers = parser.add_subparsers(dest="command", help="Playground command")
@@ -88,11 +88,17 @@ def main():
     p_eval.add_argument("--chat-id", type=str, default=None, help="Target conversation ID to assert presence and validity")
     p_eval.add_argument("--require-golden", action="store_true", help="Assert presence and deep content of core test golden dataset")
 
-    args = parser.parse_args()
-
+    # Shared options can appear before or after the subcommand. A child parser
+    # must not overwrite explicitly supplied parent options with its defaults.
+    args = parser.parse_args(argv, namespace=argparse.Namespace(port=9222, target=None, json=False))
     if not args.command:
         parser.print_help()
         sys.exit(1)
+    return args
+
+
+def main():
+    args = parse_args()
 
     if args.command == "reinstall":
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))

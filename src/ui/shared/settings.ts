@@ -27,7 +27,15 @@ export function observeSettings(refresh: () => void): () => void {
     chrome.storage.onChanged.addListener(listener);
     return () => chrome.storage.onChanged.removeListener(listener);
 }
-export const errorText = (error: unknown): string => error instanceof Error ? error.message : String(error);
+export function errorText(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    // Runtime errors remain language-neutral; translate known user actions at the UI boundary.
+    if (message === 'Open Gemini, log in and refresh the page before scanning.')
+        return text(message, '请先打开 Gemini 并登录，刷新 Gemini 页面后再同步会话。');
+    if (message === 'Multiple Gemini accounts are open. Select the account to scan.')
+        return text(message, '当前打开了多个 Gemini 账号，请选择要同步的账号。');
+    return message;
+}
 /** Translate static UI nodes only; dynamic titles, messages, paths and logs are rendered by their views. */
 export function labelPage(): void {
     document.querySelectorAll<HTMLElement>('[data-en][data-zh], [data-ui-en][data-ui-zh]').forEach(el => {

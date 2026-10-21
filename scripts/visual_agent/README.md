@@ -4,6 +4,19 @@ Use the isolated Chrome debugging endpoint (9222), never a personal browser prof
 The explorer sees screenshots only and operates through the seven visual CLI primitives.
 The host prepares the browser; the explorer must not read DOM or application source.
 
+## CLI target arguments and extension identity
+
+Shared `--target`, `--port`, and `--json` arguments work before or after the
+subcommand. For example, `cli.py --target popup --json screenshot` and
+`cli.py screenshot --target popup --json` observe the same requested target.
+An explicitly requested target must never silently become the last active page.
+
+Discovery recognizes exact Exporter entrypoints, including the production
+`dist/background/background.js` worker. Unrelated extensions are never fallback
+candidates; ambiguous Exporter installations fail explicitly. Clean reinstallation
+uses the ID returned by Chrome for the requested workspace path and stops on identity
+or uninstall failure, rather than claiming a clean install after a failed removal.
+
 ## Fresh install / disconnected onboarding
 
 Stop the previous isolated debugging browser before switching profiles. Preserve its profile

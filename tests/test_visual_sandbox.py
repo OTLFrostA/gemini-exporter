@@ -608,5 +608,28 @@ class TestCustomAIVisionProvider(unittest.TestCase):
         self.assertIn("未配置 CUSTOM_AI_ENDPOINT", review)
 
 
+class TestVisualCliArguments(unittest.TestCase):
+    def test_shared_options_survive_on_either_side_of_command(self):
+        from scripts.visual_agent.cli import parse_args
+        for target in ("gemini", "popup", "workbench"):
+            for argv in (["--target", target, "--port", "9333", "--json", "screenshot"],
+                         ["screenshot", "--target", target, "--port", "9333", "--json"],
+                         ["--target", target, "screenshot", "--port", "9333", "--json"]):
+                with self.subTest(argv=argv):
+                    args = parse_args(argv)
+                    self.assertEqual((args.target, args.port, args.json), (target, 9333, True))
+        args = parse_args(["screenshot"])
+        self.assertEqual((args.target, args.port, args.json), (None, 9222, False))
+        self.assertEqual(parse_args(["--target", "gemini", "screenshot", "--target", "popup"]).target, "popup")
+
+    @patch("scripts.visual_agent.cli.open_visual_playground")
+    def test_main_routes_to_requested_target_with_parent_options(self, open_playground):
+        from scripts.visual_agent.cli import main
+        with patch.object(sys, "argv", ["cli.py", "--target", "gemini", "--port", "9333", "screenshot"]):
+            main()
+        open_playground.assert_called_once_with(port=9333, target_page="gemini")
+        open_playground.return_value.capture_screen.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

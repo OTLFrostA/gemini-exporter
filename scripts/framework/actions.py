@@ -98,16 +98,21 @@ class ExtensionActions:
             print(f"❌ 无法获取 Chrome Browser WebSocket (端口 {port})")
             return None
 
-        old_ext_id = get_extension_id(port)
         cdp = CDPConnection(browser_ws)
         try:
-            if old_ext_id:
-                print(f"   🗑️ 正在通过 CDP Extensions.uninstall 卸载旧扩展 ({old_ext_id})...")
-                try:
-                    cdp.call("Extensions.uninstall", {"id": old_ext_id})
-                except Exception as e:
-                    print(f"   ⚠️ 卸载旧扩展提示: {e}")
-                time.sleep(0.5)
+            # Chrome's workspace load result is authoritative, even when the
+            # worker is asleep or another extension has similarly named pages.
+            identity = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
+            old_ext_id = identity.get("result", {}).get("id")
+            if not old_ext_id:
+                print(f"❌ 无法确认工作区扩展身份，停止重装: {identity}")
+                return None
+            print(f"   🗑️ 正在通过 CDP Extensions.uninstall 卸载工作区扩展 ({old_ext_id})...")
+            removed = cdp.call("Extensions.uninstall", {"id": old_ext_id})
+            if "error" in removed:
+                print(f"❌ 工作区扩展卸载失败，停止重装: {removed}")
+                return None
+            time.sleep(0.5)
 
             print(f"   📦 正在通过 CDP Extensions.loadUnpacked 安装扩展: {repo_path}...")
             res = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
