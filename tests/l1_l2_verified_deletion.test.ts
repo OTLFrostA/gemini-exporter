@@ -150,19 +150,17 @@ test('Metadata-only Detail retry propagates confirmed NotFound instead of accept
     assert.equal(calls, 2);
 });
 
-test('Metadata-only Detail still tolerates non-NotFound retry failures', async () => {
+test('Metadata-only Detail with a transient retry failure cannot be admitted as empty', async () => {
     const first = sourceDetail({ messages: [] });
     first.transport.decodedPayload = [null, null, [['c_source_chat_123', 'Source title']]];
     let calls = 0;
-    const result = await getConversationDetail({
+    await assert.rejects(getConversationDetail({
         async fetchConversationPage() {
             if (++calls === 1) return first;
             throw new Error('transient metadata retry failure');
         },
-    }, 'source_chat_123');
+    }, 'source_chat_123'), /GEMINI_DETAIL_EMPTY_UNVERIFIED/);
     assert.equal(calls, 2);
-    assert.equal(result.conversationId, 'source_chat_123');
-    assert.equal(result.conversation.detail.messages.length, 0);
 });
 
 

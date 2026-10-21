@@ -24,11 +24,22 @@ test('userPreferences - feature version persists through Settings; version compa
         assert.equal(isVersionGreater('1.10.0', '1.9.0'), true); assert.equal(isVersionGreater('1.0.0', '1.0.0'), false);
     } finally { env.restore(); }
 });
-test('userPreferences - Takeout completion persists; the removed direct-write suppression is not read', async () => {
+test('informational prompts are durable one-time preferences and honor older acknowledgements', async () => {
     const env = indexStorage({ gemini_suppress_direct_write_prompt: true }); try {
-        assert.equal((await getSettings()).takeoutPromptCompleted, undefined);
-        await updateSettings({ takeoutPromptCompleted: true }); const settings = await getSettings();
-        assert.equal(settings.takeoutPromptCompleted, true); assert.equal(Object.hasOwn(settings, 'suppressDirectWritePrompt'), false);
+        const initial = await getSettings();
+        assert.equal(initial.directWritePromptCompleted, true, 'do not replay the v1 bulk tip');
+        assert.equal(initial.takeoutPromptCompleted, undefined);
+        await updateSettings({ takeoutPromptCompleted: true });
+        const settings = await getSettings();
+        assert.equal(settings.takeoutPromptCompleted, true);
+        assert.equal(settings.directWritePromptCompleted, true);
+    } finally { env.restore(); }
+});
+test('large batch tip completion persists without old suppression key', async () => {
+    const env = indexStorage(); try {
+        assert.equal((await getSettings()).directWritePromptCompleted, undefined);
+        await updateSettings({ directWritePromptCompleted: true });
+        assert.equal((await getSettings()).directWritePromptCompleted, true);
     } finally { env.restore(); }
 });
 test('userPreferences - position and language roundtrip; ZIP and diagnostics remain outside Settings', async () => {

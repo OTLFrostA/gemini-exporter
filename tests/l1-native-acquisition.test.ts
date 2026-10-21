@@ -103,6 +103,54 @@ test('metadata-only detail retry follows native pagination to its terminal page'
 });
 
 
+test('an explicit empty native Detail turn array remains a valid source result', async () => {
+    const empty = parseGeminiRpcConversation(rpc([[], null, 'Empty conversation']), {
+        account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native',
+    });
+    const result = await getConversationDetail({
+        async fetchConversationPage() { return empty; },
+    }, 'native');
+    assert.equal(result.conversationId, 'native');
+    assert.deepEqual(result.conversation.detail.messages, []);
+    assert.equal(result.conversation.detail.quality.status, 'unknown');
+});
+
+test('metadata-only retry accepts a native explicit empty Detail without using stale metadata transport', async () => {
+    const metadata = parseGeminiRpcConversation(rpc([null, null, [['c_native', 'Title']]]), {
+        account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native',
+    });
+    const emptyBody = [[], null, 'Verified empty conversation'];
+    const verified = parseGeminiRpcConversation(rpc(emptyBody), {
+        account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native',
+    });
+    const calls: Array<{ detailOnly?: boolean; altParams?: boolean }> = [];
+    const result = await getConversationDetail({
+        async fetchConversationPage(_id, _token, _sid, options) {
+            calls.push({ detailOnly: options?.detailOnly, altParams: options?.altParams });
+            return options?.detailOnly ? verified : metadata;
+        },
+    }, 'native');
+    assert.deepEqual(calls, [
+        { detailOnly: undefined, altParams: undefined },
+        { detailOnly: true, altParams: true },
+    ]);
+    assert.deepEqual(result.conversation.detail.messages, []);
+    assert.equal(result.conversation.detail.quality.status, 'unknown');
+    assert.deepEqual(result.transport.decodedPayload, emptyBody);
+});
+
+test('native metadata-only Detail cannot succeed when its alternate also has no turns', async () => {
+    const metadata = parseGeminiRpcConversation(rpc([null, null, [['c_native', 'Title']]]), {
+        account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native',
+    });
+    let calls = 0;
+    await assert.rejects(getConversationDetail({
+        async fetchConversationPage() { calls++; return metadata; },
+    }, 'native'), /GEMINI_DETAIL_EMPTY_UNVERIFIED/);
+    assert.equal(calls, 2);
+});
+
+
 test('cooperative ZIP decoding yields to the event loop and preserves synchronous HTML semantics', async () => {
     const { parseGeminiTakeoutArchive, parseGeminiTakeoutArchiveAsync } = require('../src/l1/parsers/gemini/takeout/parseConversation.js') as typeof import('../src/l1/parsers/gemini/takeout/parseConversation.js');
     const raw = { htmlText: Array.from({ length: 120 }, (_, index) => activity(`Question ${index}`)).join('') };
