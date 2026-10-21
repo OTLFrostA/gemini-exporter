@@ -55,6 +55,25 @@ test('real PDF keeps character diagrams on source lines and combining graphemes 
 });
 
 
+test('real PDF preserves wide ASCII box rows without wrapping their endpoints', async () => {
+    const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
+    const border = '+' + '-'.repeat(115) + '+';
+    const row = '| Node joins' + ' '.repeat(92) + 'paths. |';
+    try {
+        const result = await compileDocumentPdf(v2Document([
+            { type: 'code', language: 'text', code: border + '\n' + row + '\n' + border },
+        ]), {}, new Map(), compiler, context());
+        const page = probePdfLayout(result.pdfBytes).pages[0];
+        const left = page.runs.find(run => run.text.includes('Node'))!;
+        const right = page.runs.find(run => run.text.includes('paths.'))!;
+        assert.ok(left && right);
+        assert.ok(Math.abs(left.y - right.y) < 0.2, 'ASCII row endpoints share one baseline');
+        assert.equal(extractPdfText(result.pdfBytes).contentRuns.filter(run => run.kind === 'code')
+            .map(run => run.text).join('').replace(/\s/g, ''), (border + row + border).replace(/\s/g, ''));
+    } finally { compiler.dispose(); }
+});
+
+
 test('short PDF source footers retain the preceding context across page boundaries', async () => {
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
     try {
