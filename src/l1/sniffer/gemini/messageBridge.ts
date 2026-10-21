@@ -87,7 +87,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
             if (text.includes(GeminiProtocol.RPCS.DETAIL)) {
                 const request = field('detailRequest');
                 if (request !== undefined && (!request || typeof request !== 'object'
-                    || typeof request.conversationId !== 'string' || !/^[\\w-]{1,128}$/.test(request.conversationId)
+                    || !('conversationId' in request) || typeof request.conversationId !== 'string' || !/^[\\w-]{1,128}$/.test(request.conversationId)
                     || !('requestCursor' in request) || (request.requestCursor !== null && typeof request.requestCursor !== 'string'))) return;
                 parsedDetail = parseGeminiRpcConversation(text, { providerId: 'gemini' });
                 if (request && typeof request === 'object' && 'conversationId' in request
