@@ -47,7 +47,7 @@ test('Browser export visibly stages each result before ZIP delivery without mark
             const h = Reflect.get(window, 'harness');
             h.exportOptions.onItemUpdate({ key: h.indexes[0].key, status: 'prepared' });
         });
-        assert.equal(await page.locator('[data-chat-id="one"] .status-prepared').textContent(), 'Prepared for download');
+        assert.equal(await page.locator('[data-chat-id="one"] .status-prepared').textContent(), 'Rendered, awaiting download');
         assert.equal(await page.locator('[data-chat-id="one"] .status-exported').count(), 0);
         assert.match(await page.locator('#bar').getAttribute('style') ?? '', /width:\s*45%/);
         assert.equal(await page.evaluate(() => Object.keys(Reflect.get(window, 'harness').records).length), 0);
@@ -58,7 +58,7 @@ test('Browser export visibly stages each result before ZIP delivery without mark
             h.records[h.indexes[0].key.accountId] = { one: record };
             h.exportOptions.onItemUpdate({ key: h.indexes[0].key, status: 'exported', record });
         });
-        assert.equal(await page.locator('[data-chat-id="one"] .status-exported').textContent(), 'Last export complete');
+        assert.match(await page.locator('[data-chat-id="one"] .status-exported').textContent() ?? '', /^Export successful \(.+\)$/);
         assert.equal(await page.locator('.status-prepared').count(), 0);
         await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');
@@ -85,12 +85,41 @@ test('Folder export updates persisted item badges and the bar before the full ba
             h.records[h.indexes[0].key.accountId] = { one: record };
             h.exportOptions.onItemUpdate({ key: h.indexes[0].key, status: 'exported', record });
         });
-        assert.equal(await page.locator('[data-chat-id="one"] .status-exported').textContent(), 'Last export complete');
+        assert.match(await page.locator('[data-chat-id="one"] .status-exported').textContent() ?? '', /^Export successful \(.+\)$/);
         assert.equal(await page.locator('[data-chat-id="two"] .status-exported').count(), 0);
         assert.match(await page.locator('#bar').getAttribute('style') ?? '', /width:\s*50%/);
         assert.match(await page.locator('#status').textContent() ?? '', /saved 1/);
 
         await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    } finally { await browser.close(); }
+});
+
+test('failed export temporarily overrides an old success badge and retry clears it', async () => {
+    const browser = await chromium.launch({ headless: true });
+    try {
+        const page = await browser.newPage();
+        await mount(page, 'options', { holdExport: true, failExport: true,
+            indexes: [{ key: { accountId: A, conversationId: 'one' }, title: 'One', updatedAt: 100 }],
+            records: { [A]: { one: { format: 'markdown', exportedAt: 200, chatTime: 100, status: 'ok' } } }
+        });
+        assert.match(await page.locator('[data-chat-id="one"] .status-exported').textContent() ?? '', /^Export successful/);
+        await page.locator('#btnSelectAll').click();
+        await page.locator('#btnExport').click();
+        await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishExport === 'function');
+        await page.evaluate(() => {
+            const h = Reflect.get(window, 'harness');
+            h.exportOptions.onItemUpdate({ key: h.indexes[0].key, status: 'failed' });
+        });
+        assert.equal(await page.locator('[data-chat-id="one"] .status-failed').textContent(), 'Export failed');
+        assert.equal(await page.locator('[data-chat-id="one"] .status-exported').count(), 0);
+        await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+        await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+        assert.equal(await page.locator('[data-chat-id="one"] .status-failed').textContent(), 'Export failed');
+        await page.evaluate(() => { const h = Reflect.get(window, 'harness'); h.failExport = false; h.holdExport = false; });
+        await page.locator('#btnRetryFailed').click();
+        await page.waitForFunction(() => Reflect.get(window, 'harness').exports.length === 2 && document.body.dataset.busy !== 'true');
+        assert.match(await page.locator('[data-chat-id="one"] .status-exported').textContent() ?? '', /^Export successful/);
+        assert.equal(await page.locator('.status-failed').count(), 0);
     } finally { await browser.close(); }
 });
