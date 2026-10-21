@@ -94,6 +94,7 @@ Tier 3 纯视觉测试专为评估黑盒环境下的真实视觉交互与自主�
 * **途径一：无 Context 子智能体自主探索 (Subagent Mode, 首选推荐)**：
   - 由宿主 Agent（如 Antigravity）通过 `invoke_subagent` 拉起一个全新的、**无任何历史上下文污染的子智能体 (`Tier 3 Visual QA Explorer`)**；
   - 子智能体基于纯截屏视觉感知（0 DOM 树访问、0 JS 注入），自主推导目标、调度硬件级鼠标/键盘动作，并在推演完毕后如实沉淀特性清单、自愈轨迹与 UX 风险。
+  - **父 Agent 编排三轮、子 Agent 保持自由**：首轮只做纯自主探索、不提前展示清单；首轮返回后，父 Agent 将 [`tier3-exploration-checklist.md`](../docs/tier3-exploration-checklist.md) **完整正文**发给**同一子 Agent 会话**继续探索；第二轮返回后，再发送**同一份完整正文**一次；第三轮返回后才提交最终报告。不中途重开 Playground，不添加时间/操作预算，也不要求 100% 勾选。详见 [`AGENTS.md`](../AGENTS.md) 的父 Agent 执行协议；如果宿主工具不支持续发同一个子 Agent，应如实告知，不能冒充续跑。
 * **途径二：自定义 / 第三方 AI 接口驱动 (Custom AI API Mode)**：
   - 面向未来或外部第三方多模态 AI 接入，通过通用 `CustomAIVisionProvider` 连接兼容 OpenAI 或自建多模态视觉端点（`CUSTOM_AI_ENDPOINT`）；
   - 自动驱动 `AutonomousVisualAgent` 的 ReAct 推演循环完成指定自然语言目标，并可生成在线视觉体检审查报告。
