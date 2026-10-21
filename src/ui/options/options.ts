@@ -52,6 +52,7 @@ export async function initWorkbench(): Promise<void> {
         // Only one of the progress label and final/status line is visible at a time.
         el('progText').textContent = '';
         el<HTMLElement>('progText').style.display = 'none';
+        el<HTMLElement>('scanSlowHint').style.display = 'none';
         el('status').textContent = message;
         el<HTMLElement>('status').style.display = 'block';
         log.push({ at: Date.now(), level, message });
@@ -184,6 +185,7 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLElement>('bar').style.width = '0%';
         el('progText').textContent = '';
         el<HTMLElement>('progText').style.display = 'none';
+        el<HTMLElement>('scanSlowHint').style.display = 'none';
         el('status').textContent = '';
         el<HTMLElement>('status').style.display = 'block';
         render();
@@ -236,10 +238,17 @@ export async function initWorkbench(): Promise<void> {
         const startedAt = Date.now();
         const signal = controller!.signal;
         status(text('Resolving Gemini source…', '正在确认 Gemini 来源…'));
+        const slowHint = el<HTMLElement>('scanSlowHint');
+        slowHint.textContent = text(
+            'As conversation history grows, Gemini scans may take significantly longer.',
+            '随着对话历史增加，Gemini 的扫描时间可能会显著变长。');
         const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
-            onTarget: select, onProgress: p => progress(
-                text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
-                    `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`)) });
+            onTarget: select, onProgress: p => {
+                if (!busy || signal.aborted) return;
+                progress(text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
+                    `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`));
+                slowHint.style.display = p.conversationsFetched > 200 ? 'block' : 'none';
+            } });
         scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result });
         if (scanRuns.length > 10) scanRuns.shift();
         const reasons: Record<string, string> = {
