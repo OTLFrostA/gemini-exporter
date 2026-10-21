@@ -5,36 +5,37 @@ import type { ExportRecord } from '../../../application/export/types.js';
 import type { ConversationViewState } from '../state/conversationsStore.js';
 import { text } from '../../shared/settings.js';
 
-/** Presentation-only status. Domain and Application remain authorities for updates and Skip. */
-function viewStatus(record: ExportRecord | undefined) {
-    if (!record) return { label: text('No export record', '无导出记录'), className: '' };
-    if (record.status === 'partial' && record.attachmentIssues?.length) {
-        const kinds = new Set(record.attachmentIssues.map(issue => resourceIssueKind(attachmentFailure(issue))));
-        const labels = [
-            ...(kinds.has('expired') ? [text('Contains unavailable source attachments', '含失效附件')] : []),
-            ...(kinds.has('restricted') ? [text('Attachment access restricted', '附件访问受限')] : []),
-            ...(kinds.has('download') ? [text('Attachment download failed; retry', '附件下载失败，可重试')] : []),
-            ...(kinds.has('processing') ? [text('Attachment processing failed', '附件处理失败')] : []),
-            ...(record.otherContentMissing ? [text('Other content missing', '其他内容不完整')] : [])];
-        return { label: labels.join(' · '), className: kinds.size === 1 && kinds.has('expired') && !record.otherContentMissing ? 'status-unavailable' : 'status-partial' };
+/** Display recent ExportRecord facts and transient delivery results; Application still owns Skip. */
+function viewStatus(index: DomainConversationIndex, record: ExportRecord | undefined, prepared: boolean, failed: boolean) {
+    if (failed) return { label: text('Export failed', '导出失败'), className: 'status-failed' };
+    if (prepared) return { label: text('Rendered, awaiting download', '渲染成功，等待下载'), className: 'status-prepared' };
+    if (!record) return { label: '', className: '' };
+    if (record.status === 'partial') {
+        if (record.otherContentMissing || !record.attachmentIssues?.length)
+            return { label: text('Incomplete export', '导出不完整'), className: 'status-partial' };
+        const onlyExpired = record.attachmentIssues.every(issue =>
+            resourceIssueKind(attachmentFailure(issue)) === 'expired');
+        return onlyExpired
+            ? { label: text('Some attachments expired', '部分附件过期'), className: 'status-unavailable' }
+            : { label: text('Some attachments failed', '部分附件获取失败'), className: 'status-unavailable' };
     }
-    if (record.status === 'partial') return { label: text('Partial export', '部分导出'), className: 'status-partial' };
-    return { label: text('Last export complete', '上次导出完整'), className: 'status-exported' };
+    if (record.chatTime !== undefined && index.updatedAt !== undefined
+        && Number.isSafeInteger(record.chatTime) && Number.isSafeInteger(index.updatedAt)
+        && index.updatedAt > record.chatTime)
+        return { label: text('Updated', '有更新'), className: 'status-updated' };
+    return { label: text(`Export successful (${date(record.exportedAt)})`, `导出成功（${date(record.exportedAt)}）`), className: 'status-exported' };
 }
 function date(value: number | undefined): string {
     return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString();
 }
 
-export function renderList(state: ConversationViewState, disabled: boolean, preparedKeys?: ReadonlySet<string>): void {
+export function renderList(state: ConversationViewState, disabled: boolean, preparedKeys?: ReadonlySet<string>, failedKeys?: ReadonlySet<string>): void {
     const list = document.getElementById('list')!;
     list.replaceChildren();
     for (const index of state.visible()) {
         const id = index.key.conversationId;
         const record = state.records[id];
-        const prepared = preparedKeys?.has(id) ?? false;
-        const status = prepared
-            ? { label: text('Prepared for download', '已准备，待下载'), className: 'status-prepared' }
-            : viewStatus(record);
+        const status = viewStatus(index, record, preparedKeys?.has(id) ?? false, failedKeys?.has(id) ?? false);
         const row = document.createElement('div');
         row.className = 'item'; row.dataset.chatId = id;
         const checkbox = document.createElement('input');
@@ -63,10 +64,7 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
         }
         const meta = document.createElement('small'); meta.className = 'meta'; meta.style.display = 'block';
         const seen = date(index.updatedAt);
-        const exported = date(record?.exportedAt);
-        meta.textContent = [seen, prepared ? status.label : record
-            ? `${text('Last export', '上次导出')} · ${record.format} · ${exported} · ${status.label}`
-            : text('No export record', '无导出记录')].filter(Boolean).join(' · ');
+        meta.textContent = [seen, record ? `${text('Last export', '上次导出')} · ${record.format}` : ''].filter(Boolean).join(' · ');
         body.append(heading, meta);
         if (record?.attachmentIssues?.length) {
             const details = document.createElement('details'); details.className = 'attachment-issues';
