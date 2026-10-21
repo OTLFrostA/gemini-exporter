@@ -1,5 +1,11 @@
-/* Wait for stored appearance before showing either extension page. */
-:root[data-theme="loading"] { visibility: hidden; }
+/* Keep first paint hidden until the saved palette is fully initialized.
+   Suppress only bootstrap transitions: changing from the dark defaults to the
+   persisted Light palette must not animate dark cards/buttons into view. */
+:root[data-theme="loading"],
+:root[data-theme-unready] { visibility: hidden; }
+:root[data-theme-bootstrap] *,
+:root[data-theme-bootstrap] *::before,
+:root[data-theme-bootstrap] *::after { transition: none !important; }
 
 /* Light palette for extension Popup, Options and Tour.
    Keep the existing dark rules untouched to preserve the original appearance. */
