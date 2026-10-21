@@ -7,6 +7,16 @@
     const show = (theme) => {
         // The app's normal Settings reader may have resolved first.
         if (root.dataset.theme === 'loading') root.dataset.theme = theme === 'light' ? 'light' : 'dark';
+        const reveal = () => {
+            // Keep transitions suppressed for a complete hidden Light/Dark frame.
+            // Revealing immediately would animate dark hardcoded controls into Light.
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                root.removeAttribute('data-theme-bootstrap');
+            }));
+        };
+        if (document.readyState === 'loading')
+            document.addEventListener('DOMContentLoaded', reveal, { once: true });
+        else reveal();
     };
     try {
         chrome.storage.local.get(key).then(data => show(data[key]?.theme)).catch(() => show('dark'));
