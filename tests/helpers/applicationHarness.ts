@@ -277,9 +277,9 @@ export function seed(id = 'first', options: {
             ],
         }],
         assets: options.assets ? [
-            { id: 'image', kind: 'image', mediaType: 'image/png' },
-            { id: 'file', kind: 'file' },
-            { id: 'unused', kind: 'file' },
+            { id: 'image', kind: 'image', mediaType: 'image/png', sourceUri: 'https://example.com/image.png' },
+            { id: 'file', kind: 'file', sourceUri: 'https://example.com/file.txt' },
+            { id: 'unused', kind: 'file', sourceUri: 'https://example.com/unused.txt' },
         ] : [],
     } as unknown as TrustedDomainBody;
     indexes.set(address(conversationKey), index);

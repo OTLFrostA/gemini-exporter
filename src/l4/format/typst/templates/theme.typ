@@ -32,6 +32,7 @@
 )
 
 #let font-mono = (
+    "Courier New",
   "SF Mono",
   "Menlo",
   "Monaco",
@@ -128,6 +129,7 @@
   show math.equation: set text(font: font-math)
   set par(leading: body-leading, spacing: 0pt, justify: false)
   set list(indent: 0pt, body-indent: 0.66em, spacing: sp-inline)
+  set enum(indent: 0pt, body-indent: 0.66em, spacing: sp-inline)
   set heading(numbering: none)
 
   show heading.where(level: 1): it => block(

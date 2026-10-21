@@ -264,7 +264,15 @@
       // Code fidelity wins over syntax highlighting, so `lang:` is dropped here.
       // The header above still shows the language tag; that is separate.
       // Do not restore `raw(..., lang:)` until the vendored Typst runtime is upgraded and this regression test passes.
-      #raw(code, block: true, theme: "quiet-light.tmTheme")
+      #layout(size => {
+        // Preserve the geometry of character diagrams; ordinary source code wraps.
+        let diagram = header.match(regex("(?i)^(text|plaintext|ascii|diagram)( ·|$)")) != none and code.match(regex("[─│┌┐└┘═║╔╗╚╝→←↑↓▲▼]|[-=]{2,}>|<[-=]{2,}")) != none
+        let longest = if diagram { calc.max(1pt, ..code.split("\n").map(line =>
+          measure(text(font: font-mono, size: code-size, line)).width)) } else { 1pt }
+        let fitted-size = code-size * calc.min(1, size.width / longest)
+        show raw.where(block: true): set text(size: fitted-size)
+        raw(code, block: true, theme: "quiet-light.tmTheme")
+      })
     ]
   ],
   width,

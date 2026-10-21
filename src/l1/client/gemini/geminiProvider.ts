@@ -144,6 +144,8 @@ export class GeminiProvider implements GeminiProviderContract {
         const account = await getAccount(key.accountId);
         if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
         const remote = async () => {
+            if (!/^https:\/\//i.test(asset.sourceUri ?? '') && asset.document?.contentMarkdown) return { bytes: new TextEncoder().encode(asset.document.contentMarkdown),
+                mediaType: asset.mediaType ?? 'text/markdown', ...(asset.name ? { name: asset.name } : {}) };
             if (!asset.sourceUri?.startsWith('data:')) await this.context(key.accountId);
             return acquireSourceResource(asset, signal);
         };
