@@ -60,7 +60,7 @@ function reply(jobId: string, payload: Record<string, unknown>, transfer?: Trans
 }
 
 function replyError(jobId: string, error: unknown): void {
-    const name = error instanceof DOMException ? error.name : 'Error';
+    const name = error instanceof Error || error instanceof DOMException ? error.name : 'Error';
     const message = error instanceof Error ? error.message : String(error);
     reply(jobId, { type: SANDBOX_TO_HOST.ERROR, error: { name, message } });
 }
