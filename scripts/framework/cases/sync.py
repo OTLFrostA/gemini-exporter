@@ -122,6 +122,9 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         if not ok:
             raise RuntimeError(message)
         print('      ✓ 网页自然加载建立 Coverage，未点击 Sync All')
+        # Reload creates a new content instance. Passive request attribution is
+        # not proof that its current active route is ready for Application RPCs.
+        select_source_account(cdp_opt, cdp_gemini)
         clear_scan_records(cdp_opt)
         full = CDPActions.trigger_deep_scan(cdp_opt)
         state = read_sync_state(cdp_opt)

@@ -40,13 +40,13 @@ if (first.nodeType !== 'paragraph') throw new Error('fixture shape');
 const fileCitation = first.children.find(node => node.nodeType === 'citation');
 assert.ok(fileCitation);
 
-test('captured file references use structured content, preserving inline code, list order, and source labels', () => {
+test('captured file references use structured content, preserving inline code, list order, and hidden file-source metadata', () => {
     const result = parse(capturedFiles);
     const message = successful(result);
     assert.deepEqual(message.citations, [{ id: 'grounding-1', title: 'test_config.json' }]);
     assert.deepEqual(message.content[0], { type: 'paragraph', children: [
         { type: 'text', text: 'Loaded ' }, { type: 'inlineCode', code: 'test_config.json' },
-        { type: 'citationRef', citationId: 'grounding-1', label: '[1]' }, { type: 'text', text: ':' },
+        { type: 'text', text: ':' },
     ] });
     const list = message.content[1];
     assert.equal(list.type, 'list');
@@ -55,7 +55,7 @@ test('captured file references use structured content, preserving inline code, l
         assert.equal(item.blocks.length, 1, 'trailing citations stay in their list paragraph');
         const paragraph = item.blocks[0];
         assert.equal(paragraph.type, 'paragraph');
-        if (paragraph.type === 'paragraph') assert.equal(paragraph.children.at(-1)?.type, 'citationRef');
+        if (paragraph.type === 'paragraph') assert.ok(!paragraph.children.some(node => node.type === 'citationRef'));
     }
     const serialized = JSON.stringify(message.content);
     assert.ok(!serialized.includes('json`'), 'quoted citation metadata is not duplicated as body text');
@@ -76,7 +76,7 @@ test('composite paragraphs preserve math, Unicode, punctuation and multiple cita
         const result = parse({ children: [node] });
         const message = successful(result);
         assert.ok(JSON.stringify(message.content).includes('"source":"x_1"'));
-        assert.equal((JSON.stringify(message.content).match(/"type":"citationRef"/g) ?? []).length, 2);
+        assert.equal((JSON.stringify(message.content).match(/"type":"citationRef"/g) ?? []).length, 0);
         assert.ok(JSON.stringify(message.content).includes('. [1]'), 'literal numeric prose must not become a source reference');
         assert.equal(message.citations?.length, 2);
     }
@@ -86,7 +86,7 @@ test('captured optics table preserves cited cells on the native wire path', () =
     const message = successful(parse(fixture('live-optics-table-citations')));
     assert.equal(message.content.length, 1);
     assert.equal(message.content[0].type, 'table');
-    assert.ok(JSON.stringify(message.content).includes('citationRef'));
+    assert.ok(!JSON.stringify(message.content).includes('citationRef'));
     assert.deepEqual(message.citations, [{ id: 'grounding-1', title: 'fixture-optics.jpg' }]);
 });
 
@@ -120,10 +120,7 @@ test('combined native file markers bind each number to its ordered source record
         { id: 'grounding-1', title: 'first-diagram.jpg' },
         { id: 'grounding-2', title: 'second-diagram.jpg' },
     ]);
-    assert.deepEqual(message.content, [{ type: 'paragraph', children: [
-        { type: 'citationRef', citationId: 'grounding-1', label: '[1]' },
-        { type: 'citationRef', citationId: 'grounding-2', label: '[2]' },
-    ] }]);
+    assert.deepEqual(message.content, [{ type: 'paragraph', children: [] }]);
     const inline = successful(parse({ children: [{ nodeType: 'paragraph', children: [
         { nodeType: 18, text: 'Before ' }, ...decoded.children, { nodeType: 18, text: ' after.' },
     ] }] }));
@@ -138,11 +135,11 @@ test('combined native file markers bind each number to its ordered source record
     }
 });
 
-test('standalone citation after display math is preserved after the equation', () => {
+test('standalone hidden file chip after display math adds no visible marker', () => {
     const message = successful(parse({ children: [{ nodeType: 12, FTa: 'a=b' }, fileCitation] }));
     assert.equal(message.content[0].type, 'math');
     assert.equal(message.content[1].type, 'paragraph');
-    assert.ok(JSON.stringify(message.content[1]).includes('grounding-1'));
+    assert.deepEqual(message.content[1], { type: 'paragraph', children: [] });
 });
 
 test('captured source attributions retain all six URLs and nested bold formatting in source content', () => {

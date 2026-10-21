@@ -12,7 +12,7 @@ const detailFact = { messages: [], assets: [], quality: { status: 'unknown' as c
 const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.google.com/app' };
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
-    const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
+    const ports = { 'src/application/conversations/refreshConversation.js': { refreshConversation: () => assert.fail('Unexpected source refresh') }, 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
@@ -44,6 +44,8 @@ async function invoke(handler: Function, message: unknown, origin: unknown = sen
 
 test('ingestion awaits L2 commit, forwards empty terminal page and never writes Storage directly', async () => {
     global.chrome = chromeBase() as any;
+    const notifications: unknown[] = [];
+    Reflect.set(chrome.runtime, 'sendMessage', async (message: unknown) => { notifications.push(message); });
     let commit!: () => void;
     let args: unknown[] = [];
     const gate = new Promise<void>(resolve => { commit = resolve; });
@@ -57,9 +59,11 @@ test('ingestion awaits L2 commit, forwards empty terminal page and never writes 
     const result = invoke(handle, { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [], page }).then(value => { answered = true; return value; });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(answered, false);
+    assert.deepEqual(notifications, [], 'uncommitted facts cannot invalidate an open view');
     assert.deepEqual(args, [uuid, [], page]);
     commit();
     assert.deepEqual(await result, { ok: true });
+    assert.deepEqual(notifications, [{ action: 'domainChanged', accountId: uuid }]);
 });
 
 test('ingestion preserves Detail and Index facts; reports L2 errors', async () => {
@@ -558,13 +562,13 @@ test('CI scripts no longer reference Runtime modules removed by this PR', () => 
 // The Runtime test double assumes L1 emits onDetailChanged only after a
 // successful, changed Detail admission. Whether a particular Provider payload
 // changes Domain belongs to L1/L2 tests, not this Chrome wiring suite.
-test('Content wires only passive changed Detail to Live Save, never Stream/Index events', async () => {
+test('Content wires passive Detail and completed replies to unified Live Save', async () => {
     global.window = contentWindow() as any;
     global.document = { readyState: 'complete' } as any;
     const key = { accountId: uuid, conversationId: 'abcdef123456' };
     const triggered: unknown[] = [];
     let capture: { onDetailChanged?: (key: unknown) => void; onIndexesCommitted?: unknown;
-        onStreamStart?: unknown; onStreamComplete?: unknown } | undefined;
+        onStreamStart?: unknown; onStreamComplete?: (key: unknown) => void } | undefined;
     load('src/runtime/content/content.ts', {
         'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} },
         'src/l1/client/gemini/bootstrap.js': { initBootstrap() {} },
@@ -572,7 +576,7 @@ test('Content wires only passive changed Detail to Live Save, never Stream/Index
         'src/l1/sniffer/gemini/messageBridge.js': { MessageBridge: { init: (deps: typeof capture) => { capture = deps; } } },
         'src/ui/badge/badgeView.js': { BadgeView: { ensureBadge() {}, refreshAccount: async () => {} } },
         'src/runtime/content/liveSaveCoordinator.js': { LiveSaveCoordinator: {
-            init() {}, cleanup() {}, executeLiveSave: async (observed: unknown) => { triggered.push(observed); }
+            init() {}, cleanup() {}, executeLiveSave: async (observed: unknown, refresh = false) => { triggered.push({ key: observed, refresh }); }
         } },
         'src/runtime/content/accountContext.js': { setAccountChangedHandler() {}, invalidateAccountContext() {} },
         'src/runtime/content/pageObserver.js': { hookHistoryEvents() {} },
@@ -581,11 +585,13 @@ test('Content wires only passive changed Detail to Live Save, never Stream/Index
     assert.equal(typeof capture?.onDetailChanged, 'function');
     assert.equal(capture?.onIndexesCommitted, undefined);
     assert.equal(capture?.onStreamStart, undefined);
-    assert.equal(capture?.onStreamComplete, undefined);
+    assert.equal(typeof capture?.onStreamComplete, 'function');
     assert.deepEqual(triggered, []);
     capture!.onDetailChanged!(key);
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(triggered, [key]);
+    capture!.onStreamComplete!(key);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(triggered, [{ key, refresh: false }, { key, refresh: true }]);
 });
 
 test('resource IPC rejects aggregate duplicate Base64 fields before sending, while preserving small responses', async () => {
@@ -710,3 +716,34 @@ test('Runtime diagnostic timestamps have one numeric millisecond representation'
     assert.equal('isoTime' in event, false);
 });
 
+
+test('completed replies request source refresh only through unified Export', async () => {
+    const key = { accountId: uuid, conversationId: 'newreply' };
+    let options: unknown;
+    const save = live({ enabledDisk: true, defaultFormat: 'markdown' }, 'granted', true,
+        async (_request: unknown, received: unknown) => { options = received; return null; });
+    await save(key, true);
+    assert.deepEqual(options, { refreshDetail: true });
+});
+test('Live Save serializes same-Key writes and coalesces trailing events without losing refresh', async () => {
+    const key = { accountId: uuid, conversationId: 'queued' };
+    const calls: boolean[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const save = live({ enabledDisk: true, defaultFormat: 'markdown' }, 'granted', true,
+        async (_request: unknown, options: { refreshDetail: boolean }) => {
+            calls.push(options.refreshDetail);
+            if (calls.length === 1) await gate;
+            return null;
+        });
+    const first = save(key);
+    await new Promise(resolve => setImmediate(resolve));
+    const second = save(key, true);
+    const third = save(key);
+    assert.deepEqual(calls, [false]);
+    release();
+    await Promise.all([first, second, third]);
+    assert.deepEqual(calls, [false, true]);
+    await save(key);
+    assert.deepEqual(calls, [false, true, false], 'settled task is removed');
+});

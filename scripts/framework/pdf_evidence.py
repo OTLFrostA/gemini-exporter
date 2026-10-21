@@ -84,7 +84,9 @@ def assert_pdf_turn_content(info, evidence):
                     # cannot reuse already consumed content after normalization.
                     removed = set()
                     for marker in re.finditer(r'\[\d+\]|\*\*', raw):
-                        if marker[0] not in value:
+                        # Adjacent cells may contribute one literal * each. Their
+                        # concatenation is not an authored bold delimiter.
+                        if marker[0] not in value and not (marker[0] == '**' and '*' in value):
                             removed.update(range(marker.start(), marker.end()))
                     offsets = [at for at in offsets if at not in removed]
                     raw = ''.join(raw[at] for at in offsets)

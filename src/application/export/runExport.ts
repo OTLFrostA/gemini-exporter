@@ -41,6 +41,7 @@ interface PendingExport {
     conversation: ReadonlyDomain;
     document?: DocumentAst;
     prepared: PreparedResources;
+    refreshFailed: boolean;
     fileIds: ReadonlySet<string>;
 }
 interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
@@ -49,6 +50,8 @@ interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'export
 export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
     signal?: AbortSignal;
+    /** A completed reply requires a new source snapshot even if cached timestamps match. */
+    refreshDetail?: boolean;
 } = {}): Promise<ExportResult> {
     const failed: ConversationKey[] = [];
     const result = { exported: 0, skipped: 0, partial: 0, failed, aborted: false };
@@ -90,7 +93,7 @@ export async function runExport(request: ExportRequest, options: {
     };
     const renderGroup = async (item: PendingExport, plan: ExportPathPlan): Promise<ExportGroup> => {
         const { conversation, document, prepared, key } = item;
-        let partial = conversation.detail.quality.status !== 'complete'
+        let partial = item.refreshFailed || conversation.detail.quality.status !== 'complete'
             || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
                 && conversation.detail.savedAt < conversation.index.updatedAt)
             || [...prepared.values()].some(value => !value.ok);
@@ -139,17 +142,19 @@ export async function runExport(request: ExportRequest, options: {
                 if (!account) throw new Error('Account unavailable');
                 const localIndex = await getIndex(key);
                 const record = request.skipUnchanged ? await getExportRecord(key) : null;
-                if (localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
+                if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
                     result.skipped++;
                     continue;
                 }
                 let conversation = await readLocal(key);
-                if (!conversation || !isFresh(conversation)) {
+                let refreshFailed = false;
+                if (options.refreshDetail || !conversation || !isFresh(conversation)) {
                     try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal); }
                     catch (error) {
                         // L1 has reliably confirmed deletion and L2 has removed the local Key.
                         // Unlike a transient refresh failure, this must never fall back to old Detail.
                         if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
+                        refreshFailed = true;
                     }
                     // Even a failed refresh may have committed useful facts. Never export a response DTO.
                     conversation = await readLocal(key);
@@ -164,7 +169,7 @@ export async function runExport(request: ExportRequest, options: {
                 const fileIds = references?.fileIds ?? new Set<string>();
                 const prepared = await prepareExportResources(conversation.detail.assets, requiredIds,
                     (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
-                const item: PendingExport = { key, account, conversation, document, prepared, fileIds };
+                const item: PendingExport = { key, account, conversation, document, prepared, fileIds, refreshFailed };
                 if (folderPlanner) {
                     const group = await renderGroup(item, folderPlanner(conversation, prepared, fileIds));
                     await writeToFolder(group.files, directory!);

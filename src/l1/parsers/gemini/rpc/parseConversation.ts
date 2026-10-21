@@ -1,3 +1,4 @@
+import { hideGeminiFileCitations } from '../shared/fileCitations.js';
 import { closeGeminiCodeCitations } from '../shared/codeCitations.js';
 import type { GeminiStructuredNode } from './structuredContent.js';
 import { contentQuality } from '../../qualityEvidence.js';
@@ -99,6 +100,9 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             ...(legacyCitations.length ? { citations: legacyCitations } : {}),
         }, message.groundingCitationMarkers);
         if (message.role === 'model') {
+            const fileIds = new Set(citations.filter(citation => citation.id.startsWith('grounding-') && citation.title && !citation.url).map(citation => citation.id));
+            hideGeminiFileCitations(closed.content, fileIds);
+            if (closed.reasoning) hideGeminiFileCitations(closed.reasoning, fileIds);
             closeGeminiCodeCitations(closed.content, message.groundingCitationMarkers);
             if (closed.reasoning) closeGeminiCodeCitations(closed.reasoning, message.groundingCitationMarkers);
         }

@@ -34,7 +34,12 @@ export function parseConfirmedGeminiDeletion(requestBody: string, responseText: 
         const reply = replies[0] as unknown[];
         if (typeof reply[2] !== 'string' || reply[5] != null) return null;
         const confirmation: unknown = JSON.parse(reply[2]);
-        if (!Array.isArray(confirmation) || confirmation[0] !== null || confirmation[1] !== sourceId) return null;
+        if (!Array.isArray(confirmation)) return null;
+        // Native GzXR5e is a void RPC: a successful reply contains [] (captured live).
+        // The unique outgoing DELETE binds that acknowledgement to its target.
+        const voidSuccess = confirmation.length === 0;
+        const echoedSuccess = confirmation.length === 2 && confirmation[0] === null && confirmation[1] === sourceId;
+        if (!voidSuccess && !echoedSuccess) return null;
         return sourceId.slice(2);
     } catch { return null; }
 }

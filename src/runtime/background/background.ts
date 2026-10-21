@@ -49,7 +49,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
             }
             const key = request.action === 'runLiveSave' ? readConversationKey(request.key) : null;
             const account = await requireCurrentContentAccount(sender, key ? key.accountId : request.accountId);
-            if (key) respond({ ok: true, result: await runLiveSave(key) });
+            if (request.refreshDetail !== undefined && typeof request.refreshDetail !== 'boolean') throw new TypeError('Expected refreshDetail boolean');
+            if (key) respond({ ok: true, result: await runLiveSave(key, request.refreshDetail === true) });
             else respond({ ok: true, count: (await listIndexes(account.id)).length });
         } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : String(error) }); }
     })();

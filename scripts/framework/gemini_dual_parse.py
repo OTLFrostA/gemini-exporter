@@ -1,6 +1,7 @@
 """Test-only capture of the native replies used by the actual Gemini export.
 
-No fetch, prompt, DOM scraping, or additional conversation is initiated here.
+The caller acquires current Detail through Application before exporting, so cached
+Domain cannot silently leave the audit without native evidence.
 """
 import json
 import re

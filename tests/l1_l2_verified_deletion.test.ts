@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { IDBObjectStore } from 'fake-indexeddb';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -162,4 +163,25 @@ test('Metadata-only Detail still tolerates non-NotFound retry failures', async (
     assert.equal(calls, 2);
     assert.equal(result.conversationId, 'source_chat_123');
     assert.equal(result.conversation.detail.messages.length, 0);
+});
+
+
+test('Tier 2 captured native void DELETE acknowledgement removes only the request-bound local key', async () => {
+    const fixture = JSON.parse(readFileSync('tests/fixtures/gemini_native_delete.json', 'utf8'));
+    const id = parseConfirmedGeminiDeletion(fixture.requestBody, fixture.responseText);
+    assert.equal(id, conversationId);
+    const env = indexStorage();
+    try {
+        const key = await seed(), other = await seed(otherAccount.id);
+        await ingestDeletedConversation(key.accountId, id!);
+        assert.equal(await getIndex(key), null); assert.equal(await getDetail(key), null); assert.equal(await getExportRecord(key), null);
+        assert.ok(await getDetail(other)); assert.ok(await getExportRecord(other));
+    } finally { env.restore(); }
+    for (const bad of ['null', '[null]', '[false]', '[null,"c_other"]']) {
+        assert.equal(parseConfirmedGeminiDeletion(fixture.requestBody,
+            fixture.responseText.replace('"[]"', JSON.stringify(bad))), null);
+    }
+    const requests = JSON.parse(new URLSearchParams(fixture.requestBody).get('f.req')!);
+    requests[0].push(requests[0][0]);
+    assert.equal(parseConfirmedGeminiDeletion(new URLSearchParams({ 'f.req': JSON.stringify(requests) }).toString(), fixture.responseText), null);
 });
