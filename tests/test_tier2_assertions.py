@@ -20,7 +20,7 @@ from scripts.framework.assertions import (
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
-from scripts.framework.cases.chat import read_initial_export_markdown
+from scripts.framework.cases.chat import read_initial_export_markdown, read_verified_export_baseline
 from scripts.framework.cases.export import ImagenMultimodalCase
 from scripts.framework.cases.export import (
     LiveSaveNewChatCase, HtmlExportDownloadCase, PdfExportDownloadCase,
@@ -1322,7 +1322,28 @@ class GeminiDualParseTests(unittest.TestCase):
 
 
 
+class Tier2AttachmentPresentationTests(unittest.TestCase):
+    def test_file_card_labels_are_metadata_but_missing_assets_and_prose_still_fail(self):
+        exported = document() + '\n[Generated theory](files/theory.tex)\n'
+        self.assertTrue(assert_turn_content(exported, EVIDENCE)[0])
+        self.assertFalse(assert_turn_content(document() + '\n[附件不可用: theory.tex]\n', EVIDENCE)[0])
+        self.assertFalse(assert_turn_content(exported.replace(REPLY, 'Wrong answer.'), EVIDENCE)[0])
+        inline = document().replace(REPLY, REPLY + ' [authored link](https://example.com/theory.tex)')
+        self.assertFalse(assert_turn_content(inline, EVIDENCE)[0])
+
+
 class Tier2LifecycleOrderingTests(unittest.TestCase):
+    def test_initial_export_requires_both_physical_content_and_a_committed_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / ('baseline_' + CID[-6:] + '.md')
+            path.write_text(document())
+            with patch.object(CDPAssertions, 'assert_badge_status', return_value=(False, 'missing', {})):
+                with self.assertRaisesRegex(RuntimeError, 'ExportRecord'):
+                    read_verified_export_baseline(MagicMock(), str(path), CID, EVIDENCE)
+            with patch.object(CDPAssertions, 'assert_badge_status', return_value=(True, 'committed', {})) as check:
+                self.assertEqual(read_verified_export_baseline(MagicMock(), str(path), CID, EVIDENCE), document())
+                self.assertEqual(check.call_args.args[1:], (CID, 'exported'))
+
     def test_destructive_fixture_reset_and_reinstall_follow_record_and_format_checks(self):
         from scripts.framework.runner import FrameworkRunner
         dag = FrameworkRunner._assemble_dag()

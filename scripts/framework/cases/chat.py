@@ -11,7 +11,7 @@ from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
 from scripts.framework.selectors import GeminiSelectors
-from scripts.framework.assertions import assert_turn_content
+from scripts.framework.assertions import CDPAssertions, assert_turn_content
 from scripts.framework.cases.sync import prepare_activity_baseline, verify_activity_sync
 
 try:
@@ -46,6 +46,17 @@ def read_initial_export_markdown(download_path: str, chat_id: str) -> str:
     if not matched_id or matched_id.group(1).removeprefix('c_') != conversation_id:
         raise ValueError("初始导出 Markdown 会话 ID 不匹配")
     return content
+
+
+def read_verified_export_baseline(cdp, download_path, chat_id, evidence):
+    text = read_initial_export_markdown(download_path, chat_id)
+    ok, message = assert_turn_content(text, evidence)
+    if not ok:
+        raise RuntimeError('初始导出内容基线错误: ' + message)
+    recorded, message, _ = CDPAssertions.assert_badge_status(cdp, chat_id, 'exported')
+    if not recorded:
+        raise RuntimeError('初始导出未提交 ExportRecord: ' + message)
+    return text
 
 
 class InpageBadgeCase(FeatureTestCase):
@@ -190,13 +201,8 @@ description: "Dynamically created test attachment to verify multi-format user up
                                 format_type='markdown', allow_standalone=True)
                             if not baseline_file or not os.path.isfile(baseline_file):
                                 return False, "会话 1 初始 Markdown/ZIP 导出未落盘，无法建立真实基线", None
-                            baseline_text = read_initial_export_markdown(baseline_file, session.chat_id)
-                            ok, message = assert_turn_content(baseline_text, record['turn_evidence'])
-                            if not ok:
-                                return False, f"初始导出内容基线错误: {message}", None
-                            recorded, record_message, record_evidence = CDPAssertions.assert_badge_status(cdp_opt_init, session.chat_id, 'exported')
-                            if not recorded:
-                                return False, f'初始导出未提交 ExportRecord: {record_message}', record_evidence
+                            baseline_text = read_verified_export_baseline(
+                                cdp_opt_init, baseline_file, session.chat_id, record['turn_evidence'])
                             ctx.shared_data.setdefault('live_save_baselines', {})[session.chat_id] = baseline_text
                             print(f"      ✓ 会话 1 已成功完成初始真实导出并记录 baseline！")
                         finally:
