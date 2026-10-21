@@ -50,6 +50,20 @@ test('adapter rejection cannot pass by comparing fallback Markdown with itself',
     assert.ok(JSON.stringify(reply.markdown).includes('Hello'));
 });
 
+test('forcing Markdown retains native file-chip provenance without leaking native body text', () => {
+    const evidence = decodeGeminiDetail(wire('Independent answer [cite: 1]', { children: [
+        { nodeType: 'paragraph', children: [{ nodeType: 18, text: 'Native answer' },
+            { nodeType: 'citation', number: 1, title: 'test_config.json' }] },
+    ] }));
+    evidence.messages[1].groundingCitationMarkers = ['[cite: 1]'];
+    const reply = auditGeminiEvidence(evidence).messages[0];
+    assert.equal(reply.status, 'different');
+    assert.ok(JSON.stringify(reply.markdown.content).includes('Independent answer'));
+    assert.ok(!JSON.stringify(reply.markdown.content).includes('Native answer'));
+    assert.ok(!JSON.stringify(reply.markdown.content).includes('citationRef'));
+    assert.ok(reply.markdown.citations?.some(citation => citation.title === 'test_config.json'));
+});
+
 test('wire decode rejection and absent native document are unavailable, never match', () => {
     for (const native of [null, { children: [{ nodeType: 999, text: 'Hello' }] }]) {
         const result = auditGeminiEvidence(decodeGeminiDetail(wire('Hello', native))).messages[0];

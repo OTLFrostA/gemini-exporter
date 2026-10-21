@@ -16,6 +16,8 @@ import type { SourceConversationParseResult } from '../../parsingResult.js';
 
 export interface GeminiRpcParseContext extends ConversationParseContext {
     targetConvId?: string;
+    /** Differential audits select a body branch without dropping shared source metadata. */
+    bodyRepresentation?: 'structured' | 'markdown';
 }
 
 export interface GeminiRpcParseResult extends SourceConversationParseResult {
@@ -93,7 +95,8 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             ...(typeof message.id === 'string' && message.id.trim() ? { id: message.id } : {}),
             role: message.role === 'model' ? 'assistant' : 'user',
             content: message.role === 'user' ? parseGeminiPrompt(message.content)
-                : parseGeminiBody(message.content, message.structuredContent, { diagnostics: contentDiagnostics, sourceRef, sourceCitations }),
+                : parseGeminiBody(message.content, context.bodyRepresentation === 'markdown' ? undefined : message.structuredContent,
+                    { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured' }),
             ...(typeof message.timestamp === 'number' && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),

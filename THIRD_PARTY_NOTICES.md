@@ -341,5 +341,19 @@ THE SOFTWARE.
   - Full provenance and policy recorded in `src/l4/format/typst/mitex/vendor/README.md`.
 - **License Text**: Licensed under the Apache License, Version 2.0. The full license text is reproduced in Section 3 above.
 
+### 6. Noto Sans CJK SC Regular
+
+- **Copyright** (embedded in the font): © 2014-2021 Adobe (http://www.adobe.com/).
+- **Source**: <https://github.com/notofonts/noto-cjk/tree/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans>
+- **License**: SIL Open Font License 1.1; full license and copyright notices shipped as `src/l4/format/pdf/sandbox/fonts/OFL-NotoSansCJK.txt`.
+- **Modification**: None. Offline PDF text fallback; provenance and SHA256 recorded in the fonts README.
+
+### 7. Noto Sans Mono
+
+- **Copyright**: Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic)
+- **Source**: <https://github.com/google/fonts/tree/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/notosansmono>
+- **License**: SIL Open Font License 1.1; full license and copyright shipped as `src/l4/format/pdf/sandbox/fonts/OFL-NotoSansMono.txt`.
+- **Modification**: File renamed only; offline PDF code fallback. SHA256 recorded in the fonts README.
+
 
 

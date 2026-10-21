@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { GM_TEX_003_BAR_ALIASES } from '../src/l1/parsers/gemini/shared/markdownCompatibility.js';
+import { recoverLiteralMath } from '../src/l1/parsers/gemini/shared/literalMathRecovery.js';
 
 test('live line-start display fence remains a block without a preceding blank line', () => {
     const raw = readFileSync('tests/fixtures/provider/math/gm_md_004_evidence.md', 'utf8').split('-->\n')[1];
@@ -40,4 +41,35 @@ test('evidence-backed exact bar aliases normalize only parsed math, preserving n
     assert.equal(GM_TEX_003_BAR_ALIASES.transform('\\\\Vert{}'), '\\\\Vert{}');
     const source = '`\\Vert{}` and \\Vert{}\n\n```tex\n\\Vert{}\n```';
     assert.ok(JSON.stringify(parseGeminiBody(source)).includes('\\\\Vert{}'));
+});
+
+test('captured native emphasis corruption recovers Q-star from its raw Markdown paragraph', () => {
+    const fixture = JSON.parse(readFileSync('tests/fixtures/provider/math/gm_md_005_evidence.json', 'utf8'));
+    const diagnostics: import('../src/shared/diagnostics/diagnostic.js').Diagnostic[] = [];
+    const content = parseGeminiBody(fixture.markdown, fixture.structured, { diagnostics, sourceRef: { providerId: 'gemini' } });
+    assert.deepEqual(content, parseGeminiBody(fixture.markdown));
+    assert.ok(JSON.stringify(content).includes('Q^* = 30'));
+    assert.equal(diagnostics[0]?.code, 'GEMINI_LITERAL_MATH_RECOVERED');
+    const independent = parseGeminiBody(fixture.markdown, fixture.structured,
+        { diagnostics: [], sourceRef: { providerId: 'gemini' }, recoverLiteralMath: false });
+    assert.notDeepEqual(content, independent, 'audit must still expose the original provider defect');
+});
+
+test('literal math recovery rejects unrelated prose, ambiguous matches, code and citations', () => {
+    const native = () => parseGeminiBody('Result $Q^ = 30$.');
+    const target = parseGeminiBody('Result **$Q^* = 30$**.');
+    const rawNative = () => [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: 'Result $Q^ = 30$.' }] }];
+    const recovered = rawNative();
+    assert.equal(recoverLiteralMath(recovered, target), 1);
+    assert.deepEqual(recovered, target);
+    assert.equal(recoverLiteralMath(rawNative(), [...target, ...target]), 0);
+    assert.equal(recoverLiteralMath(rawNative(), parseGeminiBody('Different **$Q^* = 30$**.')), 0);
+    assert.equal(recoverLiteralMath(parseGeminiBody('`Result $Q^ = 30$.`'), target), 0);
+    const cited = rawNative();
+    const withCitation: import('../src/l2/content/blocks.js').BlockNode[] = [{ type: 'paragraph', children: [
+        ...cited[0].children, { type: 'citationRef', citationId: 'source' },
+    ] }];
+    assert.equal(recoverLiteralMath(withCitation, target), 0);
+    assert.equal(recoverLiteralMath(native(), target), 0, 'already parsed native math stays literal');
+    assert.equal(recoverLiteralMath(parseGeminiBody('Price $10 and $20.'), target), 0);
 });

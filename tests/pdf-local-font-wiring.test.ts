@@ -11,6 +11,7 @@ const {
     resolveLocalFonts,
     clearLocalFontCache,
     BUNDLED_MATH_FALLBACK,
+    BUNDLED_TEXT_FALLBACK,
     SYSTEM_FALLBACK,
 } = require('../src/l4/format/pdf/typst/fonts/localFontProvider.js');
 const { mountRuntimeFonts } = require('../src/l4/format/pdf/typst/fonts/mountRuntimeFonts.js');
@@ -271,7 +272,7 @@ test('C: getBytes failure emits TYPST_LOCAL_FONT_READ_FAILED and the export cont
         assert.strictEqual(mounted.diagnostics[0].severity, 'warning');
         assert.strictEqual(mounted.diagnostics[0].code, 'TYPST_LOCAL_FONT_READ_FAILED');
         assert.strictEqual(mounted.effectiveFonts.localFontsAvailable, false);
-        assert.deepStrictEqual(mounted.effectiveFonts.fallbackChain, [BUNDLED_MATH_FALLBACK, SYSTEM_FALLBACK]);
+        assert.deepStrictEqual(mounted.effectiveFonts.fallbackChain, [BUNDLED_MATH_FALLBACK, BUNDLED_TEXT_FALLBACK, SYSTEM_FALLBACK]);
 
         const domain = makeDomain();
         const promise = compiler.compile(makePayload(domain), makeContext(domain));

@@ -72,7 +72,8 @@ class AssertIdleAction(AtomicAction):
                 (() => {{
                     const stopBtn = document.querySelector('{self.stop_btn_selector}');
                     const isStreaming = !!document.querySelector('{self.streaming_indicators_selector}');
-                    return !!(stopBtn && stopBtn.offsetWidth > 0) || isStreaming;
+                    const workbenchBusy = document.body?.dataset.busy === 'true';
+                    return workbenchBusy || !!(stopBtn && stopBtn.offsetWidth > 0) || isStreaming;
                 }})()
                 """)
             except (TimeoutError, OSError):

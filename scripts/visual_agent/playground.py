@@ -770,6 +770,17 @@ class VisualPlayground:
                     "warnings": checker.warnings, "file_path": zip_path}
         if suffix != ".zip" or not zipfile.is_zipfile(zip_path):
             return False, "Expected a valid ZIP or standalone Markdown; other formats need their own validator", {"format": suffix}
+        with zipfile.ZipFile(zip_path) as archive:
+            documents = [name for name in archive.namelist() if not name.endswith('/')
+                         and not any(part in ('assets', 'files', 'images') for part in name.split('/')[:-1])]
+            formats = {os.path.splitext(name)[1].lower() for name in documents}
+        if '.json' in formats and '.md' not in formats:
+            if expected_golden_chats:
+                return False, 'JSON golden content assertions are unsupported', {'format': 'json'}
+            from scripts.framework.json_archive import validate_json_archive
+            return validate_json_archive(zip_path, min_conversations, chat_id)
+        if '.md' not in formats and formats.intersection({'.html', '.pdf'}):
+            return False, 'Unsupported archive format: HTML/PDF need their own content validator', {'formats': sorted(formats)}
         extract_dir = os.path.join(self.output_dir, "extracted_export")
         return CDPAssertions.assert_exported_zip_spec(
             zip_path=zip_path, extract_dir=extract_dir, min_conversations=min_conversations,

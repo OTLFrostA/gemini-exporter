@@ -1066,7 +1066,7 @@ class CoverageTests(unittest.TestCase):
                     for cid in zip_ids: zf.writestr(f'Chat_{cid[-6:]}.md', document(cid=cid))
                 ctx = MagicMock(output_dir=directory)
                 ctx.connect_options.return_value.eval.side_effect = [
-                    {'count': 6, 'log': 'old'}, True, {'busy': False, 'log': 'Delivery initiated: 0; partial: 0; skipped: 6; failed: 0'}, partial]
+                    {'count': 6, 'log': 'old'}, True, {'busy': False, 'log': 'Delivery initiated: 0; Skipped: 6; Conversation export failed: 0'}, partial]
                 with patch('scripts.framework.cases.export.install_probe'), \
                      patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
                      patch.object(CDPActions, 'clear_search_workbench'), \
@@ -1088,7 +1088,7 @@ class CoverageTests(unittest.TestCase):
                     if 'busy: !!document.getElementById' in script:
                         unexpected.write_bytes(b'export must not run')
                         return {'busy': False, 'log':
-                                'Delivery initiated: 0; partial: 0; skipped: 6; failed: 0'}
+                                'Delivery initiated: 0; Skipped: 6; Conversation export failed: 0'}
                     raise AssertionError('Full-skip test continued into partial export')
 
                 cdp.eval.side_effect = respond
@@ -1100,9 +1100,43 @@ class CoverageTests(unittest.TestCase):
                 self.assertIn('全量跳过异常生成文件', message)
                 self.assertIn(unexpected.name, message)
 
+    def test_all_skipped_current_chinese_summary_advances_to_partial_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ctx = MagicMock(output_dir=directory)
+            ctx.connect_options.return_value.eval.side_effect = [
+                {'count': 6, 'log': 'old'}, True,
+                {'busy': False, 'log': '已发起交付 0 条会话; 跳过 6; 会话导出失败 0'},
+                {'exportedId': OTHER}]
+            with patch('scripts.framework.cases.export.install_probe'), \
+                 patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
+                 patch.object(CDPActions, 'clear_search_workbench'):
+                ok, message, _ = FastSkipExportedCase().execute(ctx)
+            self.assertFalse(ok)
+            self.assertIn('部分跳过需要', message, 'current Chinese summary must complete the all-skipped stage')
+
+    def test_all_skipped_does_not_accept_stale_summary_or_partial_delivery(self):
+        for previous, current in (
+            ('Delivery initiated: 0; Skipped: 6; Conversation export failed: 0',
+             'Delivery initiated: 0; Skipped: 6; Conversation export failed: 0'),
+            ('old', 'Delivery initiated: 0; Other incomplete conversations: 1; Skipped: 6; Conversation export failed: 0'),
+            ('old', 'Delivery initiated: 0; Skipped: 6; Conversation export failed: 0; Cancelled'),
+        ):
+            with self.subTest(current=current), tempfile.TemporaryDirectory() as directory:
+                ctx = MagicMock(output_dir=directory)
+                ctx.connect_options.return_value.eval.side_effect = [
+                    {'count': 6, 'log': previous}, True, {'busy': False, 'log': current}]
+                with patch('scripts.framework.cases.export.install_probe'), \
+                     patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
+                     patch.object(CDPActions, 'clear_search_workbench'), \
+                     patch('scripts.framework.cases.export.time.monotonic', side_effect=[0, 0, 7, 7]), \
+                     patch('scripts.framework.cases.export.time.sleep'):
+                    ok, message, _ = FastSkipExportedCase().execute(ctx)
+                self.assertFalse(ok)
+                self.assertIn('没有本次导出', message)
+
     def test_all_skipped_probe_rejects_zero_skips_and_failed_exports(self):
-        for result in ('Delivery initiated: 0; partial: 0; skipped: 0; failed: 0',
-                       'Delivery initiated: 0; partial: 0; skipped: 5; failed: 1'):
+        for result in ('Delivery initiated: 0; Skipped: 0; Conversation export failed: 0',
+                       'Delivery initiated: 0; Skipped: 5; Conversation export failed: 1'):
             with tempfile.TemporaryDirectory() as directory:
                 ctx = MagicMock(output_dir=directory)
                 ctx.connect_options.return_value.eval.side_effect = [

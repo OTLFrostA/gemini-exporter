@@ -12,6 +12,8 @@ import base64
 import tempfile
 import struct
 import zlib
+import json
+import zipfile
 import unittest
 from unittest.mock import patch, MagicMock
 from typing import Dict, Any, List, Optional
@@ -202,6 +204,53 @@ class TestVisualSandbox(unittest.TestCase):
         ok, message, details = self.sandbox.evaluate_export(path)
         self.assertTrue(ok, message + str(details))
         self.assertEqual(details["format"], "md")
+
+    def test_json_archive_is_not_reported_as_missing_markdown(self):
+        """T3-JSON-VALIDATOR: accept JSON or explicitly report unsupported format.
+
+        This is not a JSON correctness validator. A Markdown file-count error
+        for a JSON-only archive incorrectly attributes a harness limit to export.
+        """
+        key = {"accountId": "10000000-0000-4000-8000-000000000001", "conversationId": "fixture"}
+        archive = {
+            "format": "gemini-exporter-domain", "version": 1,
+            "account": {"id": key["accountId"], "providerId": "gemini", "providerAccountId": "fixture"},
+            "conversation": {
+                "index": {"key": key, "title": "Fixture", "titleSource": "provider"},
+                "detail": {"key": key, "quality": {"status": "complete"}, "assets": [], "messages": [
+                    {"role": "user", "content": [{"type": "paragraph", "children": [{"type": "text", "text": "Question"}]}]},
+                    {"role": "assistant", "content": [{"type": "paragraph", "children": [{"type": "text", "text": "Answer"}]}]},
+                ]},
+            }, "resources": {},
+        }
+        path = os.path.join(self.temp_dir, "Fixture.zip")
+        with zipfile.ZipFile(path, "w") as zipped:
+            zipped.writestr("Fixture.json", json.dumps(archive))
+        ok, message, details = self.sandbox.evaluate_export(path)
+        explanation = (message + " " + json.dumps(details)).lower()
+        self.assertTrue(ok,
+                        "JSON archive validation failed: " + explanation)
+        self.assertEqual(details["format"], "json")
+        self.assertEqual(details["json_count"], 1)
+        ok, _, _ = self.sandbox.evaluate_export(path, chat_id="c_fixture")
+        self.assertTrue(ok)
+        ok, _, _ = self.sandbox.evaluate_export(path, chat_id="other")
+        self.assertFalse(ok)
+        for fault in ("key", "missing", "traversal", "empty", "json"):
+            with self.subTest(fault=fault):
+                data = json.loads(json.dumps(archive))
+                if fault == "key":
+                    data["conversation"]["detail"]["key"]["accountId"] = "other"
+                else:
+                    data["conversation"]["detail"]["assets"] = [{"id": "image", "kind": "image"}]
+                    data["resources"] = {"image": "../outside.png" if fault == "traversal" else "assets/image.png"}
+                with zipfile.ZipFile(path, "w") as zipped:
+                    zipped.writestr("Fixture.json", "invalid" if fault == "json" else json.dumps(data))
+                    if fault == "empty":
+                        zipped.writestr("assets/image.png", b"")
+                ok, _, details = self.sandbox.evaluate_export(path)
+                self.assertFalse(ok, fault)
+                self.assertTrue(details["errors"], fault)
 
     def test_screenshot_mismatch_retries_then_fails_without_coordinate_leak(self):
         capture = {"result": {"data": base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\0"*8 + struct.pack(">II",1400,980)).decode()}}
