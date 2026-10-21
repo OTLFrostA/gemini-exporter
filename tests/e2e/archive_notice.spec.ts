@@ -7,6 +7,9 @@ test('repeated list refresh does not resurrect a verified deletion or display a 
 });
 test('record cleanup requires confirmation and retains all bodies; a subsequent verified deletion removes only that conversation',async({context,extensionId})=>{
     const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'one'},{id:'unlisted'},{id:'another'}],{one:{exportedAt:100,format:'markdown',status:'ok'}});
+    await expect(page.locator('#btnClearExported')).toBeHidden();
+    await page.locator('#devToggle').check();
+    await expect(page.locator('#btnClearExported')).toBeVisible();
     page.once('dialog',dialog=>dialog.dismiss());await page.locator('#btnClearExported').click();expect(Object.keys(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId))).toEqual(['one']);
     page.once('dialog',dialog=>dialog.accept());await page.locator('#btnClearExported').click();await expect(page.locator('#status')).toHaveText('Records cleared');await expect(page.locator('#list .item')).toHaveCount(3);expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId)).toEqual({});
     await page.evaluate(async id=>Reflect.get(globalThis,'uiFixture').ingestDeletedConversation(id,'another'),accountId);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(page.locator('#list .item')).toHaveCount(2);expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'unlisted'}),accountId)).toBeTruthy();
