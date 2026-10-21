@@ -2,7 +2,7 @@
    Suppress only bootstrap transitions: changing from the dark defaults to the
    persisted Light palette must not animate dark cards/buttons into view. */
 :root[data-theme="loading"],
-:root[data-theme-bootstrap] { visibility: hidden; }
+:root[data-theme-unready] { visibility: hidden; }
 :root[data-theme-bootstrap] *,
 :root[data-theme-bootstrap] *::before,
 :root[data-theme-bootstrap] *::after { transition: none !important; }
