@@ -70,3 +70,25 @@ test('LP-02: selected-account import never writes the linked conversation B', as
     assert.deepEqual((await listIndexes(ACCOUNT_UUID)).map(row => row.key.conversationId), [A]);
     assert.deepEqual(await listIndexes(OTHER_ACCOUNT_UUID), [], 'existing account selection is unchanged');
 });
+
+test('LP-02: actual Takeout caption metadata remains the owner while linked chat B stays authored content', async () => {
+    const html = '<div class="outer-cell">'
+        + '<div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">'
+        + 'Prompted compare <a href="' + url(B) + '">linked chat</a><br>2026-09-02T12:00:00Z<br>'
+        + '<p>Response refers to <a href="' + url(B) + '">the other chat</a>.</p></div>'
+        + '<div class="content-cell mdl-cell--6-col mdl-typography--text-right"><a href="' + url(B) + '">preview</a></div>'
+        + '<div class="content-cell mdl-cell--12-col mdl-typography--caption"><b>Details</b><br>'
+        + '&emsp;Source: ' + url(A) + '<br><a href="' + url(A) + '">Open conversation</a><br>'
+        + 'This activity was saved to your Google Account.</div></div>';
+    assert.deepEqual(decodeTakeoutHtml(html)[0].conversationIds, [A], 'the canonical caption URL wins over authored links');
+    assert.deepEqual((await decodeTakeoutHtmlAsync(html))[0].conversationIds, [A]);
+    assert.deepEqual(parseGeminiTakeoutArchive({ htmlText: html }, context).map(source => source.conversationId), [A]);
+    assert.deepEqual((await parseGeminiTakeoutArchiveAsync({ htmlText: html }, context)).map(source => source.conversationId), [A]);
+});
+
+test('LP-02: conflicting caption metadata URLs are rejected even with no body links', () => {
+    const html = '<div class="outer-cell"><div class="content-cell">Prompted Question<br><p>Answer</p></div>'
+        + '<div class="content-cell mdl-typography--caption"><a href="' + url(A) + '">A</a><a href="' + url(B) + '">B</a></div></div>';
+    assert.deepEqual(decodeTakeoutHtml(html)[0].conversationIds, [], 'ambiguous metadata cannot duplicate one activity');
+    assert.throws(() => parseGeminiTakeoutArchive({ htmlText: html }, context), /no recognized conversation identities/);
+});

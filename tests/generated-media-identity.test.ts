@@ -14,21 +14,7 @@ const jpg = 'watermarked_img_4528137010801751197.jpg';
 
 test('real Takeout fixture does not guess ownership of unreferenced generated image bytes', async () => {
     const JSZip = require('../lib/jszip.min.js');
-    // TEMPORARY: inspect Takeout metadata location in the sanitized integration fixture.
-    const fixtureBytes = fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip'));
-    const zip = await JSZip.loadAsync(fixtureBytes);
-    const entry = Object.entries(zip.files).find(([name]: [string, any]) => /MyActivity\.html$/i.test(name))?.[1] as any;
-    if (entry) {
-        const html: string = await entry.async('string');
-        const links = Array.from(html.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g));
-        const sample = links.slice(0, 5).map(link => ({
-            position: link.index,
-            precedingTags: html.slice(Math.max(0, link.index! - 320), link.index).replace(/>[^<]*</g, '><'),
-            nextTags: html.slice(link.index! + link[0].length, link.index! + link[0].length + 160).replace(/>[^<]*</g, '><'),
-        }));
-        console.error('LP02_FIXTURE_META_DIAG', JSON.stringify({ activityCount: html.split('<div class="outer-cell').length - 1, links: links.length, sample }).slice(0, 4200));
-    }
-    const result = await parseGeminiTakeoutZipArchive(fixtureBytes, { providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
+    const result = await parseGeminiTakeoutZipArchive(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), { providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
     const offline = result.find(source => source.conversationId === id); assert.ok(offline);
     assert.equal('key' in offline.conversation.detail, false);
     assert.deepEqual(offline.archiveResources, {});

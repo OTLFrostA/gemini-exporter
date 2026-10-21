@@ -154,7 +154,12 @@ function activityMetadata(block: string): string {
             if (contentDepth === 0) cursor = divTags.lastIndex;
         } else if (!closing) {
             const classes = /\bclass\s*=\s*(['"])(.*?)\1/i.exec(tag[0])?.[2] ?? '';
-            if (classes.split(/\s+/).includes('content-cell')) {
+            const classNames = classes.split(/\s+/);
+            // Google Takeout puts the canonical Conversation URL in a caption
+            // content-cell, separate from the user/assistant authored body.
+            // Preserve this metadata cell but exclude every non-caption cell,
+            // including ordinary links to other chats inside their text.
+            if (classNames.includes('content-cell') && !classNames.includes('mdl-typography--caption')) {
                 metadata += block.slice(cursor, tag.index);
                 contentDepth = 1;
             }
