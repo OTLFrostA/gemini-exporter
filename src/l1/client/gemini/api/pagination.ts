@@ -81,7 +81,19 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
     }
     const expectedId = normId(conversationId);
     if (pages.some(page => page.conversationId !== expectedId)) throw new TypeError('Detail response identity mismatch');
-    const result = mergeConversationPages(pages, truncateReason, !token && pages.some(page => page.conversation.detail.messages.length > 0));
+    const hasMessages = pages.some(page => page.conversation.detail.messages.length > 0);
+    // An explicitly empty Detail turn array is different from a metadata-only or
+    // unrecognized response. Without positive source evidence, do not admit an
+    // empty body to L2 as though Gemini had returned the conversation.
+    const explicitlyEmpty = pages.length === 1 && !token && !truncateReason
+        && Array.isArray(inner) && Array.isArray(inner[0]) && inner[0].length === 0
+        && inner[1] === null && typeof inner[2] === 'string' && inner[2].trim().length > 0
+        && !first.diagnostics.some(diagnostic => diagnostic.code === 'GEMINI_SCHEMA_DRIFT'
+            && diagnostic.message.startsWith('Envelope drift:'));
+    if (!hasMessages && !explicitlyEmpty) {
+        throw new Error('GEMINI_DETAIL_EMPTY_UNVERIFIED: Detail returned no verifiable messages');
+    }
+    const result = mergeConversationPages(pages, truncateReason, !token && hasMessages);
     return { ...result, transport: { ...first.transport, nextPageToken: token } };
 }
 

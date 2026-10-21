@@ -76,9 +76,32 @@ test('Detail: metadata-only fallback follows the replacement chain and remains s
     assert.equal(result.conversation.detail.quality.status, 'complete');
     assert.deepEqual(requested, [[null, undefined], [null, true], ['retry-next', true]]);
 });
-test('Detail: empty source and failed metadata fallback never claim complete', async () => {
+test('Detail: failed metadata-only retry rejects empty content rather than admitting it', async () => {
     const metadata = sourceDetail({ messages: [], _raw: [null, null, [['c_source_chat_123']]] });
     let calls = 0;
-    const result = await getConversationDetail({ fetchConversationPage: async () => { if (calls++) throw new Error('no alternate'); return metadata; } }, 'source_chat_123');
-    assert.equal(result.conversation.detail.messages.length, 0); assert.equal(result.conversation.detail.quality.status, 'unknown');
+    await assert.rejects(
+        getConversationDetail({ fetchConversationPage: async () => { if (calls++) throw new Error('no alternate'); return metadata; } }, 'source_chat_123'),
+        /GEMINI_DETAIL_EMPTY_UNVERIFIED/,
+    );
+    assert.equal(calls, 2);
+});
+
+test('Detail: metadata-only retry returning another empty response still fails closed', async () => {
+    const metadata = sourceDetail({ messages: [], _raw: [null, null, [['c_source_chat_123']]] });
+    let calls = 0;
+    await assert.rejects(
+        getConversationDetail({ fetchConversationPage: async () => { calls++; return metadata; } }, 'source_chat_123'),
+        /GEMINI_DETAIL_EMPTY_UNVERIFIED/,
+    );
+    assert.equal(calls, 2);
+});
+
+test('Detail: unrecognized empty response without affirmative empty-turn evidence fails closed', async () => {
+    const unknown = sourceDetail({ messages: [], _raw: [null, 'unexpected', 'Title'] });
+    let calls = 0;
+    await assert.rejects(
+        getConversationDetail({ fetchConversationPage: async () => { calls++; return unknown; } }, 'source_chat_123'),
+        /GEMINI_DETAIL_EMPTY_UNVERIFIED/,
+    );
+    assert.equal(calls, 1);
 });
