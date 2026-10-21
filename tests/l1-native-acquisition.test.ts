@@ -115,6 +115,30 @@ test('an explicit empty native Detail turn array remains a valid source result',
     assert.equal(result.conversation.detail.quality.status, 'unknown');
 });
 
+test('metadata-only retry accepts a native explicit empty Detail without using stale metadata transport', async () => {
+    const metadata = parseGeminiRpcConversation(rpc([null, null, [['c_native', 'Title']]]), {
+        account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native',
+    });
+    const emptyBody = [[], null, 'Verified empty conversation'];
+    const verified = parseGeminiRpcConversation(rpc(emptyBody), {
+        account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native',
+    });
+    const calls: Array<{ detailOnly?: boolean; altParams?: boolean }> = [];
+    const result = await getConversationDetail({
+        async fetchConversationPage(_id, _token, _sid, options) {
+            calls.push({ detailOnly: options?.detailOnly, altParams: options?.altParams });
+            return options?.detailOnly ? verified : metadata;
+        },
+    }, 'native');
+    assert.deepEqual(calls, [
+        { detailOnly: undefined, altParams: undefined },
+        { detailOnly: true, altParams: true },
+    ]);
+    assert.deepEqual(result.conversation.detail.messages, []);
+    assert.equal(result.conversation.detail.quality.status, 'unknown');
+    assert.deepEqual(result.transport.decodedPayload, emptyBody);
+});
+
 test('native metadata-only Detail cannot succeed when its alternate also has no turns', async () => {
     const metadata = parseGeminiRpcConversation(rpc([null, null, [['c_native', 'Title']]]), {
         account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native',
