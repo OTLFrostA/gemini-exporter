@@ -14,6 +14,8 @@ export interface GlobalSettings {
     badgePosition?: { left: number; top: number };
     lastSeenFeatureVersion?: string;
     takeoutPromptCompleted?: true;
+    /** Automatically suggested large-batch folder delivery has already been shown. */
+    directWritePromptCompleted?: true;
 }
 
 export async function getSettings(): Promise<GlobalSettings> {
