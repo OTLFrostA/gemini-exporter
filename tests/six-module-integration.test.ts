@@ -102,8 +102,10 @@ test('real Storage + L2 serialize identity/profile and concurrent Index/Detail a
         assert.equal((await storage.listAccounts()).length, 1);
         assert.equal((await getAccount(accounts[0].id))?.email, 'user9@example.test');
         assert.equal((await listAccounts('chatgpt')).length, 0);
-        const defaults = await getOrCreateAccount('gemini', 'default', 'discard@example.test');
-        assert.equal(defaults.email, undefined);
+        const fallback = await getOrCreateAccount('gemini', 'default', 'discard@example.test');
+        assert.equal(fallback.id, accounts[0].id, 'unknown source reuses existing verified Account');
+        assert.equal(fallback.email, 'user9@example.test', 'unknown metadata cannot replace verified profile');
+        assert.equal((await storage.listAccounts()).length, 1, 'no new default Account is created');
         await storage.putAccount(account);
         await Promise.all(Array.from({ length: 12 }, (_, i) => ingestIndexes(account.id, [{ conversationId: `id${i}`, fields: { updatedAt: i } }])));
         assert.equal((await storage.listIndexes(account.id)).length, 12);
