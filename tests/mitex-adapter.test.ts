@@ -221,6 +221,18 @@ test('T5.1: MiTeX version and provenance consistency across repository metadata'
     assert.ok(!/^\s*#import\s+"@preview\//m.test(scopeContent), 'mitex-scope.typ must not contain active @preview/ runtime imports');
 });
 
+test('live centered negation of implication converts without changing other centernot commands', async () => {
+    await initMitexWasm();
+    const { preprocessLatex } = require('../src/shared/utils/latexCompatibility.js');
+    const original = String.raw`a \to b \centernot\implies V(a) < V(b)`;
+    const result = convertMathWithMitex(original);
+    assert.ok(result.typst?.includes('arrow.r.double.not'));
+    assert.strictEqual(result.diagnostic, undefined);
+    for (const source of [String.raw`\\centernot\implies`, String.raw`\centernot\impliesExtra`, String.raw`\centernot\to`]) {
+        assert.strictEqual(preprocessLatex(source), source);
+    }
+});
+
 test('T5.2: Failed MiTeX initialization clears cached state and allows subsequent retry', async () => {
     resetMitexForTesting();
     assert.strictEqual(isMitexReady(), false);
@@ -255,4 +267,3 @@ test('T5.3: Unsupported math notations emit TYPST_MATH_UNSUPPORTED_NOTATION warn
         assert.strictEqual(helperOutput, undefined, `convertMathMitex helper must return undefined for '${notation}'`);
     }
 });
-

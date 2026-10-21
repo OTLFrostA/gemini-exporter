@@ -22,16 +22,25 @@
   let items = node.items.map(item => {
     let body = {
       for (index, sub) in item.blocks.enumerate() {
-        if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt) }
+        if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt, weak: true) }
         recurse(sub, scope: scope)
       }
     }
     [#body]
   })
-  let body = if node.ordered {
-    if "start" in node { [#enum(start: node.start, ..items)] } else { [#enum(..items)] }
-  } else { [#list(..items)] }
-  in-flow(body, node.layout.width)
+  let make-list(items, offset: 0) = if node.ordered {
+    enum(start: (if "start" in node { node.start } else { 1 }) + offset, ..items)
+  } else { list(..items) }
+  let body = layout(size => {
+    // Keep a short final pair together, without making a long list unbreakable.
+    let tail = make-list(items.slice(calc.max(0, items.len() - 2)), offset: calc.max(0, items.len() - 2))
+    if items.len() >= 3 and measure(width: size.width, tail).height <= 100pt {
+      make-list(items.slice(0, items.len() - 2))
+      v(sp-inline)
+      block(breakable: false, above: 0pt, tail)
+    } else { make-list(items) }
+  })
+  in-flow(body, node.layout.width, sticky: node.layout.keepWithNext)
 }
 
 #let render-code(node, scope) = code-surface(node.header, node.text, width: node.layout.width)
@@ -84,7 +93,7 @@
 #let render-quote(node, scope, recurse) = {
   let body = {
     for (index, sub) in node.blocks.enumerate() {
-      if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt) }
+      if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt, weak: true) }
       recurse(sub, scope: scope)
     }
   }
@@ -102,7 +111,7 @@
   if "blocks" in node {
     let body = {
       for (index, sub) in node.blocks.enumerate() {
-        if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt) }
+        if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt, weak: true) }
         recurse(sub, scope: scope)
       }
     }
@@ -141,8 +150,20 @@
 }
 
 #let render-blocks(blocks, scope: "flow") = {
-  for node in blocks {
-    if node.layout.gapBeforePt > 0 { v(node.layout.gapBeforePt * 1pt) }
-    render-block(node, scope: scope)
+  let sequence(nodes) = {
+    for node in nodes {
+      if node.layout.gapBeforePt > 0 { v(node.layout.gapBeforePt * 1pt, weak: true) }
+      render-block(node, scope: scope)
+    }
   }
+  // A short source footer must carry its preceding context onto the next page.
+  if blocks.len() >= 2 and blocks.last().type == "note" and blocks.at(-2).type == "paragraph" {
+    layout(size => {
+      let tail = sequence(blocks.slice(blocks.len() - 2))
+      if measure(width: size.width, tail).height <= 180pt {
+        sequence(blocks.slice(0, blocks.len() - 2))
+        block(breakable: false, tail)
+      } else { sequence(blocks) }
+    })
+  } else { sequence(blocks) }
 }

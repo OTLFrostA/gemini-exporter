@@ -399,6 +399,7 @@ class StaleTabImageExportCase(FeatureTestCase):
             critical=True,
             # Reuse independently captured golden webpage images after reinstall.
             prerequisites=["feat_imagen_multimodal"],
+            after=["feat_html_export_download", "feat_pdf_export_download", "feat_fast_skip_exported"],
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
@@ -662,7 +663,8 @@ class HtmlExportDownloadCase(FeatureTestCase):
             critical=True,
             # 各格式独立验证：目标选择与格式切换在 execute 内自理并恢复 markdown，
             # 不以 Skip Exported / Markdown 任一通过为必要条件。
-            prerequisites=[]
+            prerequisites=[],
+            after=["feat_zip_export_download"]
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
@@ -790,7 +792,8 @@ class PdfExportDownloadCase(FeatureTestCase):
             description="切换导出格式为 PDF (.pdf)，通过沙箱 Typst WASM 真实编译导出 ZIP，解压严格断言 %PDF- 二进制规范与非空",
             critical=True,
             # 与 HTML 同理独立验证，不以 HTML 通过为必要条件。
-            prerequisites=[]
+            prerequisites=[],
+            after=["feat_zip_export_download"]
         )
 
     @staticmethod

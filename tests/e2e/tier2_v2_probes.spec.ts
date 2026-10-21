@@ -216,3 +216,22 @@ test('Tier 2 Takeout probe reads source-bound archive bytes and actual UI-import
         expect(record.domain.detail.messages.length).toBeGreaterThan(0);
     }
 });
+
+
+test('Tier 2 export controls leave folder delivery through the real radio handler and await persisted Settings', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId);
+    await page.locator('input[name="delivery"][value="folderWriter"]').check();
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    const configure = execFileSync('python3', ['-c', [
+        'from scripts.framework.actions import CDPActions',
+        'class Capture:',
+        '    def eval(self, script, **kwargs):',
+        '        if "expectedFormat" in script: print(script)',
+        '        return True',
+        'CDPActions.configure_export_controls(Capture(), "pdf", False)',
+    ].join('\n')], { cwd: root }).toString();
+    expect(await page.evaluate(configure)).toMatchObject({ ok: true, format: 'pdf', skipExported: false });
+    await expect(page.locator('input[name="delivery"][value="browserDownload"]')).toBeChecked();
+    expect(await page.evaluate(() => Reflect.get(globalThis, '__tier2V2').getSettings()))
+        .toMatchObject({ defaultFormat: 'pdf', exportDelivery: 'browserDownload', skipExported: false });
+});

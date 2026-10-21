@@ -15,7 +15,7 @@ export function applyLayout(nodes: TypstBlockNode[], bubble: boolean, nested: bo
         const previous = nodes[index - 1], next = nodes[index + 1];
         const gap = !previous ? 0 : node.type === 'heading' || node.type === 'thematicBreak' || previous.type === 'thematicBreak' ? 'section'
             : previous.type === 'heading' || previous.type === 'paragraph' && (node.type === 'paragraph' || node.type === 'list') || previous.type === 'list' && node.type === 'paragraph' ? 'paragraph' : 'block';
-        node.layout = { gapBeforePt: gap === 0 ? 0 : visual.spacing[gap] * 0.75, keepWithNext: node.type === 'heading' || !nested && node.type === 'paragraph' && Boolean(next && ['table', 'image', 'math', 'code'].includes(next.type)), width: ['note', 'unknown'].includes(node.type) ? 'reading' : ['code', 'math', 'table', 'image', 'file'].includes(node.type) ? 'full' : bubble ? 'container' : 'reading' };
+        node.layout = { gapBeforePt: gap === 0 ? 0 : visual.spacing[gap] * 0.75, keepWithNext: node.type === 'heading' || !nested && node.type === 'paragraph' && Boolean(next && ['table', 'image', 'math', 'code', 'note'].includes(next.type)), width: ['note', 'unknown'].includes(node.type) ? 'reading' : ['code', 'math', 'table', 'image', 'file'].includes(node.type) ? 'full' : bubble ? 'container' : 'reading' };
         if (node.type === 'list') node.items.forEach(item => applyLayout(item.blocks, bubble, true));
         else if (node.type === 'quote') applyLayout(node.blocks, bubble, true);
         else if (node.type === 'note' && node.blocks) applyLayout(node.blocks, bubble, true);

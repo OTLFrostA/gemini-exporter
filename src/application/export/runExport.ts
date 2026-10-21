@@ -148,7 +148,11 @@ export async function runExport(request: ExportRequest, options: {
                 }
                 let conversation = await readLocal(key);
                 let refreshFailed = false;
-                if (options.refreshDetail || !conversation || !isFresh(conversation)) {
+                // Inline packets and expiring locators are task-owned, never cached bytes.
+                // A fresh Detail alone cannot rehydrate these resources in a later export.
+                const needsSourceReaders = request.includeAssets && conversation?.detail.assets.some(asset =>
+                    !/^https:\/\//i.test(asset.sourceUri ?? '') && !asset.document?.contentMarkdown);
+                if (options.refreshDetail || !conversation || !isFresh(conversation) || needsSourceReaders) {
                     try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal); }
                     catch (error) {
                         // L1 has reliably confirmed deletion and L2 has removed the local Key.

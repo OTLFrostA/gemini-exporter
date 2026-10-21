@@ -404,7 +404,9 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
                         stack.length = 0;
                     } else if (t === 'EMC') {
                         const entry = markedContentStack.at(-1);
-                        if (entry && entry.actualText != null) append(entry.actualText);
+                        // An outer ActualText replaces the entire nested marked sequence.
+                        if (entry?.actualText != null && !markedContentStack.slice(0, -1).some(m => m.actualText != null))
+                            append(entry.actualText);
                         markedContentStack.pop();
                         stack.length = 0;
                     } else if (t === 'Tj' || t === "'") {

@@ -87,9 +87,11 @@ export async function initWorkbench(): Promise<void> {
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
             'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan','devToggle',
             'langToggle','chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
-            'btnSyncAll','btnForceFullScan','btnImportTakeout'];
+            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         el('delivery').setAttribute('aria-label', text('Export to', '导出到'));
+        el('exportOptionsLock').hidden = !(busy && action === 'export');
+        el('exportOptionsLock').textContent = text('Exporting — options are locked', '导出中，选项已锁定');
         const folderSelected = settings?.exportDelivery === 'folderWriter';
         for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="delivery"]')) {
             radio.checked = radio.value === (settings?.exportDelivery ?? 'browserDownload');
@@ -262,7 +264,9 @@ export async function initWorkbench(): Promise<void> {
     });
     el('delivery').addEventListener('change', event => {
         const input = event.target;
-        if (!(input instanceof HTMLInputElement) || input.name !== 'delivery' || !input.checked || busy || !settings) return;
+        if (!(input instanceof HTMLInputElement) || input.name !== 'delivery') return;
+        if (busy || !settings || input.disabled) { render(); return; }
+        if (!input.checked) return;
         const exportDelivery: UIExportRequest['delivery'] =
             input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
         if (settings.exportDelivery === exportDelivery) return;
@@ -304,7 +308,8 @@ export async function initWorkbench(): Promise<void> {
             });
         });
     el<HTMLSelectElement>('accountIdSelect').addEventListener('change', () => {
-        if (!busy) void select(el<HTMLSelectElement>('accountIdSelect').value).catch(e => status(errorText(e), 'error'));
+        if (busy) { render(); return; }
+        void select(el<HTMLSelectElement>('accountIdSelect').value).catch(e => status(errorText(e), 'error'));
     });
     el<HTMLInputElement>('chatSearchInput').addEventListener('input', () => {
         state.search = el<HTMLInputElement>('chatSearchInput').value; renderList(state, busy);
@@ -320,7 +325,7 @@ export async function initWorkbench(): Promise<void> {
     for (const [id, field] of Object.entries(settingControls)) el<HTMLInputElement>(id).addEventListener('change', () => {
         const input = el<HTMLInputElement>(id);
         // A disabled Live Save switch must never mutate persisted intent.
-        if (input.disabled) { render(); return; }
+        if (busy || input.disabled) { render(); return; }
         const value = input.type === 'checkbox' ? input.checked : input.value;
         const prior = settings; settings = { ...settings, [field]: value };
         void perform('cleanup', async () => {
@@ -341,6 +346,7 @@ export async function initWorkbench(): Promise<void> {
             .finally(() => { themeSaving = false; render(); });
     });
     el<HTMLInputElement>('langToggle').addEventListener('change', () => {
+        if (busy || !settings) { render(); return; }
         const language = el<HTMLInputElement>('langToggle').checked ? 'en' : 'zh';
         const prior = settings;
         settings = { ...settings, language }; useSettings(settings);
@@ -361,7 +367,7 @@ export async function initWorkbench(): Promise<void> {
         const link = document.createElement('a'); link.href = url; link.download = 'gemini-exporter-ui-diagnostics.json';
         link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
-    el('btnTourGuide').addEventListener('click', () => { void TourGuide.startTour(); });
+    el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(); });
     const stopSettings = observeSettings(() => {
         void readSettings().then(next => { settings = next; render(); }).catch(e => status(errorText(e), 'error'));
     });

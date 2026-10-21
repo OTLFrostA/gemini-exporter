@@ -373,3 +373,19 @@ test('completed reply refresh failure cannot claim the cached matching version i
     assert.equal(result.exported, 1); assert.equal(result.partial, 1);
     assert.equal(records.get(address(key()))?.status, 'partial');
 });
+
+
+test('a fresh cached Detail rehydrates task-owned generated file bytes on each asset export', async () => {
+    const { detail } = seed('first', { assets: true });
+    delete detail.assets[1].sourceUri;
+    await runExport(request());
+    await runExport(request({ format: 'html' }));
+    assert.equal(events.filter(event => event === 'refresh').length, 2);
+});
+
+test('metadata-only export does not reacquire inline file bytes', async () => {
+    const { detail } = seed('first', { assets: true });
+    delete detail.assets[1].sourceUri;
+    await runExport(request({ includeAssets: false }));
+    assert.equal(events.includes('refresh'), false);
+});

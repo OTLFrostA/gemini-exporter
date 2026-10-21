@@ -389,6 +389,23 @@ test('native file attachment is written as original L1 bytes under its planned f
     assert.equal((await getExportRecord(exportKey('with-document')))?.status, 'ok');
 });
 
+test('a captured document without a remote locator exports its semantic source as UTF-8', async t => {
+    const host = v2ExportHost(t); realZip(t);
+    const markdown = '# Captured source\n中文 and exact document content';
+    const calls = sourceTransport(t, {});
+    await seedAssets('captured-document', [source('notes', 'file', 'rc_captured', {
+        document: { contentMarkdown: markdown },
+    })]);
+    const result = await runExport(exportRequest(['captured-document'], { includeAssets: true }));
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 0);
+    assert.deepEqual(calls, []);
+    const { files } = await contents(host.blobs[0]);
+    const attachment = files.find(file => file.name.startsWith('files/') && file.name.endsWith('notes.md'));
+    assert.ok(attachment);
+    assert.equal(await attachment.async('string'), markdown);
+});
+
 test('two v2 conversations with identical asset IDs never share bytes or packaging paths', async t => {
     const host = v2ExportHost(t); realZip(t);
     const firstUri = 'https://resources.example.test/a.png';

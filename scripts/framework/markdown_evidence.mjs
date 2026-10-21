@@ -96,6 +96,10 @@ function removeAssetCaptions(node) {
     // Generated image tiles export a filename caption after the image. It is
     // resource metadata, like the image alt label, rather than authored prose.
     node.children = node.children?.filter((child, index, siblings) => {
+        // Standalone Packaging file links are attachment cards, like HTML's
+        // gem-att-card. Their labels are resource metadata, not answer prose.
+        if (child.type === 'paragraph' && child.children.length === 1
+            && child.children[0].type === 'link' && child.children[0].url.startsWith('files/')) return false;
         const previous = siblings[index - 1];
         const image = previous?.type === 'paragraph' && previous.children.length === 1 ? previous.children[0] : null;
         return !(child.type === 'paragraph' && child.children.length === 1 && child.children[0].type === 'text'

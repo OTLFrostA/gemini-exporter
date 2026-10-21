@@ -97,6 +97,8 @@ def read_message(body, visible_reference=""):
     def authored(node):
         if isinstance(node, str):
             return node
+        if 'gem-missing-asset' in node.classes:
+            raise ValueError('Export resource unavailable: ' + node.text())
         if node.tag in {'script', 'style', 'button', 'svg', 'summary', 'details'} or node.classes & EXCLUDED:
             return ''
         if 'hidden' in node.attrs or node.attrs.get('aria-hidden') == 'true' or re.search(r'display\s*:\s*none|visibility\s*:\s*hidden', node.attrs.get('style', '')):

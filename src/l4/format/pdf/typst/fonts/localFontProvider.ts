@@ -61,6 +61,9 @@ export const LATIN_FONT_STACK: readonly string[] = [
 
 /** Matches font-mono in the PDF Typst template; the browser only mounts selected files. */
 export const MONO_FONT_STACK: readonly string[] = [
+    // Menlo's decomposed marks duplicate ActualText in the vendored Typst PDF writer.
+    // Courier New preserves selectable grapheme clusters as well as fixed cell widths.
+    'Courier New',
     'SF Mono',
     'Menlo',
     'Monaco',
