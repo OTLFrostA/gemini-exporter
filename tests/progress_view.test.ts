@@ -55,7 +55,7 @@ test('Browser export visibly stages each result before ZIP delivery without mark
         await page.evaluate(() => {
             const h = Reflect.get(window, 'harness');
             const record = { format: 'markdown', exportedAt: 200, chatTime: 100, status: 'ok' };
-            h.records[A] = { one: record };
+            h.records[h.indexes[0].key.accountId] = { one: record };
             h.exportOptions.onItemUpdate({ key: h.indexes[0].key, status: 'exported', record });
         });
         assert.equal(await page.locator('[data-chat-id="one"] .status-exported').textContent(), 'Last export complete');
@@ -82,7 +82,7 @@ test('Folder export updates persisted item badges and the bar before the full ba
         await page.evaluate(() => {
             const h = Reflect.get(window, 'harness');
             const record = { format: 'markdown', exportedAt: 200, chatTime: 100, status: 'ok' };
-            h.records[A] = { one: record };
+            h.records[h.indexes[0].key.accountId] = { one: record };
             h.exportOptions.onItemUpdate({ key: h.indexes[0].key, status: 'exported', record });
         });
         assert.equal(await page.locator('[data-chat-id="one"] .status-exported').textContent(), 'Last export complete');
