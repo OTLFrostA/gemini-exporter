@@ -1,47 +1,5 @@
 [
   {
-    "id": "music_acoustics_string_modes_spectrogram",
-    "title": "String acoustics: standing waves and spectral evidence",
-    "domain": "music_acoustics_normal_modes",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational image of a fictional monochord laboratory. Show a plucked string fixed at both ends, its first three standing-wave modes, a microphone and a time-frequency spectrogram inset. Label displacement and frequency axes without suggesting that sound travels along the plotted frequency axis.",
-      "Derive the fixed-end string eigenfrequencies and sinusoidal mode shapes in LaTeX. Explain tension, linear density, wave speed, units, and which idealizations exclude damping and stiffness.",
-      "Write runnable standard-library Python synthesizing a plucked-string signal as a finite mode sum with mode-dependent damping. Implement a direct discrete Fourier transform for a short signal and test zero amplitude, one mode, sampling rate and Nyquist constraints.",
-      "Create a Markdown table comparing three pluck positions and their predicted modal amplitudes. Distinguish exact zeros from numerical leakage and mark whether each value was calculated by execution or derived analytically.",
-      "Write a detailed bilingual English-Chinese report linking the illustration, boundary conditions, synthesized waveform and spectrum. Discuss finite windows, tuning uncertainty, inharmonicity, and why a missing spectral peak alone does not prove an absent mode."
-    ]
-  },
-  {
-    "id": "distributed_systems_vector_clock_causality",
-    "title": "Vector clocks: causality and concurrent event certificates",
-    "domain": "distributed_systems_logical_clocks",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define happened-before and vector clocks for three processes using LaTeX. Give a concrete trace with local events, two messages and a concurrent event pair. State exactly when a send or receive increments the local component.",
-      "Write runnable standard-library Python to replay that trace, validate message identifiers, and attach vector timestamps. Reject receives before the corresponding send and duplicate receives.",
-      "Implement a vector comparator returning before, after, equal or concurrent. Provide tests covering reflexivity, antisymmetry of the strict order, transitivity, and incomparable timestamps.",
-      "Construct an independent directed acyclic event graph from program order and message edges. Compute reachability and compare it against the vector timestamp order for every event pair.",
-      "Present the trace and all timestamps in a Markdown table, plus a separate table of concurrent pairs. Explain why equal scalar Lamport timestamps are insufficient to establish concurrency.",
-      "Extend the replay with a delayed message and an idle process. Show that wall-clock timestamps and message arrival delays do not change the causal ordering, and state the limits of the model.",
-      "Analyze time and space complexity in LaTeX for vector construction, pairwise comparison and the independent reachability oracle. Discuss process membership changes without inventing a fixed-size solution for arbitrary dynamic membership.",
-      "Produce a detailed English-Chinese technical report containing the event trace, executable code, validation failures, independent certificates and limitations. Clearly distinguish executed output from illustrative output."
-    ]
-  },
-  {
     "id": "ecology_two_patch_population_migration",
     "title": "Ecology: two-patch population migration and conservation",
     "domain": "ecology_population_migration",
@@ -414,6 +372,48 @@
       "Build an exhaustive independent oracle for small alphabets by enumerating feasible length profiles and compare its optimum against the Huffman result. State the enumeration limit and avoid claiming empirical testing alone proves optimality.",
       "Analyze encoding, decoding and tree construction time and space in LaTeX. Explain how headers, byte padding and a changed source distribution affect physical file size.",
       "Produce a detailed English-Chinese technical report combining the runnable code, prefix certificate, tables, mathematical bounds and limitations. Mark clearly which results were executed and which were derived."
+    ]
+  },
+  {
+    "id": "materials_binary_eutectic_phase_paths",
+    "title": "Binary eutectic: phase paths and lever-rule evidence",
+    "domain": "materials_science_binary_phase_equilibrium",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational illustration of a fictional binary eutectic alloy laboratory: two crucibles, a cooling sample, idealized alpha and beta grains, and a schematic temperature-composition diagram. Mark the eutectic point and distinguish schematic drawing from measured data.",
+      "Derive the lever rule in LaTeX from component mass balance for a two-phase alloy. State the composition basis and explain why the rule does not determine cooling rate or grain size.",
+      "Write runnable standard-library Python computing phase fractions from supplied tie-line endpoints. Reject reversed endpoints, out-of-range compositions and nonfinite input; test both pure-phase limits and conservation.",
+      "Build a Markdown table for five bulk compositions across one tie line with exact fractions and reconstructed bulk composition. Distinguish assumptions, analytically derived values and any executed output.",
+      "Write a detailed bilingual English-Chinese report tracing a hypoeutectic cooling path. Include an aligned ASCII flow diagram, discuss equilibrium versus kinetic effects, and explain why microstructure cannot be inferred uniquely from a phase diagram."
+    ]
+  },
+  {
+    "id": "coding_theory_hamming_secded_syndrome",
+    "title": "Extended Hamming codes: syndrome and error certificates",
+    "domain": "coding_theory_binary_linear_codes",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define an extended binary Hamming (8,4) SECDED code using explicit bit positions and parity conventions. Derive its parity-check equations in LaTeX and specify the ordering of message and parity bits.",
+      "Write standard-library Python to encode all 16 four-bit messages and calculate syndromes. Include tests for valid codewords and the all-zero message.",
+      "Implement a decoder distinguishing clean, corrected single-bit, detected double-bit and invalid inputs. Explain the global parity bit case and avoid claiming correction of arbitrary multiple errors.",
+      "Exhaustively enumerate every single-bit corruption and every double-bit corruption of every codeword. Check correction or detection against an independent Hamming-distance calculation.",
+      "Provide Markdown tables for representative corruption patterns, received vectors, syndrome, global parity and decoder action. Say whether values were computed by execution or derived manually.",
+      "Draw an aligned ASCII decision diagram for syndrome and parity cases, then give counterexamples showing how three-bit errors can be miscorrected. Explain the bounded fault model.",
+      "Derive minimum-distance and redundancy properties, compare detection with correction guarantees, and explain why an undetected four-bit error does not contradict SECDED.",
+      "Write a detailed bilingual English-Chinese engineering audit covering bit ordering, parity convention, exhaustive tests, decoder status semantics and the limits of applying this toy code to burst faults."
     ]
   }
 ]
