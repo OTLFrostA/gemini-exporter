@@ -220,3 +220,69 @@ test('invalid optional export times are omitted, invalid exportedAt records reje
         optional: { exportedAt: 123, status: 'partial', format: 'html' },
     });
 });
+
+for (const initialized of [false, true]) test(`released 1.7 slot lists migrate even with initialized=${initialized}`, async () => {
+    const old = {
+        gemini_account_slots: {
+            u0: { accountId: 'one@example.com', email: 'one@example.com', name: 'One' },
+            u1: { accountId: 'two@example.com', email: 'two@example.com', name: 'Two' }
+        },
+        gemini_conversations: [{ id: 'c_shared', title: 'First', titleSource: 'rpc', chatTime: 123,
+            accountSlot: 'u0' }, { id: 'second', title: 'Offline', titleSource: 'derived', updatedAt: 456 }],
+        gemini_conversations_u1: [{ id: 'shared', title: 'Other account', titleSource: 'dom', updatedAt: 789, accountSlot: 'u1' }],
+        exportedIds: { c_shared: { status: 'partial', format: 'markdown', exportedAt: 1000 } },
+        gemini_exported_u1: { shared: { status: 'ok', format: 'html', exportedAt: 2000, chatTime: 789 } },
+        ...(initialized ? { [marker]: true } : {})
+    };
+    data = structuredClone(old);
+    await ensureUpgraded();
+    const saved = await storage.listAccounts();
+    assert.equal(saved.length, 2);
+    const one = saved.find(row => row.email === 'one@example.com');
+    const two = saved.find(row => row.email === 'two@example.com');
+    assert.equal((await storage.listIndexes(one.id)).length, 2);
+    assert.deepEqual(await storage.getIndex({ accountId: one.id, conversationId: 'shared' }), {
+        key: { accountId: one.id, conversationId: 'shared' }, title: 'First', titleSource: 'provider', updatedAt: 123
+    });
+    assert.equal((await storage.listIndexes(two.id))[0].title, 'Other account');
+    assert.equal((await storage.getExportRecord({ accountId: one.id, conversationId: 'shared' })).status, 'partial');
+    assert.equal((await storage.getExportRecord({ accountId: two.id, conversationId: 'shared' })).format, 'html');
+    assert.equal(data.gemini_exporter_v17_migrated, true);
+    for (const [k,v] of Object.entries(old)) if (k !== marker) assert.deepEqual(data[k], v);
+    const { getOrCreateAccount } = require('../src/l2/accountAdmission.ts');
+    const verified = await getOrCreateAccount('gemini', '123456789012345', 'one@example.com', 'Verified');
+    assert.equal(verified.id, one.id, 'verified Gaia keeps the migrated UUID and its conversations');
+    assert.equal((await storage.listAccounts()).length, 2);
+    assert.equal((await storage.listIndexes(verified.id)).length, 2);
+    await storage.deleteStoredConversation({ accountId: one.id, conversationId: 'shared' });
+    await ensureUpgraded();
+    assert.equal(await storage.getIndex({ accountId: one.id, conversationId: 'shared' }), null, 'later reload cannot resurrect cleanup');
+});
+
+test('released 1.7 retry preserves current v2 facts and keeps stable account identity', async () => {
+    data = { [marker]: true, gemini_account_slots: { u0: { email: 'one@example.com' } },
+        gemini_conversations: [{ id: 'shared', title: 'Old', titleSource: 'rpc', updatedAt: 123 }] };
+    failKey = 'gemini_exporter_v17_migrated';
+    await assert.rejects(ensureUpgraded(), /injected/);
+    const [account] = await storage.listAccounts();
+    assert.ok(account);
+    await storage.putIndexes([{ key: { accountId: account.id, conversationId: 'shared' }, title: 'New', titleSource: 'user', updatedAt: 456 }]);
+    failKey = undefined;
+    await ensureUpgraded();
+    assert.equal((await storage.listAccounts()).length, 1);
+    assert.equal((await storage.listIndexes(account.id))[0].title, 'New');
+    assert.equal(data.gemini_exporter_v17_migrated, true);
+});
+
+test('released 1.7 recovery reuses a verified account but never merges distinct known Gaia subjects by email', async () => {
+    const existing = { ...a, providerAccountId: '123456789', email: 'same@example.com' };
+    await storage.putAccount(existing);
+    data = { [marker]: true, gemini_account_slots: {
+        u0: { email: 'same@example.com' }, u1: { accountId: '987654321', email: 'same@example.com' }
+    }, gemini_conversations: [{ id: 'one' }], gemini_conversations_u1: [{ id: 'two' }] };
+    await ensureUpgraded();
+    assert.equal((await storage.listAccounts()).length, 2);
+    assert.deepEqual((await storage.listIndexes(a.id)).map(row => row.key.conversationId), ['one']);
+    const other = (await storage.listAccounts()).find(row => row.providerAccountId === '987654321');
+    assert.deepEqual((await storage.listIndexes(other.id)).map(row => row.key.conversationId), ['two']);
+});

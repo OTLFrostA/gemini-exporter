@@ -14,5 +14,5 @@ test('55-conversation browser delivery automatically packages ZIP without a seco
     await expect.poll(async () => page.evaluate(async () =>
         Object.keys(await Reflect.get(globalThis, 'uiFixture').listExportRecords('10000000-0000-4000-8000-000000000001')).length),
         { timeout: 30000 }).toBe(55);
-    await page.reload();await expect(page.locator('#list .item')).toHaveCount(55);await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await expect(page.locator('#status')).toContainText('skipped: 55');await expect(page.locator('#directWriteModal')).toHaveCount(0);
+    await page.reload();await expect(page.locator('#list .item')).toHaveCount(55);await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await expect(page.locator('#status')).toContainText('Skipped: 55');await expect(page.locator('#directWriteModal')).toHaveCount(0);
 });

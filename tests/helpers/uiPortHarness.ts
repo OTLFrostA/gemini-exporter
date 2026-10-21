@@ -6,6 +6,8 @@ import path from 'node:path';
 // Only the UI is under test. Domain/Application/Runtime ports are deliberate mocks.
 const mock = `
 const h = globalThis.harness;
+export const resourceIssueKind = f => f.code === 'RESOURCE_SOURCE_EXPIRED' ? 'expired' : f.code === 'RESOURCE_ACCESS_RESTRICTED' ? 'restricted' : f.code === 'RESOURCE_PROCESSING_FAILED' ? 'processing' : 'download';
+export const resourceFailureText = (f, locale) => locale === 'zh' ? '附件不可用' : 'Attachment unavailable';
 export const getSettings = async () => ({...h.settings});
 export const updateSettings = async patch => { h.patches.push(patch); Object.assign(h.settings,patch); };
 export const isLiveSaveEffective = (s,d) => s.enabledDisk && s.exportDelivery==='folderWriter' && s.defaultFormat==='markdown' && d;

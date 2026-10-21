@@ -13,7 +13,7 @@ test('batch export delivers both physical bodies and refreshes recent ExportReco
 });
 test('unchanged exports skip through Application without producing an empty ZIP',async({context,extensionId})=>{
     const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'unchanged'}],{unchanged:{exportedAt:200,chatTime:100,format:'markdown',status:'ok'}});
-    await page.locator('#btnSelectAll').click();let downloads=0;page.on('download',()=>{downloads++;});await page.locator('#btnExport').click();await expect(page.locator('#status')).toContainText('skipped: 1');await expect(page.locator('body')).toHaveAttribute('data-busy','false');expect(downloads).toBe(0);
+    await page.locator('#btnSelectAll').click();let downloads=0;page.on('download',()=>{downloads++;});await page.locator('#btnExport').click();await expect(page.locator('#status')).toContainText('Skipped: 1');await expect(page.locator('body')).toHaveAttribute('data-busy','false');expect(downloads).toBe(0);
 });
 test('clearing export records preserves bodies and skip preference, then explicit selection can export again',async({context,extensionId})=>{
     const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'one'}],{one:{exportedAt:200,chatTime:100,format:'markdown',status:'ok'}});

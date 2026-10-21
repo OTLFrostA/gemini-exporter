@@ -1,3 +1,4 @@
+import { exportSummary } from '../shared/exportSummary.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { updateSettings, isLiveSaveEffective, type GlobalSettings } from '../../application/settings/index.js';
 import * as Cleanup from '../../application/localCleanup.js';
@@ -228,9 +229,7 @@ export async function initWorkbench(): Promise<void> {
         preparedExportKeys.clear();
         el<HTMLElement>('bar').style.width = '100%';
         failed = [...result.failed];
-        status(text(`Delivery initiated: ${result.exported}; partial: ${result.partial}; skipped: ${result.skipped}; failed: ${failed.length}${result.aborted ? '; cancelled' : ''}`,
-            `已发起交付 ${result.exported}；部分缺失 ${result.partial}；跳过 ${result.skipped}；失败 ${failed.length}${result.aborted ? '；已取消' : ''}`),
-            failed.length || result.aborted ? 'warn' : 'info');
+        status(exportSummary(result), failed.length || result.aborted || result.partial ? 'warn' : 'info');
      }, true);
     const scan = (forceFull = false) => perform('scan', async () => {
         const startedAt = Date.now();
@@ -404,15 +403,17 @@ export async function initWorkbench(): Promise<void> {
     const onFocus = () => {
         if (busy) return;
         void (async () => {
-            directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
             await refresh();
+            try { directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle()); }
+            catch (error) { directoryAvailable = false; status(errorText(error), 'warn'); }
+            render();
         })().catch(e => status(errorText(e), 'error'));
     };
     const onDomainChanged = (message: unknown, sender: chrome.runtime.MessageSender): void => {
         if (sender.id !== chrome.runtime.id || sender.tab
             || sender.url && !sender.url.startsWith(chrome.runtime.getURL(''))
             || !message || typeof message !== 'object' || !('action' in message) || message.action !== 'domainChanged'
-            || !('accountId' in message) || message.accountId !== state.accountId) return;
+            || !('accountId' in message) || typeof message.accountId !== 'string') return;
         void refresh().catch(e => status(errorText(e), 'error'));
     };
     chrome.runtime.onMessage.addListener(onDomainChanged);
@@ -424,9 +425,15 @@ export async function initWorkbench(): Promise<void> {
     renderLog(); render();
     await ensureV2Ready();
     settings = await readSettings();
-    await Directory.restoreSavedDirHandle();
-    directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
     await refresh();
+    try {
+        await Directory.restoreSavedDirHandle();
+        directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
+    } catch (error) {
+        directoryAvailable = false;
+        status(text('Folder permission could not be restored: ', '无法恢复文件夹权限：') + errorText(error), 'warn');
+    }
+    render();
     if (installationTour) await TourGuide.startTour();
     else {
         const current = chrome.runtime.getManifest().version;

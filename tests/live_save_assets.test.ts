@@ -66,7 +66,7 @@ test('v2 Live Save preserves user-upload and generated Imagen bytes as distinct 
     assert.deepEqual(await readConversation(liveKey(id)), before, 'task resource binding cannot mutate persisted Domain facts');
 });
 
-test('v2 Live Save renders failed image visibly as unavailable without a dangling sidecar or stale source URL', async t => {
+test('v2 Live Save renders failed image visibly as unavailable without a dangling sidecar or remote image embedding', async t => {
     const host = v2LiveSaveHost(t), id = 'failing-images';
     const good = 'https://example.test/good.png', bad = 'https://example.test/broken.png';
     await seedLiveDetail(id, [
@@ -86,7 +86,8 @@ test('v2 Live Save renders failed image visibly as unavailable without a danglin
     assert.deepEqual(imageFiles[0][1], bytes);
     const markdown = mainMarkdown(host.files);
     assert.ok(markdown.includes(imageFiles[0][0]));
-    assert.doesNotMatch(markdown, /https:\/\/example\.test/);
+    assert.match(markdown, /\[Open source\]\(https:\/\/example\.test\/broken\.png\)/);
+    assert.doesNotMatch(markdown, /!\[[^\]]*\]\(https:/);
     assert.doesNotMatch(markdown, /\]\(assets\/[^)]*broken\.png\)/,
         'failed media may have a visible placeholder but never a missing relative file link');
     assert.match(markdown, /broken\.png|Image unavailable/i);

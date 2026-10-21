@@ -156,7 +156,12 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
     const locale = options.locale ?? 'en';
     const strings = getRendererStrings(locale);
     const isEn = locale === 'en';
-    const unavailableText = (kind: 'image' | 'file', label: string) => unavailableResourceText(kind, label, locale);
+    const unavailableMarkup = (kind: 'image' | 'file', label: string, id: string): string => {
+        const failure = options.resourceFailures?.[id];
+        const url = safeExternalHref(failure?.sourceUrl ?? '');
+        return escapeHtml(unavailableResourceText(kind, label, locale, failure))
+            + (url ? ` <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${locale === 'zh' ? '查看来源' : 'Open source'}</a>` : '');
+    };
     const available = (id: string) => isResourcePath(resources[id]);
     const missing = (id: string) => diagnostics.push({ severity: 'warning', code: 'HTML_ASSET_UNRESOLVED', message: `Resource ${id} has no prepared safe URL` });
     const diagnostics: Diagnostic[] = [];
@@ -199,7 +204,7 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
             case 'lineBreak': return '<br>';
             case 'inlineMath': return math(node.source, false);
             case 'image':
-                if (!available(node.resourceId)) { missing(node.resourceId); return `<span class="gem-missing-asset gem-missing-inline">${escapeHtml(unavailableText('image', node.alt))}</span>`; }
+                if (!available(node.resourceId)) { missing(node.resourceId); return `<span class="gem-missing-asset gem-missing-inline">${unavailableMarkup('image', node.alt, node.resourceId)}</span>`; }
                 return `<img class="gem-inline-img" src="${resource(node.resourceId)}" alt="${escapeHtml(node.alt)}" loading="lazy"${node.title ? ` title="${escapeHtml(node.title)}"` : ''}>`;
 
         }
@@ -229,10 +234,10 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
                 return `<div class="gem-table-wrapper"><table class="gem-table">${node.caption ? `<caption class="gem-table-caption">${inlines(node.caption)}</caption>` : ''}${tableRows}</table></div>`;
             }
             case 'image':
-                if (!available(node.resourceId)) { missing(node.resourceId); return `<div class="gem-missing-asset">${escapeHtml(unavailableText('image', node.alt))}${node.caption ? `<div>${inlines(node.caption)}</div>` : ''}</div>`; }
+                if (!available(node.resourceId)) { missing(node.resourceId); return `<div class="gem-missing-asset">${unavailableMarkup('image', node.alt, node.resourceId)}${node.caption ? `<div>${inlines(node.caption)}</div>` : ''}</div>`; }
                 return `<figure class="gem-figure gem-image-block" data-asset-id="${escapeHtml(node.resourceId)}"><a href="${resource(node.resourceId)}" target="_blank" rel="noopener noreferrer" class="gem-img-link"><img class="gem-msg-img" src="${resource(node.resourceId)}" alt="${escapeHtml(node.alt)}" loading="lazy"></a>${node.caption ? `<figcaption class="gem-image-caption">${inlines(node.caption)}</figcaption>` : ''}</figure>`;
             case 'file':
-                if (!available(node.resourceId)) { missing(node.resourceId); return `<div class="gem-missing-asset">${escapeHtml(unavailableText('file', node.label))}${node.description ? `<div>${inlines(node.description)}</div>` : ''}</div>`; }
+                if (!available(node.resourceId)) { missing(node.resourceId); return `<div class="gem-missing-asset">${unavailableMarkup('file', node.label, node.resourceId)}${node.description ? `<div>${inlines(node.description)}</div>` : ''}</div>`; }
                 return `<a class="gem-att-card gem-att-file" href="${resource(node.resourceId)}" target="_blank" download="${escapeHtml(node.label)}" title="${escapeHtml(`${isEn ? 'Open or download' : '点击打开或下载'} ${node.label}`)}"><div class="gem-att-icon">${FILE_SVG}</div><div class="gem-att-info"><span class="gem-att-name">${escapeHtml(node.label)}</span><span class="gem-att-badge">${escapeHtml(fileBadge(node))}</span></div>${node.description ? `<div class="gem-att-desc">${inlines(node.description)}</div>` : ''}<div class="gem-att-open-btn">${OPEN_SVG}</div></a>`;
             case 'disclosure': return `<details class="gem-thoughts"><summary class="gem-thoughts-summary"><div class="gem-thoughts-header">${THOUGHT_SVG}<span>${escapeHtml(node.title)}</span>${CHEVRON_SVG}</div></summary><div class="gem-thoughts-content">${blocks(node.blocks)}</div></details>`;
             case 'thematicBreak': return '<hr class="gem-hr">';

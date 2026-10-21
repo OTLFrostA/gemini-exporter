@@ -1,6 +1,7 @@
 import type { DocumentAst, DisplayBlock, DisplayInline } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import { missingResource } from '../../../shared/resources/resourceResult.js';
 import type { PreparedResources } from '../../../shared/resources/resourceResult.js';
 import type { RendererOptions } from '../shared/renderOptions.js';
 import { renderDocumentTypstCore } from '../typst/renderTypstCore.js';
@@ -46,9 +47,15 @@ export async function compileDocumentPdf(
     options: RendererOptions = {},
 ): Promise<PdfCompileResult> {
     context.signal.throwIfAborted();
+    const resourceFailures = { ...options.resourceFailures };
+    options = { ...options, resourceFailures };
     const diagnostics: Diagnostic[] = [];
     const report = (diagnostic: Diagnostic): void => {
         diagnostics.push(diagnostic);
+        if (diagnostic.code === 'FORMAT_CONTENT_OMITTED' && diagnostic.path?.startsWith('asset:')) {
+            const id = diagnostic.path.slice(6);
+            resourceFailures[id] = missingResource(id, diagnostic.message, 'RESOURCE_PROCESSING_FAILED');
+        }
     };
     const assetPaths = new Map<string, string>();
     const images = new Map<string, Uint8Array>();

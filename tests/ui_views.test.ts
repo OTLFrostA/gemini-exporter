@@ -222,7 +222,7 @@ test('Export retry uses only current failed ConversationKeys and disables skip',
     await page.locator('#btnExport').click();
     await page.waitForFunction(() => document.body.dataset.busy !== 'true');
     assert.equal(await page.locator('#btnRetryFailed').isVisible(), true);
-    assert.match(await page.locator('#status').textContent() ?? '', /partial: 1; skipped: 0; failed: 1/);
+    assert.match(await page.locator('#status').textContent() ?? '', /Other incomplete conversations: 1; Skipped: 0; Conversation export failed: 1/);
     await page.evaluate(() => {
         const h = Reflect.get(window, 'harness'); h.partial = false; h.failExport = false;
     });

@@ -1,3 +1,4 @@
+import { exportSummary } from '../shared/exportSummary.js';
 import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
@@ -97,7 +98,7 @@ export async function initPopup(): Promise<void> {
             if (!active) return;
             status.textContent = result.aborted ? text('Cancelled', '已取消')
                 : result.failed.length || !result.exported ? text('Export failed. Try Options.', '导出失败，请在工作台重试。')
-                : result.partial ? text('Download initiated; some content is missing', '已发起下载，部分内容缺失')
+                : result.partial ? exportSummary(result)
                 : text('Download initiated', '已发起下载');
         })().catch(e => { if (active) status.textContent = errorText(e); })
             .finally(() => {

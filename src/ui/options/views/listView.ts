@@ -1,3 +1,5 @@
+import { attachmentFailure, attachmentIssueText } from '../../shared/exportSummary.js';
+import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
 import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';
 import type { ExportRecord } from '../../../application/export/types.js';
 import type { ConversationViewState } from '../state/conversationsStore.js';
@@ -6,6 +8,16 @@ import { text } from '../../shared/settings.js';
 /** Presentation-only status. Domain and Application remain authorities for updates and Skip. */
 function viewStatus(record: ExportRecord | undefined) {
     if (!record) return { label: text('No export record', '无导出记录'), className: '' };
+    if (record.status === 'partial' && record.attachmentIssues?.length) {
+        const kinds = new Set(record.attachmentIssues.map(issue => resourceIssueKind(attachmentFailure(issue))));
+        const labels = [
+            ...(kinds.has('expired') ? [text('Contains unavailable source attachments', '含失效附件')] : []),
+            ...(kinds.has('restricted') ? [text('Attachment access restricted', '附件访问受限')] : []),
+            ...(kinds.has('download') ? [text('Attachment download failed; retry', '附件下载失败，可重试')] : []),
+            ...(kinds.has('processing') ? [text('Attachment processing failed', '附件处理失败')] : []),
+            ...(record.otherContentMissing ? [text('Other content missing', '其他内容不完整')] : [])];
+        return { label: labels.join(' · '), className: kinds.size === 1 && kinds.has('expired') && !record.otherContentMissing ? 'status-unavailable' : 'status-partial' };
+    }
     if (record.status === 'partial') return { label: text('Partial export', '部分导出'), className: 'status-partial' };
     return { label: text('Last export complete', '上次导出完整'), className: 'status-exported' };
 }
@@ -56,6 +68,28 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
             ? `${text('Last export', '上次导出')} · ${record.format} · ${exported} · ${status.label}`
             : text('No export record', '无导出记录')].filter(Boolean).join(' · ');
         body.append(heading, meta);
+        if (record?.attachmentIssues?.length) {
+            const details = document.createElement('details'); details.className = 'attachment-issues';
+            details.addEventListener('click', event => event.stopPropagation());
+            const summary = document.createElement('summary');
+            summary.textContent = text(`Attachment details (${record.attachmentIssues.length})`, `附件详情（${record.attachmentIssues.length}）`);
+            details.append(summary);
+            for (const issue of record.attachmentIssues) {
+                const line = document.createElement('div'); line.textContent = attachmentIssueText(issue);
+                if (issue.sourceUrl) {
+                    try {
+                        const url = new URL(issue.sourceUrl);
+                        if (url.protocol === 'https:' && !url.username && !url.password) {
+                            const source = document.createElement('a'); source.href = url.href;
+                            source.textContent = text('Open source', '查看来源'); source.target = '_blank'; source.rel = 'noopener noreferrer';
+                            line.append(' ', source);
+                        }
+                    } catch { /* Older records may contain an invalid source locator. */ }
+                }
+                details.append(line);
+            }
+            body.append(details);
+        }
         body.addEventListener('click', () => {
             if (disabled) return;
             checkbox.checked = !checkbox.checked;

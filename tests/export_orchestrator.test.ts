@@ -340,7 +340,8 @@ test('an unavailable referenced resource gives a readable partial and no invente
     assert.match(host.filenames[0], /\.md$/);
     const markdown = await host.blobs[0].text();
     assert.match(markdown, /Answer for resource-fails/);
-    assert.doesNotMatch(markdown, /resources\.example\.test/);
+    assert.match(markdown, /\[Open source\]\(https:\/\/resources\.example\.test\/missing\.png\)/);
+    assert.doesNotMatch(markdown, /!\[[^\]]*\]\(https:/);
     assert.equal((await getExportRecord(exportKey('resource-fails')))?.status, 'partial');
 });
 
@@ -503,4 +504,28 @@ test('the same v2 Domain can be exported as Markdown, JSON and HTML without rein
     const archive = JSON.parse(await host.blobs[1].text());
     assert.deepEqual(archive.conversation, before);
     assert.match(await host.blobs[2].text(), /Answer for source-preserved/);
+});
+
+test('404 and retryable attachment failures deliver text, persist reasons and never count as failed conversations', async t => {
+    const host = v2ExportHost(t); realZip(t);
+    sourceTransport(t, {});
+    globalThis.fetch = async input => new Response('', {status:String(input).includes('expired') ? 404 : 503});
+    await seedAssets('expired-only', [source('expired', 'image', 'https://example.test/expired')]);
+    await seedAssets('mixed-resources', [source('expired', 'image', 'https://example.test/expired'), source('retry', 'image', 'https://example.test/retry')]);
+    const result = await runExport(exportRequest(['expired-only','mixed-resources'], {includeAssets:true}));
+    assert.equal(result.exported, 2);
+    assert.equal(result.partial, 2);
+    assert.equal(result.expiredConversations, 2);
+    assert.equal(result.otherPartial, 0);
+    assert.deepEqual(result.failed, []);
+    assert.equal(result.attachmentIssues?.length, 3);
+    const record = await getExportRecord(exportKey('mixed-resources'));
+    assert.deepEqual(record?.attachmentIssues?.map(issue => issue.httpStatus), [404,503]);
+    assert.equal(record?.attachmentIssues?.[0].sourceUrl, 'https://example.test/expired');
+    const {files} = await contents(host.blobs[0]);
+    for (const file of files.filter(file => file.name.endsWith('.md'))) {
+        const body = await file.async('string') as string;
+        assert.match(body, /HTTP 404/);
+        assert.match(body, /Answer for/);
+    }
 });
