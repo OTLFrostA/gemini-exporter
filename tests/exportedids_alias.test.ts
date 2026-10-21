@@ -98,7 +98,7 @@ test('empty conversations use current ok/partial status without the retired empt
     assert.equal((await listExportRecords(accountId)).empty.status, 'ok');
 });
 
-test('partial export badge remains translated in both locales', async () => {
+test('legacy partial export record shows incomplete export badge in both locales', async () => {
     const { chromium } = await import('playwright');
     const { mount, A } = require('./helpers/uiPortHarness.js') as typeof import('./helpers/uiPortHarness.js');
     const browser = await chromium.launch({ headless: true });
@@ -106,8 +106,8 @@ test('partial export badge remains translated in both locales', async () => {
         const page = await browser.newPage();
         await mount(page, 'options', { records: { [A]: { a: { ...record(100), status: 'partial' } } } });
         await page.locator('.status-partial').waitFor();
-        assert.equal(await page.locator('.status-partial').textContent(), 'Partial export');
+        assert.equal(await page.locator('.status-partial').textContent(), 'Incomplete export');
         await page.locator('#langToggle').setChecked(false);
-        await page.waitForFunction(() => document.querySelector('.status-partial')?.textContent === '部分导出');
+        await page.waitForFunction(() => document.querySelector('.status-partial')?.textContent === '导出不完整');
     } finally { await browser.close(); }
 });
