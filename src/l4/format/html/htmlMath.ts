@@ -1,4 +1,5 @@
 import katex from 'katex';
+import { CENTERED_NOT_IMPLIES_COMPAT_RULE } from '../../../shared/utils/latexCompatibility.js';
 import type { Diagnostic as RenderDiagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { getErrorMessage } from '../../../shared/utils/errorText.js';
 
@@ -59,14 +60,18 @@ export function renderMathHtml(
     }
 
     try {
-        const mathml = katex.renderToString(source, {
+        const adapted = CENTERED_NOT_IMPLIES_COMPAT_RULE.transform(source);
+        const mathml = katex.renderToString(adapted, {
             output: 'mathml',
             displayMode: display,
             throwOnError: true,
         });
+        // Keep the original authoring source available for copy/accessibility audits.
+        const preserved = mathml.replace(/(<annotation encoding="application\/x-tex">)[\s\S]*?(<\/annotation>)/,
+            (_match, open: string, close: string) => open + escapeHtml(source) + close);
         const container = display
-            ? `<div class="gem-math-block">${mathml}</div>`
-            : `<span class="gem-math-inline">${mathml}</span>`;
+            ? `<div class="gem-math-block">${preserved}</div>`
+            : `<span class="gem-math-inline">${preserved}</span>`;
         return { html: container };
     } catch (err: unknown) {
         const errMsg = getErrorMessage(err);

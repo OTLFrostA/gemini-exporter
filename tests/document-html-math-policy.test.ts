@@ -127,3 +127,12 @@ test('PR 3: End-to-end integration via provider parsing, composition and HTML re
     assert.ok(html.includes('<annotation encoding="application/x-tex">E = mc^2</annotation>'));
     assert.ok(html.includes(String.raw`\hbar \Omega = \int_0^\infty f(x) dx`));
 });
+
+test('live centered negation renders as MathML while retaining original TeX', () => {
+    const source = String.raw`a \centernot\implies b`;
+    const result = renderMathHtml(source, true, 'fallback');
+    assert.equal(result.diagnostic, undefined);
+    assert.ok(result.html.includes('⇏'));
+    assert.ok(result.html.includes(source), 'retain original TeX annotation');
+    assert.ok(!result.html.includes('gem-math-unsupported'));
+});
