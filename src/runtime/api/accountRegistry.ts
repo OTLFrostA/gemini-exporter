@@ -1,7 +1,7 @@
 import { ensureV2Ready } from './runtimeReady.js';
 import * as accountStore from '../../l3a/storageService.js';
 import * as accountAdmission from '../../l2/accountAdmission.js';
-import { readAccount, readAccountRegistry, type Account } from '../../l2/accountRegistry.js';
+import { readAccount, readAccountRegistry, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
 
 /** Extension pages and the worker share the extension-origin Registry. */
 function inExtensionContext(): boolean {
@@ -21,7 +21,7 @@ export async function getOrCreateAccount(providerId: string, providerAccountId: 
     const account = readAccount(inExtensionContext()
         ? await accountAdmission.getOrCreateAccount(providerId, providerAccountId, email, displayName)
         : await request('getOrCreate', { providerId, providerAccountId, email, displayName }));
-    if (account.providerId !== providerId || account.providerAccountId !== providerAccountId) throw new TypeError('Account registry identity mismatch');
+    if (account.providerId !== providerId || (providerAccountId !== DEFAULT_ACCOUNT_KEY && account.providerAccountId !== providerAccountId)) throw new TypeError('Account registry identity mismatch');
     return account;
 }
 export async function listAccounts(providerId?: string): Promise<Account[]> {
