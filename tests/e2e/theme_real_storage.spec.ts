@@ -1,5 +1,5 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
-import { openOptions, openPopup, storedSettings } from './uiFixture';
+import { openOptions, openPopup, storedSettings, exposeUIStorage } from './uiFixture';
 
 /**
  * Real extension test: shared Settings persistence and theme CSS must work across
@@ -25,6 +25,7 @@ test('Options and Popup theme toggle persists, repaints, and synchronizes across
     await expect(popup.locator('body')).toHaveCSS('background-color', 'rgb(245, 247, 252)');
 
     await options.reload();
+    await exposeUIStorage(options);
     await expect(options.locator('html')).toHaveAttribute('data-theme', 'light');
     await expect(optionsSwitch).toBeEnabled();
 
