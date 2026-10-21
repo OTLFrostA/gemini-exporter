@@ -81,7 +81,7 @@ export async function initWorkbench(): Promise<void> {
     const render = () => {
         labelPage();
         labelThemeToggle(el<HTMLButtonElement>('btnThemeToggle'), settings);
-        el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || busy || themeSaving;
+        el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || themeSaving;
         document.body.dataset.busy = String(busy);
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
@@ -329,7 +329,7 @@ export async function initWorkbench(): Promise<void> {
         });
     });
     el<HTMLButtonElement>('btnThemeToggle').addEventListener('click', () => {
-        if (!settings || busy || themeSaving) return;
+        if (!settings || themeSaving) return;
         const previous = settings;
         const theme = settings.theme === 'light' ? 'dark' : 'light';
         themeSaving = true;
