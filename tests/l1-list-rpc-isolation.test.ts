@@ -45,3 +45,33 @@ test('only explicit LIST BardErrorInfo 1096 can certify the provider window limi
     const unrelated = parseList(text(['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]));
     assert.equal(unrelated.failure, 'invalid_response');
 });
+
+// Error envelope characterized from a live hNvQHb NotFound response, 2026-10-20.
+// LIST / 1096 below is a synthetic boundary regression using that native Any schema.
+const nativeError = (rpc: string, code: unknown, type = 'type.googleapis.com/assistant.boq.bard.application.BardErrorInfo') =>
+    ['wrb.fr', rpc, null, null, null, [5, null, [[type, [code]]]], 'generic'];
+
+test('LIST window limit recognizes the native protobuf Any error envelope', () => {
+    const parsed = parseList(text(nativeError('MaZiqc', 1096)));
+    assert.equal(parsed.failure, 'hit_google_limit');
+    const bound = geminiListObservation(parsed, { streamId: 'recent', requestCursor: 'tC_last' }, 'account');
+    assert.equal(bound.valid, true);
+    assert.equal(bound.ordered, true);
+    assert.equal(bound.terminal, 'provider_limit');
+    for (const request of [{ streamId: 'recent' as const, requestCursor: null },
+        { streamId: 'pinned' as const, requestCursor: 'tC_last' }]) {
+        assert.equal(geminiListObservation(parsed, request, 'account').valid, false);
+    }
+});
+
+test('native error envelopes still require the exact type, numeric code, and target LIST RPC', () => {
+    for (const packet of [nativeError('hNvQHb', 1096), nativeError('MaZiqc', 1167),
+        nativeError('MaZiqc', 10961), nativeError('MaZiqc', '1096'),
+        nativeError('MaZiqc', 1096, 'type.googleapis.com/other.BardErrorInfo'),
+        ['wrb.fr', 'MaZiqc', null, null, null, [1096]],
+    ]) {
+        const parsed = parseList(text(packet));
+        assert.equal(parsed.failure, 'invalid_response');
+        assert.equal(parsed.pageEvidence.valid, false);
+    }
+});

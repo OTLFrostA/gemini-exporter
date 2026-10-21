@@ -1,5 +1,6 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
+import { readFile } from 'node:fs/promises';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
@@ -22,6 +23,31 @@ const v2 = (page: import('@playwright/test').Page) => page.evaluate(async id => 
     };
 }, accountId);
 
+test('diagnostic download includes the failed scan page and its native error envelope', async ({ context, extensionId }) => {
+    await sourcePage(context);
+    const packet = ['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic'];
+    await context.route('**/batchexecute*', route => route.fulfill({
+        contentType: 'application/json', body: JSON.stringify([packet]),
+    }));
+    const options = await openOptions(context, extensionId);
+    await options.click('#btnSyncAll');
+    await expect(options.locator('#status')).toContainText('invalid_response');
+    await expect(options.locator('#btnSyncAll')).toBeEnabled();
+    await options.check('#devToggle');
+    const downloaded = options.waitForEvent('download');
+    await options.locator('#btnExportDiag').focus();
+    await options.locator('#btnExportDiag').press('Enter');
+    const download = await downloaded;
+    const report = JSON.parse(await readFile((await download.path())!, 'utf8'));
+    expect(report.scanRuns).toHaveLength(1);
+    expect(report.scanRuns[0]).toMatchObject({ accountId, forceFull: false,
+        result: { status: 'error', pagesFetched: 0, diagnostics: {
+            providerId: 'gemini', streamId: 'recent', page: 1, requestCursor: null,
+            failure: 'invalid_response', details: { topParsed: JSON.stringify([packet]) },
+        } } });
+    expect((await v2(options)).coverage?.range ?? null).toBeNull();
+});
+
 test('trusted provider-limit window is persisted by L2/L3a and reused for v2 early stop without losing existing facts', async ({ context, extensionId }) => {
     const gemini = await sourcePage(context);
     let round = 0;
@@ -35,7 +61,8 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
         const values = round === 0 ? cursor === null ? [100, 90] : [80, 70] : round === 1 ? [120, 110, 95, 85] : [130, 120, 110, 95];
         const next = round === 0 ? cursor === null ? 'tC_middle' : 'tC_limit' : 'tC_unread';
         const packet = cursor === 'tC_limit'
-            ? ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]
+            ? ['wrb.fr', 'MaZiqc', null, null, null, [5, null,
+                [['type.googleapis.com/assistant.boq.bard.application.BardErrorInfo', [1096]]]], 'generic']
             : ['wrb.fr', 'MaZiqc', JSON.stringify([null, next,
                 values.map(t => ['c_chat' + t, 'Chat ' + t, null, null, null, [1700000000 + t, 0]])])];
         await route.fulfill({ contentType: 'application/json', body: JSON.stringify([packet]) });

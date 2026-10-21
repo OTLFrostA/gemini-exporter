@@ -5,6 +5,7 @@ import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontPro
 import { ConversationViewState } from './state/conversationsStore.js';
 import { runExport, type UIExportRequest } from './controllers/exportController.js';
 import { startSync } from './controllers/syncController.js';
+import type { ScanResult } from '../../application/sync/scanController.js';
 import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { renderList } from './views/listView.js';
@@ -30,6 +31,7 @@ export async function initWorkbench(): Promise<void> {
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
     const log: LogEntry[] = [];
+    const scanRuns: { startedAt: number; finishedAt: number; accountId: string | null; forceFull: boolean; result: ScanResult }[] = [];
     const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
     const renderLog = () => {
@@ -207,12 +209,15 @@ export async function initWorkbench(): Promise<void> {
             failed.length || result.aborted ? 'warn' : 'info');
      }, true);
     const scan = (forceFull = false) => perform('scan', async () => {
+        const startedAt = Date.now();
         const signal = controller!.signal;
         status(text('Resolving Gemini source…', '正在确认 Gemini 来源…'));
         const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
             onTarget: select, onProgress: p => progress(
                 text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
                     `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`)) });
+        scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result });
+        if (scanRuns.length > 10) scanRuns.shift();
         const reasons: Record<string, string> = {
             up_to_date: text('Connected to trusted history coverage', '已衔接可信历史范围'),
             complete: text('Reached the end of this Recent source', '已达到本次 Recent 来源尽头'),
@@ -220,7 +225,8 @@ export async function initWorkbench(): Promise<void> {
             max_pages: text('Local page budget reached', '已达到本地页数预算'),
             aborted: text('Scan cancelled', '扫描已取消'), error: text('Scan failed', '扫描失败')
         };
-        status(`${reasons[result.reason ?? result.status] ?? result.reason ?? result.status} · ${result.pagesFetched} / ${result.conversationsFetched}`);
+        status(`${reasons[result.reason ?? result.status] ?? result.reason ?? result.status} · ${result.pagesFetched} / ${result.conversationsFetched}`,
+            result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info');
         settings = await readSettings();
         if (result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
             TourGuide.showTakeoutPrompt(result.conversationsFetched,
@@ -362,7 +368,7 @@ export async function initWorkbench(): Promise<void> {
     });
     el('btnClearLog').addEventListener('click', () => { log.length = 0; renderLog(); });
     el('btnExportDiag').addEventListener('click', () => {
-        const payload = JSON.stringify({ generatedAt: Date.now(), accountId: state.accountId, logs: log }, null, 2);
+        const payload = JSON.stringify({ generatedAt: Date.now(), accountId: state.accountId, scanRuns, logs: log }, null, 2);
         const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
         const link = document.createElement('a'); link.href = url; link.download = 'gemini-exporter-ui-diagnostics.json';
         link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);

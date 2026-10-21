@@ -9,6 +9,21 @@ export type { ProviderConversationItem } from '../parsers/contracts.js';
 export type PageEvidence = Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>;
 export interface CommittedListPage { page: number; totalObserved: number; scanHead?: PageEvidence }
 export type ListEnd = 'source_end' | 'provider_limit' | 'max_pages' | 'stopped';
+/** Request-bound evidence for a failed list page, retained for explicit diagnostic export. */
+export interface ListFailureDiagnostics {
+    providerId: string;
+    streamId: string;
+    page: number;
+    requestCursor: string | null;
+    failure: string;
+    details?: Readonly<Record<string, unknown>>;
+}
+export class ProviderListError extends Error {
+    constructor(message: string, readonly diagnostics: ListFailureDiagnostics) {
+        super(message);
+        this.name = 'ProviderListError';
+    }
+}
 export interface ProviderListOptions {
     accountId: Account['id'];
     streamId: string;

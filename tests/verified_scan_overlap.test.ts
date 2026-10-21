@@ -5,6 +5,10 @@ import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { defaultGeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import { scanAll } from '../src/application/sync/scanController.js';
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { getCoverage } from '../src/l3a/storageService.js';
+import { sourceDetail } from './helpers/l1SourceFixture.js';
 
 test('production scan entry admits one pagination call per account and releases the lock on completion', async () => {
     const store = indexStorage();
@@ -32,6 +36,30 @@ test('production scan entry admits one pagination call per account and releases 
         assert.equal(calls, 2);
     } finally {
         release(); await first;
+        ProviderRegistry.unregister('gemini');
+        if (original) ProviderRegistry.register(original);
+        store.restore();
+    }
+});
+
+test('failed scan retains the bound parser diagnostics without establishing coverage', async () => {
+    const store = indexStorage();
+    const original = ProviderRegistry.get('gemini');
+    const wire = JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic']]);
+    const provider = new GeminiProvider({ getConversationList: async () => parseList(wire),
+        getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    ProviderRegistry.unregister('gemini');
+    ProviderRegistry.register(provider);
+    try {
+        const result = await scanAll({ accountId: ACCOUNT_UUID });
+        assert.equal(result.status, 'error');
+        assert.equal(result.reason, 'Gemini list failed: invalid_response');
+        assert.equal(result.diagnostics?.page, 1);
+        assert.equal(result.diagnostics?.requestCursor, null);
+        assert.equal(result.diagnostics?.failure, 'invalid_response');
+        assert.equal(result.diagnostics?.details?.rawPreview, wire);
+        assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range ?? null, null);
+    } finally {
         ProviderRegistry.unregister('gemini');
         if (original) ProviderRegistry.register(original);
         store.restore();
