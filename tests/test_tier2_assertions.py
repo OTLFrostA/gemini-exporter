@@ -1321,9 +1321,6 @@ class GeminiDualParseTests(unittest.TestCase):
                 counts[defect] = 0
 
 
-if __name__ == '__main__':
-    unittest.main()
-
 
 class Tier2LifecycleOrderingTests(unittest.TestCase):
     def test_destructive_fixture_reset_and_reinstall_follow_record_and_format_checks(self):
@@ -1339,3 +1336,6 @@ class Tier2LifecycleOrderingTests(unittest.TestCase):
             ('feat_fast_skip_exported', 'feat_stale_tab_image_export'),
         ):
             self.assertLess(order.index(before), order.index(after), (before, after))
+
+if __name__ == '__main__':
+    unittest.main()

@@ -150,7 +150,8 @@ class FeatureTestCase(ABC):
         name: str,
         description: str,
         critical: bool = True,
-        prerequisites: Optional[List[str]] = None
+        prerequisites: Optional[List[str]] = None,
+        after: Optional[List[str]] = None
     ):
         self.feature_id = feature_id
         self.domain = domain
@@ -158,6 +159,8 @@ class FeatureTestCase(ABC):
         self.description = description
         self.critical = critical
         self.prerequisites = prerequisites or []
+        # Ordering protects shared fixtures without making failures skip independent audits.
+        self.after = after or []
 
     def to_feature(self) -> Feature:
         return Feature(
@@ -199,7 +202,7 @@ class DAGRunner:
         graph: Dict[str, List[str]] = {fid: [] for fid in self.cases}
 
         for fid, case in self.cases.items():
-            for prereq in case.prerequisites:
+            for prereq in dict.fromkeys(case.prerequisites + case.after):
                 if prereq in self.cases:
                     graph[prereq].append(fid)
                     in_degree[fid] += 1
