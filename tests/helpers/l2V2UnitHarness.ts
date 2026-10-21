@@ -35,7 +35,6 @@ export const calls = {
     insertions: [] as Account[],
     accountWrites: [] as Account[],
 };
-let insertResponse: Account | undefined;
 let writeError: Error | undefined;
 const address = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
 const coverageAddress = (accountId: string, streamId: string) => JSON.stringify([accountId, streamId]);
@@ -48,11 +47,9 @@ export function resetL2UnitPorts(): void {
     details.clear();
     coverage.clear();
     for (const key of Object.keys(calls) as Array<keyof typeof calls>) calls[key].length = 0;
-    insertResponse = undefined;
     writeError = undefined;
     resetIndexCoverageSessions();
 }
-export function setInsertResponse(account: Account): void { insertResponse = account; }
 export function rejectNextWrite(error: Error): void { writeError = error; }
 function checkWrite(): void {
     const error = writeError;
@@ -111,10 +108,21 @@ const insertAccountIfAbsent: typeof import('../../src/l3a/storageService.js').in
     };
 const putAccount: typeof import('../../src/l3a/storageService.js').putAccount =
     async account => { checkWrite(); calls.accountWrites.push({ ...account }); };
+const admitAccountAtomically: typeof import('../../src/l3a/storageService.js').admitAccountAtomically =
+    async (providerId, decide) => {
+        checkWrite();
+        const current = [...accounts.values()].filter(account => account.providerId === providerId);
+        const result = decide(current);
+        const old = accounts.get(result.id);
+        if (!old) calls.insertions.push({ ...result });
+        else if (JSON.stringify(old) !== JSON.stringify(result)) calls.accountWrites.push({ ...result });
+        accounts.set(result.id, { ...result });
+        return result;
+    };
 
 const storage = {
     getCoverage, updateCoverageAtomically, updateIndexesAtomically, updateConversationAtomically,
-    deleteStoredConversation, insertAccountIfAbsent, putAccount,
+    deleteStoredConversation, insertAccountIfAbsent, admitAccountAtomically, putAccount,
 } satisfies Partial<typeof import('../../src/l3a/storageService.js')>;
 
 type Loader = { _load(request: string, parent?: NodeModule | null, isMain?: boolean): unknown };
