@@ -83,6 +83,9 @@ export async function initWorkbench(): Promise<void> {
             container.append(line);
         }
     };
+    const renderConversations = () => renderList(state, busy,
+        action === 'export' ? preparedExportKeys : undefined,
+        new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)));
     const render = () => {
         labelPage();
         labelThemeToggle(el<HTMLButtonElement>('btnThemeToggle'), settings);
@@ -170,7 +173,7 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLElement>('btnStopScan').style.display = action === 'scan' && !!controller ? 'inline-flex' : 'none';
         el<HTMLElement>('progWrap').style.display = busy && (action === 'scan' || action === 'export' || action === 'takeout') ? 'block' : 'none';
         el<HTMLElement>('progWrap').classList.toggle('indeterminate', action === 'scan');
-        renderList(state, busy, action === 'export' ? preparedExportKeys : undefined);
+        renderConversations();
         el<HTMLButtonElement>('btnExport').disabled ||= !settings;
         showFailures();
     };
@@ -210,7 +213,13 @@ export async function initWorkbench(): Promise<void> {
             onProgress: p => progress(text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
             onItemUpdate: update => {
                 processed.add(`${update.key.accountId}/${update.key.conversationId}`);
-                if (update.status === 'exported') saved++;
+                if (update.status === 'failed' && !failed.some(key =>
+                    key.accountId === update.key.accountId && key.conversationId === update.key.conversationId))
+                    failed = [...failed, update.key];
+                if (update.status === 'exported') {
+                    saved++;
+                    failed = failed.filter(key => key.accountId !== update.key.accountId || key.conversationId !== update.key.conversationId);
+                }
                 if (update.key.accountId === state.accountId) {
                     if (update.status === 'prepared') preparedExportKeys.add(update.key.conversationId);
                     else preparedExportKeys.delete(update.key.conversationId);
@@ -225,7 +234,7 @@ export async function initWorkbench(): Promise<void> {
                         `已处理 ${processed.size}/${total} · 已准备 ${preparedExportKeys.size} 条待下载`)
                     : text(`Processed ${processed.size}/${total} · saved ${saved}`,
                         `已处理 ${processed.size}/${total} · 已保存 ${saved}`), percent);
-                renderList(state, busy, preparedExportKeys);
+                renderConversations();
             }
         });
         preparedExportKeys.clear();
@@ -350,13 +359,13 @@ export async function initWorkbench(): Promise<void> {
         void select(el<HTMLSelectElement>('accountIdSelect').value).catch(e => status(errorText(e), 'error'));
     });
     el<HTMLInputElement>('chatSearchInput').addEventListener('input', () => {
-        state.search = el<HTMLInputElement>('chatSearchInput').value; renderList(state, busy);
+        state.search = el<HTMLInputElement>('chatSearchInput').value; renderConversations();
     });
     el<HTMLSelectElement>('chatFilterSelect').addEventListener('change', () => {
-        state.filter = el<HTMLSelectElement>('chatFilterSelect').value; renderList(state, busy);
+        state.filter = el<HTMLSelectElement>('chatFilterSelect').value; renderConversations();
     });
-    el('btnSelectAll').addEventListener('click', () => { state.selectVisible(); renderList(state, busy); });
-    el('btnSelectNone').addEventListener('click', () => { state.selected.clear(); renderList(state, busy); });
+    el('btnSelectAll').addEventListener('click', () => { state.selectVisible(); renderConversations(); });
+    el('btnSelectNone').addEventListener('click', () => { state.selected.clear(); renderConversations(); });
     const settingControls = { format: 'defaultFormat', skipExported: 'skipExported',
         includeAssets: 'includeAssets', liveSaveDiskToggle: 'enabledDisk',
         devToggle: 'developerMode' } as const;
