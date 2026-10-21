@@ -88,7 +88,7 @@ test('concurrent default admission promotes in place and never creates a second 
     expect(result.second.id).not.toBe(placeholder.id);
     expect(result.fallback.id).toBe([result.real, result.second].sort((a, b) => a.id.localeCompare(b.id))[0].id);
     expect(result.all).toHaveLength(3);
-    expect(result.all.some(account => account.providerId === 'gemini' && account.providerAccountId === 'default')).toBe(false);
+    expect(result.all.some((account: { providerId: string; providerAccountId: string }) => account.providerId === 'gemini' && account.providerAccountId === 'default')).toBe(false);
     await page.reload(); await page.addScriptTag({ content: bundle });
     expect(await page.evaluate(async () => Reflect.get(globalThis, 'registryProbe').getOrCreateAccount('gemini','default')))
         .toEqual(result.fallback);
