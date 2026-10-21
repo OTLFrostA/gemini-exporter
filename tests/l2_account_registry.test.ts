@@ -44,19 +44,51 @@ test('L2 AccountRegistry updates display fields without changing identity or era
     } finally { env.restore(); }
 });
 
-test('L2 default identity is provider-local and never adopts unverified display metadata', async () => {
+test('L2 promotes the sole default to verified identity in place without losing its UUID', async () => {
     const env = indexStorage();
     try {
         const fallback = await getOrCreateAccount('gemini', 'default', 'borrowed@example.com', 'Unknown');
         assert.equal(fallback.providerAccountId, 'default');
         assert.equal(Object.hasOwn(fallback, 'email'), false);
         assert.equal(Object.hasOwn(fallback, 'displayName'), false);
-        assert.deepEqual(await getOrCreateAccount('gemini', 'default', 'other@example.com'), fallback);
         const verified = await getOrCreateAccount('gemini', 'verified', 'verified@example.com');
+        assert.equal(verified.id, fallback.id);
+        assert.equal(verified.providerAccountId, 'verified');
+        assert.equal(verified.email, 'verified@example.com');
+        assert.deepEqual(await getAccount(fallback.id), verified);
+        assert.deepEqual(await getOrCreateAccount('gemini', 'default', 'other@example.com'), verified);
         const otherProvider = await getOrCreateAccount('chatgpt', 'default');
-        assert.notEqual(fallback.id, verified.id);
-        assert.notEqual(fallback.id, otherProvider.id);
-        assert.deepEqual(await getAccount(fallback.id), fallback);
+        assert.notEqual(otherProvider.id, verified.id);
+        assert.equal((await listAccounts()).length, 2);
+    } finally { env.restore(); }
+});
+
+test('L2 keeps distinct verified identities and routes unknown data to a stable real account', async () => {
+    const env = indexStorage();
+    try {
+        const b = await getOrCreateAccount('gemini', 'gaia-b');
+        const a = await getOrCreateAccount('gemini', 'gaia-a');
+        assert.notEqual(a.id, b.id);
+        const expected = [a, b].sort((x, y) => x.id.localeCompare(y.id))[0];
+        const unknown = await Promise.all(Array.from({ length: 12 }, () => getOrCreateAccount('gemini', 'default')));
+        assert.ok(unknown.every(account => account.id === expected.id));
+        assert.equal((await listAccounts()).length, 2);
+        assert.equal((await getOrCreateAccount('gemini', 'gaia-b')).id, b.id);
+    } finally { env.restore(); }
+});
+
+test('L2 serializes concurrent default and real admissions without duplicate placeholders', async () => {
+    const env = indexStorage();
+    try {
+        await Promise.all([
+            getOrCreateAccount('gemini', 'default'),
+            getOrCreateAccount('gemini', 'verified'),
+            getOrCreateAccount('gemini', 'default'),
+            getOrCreateAccount('gemini', 'verified'),
+        ]);
+        const saved = (await listAccounts()).filter(account => account.providerId === 'gemini');
+        assert.equal(saved.length, 1);
+        assert.equal(saved[0].providerAccountId, 'verified');
     } finally { env.restore(); }
 });
 
