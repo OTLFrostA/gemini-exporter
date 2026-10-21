@@ -7,11 +7,11 @@ import { fixtureKey } from './helpers/domainFixture.js';
 import { buildSync } from 'esbuild';
 import vm from 'node:vm';
 import { IDBObjectStore } from 'fake-indexeddb';
-test('Storage exposes exactly the frozen 22 passive IO functions', () => {
+test('Storage exposes exactly the 23 agreed passive IO functions', () => {
     const code = buildSync({ entryPoints: ['src/l3a/storageService.ts'], bundle: true, write: false, format: 'cjs' }).outputFiles[0].text;
     const context = { module: { exports: {} } }; vm.runInNewContext(code, context);
     assert.deepEqual(Object.keys(context.module.exports).sort(), [
-        'getAccount', 'listAccounts', 'insertAccountIfAbsent', 'putAccount',
+        'getAccount', 'listAccounts', 'insertAccountIfAbsent', 'admitAccountAtomically', 'putAccount',
         'getIndex', 'listIndexes', 'putIndexes', 'updateIndexesAtomically',
         'getDetail', 'updateConversationAtomically', 'deleteStoredConversation',
         'getCoverage', 'updateCoverageAtomically', 'getExportRecord', 'listExportRecords',
