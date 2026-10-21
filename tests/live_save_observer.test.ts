@@ -9,7 +9,7 @@ import { extractConversationIdFromUrl } from '../src/shared/utils/pathUtils.js';
 import { resolveCurrentAccount } from '../src/runtime/content/accountContext.js';
 
 // The old DOM/debounce LiveSaveObserver is retired. Actual passive admissions
-// own save triggers; Stop buttons, navigation and STREAM_COMPLETE alone cannot.
+// commit Detail; stream completion requests Application acquisition without inventing DOM Detail.
 async function host(t: import('node:test').TestContext) {
     const storage = indexStorage(), runtime = accountRuntime();
     await resolveCurrentAccount(ACCOUNT_OBSERVATION, 'u0');

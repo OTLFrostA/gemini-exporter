@@ -196,7 +196,9 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
             if (!Number.isSafeInteger(child.number) || child.number < 1 || typeof child.title !== 'string' || !child.title) return null;
             const citationId = `grounding-${child.number}`;
             if (!sources.get(citationId)?.some(citation => citation.id === citationId)) return null;
-            inlines.push({ type: 'citationRef', citationId, label: `[${child.number}]` });
+            // Native uploaded-file chips are hidden in the authored webpage text.
+            // Keep their source metadata, but do not invent a visible numbered marker.
+            // Text nodes (including literal [1] and inline code) remain untouched.
         } else if (child.nodeType === 12) {
             // Native display math can occur inside a table cell. Preserve its
             // source instead of falling back and reinterpreting other cell text.

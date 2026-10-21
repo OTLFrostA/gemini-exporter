@@ -46,3 +46,9 @@ test('reinitialization and cleanup suppress feedback from an old pending request
     assert.equal(await executeLiveSave(host.key), null);
     assert.equal(host.sent.length, 1);
 });
+
+test('completed reply forwards the refresh requirement to the authenticated worker', async t => {
+    const host = await liveCoordinatorHost(t);
+    await executeLiveSave(host.key, true);
+    assert.deepEqual(host.sent, [{ action: 'runLiveSave', key: host.key, refreshDetail: true }]);
+});

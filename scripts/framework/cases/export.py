@@ -285,9 +285,12 @@ class ZipExportDownloadCase(FeatureTestCase):
             if len(check_res['matched']) < expected_min_checked:
                 return False, f"工作台勾选数不足: {check_res}", check_res
 
-            # Observe the same native replies used by this actual export, without another fetch.
+            # Acquire under the capture before export: a complete local cache otherwise makes no native request.
             install_capture(cdp_opt)
             try:
+                install_probe(cdp_opt)
+                cdp_opt.eval(f"globalThis.__tier2V2.refreshForNativeAudit({json.dumps(check_res['matched'])})",
+                             await_promise=True, timeout=180)
                 downloaded_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=60)
             finally:
                 ctx.shared_data['gemini_dual_capture'] = finish_capture(
@@ -551,12 +554,8 @@ class FastSkipExportedCase(FeatureTestCase):
             (async () => {
                 const items = Array.from(document.querySelectorAll('#list .item'));
                 const state = await globalThis.__tier2V2.snapshot();
-                const exported = items.filter(it => {
-                    const record = state.records[it.dataset.chatId];
-                    const index = state.rows.find(row => row.key.conversationId === it.dataset.chatId);
-                    return record?.status === 'ok' && record.format === 'markdown' && Number.isFinite(record.chatTime)
-                        && Number.isFinite(index?.updatedAt) && record.chatTime >= index.updatedAt;
-                });
+                const eligible = new Set(await globalThis.__tier2V2.skipEligibleIds());
+                const exported = items.filter(it => eligible.has(it.dataset.chatId));
                 const skip = document.getElementById('skipExported');
                 const btn = document.getElementById('btnExport');
                 if (!skip || !btn || !skip.checked) return { error: 'v2 Skip controls unavailable' };
@@ -609,7 +608,8 @@ class FastSkipExportedCase(FeatureTestCase):
                 const items = Array.from(document.querySelectorAll('#list .item'));
                 const state = await globalThis.__tier2V2.snapshot();
                 const available = new Set(state.rows.filter(row => row.updatedAt !== undefined && row.titleSource === 'provider').map(row => row.key.conversationId));
-                const exported = items.find(it => state.records[it.dataset.chatId]);
+                const eligible = new Set(await globalThis.__tier2V2.skipEligibleIds());
+                const exported = items.find(it => eligible.has(it.dataset.chatId));
                 const unexported = items.find(it => !state.records[it.dataset.chatId] && available.has(it.dataset.chatId));
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');

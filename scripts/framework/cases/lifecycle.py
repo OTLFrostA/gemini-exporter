@@ -122,6 +122,8 @@ class EphemeralChatPruningCase(FeatureTestCase):
         cdp_gem_live = ctx.connect_gemini()
         cdp_opt = ctx.connect_options()
         try:
+            if not CDPActions.setup_live_save(cdp_opt, enabled=True):
+                return False, '无法启用瞬态会话的真实保存', None
             driver = ctx.get_gemini_driver(cdp_gem_live)
             session = driver.new_chat(timeout=20.0)
 
@@ -141,16 +143,17 @@ class EphemeralChatPruningCase(FeatureTestCase):
             key = {'accountId': before['accountId'], 'conversationId': eph_chat_id.removeprefix('c_')}
             retained_ids = [row['key']['conversationId'] for row in before['rows']
                             if row['key'] != key]
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + 40
             prior = None
             while time.monotonic() < deadline:
                 prior = cdp_opt.eval(f"globalThis.__tier2V2.storedConversation({json.dumps(key)})", await_promise=True)
                 if (prior and (prior.get('index') or {}).get('key') == key
-                        and (prior.get('detail') or {}).get('key') == key):
+                        and (prior.get('detail') or {}).get('key') == key
+                        and prior.get('exportRecord')):
                     break
                 time.sleep(0.2)
             else:
-                return False, "删除前未确认同 Key Index 与 Detail，不能做空值验收", prior
+                return False, "删除前未确认同 Key Index、Detail 与 ExportRecord，不能做空值验收", prior
             cdp_gem_live.eval("""(() => {
                 window.__tier2DeleteEvents = [];
                 window.addEventListener('message', event => {
