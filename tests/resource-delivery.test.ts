@@ -97,6 +97,7 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
         const id = 'delivery-' + format + '-' + failure;
         await seed(id);
         const requests = network(t, url => {
+            if (url.startsWith('https://gemini.google.com/')) return new Response(null, { status: 503 });
             if (url === goodUri) return response(png);
             if (url === badUri) {
                 if (failure === 'throw') throw new Error('Source transport unavailable');
@@ -111,7 +112,10 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
         assert.equal(result.exported, 1);
         assert.equal(result.partial, 1);
         assert.deepEqual(result.failed, []);
-        assert.deepEqual(requests, [goodUri, badUri], 'the L1 provider acquires only requested resources');
+        assert.deepEqual(requests.filter(url => !url.startsWith('https://gemini.google.com/')), [goodUri, badUri],
+            'the L1 provider acquires only requested resources');
+        assert.equal(requests.filter(url => url.startsWith('https://gemini.google.com/')).length, failure === 'http' ? 1 : 0,
+            'only an actual expiry response triggers one background refresh; failed refresh preserves healthy bytes');
         assert.equal(host.clicks(), 1);
         assert.match(host.filenames[0], /\.zip$/);
         const files = await zipContents(host.blobs[0]);

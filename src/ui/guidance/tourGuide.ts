@@ -147,8 +147,9 @@ function overlay(
                 }
             }
         }
-        popover.style.left = Math.max(12, Math.min(w - width - 12, x)) + 'px';
-        popover.style.top = Math.max(12, Math.min(h - height - 12, y)) + 'px';
+        // CSS viewport bounds apply immediately, even before the resize handler runs.
+        popover.style.left = `clamp(12px, ${x}px, calc(100vw - ${width}px - 12px))`;
+        popover.style.top = `clamp(12px, ${y}px, calc(100vh - ${height}px - 12px))`;
         popover.style.transform = 'none';
     };
     const guard = (event: MouseEvent) => {
@@ -171,8 +172,11 @@ function overlay(
     const list = mode === 'tour' && STEPS[stepIndex]?.id === 'select' ? document.getElementById('list') : null;
     const observer = list ? new MutationObserver(layout) : null;
     if (list) observer?.observe(list, { childList: true });
+    const sizeObserver = new ResizeObserver(layout);
+    sizeObserver.observe(popover);
     cleanupOverlay = () => {
         observer?.disconnect();
+        sizeObserver.disconnect();
         cancelAnimationFrame(frame);
         document.removeEventListener('click', guard, true);
         document.removeEventListener('keydown', keydown, true);

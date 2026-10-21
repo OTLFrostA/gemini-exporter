@@ -198,15 +198,40 @@ export async function runExport(request: ExportRequest, options: {
                 }
                 signal.throwIfAborted();
                 if (!conversation) throw new Error('No usable local Detail');
-                const document = request.format === 'json' ? undefined : composeDomainDocument(conversation, account);
-                const references = document && collectDocumentResources(document);
-                const requiredIds = !request.includeAssets ? new Set<string>() : request.format === 'json'
-                    ? new Set(conversation.detail.assets.map(asset => asset.id)) : references!.referencedIds;
-                // File nodes are exported as originals even for PDF; Image nodes may be embedded.
-                const fileIds = references?.fileIds ?? new Set<string>();
-                const prepared = await prepareExportResources(conversation.detail.assets, requiredIds,
-                    (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
-                const item: PendingExport = { key, account, conversation, document, prepared, fileIds, refreshFailed };
+                const prepare = async (snapshot: ReadonlyDomain): Promise<PendingExport> => {
+                    const document = request.format === 'json' ? undefined : composeDomainDocument(snapshot, account);
+                    const references = document && collectDocumentResources(document);
+                    const requiredIds = !request.includeAssets ? new Set<string>() : request.format === 'json'
+                        ? new Set(snapshot.detail.assets.map(asset => asset.id)) : references!.referencedIds;
+                    // File nodes are exported as originals even for PDF; Image nodes may be embedded.
+                    const fileIds = references?.fileIds ?? new Set<string>();
+                    const prepared = await prepareExportResources(snapshot.detail.assets, requiredIds,
+                        (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
+                    return { key, account, conversation: snapshot, document, prepared, fileIds, refreshFailed };
+                };
+                let item = await prepare(conversation);
+                // Body timestamps do not establish whether signed resource URLs remain usable.
+                // Refresh once on an actual access/expiry response, then rebuild references from
+                // committed facts: a new source URI may also change the resource's identity.
+                if ([...item.prepared.values()].some(value => !value.ok
+                    && value.httpStatus !== undefined && [401, 403, 404, 410].includes(value.httpStatus))) {
+                    let refreshed = false;
+                    try {
+                        await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal);
+                        refreshed = true;
+                    } catch (error) {
+                        if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
+                        // Cached body freshness is unchanged; retain the original attachment failures.
+                    }
+                    signal.throwIfAborted();
+                    if (refreshed) {
+                        conversation = await readLocal(key);
+                        if (!conversation) throw new Error('No usable local Detail after resource refresh');
+                        refreshFailed = false;
+                        item = await prepare(conversation);
+                    }
+                }
+                const { prepared, fileIds } = item;
                 if (folderPlanner) {
                     const group = await renderGroup(item, folderPlanner(conversation, prepared, fileIds));
                     await writeToFolder(group.files, directory!);

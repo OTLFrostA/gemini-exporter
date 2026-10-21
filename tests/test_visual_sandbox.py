@@ -10,6 +10,8 @@ import sys
 import time
 import base64
 import tempfile
+import struct
+import zlib
 import unittest
 from unittest.mock import patch, MagicMock
 from typing import Dict, Any, List, Optional
@@ -27,6 +29,7 @@ class MockCDP:
     """Mock CDP connection for isolated unit testing of VisualSandbox."""
     def __init__(self, eval_return=None):
         self.eval_return = eval_return
+        self.layout_metrics = {}
         self.eval_history: List[str] = []
         self.call_history: List[Dict[str, Any]] = []
 
@@ -38,10 +41,15 @@ class MockCDP:
 
     def call(self, method: str, params: Optional[Dict[str, Any]] = None) -> Any:
         self.call_history.append({"method": method, "params": params or {}})
+        if method == "Page.getLayoutMetrics":
+            return {"result": self.layout_metrics}
         if method == "Page.captureScreenshot":
-            # 1x1 最小合法透明 PNG Base64
-            tiny_png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-            return {"result": {"data": tiny_png_b64}}
+            def chunk(kind, payload):
+                return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload))
+            raw = (b"\0" + b"\0" * 1280 * 3) * 800
+            png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB",1280,800,8,2,0,0,0)) + chunk(b"IDAT",zlib.compress(raw)) + chunk(b"IEND",b"")
+            return {"result": {"data": base64.b64encode(png).decode()}}
+
         return {}
 
 
@@ -132,7 +140,9 @@ class TestVisualSandbox(unittest.TestCase):
 
     def test_input_text_hardware_typing(self):
         # 带有清空原内容与硬件剪贴板粘贴
-        self.sandbox.input_text(x=0.5, y=0.5, text="Hello AI", clear_first=True, use_insert=True)
+        with patch.object(self.mock_cdp, "eval", side_effect=AssertionError("Tier 3 must not inspect or mutate DOM")) as page_js:
+            self.sandbox.input_text(x=0.5, y=0.5, text="Hello AI", clear_first=True, use_insert=True)
+            page_js.assert_not_called()
 
         insert_calls = [c for c in self.mock_cdp.call_history if c["method"] == "Input.insertText"]
         self.assertEqual(len(insert_calls), 1)
@@ -152,6 +162,67 @@ class TestVisualSandbox(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertIn("gemini_export_2026.zip", res.message)
         self.assertEqual(res.data["file_path"], fake_zip)
+
+    def test_zip_wait_accepts_current_names_and_rejects_old_or_unfinished_files(self):
+        path = os.path.join(self.temp_dir, "Vector Clocks_12bb04.zip")
+        with open(path, "wb") as f:
+            f.write(b"PK\x05\x06" + b"\x00" * 18)
+        os.utime(path, (1, 1))
+        with patch.object(self.mock_cdp, "eval", side_effect=AssertionError("Download wait must not read DOM")) as page_js:
+            stale = self.sandbox.wait_on("zip_downloaded", timeout=1, min_mtime=time.time())
+            self.assertFalse(stale.success)
+            os.utime(path, None)
+            with open(path + ".crdownload", "wb") as f:
+                f.write(b"unfinished")
+            pending = self.sandbox.wait_on("zip_downloaded", timeout=1)
+            self.assertFalse(pending.success)
+            os.remove(path + ".crdownload")
+            ready = self.sandbox.wait_on("zip_downloaded", timeout=2, min_mtime=1)
+            self.assertTrue(ready.success)
+            self.assertEqual(ready.data["file_path"], path)
+            page_js.assert_not_called()
+
+    def test_cli_disconnect_can_keep_the_test_viewport_until_final_teardown(self):
+        self.mock_cdp.close = MagicMock()
+        self.mock_cdp.call_history.clear()
+        self.sandbox.teardown(keep_viewport=True)
+        self.mock_cdp.close.assert_called_once()
+        self.assertFalse(any(c["method"] == "Emulation.clearDeviceMetricsOverride" for c in self.mock_cdp.call_history))
+        self.sandbox.teardown()
+        self.assertTrue(any(c["method"] == "Emulation.clearDeviceMetricsOverride" for c in self.mock_cdp.call_history))
+
+    def test_single_markdown_download_and_spec(self):
+        path = os.path.join(self.temp_dir, "Wetland_82db3d.md")
+        with open(path, "w") as f:
+            f.write('---\ntitle: "Wetland"\nid: "wetland82db3d"\nprovider: "gemini"\nupdated: "2026-10-21T00:00:00Z"\ntags:\n  - gemini-export\n---\n\n# Wetland\n\n## 👤 You\n\nQuestion\n\n## 🤖 Assistant\n\nAnswer\n')
+        with patch("scripts.visual_agent.playground.time.sleep"):
+            result = self.sandbox.wait_on("download_complete", timeout=1, min_mtime=time.time()-1)
+        self.assertTrue(result.success)
+        self.assertEqual(result.data["file_path"], path)
+        ok, message, details = self.sandbox.evaluate_export(path)
+        self.assertTrue(ok, message + str(details))
+        self.assertEqual(details["format"], "md")
+
+    def test_screenshot_mismatch_retries_then_fails_without_coordinate_leak(self):
+        capture = {"result": {"data": base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\0"*8 + struct.pack(">II",1400,980)).decode()}}
+        original = self.mock_cdp.call
+        def call(method, params=None):
+            return capture if method == "Page.captureScreenshot" else original(method,params)
+        with patch.object(self.mock_cdp, "call", side_effect=call), patch("scripts.visual_agent.playground.time.sleep"):
+            with self.assertRaisesRegex(RuntimeError, "viewport mismatch"):
+                self.sandbox.capture_screen("wrong")
+        self.assertFalse(os.path.exists(os.path.join(self.temp_dir,"wrong.png")))
+
+    @patch("scripts.visual_agent.playground.time.sleep")
+    @patch("scripts.visual_agent.playground.time.monotonic", side_effect=[0,0,11])
+    def test_wrong_target_never_falls_back_to_another_page(self, clock, sleep):
+        from scripts.visual_agent.playground import open_visual_playground
+        env = MagicMock()
+        env.ensure_tab.return_value = {"url":"https://takeout.google.com", "webSocketDebuggerUrl":"ws://wrong"}
+        with patch("scripts.visual_agent.playground.CDPConnection") as connection:
+            with self.assertRaisesRegex(RuntimeError,"refusing unrelated tab"):
+                open_visual_playground(target_page="options",env=env,output_dir=self.temp_dir)
+            connection.assert_not_called()
 
     def test_press_key_primitive(self):
         self.sandbox.press_key("Enter")
@@ -278,7 +349,10 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertEqual(px_y, 400)
 
         # 模拟 macOS Retina 屏幕 (DPR = 1.5, CSS innerWidth=853, innerHeight=533)
-        self.mock_cdp.eval_return = {"w": 853, "h": 533, "dpr": 1.5}
+        self.mock_cdp.layout_metrics = {
+            "cssLayoutViewport": {"clientWidth": 853, "clientHeight": 533},
+            "layoutViewport": {"clientWidth": 1279.5, "clientHeight": 799.5},
+        }
         # 归一化输入测试: 0.873, 0.848 应精确缩放到 CSS 像素 (745, 452)
         rx, ry = self.sandbox._to_pixel(0.873, 0.848)
         self.assertEqual(rx, 745)
@@ -379,7 +453,8 @@ tags:
         from scripts.visual_agent.playground import open_visual_playground
         mock_env = MagicMock()
         mock_env.reinstall_extension.return_value = "new_mock_ext_id"
-        mock_env.ensure_tab.return_value = {"url": "options.html", "webSocketDebuggerUrl": "ws://mock"}
+        mock_env.get_extension_id.return_value = "new_mock_ext_id"
+        mock_env.ensure_tab.return_value = {"url": "chrome-extension://new_mock_ext_id/src/ui/options/options.html", "webSocketDebuggerUrl": "ws://mock"}
         mock_conn.return_value = self.mock_cdp
 
         pg = open_visual_playground(port=9222, target_page="options", reinstall=True, env=mock_env)
