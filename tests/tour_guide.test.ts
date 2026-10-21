@@ -40,9 +40,11 @@ test('Tour startup intent is consumed once from URL with no durable completion p
     assert.equal(await page.evaluate(() => Reflect.get(window, 'testUi').tour.consumeTourIntent()), false);
     assert.deepEqual(await read(page, 'patches'), []);
 });
-test('Takeout prompt marks Settings only on explicit acknowledgement', async () => {
+test('Takeout prompt marks Settings when shown, including before dismissal', async () => {
     await open(); await page.evaluate(() => { Reflect.get(window, 'harness').scanCount = 151; });
-    await page.locator('#btnSyncAll').click(); await page.locator('.tour-popover').waitFor(); assert.deepEqual(await read(page, 'patches'), []);
+    await page.locator('#btnSyncAll').click(); await page.locator('.tour-popover').waitFor();
+    await page.waitForFunction(() => Reflect.get(window, 'harness').patches.some((patch: { takeoutPromptCompleted?: boolean }) => patch.takeoutPromptCompleted));
+    assert.deepEqual(await read(page, 'patches'), [{ takeoutPromptCompleted: true }]);
     await page.getByRole('button', { name: 'Got it, don’t show again', exact: true }).click();
     assert.deepEqual(await read(page, 'patches'), [{ takeoutPromptCompleted: true }]);
 });

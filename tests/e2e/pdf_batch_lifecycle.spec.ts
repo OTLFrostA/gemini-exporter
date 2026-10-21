@@ -28,6 +28,9 @@ test('one PDF batch survives sandbox rotation with all physical documents and te
     await page.locator('#btnSelectAll').click();
     const downloaded = page.waitForEvent('download', { timeout: 90000 });
     await page.locator('#btnExport').click();
+    await expect(page.locator('#directWriteModal')).toBeVisible();
+    await expect(page.locator('#directWritePromptText')).toContainText('33 conversations');
+    await page.locator('#btnModalContinueZip').click();
     const download = await downloaded;
     const zip = await JSZip.loadAsync(await readFile((await download.path())!));
     const documents = Object.values(zip.files).filter((file: unknown) => {

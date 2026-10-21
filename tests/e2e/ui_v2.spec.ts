@@ -253,7 +253,7 @@ test('UI v2: Takeout prompts at 151 committed records regardless of Scan reason'
     await page.evaluate(()=>{Object.assign((window as any).harness,{holdScan:false,scanCount:151});});
     await page.locator('#btnSyncAll').click();
     await expect(page.locator('.tour-popover')).toContainText('This scan fetched 151 conversations');
-    expect((await read(page,'patches')).length).toBe(0);
+    await expect.poll(async () => read(page, 'patches')).toContainEqual({takeoutPromptCompleted:true});
     await page.getByRole('button',{name:'Got it, don’t show again'}).click();
     await expect(page.locator('.tour-popover')).toHaveCount(0);
     expect(await read(page,'patches')).toContainEqual({takeoutPromptCompleted:true});
