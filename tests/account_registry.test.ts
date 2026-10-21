@@ -50,20 +50,20 @@ test('ChatGPT user/workspace tuple isolates subjects and keeps email mutable', (
     assert.notEqual(chatgptAccountObservation({ user: { id: 'a:b' }, account: { id: 'c' } })?.providerAccountId,
         chatgptAccountObservation({ user: { id: 'a' }, account: { id: 'b:c' } })?.providerAccountId);
 });
-test('concurrent discovery binds UUID; absent identity selects default and rediscovery never promotes it', async () => {
+test('concurrent Gaia discovery reuses UUID; Gaia loss clears context without allocating a default', async () => {
     const runtime = accountRuntime();
     try {
         const contexts = await Promise.all([resolveCurrentAccount(), resolveCurrentAccount(), resolveCurrentAccount()]);
         assert.deepEqual(contexts.map(context => context?.accountId), [ACCOUNT_UUID, ACCOUNT_UUID, ACCOUNT_UUID]);
         runtime.state.observation = null;
         const fallback = await resolveCurrentAccount();
-        assert.ok(fallback); assert.notEqual(fallback.accountId, ACCOUNT_UUID);
+        assert.equal(fallback, null);
+        assert.equal(getAccountContext(), null);
         runtime.state.observation = { ...ACCOUNT_OBSERVATION };
         assert.equal((await resolveCurrentAccount())?.accountId, ACCOUNT_UUID);
-        assert.equal(fallback.accountId, '10000000-0000-4000-8000-000000000003');
     } finally { runtime.restore(); }
 });
-test('late response keeps the captured account after a same-slot switch; unknown stays default', async () => {
+test('late response keeps the captured account after a same-slot switch; unknown maps to existing first real account', async () => {
     const runtime = accountRuntime();
     try {
         await resolveCurrentAccount();
@@ -71,7 +71,7 @@ test('late response keeps the captured account after a same-slot switch; unknown
         assert.equal((await resolveCurrentAccount())?.accountId, OTHER_ACCOUNT_UUID);
         assert.equal((await resolveRequestAccount(ACCOUNT_OBSERVATION, 'u0'))?.accountId, ACCOUNT_UUID);
         assert.equal(getAccountContext()?.accountId, OTHER_ACCOUNT_UUID);
-        assert.equal((await resolveRequestAccount(null, 'u0'))?.accountId, '10000000-0000-4000-8000-000000000003');
+        assert.equal((await resolveRequestAccount(null, 'u0'))?.accountId, ACCOUNT_UUID);
         assert.equal(await resolveRequestAccount(undefined, 'u0'), null);
     } finally { runtime.restore(); }
 });

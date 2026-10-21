@@ -40,10 +40,11 @@ export function accountRuntime(slot = 'u0') {
             ];
             return { ok: true, value: message.command === 'get' ? accounts.find(a => a.id === message.accountId) ?? null : accounts };
         }
-        if (message.action === 'accountRegistry') return { ok: true, value: { providerId: message.providerId, providerAccountId: message.providerAccountId,
+        if (message.action === 'accountRegistry') return { ok: true, value: { providerId: message.providerId,
+            providerAccountId: message.providerAccountId === 'default' ? ACCOUNT_OBSERVATION.providerAccountId : message.providerAccountId,
             ...(message.email ? { email: message.email } : {}), ...(message.displayName ? { displayName: message.displayName } : {}),
-            id: message.providerAccountId === ACCOUNT_OBSERVATION.providerAccountId ? ACCOUNT_UUID
-                : message.providerAccountId === 'default' ? '10000000-0000-4000-8000-000000000003' : OTHER_ACCOUNT_UUID } };
+            id: message.providerAccountId === ACCOUNT_OBSERVATION.providerAccountId || message.providerAccountId === 'default'
+                ? ACCOUNT_UUID : OTHER_ACCOUNT_UUID } };
         return sendMessage ? Reflect.apply(sendMessage, runtime, [message]) : undefined;
     }) as typeof runtime.sendMessage;
     invalidateAccountContext();

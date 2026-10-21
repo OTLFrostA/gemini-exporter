@@ -20,6 +20,41 @@ export function insertAccountIfAbsent(account: Account): Promise<Account> {
         };
     });
 }
+
+/** One Account admission transaction; L2 supplies the complete synchronous selection. */
+export function admitAccountAtomically(providerId: Account['providerId'],
+    decide: (existing: readonly Account[]) => Account): Promise<Account> {
+    return inStores<Account>(['accounts'], 'readwrite', (tx, done, fail) => {
+        const store = tx.objectStore('accounts');
+        const request = store.getAll();
+        request.onsuccess = () => {
+            try {
+                const all = request.result as Account[];
+                const existing = all.filter(account => account.providerId === providerId);
+                const accepted = decide(existing);
+                if (accepted.providerId !== providerId) throw new TypeError('Account provider mismatch');
+                const saved = all.find(account => account.id === accepted.id);
+                if (saved && (saved.providerId !== providerId
+                    || (saved.providerAccountId !== accepted.providerAccountId
+                        && !(saved.providerAccountId === 'default' && existing.length === 1
+                            && accepted.providerAccountId !== 'default')))) {
+                    throw new TypeError('Account identity cannot change');
+                }
+                if (all.some(account => account.id !== accepted.id && account.providerId === providerId
+                    && account.providerAccountId === accepted.providerAccountId)) {
+                    throw new TypeError('Duplicate account identity');
+                }
+                if (saved && JSON.stringify(saved) === JSON.stringify(accepted)) {
+                    done(saved); return;
+                }
+                if (saved) store.put(accepted);
+                else store.add(accepted);
+                done(accepted);
+            } catch (error) { fail(error); }
+        };
+    });
+}
+
 /** Keep the stable UUID and provider identity immutable while allowing migration Upsert. */
 export function putAccount(account: Account): Promise<void> {
     return inStores<void>(['accounts'], 'readwrite', (tx, done, fail) => {

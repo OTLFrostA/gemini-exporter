@@ -1,6 +1,6 @@
 import test, { beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { ports, GEMINI_ACCOUNT, DEFAULT_ACCOUNT } from './helpers/l1V2UnitMocks.js';
+import { ports, GEMINI_ACCOUNT } from './helpers/l1V2UnitMocks.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
@@ -64,12 +64,22 @@ test('Sniffer accepts identifiable Index without falsely trusting unknown captur
         requestAccountObservation: null, listRequest: { streamId: 'recent', requestCursor: null },
     }));
     assert.equal(ports.indexes.length, 1);
-    assert.equal(ports.indexes[0].accountId, DEFAULT_ACCOUNT.id);
-    assert.equal(ports.indexes[0].page, undefined);
+    assert.equal(ports.indexes[0].accountId, GEMINI_ACCOUNT.id);
+    assert.equal(ports.indexes[0].page, undefined, 'fallback to real A is not verified Gaia evidence');
     ports.reset();
     await handleWindowMessage(captured(wireList([row('source_sniff_list')]), { listRequest: undefined }));
     assert.equal(ports.indexes.length, 1);
     assert.equal(ports.indexes[0].page, undefined, 'no request cursor means no Coverage evidence');
+});
+
+test('Sniffer does not request an Account for unrecognized, empty or invalid unknown captures', async () => {
+    await handleWindowMessage(captured('[]', { requestAccountObservation: null }));
+    await handleWindowMessage(captured(wireList([]), { requestAccountObservation: null }));
+    await handleWindowMessage(captured(wireList([row('valid')]), {
+        requestAccountObservation: null, url: 'https://wrong.example.com/batchexecute',
+    }));
+    assert.deepEqual(ports.lookups, []);
+    assert.deepEqual(ports.indexes, []);
 });
 
 test('Sniffer accepted/changed has exactly three distinct v2 effects', async () => {

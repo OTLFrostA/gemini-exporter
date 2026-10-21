@@ -52,9 +52,9 @@ test('same-tab SPA Gaia switching survives a wrong DOM email, same-email identit
     expect(repeated.every(result => result?.accountId === first.id)).toBe(true);
     await page.evaluate(() => { window._WIZ_global_data!.qDCSke = ''; });
     const fallback = await tabContext(options, url);
-    expect(fallback.accountId).not.toBe(first.id);
-    expect(await options.evaluate(async id => await Reflect.get(globalThis, 'accountProbe').getAccount(id), fallback.accountId)).toEqual({id:fallback.accountId,providerId:'gemini',providerAccountId:'default'});
+    expect(fallback).toBeNull();
     expect(await accounts(options)).toHaveLength(2);
+    expect((await accounts(options)).find(a => a.id === first.id)?.providerAccountId).toBe('10000000001');
 });
 
 test('real MAIN → isolated → background discovery deduplicates across slots and retains UUID after reload', async ({ context, extensionId }) => {
