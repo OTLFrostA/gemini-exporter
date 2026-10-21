@@ -77,6 +77,22 @@
   3. **受测智能体严格隔离于 7 大受控 CLI 接口**：受测子智能体只能且仅能调用 `scripts/visual_agent/cli.py` 的 7 大原语（`screenshot`, `click`, `type`, `scroll`, `wait-on`, `reset`, `evaluate-export`），0 DOM 泄露，严禁直接注入 JS 或查询 DOM 树选择器；
   4. **必须以纯视觉截屏闭环推演并真实产出 Scorecard 与 HTML 审计报告**（保存于 `tests/output/visual_audit/` 目录）。
 
+  5. **Subagent 模式由宿主 Agent 编排两次 Checklist 提醒，子智能体保持自主探索**：仅适用于上述途径一，具体协议见下节；不得在首次探索前向子智能体泄露 Checklist。
+
+#### Tier 3 Subagent：父 Agent 三轮执行协议（1 次自由探索 + 2 次 Checklist 提醒）
+
+当用户要求“跑 Tier 3”时，**宿主/父 Agent** 负责以下编排，而不是让子 Agent 自行读清单或管理提醒次数：
+
+1. **首轮自由探索**：按现有流程准备一次 Playground，创建**一个**全新、无旧会话上下文的视觉子 Agent；只给它现有 Tier 3 的黑盒探索目标和 7 大 CLI 约束，**不要传 Checklist 正文、文件路径或清单主题**。子 Agent 自主探索，认为充分后返回阶段小结；这只是本轮返回，不是整场 Tier 3 的最终结束。
+2. **第一次 Checklist 提醒**：父 Agent 此时才读取 [Tier 3 Exploration Checklist](docs/tier3-exploration-checklist.md)，把**完整清单正文直接作为新消息发送给刚才同一个子 Agent**（复用其 agent ID / session / 对话上下文，而非重新 spawn）。要求它回顾已探索区域并自由继续，认为充分后返回阶段小结。
+3. **第二次 Checklist 提醒**：子 Agent 第二次返回后，父 Agent 再次向**同一个子 Agent**发送**同一份完整 Checklist 正文**，让它进行最后一轮自由探索。不要替换成预定点击步骤。
+4. **最终汇报**：只有第三轮返回后，父 Agent 才整理三轮实际发现、未验证的功能以及现有 Tier 3 所需 Scorecard / HTML 报告。未实际操作或因环境限制无法验证的内容，不得宣称通过。
+
+**边界**：两次提醒之间始终沿用**同一子 Agent 会话与原 Playground 的浏览器/扩展状态**；不因阶段切换重装、清空或重新初始化。无额外 Agent、Observer、覆盖率打分、强制 100% 清单通过率、时间/操作预算。Checklist 只是探索提示，不是测试脚本。父 Agent 只在子 Agent 自认本轮结束时发送下一次提醒，不应每个动作干预。
+
+**执行能力前提**：宿主框架必须支持向既有子 Agent 继续发消息（resume/send input 等等，具体 API 随框架而异）。如果只支持一次性 spawn、无法恢复**同一个子 Agent 会话**，应明确报告该限制，**不得用三个全新子 Agent 冒充三轮续跑**，也不得声称完成此协议。自定义 AI API 模式维持现有行为，不套用此父子 Agent 编排。
+
+
 ---
 
 ## 三、常用辅助命令速查
