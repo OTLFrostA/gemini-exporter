@@ -2,6 +2,7 @@ import { getAccount } from '../../runtime/api/accountRegistry.js';
 import { DEFAULT_ACCOUNT_KEY, isAccountId } from '../../l2/accountRegistry.js';
 import { defaultGeminiProvider } from '../../l1/client/gemini/geminiProvider.js';
 import { ProviderRegistry } from '../../l1/client/providerRegistry.js';
+import { ProviderListError, type ListFailureDiagnostics } from '../../l1/client/aiProvider.js';
 import CoverageAdmission, { type ScanHead } from '../../l2/coverageAdmission.js';
 
 export interface ScanRequest { accountId: string; forceFull?: boolean }
@@ -11,6 +12,7 @@ export interface ScanResult {
     pagesFetched: number;
     conversationsFetched: number;
     reason?: string;
+    diagnostics?: ListFailureDiagnostics;
 }
 export type ScanProgress = Pick<ScanResult, 'pagesFetched' | 'conversationsFetched'>;
 const active = new Set<string>();
@@ -62,6 +64,7 @@ export async function scanAll(request: ScanRequest, options: {
         return result('error', 'Unknown provider list termination');
     } catch (error) {
         if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) return result('aborted');
-        return result('error', error instanceof Error ? error.message : String(error));
+        return { ...result('error', error instanceof Error ? error.message : String(error)),
+            ...(error instanceof ProviderListError ? { diagnostics: error.diagnostics } : {}) };
     } finally { active.delete(accountId); }
 }

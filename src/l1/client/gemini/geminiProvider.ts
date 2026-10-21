@@ -4,6 +4,7 @@ import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../..
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
 import type { GeminiProviderClient, GeminiProviderContract } from './geminiContracts.js';
 import type { ProviderListOptions, ListEnd, ProviderReadiness } from '../aiProvider.js';
+import { ProviderListError } from '../aiProvider.js';
 import { ProviderRegistry } from '../providerRegistry.js';
 import { GeminiAPIClient, ConfirmedGeminiConversationNotFound } from './geminiClient.js';
 import credentials from './api/credentialManager.js';
@@ -75,7 +76,10 @@ export class GeminiProvider implements GeminiProviderContract {
             options.signal?.throwIfAborted();
             if (await this.route(account.id) !== slot) throw new Error('Gemini account route changed');
             const observation = geminiListObservation(result, { streamId: options.streamId, requestCursor: cursor }, account.id, false, requestedAt);
-            if (result.failure && observation.terminal !== 'provider_limit') throw new Error(`Gemini list failed: ${result.failure}`);
+            if (result.failure && observation.terminal !== 'provider_limit') throw new ProviderListError(`Gemini list failed: ${result.failure}`, {
+                providerId: this.id, streamId: options.streamId, page, requestCursor: cursor, failure: result.failure,
+                ...(result._debug ? { details: { ...result._debug } } : {})
+            });
             if (options.streamId === 'recent' && observation.valid && observation.ordered) {
                 const keys = observation.keys;
                 if (keys.some((key, i) => seenConversations.has(key.id)

@@ -1,47 +1,5 @@
 [
   {
-    "id": "ecology_two_patch_population_migration",
-    "title": "Ecology: two-patch population migration and conservation",
-    "domain": "ecology_population_migration",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational illustration of two wetland habitats connected by migration corridors. Label hypothetical population counts and both movement rates. Clearly mark this as a synthetic teaching diagram, not field evidence.",
-      "Derive a continuous-time two-patch migration model in LaTeX without births or deaths. Prove total-population conservation and nonnegativity, find the equilibrium ratio, and state the units and assumptions.",
-      "Write complete runnable standard-library Python comparing the analytical solution with a numerical integrator. Include tests for zero rates, equal rates, conservation, positivity and convergence as the step decreases.",
-      "Provide a Markdown table of synthetic migration rates and initial counts, equilibrium populations and relaxation times. Distinguish rates from per-step probabilities and state numerical tolerances.",
-      "Write a reproducibility report connecting the diagram, equations and code. Explain why seasonal migration, births and density dependence can invalidate this model. Include a Chinese-English glossary."
-    ]
-  },
-  {
-    "id": "thermodynamics_two_reservoir_heat_exchange",
-    "title": "Thermodynamics: two-reservoir heat exchange and energy balance",
-    "domain": "thermodynamics_lumped_heat_exchange",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic experiment with two well-mixed insulated water reservoirs exchanging heat through a thermal conductance. State positive heat capacities, initial temperatures, units and the absence of environmental losses.",
-      "Derive the coupled differential equations in LaTeX. Prove total-energy conservation and derive equilibrium temperature and the exponential temperature-difference decay time.",
-      "Explain numerical stability for explicit Euler integration of this system, including the stronger step-size condition that avoids temperature overshoot. Distinguish absolute stability from physical bounds.",
-      "Write complete runnable standard-library Python implementing analytical and Euler solutions with input validation. Test conservation, equal starting temperatures, zero conductance and convergence when the time step is halved.",
-      "Provide a Markdown table comparing several synthetic heat-capacity ratios and conductances. Include equilibrium temperature, decay time and recommended step size, with units and explicit rounding.",
-      "Derive total entropy change using absolute temperatures and constant heat capacities. Show the equilibrium change is nonnegative and explain why Celsius cannot be used inside logarithms.",
-      "Extend the explanation to uncertain conductance: demonstrate a reproducible parameter sweep and report a Markdown table of temperature differences at fixed times. Avoid claiming an empirical confidence interval.",
-      "Write a detailed bilingual reproducibility report separating conservation laws, discretization error and missing physics such as environmental losses, incomplete mixing and temperature-dependent heat capacity."
-    ]
-  },
-  {
     "id": "geodesy_great_circle_antipodal_routes",
     "title": "Geodesy: great-circle routes and antipodal numerical conditioning",
     "domain": "geodesy_spherical_navigation",
@@ -414,6 +372,48 @@
       "Draw an aligned ASCII decision diagram for syndrome and parity cases, then give counterexamples showing how three-bit errors can be miscorrected. Explain the bounded fault model.",
       "Derive minimum-distance and redundancy properties, compare detection with correction guarantees, and explain why an undetected four-bit error does not contradict SECDED.",
       "Write a detailed bilingual English-Chinese engineering audit covering bit ordering, parity convention, exhaustive tests, decoder status semantics and the limits of applying this toy code to burst faults."
+    ]
+  },
+  {
+    "id": "acoustics_helmholtz_resonator_dimensions",
+    "title": "Acoustics: Helmholtz resonator geometry and tuning",
+    "domain": "acoustics_helmholtz_resonance",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational cutaway illustration of a Helmholtz resonator with a cavity and short neck. Label cavity volume, neck length, neck radius and an illustrative air plug. Mark all dimensions as synthetic teaching values.",
+      "Derive the lumped acoustic mass and compliance model in LaTeX and the Helmholtz resonance frequency with an explicit end correction. State assumptions and SI units and distinguish angular frequency from hertz.",
+      "Write complete runnable standard-library Python computing resonance frequency for validated positive geometries. Include tests for scaling all lengths, increasing volume, zero or negative dimensions and agreement with a hand-calculated reference.",
+      "Provide a Markdown table of hypothetical cavity volumes and neck dimensions with predicted frequency, effective length and sensitivity to end correction. Explain why those predictions are not measured acoustic performance.",
+      "Write a reproducibility report linking the illustration, formulas and code. Discuss viscothermal losses, radiation damping and breakdown of the lumped approximation; include a Chinese-English glossary."
+    ]
+  },
+  {
+    "id": "statistics_beta_binomial_predictive_calibration",
+    "title": "Statistics: beta-binomial updating and predictive uncertainty",
+    "domain": "statistics_bayesian_beta_binomial",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic quality-control experiment with exchangeable Bernoulli observations and a Beta prior. Give hypothetical success and failure counts and clearly distinguish prior beliefs from observed data.",
+      "Derive the posterior density and posterior mean in LaTeX. Explain conjugacy, the normalization constant and why a posterior probability is not a frequentist confidence level.",
+      "Derive the beta-binomial posterior predictive distribution for a future batch. Obtain its expectation and variance and contrast it with plugging the posterior mean into a binomial model.",
+      "Write complete runnable standard-library Python computing the predictive probabilities using lgamma and stable normalization. Validate integer sample sizes and positive prior parameters.",
+      "Add tests that probabilities sum to one, that n=0 is deterministic, that symmetric priors yield symmetric predictions, and that computed moments agree with the analytical formulas.",
+      "Provide a Markdown table comparing weak, uniform and concentrated synthetic priors for identical observations. Include posterior mean, predictive mean and predictive variance with clear numerical precision.",
+      "Explain prior sensitivity and model misspecification under dependent observations. Show a reproducible grid of prior parameters and report its results without presenting it as empirical calibration evidence.",
+      "Write a detailed bilingual reproducibility report separating synthetic observations, probability computations, uncertainty interpretations and limitations from changing defect rates or nonexchangeable sampling."
     ]
   }
 ]

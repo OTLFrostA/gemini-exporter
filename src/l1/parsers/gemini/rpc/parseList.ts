@@ -72,8 +72,13 @@ function listResult(conversations: ConversationListItem[], nextPageToken: string
 /** Only the LIST RPC's own structured error slot may certify Gemini's 1096 window limit. */
 function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boolean {
     if (!Array.isArray(top)) return false;
+    // Google's google.rpc.Status details use a protobuf Any: [type URL, [code]].
+    // The short tuple remains supported for older replies. A text match or a
+    // nearby status number cannot establish a provider boundary.
+    const bardErrorType = 'type.googleapis.com/assistant.boq.bard.application.BardErrorInfo';
     const hasCode = (value: unknown): boolean => Array.isArray(value)
         && ((value[0] === 'BardErrorInfo' && value.slice(1, 4).includes(1096))
+            || value[0] === bardErrorType && Array.isArray(value[1]) && value[1][0] === 1096
             || value.some(hasCode));
     return top.some(row => Array.isArray(row) && row[0] === wrb && row[1] === listRpc
         && hasCode(row[GEMINI_JSPB_SCHEMA.ERROR_INFO.ERROR_SLOT]));
