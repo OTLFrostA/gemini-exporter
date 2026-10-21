@@ -52,11 +52,12 @@ test('export status and canonical conversation titles cannot inject HTML', async
     await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#status img').count(), 0);
 });
-test('list displays source activity and latest ExportRecord without inferring another updated state', async () => {
+test('list displays one export badge plus source activity without redundant metadata', async () => {
     await open({ indexes: rows, records }); await page.locator('#list .item').first().waitFor();
     assert.deepEqual(await page.locator('#list .item .chat-title').allTextContents(), ['Beta', 'Alpha']);
-    assert.match(await page.locator('[data-chat-id=one] small').textContent() ?? '', /Last export.*markdown.*Partial export/);
-    assert.match(await page.locator('[data-chat-id=two] small').textContent() ?? '', /No export record/);
+    assert.match(await page.locator('[data-chat-id=one] small').textContent() ?? '', /Last export.*markdown/);
+    assert.equal(await page.locator('[data-chat-id=one] .status-partial').textContent(), 'Incomplete export');
+    assert.equal(await page.locator('[data-chat-id=two] .status-tag').count(), 0);
 });
 test('new or updated conversations remain unselected until explicitly selected', async () => {
     await open({ indexes: rows, records }); await page.locator('#list .item').first().waitFor();
@@ -125,13 +126,14 @@ test('Select All replaces hidden selections with currently visible conversation 
 });
 test('partial record remains visible after newer source activity without a fabricated exported badge', async () => {
     await open({ indexes: [{ ...rows[0], updatedAt: 300 }], records }); await page.locator('#list .item').waitFor();
-    assert.match(await page.locator('#list small').textContent() ?? '', /Partial export/);
+    assert.equal(await page.locator('#list .status-partial').textContent(), 'Incomplete export');
+    assert.equal(await page.locator('#list .status-exported').count(), 0);
     assert.equal(await page.locator('#list input').isChecked(), false);
 });
 test('pending export does not fabricate a persisted history record', async () => {
     await open({ holdExport: true }); await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();
     await page.waitForFunction(() => document.body.dataset.busy === 'true');
-    assert.match(await page.locator('#list small').textContent() ?? '', /No export record/);
+    assert.equal(await page.locator('#list .status-tag').count(), 0);
     await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
 });
 test('list selection and history do not implement Application skip or export-state rules', async () => {
