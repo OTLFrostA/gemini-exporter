@@ -1,3 +1,6 @@
+/* Wait for stored appearance before showing either extension page. */
+:root[data-theme="loading"] { visibility: hidden; }
+
 /* Light palette for extension Popup, Options and Tour.
    Keep the existing dark rules untouched to preserve the original appearance. */
 .theme-switch {
