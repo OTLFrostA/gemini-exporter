@@ -1,47 +1,5 @@
 [
   {
-    "id": "optical_microscopy_point_spread_deconvolution",
-    "title": "Microscopy: point spread functions and image reconstruction",
-    "domain": "optics_microscopy_inverse_imaging",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational image using Imagen showing a fictional fluorescence microscope, two nearby fluorescent beads, the ideal bead positions and their blurred image on a detector. Label illumination, objective, sample and detector; show the overlap of their point spread functions in a separate inset.",
-      "Derive a two-dimensional Gaussian point spread function and the discrete convolution image model in LaTeX. Distinguish optical blur, pixel integration, shot noise and background; state the units and normalization that preserve total photon count.",
-      "Write complete runnable standard-library Python that synthesizes two beads on a small grid, convolves them with a normalized Gaussian kernel and reconstructs a nonnegative source using projected gradient descent. Report the objective and photon-count balance; test a single bead, zero signal, noise-free recovery and the boundary convention.",
-      "Create a Markdown comparison table for three bead separations and two blur widths. Report peak overlap, reconstruction residual and resolution limits; explicitly distinguish computed values from predictions when execution is unavailable.",
-      "Produce a detailed bilingual English-Chinese reproducibility report connecting the image, forward model and reconstruction code. Explain ill-conditioning, noise amplification, regularization, stopping criteria and why a small residual does not prove that fine structure was recovered."
-    ]
-  },
-  {
-    "id": "stable_matching_preferences_and_certificates",
-    "title": "Stable matching: preference profiles and stability certificates",
-    "domain": "combinatorics_stable_matching",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define one-to-one stable matching with complete strict preferences in LaTeX. Give a concrete four-by-four preference profile and distinguish a blocking pair from a participant who simply prefers another assignment.",
-      "Write complete runnable standard-library Python implementing proposer-oriented deferred acceptance. Return the matching, proposal trace and proposal count; validate that each preference list is a permutation of the opposite side.",
-      "Implement an independent stability checker that enumerates blocking pairs. Test the supplied profile, a deliberately unstable matching, a one-pair instance, an empty instance and malformed preference lists.",
-      "Prove termination and stability using the monotone improvement of receivers and the fact that each pair receives at most one proposal. Express the proposal bound and running time in LaTeX.",
-      "Run deferred acceptance with the two sides swapped and present both matchings in a Markdown table. Compare participant preference ranks and explain proposer optimality without claiming both sides can improve simultaneously.",
-      "Write a small exhaustive enumerator for all matchings with at most five participants per side. Use it as an independent oracle for stability and proposer optimality; separate experimental evidence from the general proof.",
-      "Extend the discussion to incomplete lists and ties. State which definitions change, distinguish weak and strong stability and explain why arbitrarily breaking ties does not establish every stronger guarantee.",
-      "Produce a detailed English-Chinese technical report with the preference profile, code, traces, independent certificates, complexity argument and limitations. State explicitly whether tables were computed or illustrative."
-    ]
-  },
-  {
     "id": "music_acoustics_string_modes_spectrogram",
     "title": "String acoustics: standing waves and spectral evidence",
     "domain": "music_acoustics_normal_modes",
@@ -414,6 +372,48 @@
       "Cross-check analytic derivatives against central differences with multiple step sizes. Explain truncation and cancellation errors and show a Markdown convergence table.",
       "Compare exact price changes under positive and negative yield shocks with duration-only and duration-plus-convexity approximations. Explain asymmetry using the LaTeX Taylor expansion.",
       "Build a reproducible report with runnable Python and invariant tests for scaling cash flows, zero-coupon limits and monotonicity. Distinguish numerical solver failure from inconsistent financial inputs."
+    ]
+  },
+  {
+    "id": "seismology_two_layer_refraction_travel_times",
+    "title": "Seismology: two-layer refraction and travel-time evidence",
+    "domain": "geophysics_seismic_refraction",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational illustration of a synthetic two-layer seismic survey, with a surface source, five geophones, direct rays and a critically refracted ray. Label layer velocities, depth and travel-time axes; clearly mark the diagram as fictional teaching data.",
+      "Derive direct and head-wave travel times for a horizontal two-layer medium in LaTeX. State the velocity ordering, critical angle, intercept time and crossover distance, with consistent units and geometric assumptions.",
+      "Write complete runnable standard-library Python that generates travel times for a supplied depth and velocities, selects first arrivals and estimates depth from an intercept. Test zero distance, the crossover, invalid velocity ordering and sensitivity to timing noise.",
+      "Present a Markdown table of distances, both candidate arrival times, the selected first arrival and inferred depth. Distinguish executed numerical output from illustrative values and discuss which observations constrain each parameter.",
+      "Write a detailed English-Chinese reproducibility report linking the image, equations and code. Explain hidden-layer ambiguity, dipping interfaces, uncertainty and why a good travel-time fit does not uniquely identify the subsurface."
+    ]
+  },
+  {
+    "id": "information_theory_huffman_prefix_certificates",
+    "title": "Information theory: Huffman coding and prefix certificates",
+    "domain": "information_theory_prefix_coding",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define binary prefix codes, entropy and expected code length in LaTeX. Supply a concrete six-symbol positive integer frequency table and explain the distinction between symbol probability and observed counts.",
+      "Write complete runnable standard-library Python implementing deterministic Huffman construction with explicit tie breaking, encode and decode operations. Include validation for duplicate symbols, negative counts and an empty alphabet.",
+      "Implement an independent prefix-freeness checker and round-trip tests. Cover a single-symbol alphabet, equal weights, malformed bitstrings and truncated codewords, with a clearly stated single-symbol convention.",
+      "Derive the Kraft inequality and the entropy bounds for expected Huffman length. Distinguish the integer-length constraint from the ideal real-valued code lengths and state the conditions for equality.",
+      "Present the chosen symbol counts, probabilities, codewords and length contributions in a Markdown table. Report the weighted average length and compression ratio including the assumed original symbol width.",
+      "Build an exhaustive independent oracle for small alphabets by enumerating feasible length profiles and compare its optimum against the Huffman result. State the enumeration limit and avoid claiming empirical testing alone proves optimality.",
+      "Analyze encoding, decoding and tree construction time and space in LaTeX. Explain how headers, byte padding and a changed source distribution affect physical file size.",
+      "Produce a detailed English-Chinese technical report combining the runnable code, prefix certificate, tables, mathematical bounds and limitations. Mark clearly which results were executed and which were derived."
     ]
   }
 ]
