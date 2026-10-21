@@ -74,3 +74,64 @@ test('Stored Light theme is ready before either extension page becomes visible',
         await page.close();
     }
 });
+
+
+test('Light first visible frame has no dark cards or initial background transitions', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const setup = await openOptions(context, extensionId);
+    await setup.evaluate(() => Reflect.get(globalThis, 'uiFixture').updateSettings({ theme: 'light' }));
+    await expect.poll(async () => (await storedSettings(setup)).theme).toBe('light');
+    await setup.close();
+
+    for (const kind of ['options', 'popup'] as const) {
+        const page = await context.newPage();
+        await page.addInitScript(() => {
+            Reflect.set(window, '__themeBootTransitions', [] as string[]);
+            document.addEventListener('transitionrun', event => {
+                const node = event.target;
+                if (node instanceof Element && node.matches('#btnThemeToggle,.delivery-card,.feedback-card,.tab-group')) {
+                    (Reflect.get(window, '__themeBootTransitions') as string[]).push(
+                        `${node.id || node.className}:${(event as TransitionEvent).propertyName}`);
+                }
+            }, true);
+            document.addEventListener('DOMContentLoaded', () => {
+                const root = document.documentElement;
+                const capture = () => {
+                    if (root.dataset.theme !== 'light' || root.hasAttribute('data-theme-bootstrap')) return;
+                    const ghost = document.querySelector('#btnThemeToggle');
+                    const block = document.querySelector('.delivery-card,.tab-group');
+                    Reflect.set(window, '__firstVisiblePalette', {
+                        theme: root.dataset.theme,
+                        ghost: ghost ? getComputedStyle(ghost).backgroundColor : null,
+                        block: block ? getComputedStyle(block).backgroundColor : null,
+                        visibility: getComputedStyle(root).visibility,
+                    });
+                };
+                const observer = new MutationObserver(() => {
+                    capture();
+                    if (Reflect.has(window, '__firstVisiblePalette')) observer.disconnect();
+                });
+                observer.observe(root, { attributes: true, attributeFilter: ['data-theme-bootstrap'] });
+                capture();
+            }, { once: true });
+        });
+        await page.goto(`chrome-extension://${extensionId}/src/ui/${kind}/${kind}.html`);
+        await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+        await expect(page.locator('html')).toHaveCSS('visibility', 'visible');
+        const first = await page.evaluate(() => Reflect.get(window, '__firstVisiblePalette'));
+        expect(first, `${kind}: first visible theme snapshot`).toBeTruthy();
+        expect(first.visibility).toBe('visible');
+        // Light buttons and cards should start light, not animate from their dark CSS defaults.
+        for (const [name, color] of Object.entries({ ghost: first.ghost, block: first.block })) {
+            const channels = String(color).match(/[0-9]+/g)?.slice(0, 3).map(Number) ?? [];
+            expect(channels.length, `${kind}: ${name} background should be RGB`).toBe(3);
+            expect(channels.every(channel => channel >= 215),
+                `${kind}: ${name} was initially dark: ${color}`).toBe(true);
+        }
+        await page.waitForTimeout(250);
+        expect(await page.evaluate(() => Reflect.get(window, '__themeBootTransitions'))).toEqual([]);
+        // Normal interaction animations are retained once initial appearance settles.
+        expect(await page.locator('#btnThemeToggle').evaluate(node => getComputedStyle(node).transitionDuration)).not.toBe('0s');
+        await page.close();
+    }
+});
