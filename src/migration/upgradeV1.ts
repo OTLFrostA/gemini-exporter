@@ -1,3 +1,4 @@
+import { upgradeReleasedV17 } from './releasedV17.js';
 import { readAccountRegistry } from '../l2/accountRegistry.js';
 import { restoreConversationIndex } from '../l2/conversationIndex.js';
 import { conversationKey } from '../l2/conversationKey.js';
@@ -84,6 +85,18 @@ async function readOld<T>(name: string, store: string, read: (table: IDBObjectSt
 }
 
 async function upgrade(): Promise<void> {
+    await upgradeUuidSchema();
+    // A released 1.7 profile may already carry the incomplete v2 marker.
+    const raw = await chrome.storage.local.get<Record<string, unknown>>([
+        'gemini_exporter_v17_migrated', 'gemini_account_slots', 'gemini_conversations'
+    ]);
+    if (raw.gemini_exporter_v17_migrated !== true
+        && (object(raw.gemini_account_slots) || Array.isArray(raw.gemini_conversations))) {
+        await upgradeReleasedV17(raw);
+    }
+}
+
+async function upgradeUuidSchema(): Promise<void> {
     const marker = await chrome.storage.local.get<Record<string, unknown>>(INITIALIZED);
     if (marker[INITIALIZED] === true) return;
     const databases = new Set((await indexedDB.databases()).map(db => db.name));

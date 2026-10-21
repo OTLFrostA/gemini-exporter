@@ -53,3 +53,11 @@ export function findAccount(accounts: readonly Account[], providerId: string, pr
     if (matches.length > 1) throw new TypeError('Duplicate account identity');
     return matches.length ? { ...matches[0], ...parameters } : null;
 }
+
+/** Only released-1.7 migration aliases may become a verified Gaia identity. */
+export function isLegacyGeminiIdentityUpgrade(old: Account, incoming: Omit<Account, 'id'>): boolean {
+    return old.providerId === 'gemini' && incoming.providerId === 'gemini'
+        && !!old.email && old.providerAccountId === 'legacy-email:' + old.email.toLowerCase()
+        && old.email.toLowerCase() === incoming.email?.toLowerCase()
+        && /^\d+$/.test(incoming.providerAccountId);
+}

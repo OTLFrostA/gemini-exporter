@@ -35,7 +35,8 @@ test('Live Save: unavailable bytes write readable partial Markdown, remain retry
     assert.equal(first.partial, 1);
     assert.deepEqual(first.failed, []);
     assert.match(markdown(host.files), /Answer for retry-image/);
-    assert.doesNotMatch(markdown(host.files), /https:\/\/example\.test/);
+    assert.match(markdown(host.files), /\[Open source\]\(https:\/\/example\.test\/retry\.png\)/);
+    assert.doesNotMatch(markdown(host.files), /!\[[^\]]*\]\(https:/);
     assert.equal([...host.files.keys()].filter(name => name.startsWith('assets/')).length, 0);
     assert.equal((await getExportRecord(liveKey(id)))?.status, 'partial');
     assert.deepEqual(Object.keys(await listExportRecords(liveKey(id).accountId)), [id]);

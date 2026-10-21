@@ -57,7 +57,7 @@ for (const format of ['markdown', 'html', 'json'] as const) test(`production Opt
     }, accountId)).toBe(format);
     // Manual Skip uses the committed source version and does not deliver again.
     await page.locator('#btnExport').click();
-    await expect(page.locator('#status')).toContainText('skipped: 1');
+    await expect(page.locator('#status')).toContainText('Skipped: 1');
 });
 
 test('production browser multi-file export auto-packages ZIP; record clears preserve the archive after reload', async ({ context, extensionId }) => {

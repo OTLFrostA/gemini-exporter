@@ -1,3 +1,4 @@
+import { exportSummary } from '../shared/exportSummary.js';
 import { getSettings } from '../../application/settings/index.js';
 import type { ExportResult } from '../../application/export/types.js';
 import { getAccountContext, resolveCurrentAccount } from '../../runtime/content/accountContext.js';
@@ -7,13 +8,14 @@ import { text, useSettings, observeSettings } from '../shared/settings.js';
 let badge: HTMLElement | null = null;
 let accountId: string | null = null;
 let count: number | null = null;
-let feedback: 'ok' | 'partial' | 'failed' | null = null;
+let feedback: 'ok' | 'partial' | 'failed' | 'unavailable' | null = null;
+let feedbackSummary = '';
 let timer: ReturnType<typeof setTimeout> | undefined;
 let countPoll: ReturnType<typeof setInterval> | undefined;
 let dragging = false;
 let alive = false;
 let positionChanged = false;
-const clearFeedback = () => { clearTimeout(timer); timer = undefined; feedback = null; };
+const clearFeedback = () => { clearTimeout(timer); timer = undefined; feedback = null; feedbackSummary = ''; };
 const stopCountPolling = () => {
     if (countPoll !== undefined) clearInterval(countPoll);
     countPoll = undefined;
@@ -29,7 +31,9 @@ const startCountPolling = () => {
 function render(): void {
     const label = badge?.querySelector('#geminiExportBadgeText');
     if (!label) return;
-    label.textContent = feedback === 'ok' ? text('✓ Saved', '✓ 已保存')
+    if (badge) badge.title = feedbackSummary;
+    label.textContent = feedback === 'unavailable' ? text('Saved; source attachments unavailable', '已保存，含来源失效附件')
+        : feedback === 'ok' ? text('✓ Saved', '✓ 已保存')
         : feedback === 'partial' ? text('Some content was not saved', '部分内容未保存')
         : feedback === 'failed' ? text('Save failed', '保存失败')
         : !accountId ? text('Current account unavailable', '无法识别当前账户')
@@ -68,15 +72,15 @@ async function refreshIndexCount(id: string): Promise<void> {
 function showLiveSaveResultImpl(result: ExportResult | null, id: string): void {
     if (!result || !alive || !id || id !== accountId) return;
     const outcome = result.failed.length || result.aborted ? 'failed'
-        : result.exported && result.partial ? 'partial' : result.exported ? 'ok' : null;
+        : result.exported && result.partial ? (result.attachmentIssues?.length && result.attachmentIssues.every(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED') && result.otherPartial === 0 ? 'unavailable' : 'partial') : result.exported ? 'ok' : null;
     if (!outcome) return;
-    clearFeedback(); feedback = outcome; render();
-    timer = setTimeout(() => { feedback = null; timer = undefined; render(); }, 3000);
+    clearFeedback(); feedback = outcome; feedbackSummary = exportSummary(result); render();
+    timer = setTimeout(() => { feedback = null; feedbackSummary = ''; timer = undefined; render(); }, 3000);
 }
 function showLiveSaveErrorImpl(id: string): void {
     if (!alive || id !== accountId) return;
     clearFeedback(); feedback = 'failed'; render();
-    timer = setTimeout(() => { feedback = null; timer = undefined; render(); }, 3000);
+    timer = setTimeout(() => { feedback = null; feedbackSummary = ''; timer = undefined; render(); }, 3000);
 }
 function ensureBadgeImpl(): HTMLElement | null {
     if (typeof document === 'undefined') return null;

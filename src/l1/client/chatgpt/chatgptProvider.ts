@@ -1,3 +1,4 @@
+import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import { chatgptAccountObservation } from './accountObservation.js';
 import { readConversationKey, type ConversationKey } from '../../../l2/conversationKey.js';
@@ -204,10 +205,10 @@ export class ChatGPTProvider implements AIProvider {
             const exchange = parseFileDownloadPayload(await this.authedGet<unknown>(buildFileDownloadPath(fileId), account, signal));
             if (!exchange) throw new Error('ChatGPT resource locator unavailable');
             const response = await this.fetchFn(exchange.downloadUrl, { signal });
-            if (!response.ok) throw new Error(`Resource request failed: ${response.status}`);
+            if (!response.ok) throw new ResourceHttpError(response.status);
             const bytes = new Uint8Array(await response.arrayBuffer());
             signal?.throwIfAborted();
-            if (!bytes.byteLength) throw new Error('Empty ChatGPT resource');
+            if (!bytes.byteLength) throw new ResourceProcessingError('Empty ChatGPT resource');
             return { bytes, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
         };
         return this.resources ? this.resources.acquire(key, asset, signal, remote) : remote();

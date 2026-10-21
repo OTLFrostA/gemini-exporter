@@ -29,8 +29,13 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         if (!ref) throw new TypeError(`Missing prepared resource binding: ${id}`);
         return ref;
     };
-    const placeholder = (node: { text: string; kind: 'image' | 'file' }): string => `[${escapeText(unavailableResourceText(node.kind, node.text, locale))}]`;
-    const image = (id: string, alt: string): string => available(id) ? `![${escapeText(alt)}](${resource(id)})` : placeholder({ kind: 'image', text: alt || id });
+    const sourceLink = (id: string): string => {
+        const url = safeExternalHref(options.resourceFailures?.[id]?.sourceUrl ?? '');
+        return url ? ` [${locale === 'zh' ? '查看来源' : 'Open source'}](${encodeMarkdownHref(url)})` : '';
+    };
+    const placeholder = (node: { text: string; kind: 'image' | 'file'; id: string }): string =>
+        `[${escapeText(unavailableResourceText(node.kind, node.text, locale, options.resourceFailures?.[node.id]))}]` + sourceLink(node.id);
+    const image = (id: string, alt: string): string => available(id) ? `![${escapeText(alt)}](${resource(id)})` : placeholder({ kind: 'image', text: alt || id, id });
     const citation = (node: { label: string; href?: string }): string => {
         const url = node.href && safeExternalHref(node.href);
         return url ? `[${escapeText(node.label)}](${encodeMarkdownHref(url)})` : /^\[\d+\]$/.test(node.label) ? escapeText(node.label) : `[${escapeText(node.label)}]`;
@@ -88,7 +93,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             }
             case 'image':
                 return available(node.resourceId) ? '<img src="' + escapeHtml(resource(node.resourceId)) + '" alt="' + escapeHtml(node.alt) + '">'
-                    : escapeHtml(unavailableResourceText('image', node.alt || node.resourceId, locale));
+                    : escapeHtml(unavailableResourceText('image', node.alt || node.resourceId, locale, options.resourceFailures?.[node.resourceId]));
             case 'inlineMath': return '<code>' + escapeHtml(node.source) + '</code>';
             case 'lineBreak': return '<br>';
         }
@@ -148,7 +153,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             case 'image': {
                 return [image(node.resourceId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
             }
-            case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
+            case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label, id: node.resourceId }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
             case 'disclosure': return `<details>\n<summary>${escapeText(node.title)}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
             case 'thematicBreak': return '---';
             case 'unsupported': return `${escapeText(`${strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;

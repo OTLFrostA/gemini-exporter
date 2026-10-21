@@ -34,8 +34,14 @@ export function admitAccountAtomically(providerId: Account['providerId'],
                 const accepted = decide(existing);
                 if (accepted.providerId !== providerId) throw new TypeError('Account provider mismatch');
                 const saved = all.find(account => account.id === accepted.id);
+                // Validate the narrowly scoped migration alias rewrite without importing L2 policy.
+                const legacyPromotion = saved?.providerId === 'gemini' && accepted.providerId === 'gemini'
+                    && !!saved.email && saved.providerAccountId === 'legacy-email:' + saved.email.toLowerCase()
+                    && saved.email.toLowerCase() === accepted.email?.toLowerCase()
+                    && /^\d+$/.test(accepted.providerAccountId);
                 if (saved && (saved.providerId !== providerId
                     || (saved.providerAccountId !== accepted.providerAccountId
+                        && !legacyPromotion
                         && !(saved.providerAccountId === 'default' && existing.length === 1
                             && accepted.providerAccountId !== 'default')))) {
                     throw new TypeError('Account identity cannot change');

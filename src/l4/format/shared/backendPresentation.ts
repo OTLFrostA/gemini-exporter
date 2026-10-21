@@ -1,3 +1,4 @@
+import { resourceFailureText, type ResourceFailure } from '../../../shared/resources/resourceResult.js';
 import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../../l3b/ast/ast.js';
 import { getRendererStrings } from './renderStrings.js';
 
@@ -97,7 +98,8 @@ export function sourceNumberPrefix(item: SourceItem): string {
     return item.label === '[' + item.number + ']' ? '' : '[' + item.number + ']' + (item.label ? ' ' : '');
 }
 
-export function unavailableResourceText(kind: 'image' | 'file', label: string, locale: 'zh' | 'en'): string {
+export function unavailableResourceText(kind: 'image' | 'file', label: string, locale: 'zh' | 'en', failure?: ResourceFailure): string {
+    if (failure) return resourceFailureText(failure, locale) + (label ? `: ${label}` : '');
     const strings = getRendererStrings(locale);
     const text = kind === 'image' ? strings.imageUnavailable : strings.fileUnavailable;
     return label ? `${text}: ${label}` : text;

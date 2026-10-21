@@ -9,17 +9,25 @@ export interface ExportRequest {
     includeAssets: boolean;
     skipUnchanged: boolean;
 }
+export interface ExportAttachmentIssue {
+    resourceId: string; name: string; sourceUrl?: string; code: string; httpStatus?: number;
+}
 export interface ExportRecord {
     exportedAt: number;
     format: ExportFormat;
     status: 'ok' | 'partial';
     chatTime?: number;
+    otherContentMissing?: boolean;
+    attachmentIssues?: readonly ExportAttachmentIssue[];
 }
 export interface ExportProgress { current: number; total: number; key: ConversationKey }
 export interface ExportResult {
     exported: number;
     skipped: number;
     partial: number;
+    attachmentIssues?: readonly ExportAttachmentIssue[];
+    expiredConversations?: number;
+    otherPartial?: number;
     failed: readonly ConversationKey[];
     aborted: boolean;
 }

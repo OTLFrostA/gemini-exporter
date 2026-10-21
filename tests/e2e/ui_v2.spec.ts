@@ -220,7 +220,7 @@ test('UI v2: Light Badge does not modify Gemini page theme', async ({ page }) =>
 
 test('UI v2: Popup blocks unknown context, supports index-less trusted key and partial result', async ({ page }) => {
     await mount(page,'popup',{indexes:[],partial:true}); await expect(page.locator('#btnCurrent')).toBeEnabled();
-    await page.locator('#btnCurrent').click(); await expect(page.locator('#status')).toContainText('some content is missing');
+    await page.locator('#btnCurrent').click(); await expect(page.locator('#status')).toContainText('Other incomplete conversations: 1');
     await page.evaluate(()=>{(window as any).harness.noContext=true;}); await page.locator('#btnCurrent').click();
     await expect(page.locator('#btnCurrent')).toBeDisabled(); expect((await read(page,'exports')).length).toBe(1);
 });

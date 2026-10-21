@@ -191,7 +191,8 @@ test('e2e-disk: unified PDF Folder Writer creates a parseable physical file',asy
         const extracted=extractPdfText(bytes);assert.ok(extracted.pageCount>=1);assert.ok(extracted.text.includes(title));
         assert.ok(extracted.text.includes('Shopping list'));assert.ok(extracted.text.includes('milk'));
         const record=await getExportRecord(exportKey(id));assert.equal(record?.format,'pdf');assert.equal(record?.status,'partial');
-        assert.deepEqual(Object.keys(record!).sort(),['exportedAt','format','status']);
+        assert.deepEqual(Object.keys(record!).sort(),['attachmentIssues','exportedAt','format','otherContentMissing','status']);
+        assert.ok(record!.attachmentIssues!.length > 0, 'persist attachment reasons for the delivered partial PDF');
     }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 });
 test('e2e-disk: Browser batch ZIP reopens from disk with three distinct parseable PDFs',async t=>{

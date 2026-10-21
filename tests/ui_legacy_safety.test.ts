@@ -14,7 +14,7 @@ test('export completion warns for attachment-only and mixed failures in both lan
             {key:{accountId:A,conversationId:'failed'},title:'Failed chat'}
         ] : undefined;
         await open({ ...(indexes ? { indexes } : {}), partial, failExport, settings: { language } });await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        const status=await page.locator('#status').textContent()??'';assert.match(status,language==='en'?new RegExp(`partial: ${partial?1:0}; skipped: 0; failed: ${failExport?1:0}`):new RegExp(`部分缺失 ${partial?1:0}；跳过 0；失败 ${failExport?1:0}`));assert.equal(await page.locator('#btnRetryFailed').isVisible(),failExport);await page.close();
+        const status=await page.locator('#status').textContent()??'';assert.match(status,language==='en'?new RegExp(`Skipped: 0; Conversation export failed: ${failExport?1:0}`):new RegExp(`跳过 0; 会话导出失败 ${failExport?1:0}`));if(partial)assert.match(status,language==='en'?/Other incomplete conversations: 1/:/其他内容不完整 1 条/);assert.equal(await page.locator('#btnRetryFailed').isVisible(),failExport);await page.close();
     }
 });
 test('sync UI never announces completion for partial_limit, aborted or error, and keeps committed counters',async()=>{

@@ -134,3 +134,63 @@ test('inline source bytes are reusable in the same task but never persisted in v
     }
     await assert.rejects(resources.acquire(key, asset), /Resource context released/);
 });
+
+import { ResourceHttpError, attemptResource, resourceIssueKind, resourceFailureText } from '../src/shared/resources/resourceResult.js';
+import { acquireSourceResource } from '../src/l1/resources/sourceResources.js';
+import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
+import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { renderDocumentTypstCore } from '../src/l4/format/typst/renderTypstCore.js';
+
+test('actual attachment response status distinguishes unavailable, restricted and retryable resources', async t => {
+    const originalFetch = globalThis.fetch;
+    t.after(() => { globalThis.fetch = originalFetch; });
+    for (const [status, kind] of [[404, 'expired'], [410, 'expired'], [401, 'restricted'], [403, 'restricted'], [429, 'download'], [500, 'download']] as const) {
+        globalThis.fetch = async () => new Response('', {status});
+        const failure = await attemptResource('asset', () => acquireSourceResource({id:'asset',kind:'image',sourceUri:'https://example.test/photo'}));
+        assert.equal(failure.ok, false);
+        if (failure.ok) continue;
+        assert.equal(failure.httpStatus, status);
+        assert.equal(resourceIssueKind(failure), kind);
+        assert.match(resourceFailureText(failure, 'zh'), new RegExp(`HTTP ${status}`));
+    }
+    for (const error of [new TypeError('Failed to fetch'), new Error('HTTP 404 mentioned in unrelated text')]) {
+        const failure = await attemptResource('asset', async () => { throw error; });
+        assert.ok(!failure.ok);
+        assert.equal(resourceIssueKind(failure), 'download', 'never infer expiry from an error message');
+    }
+    const abort = new AbortController(); abort.abort();
+    await assert.rejects(attemptResource('asset', async () => { throw new ResourceHttpError(404); }, abort.signal), {name:'AbortError'});
+});
+
+test('Markdown, HTML and PDF payload preserve the actual missing attachment reason and name', async () => {
+    const domain = conversation();
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain));
+    const prepared = await prepareExportResources(domain.detail.assets, collectDocumentResources(document).referencedIds,
+        async () => { throw new ResourceHttpError(404); });
+    const resourceFailures = Object.fromEntries([...prepared].filter((entry): entry is [string, import('../src/shared/resources/resourceResult.js').ResourceFailure] => !entry[1].ok));
+    const options = {locale:'zh' as const, resourceFailures};
+    const markdown = renderDocumentMarkdown(document, {}, options);
+    const html = renderDocumentHtml(document, {}, options).html;
+    const typst = JSON.stringify(renderDocumentTypstCore(document, {}, options));
+    for (const output of [markdown, html, typst]) {
+        assert.match(output, /来源附件已失效/);
+        assert.match(output, /HTTP 404/);
+        assert.match(output, /same\.png/);
+        assert.doesNotMatch(output, /<img[^>]+src="https:\/\/example\.test\/shared-image|!\[[^\]]*\]\(https:\/\/example\.test\/shared-image/);
+        assert.match(output, /https:\/\/example\.test\/shared-image/);
+    }
+});
+
+import { exportSummary } from '../src/ui/shared/exportSummary.js';
+test('delivery summary separates unavailable source attachments from retryable failures', () => {
+    const base = {exported:2,skipped:0,partial:2,failed:[],aborted:false,expiredConversations:2,otherPartial:0};
+    const summary = exportSummary({...base, attachmentIssues:[
+        {resourceId:'one',name:'one.png',code:'RESOURCE_SOURCE_EXPIRED',httpStatus:404},
+        {resourceId:'two',name:'two.png',code:'RESOURCE_SOURCE_EXPIRED',httpStatus:410},
+        {resourceId:'three',name:'three.png',code:'RESOURCE_DOWNLOAD_FAILED',httpStatus:503},
+    ]});
+    assert.match(summary, /2 conversations contain unavailable source attachments \(2 attachments\)/);
+    assert.match(summary, /Attachment download failed: 1; retry later/);
+    assert.match(summary, /Conversation export failed: 0/);
+    assert.doesNotMatch(summary, /Other incomplete/);
+});

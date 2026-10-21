@@ -50,7 +50,7 @@ test('missing source bytes produce visible placeholders, a partial record and un
     assert.equal(result?.exported, 1); assert.equal(result?.partial, 1);
     assert.equal((await getExportRecord(key))?.status, 'partial');
     assert.equal([...host.files.keys()].some(path => path.startsWith('assets/')), false);
-    assert.ok([...host.files.values()].some(text => typeof text === 'string' && text.includes('unavailable')));
+    assert.ok([...host.files.values()].some(text => typeof text === 'string' && text.includes('Attachment download failed')));
     assert.deepEqual(await getDetail(key), before);
 });
 test('same authored asset names receive distinct physical paths with exact binary views', async t => {

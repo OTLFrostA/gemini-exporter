@@ -1,3 +1,4 @@
+import { ResourceHttpError, ResourceProcessingError } from '../../shared/resources/resourceResult.js';
 import type { DomainAsset } from '../../l2/conversationDetail.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
 import type { SourceConversationParseResult } from '../parsers/parsingResult.js';
@@ -57,7 +58,7 @@ export function createSourceResourceContext() {
             signal?.throwIfAborted();
             if (!result?.bytes.byteLength) result = await (remote ? remote(signal) : acquireSourceResource(asset, signal));
             signal?.throwIfAborted();
-            if (!result.bytes.byteLength) throw new Error('Empty source resource');
+            if (!result.bytes.byteLength) throw new ResourceProcessingError('Empty source resource');
             const mediaType = result.mediaType ?? asset.mediaType, name = result.name ?? asset.name;
             return { ...result, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
         },
@@ -76,10 +77,10 @@ export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSi
     signal?.throwIfAborted();
     if (!asset.sourceUri || !/^(https:\/\/|data:)/i.test(asset.sourceUri)) throw new Error('No supported source locator');
     const response = await fetch(asset.sourceUri, { credentials: 'include', signal });
-    if (!response.ok) throw new Error(`Resource request failed: ${response.status}`);
+    if (!response.ok) throw new ResourceHttpError(response.status);
     const bytes = new Uint8Array(await response.arrayBuffer());
     signal?.throwIfAborted();
-    if (!bytes.byteLength) throw new Error('Empty source resource');
+    if (!bytes.byteLength) throw new ResourceProcessingError('Empty source resource');
     const mediaType = asset.mediaType ?? response.headers.get('content-type')?.split(';')[0].trim();
     return { bytes, ...(mediaType ? { mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
 }

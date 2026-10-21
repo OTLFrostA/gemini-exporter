@@ -50,6 +50,7 @@ const originalLoad = loader._load;
 loader._load = (request, parent, isMain) => {
     const caller = parent?.filename.replace(/\\/g, '/') ?? '';
     if (caller.includes('/src/migration/')) {
+        if (request === './releasedV17.js') return { upgradeReleasedV17: async () => { throw new Error('No released-1.7 fixture in this isolated UUID test'); } };
         if (request === '../l2/accountRegistry.js') return { readAccountRegistry };
         if (request === '../l2/conversationIndex.js') return { restoreConversationIndex };
         if (request === '../l2/conversationKey.js') return { conversationKey };

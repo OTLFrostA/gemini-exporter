@@ -1,4 +1,4 @@
-import { readAccountParameters, readAccountRegistry, findAccount, readAccount, DEFAULT_ACCOUNT_KEY, type Account } from './accountRegistry.js';
+import { readAccountParameters, readAccountRegistry, findAccount, readAccount, DEFAULT_ACCOUNT_KEY, isLegacyGeminiIdentityUpgrade, type Account } from './accountRegistry.js';
 import { admitAccountAtomically } from '../l3a/storageService.js';
 
 /** L2 decides ownership; Storage serializes the decision with the account write. */
@@ -17,7 +17,9 @@ export async function getOrCreateAccount(providerId: Account['providerId'], prov
         }
         const matched = findAccount(accounts, providerId, providerAccountId, email, displayName);
         if (matched) return matched;
-        // The only identity rewrite: a sole placeholder becomes the first verified subject.
+        const legacy = accounts.filter(account => isLegacyGeminiIdentityUpgrade(account, parameters));
+        if (legacy.length === 1) return readAccount({ id: legacy[0].id, ...parameters });
+        // A placeholder identity rewrite: a sole placeholder becomes the first verified subject.
         if (accounts.length === 1 && accounts[0].providerAccountId === DEFAULT_ACCOUNT_KEY)
             return readAccount({ id: accounts[0].id, ...parameters });
         return readAccount({ id: crypto.randomUUID(), ...parameters });

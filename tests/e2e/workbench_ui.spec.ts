@@ -25,3 +25,75 @@ test('new activity and partial export records display facts without automatic se
     await page.locator('[data-chat-id="partial"] input').check();await page.locator('#langToggle').uncheck();await expect(page.locator('[data-chat-id="partial"] input')).toBeChecked();await expect(page.locator('[data-chat-id="partial"] small')).toContainText('部分导出');
     await page.reload();await expect(page.locator('#list .item')).toHaveCount(7);await expect(page.locator('#list input:checked')).toHaveCount(0);
 });
+
+for (const permission of ['throws', 'pending'] as const) test(`saved conversations render after reload when folder permission ${permission}`, async ({context, extensionId}) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{id:'reload-survivor', title:'Persisted conversation'}]);
+    await page.evaluate(async () => {
+        await Reflect.get(globalThis, 'uiFixture').setDirectoryHandle(await navigator.storage.getDirectory());
+    });
+    await page.addInitScript(permission => {
+        Object.defineProperty(FileSystemHandle.prototype, 'queryPermission', { configurable: true,
+            value: () => permission === 'throws'
+                ? Promise.reject(new DOMException('Saved folder is unavailable', 'NotAllowedError'))
+                : new Promise(() => {}) });
+    }, permission);
+    await page.reload();
+    await expect(page.locator('[data-chat-id="reload-survivor"]')).toBeVisible();
+    await expect(page.locator('#selectedStat')).toContainText('0 of 1');
+    await page.locator('#btnSelectAll').click();
+    await expect(page.locator('#btnExport')).toBeEnabled();
+    if (permission === 'throws') await expect(page.locator('#status')).toContainText('Folder permission could not be restored');
+});
+
+test('a workbench opened without an account refreshes when the first account is admitted', async ({context, extensionId}) => {
+    const seed = await openOptions(context, extensionId);
+    await seed.evaluate(async () => {
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const r = indexedDB.open('gemini_exporter_v2'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+        });
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction('accounts', 'readwrite'); tx.objectStore('accounts').clear();
+            tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
+        });
+        db.close();
+    });
+    const waiting = await openOptions(context, extensionId);
+    await expect(waiting.locator('#accountIdSelect option')).toHaveCount(0);
+    await seed.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        const accountId = '10000000-0000-4000-8000-000000000001';
+        await api.putAccount({id:accountId, providerId:'gemini', providerAccountId:'10000000001'});
+        await api.putIndexes([{key:{accountId,conversationId:'first-admission'},title:'First admitted chat',titleSource:'provider',updatedAt:123}]);
+    });
+    const worker = context.serviceWorkers()[0];
+    await worker.evaluate(() => chrome.runtime.sendMessage({action:'domainChanged',accountId:'10000000-0000-4000-8000-000000000001'}));
+    await expect(waiting.locator('[data-chat-id="first-admission"]')).toBeVisible();
+});
+
+test('source expiry is a yellow explainable warning and mixed download failures remain visible', async ({context, extensionId}, testInfo) => {
+    const page = await openOptions(context, extensionId);
+    const expired = {resourceId:'missing',name:'photo.png',code:'RESOURCE_SOURCE_EXPIRED',httpStatus:404,sourceUrl:'https://example.test/photo'};
+    const download = {resourceId:'retry',name:'retry.png',code:'RESOURCE_DOWNLOAD_FAILED',httpStatus:503};
+    await seedConversations(page, [{id:'expired-only'}, {id:'mixed'}, {id:'legacy-partial'}], {
+        'expired-only':{exportedAt:200,format:'markdown',status:'partial',chatTime:100,attachmentIssues:[expired]},
+        mixed:{exportedAt:200,format:'html',status:'partial',chatTime:100,attachmentIssues:[expired,download]},
+        'legacy-partial':{exportedAt:200,format:'pdf',status:'partial',chatTime:100},
+    });
+    const row = page.locator('[data-chat-id="expired-only"]');
+    await expect(row.locator('.status-unavailable')).toContainText('Contains unavailable source attachments');
+    await row.locator('summary').click();
+    await expect(row.locator('input')).not.toBeChecked();
+    await expect(row.locator('details')).toContainText('photo.png: Source attachment unavailable');
+    await expect(row.locator('details')).toContainText('HTTP 404');
+    await expect(row.locator('details a')).toHaveAttribute('href', 'https://example.test/photo');
+    await expect(page.locator('[data-chat-id="mixed"] .status-partial')).toContainText('Attachment download failed; retry');
+    await expect(page.locator('[data-chat-id="legacy-partial"] .status-partial')).toHaveText('Partial export');
+    await page.locator('#langToggle').uncheck();
+    await row.locator('summary').click();
+    await expect(row.locator('details')).toContainText('来源附件已失效');
+    await expect(page.locator('[data-chat-id="mixed"] .status-partial')).toContainText('附件下载失败，可重试');
+    await page.screenshot({path:testInfo.outputPath('attachment-expiry.png'),fullPage:true});
+    await page.reload();
+    await expect(row.locator('.status-unavailable')).toContainText('含失效附件');
+});

@@ -11,6 +11,7 @@ import { createSourceResourceContext } from '../../l1/resources/sourceResources.
 import { composeDomainDocument } from '../../l3b/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../../l3b/ast/resourceReferences.js';
 import type { DocumentAst } from '../../l3b/ast/ast.js';
+import { missingResource, type ResourceFailure } from '../../shared/resources/resourceResult.js';
 import type { PreparedResources } from '../../shared/resources/resourceResult.js';
 import { renderDocumentMarkdown } from '../../l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../../l4/format/html/renderHtml.js';
@@ -56,7 +57,7 @@ export async function runExport(request: ExportRequest, options: {
     refreshDetail?: boolean;
 } = {}): Promise<ExportResult> {
     const failed: ConversationKey[] = [];
-    const result = { exported: 0, skipped: 0, partial: 0, failed, aborted: false };
+    const result: ExportResult = { exported: 0, skipped: 0, partial: 0, failed, aborted: false };
     const signal = options.signal ?? new AbortController().signal;
     const resources = createSourceResourceContext();
     const providers = new Map<string, AIProvider>();
@@ -92,7 +93,11 @@ export async function runExport(request: ExportRequest, options: {
                 const record: ExportRecord = { ...group.record, exportedAt };
                 await putExportRecord(group.key, record);
                 result.exported++;
-                if (group.record.status === 'partial') result.partial++;
+                if (group.record.status === 'partial') { result.partial++; result.otherPartial ??= 0; }
+                if (group.record.attachmentIssues?.length) result.attachmentIssues = [...(result.attachmentIssues ?? []), ...group.record.attachmentIssues];
+                if (group.record.attachmentIssues?.some(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED')) result.expiredConversations = (result.expiredConversations ?? 0) + 1;
+                if (group.record.status === 'partial' && (!group.record.attachmentIssues?.length
+                    || group.record.otherContentMissing)) result.otherPartial = (result.otherPartial ?? 0) + 1;
                 report({ key: group.key, status: 'exported', record });
             } catch (error) {
                 console.warn('[Gemini Exporter] ExportRecord write failed', group.key, error);
@@ -102,18 +107,21 @@ export async function runExport(request: ExportRequest, options: {
     };
     const renderGroup = async (item: PendingExport, plan: ExportPathPlan): Promise<ExportGroup> => {
         const { conversation, document, prepared, key } = item;
-        let partial = item.refreshFailed || conversation.detail.quality.status !== 'complete'
+        let otherContentMissing = item.refreshFailed || conversation.detail.quality.status !== 'complete'
             || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
-                && conversation.detail.savedAt < conversation.index.updatedAt)
-            || [...prepared.values()].some(value => !value.ok);
+                && conversation.detail.savedAt < conversation.index.updatedAt);
+        const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
+        const renderOptions = { locale, resourceFailures: failures };
+        let partial = otherContentMissing || Object.keys(failures).length > 0;
         let content: string | Uint8Array;
         switch (request.format) {
             case 'json': content = serializeDomainJson(conversation, item.account, plan.resources); break;
-            case 'markdown': content = renderDocumentMarkdown(document!, plan.resources, { locale }); break;
+            case 'markdown': content = renderDocumentMarkdown(document!, plan.resources, renderOptions); break;
             case 'html': {
-                const html = renderDocumentHtml(document!, plan.resources, { locale });
+                const html = renderDocumentHtml(document!, plan.resources, renderOptions);
                 content = html.html;
-                partial ||= html.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED');
+                otherContentMissing ||= html.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED');
+                partial ||= otherContentMissing;
                 break;
             }
             case 'pdf': {
@@ -122,15 +130,30 @@ export async function runExport(request: ExportRequest, options: {
                     await mountRuntimeFonts(await resolveLocalFonts(), compiler);
                 }
                 const pdf = await compileDocumentPdf(document!, plan.resources, prepared, compiler,
-                    { signal, reportProgress() {} }, { locale });
+                    { signal, reportProgress() {} }, renderOptions);
                 content = pdf.pdfBytes;
-                partial ||= pdf.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED');
+                for (const diagnostic of pdf.diagnostics) {
+                    if (diagnostic.code === 'FORMAT_CONTENT_OMITTED' && diagnostic.path?.startsWith('asset:')) {
+                        const id = diagnostic.path.slice(6);
+                        failures[id] = missingResource(id, diagnostic.message, 'RESOURCE_PROCESSING_FAILED');
+                    }
+                }
+                otherContentMissing ||= pdf.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED' && !diagnostic.path?.startsWith('asset:'));
+                partial ||= Object.keys(failures).length > 0;
+                partial ||= otherContentMissing;
                 break;
             }
         }
         signal.throwIfAborted();
         const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
             record: { format: request.format, status: partial ? 'partial' : 'ok',
+                ...(otherContentMissing ? { otherContentMissing: true } : {}),
+                ...(Object.keys(failures).length ? { attachmentIssues: Object.values(failures).map(failure => {
+                    const asset = conversation.detail.assets.find(asset => asset.id === failure.resourceId);
+                    return { resourceId: failure.resourceId, name: asset?.name || failure.resourceId, code: failure.code,
+                        ...(failure.httpStatus ? { httpStatus: failure.httpStatus } : {}),
+                        ...(/^https:\/\//i.test(asset?.sourceUri ?? '') ? { sourceUrl: asset!.sourceUri } : {}) };
+                }) } : {}),
                 ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) } };
         return group;
     };
