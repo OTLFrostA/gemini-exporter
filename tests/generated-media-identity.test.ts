@@ -17,7 +17,7 @@ test('real Takeout fixture does not guess ownership of unreferenced generated im
     // TEMPORARY: inspect Takeout metadata location in the sanitized integration fixture.
     const fixtureBytes = fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip'));
     const zip = await JSZip.loadAsync(fixtureBytes);
-    const entry = Object.entries(zip.files).find(([name]: [string, any]) => /MyActivity\\.html$/i.test(name))?.[1] as any;
+    const entry = Object.entries(zip.files).find(([name]: [string, any]) => /MyActivity\.html$/i.test(name))?.[1] as any;
     if (entry) {
         const html: string = await entry.async('string');
         const links = Array.from(html.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g));
