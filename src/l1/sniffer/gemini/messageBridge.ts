@@ -87,7 +87,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
             if (text.includes(GeminiProtocol.RPCS.DETAIL)) {
                 const request = field('detailRequest');
                 if (request !== undefined && (!request || typeof request !== 'object'
-                    || !('conversationId' in request) || typeof request.conversationId !== 'string' || !/^[\\w-]{1,128}$/.test(request.conversationId)
+                    || !('conversationId' in request) || typeof request.conversationId !== 'string' || !/^[\w-]{1,128}$/.test(request.conversationId)
                     || !('requestCursor' in request) || (request.requestCursor !== null && typeof request.requestCursor !== 'string'))) return;
                 parsedDetail = parseGeminiRpcConversation(text, { providerId: 'gemini' });
                 if (request && typeof request === 'object' && 'conversationId' in request
@@ -99,7 +99,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
         } else if (raw.type === CrossWorldEvents.CONVERSATION_DELETED) {
             const id = field('id'), url = field('url'), requestBody = field('requestBody'), responseText = field('responseText');
             if (!capturedIdentity || typeof capturedIdentity !== 'object' || Array.isArray(capturedIdentity)
-                || typeof id !== 'string' || !/^[\\w-]{1,128}$/.test(id)
+                || typeof id !== 'string' || !/^[\w-]{1,128}$/.test(id)
                 || typeof url !== 'string' || typeof requestBody !== 'string' || typeof responseText !== 'string') return;
             const source = new URL(url);
             if (source.protocol !== 'https:' || !['gemini.google.com', 'bard.google.com'].includes(source.hostname)
