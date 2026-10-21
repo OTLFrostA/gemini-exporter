@@ -128,9 +128,13 @@ test('Tour backdrop actually intercepts off-target clicks and does not click thr
         for (const panel of panels) {
             const r = panel.getBoundingClientRect();
             if (r.width <= 50 || r.height <= 50) continue;
-            const x = r.left + r.width / 2, y = r.top + r.height / 2;
-            const hit = document.elementFromPoint(x, y);
-            if (hit === panel || panel.contains(hit)) return { x, y, visible: true };
+            // The initial connection step centers its card over a full-screen backdrop.
+            // Sample the edges as well as the center so we click the exposed backdrop.
+            for (const [px, py] of [[0.5, 0.5], [0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]]) {
+                const x = r.left + r.width * px, y = r.top + r.height * py;
+                const hit = document.elementFromPoint(x, y);
+                if (hit === panel || panel.contains(hit)) return { x, y, visible: true };
+            }
         }
         return { x: 0, y: 0, visible: false };
     });
