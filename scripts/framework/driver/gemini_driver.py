@@ -520,7 +520,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         )
 
     def settled_conversation_evidence(self, chat_id: str, prompts: List[str], timeout: float = 60.0) -> List[Dict[str, Any]]:
-        """Read all final turns in place; never navigate or use exported content.
+        """Read final webpage turns independently, then verify a fresh page hydration.
 
         Earlier bubbles can finish math/Markdown rendering after their stream
         settles. Freeze the complete conversation before comparing disk output.
@@ -530,6 +530,8 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         deadline = time.monotonic() + timeout
         previous = None
         stable = 0
+        hydrated = False
+        self.last_in_place_evidence = None
         while time.monotonic() < deadline:
             state = self.cdp.eval(f"""
             (() => {{
@@ -564,6 +566,16 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 stable = stable + 1 if snapshot == previous else 1
                 previous = snapshot
                 if stable >= 3:
+                    if not hydrated:
+                        # Gemini can retain a previous data-math value in a
+                        # completed streaming bubble. A fresh genuine webpage
+                        # renders persisted history without consulting exports.
+                        self.last_in_place_evidence = turns
+                        self.cdp.call('Page.reload', {'ignoreCache': True})
+                        hydrated = True
+                        previous, stable = None, 0
+                        time.sleep(0.5)
+                        continue
                     if any(turn.get('has_images') for turn in turns):
                         from scripts.framework.image_evidence import capture_webpage_images
                         try:

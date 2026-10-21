@@ -172,16 +172,19 @@ class SettledEvidenceTests(unittest.TestCase):
         return {'chat_id': CID, 'streaming': False, 'turns': [
             {'prompt': 'Explain pressure.', 'response': REPLY, 'has_images': False, 'code_blocks': ['if ready:\n    run()']}]}
 
-    def test_late_rendering_must_settle_without_navigation_or_export_feedback(self):
+    def test_late_rendering_is_preserved_before_independent_page_rehydration(self):
         final = self.state()
         streaming = copy.deepcopy(final); streaming['streaming'] = True
         transient = copy.deepcopy(final); transient['turns'][0]['response'] = 'Unfinished rendering'
-        cdp = MagicMock(); cdp.eval.side_effect = [streaming, transient, final, final, final]
+        cdp = MagicMock(); hydrated = copy.deepcopy(final); hydrated['turns'][0]['response'] = 'Correct persisted formula'
+        cdp.eval.side_effect = [streaming, transient, final, final, final, hydrated, hydrated, hydrated]
         with patch('scripts.framework.driver.gemini_driver.time.sleep'):
-            result = GeminiPlatformDriver(cdp).settled_conversation_evidence(CID, ['Explain pressure.'])
-        self.assertEqual(result, final['turns'])
-        self.assertEqual(cdp.eval.call_count, 5)
-        cdp.call.assert_not_called()
+            driver = GeminiPlatformDriver(cdp)
+            result = driver.settled_conversation_evidence(CID, ['Explain pressure.'])
+        self.assertEqual(driver.last_in_place_evidence, final['turns'])
+        self.assertEqual(result, hydrated['turns'])
+        self.assertEqual(cdp.eval.call_count, 8)
+        cdp.call.assert_called_once_with('Page.reload', {'ignoreCache': True})
 
     def test_other_conversation_evidence_is_rejected(self):
         cdp = MagicMock(); state = self.state(); state['chat_id'] = OTHER; cdp.eval.return_value = state

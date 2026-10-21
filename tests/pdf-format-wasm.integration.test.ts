@@ -71,3 +71,17 @@ test('short PDF source footers retain the preceding context across page boundari
         }
     } finally { compiler.dispose(); }
 });
+
+
+test('live negated implication has a real PDF formula instead of a raw-LaTeX fallback', async () => {
+    const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
+    try {
+        const result = await compileDocumentPdf(v2Document([
+            { type: 'math', source: String.raw`a \to b \centernot\implies V(a) < V(b)` },
+        ]), {}, new Map(), compiler, context());
+        const extracted = extractPdfText(result.pdfBytes);
+        assert.equal(extracted.contentRuns.filter(run => run.kind === 'math').length, 1);
+        assert.ok(extracted.contentRuns.find(run => run.kind === 'math')?.text.includes('⇏'));
+        assert.equal(result.diagnostics.some(d => d.code === 'TYPST_MATH_CONVERT_FAILED'), false);
+    } finally { compiler.dispose(); }
+});

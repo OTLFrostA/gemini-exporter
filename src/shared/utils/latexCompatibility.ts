@@ -34,6 +34,16 @@ export const TEXT_UNDERSCORE_COMPAT_RULE: LatexCompatRule = Object.freeze({
     transform: normalizeTextUnderscores,
 });
 
+/** Standard centered negation of implication, observed in live vector-clock replies. */
+export const CENTERED_NOT_IMPLIES_COMPAT_RULE: LatexCompatRule = Object.freeze({
+    id: 'GM-TEX-004', domain: 'tex',
+    evidence: 'tests/fixtures/provider/math/gm_tex_004_evidence.tex',
+    observedAt: '2026-10-20T23:00:00Z',
+    description: 'Live vector-clock replies use \\centernot\\implies. MiTeX lacks the centernot package; the standard \\nRightarrow relation preserves its negated-implication semantics.',
+    transform: (source: string) => source.replace(/(\\+)centernot\s*\\implies(?![a-zA-Z])/g,
+        (raw, slashes: string) => slashes.length % 2 ? slashes.slice(1) + '\\nRightarrow' : raw),
+});
+
 /**
  * Active LaTeX compatibility rules.
  * Admitted per Section 4 & 31 admission policy with physical evidence fixture.
@@ -41,6 +51,7 @@ export const TEXT_UNDERSCORE_COMPAT_RULE: LatexCompatRule = Object.freeze({
 export const LATEX_COMPAT_RULES: readonly LatexCompatRule[] = Object.freeze([
     MATHSCR_COMPAT_RULE,
     TEXT_UNDERSCORE_COMPAT_RULE,
+    CENTERED_NOT_IMPLIES_COMPAT_RULE,
 ]);
 
 export function preprocessLatex(source: string): string {

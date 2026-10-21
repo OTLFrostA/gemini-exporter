@@ -93,10 +93,13 @@ class TestContext:
             record['stream_turn_evidence'].append(evidence)
 
     def freeze_turn_evidence(self, driver, record: Dict[str, Any]) -> None:
-        """Freeze complete in-place evidence for initial and appended turns."""
+        """Preserve stream/in-place snapshots and freeze freshly hydrated webpage evidence."""
         record.setdefault('stream_turn_evidence', list(record['turn_evidence']))
         record['turn_evidence'] = driver.settled_conversation_evidence(
             record['chat_id'], [turn['prompt'] for turn in record['stream_turn_evidence']])
+        in_place = getattr(driver, 'last_in_place_evidence', None)
+        if isinstance(in_place, list):
+            record['in_place_turn_evidence'] = in_place
         with open(os.path.join(self.output_dir, f"{record['chat_id']}_turn_evidence.json"), 'w', encoding='utf-8') as evidence_file:
             json.dump(record, evidence_file, ensure_ascii=False, indent=2)
 
