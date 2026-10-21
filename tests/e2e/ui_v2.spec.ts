@@ -42,7 +42,7 @@ test('UI v2: Options can toggle Light and Dark, persisting a shared preference',
 
 
 test('UI v2: appearance stays switchable during long-running scan and export', async ({ page }) => {
-    await mount(page, 'options', { holdScan: true });
+    await mount(page, 'options', { holdScan: true, holdExport: true });
     const theme = page.locator('#btnThemeToggle');
     await page.locator('#btnSyncAll').click();
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
@@ -56,6 +56,13 @@ test('UI v2: appearance stays switchable during long-running scan and export', a
 
     await page.locator('#btnSelectAll').click();
     await page.locator('#btnExport').click();
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
+    await expect(theme).toBeEnabled();
+    await theme.click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect.poll(async () => (await read(page, 'settings')).theme).toBe('dark');
+    await expect.poll(async () => (await read(page, 'exports')).length).toBe(1);
+    await page.evaluate(() => (window as any).harness.finishExport());
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
 });
 
@@ -69,6 +76,7 @@ test('UI v2: Popup theme switch works while an export is running', async ({ page
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(245, 247, 252)');
     await expect.poll(async () => (await read(page, 'settings')).theme).toBe('light');
+    await expect.poll(async () => (await read(page, 'exports')).length).toBe(1);
     await page.evaluate(() => (window as any).harness.finishExport());
     await expect(page.locator('#btnCurrent')).toBeEnabled();
     await expect(theme).toBeEnabled();
