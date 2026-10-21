@@ -104,7 +104,7 @@ const insertAccountIfAbsent: typeof import('../../src/l3a/storageService.js').in
     async account => {
         checkWrite();
         calls.insertions.push({ ...account });
-        return insertResponse ?? account;
+        return account;
     };
 const putAccount: typeof import('../../src/l3a/storageService.js').putAccount =
     async account => { checkWrite(); calls.accountWrites.push({ ...account }); };
