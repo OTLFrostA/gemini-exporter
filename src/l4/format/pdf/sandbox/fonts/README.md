@@ -1,5 +1,17 @@
 # Bundled Fonts for Typst Sandbox
 
+## Release validation
+
+`npm run test:release-fonts` verifies the exact SHA256 of all three fonts below
+and their original license files. Unknown, renamed, missing or modified fonts,
+symlinks and embedded `data:font/` payloads in generated JavaScript fail the gate.
+The total font asset budget is 20 MiB (current total: 19,426,744 bytes).
+
+Both full local `npm test` and CI run this gate after building `dist/`. This
+replaces the former blanket CJK prohibition and 5 MiB budget: the licensed CJK
+fallback is now required to keep offline PDF exports readable when Local Font
+Access is denied or unavailable. Device fonts remain preferred when authorized.
+
 ## 1. NewCMMath-Regular.otf (1.2 MiB)
 
 - **Source**: `NewCMMath-Regular.otf` from the `newcomputermodern` package on CTAN (`fonts/newcomputermodern/otf/`).

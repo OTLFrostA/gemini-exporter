@@ -86,9 +86,9 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: node build.js
 
-      - name: Release gates — no CJK fonts bundled (§16 P0)
+      - name: Release gates — approved offline font assets
         if: steps.filter.outputs.only_scenarios != 'true'
-        run: node scripts/release-gate-checks/check-no-cjk-fonts.js
+        run: npm run test:release-fonts
 
       - name: Install Chromium for native Storage unit contracts
         if: steps.filter.outputs.only_scenarios != 'true'

@@ -8,7 +8,7 @@
     "package": "node build.js --pack",
     "lint": "oxlint -A all -W typescript/no-explicit-any -W typescript/no-unsafe-assignment -W typescript/no-unsafe-argument -W typescript/no-unsafe-call -W typescript/no-unsafe-member-access -W typescript/no-unsafe-return -W typescript/no-unsafe-type-assertion -D typescript/no-floating-promises --type-aware src/",
     "type-check": "tsc --noEmit",
-    "test": "node scripts/check-zero-any.cjs && npm run type-check && npm run test:unit && node build.js && playwright test",
+    "test": "node scripts/check-zero-any.cjs && npm run type-check && npm run test:unit && node build.js && npm run test:release-fonts && playwright test",
     "test:unit": "python3 tests/run_tests.py",
     "test:changed": "python3 scripts/run_changed_tests.py",
     "test:gemini-dual": "node -r ./tests/ts_register.js scripts/check_gemini_dual_parse.ts",
@@ -19,7 +19,8 @@
     "test:l2:unit": "node scripts/test-l2.cjs --unit-only",
     "test:l3b:unit": "node scripts/test-l3b.cjs",
     "test:v2:unit-isolation": "node scripts/test-v2-unit-isolation.cjs",
-    "test:v2:unit-ports": "node scripts/typecheck-v2-unit-ports.cjs"
+    "test:v2:unit-ports": "node scripts/typecheck-v2-unit-ports.cjs",
+    "test:release-fonts": "node scripts/release-gate-checks/check-bundled-fonts.js"
   },
   "keywords": [
     "gemini",
