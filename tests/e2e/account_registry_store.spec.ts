@@ -69,20 +69,27 @@ test('malformed disk accounts fail closed without read repair or replacement', a
     expect(result.raw).toEqual([result.bad]);
 });
 
-test('concurrent default admission is provider-local, durable and never promoted into a real account', async ({ page }) => {
+test('concurrent default admission promotes in place and never creates a second placeholder', async ({ page }) => {
     const result = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'registryProbe');
-        const defaults = await Promise.all(Array.from({length: 16}, () => api.getOrCreateAccount('gemini', 'default', 'unverified@example.com', 'Unverified')));
-        const other = await api.getOrCreateAccount('chatgpt', 'default');
+        const defaults = await Promise.all(Array.from({length: 16},
+            () => api.getOrCreateAccount('gemini', 'default', 'unverified@example.com', 'Unverified')));
+        const otherProvider = await api.getOrCreateAccount('chatgpt', 'default');
         const real = await api.getOrCreateAccount('gemini', 'verified-gaia', 'verified@example.com');
-        return { defaults, other, real, all: await api.listAccounts() };
+        const second = await api.getOrCreateAccount('gemini', 'second-gaia');
+        const fallback = await api.getOrCreateAccount('gemini', 'default');
+        return { defaults, otherProvider, real, second, fallback, all: await api.listAccounts() };
     });
-    const fallback = result.defaults[0];
+    const placeholder = result.defaults[0];
     expect(new Set(result.defaults.map(account => account.id)).size).toBe(1);
-    expect(fallback).toEqual({id:fallback.id, providerId:'gemini', providerAccountId:'default'});
-    expect(result.other.id).not.toBe(fallback.id);
-    expect(result.real.id).not.toBe(fallback.id);
+    expect(placeholder).toEqual({ id: placeholder.id, providerId: 'gemini', providerAccountId: 'default' });
+    expect(result.real.id).toBe(placeholder.id);
+    expect(result.otherProvider.id).not.toBe(placeholder.id);
+    expect(result.second.id).not.toBe(placeholder.id);
+    expect(result.fallback.id).toBe([result.real, result.second].sort((a, b) => a.id.localeCompare(b.id))[0].id);
     expect(result.all).toHaveLength(3);
-    await page.reload(); await page.addScriptTag({content:bundle});
-    expect(await page.evaluate(async () => Reflect.get(globalThis, 'registryProbe').getOrCreateAccount('gemini','default'))).toEqual(fallback);
+    expect(result.all.some(account => account.providerId === 'gemini' && account.providerAccountId === 'default')).toBe(false);
+    await page.reload(); await page.addScriptTag({ content: bundle });
+    expect(await page.evaluate(async () => Reflect.get(globalThis, 'registryProbe').getOrCreateAccount('gemini','default')))
+        .toEqual(result.fallback);
 });
