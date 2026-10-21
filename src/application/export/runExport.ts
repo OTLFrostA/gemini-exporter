@@ -23,7 +23,7 @@ import { TypstSandboxCompiler } from '../../l4/format/pdf/typst/typstSandboxComp
 import { resolveLocalFonts } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
 import { mountRuntimeFonts } from '../../l4/format/pdf/typst/fonts/mountRuntimeFonts.js';
 import { prepareExportResources } from './prepareExportResources.js';
-import type { ExportRequest, ExportRecord, ExportProgress, ExportResult } from './types.js';
+import type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportItemUpdate } from './types.js';
 
 // Domain and ExportRecord source versions must be finite, safe epoch-millisecond integers.
 const comparable = (value: number | undefined): value is number => value !== undefined && Number.isSafeInteger(value);
@@ -49,6 +49,8 @@ interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'export
 /** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
 export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
+    /** Settled items and staged browser files; only 'exported' carries a committed record. */
+    onItemUpdate?: (update: ExportItemUpdate) => void;
     signal?: AbortSignal;
     /** A completed reply requires a new source snapshot even if cached timestamps match. */
     refreshDetail?: boolean;
@@ -61,10 +63,15 @@ export async function runExport(request: ExportRequest, options: {
     let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
     let locale: 'zh' | 'en' = 'en';
     const cancelled = (error: unknown): boolean => signal.aborted || (error instanceof Error && error.name === 'AbortError');
+    const report = (update: ExportItemUpdate): void => {
+        try { options.onItemUpdate?.(update); }
+        catch (error) { console.warn('[Gemini Exporter] Export progress listener failed', error); }
+    };
     const fail = (keys: readonly ConversationKey[], _error?: unknown): void => {
         for (const key of keys) {
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);
+                report({ key, status: 'failed' });
             }
         }
     };
@@ -82,9 +89,11 @@ export async function runExport(request: ExportRequest, options: {
         const exportedAt = Date.now();
         for (const group of groups) {
             try {
-                await putExportRecord(group.key, { ...group.record, exportedAt });
+                const record: ExportRecord = { ...group.record, exportedAt };
+                await putExportRecord(group.key, record);
                 result.exported++;
                 if (group.record.status === 'partial') result.partial++;
+                report({ key: group.key, status: 'exported', record });
             } catch (error) {
                 console.warn('[Gemini Exporter] ExportRecord write failed', group.key, error);
                 fail([group.key], error);
@@ -144,6 +153,7 @@ export async function runExport(request: ExportRequest, options: {
                 const record = request.skipUnchanged ? await getExportRecord(key) : null;
                 if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
                     result.skipped++;
+                    report({ key, status: 'skipped' });
                     continue;
                 }
                 let conversation = await readLocal(key);
@@ -202,7 +212,10 @@ export async function runExport(request: ExportRequest, options: {
         for (const [index, item] of pending.entries()) {
             signal.throwIfAborted();
             try {
-                groups.push(await renderGroup(item, plans[index]));
+                const group = await renderGroup(item, plans[index]);
+                groups.push(group);
+                // Browser batches are staged only. Do not mark success until the final download is initiated.
+                report({ key: group.key, status: 'prepared' });
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Export format or delivery failed', item.key, error);
