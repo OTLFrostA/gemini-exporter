@@ -1,6 +1,7 @@
 import { IDBFactory, IDBObjectStore, IDBKeyRange } from 'fake-indexeddb';
 import { resetIndexCoverageSessions } from '../../src/l2/indexCoverage.js';
 import { openStorageDB } from '../../src/l3a/idb.js';
+import { insertAccountIfAbsent } from '../../src/l3a/storageService.js';
 import { fixtureAccount } from './domainFixture.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
 import { beforeEach, afterEach } from 'node:test';
@@ -65,7 +66,10 @@ export function indexStorage(seed: Record<string, unknown> = {}, options: { seed
         if (message.command === 'get') return { ok: true, value: accounts.get(String(message.accountId)) ?? null };
         if (message.command === 'list') return { ok: true, value: [...accounts.values()].filter(account => !message.providerId || account.providerId === message.providerId) };
         const found = [...accounts.values()].find(account => account.providerId === message.providerId && account.providerAccountId === message.providerAccountId);
-        const account = found ?? { id: crypto.randomUUID(), providerId: String(message.providerId), providerAccountId: String(message.providerAccountId) };
+        const candidate = found ?? { id: crypto.randomUUID(), providerId: String(message.providerId), providerAccountId: String(message.providerAccountId) };
+        // Runtime get-or-create commits the Account before returning it to a caller.
+        await ready;
+        const account = await insertAccountIfAbsent(candidate);
         accounts.set(account.id, account);
         return { ok: true, value: account };
     } }, storage: { local: {
