@@ -23,6 +23,21 @@ test('sync UI never announces completion for partial_limit, aborted or error, an
         const final=await page.locator('#status').textContent()??'';assert.match(final,/2 \/ 3/);if(['partial_limit','aborted','error'].includes(status))assert.doesNotMatch(final,/Reached the end|Connected to trusted/);else assert.match(final,/Reached the end|Connected to trusted/);assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.close();
     }
 });
+test('scan progress shows a long-history reminder only above 200 entries and clears it afterward',async()=>{
+    for(const language of ['en','zh'])for(const scanCount of [200,201]){
+        await open({settings:{language,takeoutPromptCompleted:true},holdScan:true,scanCount});
+        await page.locator('#btnSyncAll').click();
+        const hint=page.locator('#scanSlowHint');
+        assert.equal(await hint.isVisible(),scanCount>200);
+        if(scanCount>200)assert.match(await hint.textContent()??'',language==='en'?/Gemini scans may take significantly longer/:/随着对话历史增加/);
+        assert.equal(await page.locator('#progText').isVisible(),true);
+        assert.equal(await page.locator('#status').isVisible(),false);
+        await page.evaluate(()=>Reflect.get(window,'harness').finishScan());
+        await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+        assert.equal(await hint.isVisible(),false);
+        await page.close();
+    }
+});
 test('export UI lock lasts until refresh settles, including refresh rejection',async()=>{
     for(const failRefresh of [false,true]){
         await open({holdRefresh:true,failRefresh});await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>typeof Reflect.get(window,'harness').finishRefresh==='function');
