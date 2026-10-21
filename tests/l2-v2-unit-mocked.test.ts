@@ -4,7 +4,7 @@ import type { ConversationDetail } from '../src/l2/conversationDetail.js';
 import type { PageObservation } from '../src/l2/pageObservation.js';
 import {
     ACCOUNT, DEFAULT_ACCOUNT, accounts, indexes, details, calls, indexFor, detailFor, coverageFor,
-    resetL2UnitPorts, setInsertResponse, rejectNextWrite,
+    resetL2UnitPorts, rejectNextWrite,
     getOrCreateAccount, ingestIndexes, ingestDetail, ingestDeletedConversation, recordPageCoverage,
 } from './helpers/l2V2UnitHarness.js';
 
@@ -113,23 +113,34 @@ test('L2 forwards source-verified deletion by full ConversationKey', async () =>
     ]);
 });
 
-test('L2 Account creation delegates the unique insert, preserving the Storage-provided UUID', async () => {
+test('L2 Account admission updates a verified profile on the same UUID', async () => {
     const previous = { ...ACCOUNT, email: 'old@example.com' };
-    setInsertResponse(previous);
+    accounts.set(previous.id, previous);
     const updated = await getOrCreateAccount('gemini', ACCOUNT.providerAccountId, 'new@example.com', 'New name');
-    assert.equal(calls.insertions.length, 1);
-    assert.equal(calls.insertions[0].providerAccountId, ACCOUNT.providerAccountId);
+    assert.equal(calls.insertions.length, 0);
     assert.equal(updated.id, previous.id);
     assert.equal(updated.email, 'new@example.com');
     assert.equal(updated.displayName, 'New name');
     assert.deepEqual(calls.accountWrites, [updated]);
 });
 
-test('L2 Account creation avoids an unnecessary profile write and strips default profile metadata', async () => {
-    const value = await getOrCreateAccount('gemini', 'default', 'x@example.com', 'Display');
-    assert.equal(value.providerAccountId, 'default');
-    assert.equal(value.email, undefined);
+test('L2 creates a sole unverified placeholder only when explicitly admitted', async () => {
+    accounts.clear();
+    const fallback = await getOrCreateAccount('gemini', 'default', 'x@example.com', 'Display');
+    assert.equal(fallback.providerAccountId, 'default');
+    assert.equal(fallback.email, undefined);
     assert.equal(calls.insertions[0].email, undefined);
+    assert.deepEqual(calls.accountWrites, []);
+    const promoted = await getOrCreateAccount('gemini', 'verified');
+    assert.equal(promoted.id, fallback.id);
+    assert.equal(promoted.providerAccountId, 'verified');
+    assert.deepEqual(calls.accountWrites, [promoted]);
+});
+
+test('L2 unknown source chooses existing verified subject, not default', async () => {
+    const resolved = await getOrCreateAccount('gemini', 'default');
+    assert.equal(resolved.id, ACCOUNT.id);
+    assert.equal(calls.insertions.length, 0);
     assert.deepEqual(calls.accountWrites, []);
 });
 
