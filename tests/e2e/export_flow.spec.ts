@@ -17,6 +17,9 @@ test('unchanged exports skip through Application without producing an empty ZIP'
 });
 test('clearing export records preserves bodies and skip preference, then explicit selection can export again',async({context,extensionId})=>{
     const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'one'}],{one:{exportedAt:200,chatTime:100,format:'markdown',status:'ok'}});
+    await expect(page.locator('#btnClearExported')).toBeHidden();
+    await page.locator('#devToggle').check();
+    await expect(page.locator('#btnClearExported')).toBeVisible();
     const before=await storedSettings(page);page.on('dialog',dialog=>{void dialog.accept();});await page.locator('#btnClearExported').click();await expect(page.locator('#status')).toHaveText('Records cleared');
     expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId)).toEqual({});expect((await storedSettings(page)).skipExported).toBe(before.skipExported);
     expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'one'}),accountId)).toBeTruthy();
