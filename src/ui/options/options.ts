@@ -13,6 +13,8 @@ import { renderList } from './views/listView.js';
 import { readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
+import { DIRECT_WRITE_THRESHOLD } from '../../shared/utils/constants.js';
+import { showDirectWritePrompt } from './views/directWritePrompt.js';
 
 type Level = 'info' | 'warn' | 'error';
 type Action = 'scan' | 'export' | 'takeout' | 'cleanup' | null;
@@ -31,6 +33,7 @@ export async function initWorkbench(): Promise<void> {
     let lastRequest: UIExportRequest | null = null;
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
+    let folderSuggestionPending = false;
     // Browser batches are only staged until their final download is initiated.
     const preparedExportKeys = new Set<string>();
     const log: LogEntry[] = [];
@@ -171,7 +174,7 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLElement>('progWrap').style.display = busy && (action === 'scan' || action === 'export' || action === 'takeout') ? 'block' : 'none';
         el<HTMLElement>('progWrap').classList.toggle('indeterminate', action === 'scan');
         renderList(state, busy, action === 'export' ? preparedExportKeys : undefined);
-        el<HTMLButtonElement>('btnExport').disabled ||= !settings;
+        el<HTMLButtonElement>('btnExport').disabled ||= !settings || folderSuggestionPending;
         showFailures();
     };
     const refresh = async () => { await state.refresh(); render(); };
@@ -261,10 +264,15 @@ export async function initWorkbench(): Promise<void> {
             result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info');
         settings = await readSettings();
         if (result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
-            TourGuide.showTakeoutPrompt(result.conversationsFetched,
-                () => { void updateSettings({ takeoutPromptCompleted: true }).catch(e => status(errorText(e), 'error')); },
+            const shown = TourGuide.showTakeoutPrompt(result.conversationsFetched,
+                () => {},
                 () => { fileInput.click(); },
                 () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); });
+            // Once shown, it stays dismissed even if the page closes before acknowledgement.
+            if (shown) {
+                settings = { ...settings, takeoutPromptCompleted: true };
+                void updateSettings({ takeoutPromptCompleted: true }).catch(e => status(errorText(e), 'error'));
+            }
         }
     }, true);
     el('btnSyncAll').addEventListener('click', () => { void scan(); });
@@ -273,12 +281,43 @@ export async function initWorkbench(): Promise<void> {
     el('btnCancel').addEventListener('click', cancel);
     el('btnStopScan').addEventListener('click', cancel);
     el('btnExport').addEventListener('click', () => {
-        if (busy || !state.keys().length || !settings) return;
-        const format = settings.defaultFormat;
-        const fonts = format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
-        void exportRequest({ keys: state.keys(), format,
+        const keys = state.keys();
+        if (busy || folderSuggestionPending || !keys.length || !settings) return;
+        const request: UIExportRequest = { keys, format: settings.defaultFormat,
             delivery: settings.exportDelivery ?? 'browserDownload',
-            includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported }, fonts);
+            includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported };
+        const start = (delivery: UIExportRequest['delivery']) => {
+            const fonts = request.format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
+            void exportRequest({ ...request, delivery }, fonts);
+        };
+        if (request.delivery === 'browserDownload' && keys.length > DIRECT_WRITE_THRESHOLD
+            && !settings.directWritePromptCompleted && !TourGuide.isActive()) {
+            const shown = showDirectWritePrompt(keys.length, () => {
+                // The picker/reauthorization must start in the modal button's user gesture.
+                const permission = Directory.getPendingPermissionHandle()
+                    ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
+                folderSuggestionPending = true; render();
+                void (async () => {
+                    try {
+                        if (!await permission || !await Directory.verifyDirPermission(Directory.getDirHandle()))
+                            throw new Error(text('Folder permission denied', '文件夹未授权'));
+                        directoryAvailable = true;
+                        await updateSettings({ exportDelivery: 'folderWriter' });
+                        settings = await readSettings(); render();
+                        start('folderWriter');
+                    } catch (error) { status(errorText(error), 'warn'); }
+                    finally { folderSuggestionPending = false; render(); }
+                })();
+            }, () => start('browserDownload'));
+            if (shown) {
+                // Mark at first display, not on which option the user picks (or whether they close).
+                settings = { ...settings, directWritePromptCompleted: true };
+                void updateSettings({ directWritePromptCompleted: true })
+                    .catch(error => status(errorText(error), 'error'));
+                return;
+            }
+        }
+        start(request.delivery);
     });
     el('btnRetryFailed').addEventListener('click', () => {
         if (busy || !lastRequest || !failed.length) return;
@@ -447,9 +486,11 @@ export async function initWorkbench(): Promise<void> {
     else {
         const current = chrome.runtime.getManifest().version;
         const feature = getLatestEligibleFeature(settings.lastSeenFeatureVersion ?? current, current);
-        if (feature) TourGuide.startFeatureSpotlight(feature.version, feature.stepId, () => {
-            void updateSettings({ lastSeenFeatureVersion: feature.version });
-        });
+        if (feature && TourGuide.startFeatureSpotlight(feature.version, feature.stepId, () => {})) {
+            // Persist on display, not dismissal; each announced feature is shown at most once.
+            void updateSettings({ lastSeenFeatureVersion: feature.version })
+                .catch(error => status(errorText(error), 'error'));
+        }
     }
 }
 if (typeof document !== 'undefined') {
