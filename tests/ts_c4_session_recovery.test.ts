@@ -172,3 +172,77 @@ test('C4-v2-7: identical conversation IDs in different accounts receive independ
     assert.equal(records.get(address(otherKey))?.status, 'ok');
     assert.notStrictEqual(records.get(address(key())), records.get(address(otherKey)));
 });
+
+
+test('C4-v2-8: Browser staging reports prepared items without claiming delivery', async () => {
+    seed('first');
+    seed('second');
+    const updates: string[] = [];
+    state.onDelivery = () => {
+        assert.deepEqual(updates, ['prepared:first', 'prepared:second']);
+        assert.equal(records.size, 0, 'ZIP handoff must precede ExportRecords');
+    };
+
+    const result = await runExport(request({ keys: [key(), key('second')] }), {
+        onItemUpdate: update => {
+            updates.push(update.status + ':' + update.key.conversationId);
+            if (update.status === 'prepared') {
+                assert.equal(records.has(address(update.key)), false);
+            } else if (update.status === 'exported') {
+                assert.strictEqual(records.get(address(update.key)), update.record);
+            }
+        },
+    });
+    assert.equal(result.exported, 2);
+    assert.deepEqual(updates, ['prepared:first', 'prepared:second', 'exported:first', 'exported:second']);
+});
+
+test('C4-v2-9: Folder reports committed results before starting the next item', async () => {
+    seed('first');
+    seed('second');
+    const updates: string[] = [];
+    const result = await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }), {
+        onProgress: progress => {
+            if (progress.key.conversationId === 'second') {
+                assert.deepEqual(updates, ['exported:first']);
+            }
+        },
+        onItemUpdate: update => {
+            updates.push(update.status + ':' + update.key.conversationId);
+            assert.equal(update.status, 'exported');
+            if (update.status === 'exported') {
+                assert.strictEqual(records.get(address(update.key)), update.record);
+            }
+        },
+    });
+    assert.equal(result.exported, 2);
+    assert.deepEqual(updates, ['exported:first', 'exported:second']);
+    assert.deepEqual(events, ['delivery', 'record:first', 'delivery', 'record:second']);
+});
+
+test('C4-v2-10: Failed ZIP delivery never promotes prepared items to exported', async () => {
+    seed('first');
+    seed('second');
+    state.failDelivery = 1;
+    const updates: string[] = [];
+    const result = await runExport(request({ keys: [key(), key('second')] }), {
+        onItemUpdate: update => updates.push(update.status + ':' + update.key.conversationId),
+    });
+    assert.equal(result.exported, 0);
+    assert.deepEqual(result.failed, [key(), key('second')]);
+    assert.equal(records.size, 0);
+    assert.deepEqual(updates, ['prepared:first', 'prepared:second', 'failed:first', 'failed:second']);
+});
+
+test('C4-v2-11: Skipped items report settlement without staging or new receipts', async () => {
+    seed('first');
+    seed('second');
+    records.set(address(key()), { ...oldRecord, chatTime: 100 });
+    const updates: string[] = [];
+    const result = await runExport(request({ keys: [key(), key('second')], skipUnchanged: true }), {
+        onItemUpdate: update => updates.push(update.status + ':' + update.key.conversationId),
+    });
+    assert.equal(result.skipped, 1);
+    assert.equal(result.exported, 1);
+    assert.deepEqual(updates, ['skipped:first', 'prepared:second', 'exported:second']);
+});
