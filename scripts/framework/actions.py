@@ -321,11 +321,23 @@ class ExtensionActions:
                 }}
                 if (!settled) return {{ error: 'v2 Settings did not commit ' + field }};
             }}
-            const delivery = document.getElementById('delivery');
-            if (delivery instanceof HTMLSelectElement && delivery.value !== 'browserDownload') {{
-                delivery.value = 'browserDownload';
+            const delivery = document.querySelector('input[name="delivery"][value="browserDownload"]');
+            if (!(delivery instanceof HTMLInputElement))
+                return {{ error: 'Missing browser download radio' }};
+            const beforeDelivery = await globalThis.__tier2V2.getSettings();
+            if (!delivery.checked || beforeDelivery.exportDelivery !== 'browserDownload') {{
+                delivery.checked = true;
                 delivery.dispatchEvent(new Event('change', {{ bubbles: true }}));
             }}
+            let deliverySettled = false;
+            for (let i = 0; i < 100; i++) {{
+                const settings = await globalThis.__tier2V2.getSettings();
+                if (document.body.dataset.busy === 'false' && delivery.checked && settings.exportDelivery === 'browserDownload') {{
+                    deliverySettled = true; break;
+                }}
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }}
+            if (!deliverySettled) return {{ error: 'v2 Settings did not commit exportDelivery' }};
             return {{ ok: true, format:document.getElementById('format')?.value,
                 skipExported:document.getElementById('skipExported')?.checked }};
         }})()

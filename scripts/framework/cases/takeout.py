@@ -164,7 +164,7 @@ class DeepScanPaginationCase(FeatureTestCase):
             name="会话同步分页覆盖",
             description="点击【同步会话】按钮，分页扫描网页端可访问会话并验证自然耗尽",
             critical=True,
-            prerequisites=[]
+            prerequisites=["feat_live_auto_save_disk_write"]
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:

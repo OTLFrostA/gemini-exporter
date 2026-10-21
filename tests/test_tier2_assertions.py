@@ -1323,3 +1323,19 @@ class GeminiDualParseTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class Tier2LifecycleOrderingTests(unittest.TestCase):
+    def test_destructive_fixture_reset_and_reinstall_follow_record_and_format_checks(self):
+        from scripts.framework.runner import FrameworkRunner
+        dag = FrameworkRunner._assemble_dag()
+        order = [case.feature_id for case in dag.get_execution_order()]
+        for before, after in (
+            ('feat_live_auto_save_disk_write', 'feat_deep_scan_pagination'),
+            ('feat_zip_export_download', 'feat_html_export_download'),
+            ('feat_zip_export_download', 'feat_pdf_export_download'),
+            ('feat_html_export_download', 'feat_stale_tab_image_export'),
+            ('feat_pdf_export_download', 'feat_stale_tab_image_export'),
+            ('feat_fast_skip_exported', 'feat_stale_tab_image_export'),
+        ):
+            self.assertLess(order.index(before), order.index(after), (before, after))

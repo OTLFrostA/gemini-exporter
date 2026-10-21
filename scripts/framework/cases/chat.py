@@ -194,6 +194,9 @@ description: "Dynamically created test attachment to verify multi-format user up
                             ok, message = assert_turn_content(baseline_text, record['turn_evidence'])
                             if not ok:
                                 return False, f"初始导出内容基线错误: {message}", None
+                            recorded, record_message, record_evidence = CDPAssertions.assert_badge_status(cdp_opt_init, session.chat_id, 'exported')
+                            if not recorded:
+                                return False, f'初始导出未提交 ExportRecord: {record_message}', record_evidence
                             ctx.shared_data.setdefault('live_save_baselines', {})[session.chat_id] = baseline_text
                             print(f"      ✓ 会话 1 已成功完成初始真实导出并记录 baseline！")
                         finally:
