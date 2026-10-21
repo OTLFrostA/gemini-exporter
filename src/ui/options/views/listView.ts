@@ -13,13 +13,16 @@ function date(value: number | undefined): string {
     return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString();
 }
 
-export function renderList(state: ConversationViewState, disabled: boolean): void {
+export function renderList(state: ConversationViewState, disabled: boolean, preparedKeys?: ReadonlySet<string>): void {
     const list = document.getElementById('list')!;
     list.replaceChildren();
     for (const index of state.visible()) {
         const id = index.key.conversationId;
         const record = state.records[id];
-        const status = viewStatus(record);
+        const prepared = preparedKeys?.has(id) ?? false;
+        const status = prepared
+            ? { label: text('Prepared for download', '已准备，待下载'), className: 'status-prepared' }
+            : viewStatus(record);
         const row = document.createElement('div');
         row.className = 'item'; row.dataset.chatId = id;
         const checkbox = document.createElement('input');
@@ -49,7 +52,7 @@ export function renderList(state: ConversationViewState, disabled: boolean): voi
         const meta = document.createElement('small'); meta.className = 'meta'; meta.style.display = 'block';
         const seen = date(index.updatedAt);
         const exported = date(record?.exportedAt);
-        meta.textContent = [seen, record
+        meta.textContent = [seen, prepared ? status.label : record
             ? `${text('Last export', '上次导出')} · ${record.format} · ${exported} · ${status.label}`
             : text('No export record', '无导出记录')].filter(Boolean).join(' · ');
         body.append(heading, meta);

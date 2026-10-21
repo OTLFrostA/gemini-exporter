@@ -26,7 +26,7 @@ export const getOrCreateAccount = async (providerId, providerAccountId) => {
  return account;
 };
 export const isAccountId = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id);
-export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
+export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');h.exportOptions=options;if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
  if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
  const aborted = !!options.signal?.aborted;
  const failed = aborted ? [] : h.failExport ? request.keys.slice(h.partial ? 1 : 0) : [];

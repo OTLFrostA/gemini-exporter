@@ -23,3 +23,8 @@ export interface ExportResult {
     failed: readonly ConversationKey[];
     aborted: boolean;
 }
+
+/** Rendering is not delivery: Browser downloads report prepared items before a final ZIP handoff. */
+export type ExportItemUpdate =
+    | { key: ConversationKey; status: 'prepared' | 'skipped' | 'failed' }
+    | { key: ConversationKey; status: 'exported'; record: ExportRecord };

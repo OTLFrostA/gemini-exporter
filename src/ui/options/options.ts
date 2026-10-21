@@ -30,6 +30,8 @@ export async function initWorkbench(): Promise<void> {
     let lastRequest: UIExportRequest | null = null;
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
+    // Browser batches are only staged until their final download is initiated.
+    const preparedExportKeys = new Set<string>();
     const log: LogEntry[] = [];
     const scanRuns: { startedAt: number; finishedAt: number; accountId: string | null; forceFull: boolean; result: ScanResult }[] = [];
     const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -63,9 +65,8 @@ export async function initWorkbench(): Promise<void> {
         // Preserve the existing status contract for callers/tests, but do not show it twice.
         el('status').textContent = message;
         el<HTMLElement>('status').style.display = 'none';
-        // Scan has no known total. Export progress announces the item being started,
-        // not completed file delivery; only Takeout reports an actual percentage.
-        if (action === 'takeout' && percent !== undefined && Number.isFinite(percent)) {
+        // Scan has no known total; Export counts settled items and Takeout reports a percentage.
+        if ((action === 'export' || action === 'takeout') && percent !== undefined && Number.isFinite(percent)) {
             el<HTMLElement>('bar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
         }
     };
@@ -166,8 +167,8 @@ export async function initWorkbench(): Promise<void> {
         el<HTMLElement>('btnCancel').style.display = action === 'export' && !!controller ? 'inline-flex' : 'none';
         el<HTMLElement>('btnStopScan').style.display = action === 'scan' && !!controller ? 'inline-flex' : 'none';
         el<HTMLElement>('progWrap').style.display = busy && (action === 'scan' || action === 'export' || action === 'takeout') ? 'block' : 'none';
-        el<HTMLElement>('progWrap').classList.toggle('indeterminate', action === 'scan' || action === 'export');
-        renderList(state, busy);
+        el<HTMLElement>('progWrap').classList.toggle('indeterminate', action === 'scan');
+        renderList(state, busy, action === 'export' ? preparedExportKeys : undefined);
         el<HTMLButtonElement>('btnExport').disabled ||= !settings;
         showFailures();
     };
@@ -195,14 +196,37 @@ export async function initWorkbench(): Promise<void> {
     };
     const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async () => {
         lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
-        failed = []; dismissedFailures = false; render();
+        failed = []; dismissedFailures = false; preparedExportKeys.clear(); render();
         status(text('Preparing export…', '正在准备导出…'));
         await fonts;
         if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
             throw new Error(text('Authorize a folder first', '请先授权文件夹'));
+        const processed = new Set<string>();
+        let saved = 0;
         const result = await runExport(request, { signal: controller!.signal,
-            onProgress: p => progress(text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`))
+            onProgress: p => progress(text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
+            onItemUpdate: update => {
+                processed.add(`${update.key.accountId}/${update.key.conversationId}`);
+                if (update.status === 'exported') saved++;
+                if (update.key.accountId === state.accountId) {
+                    if (update.status === 'prepared') preparedExportKeys.add(update.key.conversationId);
+                    else preparedExportKeys.delete(update.key.conversationId);
+                    if (update.status === 'exported') state.records[update.key.conversationId] = update.record;
+                }
+                const total = request.keys.length;
+                // Reserve the last 10% for Browser batch delivery; staging is not a receipt.
+                const percent = total ? Math.round(processed.size / total *
+                    (request.delivery === 'browserDownload' ? 90 : 100)) : 100;
+                progress(request.delivery === 'browserDownload'
+                    ? text(`Processed ${processed.size}/${total} · prepared ${preparedExportKeys.size} for download`,
+                        `已处理 ${processed.size}/${total} · 已准备 ${preparedExportKeys.size} 条待下载`)
+                    : text(`Processed ${processed.size}/${total} · saved ${saved}`,
+                        `已处理 ${processed.size}/${total} · 已保存 ${saved}`), percent);
+                renderList(state, busy, preparedExportKeys);
+            }
         });
+        preparedExportKeys.clear();
+        el<HTMLElement>('bar').style.width = '100%';
         failed = [...result.failed];
         status(text(`Delivery initiated: ${result.exported}; partial: ${result.partial}; skipped: ${result.skipped}; failed: ${failed.length}${result.aborted ? '; cancelled' : ''}`,
             `已发起交付 ${result.exported}；部分缺失 ${result.partial}；跳过 ${result.skipped}；失败 ${failed.length}${result.aborted ? '；已取消' : ''}`),
