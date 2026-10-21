@@ -137,6 +137,8 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
             storage:{onChanged:{addListener:(listener: (...args: unknown[]) => void)=>listeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>listeners.delete(listener)}}};
     }, { A, B, patch });
     await page.goto('https://ui.test/' + query);
+    // Badge tests reuse Options HTML as a host fixture; Gemini's page has no theme bootstrap.
+    if (kind === 'badge') await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
     await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/guidance/tourGuide.css'), 'utf8') });
     await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/shared/theme.css'), 'utf8') });
     if (kind === 'badge') {
