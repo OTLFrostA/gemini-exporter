@@ -1,6 +1,6 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { putAccount } from '../src/l3a/storageService.js';
-useIndexStorage();
+useIndexStorage({ seedAccounts: false });
 import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
 import { mount, A, B } from './helpers/uiPortHarness.js';
 import { chromium } from 'playwright';

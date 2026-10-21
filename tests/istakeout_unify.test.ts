@@ -4,7 +4,7 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 import { ingestIndexes } from '../src/l2/ingestion.js';
 import { listIndexes, putAccount } from '../src/l3a/storageService.js';
 import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
-useIndexStorage();
+useIndexStorage({ seedAccounts: false });
 const accountId = '10000000-0000-4000-8000-000000000001';
 async function seed() {
     await putAccount({id:accountId, providerId:'gemini', providerAccountId:'fixture'});

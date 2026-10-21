@@ -97,7 +97,7 @@ function forbidden(owner: string, target: string): boolean {
     if (owner === 'shared/diagnostics/diagnostic.ts') return target !== 'shared/utils/jsonTypes.ts';
     if (owner.startsWith('l2/')) {
         const admission = new Set(['l2/accountAdmission.ts', 'l2/ingestion.ts', 'l2/coverageAdmission.ts', 'l2/readConversation.ts']);
-        if (admission.has(owner)) return !/^(l2\/|l3a\/|runtime\/api\/accountRegistry\.ts$)/.test(target);
+        if (admission.has(owner)) return !/^(l2\/|l3a\/)/.test(target);
         return !target.startsWith('l2/') && target !== 'shared/utils/jsonTypes.ts';
     }
     if (owner.startsWith('l3b/ast/')) return !target.startsWith('l3b/ast/') && target !== 'l2/conversationDetail.ts';

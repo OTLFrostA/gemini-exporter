@@ -8,7 +8,7 @@ import type { StreamCoverage } from '../../src/l2/streamCoverage.js';
 
 /**
  * L2 boundary fixture: run REAL L2 admission/coverage/account decisions, with
- * L3a and Runtime replaced by precisely typed frozen-v2 ports. This is not an
+ * L3a replaced by precisely typed frozen-v2 ports. This is not an
  * IndexedDB simulator: callbacks receive scripted old facts and capture L2's
  * decisions; actual transaction/rollback semantics stay in L3a integration.
  */
@@ -69,7 +69,7 @@ export function coverageFor(streamId: string, accountId = ACCOUNT.id): StreamCov
     return coverage.get(coverageAddress(accountId, streamId));
 }
 
-const getAccount: typeof import('../../src/runtime/api/accountRegistry.js').getAccount =
+const getAccount: typeof import('../../src/l3a/storageService.js').getAccount =
     async accountId => accounts.get(accountId) ?? null;
 
 const updateIndexesAtomically: typeof import('../../src/l3a/storageService.js').updateIndexesAtomically =
@@ -113,7 +113,7 @@ const putAccount: typeof import('../../src/l3a/storageService.js').putAccount =
     async account => { checkWrite(); calls.accountWrites.push({ ...account }); };
 
 const storage = {
-    getCoverage, updateCoverageAtomically, updateIndexesAtomically, updateConversationAtomically,
+    getAccount, getCoverage, updateCoverageAtomically, updateIndexesAtomically, updateConversationAtomically,
     deleteStoredConversation, insertAccountIfAbsent, putAccount,
 } satisfies Partial<typeof import('../../src/l3a/storageService.js')>;
 
@@ -128,7 +128,6 @@ loader._load = (request, parent, isMain) => {
     const caller = parent?.filename.replace(/\\/g, '/') ?? '';
     if (caller.includes('/src/l2/')) {
         if (request === '../l3a/storageService.js') return storage;
-        if (request === '../runtime/api/accountRegistry.js') return { getAccount };
         if (['../l1/', '../l3a/', '../l3b/', '../l4/', '../application/', '../runtime/', '../ui/', '../migration/'].some(part => request.includes(part)))
             throw new Error('Unmocked L2 external-v2 runtime dependency: ' + request);
     }
