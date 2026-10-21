@@ -633,3 +633,94 @@ test('compile: nested struck media mounts and math fallback never mutate the inp
         assert.strictEqual(JSON.stringify(payload.document), before);
     } finally { compiler.dispose(); }
 });
+
+/** Complete a real host protocol exchange without mocking compile() itself. */
+async function finishSuccessfulFakeCompile(host: FakeHost, fontsExpected: boolean): Promise<void> {
+    await tick(10);
+    const message = host.frame!.lastSentType('typst/compile')!.message;
+    assert.equal(message.fonts.length > 0, fontsExpected);
+    if (fontsExpected) host.frame!.receive({ type: 'typst/fonts-installed', jobId: message.jobId });
+    host.frame!.receive({ type: 'typst/compiled', jobId: message.jobId,
+        pdf: new TextEncoder().encode('%PDF-1.7\n%test\n').buffer, diagnostics: [] });
+}
+
+test('compile: batch rotation destroys the old realm and reinstalls runtime fonts', async () => {
+    const host = new FakeHost();
+    const compiler = makeCompiler(host);
+    const runtimeFont = fakeFontBytes(true);
+    compiler.setRuntimeFonts([runtimeFont]);
+    const payload = makePayload(makeDomain());
+    const context = makeContext(new AbortController().signal);
+    let original: FakeFrame | null = null;
+    try {
+        for (let index = 0; index < 33; index++) {
+            const promise = compiler.compile(payload, context);
+            if (index === 0 || index === 32) {
+                await tick(10);
+                await driveInitHandshake(host);
+                assert.equal(host.frame!.lastSentType('typst/compile')!.message.fonts.length,
+                    BUNDLED_FONT_PATHS.length + 1, 'runtime fonts survive a realm restart');
+            }
+            if (index === 0) original = host.frame;
+            await finishSuccessfulFakeCompile(host, index === 0 || index === 32);
+            await promise;
+        }
+        assert.equal(host.createdUrls.length, 2);
+        assert.equal(original!.destroyed, true);
+        assert.notEqual(host.frame, original);
+    } finally { compiler.dispose(); }
+});
+
+for (const message of ['unreachable', 'memory access out of bounds',
+    'recursive use of an object detected which would lead to unsafe aliasing in rust']) {
+    test(`compile: poisoned runtime is replaced and current document retried once: ${message}`, async () => {
+        const host = new FakeHost();
+        const compiler = makeCompiler(host);
+        const promise = compiler.compile(makePayload(makeDomain()), makeContext(new AbortController().signal));
+        try {
+            await driveInitHandshake(host);
+            await tick();
+            const previous = host.frame!;
+            const jobId = previous.lastSentType('typst/compile')!.message.jobId;
+            previous.receive({ type: 'typst/error', jobId, error: { name: 'RuntimeError', message } });
+            await tick(10);
+            assert.equal(previous.destroyed, true);
+            assert.notEqual(host.frame, previous);
+            await driveInitHandshake(host);
+            // A late message from the dead realm must not settle the replacement job.
+            previous.receive({ type: 'typst/compiled', jobId, pdf: null, diagnostics: [] });
+            await finishSuccessfulFakeCompile(host, true);
+            const result = await promise;
+            assert.ok(result.diagnostics.some((d: {code: string}) => d.code === 'TYPST_SANDBOX_RECOVERED'));
+            assert.equal(host.createdUrls.length, 2);
+        } finally { compiler.dispose(); }
+    });
+}
+
+test('compile: repeated WASM faults stop after one retry and leave next document a fresh realm', async () => {
+    const host = new FakeHost();
+    const compiler = makeCompiler(host);
+    const payload = makePayload(makeDomain());
+    const context = makeContext(new AbortController().signal);
+    const promise = compiler.compile(payload, context);
+    const rejected = assert.rejects(promise, /unreachable/);
+    try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            await tick(10);
+            await driveInitHandshake(host);
+            await tick();
+            const frame = host.frame!;
+            frame.receive({ type: 'typst/error', jobId: frame.lastSentType('typst/compile')!.message.jobId,
+                error: { name: 'RuntimeError', message: 'unreachable' } });
+        }
+        await rejected;
+        assert.equal(host.createdUrls.length, 2, 'bounded recovery must not loop indefinitely');
+        assert.equal(host.frame!.destroyed, true);
+        const next = compiler.compile(payload, context);
+        await tick(10);
+        await driveInitHandshake(host);
+        await finishSuccessfulFakeCompile(host, true);
+        await next;
+        assert.equal(host.createdUrls.length, 3);
+    } finally { compiler.dispose(); }
+});

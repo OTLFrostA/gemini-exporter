@@ -231,6 +231,9 @@ export class TypstSandboxCompiler implements IPdfCompiler {
     private mathFontAvailable: boolean | null = null;
     /** Serializes compiles: the WASM compiler keeps mutable per-job state. */
     private compileQueue: Promise<void> = Promise.resolve();
+    // Typst 0.7 retains WASM allocations across documents, including after reset().
+    // A fresh iframe releases the entire WASM instance before it reaches its limit.
+    private completedCompiles = 0;
 
     constructor(options: TypstSandboxCompilerOptions = {}) {
         this.host = options.host ?? new BrowserSandboxHost();
@@ -248,6 +251,13 @@ export class TypstSandboxCompiler implements IPdfCompiler {
     }
 
     dispose(): void {
+        this.resetSandbox();
+        this.fontBytes = null;
+        this.runtimeFontBytes = [];
+        this.mathFontAvailable = null;
+    }
+
+    private resetSandbox(): void {
         this.detachListener?.();
         this.detachListener = null;
         for (const [, job] of this.pending) {
@@ -260,12 +270,30 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         this.readyPromise = null;
         this.initPromise = null;
         this.fontsInstalled = false;
-        this.fontBytes = null;
-        this.mathFontAvailable = null;
+        this.completedCompiles = 0;
     }
 
     async compile(payload: TypstRenderPayload, context: PdfCompileContext): Promise<PdfCompileResult> {
-        const run = this.compileQueue.then(() => this.compileOne(payload, context));
+        const run = this.compileQueue.then(async () => {
+            context.signal.throwIfAborted();
+            if (this.completedCompiles >= 32) this.resetSandbox();
+            for (let attempt = 0; ; attempt++) {
+                try {
+                    const result = await this.compileOne(payload, context);
+                    this.completedCompiles++;
+                    if (attempt) result.diagnostics.push({ severity: 'warning', code: 'TYPST_SANDBOX_RECOVERED',
+                        message: 'PDF runtime restarted after a WASM fault; this document compiled successfully on retry.' });
+                    return result;
+                } catch (error) {
+                    const fatal = error instanceof Error && (error.name === 'RuntimeError'
+                        || /unreachable|memory access out of bounds|recursive use of an object|unsafe aliasing|Parking not supported/i.test(error.message));
+                    if (!fatal) throw error;
+                    // Never let a poisoned instance turn one failure into a failed batch.
+                    this.resetSandbox();
+                    if (attempt || context.signal.aborted) throw error;
+                }
+            }
+        });
         this.compileQueue = run.then(
             () => undefined,
             () => undefined,
