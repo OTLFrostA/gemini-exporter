@@ -88,6 +88,13 @@ const accountRegistry: Pick<typeof import('../../src/runtime/api/accountRegistry
         return account ? { ...account } : null;
     },
     async getOrCreateAccount(providerId, providerAccountId, email, displayName) {
+        // Script one valid L2 fallback response: unknown source can be assigned real A.
+        if (providerId === 'gemini' && providerAccountId === 'default') {
+            const existingReal = [...ports.accounts.values()].filter(a =>
+                a.providerId === providerId && a.providerAccountId !== 'default')
+                .sort((a, b) => a.id.localeCompare(b.id))[0];
+            if (existingReal) return { ...existingReal };
+        }
         const found = [...ports.accounts.values()].find(a =>
             a.providerId === providerId && a.providerAccountId === providerAccountId);
         if (found) return { ...found };
