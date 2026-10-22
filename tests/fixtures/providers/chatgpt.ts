@@ -26,6 +26,9 @@ export const chatgptListFixtures = {
     clientSession: () => ({
         accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' },
     }),
+    conflictingAccountSession: () => ({
+        accessToken: 'token', user: { id: 'other-user' }, account: { id: 'workspace' },
+    }),
     clientComplete: () => list([
         { id: 'chatgpt-source', title: 'Owned title', create_time: 1700000000, update_time: 1700000010 },
     ], { total: 1, offset: 0, limit: 100, has_missing_conversations: false }),
