@@ -22,6 +22,8 @@ import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../app
 type Level = 'info' | 'warn' | 'error';
 type Action = 'scan' | 'export' | 'takeout' | 'cleanup' | null;
 interface LogEntry { at: number; level: Level; message: string }
+type UiMessage = string | (() => string);
+const resolveUiMessage = (message: UiMessage): string => typeof message === 'function' ? message() : message;
 interface ExportRunDiagnostic {
     startedAt: number;
     finishedAt?: number;
@@ -52,6 +54,8 @@ export async function initWorkbench(): Promise<void> {
     // Browser batches are only staged until their final download is initiated.
     const preparedExportKeys = new Set<string>();
     const log: LogEntry[] = [];
+    let currentStatus: UiMessage | null = null;
+    let currentProgress: UiMessage | null = null;
     const exportRuns: ExportRunDiagnostic[] = [];
     let droppedExportRuns = 0;
     const scanRuns: { startedAt: number; finishedAt: number; accountId: string | null; forceFull: boolean; result: ScanResult }[] = [];
@@ -69,24 +73,32 @@ export async function initWorkbench(): Promise<void> {
         el('log').textContent = rows.map(entry => `[${new Date(entry.at).toLocaleTimeString()}] [${entry.level}] ${entry.message}`).join('\n') || text('Ready', '就绪');
         el('log').scrollTop = el('log').scrollHeight;
     };
-    const status = (message: string, level: Level = 'info') => {
+    const status = (message: UiMessage, level: Level = 'info', rawLogMessage?: string) => {
         connectionError = null;
+        currentStatus = message;
+        currentProgress = null;
+        const displayed = resolveUiMessage(message);
         // Only one of the progress label and final/status line is visible at a time.
         el('progText').textContent = '';
         el<HTMLElement>('progText').style.display = 'none';
         el<HTMLElement>('scanSlowHint').style.display = 'none';
-        el('status').textContent = message;
+        el('status').textContent = displayed;
         el<HTMLElement>('status').style.display = 'block';
-        log.push({ at: Date.now(), level, message });
+        // Log entries keep their event-time message; language changes only re-render the status.
+        log.push({ at: Date.now(), level, message: rawLogMessage ?? displayed });
         if (log.length > 400) log.shift();
         renderLog();
     };
-    const progress = (message: string, percent?: number) => {
+    const statusError = (error: unknown, level: Level = 'error') =>
+        status(() => errorText(error), level, error instanceof Error ? error.message : String(error));
+    const progress = (message: UiMessage, percent?: number) => {
         if (!busy || controller?.signal.aborted) return;
-        el('progText').textContent = message;
+        currentProgress = message;
+        const displayed = resolveUiMessage(message);
+        el('progText').textContent = displayed;
         el<HTMLElement>('progText').style.display = 'block';
         // Preserve the existing status contract for callers/tests, but do not show it twice.
-        el('status').textContent = message;
+        el('status').textContent = displayed;
         el<HTMLElement>('status').style.display = 'none';
         // Scan has no known total; Export counts settled items and Takeout reports a percentage.
         if ((action === 'export' || action === 'takeout') && percent !== undefined && Number.isFinite(percent)) {
@@ -109,6 +121,15 @@ export async function initWorkbench(): Promise<void> {
         new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)));
     const render = () => {
         labelPage();
+        if (currentStatus !== null) el('status').textContent = resolveUiMessage(currentStatus);
+        if (currentProgress !== null) {
+            const displayed = resolveUiMessage(currentProgress);
+            el('progText').textContent = displayed;
+            el('status').textContent = displayed;
+        }
+        el('scanSlowHint').textContent = text(
+            'As conversation history grows, Gemini scans may take significantly longer.',
+            '随着对话历史增加，Gemini 的扫描时间可能会显著变长。');
         labelThemeToggle(el<HTMLButtonElement>('btnThemeToggle'), settings);
         el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || themeSaving;
         document.body.dataset.busy = String(busy);
@@ -209,7 +230,7 @@ export async function initWorkbench(): Promise<void> {
             const connected = await resolveScanTarget(accountId);
             // An intervening operation/account switch must keep its own status.
             if (connected === accountId && state.accountId === accountId && !busy && connectionError === previousError)
-                status(text('Gemini connected. Sync conversations to refresh history.', 'Gemini 已连接，可同步会话更新历史。'));
+                status(() => text('Gemini connected. Sync conversations to refresh history.', 'Gemini 已连接，可同步会话更新历史。'));
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
     };
     const select = async (id: string) => {
@@ -220,6 +241,7 @@ export async function initWorkbench(): Promise<void> {
         if (busy) return;
         busy = true; action = kind; controller = cancellable ? new AbortController() : null;
         // Never show the previous operation's percent or label at the start of a new run.
+        currentStatus = null; currentProgress = null;
         el<HTMLElement>('bar').style.width = '0%';
         el('progText').textContent = '';
         el<HTMLElement>('progText').style.display = 'none';
@@ -229,13 +251,13 @@ export async function initWorkbench(): Promise<void> {
         render();
         try { await task(); }
         catch (error) {
-            status(errorText(error), 'error');
+            statusError(error);
             if (kind === 'scan' && error instanceof Error &&
                 error.message === 'Open Gemini, log in and refresh the page before scanning.')
                 connectionError = error.message;
         }
         finally {
-            try { await refresh(); } catch (error) { status(errorText(error), 'error'); }
+            try { await refresh(); } catch (error) { statusError(error); }
             busy = false; action = null; controller = null; render();
         }
     };
@@ -249,11 +271,11 @@ export async function initWorkbench(): Promise<void> {
             && state.indexes.find(index => index.key.accountId === key.accountId
                 && index.key.conversationId === key.conversationId)?.title;
         failed = []; dismissedFailures = false; preparedExportKeys.clear(); render();
-        status(text('Preparing export…', '正在准备导出…'));
+        status(() => text('Preparing export…', '正在准备导出…'));
         try {
             await fonts;
             if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
-                throw new Error(text('Authorize a folder first', '请先授权文件夹'));
+                throw new Error('Authorize a folder first');
             const processed = new Set<string>();
             let saved = 0;
             const result = await runExport(request, { signal: controller!.signal,
@@ -261,7 +283,7 @@ export async function initWorkbench(): Promise<void> {
                     if (run.diagnostics.length >= 10000) { run.droppedDiagnostics++; return; }
                     run.diagnostics.push({ ...diagnostic, at: Date.now(), title: titleFor(diagnostic.key) });
                 },
-                onProgress: p => progress(text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
+                onProgress: p => progress(() => text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
                 onItemUpdate: update => {
                     run.items.push({ ...update, at: Date.now(), title: titleFor(update.key) });
                     processed.add(`${update.key.accountId}/${update.key.conversationId}`);
@@ -281,7 +303,7 @@ export async function initWorkbench(): Promise<void> {
                     // Reserve the last 10% for Browser batch delivery; staging is not a receipt.
                     const percent = total ? Math.round(processed.size / total *
                         (request.delivery === 'browserDownload' ? 90 : 100)) : 100;
-                    progress(request.delivery === 'browserDownload'
+                    progress(() => request.delivery === 'browserDownload'
                         ? text(`Processed ${processed.size}/${total} · prepared ${preparedExportKeys.size} for download`,
                             `已处理 ${processed.size}/${total} · 已准备 ${preparedExportKeys.size} 条待下载`)
                         : text(`Processed ${processed.size}/${total} · saved ${saved}`,
@@ -294,7 +316,7 @@ export async function initWorkbench(): Promise<void> {
             preparedExportKeys.clear();
             el<HTMLElement>('bar').style.width = '100%';
             failed = [...result.failed];
-            status(exportSummary(result), failed.length || result.aborted || result.partial ? 'warn' : 'info');
+            status(() => exportSummary(result), failed.length || result.aborted || result.partial ? 'warn' : 'info');
         } catch (error) {
             run.error = error instanceof Error ? error.message : String(error);
             throw error;
@@ -303,28 +325,25 @@ export async function initWorkbench(): Promise<void> {
     const scan = (forceFull = false) => perform('scan', async () => {
         const startedAt = Date.now();
         const signal = controller!.signal;
-        status(text('Resolving Gemini source…', '正在确认 Gemini 来源…'));
+        status(() => text('Resolving Gemini source…', '正在确认 Gemini 来源…'));
         const slowHint = el<HTMLElement>('scanSlowHint');
-        slowHint.textContent = text(
-            'As conversation history grows, Gemini scans may take significantly longer.',
-            '随着对话历史增加，Gemini 的扫描时间可能会显著变长。');
         const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
             onTarget: select, onProgress: p => {
                 if (!busy || signal.aborted) return;
-                progress(text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
+                progress(() => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
                     `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`));
                 slowHint.style.display = p.conversationsFetched > 200 ? 'block' : 'none';
             } });
         scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result });
         if (scanRuns.length > 10) scanRuns.shift();
-        const reasons: Record<string, string> = {
-            up_to_date: text('Connected to trusted history coverage', '已衔接可信历史范围'),
-            complete: text('Reached the end of this Recent source', '已达到本次 Recent 来源尽头'),
-            provider_limit: text('Source online access limit', '来源在线访问范围限制'),
-            max_pages: text('Local page budget reached', '已达到本地页数预算'),
-            aborted: text('Scan cancelled', '扫描已取消'), error: text('Scan failed', '扫描失败')
+        const reasons: Record<string, () => string> = {
+            up_to_date: () => text('Connected to trusted history coverage', '已衔接可信历史范围'),
+            complete: () => text('Reached the end of this Recent source', '已达到本次 Recent 来源尽头'),
+            provider_limit: () => text('Source online access limit', '来源在线访问范围限制'),
+            max_pages: () => text('Local page budget reached', '已达到本地页数预算'),
+            aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败')
         };
-        status(`${reasons[result.reason ?? result.status] ?? result.reason ?? result.status} · ${result.pagesFetched} / ${result.conversationsFetched}`,
+        status(() => `${reasons[result.reason ?? result.status]?.() ?? text('Scan finished', '扫描已结束')} · ${result.pagesFetched} / ${result.conversationsFetched}`,
             result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info');
         settings = await readSettings();
         if (result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
@@ -335,13 +354,13 @@ export async function initWorkbench(): Promise<void> {
             // Once shown, it stays dismissed even if the page closes before acknowledgement.
             if (shown) {
                 settings = { ...settings, takeoutPromptCompleted: true };
-                void updateSettings({ takeoutPromptCompleted: true }).catch(e => status(errorText(e), 'error'));
+                void updateSettings({ takeoutPromptCompleted: true }).catch(e => statusError(e));
             }
         }
     }, true);
     el('btnSyncAll').addEventListener('click', () => { void scan(); });
     el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scan(true); });
-    const cancel = () => { controller?.abort(); status(text('Cancelling…', '正在取消…'), 'warn'); };
+    const cancel = () => { controller?.abort(); status(() => text('Cancelling…', '正在取消…'), 'warn'); };
     el('btnCancel').addEventListener('click', cancel);
     el('btnStopScan').addEventListener('click', cancel);
     el('btnExport').addEventListener('click', () => {
@@ -364,12 +383,12 @@ export async function initWorkbench(): Promise<void> {
                 void (async () => {
                     try {
                         if (!await permission || !await Directory.verifyDirPermission(Directory.getDirHandle()))
-                            throw new Error(text('Folder permission denied', '文件夹未授权'));
+                            throw new Error('Folder permission denied');
                         directoryAvailable = true;
                         await updateSettings({ exportDelivery: 'folderWriter' });
                         settings = await readSettings(); render();
                         start('folderWriter');
-                    } catch (error) { status(errorText(error), 'warn'); }
+                    } catch (error) { statusError(error, 'warn'); }
                     finally { folderSuggestionPending = false; render(); }
                 })();
             }, () => start('browserDownload'));
@@ -377,7 +396,7 @@ export async function initWorkbench(): Promise<void> {
                 // Mark at first display, not on which option the user picks (or whether they close).
                 settings = { ...settings, directWritePromptCompleted: true };
                 void updateSettings({ directWritePromptCompleted: true })
-                    .catch(error => status(errorText(error), 'error'));
+                    .catch(error => statusError(error));
                 return;
             }
         }
@@ -392,15 +411,15 @@ export async function initWorkbench(): Promise<void> {
     el('btnCopyFailedLog').addEventListener('click', () => {
         void navigator.clipboard.writeText(failed.map(key =>
             `${key.conversationId}: Export failed`).join('\n'))
-            .catch(e => status(errorText(e), 'error'));
+            .catch(e => statusError(e));
     });
     el('btnSetDir').addEventListener('click', () => {
         if (busy || settings?.exportDelivery !== 'folderWriter') return;
         const permission = Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
         void perform('cleanup', async () => {
-            if (!await permission) throw new Error(text('Folder permission denied', '目录权限被拒绝'));
+            if (!await permission) throw new Error('Folder permission denied');
             directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
-            status(text('Folder authorized', '目录已授权'));
+            status(() => text('Folder authorized', '目录已授权'));
         });
     });
     el('delivery').addEventListener('change', event => {
@@ -421,11 +440,12 @@ export async function initWorkbench(): Promise<void> {
     const fileInput = el<HTMLInputElement>('takeoutFileInput');
     el('btnImportTakeout').addEventListener('click', () => { if (!busy) fileInput.click(); });
     const importFile = (file: File) => perform('takeout', async () => {
-        status(text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…'));
+        status(() => text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…'));
         try {
             const result = await handleTakeoutImport(file, state.accountId, { onTarget: select,
-                onProgress: percent => progress(text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent) });
-            status(text(`Imported ${result.imported} conversations (${result.status})`, `已提交 ${result.imported} 条对话（${result.status}）`));
+                onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent) });
+            status(() => text(`Imported ${result.imported} conversations (${result.status})`,
+                `已提交 ${result.imported} 条对话（${result.status === 'ok' ? '完成' : result.status === 'partial' ? '部分完成' : '未知'}）`));
         } finally { fileInput.value = ''; }
     });
     fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; if (file) void importFile(file); });
@@ -445,12 +465,12 @@ export async function initWorkbench(): Promise<void> {
                 if (scanRecords) await Cleanup.clearLocalScanRecords(accountId);
                 else await Cleanup.clearLocalExportRecords(accountId);
                 failed = []; dismissedFailures = false;
-                status(text('Records cleared', '记录已清除'));
+                status(() => text('Records cleared', '记录已清除'));
             });
         });
     el<HTMLSelectElement>('accountIdSelect').addEventListener('change', () => {
         if (busy) { render(); return; }
-        void select(el<HTMLSelectElement>('accountIdSelect').value).catch(e => status(errorText(e), 'error'));
+        void select(el<HTMLSelectElement>('accountIdSelect').value).catch(e => statusError(e));
     });
     el<HTMLInputElement>('chatSearchInput').addEventListener('input', () => {
         state.search = el<HTMLInputElement>('chatSearchInput').value; renderConversations();
@@ -482,7 +502,7 @@ export async function initWorkbench(): Promise<void> {
         useSettings(settings);
         render();
         void updateSettings({ theme }).then(async () => { settings = await readSettings(); })
-            .catch(error => { settings = previous; useSettings(previous); status(errorText(error), 'error'); })
+            .catch(error => { settings = previous; useSettings(previous); statusError(error); })
             .finally(() => { themeSaving = false; render(); });
     });
     const savePresentation = async (patch: Pick<GlobalSettings, 'developerMode'> | Pick<GlobalSettings, 'language'>) => {
@@ -492,7 +512,7 @@ export async function initWorkbench(): Promise<void> {
         settings = { ...settings, ...patch }; useSettings(settings); render();
         // Display preferences must not acquire or reset the running task's busy/controller state.
         try { await updateSettings(patch); settings = await readSettings(); }
-        catch (error) { settings = prior; useSettings(prior); status(errorText(error), 'error'); }
+        catch (error) { settings = prior; useSettings(prior); statusError(error); }
         finally { presentationSaving = false; render(); }
     };
     el<HTMLInputElement>('devToggle').addEventListener('change', () => {
@@ -504,7 +524,7 @@ export async function initWorkbench(): Promise<void> {
     el('logFilter').addEventListener('input', renderLog);
     el('logLevel').addEventListener('change', renderLog);
     el('btnCopyLog').addEventListener('click', () => {
-        void navigator.clipboard.writeText(el('log').textContent ?? '').catch(e => status(errorText(e), 'error'));
+        void navigator.clipboard.writeText(el('log').textContent ?? '').catch(e => statusError(e));
     });
     el('btnClearLog').addEventListener('click', () => { log.length = 0; renderLog(); });
     el('btnExportDiag').addEventListener('click', () => {
@@ -523,18 +543,18 @@ export async function initWorkbench(): Promise<void> {
     });
     el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(); });
     const stopSettings = observeSettings(() => {
-        void readSettings().then(next => { settings = next; render(); }).catch(e => status(errorText(e), 'error'));
+        void readSettings().then(next => { settings = next; render(); }).catch(e => statusError(e));
     });
     const onFocus = () => {
         if (busy) return;
         void (async () => {
             await refresh();
             try { directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle()); }
-            catch (error) { directoryAvailable = false; status(errorText(error), 'warn'); }
+            catch (error) { directoryAvailable = false; statusError(error, 'warn'); }
             render();
-        })().catch(e => status(errorText(e), 'error'));
+        })().catch(e => statusError(e));
     };
-    const stopDomainChanges = observeDomainChanges(() => refresh().catch(e => status(errorText(e), 'error')));
+    const stopDomainChanges = observeDomainChanges(() => refresh().catch(e => statusError(e)));
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
         stopSettings(); stopDomainChanges();
@@ -543,13 +563,15 @@ export async function initWorkbench(): Promise<void> {
     renderLog(); render();
     await ensureV2Ready();
     settings = await readSettings();
+    renderLog(); // Localize initial 'Ready' once; subsequent toggles never retranslate the log.
     await refresh();
     try {
         await Directory.restoreSavedDirHandle();
         directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
     } catch (error) {
         directoryAvailable = false;
-        status(text('Folder permission could not be restored: ', '无法恢复文件夹权限：') + errorText(error), 'warn');
+        status(() => text('Folder permission could not be restored: ', '无法恢复文件夹权限：') + errorText(error),
+            'warn', 'Folder permission could not be restored: ' + (error instanceof Error ? error.message : String(error)));
     }
     render();
     if (installationTour) await TourGuide.startTour();
@@ -562,7 +584,7 @@ export async function initWorkbench(): Promise<void> {
         if (shown) {
             // Persist on display, not dismissal; each announced feature is shown at most once.
             void updateSettings({ lastSeenFeatureVersion: feature.version })
-                .catch(error => status(errorText(error), 'error'));
+                .catch(error => statusError(error));
         }
     }
 }

@@ -4,7 +4,7 @@ import { indexActivityTime } from '../../../l2/conversationIndex.js';
 import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';
 import type { ExportRecord } from '../../../application/export/types.js';
 import type { ConversationViewState } from '../state/conversationsStore.js';
-import { text } from '../../shared/settings.js';
+import { text, uiLocale } from '../../shared/settings.js';
 
 /** Display recent ExportRecord facts and transient delivery results; Application still owns Skip. */
 function viewStatus(index: DomainConversationIndex, record: ExportRecord | undefined, prepared: boolean, failed: boolean) {
@@ -27,7 +27,7 @@ function viewStatus(index: DomainConversationIndex, record: ExportRecord | undef
     return { label: text(`Export successful (${date(record.exportedAt)})`, `导出成功（${date(record.exportedAt)}）`), className: 'status-exported' };
 }
 function date(value: number | undefined): string {
-    return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString();
+    return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString(uiLocale());
 }
 
 export function renderList(state: ConversationViewState, disabled: boolean, preparedKeys?: ReadonlySet<string>, failedKeys?: ReadonlySet<string>): void {

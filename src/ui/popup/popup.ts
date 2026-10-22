@@ -26,6 +26,9 @@ export async function initPopup(): Promise<void> {
     const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
     const button = el<HTMLButtonElement>('btnCurrent');
     const status = el('status');
+    let currentStatus: (() => string) | null = null;
+    const showStatus = (message: () => string) => { currentStatus = message; status.textContent = message(); };
+    const showError = (error: unknown) => showStatus(() => errorText(error));
     let settings: GlobalSettings;
     let key: ConversationKey | null = null;
     let indexTitle: string | null = null;
@@ -52,9 +55,10 @@ export async function initPopup(): Promise<void> {
         if (settings) {
             el('activeFormatLabel').textContent = formatName[settings.defaultFormat] || settings.defaultFormat;
         }
+        if (currentStatus) status.textContent = currentStatus();
     };
     const refresh = async () => { settings = await readSettings(); if (active) render(); };
-    const stop = observeSettings(() => { void refresh().catch(e => { status.textContent = errorText(e); }); });
+    const stop = observeSettings(() => { void refresh().catch(e => { showError(e); }); });
     window.addEventListener('pagehide', () => { active = false; stop(); }, { once: true });
     el('btnOptions').addEventListener('click', () => { void chrome.runtime.openOptionsPage(); });
     const changeSettings = (patch: Partial<GlobalSettings>) => {
@@ -62,7 +66,7 @@ export async function initPopup(): Promise<void> {
         const prior = settings;
         busy = true; settings = { ...settings, ...patch }; useSettings(settings); render();
         void updateSettings(patch).then(refresh).catch(e => {
-            settings = prior; useSettings(prior); status.textContent = errorText(e);
+            settings = prior; useSettings(prior); showError(e);
         }).finally(() => { busy = false; render(); });
     };
     el<HTMLButtonElement>('btnThemeToggle').addEventListener('click', () => {
@@ -76,7 +80,7 @@ export async function initPopup(): Promise<void> {
             .catch(error => {
                 settings = { ...settings, theme: previousTheme };
                 useSettings(settings);
-                status.textContent = errorText(error);
+                showError(error);
             })
             .finally(() => { themeSaving = false; render(); });
     });
@@ -89,18 +93,18 @@ export async function initPopup(): Promise<void> {
         // Local Font Access starts inside this gesture, before any await.
         const fonts = format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
         busy = true; render();
-        status.textContent = text('Preparing export…', '正在准备导出…');
+        showStatus(() => text('Preparing export…', '正在准备导出…'));
         void (async () => {
             const [current, latest] = await Promise.all([readActiveKey(), readSettings(), fonts]);
-            if (!current) { key = null; throw new Error(text('No trusted current conversation', '无法确认当前对话')); }
+            if (!current) { key = null; throw new Error('No trusted current conversation'); }
             const result = await runExport({ keys: [current], format, delivery: 'browserDownload',
                 includeAssets: latest.includeAssets, skipUnchanged: false });
             if (!active) return;
-            status.textContent = result.aborted ? text('Cancelled', '已取消')
+            showStatus(() => result.aborted ? text('Cancelled', '已取消')
                 : result.failed.length || !result.exported ? text('Export failed. Try Options.', '导出失败，请在工作台重试。')
                 : result.partial ? exportSummary(result)
-                : text('Download initiated', '已发起下载');
-        })().catch(e => { if (active) status.textContent = errorText(e); })
+                : text('Download initiated', '已发起下载'));
+        })().catch(e => { if (active) showError(e); })
             .finally(() => {
                 if (active) { busy = false; render(); }
             });
@@ -113,8 +117,8 @@ export async function initPopup(): Promise<void> {
         const index = key ? await getIndex(key) : null;
         indexTitle = index?.title || null;
         identityLoaded = true;
-        if (!key) status.textContent = text('Open a supported conversation first', '请先打开受支持的对话');
-    } catch (error) { status.textContent = errorText(error); }
+        if (!key) showStatus(() => text('Open a supported conversation first', '请先打开受支持的对话'));
+    } catch (error) { showError(error); }
     render();
 }
 if (typeof document !== 'undefined') {
