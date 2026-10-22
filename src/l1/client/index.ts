@@ -10,3 +10,7 @@ export type * from "./gemini/geminiContracts.js";
 export * from "./chatgpt/chatgptProvider.js";
 export * from "./chatgpt/chatgptAccess.js";
 export type * from "../parsers/chatgpt/chatgptTypes.js";
+
+// Claude source adapter (opt-in host permission).
+export * from './claude/claudeProvider.js';
+export * from './claude/claudeAccess.js';
