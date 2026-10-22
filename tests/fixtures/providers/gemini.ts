@@ -78,6 +78,57 @@ export const geminiListFixtures = {
         sourceRow('valid_123', 'Valid Chat', 1700000000),
     ]),
 
+    observationOrderedPage: () => parsed([
+        sourceRow('abcdef123', 'abcdef123', 1700000020),
+        sourceRow('abcdef456', 'abcdef456', 1700000010),
+    ]),
+    observationFallbackTimePage: () => {
+        const fallback = sourceRow('abcdef123', 'abcdef123', 1700000020);
+        fallback[2] = fallback[5];
+        fallback[5] = null;
+        return parsed([fallback]);
+    },
+    observationRisingTimePage: () => parsed([
+        sourceRow('abcdef123', 'abcdef123', 1700000010),
+        sourceRow('abcdef456', 'abcdef456', 1700000020),
+    ]),
+    observationCapturedEmpty: () => parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']])),
+    observationUnknownNonempty: () =>
+        parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, { unexpected: true }])]])),
+    observationEqualTimes: () => parsed([
+        sourceRow('abcdef123', 'abcdef123', 1700000020),
+        sourceRow('abcdef456', 'abcdef456', 1700000020),
+        sourceRow('abcdef789', 'abcdef789', 1700000010),
+    ]),
+    observationSubsecondTie: () => {
+        const row = sourceRow('abcdef456', 'abcdef456', 1700000020);
+        row[5] = [1700000020, 100];
+        return parsed([row, sourceRow('abcdef123', 'abcdef123', 1700000020)]);
+    },
+    observationDuplicate: () => parsed([
+        sourceRow('abcdef123', 'abcdef123', 1700000020),
+        sourceRow('abcdef123', 'abcdef123', 1700000020),
+    ]),
+    observationRequest: (streamId: 'recent' | 'pinned', cursor: string | null = null) => {
+        const filter = [streamId === 'recent' ? 0 : 1, null, 1];
+        return new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc',
+            JSON.stringify([50, cursor, filter]), null, 'generic']]]) }).toString();
+    },
+    observationUnknownRequest: () => new URLSearchParams({
+        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([50, null, [2, null, 1]]), null, 'generic']]]),
+    }).toString(),
+    observationExpandedRequests: () => {
+        const filter = [null, null, 1, null, null, null, null, null, null, 1];
+        const body = (value: unknown) => new URLSearchParams({ 'f.req': JSON.stringify([
+            [['MaZiqc', JSON.stringify([31, null, value]), null, 'generic']],
+        ]) }).toString();
+        return {
+            valid: body(filter),
+            invalid: [filter.slice(0, 9), [...filter, null],
+                filter.map((value, index) => index === 8 ? 1 : value)].map(body),
+        };
+    },
+
     domMetadata: () => {
         const header = { textContent: 'Header title' };
         const sidebar = { textContent: 'Google Gemini', href: 'https://gemini.google.com/app/boundary123',
