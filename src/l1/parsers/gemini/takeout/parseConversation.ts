@@ -125,22 +125,22 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     if (unowned.length) groups.push({ input: { attachments: unowned } });
     const resources = closeDomainResources('gemini', messages, groups, { sourceReferences: true });
     const dates = selected.flatMap(activity => activity.timestamp === null ? [] : [activity.timestamp]);
-    const updatedAt = dates.length ? Math.max(...dates) : null;
+    const activityAt = dates.length ? Math.max(...dates) : null;
     const titleEvent = selected.find(a => a.hasExplicitPrompt && a.promptText)
         ?? selected.find(a => a.promptText && !/^(?:Takeout conversation|Untitled.*)$/i.test(a.promptText.trim()))
         ?? selected.find(a => a.promptText);
     const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || '';
     const conversation = {
         index: parseIndexMetadata({ providerId: 'gemini', id, title, titleSource: 'takeout',
-            ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length,
+            ...(activityAt !== null ? { activityAt } : {}), messageCount: resources.messages.length,
             url: `https://gemini.google.com/app/${id}` }, 'takeout'),
-        detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), assets: resources.assets, messages: resources.messages },
+        detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), assets: resources.assets, messages: resources.messages },
     };
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};
     for (const asset of resources.assets) {
         const bound = asset.sourceUri ? boundFiles.get(asset.sourceUri) : undefined;
         if (bound) archiveResources[asset.id] = bound;
     }
-    return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, conversationId: id, conversation, acquisitionHints: resources.acquisitionHints, archiveResources,
+    return { evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, conversationId: id, conversation, acquisitionHints: resources.acquisitionHints, archiveResources,
         diagnostics: [...diagnostics, ...contentDiagnostics] };
 }

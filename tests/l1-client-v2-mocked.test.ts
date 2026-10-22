@@ -5,7 +5,9 @@ import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { ConfirmedGeminiConversationNotFound } from '../src/l1/client/gemini/geminiClient.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
-import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
+import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
+import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
+import { sourceDetail, sourceList, sourceMessage } from './helpers/l1SourceFixture.js';
 
 beforeEach(() => ports.reset());
 const route = async () => 'u0';
@@ -193,4 +195,39 @@ test('ChatGPT uses the same v2 Index/page port and checks native completeness be
         /Unverified ChatGPT list page/);
     assert.equal(ports.indexes.length, 1);
     assert.equal(ports.indexes[0].page?.valid, false);
+});
+
+
+test('Detail diagnostics expose parsing evidence and L2 admission without exporting source bodies', async () => {
+    const page = sourceDetail({ turnsRejected: 2, messages: [{
+        ...sourceMessage('newer-answer', 'Private source body'), timestamp: 1700000001000,
+    }] });
+    const parsed = { ...mergeConversationPages([page], 'token_loop', false), transport: page.transport };
+    const provider = new GeminiProvider({
+        async getConversationList() { return sourceList(); },
+        async getConversationDetail() { return parsed; },
+    }, route);
+    ports.detailDecision = { accepted: false, changed: false };
+    const events: Diagnostic[] = [];
+    await provider.fetchConversationDetail(GEMINI_ACCOUNT.id, parsed.conversationId, undefined, event => events.push(event));
+    assert.ok(events.some(event => event.code === 'GEMINI_TURNS_REJECTED'));
+    assert.deepEqual(events.find(event => event.code === 'CONVERSATION_VERSION_MISMATCH')?.details,
+        { sourceVersion: 1700000000000, newerMessages: [{ id: 'newer-answer', role: 'assistant', timestamp: 1700000001000 }] });
+    const pagination = events.find(event => event.code === 'GEMINI_DETAIL_PAGES')?.details;
+    assert.ok(pagination && typeof pagination === 'object' && !Array.isArray(pagination));
+    assert.equal(pagination.pageCount, 1);
+    assert.equal(pagination.truncation, 'token_loop');
+    assert.equal(pagination.versionMismatch, true);
+    const summary = events.find(event => event.code === 'GEMINI_DETAIL_PARSE_RESULT')?.details;
+    assert.ok(summary && typeof summary === 'object' && !Array.isArray(summary));
+    assert.equal(summary.quality, 'partial');
+    assert.equal(summary.rejectedTurns, 2);
+    assert.equal(summary.messageCount, 1);
+    assert.deepEqual(events.find(event => event.code === 'GEMINI_DETAIL_ADMISSION')?.details,
+        { accepted: false, changed: false });
+    assert.doesNotMatch(JSON.stringify(events), /Private source body|decodedPayload|dataBase64/);
+    await provider.fetchConversationDetail(GEMINI_ACCOUNT.id, parsed.conversationId, undefined,
+        () => { throw new Error('Diagnostic observer failed'); });
+    assert.equal(ports.details.length, 2, 'diagnostic listener failures do not suppress source admission');
+    assert.equal(ports.details[1].detail.quality.status, 'partial');
 });

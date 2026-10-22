@@ -1,3 +1,4 @@
+import { repairSourceVersions } from './sourceVersions.js';
 import { upgradeReleasedV17 } from './releasedV17.js';
 import { readAccountRegistry } from '../l2/accountRegistry.js';
 import { restoreConversationIndex } from '../l2/conversationIndex.js';
@@ -39,12 +40,10 @@ function exportRecord(value: unknown): ExportRecord | undefined {
     if (!object(value) || (value.status !== 'ok' && value.status !== 'partial') || !format(value.format)) return;
     const exportedAt = time(value.exportedAt);
     if (exportedAt === undefined) return;
-    const chatTime = time(value.chatTime);
     return { exportedAt, format: value.format,
         status: value.status === 'partial' || value.hasFailedAssets === true || value.truncated === true
             || value.isTruncated === true || (typeof value.truncateReason === 'string' && !!value.truncateReason)
-            ? 'partial' : 'ok',
-        ...(chatTime === undefined ? {} : { chatTime }) };
+            ? 'partial' : 'ok' };
 }
 
 // Only retained v2 preferences are migrated; Tour is a one-time URL intent.
@@ -85,6 +84,7 @@ async function readOld<T>(name: string, store: string, read: (table: IDBObjectSt
 }
 
 async function upgrade(): Promise<void> {
+    await repairSourceVersions();
     await upgradeUuidSchema();
     // A released 1.7 profile may already carry the incomplete v2 marker.
     const raw = await chrome.storage.local.get<Record<string, unknown>>([
@@ -116,8 +116,8 @@ async function upgradeUuidSchema(): Promise<void> {
         for (const [rowNumber, value] of list.entries()) {
             try {
                 if (!object(value)) throw new TypeError('Invalid legacy index schema');
-                const normalized = { ...value };
-                for (const field of ['createdAt', 'updatedAt']) if (value[field] !== undefined) {
+                const { updatedAt: _untrustedVersion, ...normalized } = value;
+                for (const field of ['createdAt']) if (value[field] !== undefined) {
                     const millis = time(value[field]);
                     if (millis === undefined) throw new TypeError('Invalid legacy index schema: source time');
                     normalized[field] = millis;

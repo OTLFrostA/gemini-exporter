@@ -1,3 +1,5 @@
+import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
+import { ConfirmedSourceEmptyError } from '../src/l1/client/sourceErrors.js';
 /**
  * V2 export completion regression: L2 admits Index/Detail once, Application
  * coordinates one runExport path, L4 delivers, and only then L3a records outcome.
@@ -14,7 +16,7 @@ import { getIndex, getExportRecord, putExportRecord } from '../src/l3a/storageSe
 import { readConversation } from '../src/l2/readConversation.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type { AIProvider } from '../src/l1/client/aiProvider.js';
-import type { ExportRecord } from '../src/application/export/types.js';
+import type { ExportDiagnostic, ExportRecord } from '../src/application/export/types.js';
 import { __getModuleOverride, __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 
 const account = fixtureAccount('gemini');
@@ -113,7 +115,10 @@ test('a Delivery failure must not replace the prior record; successful retry com
     const key = exportKey('completion-retry');
     await putExportRecord(key, old);
 
-    const failed = await runExport(exportRequest([key.conversationId]));
+    const diagnostics: ExportDiagnostic[] = [];
+    const failed = await runExport(exportRequest([key.conversationId]), { onDiagnostic: event => diagnostics.push(event) });
+    assert.ok(diagnostics.some(event => event.key?.conversationId === key.conversationId
+        && event.code === 'EXPORT_FAILED' && event.message === 'Browser download failed'));
     assert.equal(failed.exported, 0);
     assert.deepEqual(failed.failed, [key]);
     assert.deepEqual(await getExportRecord(key), old);
@@ -180,4 +185,71 @@ test('batch completion stores records per key and Skip consumes only delivered v
     assert.equal(skipped.skipped, 2);
     assert.equal(skipped.exported, 0);
     assert.equal(host.blobs.length, 1, 'skipped exports cannot trigger another delivery');
+});
+
+
+test('partial fallback diagnostics explain freshness and source failure without changing delivery', async t => {
+    const host = v2ExportHost(t);
+    await seedExportIndexOnly('diagnostic-partial');
+    const key = exportKey('diagnostic-partial');
+    await ingestDetail(account.id, key.conversationId, {
+        ...body('Cached answer'), quality: { status: 'partial' },
+    }, { updatedAt: 200 });
+    const diagnostics: ExportDiagnostic[] = [];
+    const result = await runExport(exportRequest([key.conversationId]), {
+        onDiagnostic: event => diagnostics.push(event),
+    });
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 1);
+    assert.equal(host.blobs.length, 1);
+    assert.ok(diagnostics.some(event => event.key?.conversationId === key.conversationId
+        && event.code === 'SOURCE_REFRESH_FAILED' && event.message.length > 0));
+    assert.deepEqual(diagnostics.find(event => event.code === 'DETAIL_NOT_COMPLETE')?.details,
+        { quality: 'partial', messageCount: 1 });
+    assert.deepEqual(diagnostics.find(event => event.code === 'DETAIL_STALE')?.details,
+        { savedAt: 100, updatedAt: 200 });
+    assert.equal((await getExportRecord(key))?.otherContentMissing, true);
+    const retry = await runExport(exportRequest([key.conversationId]), {
+        onDiagnostic: () => { throw new Error('Diagnostic observer failed'); },
+    });
+    assert.equal(retry.exported, 1, 'diagnostic observer cannot break delivery');
+    assert.equal(retry.partial, 1);
+});
+
+test('confirmed source-empty conversations are skipped without delivery, replacing local bodies or success records', async t => {
+    const host = v2ExportHost(t);
+    await seedExportConversation('confirmed-empty', 100);
+    const key = exportKey('confirmed-empty');
+    const before = await readConversation(key);
+    const originalFetch = GeminiProvider.prototype.fetchConversationDetail;
+    GeminiProvider.prototype.fetchConversationDetail = async () => { throw new ConfirmedSourceEmptyError(); };
+    t.after(() => { GeminiProvider.prototype.fetchConversationDetail = originalFetch; });
+    const diagnostics: ExportDiagnostic[] = [];
+    const result = await runExport(exportRequest([key.conversationId]), { refreshDetail: true,
+        onDiagnostic: event => diagnostics.push(event) });
+    assert.equal(result.skipped, 1);
+    assert.equal(result.partial, 0);
+    assert.deepEqual(result.failed, []);
+    assert.equal(host.blobs.length, 0);
+    assert.equal(await getExportRecord(key), null);
+    assert.deepEqual(await readConversation(key), before);
+    assert.ok(diagnostics.some(d => d.code === 'SOURCE_CONVERSATION_EMPTY'));
+    assert.ok(!diagnostics.some(d => d.code === 'SOURCE_REFRESH_FAILED'));
+});
+
+test('unchanged exports with only attachment 404s skip before refreshing or acquiring resources', async t => {
+    const host = v2ExportHost(t);
+    await seedExportConversation('expired-only', 100);
+    const key = exportKey('expired-only');
+    const record: ExportRecord = { exportedAt: 200, chatTime: 100, format: 'markdown', status: 'partial',
+        attachmentIssues: [{ resourceId: 'expired', name: 'Expired image', code: 'RESOURCE_SOURCE_EXPIRED', httpStatus: 404 }] };
+    await putExportRecord(key, record);
+    const originalFetch = GeminiProvider.prototype.fetchConversationDetail;
+    GeminiProvider.prototype.fetchConversationDetail = async () => { assert.fail('404-only unchanged exports must not refresh'); };
+    t.after(() => { GeminiProvider.prototype.fetchConversationDetail = originalFetch; });
+    const result = await runExport({ ...exportRequest([key.conversationId]), skipUnchanged: true });
+    assert.equal(result.skipped, 1);
+    assert.equal(result.exported, 0);
+    assert.equal(host.blobs.length, 0);
+    assert.deepEqual(await getExportRecord(key), record);
 });

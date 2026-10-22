@@ -1,3 +1,5 @@
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { ConfirmedSourceEmptyError } from '../src/l1/client/sourceErrors.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -104,4 +106,22 @@ test('Detail: unrecognized empty response without affirmative empty-turn evidenc
         /GEMINI_DETAIL_EMPTY_UNVERIFIED/,
     );
     assert.equal(calls, 1);
+});
+
+test('Detail: verified blank native turns have a distinct empty-source outcome; schema drift remains an error', async () => {
+    const candidate = ['rc_empty', [''], null, []];
+    const model: unknown[] = [[candidate], null, null, 'rc_empty'];
+    model[8] = 'US'; model[12] = [[]]; model[24] = 1;
+    const raw = [[[['c_source_chat_123', 'r_empty'], null, [['']], model, [1757132274, 411870000]]], null, null, []];
+    const page = parseGeminiRpcConversation(JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(raw)]]),
+        { providerId: 'gemini', targetConvId: 'source_chat_123' });
+    await assert.rejects(getConversationDetail(detailClient([page]), 'source_chat_123'), ConfirmedSourceEmptyError);
+    for (const change of [
+        (copy: typeof page) => { copy.diagnostics.push({ code: 'GEMINI_SCHEMA_DRIFT', severity: 'warning', message: 'Unknown field' }); },
+        (copy: typeof page) => { (copy.transport.decodedPayload as unknown[][])[0][0] = [['c_other', 'r_empty'], null, [['']], model]; },
+        (copy: typeof page) => { const payload = copy.transport.decodedPayload as unknown[][][]; (payload[0][0][3] as unknown[])[30] = [['unknown document']]; },
+    ]) {
+        const copy = structuredClone(page); change(copy);
+        await assert.rejects(getConversationDetail(detailClient([copy]), 'source_chat_123'), /GEMINI_DETAIL_EMPTY_UNVERIFIED/);
+    }
 });

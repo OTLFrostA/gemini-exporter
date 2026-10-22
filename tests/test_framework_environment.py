@@ -183,9 +183,10 @@ class TestFrameworkEnvironment(unittest.TestCase):
         self.env.clear_viewport(mock_cdp)
         self.assertEqual(mock_cdp.calls[-1]["method"], "Emulation.clearDeviceMetricsOverride")
 
+    @patch("scripts.framework.environment.get_extension_id", return_value="download_test_extension")
     @patch("scripts.framework.environment.get_browser_ws_url")
     @patch("scripts.framework.environment.CDPConnection")
-    def test_setup_download_behavior(self, mock_conn, mock_browser_ws):
+    def test_setup_download_behavior(self, mock_conn, mock_browser_ws, mock_extension_id):
         mock_browser_cdp = MockCDP()
         mock_conn.return_value = mock_browser_cdp
         mock_browser_ws.return_value = "ws://mock/browser"
@@ -193,6 +194,11 @@ class TestFrameworkEnvironment(unittest.TestCase):
         page_cdp = MockCDP()
         self.env.setup_download_behavior(output_dir=self.temp_dir, cdp=page_cdp)
 
+        mock_extension_id.assert_called_once_with(9222)
+        permission_calls = [c for c in mock_browser_cdp.calls if c["method"] == "Browser.grantPermissions"]
+        self.assertEqual(permission_calls, [{"method": "Browser.grantPermissions", "params": {
+            "permissions": ["localFonts"], "origin": "chrome-extension://download_test_extension",
+        }}])
         browser_calls = [c for c in mock_browser_cdp.calls if c["method"] == "Browser.setDownloadBehavior"]
         self.assertEqual(browser_calls, [{
             "method": "Browser.setDownloadBehavior",
@@ -341,6 +347,35 @@ class TestExporterIdentity(unittest.TestCase):
                              {"url": "chrome-extension://second/src/ui/options/options.html"}]
         with self.assertRaisesRegex(RuntimeError, "ambiguous"):
             get_extension_id()
+
+
+class TestUninstallLifecycleIdentity(unittest.TestCase):
+    def run_case(self, response, extensions):
+        from scripts.framework.cases.test_uninstall_lifecycle import UninstallLifecycleCase
+        ctx = MagicMock(); ctx.ext_id = 'workspace-id'; ctx.port = 9222; ctx.worktree_root = '/tmp/exporter'
+        owner = 'scripts.framework.cases.test_uninstall_lifecycle.'
+        with patch(owner + 'get_browser_ws_url', return_value='ws://browser'), \
+             patch(owner + 'CDPConnection') as connection, \
+             patch(owner + 'time.sleep'), \
+             patch(owner + 'get_tabs', side_effect=AssertionError('stale target inventory forbidden')), \
+             patch(owner + 'get_extension_id', side_effect=AssertionError('ambiguous discovery forbidden')), \
+             patch(owner + 'CDPActions.reinstall_extension', return_value='workspace-id') as reinstall:
+            connection.return_value.call.side_effect = lambda method, params=None: response if method == 'Extensions.uninstall' else {'result': {'extensions': extensions}}
+            result = UninstallLifecycleCase().execute(ctx)
+            connection.return_value.close.assert_called_once()
+            return result, reinstall.call_count
+
+    def test_other_installations_and_stale_options_do_not_block_workspace_uninstall(self):
+        result, restores = self.run_case({'result': {}}, [
+            {'id': 'another-exporter', 'enabled': True}])
+        self.assertTrue(result[0]); self.assertEqual(restores, 1)
+
+    def test_uninstall_rejection_and_lingering_workspace_install_fail(self):
+        result, restores = self.run_case({'error': {'message': 'denied'}}, [])
+        self.assertFalse(result[0]); self.assertEqual(restores, 0)
+        result, restores = self.run_case({'result': {}}, [
+            {'id': 'workspace-id', 'enabled': True}])
+        self.assertFalse(result[0]); self.assertEqual(restores, 0)
 
 
 if __name__ == "__main__":

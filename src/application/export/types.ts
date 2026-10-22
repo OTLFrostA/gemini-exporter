@@ -1,6 +1,16 @@
 import type { ConversationKey } from '../../l2/conversationKey.js';
 export type { ExportFormat, ExportDelivery } from '../../l4/packaging/index.js';
 import type { ExportFormat, ExportDelivery } from '../../l4/packaging/index.js';
+import type { JsonValue } from '../../shared/utils/jsonTypes.js';
+
+/** Per-run observations only; never persisted as conversation facts or export receipts. */
+export interface ExportDiagnostic {
+    key?: ConversationKey;
+    stage: string;
+    code: string;
+    message: string;
+    details?: JsonValue;
+}
 
 export interface ExportRequest {
     keys: readonly ConversationKey[];

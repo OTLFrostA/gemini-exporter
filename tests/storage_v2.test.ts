@@ -200,7 +200,7 @@ test('storage v2 clears ExportRecords alone or with Coverage while preserving ot
     assert.deepEqual(result.coverageAfterExportClear, { range: null });
     assert.equal(result.coverage, null); assert.equal(result.archive, null); assert.equal(result.record, null);
     assert.equal(result.other?.format, 'json'); assert.deepEqual(result.otherCoverage, { range: null });
-    assert.ok(result.index);
+    assert.equal(result.index, null);
 });
 
 test('storage v2 settings patch preserves false, omitted fields, and native change notification', async () => {
@@ -233,7 +233,7 @@ test('storage v2 real directory handles survive a context reload without permiss
     }), { kind: 'directory', name: 'selected' });
 });
 
-test('storage v2 scan cleanup leaves Account/Index/Detail/Settings/Handle intact', async () => {
+test('storage v2 scan cleanup removes local Index and Detail but retains Account/Settings/Handle and other accounts', async () => {
     const result = await page.evaluate(async () => {
         const s = window.storage;
         await s.putAccount({ id: 'a', providerId: 'gemini', providerAccountId: 'subject' });
@@ -259,7 +259,7 @@ test('storage v2 scan cleanup leaves Account/Index/Detail/Settings/Handle intact
                 !!await s.getDetail(b), !!await s.getExportRecord(b),
                 !!await s.getCoverage('b', 'recent'), !!await s.getCoverage('b', 'archive')] };
     });
-    assert.deepEqual(result.local, [1, true, {}, null, null]);
+    assert.deepEqual(result.local, [0, false, {}, null, null]);
     assert.deepEqual(result.retained, [true, true, false, 1, true, true, true, true]);
 });
 
@@ -316,11 +316,13 @@ test('storage v2 concurrent Settings patches preserve distinct fields via the si
     });
 });
 
-test('storage v2 scan cleanup rolls back Coverage and ExportRecords together on failure', async () => {
+test('storage v2 scan cleanup rolls back Index, Detail, Coverage and ExportRecords together on failure', async () => {
     const result = await page.evaluate(async () => {
         const s = window.storage, key = { accountId: 'a', conversationId: 'same' };
         await s.putExportRecord(key, { exportedAt: 1, format: 'markdown', status: 'ok' });
         await s.updateCoverageAtomically('a', 'recent', () => ({ next: { range: null }, result: undefined }));
+        await s.updateConversationAtomically(key, () => ({ index: { key },
+            detail: { key, messages: [], assets: [], quality: { status: 'unknown' } }, result: undefined }));
         const nativeDelete = IDBObjectStore.prototype.delete;
         let rejected = false;
         IDBObjectStore.prototype.delete = function(query: IDBValidKey | IDBKeyRange) {
@@ -329,10 +331,10 @@ test('storage v2 scan cleanup rolls back Coverage and ExportRecords together on 
         };
         try { await s.clearStoredAccountScanRecords('a'); } catch { rejected = true; }
         finally { IDBObjectStore.prototype.delete = nativeDelete; }
-        return { rejected, coverage: await s.getCoverage('a', 'recent'),
-            record: await s.getExportRecord(key) };
+        return { rejected, index: !!await s.getIndex(key), detail: !!await s.getDetail(key),
+            coverage: await s.getCoverage('a', 'recent'), record: await s.getExportRecord(key) };
     });
-    assert.deepEqual(result, { rejected: true, coverage: { range: null },
+    assert.deepEqual(result, { rejected: true, index: true, detail: true, coverage: { range: null },
         record: { exportedAt: 1, format: 'markdown', status: 'ok' } });
 });
 

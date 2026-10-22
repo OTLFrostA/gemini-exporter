@@ -3,15 +3,16 @@
 Implements the frozen [Application design](https://app.notion.com/p/3fb5d4d759e181169ed3dfed880a093a).
 
 - `scanAll`: Recent scan, one startup Coverage snapshot, committed-page counters
-  from L1 and trusted boundary decisions from L2. No persistent scan session.
+  from L1 and trusted boundary decisions from L2. Each committed page publishes a Runtime
+  invalidation without waiting for UI observers. No persistent scan session.
 - `runExport`: sequential refresh/read/compose/prepare/format/deliver/record workflow
   shared by Popup, Options and Background Live Save. Task Provider construction
   belongs to L1. Local reads are validated by L2 before composition.
 - `getSettings`, `updateSettings`, `isLiveSaveEffective`: defaults and explicit
   patches; ineffective Live Save does not reset the user's enabled preference.
 - `clearLocalExportRecords`: clear export history only.
-- `clearLocalScanRecords`: clear Coverage and export history, retaining Index,
-  Detail, accounts, files and directory handles.
+- `clearLocalScanRecords`: clear Index, Detail, Coverage and export history for the selected
+  account, retaining accounts, files and directory handles.
 
 Browser output with multiple physical files automatically becomes ZIP. Folder
 output writes each conversation group and finalizes its ExportRecord only after

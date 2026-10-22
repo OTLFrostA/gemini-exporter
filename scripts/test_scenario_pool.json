@@ -1,89 +1,5 @@
 [
   {
-    "id": "hydraulics_torricelli_tank_drainage",
-    "title": "Hydraulics: tank drainage, event detection and dimensional checks",
-    "domain": "hydraulics_tank_drainage",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic cylindrical tank drainage experiment using an ideal outlet and Torricelli law. State tank area, outlet area, gravitational acceleration, initial water height and assumptions with consistent SI units.",
-      "Derive the height trajectory and emptying time in LaTeX. Explain the square-root boundary at zero height and why continuing an algebraic solution beyond the emptying event is physically invalid.",
-      "Write complete runnable standard-library Python comparing the analytic trajectory with numerical integration and explicit empty-tank event detection. Validate nonnegative heights, positive areas, initial zero height and time-step convergence.",
-      "Provide a Markdown table for synthetic outlet sizes and starting heights showing initial flow, total water volume and emptying time. Include units, rounding and an explicit dimensional consistency check.",
-      "Write a bilingual reproducibility report covering conservation, numerical errors, discharge coefficients and limitations from viscosity or changing tank cross-section. Include a small labeled ASCII diagram and terminology glossary."
-    ]
-  },
-  {
-    "id": "probability_absorbing_markov_hitting_times",
-    "title": "Probability: absorbing Markov chains and independently verified hitting times",
-    "domain": "probability_absorbing_markov_chains",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a small synthetic absorbing Markov chain representing progression through inspection stations. Give a Markdown transition matrix with rational probabilities, identify transient and absorbing states, and verify row sums.",
-      "Derive the fundamental matrix and absorption probability equations in LaTeX. State the reachability condition under which the transient inverse exists and distinguish almost-sure absorption from absorption after a bounded number of steps.",
-      "Write complete runnable standard-library Python implementing linear solves with pivoting, validating stochastic matrices and computing expected hitting times and absorption probabilities without external packages.",
-      "Provide a Markdown table of expected absorption times and terminal-state probabilities for each starting state. Independently verify the first-step recurrences and report numerical residuals.",
-      "Implement seeded Monte Carlo simulation and compare estimated hitting times and probabilities against exact computations. Explain uncertainty and why a maximum-step cap can bias an estimator.",
-      "Analyze boundary cases including an initially absorbing state, zero-probability edges, a closed transient class and nearly absorbing self-loops. Explain when expected hitting time is infinite and when conditioning is poor.",
-      "Derive a second-moment recurrence for the absorption time and implement the corresponding variance calculation. Cross-check it on a one-state geometric example and include a Markdown table.",
-      "Write a detailed bilingual reproducibility report connecting the matrix, formulas, code and simulation. Explain limitations from nonstationary transition probabilities and unobserved states, and provide a compact glossary."
-    ]
-  },
-  {
-    "id": "robotics_planar_two_link_kinematics",
-    "title": "Robotics: two-link kinematics and singularity-aware verification",
-    "domain": "robotics_planar_kinematics",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an original educational diagram of a planar two-link robot arm. Label positive link lengths, joint angles, coordinate axes and end-effector position. Mark the drawing as schematic and state angle conventions.",
-      "Derive forward kinematics and the Jacobian in LaTeX. Derive the determinant and identify singular arm configurations, clearly distinguishing joint angles from global link orientation.",
-      "Write complete runnable standard-library Python for forward kinematics and inverse kinematics with input validation. Return both elbow branches when distinct, handle unreachable targets explicitly and verify round-trip position error.",
-      "Provide a Markdown table of synthetic link lengths, joint angles, end positions and Jacobian determinants. Include units and cases at full extension, folded configurations and a well-conditioned interior point.",
-      "Write a bilingual reproducibility report comparing analytic and finite-difference Jacobians. Explain singularity sensitivity, tolerance choices and why the ideal model omits collision avoidance and joint limits."
-    ]
-  },
-  {
-    "id": "time_series_ar1_stationarity_forecast_uncertainty",
-    "title": "Time series: AR(1) stationarity and forecast uncertainty",
-    "domain": "time_series_autoregressive_forecasting",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic AR(1) process with an intercept, autoregressive coefficient and independent Gaussian innovations. Specify parameter units, initial state and the assumption required for a stationary distribution.",
-      "Derive the stationary mean, variance and autocovariance in LaTeX. Show how initial-condition effects decay and explain what fails at coefficients equal to positive or negative one.",
-      "Write complete runnable standard-library Python for seeded simulation and conditional forecasts. Validate finite inputs and nonnegative innovation variance, and avoid external libraries.",
-      "Derive the h-step conditional forecast mean and variance and give a Markdown table for several horizons. Distinguish conditional forecast uncertainty from parameter estimation uncertainty.",
-      "Implement reproducible Monte Carlo verification of those forecast moments. Compare simulated and theoretical values using explicit tolerances and explain why one random run cannot prove correctness.",
-      "Provide a Markdown table comparing positive, negative, zero and near-unit coefficients. Discuss alternating correlation, slow decay and the required warm-up length without claiming an arbitrary universal cutoff.",
-      "Analyze deterministic innovations, an initially stationary draw, invalid nonfinite parameters and a coefficient outside the stationary range. Explain how finite-horizon forecasts can exist without stationarity.",
-      "Write a detailed bilingual reproducibility report separating model assumptions, initialization bias, sampling error and omitted real-world features such as seasonality or changing variance. Include a compact glossary."
-    ]
-  },
-  {
     "id": "control_theory_discrete_lyapunov_stability",
     "domain": "control_theory_discrete_lyapunov",
     "title": "Discrete control: Lyapunov stability and verified state evolution",
@@ -413,6 +329,88 @@
       "Compare first-price and second-price outcomes on identical synthetic values. Explain why a truthful-bidding argument for the second-price rule does not transfer to the first-price rule.",
       "Analyze a reserve-price extension with an explicit unsold outcome. Give code and boundary tests for bids equal to the reserve and distinguish bidder utility from seller revenue.",
       "Write a detailed Chinese-English reproducibility report with formulas, tables, test results and limitations covering correlated values, budgets, collusion and repeated auctions."
+    ]
+  },
+  {
+    "id": "electrochemistry_nernst_concentration_cell",
+    "title": "Electrochemistry: concentration cells and unit-safe Nernst calculations",
+    "domain": "electrochemistry_concentration_cells",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Define a synthetic copper concentration cell at 298.15 K with ideal activities 0.010 and 1.000. Show a Markdown table of constants, units and assumptions; distinguish activity from concentration.",
+      "Derive the cell voltage with the Nernst equation in LaTeX, explicitly stating polarity and logarithm convention. Compute the numerical result and dimensional checks.",
+      "Write complete standard-library Python for voltage versus activity ratio and temperature, with validation for nonpositive activities and temperatures.",
+      "Build a Markdown results table for equal activities, reversed activities and a tenfold ratio. Add assert-based tests for zero voltage and sign reversal.",
+      "Write a Chinese-English reproducibility note explaining nonideal activity coefficients, measurement uncertainty, and why an ideal open-circuit voltage does not predict delivered current."
+    ]
+  },
+  {
+    "id": "calendar_scheduling_timezone_fold",
+    "title": "Calendar scheduling: daylight-saving folds, gaps and UTC ordering",
+    "domain": "calendar_timezone_dst",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Design a synthetic meeting scheduler across America/Los_Angeles, Europe/London and Asia/Tokyo. Give a Markdown table around 2026 daylight-saving transitions and distinguish local dates, offsets and instants.",
+      "Explain ambiguous and nonexistent local times with precise examples. State a deterministic rejection or fold policy and use LaTeX to define elapsed time in UTC.",
+      "Write complete Python using datetime and zoneinfo to detect invalid local times via round-trip conversion, accept explicit fold selection, and produce ordered UTC instants.",
+      "Add runnable tests for the 2026 Los Angeles spring gap and autumn fold, an ordinary date, and Tokyo. Display both fold offsets and elapsed minutes in a Markdown table.",
+      "Extend the design to a weekly local-time recurrence while preserving wall-clock time across DST. Explain why adding seven times 24 hours in UTC changes the local schedule.",
+      "Compare recurrence expansion in local time and fixed UTC intervals with code and a Markdown table. Handle missing dates and duplicate occurrence identifiers explicitly.",
+      "Describe validation for overnight meetings, leap days and date-boundary crossings without assuming all days have 86400 local seconds.",
+      "Write a Chinese-English implementation audit with code examples, formulas, reproducibility requirements for timezone database versions, and clearly labelled limitations."
+    ]
+  },
+  {
+    "id": "spectroscopy_beer_lambert_mixture_inverse",
+    "title": "Spectroscopy: two-component Beer-Lambert inversion and conditioning",
+    "domain": "spectroscopy_mixture_identification",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of a two-wavelength absorption measurement of a two-component liquid mixture, labelling source, sample path length and detector. Mark the diagram as schematic. Define synthetic molar attenuation coefficients with units in a Markdown table.",
+      "Derive the two-component Beer-Lambert inverse problem in LaTeX. State assumptions, natural versus decimal logarithms and a determinant condition for identifying both concentrations.",
+      "Write complete standard-library Python solving the two-by-two inverse problem with finite input checks, nonzero path length and singular-system detection. Generate exact synthetic observations and recover their concentrations.",
+      "Give a Markdown table comparing a well-conditioned coefficient matrix and nearly collinear spectra. Perturb absorbance values and quantify concentration error without clipping negative estimates silently.",
+      "Write a Chinese-English reproducibility report covering blank correction, stray light, uncertainty propagation and limitations of linear mixture additivity. Include executable boundary tests and retain all unit definitions."
+    ]
+  },
+  {
+    "id": "distributed_systems_hybrid_logical_clocks",
+    "title": "Distributed systems: hybrid logical clocks and causal ordering",
+    "domain": "distributed_hybrid_logical_clocks",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic three-node message schedule with physical clock skew and local events. Give a Markdown table of physical times, sends, receives and a partial happens-before relation.",
+      "Derive a hybrid logical clock update rule in LaTeX with explicit counter tie cases. Distinguish causal implication from the converse and explain why total sorting cannot recover concurrency.",
+      "Write complete runnable standard-library Python implementing local tick, send and receive updates as immutable values. Validate nonnegative timestamps and counters.",
+      "Execute the synthetic schedule and produce a Markdown table of every HLC timestamp. Assert each event advances its local clock and every receive exceeds the corresponding send lexicographically.",
+      "Add tests for backward wall-clock movement, equal physical readings, large forward jumps and multiple receives in one millisecond. Explain logical counter overflow policy.",
+      "Compare Lamport, vector and hybrid clocks on the same event graph with code and a Markdown table. Show an explicit pair of concurrent events with ordered HLC timestamps.",
+      "Describe persistence across process restart and a node identifier tie breaker. Separate uniqueness requirements from causality and avoid treating untrusted future timestamps as harmless.",
+      "Write a detailed Chinese-English reproducibility audit with formulas, execution trace, executable assertions and limits concerning partitions, clock synchronization and malicious peers."
     ]
   }
 ]

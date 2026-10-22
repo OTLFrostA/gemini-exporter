@@ -18,3 +18,21 @@ test('absence from a source list alone keeps local conversations and never manuf
     const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'unlisted_notice'},{id:'active'}]);await page.evaluate(async id=>Reflect.get(globalThis,'uiFixture').ingestIndexes(id,[{conversationId:'active',fields:{title:'Latest title',titleSource:'provider'}}]),accountId);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
     await expect(page.locator('#list .item')).toHaveCount(2);await expect(page.locator('#archiveNotice,.cloud-status')).toHaveCount(0);await expect(page.locator('[data-chat-id="active"]')).toContainText('Latest title');
 });
+
+test('explicit scan reset clears the current local list and bodies only after confirmation', async ({context,extensionId}) => {
+    const page = await openOptions(context,extensionId);
+    await seedConversations(page,[{id:'reset-one'},{id:'reset-two'}],{'reset-one':{exportedAt:100,format:'markdown',status:'ok'}});
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.locator('#btnClearScan').click();
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    page.once('dialog', dialog => { expect(dialog.message()).toContain('all local conversations'); return dialog.accept(); });
+    await page.locator('#btnClearScan').click();
+    await expect(page.locator('#status')).toHaveText('Records cleared');
+    await expect(page.locator('#list .item')).toHaveCount(0);
+    for (const conversationId of ['reset-one','reset-two']) {
+        expect(await page.evaluate(({accountId,conversationId}) => Reflect.get(globalThis,'uiFixture').readConversation({accountId,conversationId}),{accountId,conversationId})).toBeNull();
+    }
+    expect(await page.evaluate(id => Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId)).toEqual({});
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(0);
+});

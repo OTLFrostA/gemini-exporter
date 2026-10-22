@@ -41,7 +41,7 @@ test('Coverage atomic callback reads the latest row and writes only an explicit 
     } finally { env.restore(); }
 });
 
-test('Scan cleanup deletes all Account streams and ExportRecords without touching Index or other accounts', async () => {
+test('Scan cleanup deletes current Account Index, streams and ExportRecords while preserving other accounts', async () => {
     const env = indexStorage();
     try {
         const key = { accountId, conversationId: 'unchanged' };
@@ -54,7 +54,7 @@ test('Scan cleanup deletes all Account streams and ExportRecords without touchin
         assert.equal(await getCoverage(accountId, 'recent'), null);
         assert.equal(await getCoverage(accountId, 'pinned'), null);
         assert.deepEqual(await getCoverage(otherId, 'recent'), baseline);
-        assert.ok(await getIndex(key));
+        assert.equal(await getIndex(key), null);
         assert.equal(await getExportRecord(key), null);
     } finally { env.restore(); }
 });

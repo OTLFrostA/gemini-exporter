@@ -25,3 +25,41 @@ test('clearing export records preserves bodies and skip preference, then explici
     expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'one'}),accountId)).toBeTruthy();
     await page.locator('#btnSelectAll').click();const pending=page.waitForEvent('download');await page.locator('#btnExport').click();expect(await readFile((await(await pending).path())!,'utf8')).toContain('Answer one');
 });
+
+test('large unchanged exports do not rebuild the conversation list for each skipped item', async ({context,extensionId}) => {
+    test.setTimeout(120000);
+    const page = await openOptions(context,extensionId);
+    const rows = Array.from({length:1343},(_,i)=>({id:`skip-${i}`}));
+    await seedConversations(page,rows,Object.fromEntries(rows.map(row=>[row.id,
+        {exportedAt:200,chatTime:100,format:'markdown' as const,status:'ok' as const}])));
+    await page.locator('#btnSelectAll').click();
+    await page.evaluate(() => {
+        const metrics = {listRebuilds:0,storageOpens:0};
+        Reflect.set(window,'skipMetrics',metrics);
+        const list = document.getElementById('list');
+        const replace = Element.prototype.replaceChildren;
+        Element.prototype.replaceChildren = function(...nodes) {
+            if(this === list) metrics.listRebuilds++;
+            return replace.apply(this,nodes);
+        };
+        const open = indexedDB.open;
+        indexedDB.open = function(...args) {
+            metrics.storageOpens++;
+            return open.apply(this,args);
+        };
+    });
+    let downloads = 0;
+    page.on('download',()=>{downloads++;});
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#directWriteModal')).toBeVisible();
+    const started = Date.now();
+    await page.locator('#btnModalContinueZip').click();
+    await expect(page.locator('#status')).toContainText('Skipped: 1343',{timeout:90000});
+    await expect(page.locator('body')).toHaveAttribute('data-busy','false');
+    const metrics = await page.evaluate(()=>Reflect.get(window,'skipMetrics'));
+    console.log('Unchanged export performance:',{durationMs:Date.now()-started,...metrics});
+    expect(downloads).toBe(0);
+    // A few task-start/task-end renders are allowed; per-item list replacement is not.
+    expect(metrics.listRebuilds).toBeLessThanOrEqual(6);
+    await expect(page.locator('#list input:checked')).toHaveCount(1343);
+});

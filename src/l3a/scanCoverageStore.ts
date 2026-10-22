@@ -23,12 +23,22 @@ export function updateCoverageAtomically<R>(accountId: Account['id'], streamId: 
     });
 }
 
-/** Reset this account's trusted scan boundaries and export skip history atomically. */
+/** Explicit local reset: remove this account's conversations, coverage and export history atomically. */
 export function clearStoredAccountScanRecords(accountId: Account['id']): Promise<void> {
-    return inStores<void>(['coverage', 'exportRecords'], 'readwrite', (tx, done) => {
+    return inStores<void>(['indexes', 'details', 'coverage', 'exportRecords'], 'readwrite', (tx, done) => {
         const range = IDBKeyRange.bound([accountId], [accountId, []]);
+        tx.objectStore('indexes').delete(range);
+        tx.objectStore('details').delete(range);
         tx.objectStore('coverage').delete(range);
         tx.objectStore('exportRecords').delete(range);
+        done(undefined);
+    });
+}
+
+/** Remove scan boundaries without changing export history or conversation facts. */
+export function clearStoredAccountCoverage(accountId: Account['id']): Promise<void> {
+    return inStores<void>(['coverage'], 'readwrite', (tx, done) => {
+        tx.objectStore('coverage').delete(IDBKeyRange.bound([accountId], [accountId, []]));
         done(undefined);
     });
 }

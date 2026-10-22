@@ -63,6 +63,11 @@ export function assertUiNodeIsolation(): void {
 
 /** Call once at the beginning of every Node UI-unit test file. */
 export function installUiV2Mocks(): void {
+    const dates: Pick<typeof import('../../src/l2/conversationIndex.js'), 'indexActivityTime' | 'compareConversationIndexes'> = {
+        indexActivityTime: index => index.updatedAt === undefined ? index.activityAt : index.activityAt === undefined ? index.updatedAt : Math.max(index.updatedAt, index.activityAt),
+        compareConversationIndexes: (a, b) => (dates.indexActivityTime(b) ?? -Infinity) - (dates.indexActivityTime(a) ?? -Infinity),
+    };
+    stub('../../src/l2/conversationIndex.js', dates);
     stub('../../src/application/export/runExport.js', { runExport: mockRunExport });
     stub('../../src/application/sync/scanController.js', {
         scanAll: () => unconfigured('Application.scanAll'),
