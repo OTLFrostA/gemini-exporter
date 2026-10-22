@@ -23,6 +23,13 @@ export function geminiList(ids: readonly string[] = [], nextCursor: string | nul
 const boundaryRow = () => sourceRow('boundary123', 'Source title', 1700000060);
 const contractRow = (id = 'source_chat_123', seconds = 1700000050) =>
     sourceRow(id, 'Source title', seconds);
+const rpcRow = () => sourceRow('verifiedrpc123', 'Verified', 1700000050);
+const rpcEnvelope = (rpc: string, inner: unknown) => ['wrb.fr', rpc, JSON.stringify(inner)];
+const parseRpcBatch = (...rows: unknown[][]) => parseList(JSON.stringify(rows));
+// Native Any envelope regression characterized from 2026-10-20 hNvQHb NotFound.
+const nativeAnyError = (rpc: string, code: unknown,
+    type = 'type.googleapis.com/assistant.boq.bard.application.BardErrorInfo') =>
+    ['wrb.fr', rpc, null, null, null, [5, null, [[type, [code]]]], 'generic'];
 
 export const geminiListFixtures = {
     invalidSourcePage: () => {
@@ -36,6 +43,26 @@ export const geminiListFixtures = {
     invalidBardErrors: () => ['BardErrorInfo: cursor expired', '["BardErrorInfo",9999]'].map(error =>
         parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['generic', error]]]))),
     malformedWire: () => parseList('garbage'),
+    rpcIsolationUnrelatedError: () => parseRpcBatch(
+        rpcEnvelope('hNvQHb', []), ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 429]]),
+    rpcIsolationMissingEnvelope: () => [[], [null, null, [rpcRow()]],
+        [null, 'tC_next', [rpcRow()]]].map(inner => parseRpcBatch(rpcEnvelope('hNvQHb', inner))),
+    rpcIsolationTargetWins: () => [
+        parseRpcBatch(rpcEnvelope('hNvQHb', []), rpcEnvelope('MaZiqc', [null, null, [rpcRow()]])),
+        parseRpcBatch(rpcEnvelope('MaZiqc', [null, 'tC_next', [rpcRow()]]), rpcEnvelope('hNvQHb', [])),
+    ],
+    rpcIsolationProviderLimit: () => ({
+        limited: parseRpcBatch(rpcEnvelope('hNvQHb', []),
+            ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]),
+        unrelated: parseRpcBatch(['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]),
+    }),
+    rpcIsolationNativeLimit: () => parseRpcBatch(nativeAnyError('MaZiqc', 1096)),
+    rpcIsolationInvalidNativeErrors: () => [
+        nativeAnyError('hNvQHb', 1096), nativeAnyError('MaZiqc', 1167),
+        nativeAnyError('MaZiqc', 10961), nativeAnyError('MaZiqc', '1096'),
+        nativeAnyError('MaZiqc', 1096, 'type.googleapis.com/other.BardErrorInfo'),
+        ['wrb.fr', 'MaZiqc', null, null, null, [1096]],
+    ].map(packet => parseRpcBatch(packet)),
 
     boundaryObservation: () => parsed([boundaryRow()]),
     boundaryContinuation: () => parsed([], 'tC_cursor'),
