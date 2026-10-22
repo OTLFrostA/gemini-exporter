@@ -37,3 +37,4 @@ jobs:
           git diff --cached --quiet && { echo "No screenshots were changed"; exit 1; }
           git commit -m "docs: refresh real v2 extension screenshots"
           git push origin HEAD:docs/v2-readme-save-all-chats-20261021
+# Refined captured demo data and folder label (2026-10-21).

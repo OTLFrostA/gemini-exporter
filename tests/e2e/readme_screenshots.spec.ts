@@ -49,6 +49,8 @@ test('capture v2 product screenshots from the real extension UI', async ({ conte
                     { format: 'markdown', status: 'ok', exportedAt: now, chatTime: updatedAt });
             }
         }
+        await api.putAccount({ id: accountId, providerId: 'gemini',
+            providerAccountId: '10000000001', displayName: 'Demo account' });
         await api.updateSettings({
             language: 'en', theme: 'light', lastSeenFeatureVersion: '999.0.0',
             takeoutPromptCompleted: true, directWritePromptCompleted: true,
@@ -81,7 +83,9 @@ test('capture v2 product screenshots from the real extension UI', async ({ conte
     // Second image: dark workbench with actual local-folder settings active.
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'uiFixture');
-        await api.setDirectoryHandle(await navigator.storage.getDirectory());
+        const root = await navigator.storage.getDirectory();
+        const folder = await root.getDirectoryHandle('Gemini Backups', { create: true });
+        await api.setDirectoryHandle(folder);
         await api.updateSettings({ language: 'en', theme: 'dark', defaultFormat: 'markdown',
             exportDelivery: 'folderWriter', enabledDisk: true });
     });
