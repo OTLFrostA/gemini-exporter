@@ -1,0 +1,39 @@
+name: Capture v2 README screenshots
+
+on:
+  push:
+    branches:
+      - docs/v2-readme-save-all-chats-20261021
+    paths:
+      - .github/workflows/capture-v2-readme.yml
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build extension
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Screenshot actual v2 extension with anonymous fixtures
+        env:
+          CAPTURE_README_SCREENSHOTS: '1'
+        run: xvfb-run -a npx playwright test tests/e2e/readme_screenshots.spec.ts --workers=1 --retries=0
+      - name: Verify and commit the screenshot files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add store_assets/screenshot_1_1280x800.png store_assets/screenshot_2_1280x800.png store_assets/screenshot_3_1280x800.png store_assets/screenshot_popup_v2.png
+          git diff --cached --quiet && { echo "No screenshots were changed"; exit 1; }
+          git commit -m "docs: refresh real v2 extension screenshots"
+          git push origin HEAD:docs/v2-readme-save-all-chats-20261021
