@@ -9,10 +9,15 @@ export async function discoverClaudeAccounts(): Promise<Account[]> {
     if (!await hasClaudeAccess()) return [];
     const raw = await readClaudeSource('/api/organizations');
     if (!Array.isArray(raw)) throw new TypeError('Claude organization response changed');
-    const organizations = raw.filter((value): value is Record<string, unknown> =>
+    const verified = raw.filter((value): value is Record<string, unknown> =>
         !!value && typeof value === 'object' && !Array.isArray(value)
-        && typeof value.uuid === 'string' && /^[\da-f-]{36}$/i.test(value.uuid)
-        && Array.isArray(value.capabilities) && value.capabilities.includes('chat'));
+        && typeof value.uuid === 'string' && /^[\da-f-]{36}$/i.test(value.uuid));
+    const chatOrganizations = verified.filter(value =>
+        Array.isArray(value.capabilities) && value.capabilities.includes('chat'));
+    // Older Claude accounts may omit capabilities. Fallback only when
+    // exactly one organization makes source identity unambiguous.
+    const organizations = chatOrganizations.length ? chatOrganizations
+        : verified.length === 1 ? verified : [];
     if (!organizations.length) return [];
     await ensureClaudeRegistered();
     const accounts: Account[] = [];
