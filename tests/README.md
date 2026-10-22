@@ -65,19 +65,6 @@ npx playwright test  # 运行当前全量 Playwright 用例 (需先 node build.j
 
 ---
 
-### 4. 跨平台 Provider 公共契约矩阵（L1）
-
-`tests/l1-provider-contract-matrix.test.ts` 将同一组行为断言运行在 Gemini 和 ChatGPT 的真实 `AIProvider` 实现上。每个平台只提供一个原生来源 Fixture Adapter，放在 `tests/helpers/providerContract/`：
-
-- Adapter 仅模拟原生 RPC/REST 和身份来源；**不模拟 Provider 实现本身**。
-- 公共断言覆盖可信 List/Coverage、拒绝不可信 List、L2 写入失败、Detail 提交、账号隔离和取消；不得按 Provider 分支修改断言。
-- 测试仍使用 `l1V2UnitMocks` 的冻结外部端口；这属于 L1 隔离单测，不是跨模块 Integration 或真实站点 E2E。
-- 新增平台时提供独立 Adapter，并显式加入测试矩阵；不允许静默跳过未配置的平台。
-
-独立执行：`node scripts/test-l1-units.cjs client`（与原有 L1 client tests 一起执行）。全量 `npm test` 也会通过 `tests/run_tests.py` 发现该文件。现有平台专用解析与协议测试保留不变。
-
----
-
 ## 三、第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
 
 ### 1. 定位与设计原则
