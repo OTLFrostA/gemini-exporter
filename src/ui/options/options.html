@@ -51,6 +51,10 @@
   .direct-write-description{font-size:13px;line-height:1.65;color:var(--muted);margin:0 0 16px}
   .direct-write-actions{display:flex;flex-direction:column;gap:8px}
   .direct-write-actions button{min-height:36px;white-space:normal}
+  .cleanup-account{font-size:12px;font-weight:600;overflow-wrap:anywhere;margin:0 0 10px}
+  .cleanup-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+  .cleanup-actions .destructive{background:var(--card-inner);color:var(--destructive-text,#ff8a8a);border:1px solid currentColor}
+  .cleanup-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   .feedback-arrow{font-size:12px;opacity:0.6;flex:none;transition:opacity 0.15s ease,transform 0.15s ease,color 0.15s ease;}
   /* Both export destinations are always visible as radio cards, not tabs. */
   .export-preferences{display:flex;flex-direction:column;gap:10px;background:var(--card-inner);padding:12px;border-radius:10px;border:1px solid var(--border)}
@@ -59,17 +63,17 @@
   /* Keep select semantics, but paint the picker in the page's top layer so it
      shares our theme and is visible to viewport screenshots and pointer input. */
   @supports (appearance:base-select){
-    #format,#format::picker(select){appearance:base-select}
-    #format{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer}
-    #format:hover:not(:disabled){border-color:var(--border-focus)}
-    #format:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-    #format:disabled{opacity:.45;cursor:default}
-    #format::picker-icon{color:var(--muted)}
-    #format::picker(select){margin-top:5px;padding:4px;background:var(--card);color:var(--text);border:1px solid var(--border-focus);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.28)}
-    #format option{display:flex;align-items:center;gap:8px;min-height:36px;padding:8px 10px;border-radius:6px;font-size:13px;cursor:pointer}
-    #format option:checked{background:color-mix(in srgb,var(--accent) 16%,var(--card))}
-    #format option:hover,#format option:focus{background:color-mix(in srgb,var(--accent) 24%,var(--card));outline:none}
-    #format option::checkmark{color:var(--accent)}
+    .page-select,.page-select::picker(select){appearance:base-select}
+    .page-select{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer}
+    .page-select:hover:not(:disabled){border-color:var(--border-focus)}
+    .page-select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    .page-select:disabled{opacity:.45;cursor:default}
+    .page-select::picker-icon{color:var(--muted)}
+    .page-select::picker(select){max-width:calc(100vw - 16px);max-height:min(320px,70dvh);overflow-y:auto;margin-top:5px;padding:4px;background:var(--card);color:var(--text);border:1px solid var(--border-focus);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.28)}
+    .page-select option{overflow-wrap:anywhere;white-space:normal;display:flex;align-items:center;gap:8px;min-height:36px;padding:8px 10px;border-radius:6px;font-size:13px;cursor:pointer}
+    .page-select option:checked{background:color-mix(in srgb,var(--accent) 16%,var(--card))}
+    .page-select option:hover,.page-select option:focus{background:color-mix(in srgb,var(--accent) 24%,var(--card));outline:none}
+    .page-select option::checkmark{color:var(--accent)}
   }
   .export-skip-row{display:flex;gap:8px;align-items:center;font-size:12px;min-height:24px;cursor:pointer}
   .export-destination{display:flex;flex-direction:column;gap:8px}
@@ -225,7 +229,7 @@
 <header>
   <div style="display:flex; align-items:center; gap:8px;">
     <h1>Gemini Exporter <span id="ver" class="badge"></span> <span id="syncCount" class="badge"></span></h1>
-    <select id="accountIdSelect" style="display:none; font-size:11px; padding:3px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer;">
+    <select id="accountIdSelect" class="page-select" style="display:none; font-size:11px; padding:3px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer;">
     </select>
     <span id="accountName" class="stat" style="font-size:11px;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
     <button id="btnConnectChatGPT" class="ghost small" data-ui-en="Connect ChatGPT" data-ui-zh="连接 ChatGPT">Connect ChatGPT</button>
@@ -256,7 +260,7 @@
     <div class="export-preferences">
       <label class="export-format-row">
         <span style="color:var(--muted);white-space:nowrap" data-i18n="format">格式</span>
-        <select id="format">
+        <select id="format" class="page-select">
           <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (.md)</option>
           <option value="html" data-i18n="fmtHtml">HTML (.html)</option>
           <option value="pdf" data-i18n="fmtPdf">PDF (.pdf)</option>
@@ -347,7 +351,7 @@
         <span data-i18n="includeAssets">下载附件</span>
       </label>
       <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:none;">
-        <select id="logLevel" title="级别" data-i18n-title="logLevelTitle" style="font-size:11px; padding:4px 6px; border-radius:6px; background:var(--card-inner);">
+        <select id="logLevel" class="page-select" title="级别" data-i18n-title="logLevelTitle" style="font-size:11px; padding:4px 6px; border-radius:6px; background:var(--card-inner);">
           <option value="all" data-i18n="logLevelAll">全部日志</option>
           <option value="info" data-i18n="logLevelInfo">简要日志</option>
           <option value="warn" data-i18n="logLevelWarn">警告及错误</option>
@@ -374,7 +378,7 @@
     <div class="label" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px; margin-top:2px; flex:none;">
       <div style="display:flex; justify-content:space-between; align-items:center; height:28px; gap:8px;">
         <span style="display:flex; align-items:center; white-space:nowrap; flex:none;"><span data-i18n="titleConversations" style="font-weight:700;">会话列表</span></span>
-        <select id="chatFilterSelect" data-i18n-title="filterSelectTip" title="按导出状态筛选会话" style="height:26px; font-size:11px; padding:2px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer; flex:none;">
+        <select id="chatFilterSelect" class="page-select" data-i18n-title="filterSelectTip" title="按导出状态筛选会话" style="height:26px; font-size:11px; padding:2px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer; flex:none;">
           <option value="all" data-i18n="filterAll">全部</option>
           <option value="no_record" data-i18n="filterNoRecord">无导出记录</option>
           <option value="has_record" data-i18n="filterHasRecord">有导出记录</option>
@@ -412,6 +416,15 @@
   <div class="direct-write-actions">
     <button id="btnModalSwitchFolder" type="button" class="primary">保存到本地文件夹</button>
     <button id="btnModalContinueZip" type="button" class="ghost">继续浏览器下载</button>
+  </div>
+</dialog>
+<dialog id="cleanupModal" class="direct-write-modal" role="alertdialog" aria-labelledby="cleanupPromptTitle" aria-describedby="cleanupPromptAccount cleanupPromptText">
+  <div class="direct-write-header"><h2 id="cleanupPromptTitle"></h2></div>
+  <p id="cleanupPromptAccount" class="cleanup-account"></p>
+  <p id="cleanupPromptText" class="direct-write-description"></p>
+  <div class="cleanup-actions">
+    <button id="btnCleanupCancel" type="button" class="ghost" autofocus>取消</button>
+    <button id="btnCleanupConfirm" type="button" class="destructive">清除记录</button>
   </div>
 </dialog>
 <!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->

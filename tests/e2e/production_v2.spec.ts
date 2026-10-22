@@ -71,8 +71,8 @@ test('production multi-file export creates ZIP; scan reset clears local history 
     expect(files).toHaveLength(2);
     expect((await Promise.all(files.map(name => zip.file(name).async('string')))).join('\n')).toContain('Answer two');
     await page.locator('#devToggle').check();
-    page.on('dialog', dialog => { void dialog.accept(); });
     await page.locator('#btnClearScan').click();
+    await page.locator('#btnCleanupConfirm').click();
     await expect.poll(() => page.evaluate(async accountId => Object.keys(await Reflect.get(globalThis, 'productionProbe').listExportRecords(accountId)).length, accountId)).toBe(0);
     await page.reload(); await page.evaluate(bundle);
     await expect(page.locator('#list .item')).toHaveCount(0);
