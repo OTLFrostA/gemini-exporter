@@ -6,7 +6,7 @@ import { chatgptList } from '../fixtures/providers/chatgpt.js';
 // Workbench, discovery, account registry, provider, L2 and IDB run unchanged.
 async function source(page: import('@playwright/test').Page, allow: boolean) {
     const list = chatgptList({ items: [{ id: 'gpt-chat', title: 'ChatGPT history from source',
-        create_time: 1700000000, update_time: 1700000010 }], total: 1 });
+        create_time: 1700000000, update_time: 1700000010 }], total: 1, offset: 0, limit: 100 });
     await page.evaluate(({ allow, list }) => {
         let granted = false;
         const query = chrome.tabs.query.bind(chrome.tabs);
