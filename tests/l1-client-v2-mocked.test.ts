@@ -8,8 +8,8 @@ import { createSourceResourceContext } from '../src/l1/resources/sourceResources
 import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { sourceDetail, sourceMessage } from './helpers/l1SourceFixture.js';
-import { geminiList as sourceList } from './fixtures/providers/gemini.js';
-import { chatgptList } from './fixtures/providers/chatgpt.js';
+import { geminiList as sourceList, geminiListFixtures } from './fixtures/providers/gemini.js';
+import { chatgptListFixtures } from './fixtures/providers/chatgpt.js';
 
 beforeEach(() => ports.reset());
 const route = async () => 'u0';
@@ -47,8 +47,7 @@ test('Gemini Client commits canonical keyless Index/page evidence before callbac
 });
 
 test('L1 preserves Index facts without certifying an untrusted page or default account', async () => {
-    const untrusted = sourceList(['source_alpha']);
-    untrusted.pageEvidence.valid = false;
+    const untrusted = geminiListFixtures.invalidSourcePage();
     await assert.rejects(new GeminiProvider(client([untrusted]), route).listConversations({
         accountId: GEMINI_ACCOUNT.id, streamId: 'recent',
     }), /Unverified Gemini list page/);
@@ -63,8 +62,7 @@ test('L1 preserves Index facts without certifying an untrusted page or default a
 });
 
 test('Gemini provider-limit is conveyed as a committed empty request-bound page, not estimated history length', async () => {
-    const { parseList } = require('../src/l1/parsers/gemini/rpc/parseList.js') as typeof import('../src/l1/parsers/gemini/rpc/parseList.js');
-    const limit = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]]));
+    const limit = geminiListFixtures.providerLimit();
     let callbacks = 0;
     const end = await new GeminiProvider(client([sourceList(['source_alpha'], 'tC_NEXT_123456789'), limit]), route)
         .listConversations({ accountId: GEMINI_ACCOUNT.id, streamId: 'recent',
@@ -165,9 +163,8 @@ test('Client refuses changed account route and mismatched Provider before commit
 test('ChatGPT uses the same v2 Index/page port and checks native completeness before source_end', async () => {
     const fetchFn = async (url: string) => new Response(JSON.stringify(
         url.endsWith('/api/auth/session')
-            ? { accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' } }
-            : chatgptList({ items: [{ id: 'chatgpt-source', title: 'Owned title', create_time: 1700000000,
-                update_time: 1700000010 }], total: 1, offset: 0, limit: 100, hasMissingConversations: false }),
+            ? chatgptListFixtures.clientSession()
+            : chatgptListFixtures.clientComplete(),
     ), { status: 200 });
     const provider = new ChatGPTProvider({ fetchFn });
     const committed: number[] = [];
@@ -189,9 +186,8 @@ test('ChatGPT uses the same v2 Index/page port and checks native completeness be
     ports.reset();
     const invalid = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
         url.endsWith('/api/auth/session')
-            ? { accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' } }
-            : chatgptList({ items: [{ id: 'incomplete', update_time: 1700000010 }],
-                total: 1, offset: 0, limit: 100, hasMissingConversations: true }),
+            ? chatgptListFixtures.clientSession()
+            : chatgptListFixtures.clientIncomplete(),
     ), { status: 200 }) });
     await assert.rejects(invalid.listConversations({ accountId: CHATGPT_ACCOUNT.id, streamId: 'recent' }),
         /Unverified ChatGPT list page/);
