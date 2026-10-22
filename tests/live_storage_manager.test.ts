@@ -23,4 +23,7 @@ test('directory handle persists independently from the installed Settings fields
     await storage.patchStoredSettings({ defaultFormat: 'pdf' });
     assert.deepEqual(await storage.getDirectoryHandle(), handle);
     assert.deepEqual(await storage.getStoredSettings(), { enabledDisk: true, defaultFormat: 'pdf' });
+    await storage.setDirectoryHandle(null);
+    assert.equal(await storage.getDirectoryHandle(), null);
+    assert.deepEqual(await storage.getStoredSettings(), { enabledDisk: true, defaultFormat: 'pdf' });
 });

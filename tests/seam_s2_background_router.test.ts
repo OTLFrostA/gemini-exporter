@@ -14,6 +14,7 @@ const key = { accountId: A, conversationId: 'abcdef123456' };
 function load(file: string, stubs: Record<string, unknown> = {}) {
     const original = Module._load;
     const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([A, B]),
+        'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
         'src/l2/conversationKey.js': mockConversationKey([A, B]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
@@ -90,6 +91,7 @@ function setup(t: { after: (fn: () => void) => void }, overrides: {
             initUninstallUrl: () => effects.push('initUninstall'),
         },
         'src/runtime/background/tabAction.js': { initTabActionListeners: () => effects.push('initTabAction') },
+        'src/runtime/capabilities/chatgptInjection.js': { syncChatGPTContentScripts: async () => {} },
         'src/runtime/background/readiness.js': { ensureV2Ready: overrides.ready || (async () => {}) },
         'src/runtime/background/contentSender.js': security,
         'src/l3a/storageService.js': { listIndexes: async (id: string) => {

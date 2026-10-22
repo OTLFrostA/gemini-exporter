@@ -17,13 +17,13 @@ export function accountId(): string {
     if (!id) throw new Error('No Registry account selected');
     return id;
 }
-export async function snapshot() {
+export async function snapshot(providerId = 'gemini') {
     await ensureV2Ready();
     const id = accountId();
     const [account, rows, coverage, records] = await Promise.all([
         storage.getAccount(id), storage.listIndexes(id), storage.getCoverage(id, 'recent'), storage.listExportRecords(id),
     ]);
-    if (!account || account.providerId !== 'gemini') throw new Error('Selected account is not Gemini');
+    if (!account || account.providerId !== providerId) throw new Error('Selected account is not ' + providerId);
     return { accountId: id, account, rows, coverage, exportIds: Object.keys(records).sort(), records };
 }
 export async function storedConversation(input: ConversationKey) {
@@ -43,8 +43,8 @@ export async function skipEligibleIds() {
             includeAssets: settings.includeAssets, skipUnchanged: true })).map(row => row.key.conversationId);
 }
 /** Acquire current source facts in this Options context before auditing the cached export. */
-export async function refreshForNativeAudit(ids: string[]) {
-    const state = await snapshot();
+export async function refreshForNativeAudit(ids: string[], providerId = 'gemini') {
+    const state = await snapshot(providerId);
     for (const conversationId of ids) await refreshConversation({ accountId: state.accountId, conversationId });
 }
 export async function conversations(ids: string[]) {
@@ -125,4 +125,4 @@ export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
 Object.assign(globalThis, { __tier2V2: { accountId, snapshot, skipEligibleIds, refreshForNativeAudit, conversations, storedConversation, l3Contracts, clearScanRecords, resetScanCoverage, inspectTakeout,
     getAccount: storage.getAccount, listAccounts: storage.listAccounts,
     getSettings, updateSettings,
-    setDirectoryHandle: storage.setDirectoryHandle } });
+    getDirectoryHandle: storage.getDirectoryHandle, setDirectoryHandle: storage.setDirectoryHandle } });

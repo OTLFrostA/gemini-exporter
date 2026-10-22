@@ -7,7 +7,10 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
+import katex from 'katex';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
     collectChatGPTImagePointers,
     extractChatGPTLinearNodes,
@@ -123,6 +126,17 @@ test('consecutive assistant turns merge into one node', () => {
     );
     assert.equal(merged[1]?.message?.metadata?.model_slug, 'gpt-6-pro');
     assert.equal(merged[1]?.message?.metadata?.citations?.length, 1);
+});
+
+test('a linked but streaming or interrupted ChatGPT reply never claims complete coverage', () => {
+    for (const patch of [{ status: 'in_progress' }, { status: 'interrupted' }, { end_turn: false }]) {
+        const leaf = textNode('a', 'root', 'assistant', 'unfinished body');
+        Object.assign(leaf.message!, patch);
+        const parsed = parseChatGPTConversation({ conversation: { id: 'streaming', current_node: 'a',
+            mapping: { root: { id: 'root', parent: null, children: ['a'] } as unknown as ChatGPTConversationNode, a: leaf },
+            title: 'Streaming', create_time: 1, update_time: 2, is_archived: false }, assetsByNode: new Map() });
+        assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    }
 });
 
 test('processChatGPTMapping walks from current_node to root', () => {
@@ -682,7 +696,10 @@ test('Loop-generated questionnaire data survives an official fallback that omits
     const raw = `{@body const questions = [{q:"Which waste?",opts:["Peels","Plastic","Glass"]},{q:"How to aerate?",opts:["Mix","Seal","Flood"]}]}
 {#each questions as question, i}<text>{question.q}</text>{/each}`;
     const snapshot = chatGPTInteractiveSnapshot(raw, '# Compost quiz\n\n[Submit]');
-    assert.equal(snapshot.incomplete, true);
+    assert.equal(snapshot.incomplete, false);
+    assert.equal(snapshot.representation, 'provider-fallback');
+    assert.ok(snapshot.text.startsWith('# Compost quiz\n\n[Submit]'));
+    assert.equal(snapshot.recoveredStrings, 8);
     for (const label of ['Which waste?', 'Peels', 'Plastic', 'Glass', 'How to aerate?', 'Mix', 'Seal', 'Flood', '[Submit]'])
         assert.ok(snapshot.text.includes(label), label);
     assert.ok(!snapshot.text.includes('{#each'));
@@ -692,17 +709,22 @@ test('Loop-generated questionnaire data survives an official fallback that omits
         id: 'dynamic-quiz', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
         mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
     } });
-    assert.equal(parsed.conversation.detail.quality.status, 'partial');
-    assert.ok(parsed.diagnostics.some(item => item.code === 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE'));
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    assert.ok(!parsed.diagnostics.some(item => item.code === 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE'));
+    const diagnostic = parsed.diagnostics.find(item => item.code === 'CHATGPT_INTERACTIVE_STATIC_SNAPSHOT');
+    assert.equal(diagnostic?.severity, 'info');
+    assert.deepEqual(diagnostic?.details, { representation: 'provider-fallback', recoveredStrings: 8, interactiveBehaviorPreserved: false });
     assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('Peels'));
 });
 
 test('Interactive snapshot rejects executable bindings and handles empty fallback-only source', () => {
     for (const expression of ['fetch("https://invalid.example")', '[{q:run()}]', '["hidden"].map(run)', '["hidden"] + run()', '[...secrets]', '[{get q(){return "hidden"}}]']) {
         const snapshot = chatGPTInteractiveSnapshot(`{@body const questions = ${expression}}{#each questions as q}<text>{q}</text>{/each}`, '[Submit]');
-        assert.equal(snapshot.incomplete, true);
+        assert.equal(snapshot.incomplete, false, 'fully preserved fallback is independent of executable component support');
+        assert.equal(snapshot.text, '[Submit]');
         assert.ok(!snapshot.text.includes('hidden'));
         assert.ok(!snapshot.text.includes('fetch('));
+        assert.equal(chatGPTInteractiveSnapshot(`{@body const questions = ${expression}}{#each questions as q}<text>{q}</text>{/each}`).incomplete, true);
     }
     const answer = textNode('answer', 'question', 'assistant', '');
     answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: 'Question and options' } };
@@ -711,4 +733,160 @@ test('Interactive snapshot rejects executable bindings and handles empty fallbac
     assert.equal(shouldSkipChatGPTMessage(answer.message), false);
     assert.equal(chatGPTInteractiveSnapshot('').incomplete, true);
     assert.ok(chatGPTInteractiveSnapshot('{@body const q = [{"text" : "safe <tag> *value*", "opts": ["a", "b"]}]}{#each q as x}', 'Submit').text.includes('safe \\<tag\\> \\*value\\*'));
+});
+
+test('Complete fallback remains exact for unsupported dynamic components and source size limits', () => {
+    const fallback = '# Questionnaire\n\nQuestion?\n\n- Yes\n- No\n\n[Submit]\n';
+    for (const raw of [
+        '{@body const questions = fetchQuestions()}{#each questions as q}{#if q.visible}<radio>{q.text}</radio>{/if}{/each}',
+        '{#if state.submitted}<text>{calculateScore()}</text>{/if}',
+        '<radio-group value={selection}><radio>Yes</radio></radio-group>',
+        '{@body ' + ' '.repeat(1_000_001),
+    ]) {
+        const snapshot = chatGPTInteractiveSnapshot(raw, fallback);
+        assert.equal(snapshot.text, fallback);
+        assert.equal(snapshot.incomplete, false);
+        assert.equal(snapshot.recoveredStrings, 0);
+        assert.equal(snapshot.representation, 'provider-fallback');
+    }
+});
+
+test('A fallback that already contains loop labels is not duplicated or downgraded', () => {
+    const raw = '{@body const $questions = [{q:"Question?",opts:["Yes","No"]}]}'
+        + '{#each $questions as q}<text>{q.q}</text>{/each}';
+    const fallback = '# Complete quiz\n\nQuestion?\n\n- Yes\n- No\n\n[Submit]\n';
+    const snapshot = chatGPTInteractiveSnapshot(raw, fallback);
+    assert.equal(snapshot.text, fallback);
+    assert.equal(snapshot.incomplete, false);
+    assert.equal(snapshot.recoveredStrings, 0);
+    const recovered = chatGPTInteractiveSnapshot(raw, '[Submit]');
+    assert.equal(recovered.recoveredStrings, 3, 'dollar signs in valid bindings are matched literally');
+    const distinctBinding = raw.replace('{#each $questions as', '{#each $questionsExtra as');
+    assert.equal(chatGPTInteractiveSnapshot(distinctBinding, '[Submit]').recoveredStrings, 0,
+        'a different loop binding must not expose an unrelated declaration');
+});
+
+test('Without a fallback, literal recovery remains partial and ignores arrays outside rendered loops', () => {
+    const raw = '{@body const internal = ["internal-id","not-visible"]}'
+        + '{@body const questions = [{q:"Question one?",opts:["Yes","No"]},{q:"Question two?",opts:["Yes","No"]}]}\n'
+        + '{#each questions as q}<text>{q.q}</text>{/each}';
+    const snapshot = chatGPTInteractiveSnapshot(raw, ' \n ');
+    assert.equal(snapshot.incomplete, true);
+    assert.equal(snapshot.representation, 'literal-recovery');
+    assert.equal(snapshot.recoveredStrings, 6);
+    assert.equal(snapshot.text.match(/Yes/g)?.length, 2, 'repeated options belong to both questions');
+    assert.ok(!snapshot.text.includes('internal-id'));
+    assert.ok(!snapshot.text.includes('not-visible'));
+    assert.ok(snapshot.text.includes('no usable Markdown fallback'));
+    assert.equal(chatGPTInteractiveSnapshot('', ' \n ').representation, 'unavailable');
+    const answer = textNode('answer', 'question', 'assistant', raw);
+    answer.message!.metadata = { model_dil_v2: {} };
+    const parsed = parseChatGPTConversation({ assetsByNode: new Map(), conversation: {
+        id: 'fallback-missing', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
+    } });
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    assert.ok(parsed.diagnostics.some(item => item.code === 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE' && item.severity === 'warning'));
+});
+
+test('Captured live DIL quiz preserves every fallback character and recovers three questions with nine options', () => {
+    const fixture = JSON.parse(readFileSync(join(__dirname, 'fixtures/chatgpt_dynamic_questionnaire.json'), 'utf8')) as {
+        raw: string; fallbackMarkdown: string; expectedQuestions: number; expectedOptions: number;
+    };
+    const snapshot = chatGPTInteractiveSnapshot(fixture.raw, fixture.fallbackMarkdown);
+    assert.ok(snapshot.text.startsWith(fixture.fallbackMarkdown));
+    assert.equal(snapshot.incomplete, false);
+    assert.equal(snapshot.recoveredStrings, fixture.expectedQuestions + fixture.expectedOptions);
+    assert.equal(snapshot.text.split('\n').filter(line => /^- \d\. /.test(line)).length, 3);
+    assert.equal(snapshot.text.split('\n').filter(line => /^  - /.test(line)).length, 9);
+    for (const token of ['{#each', 'onChange', 'GenUI.issueNewTurn', 'DIL.useState']) assert.ok(!snapshot.text.includes(token));
+
+    const answer = textNode('answer', 'question', 'assistant', fixture.raw);
+    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: fixture.fallbackMarkdown } };
+    const conversation: ChatGPTApiConversationWithId = {
+        id: 'captured-quiz', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
+    };
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('COMPOST-END'));
+    assert.equal(conversation.mapping.answer.message?.content, answer.message?.content, 'source content is not mutated');
+
+    answer.message!.end_turn = false;
+    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality.status, 'partial',
+        'preserving the fallback cannot hide an unfinished source reply');
+    answer.message!.end_turn = true;
+    answer.parent = 'missing';
+    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality.status, 'partial',
+        'preserving the fallback cannot hide a broken conversation branch');
+});
+
+
+test('DIL AsyncImage gallery becomes one ordered image resource instead of leaked control JSON', () => {
+    const url = 'https://images.openai.com/static-rsc-4/' + 'a'.repeat(300) + '?purpose=fullsize';
+    const answer = textNode('answer', 'question', 'assistant', '<AsyncImage query="flow network"/>');
+    answer.message!.metadata = { model_dil_v2: {
+        fallbackMarkdown: 'Before\n\n\uE200image_group\uE202{"query":["flow network"]}\uE201\n\nAfter',
+        appData: { opGenui: { componentResults: { image: { componentName: 'AsyncImage', status: 'resolved',
+            safe_urls: [url], state: { images: [{ content_url: url }, { content_url: url }] } } } } },
+    } };
+    const conversation = { id: 'gallery', title: 'Gallery', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagram'), answer } };
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    const message = parsed.conversation.detail.messages.at(-1)!;
+    assert.deepEqual(message.content.map(b => b.type), ['paragraph', 'image', 'paragraph']);
+    assert.equal(parsed.conversation.detail.assets.length, 1);
+    assert.equal(parsed.conversation.detail.assets[0].sourceUri, url);
+    assert.ok(parsed.conversation.detail.assets[0].id.length < 64);
+    assert.ok(!JSON.stringify(message.content).includes('image_group'));
+    assert.ok(answer.message!.metadata!.model_dil_v2!.fallbackMarkdown!.includes('image_group'), 'source stays unchanged');
+    const imageResult = answer.message!.metadata!.model_dil_v2!.appData!.opGenui!.componentResults!.image;
+    imageResult.safe_urls = [];
+    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0,
+        'unapproved source URLs are never promoted into image resources');
+    imageResult.safe_urls = ['https://invalid.example/x']; imageResult.state!.images = [{content_url:'https://invalid.example/x'}];
+    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0);
+});
+
+
+test('DIL galleries bind each query to its resolution ID despite reordered results', () => {
+    const answer = textNode('answer', 'question', 'assistant', '<AsyncImage/>');
+    const urlA = 'https://images.openai.com/static-rsc-4/winding';
+    const urlB = 'https://images.openai.com/static-rsc-4/ray';
+    answer.message!.metadata = { model_dil_v2: {
+        fallbackMarkdown: 'Before\n\uE200image_group\uE202{"query":["winding"]}\uE201\nMiddle\n\uE200image_group\uE202{"query":["ray"]}\uE201\nAfter',
+        code: '__dil.jsx(AsyncImage,{"query":"winding","__resolutionId":__dilConstants["4"]});__dil.jsx(AsyncImage,{"query":"ray","__resolutionId":__dilConstants["8"]})',
+        constants: { '4': 'id-a', '8': 'id-b' },
+        appData: { opGenui: { componentResults: {
+            'id-b': { componentName: 'AsyncImage', status: 'resolved', safe_urls: [urlB], state: { images: [{ content_url: urlB }] } },
+            'id-a': { componentName: 'AsyncImage', status: 'resolved', safe_urls: [urlA], state: { images: [{ content_url: urlA }] } },
+        } } },
+    } };
+    const conversation = { id: 'galleries', title: 'Gallery', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagrams'), answer } };
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    assert.deepEqual(parsed.conversation.detail.assets.map(asset => asset.sourceUri), [urlA, urlB]);
+    assert.deepEqual(parsed.conversation.detail.messages.at(-1)!.content.map(block => block.type), ['paragraph', 'image', 'paragraph', 'image', 'paragraph']);
+    answer.message!.metadata!.model_dil_v2!.constants = {};
+    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0, 'ambiguous multi-gallery ordering is never guessed');
+});
+
+test('DIL fallback norm escapes preserve all table cells and math', () => {
+    const answer = textNode('answer', 'question', 'assistant', '<table/>');
+    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: String.raw`| Check | Assertion | Purpose |
+|---|---|---|
+| Optimality | \(\\|x-\Pi(x)\\|_\infty<10^{-9}\) | Checks residual |` } };
+    const conversation = { id: 'norm', title: 'Norm', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Verify'), answer } };
+    const blocks = parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.messages.at(-1)!.content;
+    const serialized = JSON.stringify(blocks);
+    assert.ok(serialized.includes('Checks residual'));
+    const table = blocks.find(block => block.type === 'table');
+    assert.ok(table && table.type === 'table');
+    assert.equal(table.rows[0].cells.length, 3);
+    const math = table.rows[0].cells[1].children.find(node => node.type === 'inlineMath');
+    assert.ok(math && math.type === 'inlineMath');
+    assert.doesNotThrow(() => katex.renderToString(math.source, { throwOnError: true }));
+    assert.ok(serialized.includes('Vert{}'));
+    assert.ok(!serialized.includes('inlineCode'));
 });

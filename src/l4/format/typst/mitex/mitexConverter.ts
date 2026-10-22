@@ -60,7 +60,12 @@ export function convertMathWithMitex(
 
     try {
         const preprocessed = preprocessLatex(source);
-        const typst = mitexConvertMath(preprocessed);
+        // MiTeX currently prints the optional TeX row-gap argument literally.
+        // Consume only a numeric physical length after a row break; it is
+        // layout metadata, never an authored matrix entry or optional root.
+        const rowLayout = preprocessed.replace(/(\\\\+)\s*\[\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:pt|em|ex|mm|cm|in|mu)\s*\]/g,
+            (raw, slashes: string) => slashes.length % 2 === 0 ? slashes : raw);
+        const typst = mitexConvertMath(rowLayout);
 
         if (!typst || typst.trim() === '') {
             return {

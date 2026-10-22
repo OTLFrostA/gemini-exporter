@@ -120,6 +120,7 @@ def validate_dataset_freshness(dataset_path, allow_stale=False, max_age_seconds=
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini 特性驱动全流程实跑测试 (Feature-Driven Live Chat & Export Test)")
     parser.add_argument("--features", default=None, help="指定单项或多项待测特性 ID（逗号分隔，如 feat_search_filter_by_keyword,feat_language_toggle）")
+    parser.add_argument("--provider", choices=['gemini', 'chatgpt'], default='gemini', help="真实站点验收目标；Gemini 保持原有完整 DAG")
     parser.add_argument("--domain", default=None, help="指定待测生命周期领域（chat / lifecycle / takeout / workbench / export）")
     parser.add_argument("--list-features", action="store_true", help="打印所有已注册特性清单及其依赖关系拓扑")
     parser.add_argument("--pool", action="store_true", help="从动态场景池中自动消费最新多模态场景（默认行为）")
@@ -157,7 +158,14 @@ if __name__ == "__main__":
 
     try:
         with ProcessLock():
-            success = run_live_chat_and_export(
+            if args.provider == 'chatgpt':
+                if args.features or args.domain or args.takeout_zip or args.list_features:
+                    parser.error('ChatGPT runs its complete provider suite; Gemini feature/domain/Takeout selectors do not apply')
+                from scripts.framework.chatgpt_live import ChatGPTLiveRunner
+                success = ChatGPTLiveRunner(port=args.port, output_dir=args.output_dir,
+                    dataset=custom_dataset, delay=args.delay).run()
+            else:
+                success = run_live_chat_and_export(
                 dataset=custom_dataset,
                 port=args.port,
                 output_dir=args.output_dir,

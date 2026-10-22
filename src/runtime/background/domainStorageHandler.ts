@@ -35,7 +35,8 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                 return;
             } else if (request.operation === 'deleted') {
                 if (account.providerAccountId === 'default') throw new TypeError('Deletion requires an identified Account');
-                if (typeof request.conversationId !== 'string' || !/^[a-f0-9]{8,64}$/.test(request.conversationId)) throw new TypeError('Expected Gemini conversation ID');
+                const pattern = account.providerId === 'chatgpt' ? /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i : /^[a-f0-9]{8,64}$/;
+                if (typeof request.conversationId !== 'string' || !pattern.test(request.conversationId)) throw new TypeError('Expected Provider conversation ID');
                 await ingestDeletedConversation(account.id, request.conversationId);
             } else throw new TypeError('Unknown ingestion operation');
             notifyDomainChanged(account.id);

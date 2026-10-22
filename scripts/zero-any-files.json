@@ -135,5 +135,10 @@
   "src/application/export/runExport.ts",
   "src/application/export/prepareExportResources.ts",
   "src/application/export/types.ts",
-  "src/l2/sourceUri.ts"
+  "src/l2/sourceUri.ts",
+  "src/l1/sniffer/chatgpt/observation.ts",
+  "src/l1/sniffer/chatgpt/hook.ts",
+  "src/runtime/content/chatgptContent.ts",
+  "src/runtime/capabilities/chatgptInjection.ts",
+  "tests/chatgpt-capture.test.ts"
 ]

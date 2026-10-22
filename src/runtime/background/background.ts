@@ -8,11 +8,15 @@ import { listIndexes } from '../../l3a/storageService.js';
 import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
 import { updateSettings } from '../../application/settings/index.js';
+import { syncChatGPTContentScripts } from '../capabilities/chatgptInjection.js';
 
 initSessionAccessLevel();
 initLifecycleListeners();
 initUninstallUrl();
 initTabActionListeners();
+void syncChatGPTContentScripts().catch(error => console.warn('[ChatGPT injection]', error));
+chrome.permissions?.onAdded?.addListener(() => { void syncChatGPTContentScripts().catch(error => console.warn('[ChatGPT injection]', error)); });
+chrome.permissions?.onRemoved?.addListener(() => { void syncChatGPTContentScripts().catch(error => console.warn('[ChatGPT injection]', error)); });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     if (handleDomainIngestionMessage(message, sender, respond)) return true;

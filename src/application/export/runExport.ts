@@ -207,7 +207,8 @@ export async function runExport(request: ExportRequest, options: {
                 // Inline packets and expiring locators are task-owned, never cached bytes.
                 // A fresh Detail alone cannot rehydrate these resources in a later export.
                 const needsSourceReaders = request.includeAssets && conversation?.detail.assets.some(asset =>
-                    !/^https:\/\//i.test(asset.sourceUri ?? '') && !asset.document?.contentMarkdown);
+                    !/^https:\/\//i.test(asset.sourceUri ?? '') && !asset.document?.contentMarkdown
+                    && providerFor(account.providerId).canAcquireResourceDirectly?.(asset) !== true);
                 if (options.refreshDetail || !conversation || !isFresh(conversation) || needsSourceReaders) {
                     try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
                             diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic })); }

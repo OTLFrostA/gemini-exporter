@@ -1,5 +1,6 @@
 import { getAccount } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
+import { hasChatGPTAccess } from '../../l1/client/chatgpt/chatgptAccess.js';
 
 export function assertExtensionSender(sender: chrome.runtime.MessageSender): void {
     if (sender.id !== chrome.runtime.id) throw new Error('Foreign extension sender');
@@ -7,14 +8,19 @@ export function assertExtensionSender(sender: chrome.runtime.MessageSender): voi
 export function assertContentSender(sender: chrome.runtime.MessageSender): void {
     assertExtensionSender(sender);
     const url = sender.url && new URL(sender.url);
-    if (sender.tab?.id === undefined || !url || url.origin !== 'https://gemini.google.com'
+    if (sender.tab?.id === undefined || !url || !['https://gemini.google.com', 'https://chatgpt.com', 'https://chat.openai.com'].includes(url.origin)
         || (sender.frameId !== undefined && sender.frameId !== 0)) throw new Error('Unsupported Provider Content sender');
+}
+export function contentProviderId(sender: chrome.runtime.MessageSender): 'gemini' | 'chatgpt' {
+    assertContentSender(sender);
+    return new URL(sender.url!).hostname === 'gemini.google.com' ? 'gemini' : 'chatgpt';
 }
 export async function requireContentAccount(sender: chrome.runtime.MessageSender, accountId: unknown) {
     assertContentSender(sender);
     if (!isAccountId(accountId)) throw new TypeError('Expected Account UUID');
     const account = await getAccount(accountId);
-    if (!account || account.providerId !== 'gemini') throw new Error('Content Account/Provider mismatch');
+    if (!account || account.providerId !== contentProviderId(sender)) throw new Error('Content Account/Provider mismatch');
+    if (account.providerId === 'chatgpt' && !await hasChatGPTAccess()) throw new Error('ChatGPT site access revoked');
     return account;
 }
 /** Active operations must still belong to the sending document's current Account.

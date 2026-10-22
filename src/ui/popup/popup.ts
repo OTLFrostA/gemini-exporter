@@ -12,12 +12,16 @@ import { readSettings, observeSettings, useSettings, text, errorText, labelPage,
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
 export async function readActiveKey(): Promise<ConversationKey | null> {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id === undefined || tab.url && !tab.url.startsWith('https://gemini.google.com/')) return null;
+    if (tab?.id === undefined || !tab.url) return null;
+    const origin = new URL(tab.url).origin;
+    const expectedProvider = origin === 'https://gemini.google.com' ? 'gemini'
+        : ['https://chatgpt.com', 'https://chat.openai.com'].includes(origin) ? 'chatgpt' : null;
+    if (!expectedProvider) return null;
     const raw = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
     if (!raw || typeof raw !== 'object') return null;
     const response = raw as { ok?: unknown; accountContext?: { accountId?: unknown; providerId?: unknown }; conversationId?: unknown };
     if (response.ok !== true || !isAccountId(response.accountContext?.accountId)
-        || response.accountContext?.providerId !== 'gemini' || typeof response.conversationId !== 'string' || !response.conversationId)
+        || response.accountContext?.providerId !== expectedProvider || typeof response.conversationId !== 'string' || !response.conversationId)
         return null;
     return { accountId: response.accountContext.accountId, conversationId: response.conversationId };
 }
@@ -44,7 +48,7 @@ export async function initPopup(): Promise<void> {
         el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || themeSaving;
         if (identityLoaded) el('currentChatTitle').textContent = indexTitle || (key
             ? text('Current conversation', '当前对话')
-            : text('No current Gemini conversation', '当前没有 Gemini 对话'));
+            : text('No current supported conversation', '当前没有受支持的对话'));
         button.disabled = busy || !key;
         for (const btn of buttons) {
             const current = btn.dataset.format === settings?.defaultFormat;

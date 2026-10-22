@@ -233,6 +233,18 @@ test('live centered negation of implication converts without changing other cent
     }
 });
 
+test('Live ChatGPT row-gap parameters do not become formula content', async () => {
+    await initMitexWasm();
+    const withGap = String.raw`\begin{aligned}P &= a+b\\[4pt]&=c\end{aligned}`;
+    const withoutGap = String.raw`\begin{aligned}P &= a+b\\&=c\end{aligned}`;
+    const result = convertMathWithMitex(withGap);
+    assert.ok(result.typst);
+    assert.strictEqual(result.diagnostic, undefined);
+    assert.strictEqual(result.typst, convertMathWithMitex(withoutGap).typst);
+    const literal = String.raw`\sqrt[4]{x}+[4]`;
+    assert.strictEqual(convertMathWithMitex(literal).typst, mitexConvertMath(literal));
+});
+
 test('T5.2: Failed MiTeX initialization clears cached state and allows subsequent retry', async () => {
     resetMitexForTesting();
     assert.strictEqual(isMitexReady(), false);

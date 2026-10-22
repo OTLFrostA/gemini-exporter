@@ -33,13 +33,14 @@ function matches(response: unknown, accountId: string, providerId: string): bool
     const value = response as { ok?: unknown; accountContext?: { accountId?: unknown; providerId?: unknown } };
     return value.ok === true && value.accountContext?.accountId === accountId && value.accountContext.providerId === providerId;
 }
-/** Only Gemini currently has production Content injection. No slot or first-Tab fallback. */
+/** Route only through a Content document bound to the selected provider Account. */
 export async function resolveAccountTab(accountId: string): Promise<chrome.tabs.Tab> {
     if (!isAccountId(accountId)) throw new TypeError('Tab routing requires an Account UUID');
     await ensureV2Ready();
     const account = await getAccount(accountId);
-    if (!account || account.providerId !== 'gemini') throw new Error('Account has no supported Content Script');
-    const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+    if (!account || !['gemini', 'chatgpt'].includes(account.providerId)) throw new Error('Account has no supported Content Script');
+    const tabs = await chrome.tabs.query({ url: account.providerId === 'chatgpt'
+        ? ['https://chatgpt.com/*', 'https://chat.openai.com/*'] : 'https://gemini.google.com/*' });
     tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active));
     for (const tab of tabs) {
         if (tab.id === undefined) continue;
@@ -96,11 +97,11 @@ export async function checkGeminiStatus(accountId?: string): Promise<TabStatusRe
     catch (error) { return { status: 'ERROR', tab: null, error: error instanceof Error ? error.message : String(error) }; }
 }
 export async function getAITab(providerId = 'gemini', accountId?: string): Promise<chrome.tabs.Tab | null> {
-    if (providerId !== 'gemini') throw new Error('Provider has no production Content Script');
+    if (!accountId || (await getAccount(accountId))?.providerId !== providerId) throw new Error('Provider/account mismatch');
     return getGeminiTab(accountId);
 }
 export async function sendToAITab(providerId: string, message: unknown, accountId?: string, timeoutMs?: number): Promise<unknown> {
-    if (providerId !== 'gemini') throw new Error('Provider has no production Content Script');
+    if (!accountId || (await getAccount(accountId))?.providerId !== providerId) throw new Error('Provider/account mismatch');
     return sendToGeminiTab(message, accountId, timeoutMs);
 }
 async function requestTabNavigation(message: { action: 'openGeminiPage' } | { action: 'reloadGeminiTab'; tabId?: number }): Promise<unknown> {

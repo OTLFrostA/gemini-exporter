@@ -117,4 +117,19 @@ if (tail?.type === 'blockquote') {
         tree.children.pop();
     }
 }
-process.stdout.write(JSON.stringify({ text: authored(tree), codeBlocks, executionBlocks }));
+// Optional ordered source segments for provider-independent PDF comparison.
+// This walks the test grammar, never the product Domain or renderer AST.
+const segments = [];
+function collectSegments(node) {
+    if (executionNodes.has(node)) return;
+    if (['math', 'inlineMath', 'code'].includes(node.type)) {
+        segments.push({ kind: node.type === 'code' ? 'code' : 'math', text: node.value });
+    } else if (['text', 'inlineCode'].includes(node.type)) {
+        const previous = segments.at(-1);
+        if (previous?.kind === 'text') previous.text += node.value;
+        else segments.push({ kind: 'text', text: node.value });
+    } else node.children?.forEach(collectSegments);
+}
+if (evidence.segments) collectSegments(tree);
+process.stdout.write(JSON.stringify({ text: authored(tree), codeBlocks, executionBlocks,
+    ...(evidence.segments ? { segments } : {}) }));

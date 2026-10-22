@@ -60,28 +60,51 @@ function escapeText(value: string): string {
     return value.replace(/\\/g, '\\\\').replace(/[\[\]`*_<>]/g, '\\$&').replace(/\r?\n/g, ' ');
 }
 
-/** Official fallback can omit loop-generated questions entirely. Recover literal
- * data as static text and flag dynamic content whose full rendering is unknown. */
-export function chatGPTInteractiveSnapshot(raw: string, fallback?: string): { text: string; incomplete: boolean } {
+export interface ChatGPTInteractiveSnapshot {
+    text: string;
+    /** Missing a usable textual source, not missing an executable UI. */
+    incomplete: boolean;
+    representation: 'provider-fallback' | 'source-text' | 'literal-recovery' | 'unavailable';
+    interactive: boolean;
+    recoveredStrings: number;
+}
+
+/** Preserve the official textual representation independently of UI execution.
+ * Some fallbacks omit loop-generated labels; bounded literal recovery supplements
+ * them, but does not claim to reproduce handlers, selections or conditional state. */
+export function chatGPTInteractiveSnapshot(raw: string, fallback?: string): ChatGPTInteractiveSnapshot {
     if (!raw.trim() && !fallback?.trim()) return {
         text: '> Interactive content unavailable: no static source or Markdown fallback was provided.', incomplete: true,
+        representation: 'unavailable', interactive: true, recoveredStrings: 0,
     };
-    const interactive = /\{@body|\{#(?:each|if)\b/.test(raw);
-    if (!interactive) return { text: fallback?.trim() ? fallback : raw, incomplete: false };
+    const hasFallback = !!fallback?.trim();
+    const interactive = /\{@body|\{#(?:each|if)\b|<(?:radio(?:-group)?|checkbox(?:-group)?|button|select|input)\b/.test(raw);
+    if (!interactive) return { text: hasFallback ? (fallback ?? '') : raw, incomplete: false,
+        representation: hasFallback ? 'provider-fallback' : 'source-text', interactive: false, recoveredStrings: 0 };
     const text = fallback?.trim() ? fallback : '';
     const recovered: string[] = [];
+    let recoveredStrings = 0;
     if (raw.length <= 1_000_000) {
-        for (const declaration of raw.matchAll(/\{@body\s+(?:const|let)\s+[A-Za-z_$][\w$]*\s*=\s*/g)) {
+        const renderedBindings = new Set([...raw.matchAll(/\{#each\s+([A-Za-z_$][\w$]*)\s+as\b/g)]
+            .map(match => match[1]));
+        for (const declaration of raw.matchAll(/\{@body\s+(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*/g)) {
+            // Do not turn unrelated configuration arrays into visible content.
+            if (!renderedBindings.has(declaration[1])) continue;
             const value = literalAt(raw, declaration.index + declaration[0].length);
             if (!Array.isArray(value)) continue;
             for (const item of value) {
                 const labels = stringsOf(item).filter(label => label.trim() && !text.includes(label));
+                recoveredStrings += labels.length;
                 if (labels.length) recovered.push(labels.map((label, i) => `${i ? '  ' : ''}- ${escapeText(label)}`).join('\n'));
             }
         }
     }
-    // A dynamic loop/conditional cannot be certified complete by its fallback.
-    const incomplete = !text || /\{#(?:each|if)\b/.test(raw);
-    const note = incomplete ? '> Interactive content is a static snapshot; some dynamic content or selections may be unavailable.' : '';
-    return { text: [text, ...recovered, note].filter(Boolean).join('\n\n'), incomplete };
+    // The complete provider fallback is a valid source representation. Dynamic
+    // syntax alone is not evidence of lost text. Without it, literal recovery
+    // cannot establish that the entire component has been represented.
+    const incomplete = !hasFallback;
+    const note = incomplete ? '> Interactive content is incomplete: no usable Markdown fallback was provided; only recoverable static text is included.' : '';
+    return { text: [text, ...recovered, note].filter(Boolean).join('\n\n'), incomplete,
+        representation: hasFallback ? 'provider-fallback' : recovered.length ? 'literal-recovery' : 'unavailable',
+        interactive: true, recoveredStrings };
 }

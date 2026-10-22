@@ -81,6 +81,6 @@ test('v2 Runtime rejects non-UUID targets and unsupported Content providers with
     const observations = installTabs(t, [{ id: 1 }], () => { throw new Error('Must not be called'); });
     await assert.rejects(sendToGeminiTab({ action: 'fetchDetail' }, 'u0'), /Account UUID/);
     await assert.rejects(sendToAITab('chatgpt', { action: 'fetchDetail' }, selected.id),
-        /Provider has no production Content Script/);
+        /Provider\/account mismatch/);
     assert.deepEqual(observations, []);
 });

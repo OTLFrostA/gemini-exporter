@@ -198,6 +198,9 @@ export class ChatGPTProvider implements AIProvider {
         const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
+    canAcquireResourceDirectly(asset: DomainAsset): boolean {
+        return !!fileIdFromPointer(asset.sourceUri ?? '') || /^file-download:[a-zA-Z0-9_-]+$/.test(asset.sourceUri ?? '');
+    }
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
         signal?.throwIfAborted();
         readConversationKey(key);
