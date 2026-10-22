@@ -23,6 +23,7 @@ import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { geminiListFixtures } from './fixtures/providers/gemini.js';
+import { chatgptListFixtures } from './fixtures/providers/chatgpt.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 
 let storage: ReturnType<typeof indexStorage>;
@@ -237,7 +238,7 @@ test('L1 ChatGPT body quality is independent of missing image bytes', () => {
     assert.equal(parsed.conversation.detail.assets.length, 1);
 });
 test('L1 ChatGPT rejects conflicting session identity before list submission', async () => {
-    const p = new ChatGPTProvider({ fetchFn: async () => ({ ok: true, json: async () => ({ accessToken: 'token', user: { id: 'other-user' }, account: { id: 'workspace' } }) } as Response) });
+    const p = new ChatGPTProvider({ fetchFn: async () => ({ ok: true, json: async () => chatgptListFixtures.conflictingAccountSession() } as Response) });
     await assert.rejects(p.listConversations({ accountId: fixtureAccount('chatgpt').id, streamId: 'recent' }), /account mismatch/);
 });
 
