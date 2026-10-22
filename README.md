@@ -8,6 +8,8 @@
 
 **[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_en&utm_campaign=github_repo)** · [MIT License](./LICENSE)
 
+![Cumulative Chrome Web Store installs](https://raw.githubusercontent.com/OTLFrostA/gemini-exporter/stats/stats/install-growth.svg)
+
 ## ✨ What you can do
 
 - **Save one chat or many.** Export the current conversation in one click, or scan and select conversations for batch backup.
