@@ -17,6 +17,7 @@ import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
 import { DIRECT_WRITE_THRESHOLD } from '../../shared/utils/constants.js';
 import { showDirectWritePrompt } from './views/directWritePrompt.js';
+import { confirmCleanup } from './views/cleanupPrompt.js';
 import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../application/export/types.js';
 
 type Level = 'info' | 'warn' | 'error';
@@ -436,11 +437,12 @@ export async function initWorkbench(): Promise<void> {
         if (file && !busy) void importFile(file);
     });
     for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const)
-        el(id).addEventListener('click', () => {
+        el(id).addEventListener('click', async () => {
             const accountId = state.accountId;
-            if (!accountId || busy || !window.confirm(scanRecords
-                ? text('Clear all local conversations, scan coverage and export records for this account? Downloaded files and other accounts stay. Sync again to rebuild the list.', '清空当前账号的全部本地对话、扫描覆盖和导出记录？保留已下载文件及其他账号的数据。之后需要重新同步会话。')
-                : text('Clear export records? Conversations and files are kept.', '清除导出记录？保留对话和文件。'))) return;
+            if (!accountId || busy) return;
+            const account = state.accounts.find(a => a.id === accountId);
+            const name = account?.displayName || account?.email || account?.providerAccountId || accountId;
+            if (!await confirmCleanup(scanRecords, name) || busy || state.accountId !== accountId) return;
             void perform('cleanup', async () => {
                 if (scanRecords) await Cleanup.clearLocalScanRecords(accountId);
                 else await Cleanup.clearLocalExportRecords(accountId);

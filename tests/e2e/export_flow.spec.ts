@@ -20,7 +20,7 @@ test('clearing export records preserves bodies and skip preference, then explici
     await expect(page.locator('#btnClearExported')).toBeHidden();
     await page.locator('#devToggle').check();
     await expect(page.locator('#btnClearExported')).toBeVisible();
-    const before=await storedSettings(page);page.on('dialog',dialog=>{void dialog.accept();});await page.locator('#btnClearExported').click();await expect(page.locator('#status')).toHaveText('Records cleared');
+    const before=await storedSettings(page);await page.locator('#btnClearExported').click();await page.locator('#btnCleanupConfirm').click();await expect(page.locator('#status')).toHaveText('Records cleared');
     expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId)).toEqual({});expect((await storedSettings(page)).skipExported).toBe(before.skipExported);
     expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'one'}),accountId)).toBeTruthy();
     await page.locator('#btnSelectAll').click();const pending=page.waitForEvent('download');await page.locator('#btnExport').click();expect(await readFile((await(await pending).path())!,'utf8')).toContain('Answer one');

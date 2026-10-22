@@ -10,8 +10,8 @@ test('record cleanup requires confirmation and retains all bodies; a subsequent 
     await expect(page.locator('#btnClearExported')).toBeHidden();
     await page.locator('#devToggle').check();
     await expect(page.locator('#btnClearExported')).toBeVisible();
-    page.once('dialog',dialog=>dialog.dismiss());await page.locator('#btnClearExported').click();expect(Object.keys(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId))).toEqual(['one']);
-    page.once('dialog',dialog=>dialog.accept());await page.locator('#btnClearExported').click();await expect(page.locator('#status')).toHaveText('Records cleared');await expect(page.locator('#list .item')).toHaveCount(3);expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId)).toEqual({});
+    await page.locator('#btnClearExported').click();await page.locator('#btnCleanupCancel').click();expect(Object.keys(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId))).toEqual(['one']);
+    await page.locator('#btnClearExported').click();await page.locator('#btnCleanupConfirm').click();await expect(page.locator('#status')).toHaveText('Records cleared');await expect(page.locator('#list .item')).toHaveCount(3);expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId)).toEqual({});
     await page.evaluate(async id=>Reflect.get(globalThis,'uiFixture').ingestDeletedConversation(id,'another'),accountId);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(page.locator('#list .item')).toHaveCount(2);expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'unlisted'}),accountId)).toBeTruthy();
 });
 test('absence from a source list alone keeps local conversations and never manufactures deletion state',async({context,extensionId})=>{
@@ -22,11 +22,12 @@ test('absence from a source list alone keeps local conversations and never manuf
 test('explicit scan reset clears the current local list and bodies only after confirmation', async ({context,extensionId}) => {
     const page = await openOptions(context,extensionId);
     await seedConversations(page,[{id:'reset-one'},{id:'reset-two'}],{'reset-one':{exportedAt:100,format:'markdown',status:'ok'}});
-    page.once('dialog', dialog => dialog.dismiss());
     await page.locator('#btnClearScan').click();
+    await page.locator('#btnCleanupCancel').click();
     await expect(page.locator('#list .item')).toHaveCount(2);
-    page.once('dialog', dialog => { expect(dialog.message()).toContain('all local conversations'); return dialog.accept(); });
     await page.locator('#btnClearScan').click();
+    await expect(page.locator('#cleanupPromptText')).toContainText('all local conversations');
+    await page.locator('#btnCleanupConfirm').click();
     await expect(page.locator('#status')).toHaveText('Records cleared');
     await expect(page.locator('#list .item')).toHaveCount(0);
     for (const conversationId of ['reset-one','reset-two']) {

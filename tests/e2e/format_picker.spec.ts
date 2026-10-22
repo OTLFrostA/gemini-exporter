@@ -15,7 +15,7 @@ test('format picker is page-rendered and supports pointer, keyboard and dismissa
     const box = await pdf.boundingBox();
     expect(box?.height).toBeGreaterThan(20);
     await mkdir('tests/output/visual_audit', { recursive: true });
-    await page.screenshot({ path: 'tests/output/visual_audit/format_picker_dark.png' });
+    await page.screenshot({ animations: 'disabled', path: 'tests/output/visual_audit/format_picker_dark.png' });
     await pdf.click();
     await expect(select).toHaveValue('pdf');
     await expect.poll(async () => (await storedSettings(page)).defaultFormat).toBe('pdf');
@@ -39,7 +39,7 @@ test('format picker is page-rendered and supports pointer, keyboard and dismissa
     await expect(select).toHaveValue('json');
     await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').updateSettings({ theme: 'light' }));
     await select.click();
-    await page.screenshot({ path: 'tests/output/visual_audit/format_picker_light.png' });
+    await page.screenshot({ animations: 'disabled', path: 'tests/output/visual_audit/format_picker_light.png' });
     await page.keyboard.press('Escape');
     await page.close();
 });

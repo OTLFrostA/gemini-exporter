@@ -268,7 +268,7 @@ test('UI v2: settings preserve Live Save intent while scan reset clears local co
     await expect(page.locator('#liveSaveStatus')).toContainText('Paused');
     await page.locator('#format').selectOption('markdown');
     await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled(); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
-    page.on('dialog',dialog=>dialog.accept()); await page.locator('#btnClearScan').click();
+    await page.locator('#btnClearScan').click(); await page.locator('#btnCleanupConfirm').click();
     await expect(page.locator('#status')).toHaveText('Records cleared'); expect(await read(page,'clears')).toEqual([['scan',A]]);
     await expect(page.locator('#list .item')).toHaveCount(0); expect((await read(page,'settings')).enabledDisk).toBe(true);
 });
