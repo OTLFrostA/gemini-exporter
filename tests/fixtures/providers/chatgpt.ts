@@ -13,11 +13,13 @@ export interface ChatGPTListFixture {
 }
 
 export function chatgptList({
-    items = [], total = items.length, offset = 0, limit = 100,
-    cursor, hasMissingConversations,
+    items = [], total, offset, limit, cursor, hasMissingConversations,
 }: ChatGPTListFixture = {}) {
     return {
-        items: [...items], total, offset, limit,
+        items: [...items],
+        ...(total !== undefined ? { total } : {}),
+        ...(offset !== undefined ? { offset } : {}),
+        ...(limit !== undefined ? { limit } : {}),
         ...(cursor !== undefined ? { cursor } : {}),
         ...(hasMissingConversations !== undefined ? { has_missing_conversations: hasMissingConversations } : {}),
     };
