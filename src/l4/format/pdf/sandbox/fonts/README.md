@@ -2,10 +2,10 @@
 
 ## Release validation
 
-`npm run test:release-fonts` verifies the exact SHA256 of all three fonts below
+`npm run test:release-fonts` verifies the exact SHA256 of all four fonts below
 and their original license files. Unknown, renamed, missing or modified fonts,
 symlinks and embedded `data:font/` payloads in generated JavaScript fail the gate.
-The total font asset budget is 20 MiB (current total: 19,426,744 bytes).
+The total font asset budget is 22 MiB (current total: 21,409,340 bytes).
 
 Both full local `npm test` and CI run this gate after building `dist/`. This
 replaces the former blanket CJK prohibition and 5 MiB budget: the licensed CJK
@@ -36,3 +36,12 @@ Access is denied or unavailable. Device fonts remain preferred when authorized.
 - **SHA256**: `2cb2adb378a8f574213e23df697050b83c54c27df465a2015552740b2769a081`.
 - **Modification**: None; file renamed for a stable asset path, font name tables unchanged.
 - **Why bundled**: Keeps code and ASCII diagrams monospaced even when device fonts are unavailable. CJK characters in code fall back to Noto Sans CJK SC.
+
+## 4. NotoEmoji-Variable.ttf (1.9 MiB)
+
+- **Source**: Google Fonts `ofl/notoemoji/NotoEmoji[wght].ttf`, commit `8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5`.
+- **License**: SIL Open Font License 1.1 (`OFL-NotoEmoji.txt`, verbatim).
+- **Purpose**: monochrome offline emoji fallback for conversation text, without Local Font Access or network downloads. The text and monospace stacks use it after their regular fonts.
+- **SHA256**: `de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551`.
+
+The font budget increases by 2 MiB to accommodate this fallback; the existing font hashes remain unchanged.

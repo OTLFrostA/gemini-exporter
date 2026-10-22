@@ -34,6 +34,12 @@ export function errorText(error: unknown): string {
         return text(message, '请先打开 Gemini 并登录，刷新 Gemini 页面后再同步会话。');
     if (message === 'Multiple Gemini accounts are open. Select the account to scan.')
         return text(message, '当前打开了多个 Gemini 账号，请选择要同步的账号。');
+    if (message === 'Multiple Gemini accounts or ChatGPT accounts are open. Select the account to scan.')
+        return text(message, '当前打开了多个 Gemini 或 ChatGPT 账号，请选择要同步的账号。');
+    if (message === 'Open Gemini or ChatGPT, log in and connect the account before scanning.')
+        return text(message, '请打开 Gemini 并登录、刷新页面，或打开 ChatGPT 并登录后点击“连接 ChatGPT”。');
+    if (message === 'Open ChatGPT, log in and connect the selected account before scanning.')
+        return text(message, '请打开 ChatGPT，登录所选账号后点击“连接 ChatGPT”。');
     return message;
 }
 /** Translate static UI nodes only; dynamic titles, messages, paths and logs are rendered by their views. */

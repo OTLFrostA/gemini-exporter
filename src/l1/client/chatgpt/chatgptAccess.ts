@@ -3,11 +3,8 @@
  *
  * The manifest declares ChatGPT origins as `optional_host_permissions` only,
  * so updates never prompt or disable existing users. Nothing here runs on its
- * own: the provider stays unregistered and no permission is requested until a
- * future explicit user gesture calls `requestChatGPTAccess()` and then
- * `ensureChatGPTRegistered()`.
- *
- * @unverified-provider-scaffold No production caller yet by design.
+ * own: Options requests access from its Connect ChatGPT button. Account
+ * discovery registers the provider only after the user grants access.
  */
 import { ProviderRegistry } from '../providerRegistry.js';
 import { ChatGPTProvider } from './chatgptProvider.js';

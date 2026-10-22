@@ -63,7 +63,8 @@ test('ChatGPT missing image bytes does not become missing body evidence', () => 
     assert.equal(result.conversation.detail.quality.status, 'complete');
     assert.equal(result.conversation.detail.assets.length, 1);
     assert.ok(result.diagnostics.some(d => d.code === 'CHATGPT_IMAGE_ASSET_UNAVAILABLE'));
-    assert.deepEqual(result.conversation.detail.messages[0].attachmentIds, [result.conversation.detail.assets[0].id]);
+    assert.equal(result.conversation.detail.messages[0].attachmentIds, undefined);
+    assert.deepEqual(result.conversation.detail.messages[0].content.filter(b => b.type === 'image').map(b => b.assetId), [result.conversation.detail.assets[0].id]);
 });
 
 test('ChatGPT source-native paging fields remain evidence, not Domain Index fields', () => {
@@ -79,4 +80,13 @@ test('ChatGPT source-native paging fields remain evidence, not Domain Index fiel
         createdAt: 1700000000000, updatedAt: 1700000010000 }]);
     assert.equal('total' in parsed.conversations[0], false);
     assert.throws(() => parseChatGPTList({ items: [], total: 0, offset: -1, limit: 100 }), TypeError);
+});
+
+test('ChatGPT optional legacy missing flag preserves absence and rejects malformed values', () => {
+    const page = { items: [], total: 0, offset: 0, limit: 100 };
+    assert.equal(parseChatGPTList(page).hasMissingConversations, undefined);
+    assert.equal(parseChatGPTList({ ...page, has_missing_conversations: true }).hasMissingConversations, true);
+    for (const value of [null, 'false', 0, {}]) {
+        assert.throws(() => parseChatGPTList({ ...page, has_missing_conversations: value }), TypeError);
+    }
 });

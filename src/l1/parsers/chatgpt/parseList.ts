@@ -23,7 +23,7 @@ export function parseChatGPTList(value: unknown): ChatGPTListParseResult {
         || (page.cursor != null && typeof page.cursor !== 'string')
         || (page.offset != null && (typeof page.offset !== 'number' || !Number.isSafeInteger(page.offset) || page.offset < 0))
         || (page.limit != null && (typeof page.limit !== 'number' || !Number.isSafeInteger(page.limit) || page.limit <= 0))
-        || (page.has_missing_conversations != null && typeof page.has_missing_conversations !== 'boolean')) throw new TypeError('Invalid ChatGPT list page');
+        || (page.has_missing_conversations !== undefined && typeof page.has_missing_conversations !== 'boolean')) throw new TypeError('Invalid ChatGPT list page');
     const conversations = page.items.map((value: unknown) => {
         const item = record(value);
         if (typeof item.id !== 'string' || !item.id.trim()

@@ -64,6 +64,8 @@ Takeout 可以补充线上扫描无法获取的旧对话，但不能保证恢复
 
 **PDF 为什么请求读取字体？** 本地 PDF 引擎有时需要 Chrome 的 Local Font Access 权限使用本机字体，尤其是中文等非拉丁文字。PDF 仍在本机编译。
 
-**能导出 ChatGPT、Claude 或 Grok 吗？** 当前版本只实现了 Google Gemini 对话导出。
+**能导出 ChatGPT、Claude 或 Grok 吗？** 源码版实验性支持 ChatGPT 工作台扫描与导出：打开 ChatGPT 并登录，点击**连接 ChatGPT**并授予可选的网站访问权限，然后同步、导出。ChatGPT 暂不支持弹窗导出与实时保存。Claude 和 Grok 尚未实现。
+
+**ChatGPT 问卷、交互卡片怎么导出？** 静态文字优先使用来源提供的 Markdown；循环生成的表单会额外提取字面量中的题干和选项，不执行组件代码。这类动态快照会标记为不完整，因为计算内容和已选答案可能无法还原。按钮保存为文字，导出文件不会提交问卷或执行 ChatGPT 操作。
 
 开发者可参考 [v2 模块架构](../src/README.md)和[测试指南](../tests/README.md)，数据处理细节见[隐私政策](./PRIVACY_POLICY.md)。

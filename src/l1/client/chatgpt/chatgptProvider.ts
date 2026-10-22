@@ -137,7 +137,10 @@ export class ChatGPTProvider implements AIProvider {
             // An absent cursor by itself cannot prove source exhaustion.
             const valid = result.total !== undefined && result.total >= offset + count
                 && result.offset === offset && result.limit === 100
-                && result.hasMissingConversations === false
+                // Current backend responses omit this legacy flag. The total,
+                // offset and page size still prove exhaustion; an explicit
+                // missing-conversations warning must continue to reject it.
+                && result.hasMissingConversations !== true
                 && count <= 100 && (sourceEnd || count === 100)
                 && (expectedTotal === undefined || expectedTotal === result.total);
             expectedTotal ??= result.total;
@@ -209,7 +212,9 @@ export class ChatGPTProvider implements AIProvider {
             const bytes = new Uint8Array(await response.arrayBuffer());
             signal?.throwIfAborted();
             if (!bytes.byteLength) throw new ResourceProcessingError('Empty ChatGPT resource');
-            return { bytes, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
+            const mediaType = asset.mediaType ?? exchange.mimeType ?? response.headers.get('content-type')?.split(';')[0].trim();
+            const name = asset.name ?? exchange.fileName;
+            return { bytes, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
         };
         return this.resources ? this.resources.acquire(key, asset, signal, remote) : remote();
     }

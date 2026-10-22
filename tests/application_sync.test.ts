@@ -28,10 +28,10 @@ test('Scan All fails closed on an invalid UUID or unverified online Account befo
     assert.deepEqual(await scanAll({ accountId: 'not-a-uuid' }), {
         status: 'error', pagesFetched: 0, conversationsFetched: 0, reason: 'Invalid account UUID',
     });
-    for (const unavailable of [null, { ...account, providerAccountId: 'default' }, { ...account, providerId: 'chatgpt' }]) {
+    for (const unavailable of [null, { ...account, providerAccountId: 'default' }, { ...account, providerId: 'unsupported' }]) {
         state.accountOverride = unavailable;
         assert.deepEqual(await scanAll({ accountId: account.id }), {
-            status: 'error', pagesFetched: 0, conversationsFetched: 0, reason: 'Verified Gemini account unavailable',
+            status: 'error', pagesFetched: 0, conversationsFetched: 0, reason: 'Verified provider account unavailable',
         });
     }
     assert.equal(reads, 0);
@@ -47,6 +47,18 @@ test('trusted empty Recent result can be complete without manufacturing a Covera
     });
     assert.deepEqual(progress, []);
     assert.equal(reads, 1); assert.equal(checks.length, 0);
+});
+
+test('Scan All accepts a verified ChatGPT account and passes its UUID to the registered provider', async () => {
+    state.accountOverride = { ...account, providerId: 'chatgpt', providerAccountId: '["user","workspace"]' };
+    provider.listConversations = async options => {
+        assert.equal(options.accountId, account.id);
+        await options.onPageCommitted!({ page: 1, totalObserved: 2, scanHead: head });
+        return 'source_end';
+    };
+    assert.deepEqual(await scanAll({ accountId: account.id }), {
+        status: 'complete', pagesFetched: 1, conversationsFetched: 2,
+    });
 });
 test('unexpected Provider termination becomes a structured error, never undefined', async () => {
     provider.listConversations = async () => 'unknown_end' as ListEnd;

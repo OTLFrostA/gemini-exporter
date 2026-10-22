@@ -32,12 +32,13 @@ export async function scanAll(request: ScanRequest, options: {
     try {
         options.signal?.throwIfAborted();
         const account = await getAccount(accountId);
-        // Runtime resolves the current verified Gemini source; a local/offline default account
+        // Runtime resolves a verified online source; a local/offline default account
         // is not an online identity and must never launch a successful Scan All.
-        if (!account || account.providerId !== 'gemini' || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
-            return result('error', 'Verified Gemini account unavailable');
+        if (!account || !['gemini', 'chatgpt'].includes(account.providerId) || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
+            return result('error', 'Verified provider account unavailable');
         }
-        const provider = ProviderRegistry.get(account.providerId) ?? defaultGeminiProvider;
+        const provider = ProviderRegistry.get(account.providerId)
+            ?? (account.providerId === 'gemini' ? defaultGeminiProvider : undefined);
         if (!provider) throw new Error('Account provider unavailable');
         const previous = await CoverageAdmission.getCoverage(accountId, 'recent');
         const baseline = previous ? structuredClone(previous) : null;

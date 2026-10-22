@@ -1,3 +1,4 @@
+import { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
 import { contentQuality } from '../qualityEvidence.js';
@@ -108,12 +109,6 @@ function messageOfNode(
     ctx: MarkdownParseContext,
 ): DomainMessage {
     const content: BlockNode[] = [];
-    const attachmentIds: string[] = [];
-    const addAttachmentId = (assetId: string): void => {
-        if (!attachmentIds.includes(assetId)) {
-            attachmentIds.push(assetId);
-        }
-    };
     // P0: asset identity is conversation-global (closure rejects duplicates),
     // so repeated pointers reuse the first asset instead of pushing a twin.
     const claim = (assetId: string): boolean => {
@@ -156,7 +151,6 @@ function messageOfNode(
                 });
             }
         }
-        addAttachmentId(assetId);
         content.push({ type: 'image', assetId });
     }
     for (const file of uploadedFilesOfChatGPTNode(node)) {
@@ -173,7 +167,6 @@ function messageOfNode(
                 sourceUri: `file-download:${file.id}`,
             });
         }
-        addAttachmentId(assetId);
         content.push({ type: 'file', assetId, label: file.name });
     }
     const citations = citationsOfChatGPTNode(node);
@@ -185,7 +178,6 @@ function messageOfNode(
         model,
         content,
         timestamp: chatGPTTimestamp(node.message?.create_time),
-        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
         ...(() => {
             const reasoning = thinking ? reasoningOfThinking(thinking, node.id, ctx) : [];
             return reasoning.length > 0 ? { reasoning } : {};
@@ -220,6 +212,17 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
         sourceRef: { providerId: 'chatgpt', locator: `conversation:${conversation.id}` },
     };
     const nodes = processChatGPTMapping(conversation);
+    const interactiveIncomplete = nodes.some(node => {
+        const raw = conversation.mapping[node.id]?.message;
+        return !!raw?.metadata?.model_dil_v2 && raw.content.content_type === 'text' && chatGPTInteractiveSnapshot(
+            (raw.content.parts ?? []).join(''), raw.metadata?.model_dil_v2?.fallbackMarkdown).incomplete;
+    });
+    if (interactiveIncomplete) contentDiagnostics.push({
+        id: 'chatgpt-interactive-static-snapshot', severity: 'warning',
+        code: 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE',
+        message: 'Interactive content exported as a static snapshot; dynamic content or selections may be unavailable.',
+        sourceRef: ctx.sourceRef,
+    });
     const branchSlug = extractChatGPTModelSlug(conversation.mapping, nodes);
     const startId = conversation.current_node || nodes[nodes.length - 1]?.id || '';
     const thinkingByNode = collectChatGPTThinking(
@@ -252,7 +255,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
                 title: conversation.title?.trim() || '', titleSource: 'provider',
                 createdAt: chatGPTTimestamp(conversation.create_time), updatedAt: sourceVersion,
                 messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
-            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: branchCoverage(conversation) }), assets, messages },
+            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: interactiveIncomplete ? 'partial' : branchCoverage(conversation) }), assets, messages },
         },
         diagnostics: contentDiagnostics,
         acquisitionHints,
