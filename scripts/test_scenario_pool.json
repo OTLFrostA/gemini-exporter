@@ -1,46 +1,5 @@
 [
   {
-    "id": "control_theory_discrete_lyapunov_stability",
-    "domain": "control_theory_discrete_lyapunov",
-    "title": "Discrete control: Lyapunov stability and verified state evolution",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a two-state discrete-time linear control system. State the Lyapunov equation in LaTeX and explain the distinction between stability, controllability and observability in English and Chinese.",
-      "Derive a quadratic Lyapunov certificate for a concrete stable 2 by 2 rational matrix. Show every arithmetic step and present principal-minor tests in a Markdown table.",
-      "Write runnable standard-library Python that solves the discrete Lyapunov equation by elimination, simulates state trajectories, and asserts monotonic decrease of the quadratic energy.",
-      "Compare stable, marginal and unstable two-state matrices in a Markdown table. Include negative tests where the equation is singular or a computed matrix fails positive definiteness.",
-      "Design a reproducible stability audit with rational and floating-point residual checks. Provide equations, complete Python tests and a Markdown report distinguishing a numerical certificate from a formal proof."
-    ]
-  },
-  {
-    "id": "mechanics_rigid_body_inertia_principal_axes",
-    "domain": "mechanics_rigid_body_inertia",
-    "title": "Rigid-body inertia: principal axes and rotation audits",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define the inertia tensor for a finite collection of point masses in three dimensions. State its units, symmetry and quadratic-energy meaning in LaTeX.",
-      "Derive the parallel-axis theorem from the point-mass definition and work a concrete asymmetric example. Show intermediate center-of-mass values in a Markdown table.",
-      "Write complete standard-library Python for center of mass, inertia tensors and kinetic energy. Include assertions for tensor symmetry and nonnegative rotational energy.",
-      "Derive how the tensor transforms under a proper orthogonal rotation. Verify invariance of trace, determinant and rotational kinetic energy with explicit matrices.",
-      "Implement a Jacobi eigensolver for symmetric 3 by 3 matrices using standard-library Python. Test residuals, orthogonality and repeated eigenvalues.",
-      "Compare a linear mass arrangement, planar triangle and noncoplanar arrangement in a Markdown table of ranks, principal moments and physically unobservable axes.",
-      "Explain failure cases involving zero total mass, negative masses, nearly collinear coordinates and incorrect unit conversions. Provide deterministic rejection tests.",
-      "Build a reproducible principal-axis audit with fixed synthetic mass sets. Include runnable tests, LaTeX uncertainty bounds and a Markdown report distinguishing numerical conditioning from physical ambiguity."
-    ]
-  },
-  {
     "id": "numerical_optimization_projected_gradient_simplex",
     "domain": "numerical_optimization_simplex",
     "title": "Constrained optimization: projected gradients on the simplex",
@@ -411,6 +370,47 @@
       "Compare Lamport, vector and hybrid clocks on the same event graph with code and a Markdown table. Show an explicit pair of concurrent events with ordered HLC timestamps.",
       "Describe persistence across process restart and a node identifier tie breaker. Separate uniqueness requirements from causality and avoid treating untrusted future timestamps as harmless.",
       "Write a detailed Chinese-English reproducibility audit with formulas, execution trace, executable assertions and limits concerning partitions, clock synchronization and malicious peers."
+    ]
+  },
+  {
+    "id": "hydrology_reservoir_mass_balance_implicit_euler",
+    "domain": "hydrology_reservoir_mass_balance",
+    "title": "Reservoir routing: conserved water and implicit time steps",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a small reservoir mass-balance model with rainfall inflow, evaporation and a linear outlet. State units and initial conditions in English and Chinese, with LaTeX equations.",
+      "Derive explicit and implicit Euler updates for a linear reservoir. Give a concrete rational example and a Markdown table comparing stability and nonnegative storage.",
+      "Write runnable standard-library Python for a rainfall pulse, asserting water balance at each time step and rejecting negative time steps or invalid coefficients.",
+      "Construct a Markdown table comparing dry weather, a single storm and repeated storms. Explain how reducing the time step changes storage error and peak outflow.",
+      "Provide a reproducible numerical audit with analytic solutions for constant forcing, complete Python tests, LaTeX error bounds and a concise Markdown report."
+    ]
+  },
+  {
+    "id": "logistics_min_cost_circulation_dual_audit",
+    "domain": "logistics_min_cost_circulation",
+    "title": "Relief logistics: minimum-cost flows and dual certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Create a four-node relief-supply network with integer capacities and transport costs. Give a Markdown edge table and define supply balance and objective in LaTeX.",
+      "Find a feasible integer flow for the network and explain each node conservation check in English and Chinese.",
+      "Derive reduced costs using vertex potentials. Show an improving residual cycle and calculate its exact cost change with LaTeX.",
+      "Write standard-library Python that builds forward and reverse residual edges, preserves capacities and verifies every flow update.",
+      "Implement a small minimum-cost circulation solver with deterministic tie breaking, including a worked example and a Markdown iteration table.",
+      "Add negative tests for infeasible supplies, disconnected demand, zero capacity and negative-cost cycles. Explain which cases are infeasibility versus optimization.",
+      "Build an independent exhaustive checker for tiny integer networks and compare its optimum with the solver, reporting discrepancies as a Markdown table.",
+      "Write a final reproducible audit with primal conservation checks, a dual reduced-cost certificate, complete Python tests and a discussion of computational limits."
     ]
   }
 ]

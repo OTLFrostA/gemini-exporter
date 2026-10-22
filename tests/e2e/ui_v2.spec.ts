@@ -244,7 +244,7 @@ test('UI v2: account switch clears selection and only selected current keys expo
     expect((await read(page,'exports'))[0].keys).toEqual([{accountId:B,conversationId:'b'}]);
 });
 test('UI v2: Takeout prompts at 151 committed records regardless of Scan reason', async ({ page }) => {
-    await mount(page,'options',{accounts:[],indexes:[],holdScan:true}); await expect(page.locator('#btnSyncAll')).toBeEnabled();
+    await mount(page,'options',{indexes:[],holdScan:true}); await expect(page.locator('#btnSyncAll')).toBeEnabled();
     await page.locator('#btnSyncAll').click(); await expect(page.locator('#status')).toHaveText('Committed 2 pages, 150 source entries');
     expect(await read(page,'scans')).toEqual([{accountId:A}]);
     await page.evaluate(()=>{(window as any).harness.finishScan();});
@@ -268,7 +268,7 @@ test('UI v2: settings preserve Live Save intent while scan reset clears local co
     await expect(page.locator('#liveSaveStatus')).toContainText('Paused');
     await page.locator('#format').selectOption('markdown');
     await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled(); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
-    page.on('dialog',dialog=>dialog.accept()); await page.locator('#btnClearScan').click();
+    await page.locator('#btnClearScan').click(); await page.locator('#btnCleanupConfirm').click();
     await expect(page.locator('#status')).toHaveText('Records cleared'); expect(await read(page,'clears')).toEqual([['scan',A]]);
     await expect(page.locator('#list .item')).toHaveCount(0); expect((await read(page,'settings')).enabledDisk).toBe(true);
 });

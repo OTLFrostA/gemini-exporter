@@ -1,3 +1,4 @@
+import { chatGPTInteractiveSnapshot } from '../src/l1/parsers/chatgpt/interactiveSnapshot.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { getDetail } from '../src/l3a/storageService.js';
@@ -292,7 +293,10 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     assert.equal(detail.assets.length, 2);
     assert.equal(detail.assets[0].sourceUri, 'sediment://file_cat');
     const key = { accountId: account.id, conversationId: 'conv-img' };
-    assert.deepEqual((await provider.acquireResource(key, detail.assets[0])).bytes, pngBytes);
+    const downloaded = await provider.acquireResource(key, detail.assets[0]);
+    assert.deepEqual(downloaded.bytes, pngBytes);
+    assert.equal(downloaded.mediaType, 'image/png');
+    assert.equal(downloaded.name, 'cat.png');
     await assert.rejects(provider.acquireResource(key, detail.assets[1]), /404/);
     assert.equal(detail.quality.status, 'complete');
     const after = await getDetail(storageIdentity('chatgpt', account.id, 'conv-img'));
@@ -300,7 +304,8 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     const userMsg = detail.messages.find(m => m.id === 'u1');
     assert.deepEqual(userMsg?.content.map(b => b.type), ['paragraph', 'image', 'paragraph']);
     const toolMsg = detail.messages.find(m => m.id === 't1');
-    assert.deepEqual(toolMsg?.attachmentIds, [detail.assets[1].id]);
+    assert.equal(toolMsg?.attachmentIds, undefined);
+    assert.deepEqual(toolMsg?.content.filter(b => b.type === 'image').map(b => b.assetId), [detail.assets[1].id]);
 
 });
 
@@ -454,7 +459,7 @@ test('repeated image pointers reuse one asset instead of breaking closure', () =
     });
     assert.equal(parsed.conversation.detail.assets.length, 1);
     assert.deepEqual(
-        parsed.conversation.detail.messages.filter((m) => m.id === 't1' || m.id === 't2').map((m) => m.attachmentIds),
+        parsed.conversation.detail.messages.filter((m) => m.id === 't1' || m.id === 't2').map((m) => m.content.filter(b => b.type === 'image').map(b => b.assetId)),
         [['img-file_dup'], ['img-file_dup']],
     );
 });
@@ -543,6 +548,50 @@ test('listConversations paginates until the reported total is reached', async ()
 
 });
 
+test('ChatGPT current list schema without the legacy missing flag traverses all pages', async () => {
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
+    const offsets: number[] = [];
+    const committed: Array<{ page: number; total: number; trustedHead: boolean }> = [];
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({
+            accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' },
+        }));
+        const offset = Number(new URL(url).searchParams.get('offset'));
+        offsets.push(offset);
+        return new Response(JSON.stringify({
+            items: Array.from({ length: offset === 0 ? 100 : 2 }, (_, i) => ({
+                id: `conversation-${offset + i}`, title: `Conversation ${offset + i}`,
+                create_time: 1, update_time: 1000 - offset - i,
+            })),
+            total: 102, limit: 100, offset,
+        }));
+    } });
+    assert.equal(await provider.listConversations({
+        accountId: account.id, streamId: 'recent',
+        onPageCommitted: async page => {
+            committed.push({ page: page.page, total: page.totalObserved, trustedHead: !!page.scanHead });
+            return false;
+        },
+    }), 'source_end');
+    assert.deepEqual(offsets, [0, 100]);
+    assert.deepEqual(committed, [
+        { page: 1, total: 100, trustedHead: true },
+        { page: 2, total: 102, trustedHead: false },
+    ]);
+    assert.equal((await getConversations(account.id)).length, 102);
+});
+
+test('ChatGPT empty current list schema proves source exhaustion', async () => {
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
+    const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
+        url.endsWith('/api/auth/session')
+            ? { accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } }
+            : { items: [], total: 0, limit: 100, offset: 0 },
+    )) });
+    assert.equal(await provider.listConversations({ accountId: account.id, streamId: 'recent' }), 'source_end');
+    assert.equal((await getConversations(account.id)).length, 0);
+});
+
 test('ChatGPT Detail never relabels a foreign source conversation ID', async () => {
     const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
         String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : { id: 'other-conversation' },
@@ -561,6 +610,11 @@ test('ChatGPT list refuses source_end when pagination, ordering or completeness 
         { items: [{ id: 'missing-row', title: 'Incomplete', update_time: 2 }], total: 1, limit: 100, offset: 0, has_missing_conversations: true },
         { items: [{ id: 'wrong-offset', title: 'Wrong offset', update_time: 2 }], total: 1, limit: 100, offset: 100, has_missing_conversations: false },
         { items: [{ id: 'missing-total', title: 'Missing total', update_time: 2 }], limit: 100, offset: 0, has_missing_conversations: false },
+        // Omitting the legacy flag cannot compensate for incomplete page evidence.
+        { items: [{ id: 'short-page', title: 'Short page', update_time: 2 }], total: 2, limit: 100, offset: 0 },
+        { items: [{ id: 'no-total', title: 'No total', update_time: 2 }], limit: 100, offset: 0 },
+        { items: [{ id: 'bad-offset', title: 'Bad offset', update_time: 2 }], total: 1, limit: 100, offset: 100 },
+        { items: [{ id: 'no-limit', title: 'No limit', update_time: 2 }], total: 1, offset: 0 },
     ];
     for (const page of cases) {
         const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
@@ -597,4 +651,64 @@ test('optional access helper never prompts and registers only on grant', async (
         ProviderRegistry.unregister('chatgpt');
         holder.chrome = previous;
     }
+});
+
+test('Intelligent UI questionnaires use the provider fallback without executing or exporting component code', () => {
+    const raw = '<radio-group value={issue}><radio>Menu unavailable</radio></radio-group>';
+    const fallback = 'Which issue?\n\nMenu unavailable\n\nCannot switch\n\nWhich platform?\n\nBrowser\n\nMobile\n\n[Diagnose]';
+    const assistant = textNode('answer', 'question', 'assistant', raw);
+    assistant.message!.metadata = { model_dil_v2: { fallbackMarkdown: fallback } };
+    const conversation: ChatGPTApiConversationWithId = {
+        id: 'questionnaire', title: 'Questionnaire', create_time: 1, update_time: 2,
+        current_node: 'answer', is_archived: false,
+        mapping: {
+            root: { id: 'root', children: ['question'] },
+            question: textNode('question', 'root', 'user', 'Help me diagnose'),
+            answer: assistant,
+        },
+    };
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    const body = JSON.stringify(parsed.conversation.detail.messages[1].content);
+    for (const label of ['Which issue?', 'Menu unavailable', 'Cannot switch', 'Which platform?', 'Browser', 'Mobile', 'Diagnose'])
+        assert.ok(body.includes(label), `missing questionnaire label: ${label}`);
+    assert.ok(!body.includes('radio-group'));
+    assert.ok(!body.includes('value={issue}'));
+    assert.equal(assistant.message!.content.content_type, 'text');
+    assert.equal((assistant.message!.content as { parts: string[] }).parts[0], raw, 'raw source remains unchanged');
+});
+
+
+test('Loop-generated questionnaire data survives an official fallback that omits every question', () => {
+    const raw = `{@body const questions = [{q:"Which waste?",opts:["Peels","Plastic","Glass"]},{q:"How to aerate?",opts:["Mix","Seal","Flood"]}]}
+{#each questions as question, i}<text>{question.q}</text>{/each}`;
+    const snapshot = chatGPTInteractiveSnapshot(raw, '# Compost quiz\n\n[Submit]');
+    assert.equal(snapshot.incomplete, true);
+    for (const label of ['Which waste?', 'Peels', 'Plastic', 'Glass', 'How to aerate?', 'Mix', 'Seal', 'Flood', '[Submit]'])
+        assert.ok(snapshot.text.includes(label), label);
+    assert.ok(!snapshot.text.includes('{#each'));
+    const answer = textNode('answer', 'question', 'assistant', raw);
+    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: '# Compost quiz\n\n[Submit]' } };
+    const parsed = parseChatGPTConversation({ assetsByNode: new Map(), conversation: {
+        id: 'dynamic-quiz', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
+    } });
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    assert.ok(parsed.diagnostics.some(item => item.code === 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE'));
+    assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('Peels'));
+});
+
+test('Interactive snapshot rejects executable bindings and handles empty fallback-only source', () => {
+    for (const expression of ['fetch("https://invalid.example")', '[{q:run()}]', '["hidden"].map(run)', '["hidden"] + run()', '[...secrets]', '[{get q(){return "hidden"}}]']) {
+        const snapshot = chatGPTInteractiveSnapshot(`{@body const questions = ${expression}}{#each questions as q}<text>{q}</text>{/each}`, '[Submit]');
+        assert.equal(snapshot.incomplete, true);
+        assert.ok(!snapshot.text.includes('hidden'));
+        assert.ok(!snapshot.text.includes('fetch('));
+    }
+    const answer = textNode('answer', 'question', 'assistant', '');
+    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: 'Question and options' } };
+    assert.equal(shouldSkipChatGPTMessage(answer.message), false);
+    answer.message!.metadata = { model_dil_v2: {} };
+    assert.equal(shouldSkipChatGPTMessage(answer.message), false);
+    assert.equal(chatGPTInteractiveSnapshot('').incomplete, true);
+    assert.ok(chatGPTInteractiveSnapshot('{@body const q = [{"text" : "safe <tag> *value*", "opts": ["a", "b"]}]}{#each q as x}', 'Submit').text.includes('safe \\<tag\\> \\*value\\*'));
 });

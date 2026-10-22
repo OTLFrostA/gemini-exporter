@@ -27,10 +27,12 @@ function load(stubs: Record<string, unknown> = {}) {
         return require(file);
     } finally { Module._load = original; }
 }
-function router() {
+function router(stubs: Record<string, unknown> = {}) {
     return load({
         'src/l3a/storageService.js': { getAccount: async (id: string) => accounts[id] ?? null },
-        'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} }
+        'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
+        'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} },
+        ...stubs,
     });
 }
 function withChrome(t: { after: (fn: () => void) => void }, value: unknown) {
@@ -99,6 +101,27 @@ test('Unknown/default source identity is not a Scan target even if Content repli
         } });
         await assert.rejects(router().resolveScanTarget(B), /Open Gemini/);
     } finally { accounts[B] = { id: B, providerId: 'gemini', providerAccountId: 'gaia-b' }; }
+});
+
+test('ChatGPT discovery resolves the selected provider and never falls back to Gemini after logout', async t => {
+    const gpt = { id: B, providerId: 'chatgpt', providerAccountId: '["user","workspace"]' };
+    const previous = accounts[B]; accounts[B] = gpt;
+    t.after(() => { accounts[B] = previous; });
+    let available = true;
+    let discoveryCalls = 0;
+    withChrome(t, { runtime: { lastError: null }, tabs: {
+        query: async () => [{ id: 1 }],
+        sendMessage: (_: number, __: unknown, cb: Function) => cb({ ok: true, accountContext: { accountId: A, providerId: 'gemini' } }),
+    } });
+    const route = router({ 'src/runtime/capabilities/chatgptDiscovery.js': {
+        discoverChatGPTAccounts: async () => { discoveryCalls++; return available ? [gpt] : []; },
+    } });
+    assert.equal(await route.resolveScanTarget(A), A);
+    assert.equal(discoveryCalls, 0, 'Gemini preference does not contact ChatGPT');
+    await assert.rejects(route.resolveScanTarget(), /Multiple Gemini accounts or ChatGPT/);
+    assert.equal(await route.resolveScanTarget(B), B);
+    available = false;
+    await assert.rejects(route.resolveScanTarget(B), /Open ChatGPT/);
 });
 
 test('Content operation fixes target Account once and never fails over after send failure', async t => {

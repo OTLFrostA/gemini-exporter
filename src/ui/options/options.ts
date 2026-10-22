@@ -11,12 +11,14 @@ import type { ScanResult } from '../../application/sync/scanController.js';
 import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
+import { discoverChatGPTAccounts, requestChatGPTConnection } from '../../runtime/capabilities/chatgptDiscovery.js';
 import { renderList } from './views/listView.js';
 import { readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
 import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constants.js';
 import { showDirectWritePrompt } from './views/directWritePrompt.js';
+import { confirmCleanup } from './views/cleanupPrompt.js';
 import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../application/export/types.js';
 
 type Level = 'info' | 'warn' | 'error';
@@ -137,7 +139,7 @@ export async function initWorkbench(): Promise<void> {
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
             'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan',
             'chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
-            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide'];
+            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide','btnConnectChatGPT'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
             el<HTMLInputElement>(id).disabled = !settings || presentationSaving;
@@ -157,14 +159,14 @@ export async function initWorkbench(): Promise<void> {
         for (const account of state.accounts) {
             const option = document.createElement('option');
             option.value = account.id;
-            option.textContent = account.displayName || account.email || `${account.providerId} · ${account.providerAccountId}`;
+            option.textContent = `${account.providerId === 'chatgpt' ? 'ChatGPT · ' : ''}${account.displayName || account.email || `${account.providerId} · ${account.providerAccountId}`}`;
             selector.append(option);
         }
         selector.value = state.accountId ?? '';
         selector.style.display = state.accounts.length < 2 ? 'none' : 'inline-flex';
         const account = state.accounts.find(a => a.id === state.accountId);
         const name = account?.displayName || account?.email || account?.providerAccountId || text('No local account', '暂无本地账户');
-        el('accountName').textContent = state.accounts.length < 2 ? name : '';
+        el('accountName').textContent = state.accounts.length < 2 ? `${account?.providerId === 'chatgpt' ? 'ChatGPT · ' : ''}${name}` : '';
         el('takeoutAccountName').textContent = state.accountId
             ? account?.providerId === 'gemini' ? `→ ${name}` : text('Select Gemini', '请选择 Gemini')
             : text('First import', '首次导入');
@@ -184,10 +186,12 @@ export async function initWorkbench(): Promise<void> {
             // Changing the export destination or format pauses Live Save without forgetting intent.
             el<HTMLInputElement>('liveSaveDiskToggle').checked = settings.enabledDisk;
             el<HTMLInputElement>('liveSaveDiskToggle').disabled =
-                busy || !folderSelected || settings.defaultFormat !== 'markdown' || !directoryAvailable;
+                busy || account?.providerId === 'chatgpt' || !folderSelected || settings.defaultFormat !== 'markdown' || !directoryAvailable;
             const liveStatus = el<HTMLElement>('liveSaveStatus');
             liveStatus.hidden = !settings.enabledDisk;
-            liveStatus.textContent = isLiveSaveEffective(settings, directoryAvailable)
+            liveStatus.textContent = account?.providerId === 'chatgpt'
+                ? text('Paused: Live Save is available for Gemini', '已暂停 · 实时保存仅支持 Gemini')
+                : isLiveSaveEffective(settings, directoryAvailable)
                 ? text('Live Save active', '实时保存已开启')
                 : !folderSelected
                     ? text('Paused: select local folder to resume', '已暂停 · 选择本地文件夹后恢复')
@@ -230,7 +234,7 @@ export async function initWorkbench(): Promise<void> {
             const connected = await resolveScanTarget(accountId);
             // An intervening operation/account switch must keep its own status.
             if (connected === accountId && state.accountId === accountId && !busy && connectionError === previousError)
-                status(() => text('Gemini connected. Sync conversations to refresh history.', 'Gemini 已连接，可同步会话更新历史。'));
+                status(() => text('Account connected. Sync conversations to refresh history.', '账号已连接，可同步会话更新历史。'));
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
     };
     const select = async (id: string) => {
@@ -253,7 +257,8 @@ export async function initWorkbench(): Promise<void> {
         catch (error) {
             statusError(error);
             if (kind === 'scan' && error instanceof Error &&
-                error.message === 'Open Gemini, log in and refresh the page before scanning.')
+                (error.message === 'Open Gemini or ChatGPT, log in and connect the account before scanning.'
+                    || error.message === 'Open Gemini, log in and refresh the page before scanning.'))
                 connectionError = error.message;
         }
         finally {
@@ -325,7 +330,7 @@ export async function initWorkbench(): Promise<void> {
     const scan = (forceFull = false) => perform('scan', async () => {
         const startedAt = Date.now();
         const signal = controller!.signal;
-        status(() => text('Resolving Gemini source…', '正在确认 Gemini 来源…'));
+        status(() => text('Resolving conversation source…', '正在确认会话来源…'));
         const slowHint = el<HTMLElement>('scanSlowHint');
         const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
             onTarget: select, onProgress: p => {
@@ -350,7 +355,8 @@ export async function initWorkbench(): Promise<void> {
             // Keep upstream diagnostic details in the log without exposing untranslated UI text.
             result.status === 'error' ? `Scan failed (${result.reason ?? 'unknown'}) · ${result.pagesFetched} / ${result.conversationsFetched}` : undefined);
         settings = await readSettings();
-        if (result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
+        if (state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini'
+            && result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
             const shown = TourGuide.showTakeoutPrompt(result.conversationsFetched,
                 () => {},
                 () => { fileInput.click(); },
@@ -363,6 +369,18 @@ export async function initWorkbench(): Promise<void> {
         }
     }, true);
     el('btnSyncAll').addEventListener('click', () => { void scan(); });
+    el('btnConnectChatGPT').addEventListener('click', () => {
+        if (busy) return;
+        // Start the optional permission request inside the browser user gesture.
+        const access = requestChatGPTConnection();
+        void perform('scan', async () => {
+            if (!await access) throw new Error(text('ChatGPT access was not granted.', '未授予 ChatGPT 访问权限。'));
+            const accounts = await discoverChatGPTAccounts();
+            if (!accounts.length) throw new Error(text('Open ChatGPT and log in, then connect again.', '请打开 ChatGPT 并登录，然后重新连接。'));
+            await select(accounts[0].id);
+            status(text('ChatGPT connected. Sync conversations to load history.', 'ChatGPT 已连接，点击同步会话加载历史。'));
+        });
+    });
     el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scan(true); });
     const cancel = () => { controller?.abort(); status(() => text('Cancelling…', '正在取消…'), 'warn'); };
     el('btnCancel').addEventListener('click', cancel);
@@ -460,11 +478,12 @@ export async function initWorkbench(): Promise<void> {
         if (file && !busy) void importFile(file);
     });
     for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const)
-        el(id).addEventListener('click', () => {
+        el(id).addEventListener('click', async () => {
             const accountId = state.accountId;
-            if (!accountId || busy || !window.confirm(scanRecords
-                ? text('Clear all local conversations, scan coverage and export records for this account? Downloaded files and other accounts stay. Sync again to rebuild the list.', '清空当前账号的全部本地对话、扫描覆盖和导出记录？保留已下载文件及其他账号的数据。之后需要重新同步会话。')
-                : text('Clear export records? Conversations and files are kept.', '清除导出记录？保留对话和文件。'))) return;
+            if (!accountId || busy) return;
+            const account = state.accounts.find(a => a.id === accountId);
+            const name = account?.displayName || account?.email || account?.providerAccountId || accountId;
+            if (!await confirmCleanup(scanRecords, name) || busy || state.accountId !== accountId) return;
             void perform('cleanup', async () => {
                 if (scanRecords) await Cleanup.clearLocalScanRecords(accountId);
                 else await Cleanup.clearLocalExportRecords(accountId);

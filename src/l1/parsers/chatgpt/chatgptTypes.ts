@@ -1,6 +1,6 @@
 /**
  * ChatGPT raw backend-api shapes, ported from pionxzh/chatgpt-exporter (MIT).
- * @unverified-provider-scaffold Real payloads not yet verified against 9222 test profile.
+ * Session, list and mapping payloads verified against the logged-in 9222 test profile.
  */
 
 /** Author role used by ChatGPT mapping nodes. */
@@ -80,7 +80,7 @@ export interface ChatGPTApiConversationItem {
 }
 
 export interface ChatGPTApiConversations {
-    has_missing_conversations: boolean;
+    has_missing_conversations?: boolean;
     items: ChatGPTApiConversationItem[];
     limit: number;
     offset: number;

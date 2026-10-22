@@ -31,6 +31,7 @@ export const BUNDLED_FONT_PATHS: readonly string[] = [
     'src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf',
     'src/l4/format/pdf/sandbox/fonts/NotoSansCJKsc-Regular.otf',
     'src/l4/format/pdf/sandbox/fonts/NotoSansMono-Variable.ttf',
+    'src/l4/format/pdf/sandbox/fonts/NotoEmoji-Variable.ttf',
 ];
 
 export interface ParsedProtocolMessage {

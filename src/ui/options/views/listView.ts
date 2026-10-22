@@ -97,9 +97,10 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
 
         const open = document.createElement('a');
         // Never link a provider-supplied URL. Construct a fixed-origin destination from the trusted conversation ID.
-        open.href = 'https://gemini.google.com/app/' + encodeURIComponent(id);
+        const chatgpt = state.accounts.find(account => account.id === state.accountId)?.providerId === 'chatgpt';
+        open.href = (chatgpt ? 'https://chatgpt.com/c/' : 'https://gemini.google.com/app/') + encodeURIComponent(id);
         open.target = '_blank'; open.rel = 'noopener noreferrer'; open.className = 'open-link';
-        open.title = text('Open in Gemini', '在 Gemini 中打开');
+        open.title = chatgpt ? text('Open in ChatGPT', '在 ChatGPT 中打开') : text('Open in Gemini', '在 Gemini 中打开');
         open.textContent = '↗';
         open.setAttribute('aria-label', open.title);
         row.append(checkbox, body, open);

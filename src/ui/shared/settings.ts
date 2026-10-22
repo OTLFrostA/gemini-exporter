@@ -32,6 +32,9 @@ export function observeSettings(refresh: () => void): () => void {
 const ERROR_ZH: Readonly<Record<string, string>> = {
     'Open Gemini, log in and refresh the page before scanning.': '请先打开 Gemini 并登录，刷新 Gemini 页面后再同步会话。',
     'Multiple Gemini accounts are open. Select the account to scan.': '当前打开了多个 Gemini 账号，请选择要同步的账号。',
+    'Multiple Gemini accounts or ChatGPT accounts are open. Select the account to scan.': '当前打开了多个 Gemini 或 ChatGPT 账号，请选择要同步的账号。',
+    'Open Gemini or ChatGPT, log in and connect the account before scanning.': '请打开 Gemini 并登录、刷新页面，或打开 ChatGPT 并登录后点击“连接 ChatGPT”。',
+    'Open ChatGPT, log in and connect the selected account before scanning.': '请打开 ChatGPT，登录所选账号后点击“连接 ChatGPT”。',
     'Select a Gemini account before importing Takeout': '导入 Takeout 前，请先选择 Gemini 账号。',
     'Directory picker unavailable': '当前浏览器无法打开文件夹选择器。',
     'Directory permission not granted': '尚未获得文件夹访问权限。',
