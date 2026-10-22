@@ -6,7 +6,13 @@
 
 **你的 Gemini 对话，值得自己保存。** Gemini Exporter 是一款**免费、开源、完全在本地处理导出的**浏览器扩展，把 Google Gemini 对话保存成自己掌控的文件。无需 API Key、另行注册账号，也没有统计追踪。
 
-**[前往 Chrome 应用商店安装](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_zh&utm_campaign=github_repo)** · [MIT 开源协议](./LICENSE)
+<p align="left">
+  <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&amp;utm_medium=readme_zh&amp;utm_campaign=github_repo">
+    <img src="https://img.shields.io/badge/Chrome%20%E5%BA%94%E7%94%A8%E5%95%86%E5%BA%97-Gemini%20Exporter-blue?style=for-the-badge&amp;logo=googlechrome&amp;logoColor=white" alt="Chrome 应用商店">
+  </a>
+  <img src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-2.0.0-orange.svg?style=for-the-badge" alt="版本: 2.0.0">
+  <img src="https://img.shields.io/badge/%E5%BC%80%E6%BA%90%E5%8D%8F%E8%AE%AE-MIT-green.svg?style=for-the-badge" alt="开源协议: MIT">
+</p>
 
 ![Chrome 应用商店累计安装量](https://raw.githubusercontent.com/OTLFrostA/gemini-exporter/stats/stats/install-growth.svg)
 
