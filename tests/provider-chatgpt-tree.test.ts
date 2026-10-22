@@ -550,7 +550,7 @@ test('listConversations paginates until the reported total is reached', async ()
                 { id: 'c', title: 'C', create_time: 1, update_time: 0.5 },
             ];
             return Promise.resolve(new Response(JSON.stringify(chatgptList({
-                items, total: 3, hasMissingConversations: false,
+                items, total: 3, offset: 0, limit: 100, hasMissingConversations: false,
             })), { status: 200 }));
         },
     });
@@ -578,7 +578,7 @@ test('ChatGPT current list schema without the legacy missing flag traverses all 
                 id: `conversation-${offset + i}`, title: `Conversation ${offset + i}`,
                 create_time: 1, update_time: 1000 - offset - i,
             })),
-            total: 102, offset,
+            total: 102, limit: 100, offset,
         })));
     } });
     assert.equal(await provider.listConversations({
