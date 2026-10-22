@@ -1,3 +1,4 @@
+import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import type { Account } from '../../l2/accountRegistry.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 import type { DomainAsset } from '../../l2/conversationDetail.js';
@@ -44,7 +45,7 @@ export interface AIProvider {
 
     checkReadiness(accountId: Account['id']): Promise<ProviderReadiness>;
     listConversations(options: ProviderListOptions): Promise<ListEnd>;
-    fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal): Promise<void>;
+    fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void>;
     acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes>;
     matchesUrl(url: string): boolean;
 }

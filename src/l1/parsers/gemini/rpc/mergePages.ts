@@ -49,8 +49,22 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
     const sourcePartial = pages.some(page => page.conversation.detail.quality.status === 'partial' && page.evidence?.truncation !== 'pagination_pending');
     const sourceVersion = versionChanged ? undefined : pages[0].sourceVersion;
     const conversation = { index: first.index, detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), messages, assets: [...assets.values()],
-        quality: contentQuality({ status: sourcePartial || versionMismatch || versionChanged ? 'partial' : coverageComplete ? 'complete' : 'unknown', rejectedTurns, truncation, heuristicDocumentIds }) } };
+        quality: contentQuality({ status: sourcePartial || versionChanged ? 'partial' : coverageComplete ? 'complete' : 'unknown', rejectedTurns, truncation, heuristicDocumentIds }) } };
     return { conversationId: pages[0].conversationId, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)] }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
+        { severity: 'info', code: 'GEMINI_DETAIL_PAGES', message: 'Source Detail pagination evidence', details: {
+            pageCount: pages.length, coverageComplete, truncation: truncation ?? null,
+            sourcePartial, versionMismatch, versionChanged,
+            pages: pages.map((page, index) => {
+                const timestamps = page.conversation.detail.messages.flatMap(message => message.timestamp !== undefined ? [message.timestamp] : []);
+                return { page: index + 1, sourceVersion: page.sourceVersion ?? null,
+                    quality: page.conversation.detail.quality.status, messageCount: page.conversation.detail.messages.length,
+                    earliestMessageAt: timestamps.length ? Math.min(...timestamps) : null,
+                    latestMessageAt: timestamps.length ? Math.max(...timestamps) : null,
+                    rejectedTurns: page.evidence?.rejectedTurns ?? 0,
+                    truncation: page.evidence?.truncation ?? null,
+                    heuristicDocumentIds: page.evidence?.heuristicDocumentIds ?? [],
+                    diagnosticCodes: page.diagnostics.map(diagnostic => diagnostic.code) };
+            }) } },
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : []),
         ...(versionChanged ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' }] : [])] };
 }

@@ -1,3 +1,4 @@
+import { extractNativeDocuments } from './nativeDocuments.js';
 import { extractSourceAttributions } from './sourceAttributions.js';
 import { findListConversationMetadata } from './listMetadata.js';
 import { extractGeneratedFiles } from './generatedFiles.js';
@@ -366,8 +367,9 @@ function parseCandidateResponse(
     const filteredImages = filterNewImages(candImages, dedupSet);
 
     const generatedFiles = extractGeneratedFiles(cand);
-    let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
-    if (!docsMeta.length) {
+    const nativeDocuments = extractNativeDocuments(cand, convId);
+    let docsMeta: DeepResearchDocMeta[] = nativeDocuments.length ? [] : extractDocumentsMeta(candidateBlock);
+    if (!nativeDocuments.length && !docsMeta.length) {
         // The conversation envelope contains documents from other turns too.
         // Only the correlated answer document may supply missing chip metadata.
         docsMeta = extractDocumentsMeta([cand, rawAnswerDocument]);
@@ -384,7 +386,11 @@ function parseCandidateResponse(
         return true;
     });
 
-    const docDetails: GeminiDocumentEvidence[] = [];
+    const docDetails: GeminiDocumentEvidence[] = nativeDocuments.filter(doc => {
+        if (docDedupSet.has(doc.id)) return false;
+        docDedupSet.add(doc.id);
+        return true;
+    });
     if (docs.length) {
         try {
             for (const metaItem of docs) {

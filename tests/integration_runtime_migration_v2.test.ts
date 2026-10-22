@@ -164,7 +164,8 @@ for (const baseline of ['1.6.0', undefined]) test(`real Migration: Account/count
     commit(); await worker;
     assert.deepEqual(await registry, account);
     assert.deepEqual(await count, { ok: true, count: 1 }); await settleHook();
-    assert.deepEqual(await runtime.store.listIndexes(uuid), [legacyIndex]);
+    const { updatedAt: _untrustedVersion, ...retainedIndex } = legacyIndex;
+    assert.deepEqual(await runtime.store.listIndexes(uuid), [retainedIndex]);
     assert.deepEqual(await runtime.settings.getSettings(), {
         defaultFormat: 'html', skipExported: true, includeAssets: true,
         enabledDisk: false, developerMode: false, exportDelivery: 'browserDownload', lastSeenFeatureVersion: baseline || '1.8.1',

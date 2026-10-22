@@ -85,7 +85,7 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
         assert.ok(await storage.getDetail(key)); assert.equal(await storage.getExportRecord(key), null);
         assert.ok((await storage.getCoverage(account.id, 'recent'))?.range);
         await clearLocalScanRecords(account.id);
-        assert.ok(await storage.getDetail(key)); assert.ok(await storage.getIndex(key));
+        assert.equal(await storage.getDetail(key), null); assert.equal(await storage.getIndex(key), null);
         assert.equal(await storage.getCoverage(account.id, 'recent'), null);
         assert.deepEqual(await storage.getAccount(account.id), account);
     } finally {

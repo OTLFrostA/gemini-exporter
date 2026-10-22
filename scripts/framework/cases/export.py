@@ -636,7 +636,8 @@ class FastSkipExportedCase(FeatureTestCase):
                     if not ok:
                         return False, msg, partial
                     name = next(n for n in zf.namelist()
-                                if n.endswith('.md') and not os.path.basename(n).startswith('.'))
+                                if n.endswith('.md') and '/' not in n.removeprefix('./')
+                                and not os.path.basename(n).startswith('.'))
                     text = zf.read(name).decode('utf-8')
             elif partial_file.lower().endswith('.md'):
                 with open(partial_file, encoding='utf-8') as exported:

@@ -1,3 +1,4 @@
+import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../../l2/ingestion.js';
@@ -121,7 +122,7 @@ export class GeminiProvider implements GeminiProviderContract {
         }
         return 'max_pages';
     }
-    async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal): Promise<void> {
+    async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void> {
         signal?.throwIfAborted();
         const { account, slot } = await this.context(accountId);
         let parsed: Awaited<ReturnType<GeminiProviderClient['getConversationDetail']>>;
@@ -138,8 +139,24 @@ export class GeminiProvider implements GeminiProviderContract {
         signal?.throwIfAborted();
         if (await this.route(accountId) !== slot) throw new Error('Gemini account route changed');
         if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new TypeError('Detail identity mismatch');
+        // Diagnostics are task observations, never persisted quality facts or ingestion inputs.
+        const report = (diagnostic: Diagnostic) => {
+            try { onDiagnostic?.(diagnostic); }
+            catch (error) { console.warn('[Gemini Exporter] Source diagnostic listener failed', error); }
+        };
+        for (const diagnostic of parsed.diagnostics) report(diagnostic);
         const index = parsed.conversation.index;
-        const admission = await ingestDetail(accountId, parsed.conversationId, parsed.conversation.detail, index);
+        const detail = parsed.conversation.detail;
+        report({ severity: 'info', code: 'GEMINI_DETAIL_PARSE_RESULT', message: 'Source Detail parsing completed',
+            details: { quality: detail.quality.status, sourceVersion: parsed.sourceVersion ?? null,
+                indexUpdatedAt: index.updatedAt ?? null, messageCount: detail.messages.length,
+                assetCount: detail.assets.length, rejectedTurns: parsed.evidence?.rejectedTurns ?? 0,
+                truncation: parsed.evidence?.truncation ?? null,
+                heuristicDocumentIds: parsed.evidence?.heuristicDocumentIds ?? [],
+                diagnosticCodes: parsed.diagnostics.map(diagnostic => diagnostic.code) } });
+        const admission = await ingestDetail(accountId, parsed.conversationId, detail, index);
+        report({ severity: 'info', code: 'GEMINI_DETAIL_ADMISSION', message: 'Source Detail admission completed',
+            details: { accepted: admission.accepted, changed: admission.changed } });
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId: parsed.conversationId }, parsed);
     }
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {

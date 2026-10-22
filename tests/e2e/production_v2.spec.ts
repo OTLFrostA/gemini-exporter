@@ -60,7 +60,7 @@ for (const format of ['markdown', 'html', 'json'] as const) test(`production Opt
     await expect(page.locator('#status')).toContainText('Skipped: 1');
 });
 
-test('production browser multi-file export auto-packages ZIP; record clears preserve the archive after reload', async ({ context, extensionId }) => {
+test('production multi-file export creates ZIP; scan reset clears local history while keeping the downloaded ZIP', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId); await seed(page, ['one', 'two']);
     await page.locator('#btnSelectAll').click();
     const download = page.waitForEvent('download'); await page.locator('#btnExport').click();
@@ -75,8 +75,9 @@ test('production browser multi-file export auto-packages ZIP; record clears pres
     await page.locator('#btnClearScan').click();
     await expect.poll(() => page.evaluate(async accountId => Object.keys(await Reflect.get(globalThis, 'productionProbe').listExportRecords(accountId)).length, accountId)).toBe(0);
     await page.reload(); await page.evaluate(bundle);
-    await expect(page.locator('#list .item')).toHaveCount(2);
-    expect(await page.evaluate(async accountId => !!await Reflect.get(globalThis, 'productionProbe').readConversation({ accountId, conversationId: 'two' }), accountId)).toBe(true);
+    await expect(page.locator('#list .item')).toHaveCount(0);
+    expect(await page.evaluate(async accountId => !!await Reflect.get(globalThis, 'productionProbe').readConversation({ accountId, conversationId: 'two' }), accountId)).toBe(false);
+    expect((await JSZip.loadAsync(await readFile((await file.path())!))).file(files[0])).toBeTruthy();
 });
 
 async function sourcePage(context: import('@playwright/test').BrowserContext, gaia = '10000000001') {

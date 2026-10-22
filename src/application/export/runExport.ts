@@ -1,3 +1,4 @@
+import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getSettings } from '../settings/index.js';
 import { getAccount } from '../../runtime/api/accountRegistry.js';
@@ -24,13 +25,17 @@ import { TypstSandboxCompiler } from '../../l4/format/pdf/typst/typstSandboxComp
 import { resolveLocalFonts } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
 import { mountRuntimeFonts } from '../../l4/format/pdf/typst/fonts/mountRuntimeFonts.js';
 import { prepareExportResources } from './prepareExportResources.js';
-import type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportItemUpdate } from './types.js';
+import type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportItemUpdate, ExportDiagnostic } from './types.js';
 
 // Domain and ExportRecord source versions must be finite, safe epoch-millisecond integers.
 const comparable = (value: number | undefined): value is number => value !== undefined && Number.isSafeInteger(value);
 export function shouldSkipExport(record: ExportRecord | null, updatedAt: number | undefined, request: ExportRequest): boolean {
-    return request.skipUnchanged && record?.status === 'ok' && record.format === request.format
-        && comparable(record.chatTime) && comparable(updatedAt) && record.chatTime >= updatedAt;
+    if (!request.skipUnchanged || !record || record.format !== request.format) return false;
+    const expiredOnly = record.status === 'partial' && record.otherContentMissing !== true
+        && Boolean(record.attachmentIssues?.length)
+        && record.attachmentIssues!.every(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED' && issue.httpStatus === 404);
+    return (record.status === 'ok' || expiredOnly) && comparable(record.chatTime)
+        && comparable(updatedAt) && record.chatTime >= updatedAt;
 }
 function isFresh(conversation: ReadonlyDomain): boolean {
     return conversation.detail.quality.status === 'complete' && comparable(conversation.detail.savedAt)
@@ -52,6 +57,7 @@ export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
     /** Settled items and staged browser files; only 'exported' carries a committed record. */
     onItemUpdate?: (update: ExportItemUpdate) => void;
+    onDiagnostic?: (diagnostic: ExportDiagnostic) => void;
     signal?: AbortSignal;
     /** A completed reply requires a new source snapshot even if cached timestamps match. */
     refreshDetail?: boolean;
@@ -68,8 +74,14 @@ export async function runExport(request: ExportRequest, options: {
         try { options.onItemUpdate?.(update); }
         catch (error) { console.warn('[Gemini Exporter] Export progress listener failed', error); }
     };
+    const diagnose = (diagnostic: ExportDiagnostic): void => {
+        try { options.onDiagnostic?.(diagnostic); }
+        catch (error) { console.warn('[Gemini Exporter] Export diagnostic listener failed', error); }
+    };
     const fail = (keys: readonly ConversationKey[], _error?: unknown): void => {
         for (const key of keys) {
+            diagnose({ key, stage: 'export', code: 'EXPORT_FAILED',
+                message: _error instanceof Error ? _error.message : String(_error ?? 'Export failed') });
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);
                 report({ key, status: 'failed' });
@@ -110,6 +122,13 @@ export async function runExport(request: ExportRequest, options: {
         let otherContentMissing = item.refreshFailed || conversation.detail.quality.status !== 'complete'
             || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
                 && conversation.detail.savedAt < conversation.index.updatedAt);
+        if (conversation.detail.quality.status !== 'complete') diagnose({ key, stage: 'detail',
+            code: 'DETAIL_NOT_COMPLETE', message: 'Persisted source detail is not complete',
+            details: { quality: conversation.detail.quality.status, messageCount: conversation.detail.messages.length } });
+        if (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
+            && conversation.detail.savedAt < conversation.index.updatedAt) diagnose({ key, stage: 'detail',
+            code: 'DETAIL_STALE', message: 'Detail source timestamp is older than Index',
+            details: { savedAt: conversation.detail.savedAt, updatedAt: conversation.index.updatedAt } });
         const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
         const renderOptions = { locale, resourceFailures: failures };
         let partial = otherContentMissing || Object.keys(failures).length > 0;
@@ -119,6 +138,7 @@ export async function runExport(request: ExportRequest, options: {
             case 'markdown': content = renderDocumentMarkdown(document!, plan.resources, renderOptions); break;
             case 'html': {
                 const html = renderDocumentHtml(document!, plan.resources, renderOptions);
+                for (const diagnostic of html.diagnostics) diagnose({ key, stage: 'html', ...diagnostic });
                 content = html.html;
                 otherContentMissing ||= html.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED');
                 partial ||= otherContentMissing;
@@ -133,6 +153,7 @@ export async function runExport(request: ExportRequest, options: {
                     { signal, reportProgress() {} }, renderOptions);
                 content = pdf.pdfBytes;
                 for (const diagnostic of pdf.diagnostics) {
+                    diagnose({ key, stage: 'pdf', ...diagnostic });
                     if (diagnostic.code === 'FORMAT_CONTENT_OMITTED' && diagnostic.path?.startsWith('asset:')) {
                         const id = diagnostic.path.slice(6);
                         failures[id] = missingResource(id, diagnostic.message, 'RESOURCE_PROCESSING_FAILED');
@@ -147,7 +168,7 @@ export async function runExport(request: ExportRequest, options: {
         signal.throwIfAborted();
         const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
             record: { format: request.format, status: partial ? 'partial' : 'ok',
-                ...(otherContentMissing ? { otherContentMissing: true } : {}),
+                ...(partial ? { otherContentMissing } : {}),
                 ...(Object.keys(failures).length ? { attachmentIssues: Object.values(failures).map(failure => {
                     const asset = conversation.detail.assets.find(asset => asset.id === failure.resourceId);
                     return { resourceId: failure.resourceId, name: asset?.name || failure.resourceId, code: failure.code,
@@ -170,10 +191,12 @@ export async function runExport(request: ExportRequest, options: {
             signal.throwIfAborted();
             options.onProgress?.({ current: index + 1, total: request.keys.length, key });
             try {
-                const account = await getAccount(key.accountId);
+                // These local facts are independent; don't serialize three storage round trips.
+                const [account, localIndex, record] = await Promise.all([
+                    getAccount(key.accountId), getIndex(key),
+                    request.skipUnchanged ? getExportRecord(key) : Promise.resolve(null),
+                ]);
                 if (!account) throw new Error('Account unavailable');
-                const localIndex = await getIndex(key);
-                const record = request.skipUnchanged ? await getExportRecord(key) : null;
                 if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
                     result.skipped++;
                     report({ key, status: 'skipped' });
@@ -186,12 +209,21 @@ export async function runExport(request: ExportRequest, options: {
                 const needsSourceReaders = request.includeAssets && conversation?.detail.assets.some(asset =>
                     !/^https:\/\//i.test(asset.sourceUri ?? '') && !asset.document?.contentMarkdown);
                 if (options.refreshDetail || !conversation || !isFresh(conversation) || needsSourceReaders) {
-                    try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal); }
+                    try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
+                            diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic })); }
                     catch (error) {
                         // L1 has reliably confirmed deletion and L2 has removed the local Key.
                         // Unlike a transient refresh failure, this must never fall back to old Detail.
                         if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
+                        if (error instanceof ConfirmedSourceEmptyError) {
+                            result.skipped++;
+                            diagnose({ key, stage: 'source_refresh', code: 'SOURCE_CONVERSATION_EMPTY', message: error.message });
+                            report({ key, status: 'skipped' });
+                            continue;
+                        }
                         refreshFailed = true;
+                        diagnose({ key, stage: 'source_refresh', code: 'SOURCE_REFRESH_FAILED',
+                            message: error instanceof Error ? error.message : String(error) });
                     }
                     // Even a failed refresh may have committed useful facts. Never export a response DTO.
                     conversation = await readLocal(key);
@@ -217,10 +249,13 @@ export async function runExport(request: ExportRequest, options: {
                     && value.httpStatus !== undefined && [401, 403, 404, 410].includes(value.httpStatus))) {
                     let refreshed = false;
                     try {
-                        await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal);
+                        await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
+                            diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic }));
                         refreshed = true;
                     } catch (error) {
                         if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
+                        diagnose({ key, stage: 'resource_refresh', code: 'RESOURCE_REFRESH_FAILED',
+                            message: error instanceof Error ? error.message : String(error) });
                         // Cached body freshness is unchanged; retain the original attachment failures.
                     }
                     signal.throwIfAborted();
@@ -289,6 +324,8 @@ export async function runExport(request: ExportRequest, options: {
         result.aborted = signal.aborted;
         return result;
     } catch (error) {
+        diagnose({ stage: 'run', code: cancelled(error) ? 'EXPORT_CANCELLED' : 'EXPORT_RUN_FAILED',
+            message: error instanceof Error ? error.message : String(error) });
         if (!cancelled(error)) throw error;
         result.aborted = true;
         return result;

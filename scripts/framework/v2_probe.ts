@@ -84,10 +84,16 @@ export async function l3Contracts(ids: string[]) {
     return { layout, documents };
 }
 
-/** Scan reset clears both trusted Coverage and export records (frozen L3a contract). */
+/** Exercise the user-facing account-local reset. */
 export async function clearScanRecords() {
     await ensureV2Ready();
     await clearLocalScanRecords(accountId());
+}
+/** Test setup for a fresh scan without destroying imported title-upgrade fixtures. */
+export async function resetScanCoverage() {
+    await ensureV2Ready();
+    await storage.clearStoredAccountCoverage(accountId());
+    await storage.clearStoredAccountExportRecords(accountId());
 }
 export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
     const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
@@ -116,7 +122,7 @@ export async function inspectTakeout(encoded: string, mediaPaths: string[]) {
     }
     return {ids:parsed.map(result => result.conversationId), sourceFacts:Object.fromEntries(parsed.map(result => [result.conversationId, result.conversation])), resources, mediaDigests};
 }
-Object.assign(globalThis, { __tier2V2: { accountId, snapshot, skipEligibleIds, refreshForNativeAudit, conversations, storedConversation, l3Contracts, clearScanRecords, inspectTakeout,
+Object.assign(globalThis, { __tier2V2: { accountId, snapshot, skipEligibleIds, refreshForNativeAudit, conversations, storedConversation, l3Contracts, clearScanRecords, resetScanCoverage, inspectTakeout,
     getAccount: storage.getAccount, listAccounts: storage.listAccounts,
     getSettings, updateSettings,
     setDirectoryHandle: storage.setDirectoryHandle } });

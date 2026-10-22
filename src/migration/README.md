@@ -15,3 +15,14 @@ neither Tour flags nor the retired ZIP preference are migrated into v2 Settings.
 fake-indexeddb migration regressions. Runtime tests exercise readiness and lifecycle
 against real migration functions. These tests do not establish real profile upgrade
 behavior or cloning a historical native handle across browser restarts.
+
+Gemini source-version repair (`gemini_exporter_source_versions_v1`) runs once for
+already initialized profiles. Previous builds mixed Takeout activity dates and
+RPC update versions without provenance, so existing Gemini Index.updatedAt,
+Detail.savedAt and ExportRecord.chatTime are invalidated, while bodies, assets,
+titles and export outcomes remain intact. Scan coverage is reset so the next
+sync can recover all online versions. Other providers are untouched. The marker
+is written only after all repair writes complete; failures retry on next startup.
+Legacy v1/v1.7 migration no longer copies update/skip versions. It retains source
+creation dates and actual export dates. Takeout now supplies only activityAt for
+presentation and sorting, and never updatedAt, savedAt or sourceVersion.

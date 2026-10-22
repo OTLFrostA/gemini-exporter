@@ -21,10 +21,11 @@ test('L2 replaces two incomplete snapshots in admission order, including shorter
     const old = snapshot('unknown', 10), next = snapshot('partial', 2);
     assert.equal(selectConversationDetail(old, next), next);
 });
-test('L2 prevents regression only when both source versions are comparable', () => {
+test('L2 preserves a known source version against older or unversioned replacements', () => {
     const old = snapshot('unknown', 2, 20), stale = snapshot('unknown', 10, 10);
     assert.equal(selectConversationDetail(old, stale), old);
     const unversioned = snapshot('unknown', 1);
-    assert.equal(selectConversationDetail(old, unversioned), unversioned);
+    assert.equal(selectConversationDetail(old, unversioned), old);
+    assert.equal(selectConversationDetail(unversioned, old), old);
     assert.equal(selectConversationDetail(undefined, stale), stale);
 });

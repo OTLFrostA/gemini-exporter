@@ -172,9 +172,9 @@ class DeepScanPaginationCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             print("   🔄 触发【同步会话】(btnSyncAll)...")
-            # The current clear-scan operation atomically clears Coverage and
-            # ExportRecords for this account. Index/Detail remain intact; this
-            # establishes a genuine full-scan fixture for title upgrade.
+            # Reset test scan boundaries and export history while retaining imported
+            # Index/Detail for the title-upgrade assertion. This does not invoke
+            # the user-facing full local-data reset.
             clear_scan_records(cdp_opt)
             evidence = CDPActions.trigger_deep_scan(cdp_opt, max_wait=330)
             scan_ok, message = assert_scan_result(evidence)

@@ -38,20 +38,29 @@ test('D2: target-bound verified NotFound removes Index, Detail and ExportRecord 
     assert.ok(await getDetail(otherKey));
 });
 
-// Scan cleanup is account-scoped Coverage + ExportRecord deletion, without deleting Domain.
-test('D4: clearStoredAccountScanRecords clears both scan ledgers and keeps local history', async () => {
+// Explicit scan reset clears all account-local conversation facts.
+test('D4: clearStoredAccountScanRecords clears all account-local records and preserves another account', async () => {
     const { indexStorage } = require('./helpers/indexStorage.js');
     const storage = require('../src/l3a/storageService.js');
     const env = indexStorage();
     try {
         const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: 'chat_1' };
         await storage.putIndexes([{ key }]);
+        await storage.updateConversationAtomically(key, () => ({ detail: { key, quality: {status:'complete'}, assets:[], messages:[{role:'user',content:[]}] }, result: undefined }));
         await storage.putExportRecord(key, { format: 'markdown', exportedAt: 0, status: 'ok' });
         await storage.updateCoverageAtomically(key.accountId, 'recent', () => ({ next: { range: null }, result: undefined }));
+        const otherKey = { ...key, accountId: '10000000-0000-4000-8000-000000000002' };
+        await storage.putIndexes([{ key: otherKey }]);
+        await storage.updateConversationAtomically(otherKey, () => ({ detail: { key: otherKey, quality: {status:'complete'}, assets:[], messages:[{role:'user',content:[]}] }, result: undefined }));
+        await storage.putExportRecord(otherKey, { format: 'markdown', exportedAt: 0, status: 'ok' });
         await storage.clearStoredAccountScanRecords(key.accountId);
         assert.deepEqual(await storage.listExportRecords(key.accountId), {});
         assert.equal(await storage.getCoverage(key.accountId, 'recent'), null);
-        assert.deepEqual(await storage.getIndex(key), { key });
+        assert.equal(await storage.getIndex(key), null);
+        assert.equal(await storage.getDetail(key), null);
+        assert.deepEqual(await storage.getIndex(otherKey), { key: otherKey });
+        assert.ok(await storage.getDetail(otherKey));
+        assert.ok(await storage.getExportRecord(otherKey));
     } finally { env.restore(); }
 });
 

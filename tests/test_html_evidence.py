@@ -78,8 +78,9 @@ class HtmlEvidenceTests(unittest.TestCase):
             with self.subTest(expected=expected), tempfile.TemporaryDirectory() as directory:
                 archive = Path(directory)/'export.zip'
                 with zipfile.ZipFile(archive, 'w') as zf:
-                    zf.writestr(f'gemini_export/Chat_{CID[-6:]}.html', text)
-                    zf.writestr('gemini_export/assets/picture.png', b'image bytes')
+                    # Current packaging puts conversation documents at the archive root.
+                    zf.writestr(f'Chat_{CID[-6:]}.html', text)
+                    zf.writestr('assets/picture.png', b'image bytes')
                 ctx = TestContext(output_dir=directory)
                 ctx.chat_records = [{'chat_id': CID, 'turn_evidence': copy.deepcopy(EVIDENCE)}]
                 # This unit case proves *physical HTML* fidelity with a fake CDP.

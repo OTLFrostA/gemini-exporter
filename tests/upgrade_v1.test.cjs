@@ -4,6 +4,8 @@ const { IDBFactory, IDBDatabase, IDBObjectStore } = require('fake-indexeddb');
 const { ensureUpgraded } = require('../src/migration/upgradeV1.ts');
 const storage = require('../src/l3a/storageService.ts');
 const marker = 'gemini_exporter_v2_initialized';
+const versionMarker = 'gemini_exporter_source_versions_v1';
+const migratedIndex = account => { const { updatedAt, ...retained } = index(account); return retained; };
 const settingsKey = 'gemini_exporter_v2_settings';
 const a = { id: '12345678-1234-4234-8234-123456789abc', providerId: 'gemini', providerAccountId: 'one' };
 const b = { ...a, id: '22345678-1234-4234-8234-123456789abc', providerAccountId: 'two' };
@@ -42,9 +44,9 @@ async function accounts(...values) {
 
 test('fresh install marks complete without creating old DBs or storing defaults', async () => {
     await Promise.all([ensureUpgraded(), ensureUpgraded()]);
-    assert.deepEqual(data, { [marker]: true });
+    assert.deepEqual(data, { [marker]: true, [versionMarker]: true });
     assert.deepEqual(await indexedDB.databases(), []);
-    assert.equal(writes.length, 1);
+    assert.equal(writes.length, 2);
 });
 
 test('migrates exactly five categories, isolates accounts, and retains old sources', async () => {
@@ -79,14 +81,14 @@ test('migrates exactly five categories, isolates accounts, and retains old sourc
     try { await ensureUpgraded(); } finally { IDBDatabase.prototype.transaction = original; }
     assert.deepEqual(accessed.sort(), ['accounts', 'handles']);
     assert.deepEqual(await storage.listAccounts(), [a, b]);
-    assert.deepEqual(await storage.listIndexes(a.id), [index(a)]);
-    assert.deepEqual(await storage.listIndexes(b.id), [index(b)]);
+    assert.deepEqual(await storage.listIndexes(a.id), [migratedIndex(a)]);
+    assert.deepEqual(await storage.listIndexes(b.id), [migratedIndex(b)]);
     assert.equal(await storage.getDetail(index(a).key), null);
     assert.deepEqual(await storage.listExportRecords(a.id), {
         shared: { exportedAt: Date.parse(at), format: 'pdf', status: 'partial' },
         truncated: { exportedAt: Date.parse(at), format: 'html', status: 'partial' }
     });
-    assert.deepEqual(await storage.getExportRecord(index(b).key), { exportedAt: Date.parse(at), format: 'json', status: 'partial', chatTime: Date.parse(at) });
+    assert.deepEqual(await storage.getExportRecord(index(b).key), { exportedAt: Date.parse(at), format: 'json', status: 'partial' });
     assert.deepEqual(data[settingsKey], { defaultFormat: 'pdf', developerMode: false,
         language: 'zh', badgePosition: { left: 0, top: 15 }, enabledDisk: true,
         takeoutPromptCompleted: true, lastSeenFeatureVersion: '1.7.0' });
@@ -107,7 +109,7 @@ test('preferences alone identify an upgrade; invalid preferences keep defaults s
 
 test('invalid legacy index rows are skipped while valid accounts, indexes, settings and exports migrate', async () => {
     await accounts(a, b);
-    const badTime = { ...index(a), key: { ...index(a).key, conversationId: 'bad-time' }, updatedAt: NaN };
+    const badTime = { ...index(a), key: { ...index(a).key, conversationId: 'bad-time' }, createdAt: NaN };
     data[`conversations_${a.id}`] = [index(a), badTime, index(b), index(a), null];
     data[`conversations_${b.id}`] = [index(b)];
     data[`exported_${a.id}`] = { shared: { status: 'ok', exportedAt: 1000, format: 'markdown' } };
@@ -118,8 +120,8 @@ test('invalid legacy index rows are skipped while valid accounts, indexes, setti
     console.warn = (...args) => warnings.push(args);
     try { await ensureUpgraded(); } finally { console.warn = originalWarn; }
     assert.deepEqual(await storage.listAccounts(), [a, b]);
-    assert.deepEqual(await storage.listIndexes(a.id), [index(a)]);
-    assert.deepEqual(await storage.listIndexes(b.id), [index(b)]);
+    assert.deepEqual(await storage.listIndexes(a.id), [migratedIndex(a)]);
+    assert.deepEqual(await storage.listIndexes(b.id), [migratedIndex(b)]);
     assert.deepEqual(await storage.getExportRecord(index(a).key), { status: 'ok', exportedAt: 1000, format: 'markdown' });
     assert.equal(data[settingsKey]?.defaultFormat, 'html');
     assert.equal(data[marker], true);
@@ -139,7 +141,7 @@ test('mid-write failure leaves marker unset; retry overwrites stable keys withou
     await ensureUpgraded();
     assert.equal((await storage.listAccounts()).length, 1);
     assert.equal((await storage.listIndexes(a.id)).length, 1);
-    assert.deepEqual(await storage.getExportRecord(index(a).key), { exportedAt: 1000, format: 'markdown', status: 'ok', chatTime: 500 });
+    assert.deepEqual(await storage.getExportRecord(index(a).key), { exportedAt: 1000, format: 'markdown', status: 'ok' });
 });
 
 test('existing directory write failure blocks completion and remains retryable', async () => {
@@ -160,7 +162,7 @@ test('invalid account registry is rejected without completion', async () => {
     await accounts({ ...a, id: 'invalid' });
     await assert.rejects(ensureUpgraded(), /UUID/);
     assert.equal(data[marker], undefined);
-    assert.deepEqual(writes, []);
+    assert.deepEqual(writes, [{ [versionMarker]: true }]);
 });
 
 test('malformed whole index containers still fail rather than inventing a history', async () => {
@@ -169,7 +171,7 @@ test('malformed whole index containers still fail rather than inventing a histor
         data[`conversations_${a.id}`] = list;
         await assert.rejects(ensureUpgraded(), /index container/);
         assert.equal(data[marker], undefined);
-        assert.deepEqual(writes, []);
+        assert.deepEqual(writes, [{ [versionMarker]: true }]);
     }
 });
 
@@ -177,7 +179,7 @@ test('duplicate legacy indexes preserve one valid record instead of blocking upg
     await accounts(a);
     data[`conversations_${a.id}`] = [index(a), index(a)];
     await ensureUpgraded();
-    assert.deepEqual(await storage.listIndexes(a.id), [index(a)]);
+    assert.deepEqual(await storage.listIndexes(a.id), [migratedIndex(a)]);
     assert.equal(data[marker], true);
 });
 test('failure to commit the final marker is retryable and never clears legacy sources', async () => {
@@ -196,14 +198,14 @@ test('upgrade normalizes provable source Index times to safe millisecond integer
     await accounts(a);
     data[`conversations_${a.id}`] = [{ ...index(a), createdAt: '2026-10-17T12:00:00+02:00', updatedAt: '0' }];
     await ensureUpgraded();
-    assert.deepEqual(await storage.getIndex(index(a).key), { ...index(a), createdAt: Date.parse('2026-10-17T10:00:00Z'), updatedAt: 0 });
+    assert.deepEqual(await storage.getIndex(index(a).key), { ...migratedIndex(a), createdAt: Date.parse('2026-10-17T10:00:00Z') });
 });
 for (const value of [0.25, Number.MAX_SAFE_INTEGER + 1, Infinity, '2026-10-17T12:00:00', 'unknown']) {
     test(`invalid Index source time ${value} is skipped without losing a valid sibling`, async () => {
         await accounts(a);
-        data[`conversations_${a.id}`] = [{ ...index(a), key: { ...index(a).key, conversationId: 'bad' }, updatedAt: value }, index(a)];
+        data[`conversations_${a.id}`] = [{ ...index(a), key: { ...index(a).key, conversationId: 'bad' }, createdAt: value }, index(a)];
         await ensureUpgraded();
-        assert.deepEqual(await storage.listIndexes(a.id), [index(a)]);
+        assert.deepEqual(await storage.listIndexes(a.id), [migratedIndex(a)]);
         assert.equal(data[marker], true);
     });
 }
@@ -216,7 +218,7 @@ test('invalid optional export times are omitted, invalid exportedAt records reje
     };
     await ensureUpgraded();
     assert.deepEqual(await storage.listExportRecords(a.id), {
-        valid: { exportedAt: 0, chatTime: 0, status: 'ok', format: 'json' },
+        valid: { exportedAt: 0, status: 'ok', format: 'json' },
         optional: { exportedAt: 123, status: 'partial', format: 'html' },
     });
 });
@@ -242,7 +244,7 @@ for (const initialized of [false, true]) test(`released 1.7 slot lists migrate e
     const two = saved.find(row => row.email === 'two@example.com');
     assert.equal((await storage.listIndexes(one.id)).length, 2);
     assert.deepEqual(await storage.getIndex({ accountId: one.id, conversationId: 'shared' }), {
-        key: { accountId: one.id, conversationId: 'shared' }, title: 'First', titleSource: 'provider', updatedAt: 123
+        key: { accountId: one.id, conversationId: 'shared' }, title: 'First', titleSource: 'provider'
     });
     assert.equal((await storage.listIndexes(two.id))[0].title, 'Other account');
     assert.equal((await storage.getExportRecord({ accountId: one.id, conversationId: 'shared' })).status, 'partial');
@@ -285,4 +287,53 @@ test('released 1.7 recovery reuses a verified account but never merges distinct 
     assert.deepEqual((await storage.listIndexes(a.id)).map(row => row.key.conversationId), ['one']);
     const other = (await storage.listAccounts()).find(row => row.providerAccountId === '987654321');
     assert.deepEqual((await storage.listIndexes(other.id)).map(row => row.key.conversationId), ['two']);
+});
+
+test('already initialized Gemini facts lose untrusted versions once, keeping bodies and export outcomes', async () => {
+    data = { [marker]: true };
+    const other = { ...b, providerId: 'chatgpt' };
+    await storage.putAccount(a); await storage.putAccount(other);
+    const old = { key: index(a).key, savedAt: 9000, quality: { status: 'partial' }, assets: [],
+        messages: [{ role: 'user', timestamp: 9000, content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserve me' }] }] }] };
+    await storage.updateConversationAtomically(old.key, () => ({ index: { ...index(a), updatedAt: 9000 }, detail: old, result: undefined }));
+    await storage.putIndexes([{ ...index(other), updatedAt: 9000 }]);
+    await storage.putExportRecord(old.key, { format: 'markdown', status: 'ok', exportedAt: 10000, chatTime: 9000 });
+    await storage.putExportRecord(index(other).key, { format: 'markdown', status: 'ok', exportedAt: 10000, chatTime: 9000 });
+    const coverage = { range: { head: { id: 'head', time: 9000 }, tail: { id: 'tail', time: 1000 } } };
+    await storage.updateCoverageAtomically(a.id, 'main', () => ({ next: coverage, result: undefined }));
+    await storage.updateCoverageAtomically(other.id, 'main', () => ({ next: coverage, result: undefined }));
+    await ensureUpgraded();
+    assert.equal(await storage.getCoverage(a.id, 'main'), null);
+    assert.deepEqual(await storage.getCoverage(other.id, 'main'), coverage);
+    assert.equal((await storage.getIndex(old.key)).updatedAt, undefined);
+    assert.equal((await storage.getIndex(old.key)).activityAt, 9000, 'message dates still support display without asserting an online version');
+    const retained = await storage.getDetail(old.key);
+    assert.equal(retained.savedAt, undefined);
+    assert.deepEqual(retained.messages, old.messages);
+    assert.deepEqual(retained.assets, old.assets);
+    assert.deepEqual(await storage.getExportRecord(old.key), { format: 'markdown', status: 'ok', exportedAt: 10000 });
+    assert.equal((await storage.getIndex(index(other).key)).updatedAt, 9000);
+    assert.equal((await storage.getExportRecord(index(other).key)).chatTime, 9000);
+    const { ingestDetail } = require('../src/l2/ingestion.ts');
+    const admission = await ingestDetail(a.id, old.key.conversationId, { ...old, savedAt: 1000 }, { updatedAt: 1000 });
+    assert.equal(admission.accepted, true, 'lower authoritative time is no longer blocked by archive time');
+    assert.equal((await storage.getIndex(old.key)).updatedAt, 1000);
+    assert.equal((await storage.getDetail(old.key)).savedAt, 1000);
+    await ensureUpgraded();
+    assert.equal((await storage.getDetail(old.key)).savedAt, 1000, 'repair never repeats after new online data arrives');
+});
+
+test('source-version repair retries after a marker failure without losing body content', async () => {
+    data = { [marker]: true };
+    await storage.putAccount(a);
+    await storage.updateConversationAtomically(index(a).key, () => ({ index: index(a),
+        detail: { key: index(a).key, savedAt: 123, quality: { status: 'partial' }, assets: [], messages: [] }, result: undefined }));
+    failKey = versionMarker;
+    await assert.rejects(ensureUpgraded(), /injected/);
+    assert.equal(data[versionMarker], undefined);
+    assert.ok(await storage.getDetail(index(a).key));
+    failKey = undefined;
+    await ensureUpgraded();
+    assert.equal(data[versionMarker], true);
+    assert.equal((await storage.getDetail(index(a).key)).savedAt, undefined);
 });

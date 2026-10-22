@@ -18,7 +18,7 @@ for (const version of [1, 2, 999, '3']) test(`legacy schema indicator ${version}
     const env = indexStorage(seed);
     try {
         await ensureUpgraded();
-        assert.deepEqual(env.local, { ...seed, gemini_exporter_v2_initialized: true });
+        assert.deepEqual(env.local, { ...seed, gemini_exporter_v2_initialized: true, gemini_exporter_source_versions_v1: true });
         assert.deepEqual(await indexedDB.databases(), []);
     } finally { env.restore(); }
 });
