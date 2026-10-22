@@ -3,6 +3,7 @@ import { isAccountId } from '../../l2/accountRegistry.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
 import type { TabStatusResult } from '../types/utils.js';
 import { discoverChatGPTAccounts } from './chatgptDiscovery.js';
+import { discoverClaudeAccounts } from './claudeDiscovery.js';
 
 export async function sendTabMessage(tabId: number, message: unknown, timeout = 25000): Promise<unknown> {
     return new Promise((resolve, reject) => {
@@ -75,11 +76,17 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     } catch (error) {
         if (preferred?.providerId === 'chatgpt') throw error;
     }
+    try {
+        for (const account of await discoverClaudeAccounts()) accounts.add(account.id);
+    } catch (error) {
+        if (preferred?.providerId === 'claude') throw error;
+    }
     if (preferredAccountId && accounts.has(preferredAccountId)) return preferredAccountId;
     if (preferred?.providerId === 'chatgpt') throw new Error('Open ChatGPT, log in and connect the selected account before scanning.');
+    if (preferred?.providerId === 'claude') throw new Error('Open Claude, log in and connect the selected account before scanning.');
     if (accounts.size === 1) return [...accounts][0];
-    throw new Error(accounts.size ? 'Multiple Gemini accounts or ChatGPT accounts are open. Select the account to scan.'
-        : 'Open Gemini or ChatGPT, log in and connect the account before scanning.');
+    throw new Error(accounts.size ? 'Multiple provider accounts are connected. Select the account to scan.'
+        : 'Open Gemini, ChatGPT or Claude and connect an account before scanning.');
 }
 export async function getGeminiTab(accountId?: string): Promise<chrome.tabs.Tab | null> {
     if (!accountId) throw new TypeError('Tab routing requires an Account UUID');
