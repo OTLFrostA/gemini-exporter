@@ -68,4 +68,17 @@ export const geminiListFixtures = {
     browserPassiveCaptureWire: () => wire([
         sourceRow('passive', 'Captured title', 1700000000),
     ]),
+
+    domMetadata: () => {
+        const header = { textContent: 'Header title' };
+        const sidebar = { textContent: 'Google Gemini', href: 'https://gemini.google.com/app/boundary123',
+            querySelector: () => null };
+        const query = { textContent: 'First user question' };
+        const doc = { title: 'Google Gemini',
+            querySelectorAll: (selector: string) => selector.includes('a[href') ? [sidebar]
+                : selector.includes('conversation-title') ? [header] : [],
+            querySelector: (selector: string) => selector.startsWith('user-query') ? query : null,
+        } as unknown as Document;
+        return { header, doc };
+    },
 };
