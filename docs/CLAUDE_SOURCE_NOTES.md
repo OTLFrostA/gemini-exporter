@@ -12,7 +12,7 @@ We do **not** bundle any of their scripts, UI, ZIP/export logic or third-party l
 
 - Claude is opt-in via an optional origin permission; existing Gemini users receive no new mandatory host permissions.
 - Organization IDs are used as source-account identities. Team/shared-organization identity isolation requires further live verification.
-- Claude currently exposes an array-returning conversation list and an undocumented detail endpoint. Those contracts may change or truncate silently; live pagination/coverage verification is required before marking the provider production-ready.
+- Claude currently exposes an array-returning conversation list and an undocumented detail endpoint. Those contracts may change or truncate silently; the scan indexes observed rows but intentionally returns a partial-coverage result rather than claiming source exhaustion. Pagination/coverage verification is required before marking the provider production-ready.
 - Only the selected branch is rendered into Domain Detail. Alternate branches are not represented by the current v2 Domain schema.
 - Text content, available thinking blocks, uploaded text extracts and simple content-bearing artifacts are mapped. Other tool content is represented conservatively; binary attachments are not claimed to be downloaded.
 - No Claude live-save/sniffer is installed in this first integration; only manual scan and export are connected.
