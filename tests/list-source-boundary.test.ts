@@ -4,6 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { restoreConversationIndex } from '../src/l2/conversationIndex.js';
 import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
+import { chatgptList } from './fixtures/providers/chatgpt.js';
+import { geminiListRows } from './fixtures/providers/gemini.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
@@ -15,12 +17,12 @@ import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { parseGeminiDomList, parseGeminiDomIndex } from '../src/l1/parsers/gemini/dom/parseIndex.js';
 
 test('ChatGPT lists emit exact Domain indexes with source times and no invented fallback facts', () => {
-    const page = parseChatGPTList({ items: [
+    const page = parseChatGPTList(chatgptList({ items: [
         { id: 'api-chat', title: '  Source title  ', create_time: 1700000000.125, update_time: '2023-11-14T22:14:20Z',
             timestamp: 999, titles: { user: 'Injected title' }, source: 'takeout', messageCount: 100 },
         { id: 'untitled', title: '', create_time: null, update_time: 'invalid' },
         { id: 'millis', title: 'A', create_time: 1700000000123, update_time: Infinity },
-    ], total: 3, cursor: 'next' });
+    ], total: 3, cursor: 'next' }));
     assert.deepEqual(page.conversations[0], { id: 'api-chat', title: 'Source title',
         titleSource: 'provider', createdAt: 1700000000125, updatedAt: 1700000060000 });
     const empty = page.conversations[1];
@@ -52,8 +54,8 @@ test('malformed ChatGPT pages cannot masquerade as empty exhausted history', asy
 test('provider commits indexes before progress and exposes control facts only', async () => {
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
         url.includes('/api/auth/session') ? { accessToken: 'test-token', user: { id: 'u-index' }, account: { id: 'w-index' } }
-            : { items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }],
-                total: 1, offset: 0, limit: 100, has_missing_conversations: false }
+            : chatgptList({ items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }],
+                total: 1, hasMissingConversations: false })
     )) });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-index', 'w-index']));
     let observed: unknown;
@@ -68,9 +70,9 @@ test('provider commits indexes before progress and exposes control facts only', 
 });
 
 test('Gemini observations and pagination consume parsed evidence without reading decoded payloads', async () => {
-    const parsed = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+    const parsed = geminiListRows([
         ['c_boundary123', 'Source title', null, null, null, [1700000060, 0]],
-    ]])]]));
+    ]);
     Object.defineProperty(parsed, '_raw', { get() { throw new Error('downstream interpreted raw source'); } });
     const observation = geminiListObservation(parsed, { streamId: 'recent', requestCursor: null }, 'account');
     assert.equal(observation.valid, true);
@@ -92,7 +94,7 @@ test('Gemini parser rejects incomplete row coverage and unknown layouts as exhau
 });
 
 test('an empty Gemini continuation page preserves its cursor instead of claiming exhaustion', () => {
-    const parsed = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, 'tC_cursor', []])]]));
+    const parsed = geminiListRows([], 'tC_cursor');
     assert.equal(parsed.pageEvidence.valid, true);
     assert.equal(parsed.nextPageToken, 'tC_cursor');
     assert.deepEqual(parsed.conversations, []);
