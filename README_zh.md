@@ -8,6 +8,8 @@
 
 **[前往 Chrome 应用商店安装](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_zh&utm_campaign=github_repo)** · [MIT 开源协议](./LICENSE)
 
+![Chrome 应用商店累计安装量](https://raw.githubusercontent.com/OTLFrostA/gemini-exporter/stats/stats/install-growth.svg)
+
 ## ✨ 核心功能
 
 - **单篇或批量备份**：一键保存当前对话，或扫描历史后按需选择批量导出。
