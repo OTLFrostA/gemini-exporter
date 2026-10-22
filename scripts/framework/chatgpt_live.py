@@ -1,8 +1,7 @@
 """ChatGPT live staging. Browser interaction and disk evidence, never mocked replies.
 
-The existing Gemini DAG is unchanged. This runner shares its scenario pool,
-lock, CDP transport and physical export validators. Reports retain unfinished
-gates as failures; a supported export alone is never a full lifecycle pass.
+Platform-specific browser operations and evidence collection. Scheduling,
+dependencies and lifecycle are owned by the platform-neutral Tier 2 framework.
 """
 import base64
 import json
@@ -514,28 +513,7 @@ class ChatGPTLiveRunner:
         return results
 
     def run(self):
-        try:
-            self.gate('connection', self.prepare)
-            self.gate('complex_multiturn', self.generate)
-            self.gate('independent_golden_capture', self.capture_golden)
-            self.gate('scan', self.sync)
-            self.gate('passive_lifecycle', self.lifecycle)
-            self.gate('confirmed_deletion', self.confirmed_deletion)
-            self.gate('physical_four_format_export', self.exports)
-            from scripts.framework.chatgpt_evidence import assert_full_exports
-            self.gate('full_reply_fidelity', lambda: assert_full_exports(self.root, self.output, self.chat_ids))
-            self.gate('golden_physical_exports', self.golden_exports)
-            self.gate('popup_export', self.popup_export)
-            # These gates are filled by lifecycle/physical evidence checks. Do not
-            # silently pass them because the currently supported scan worked.
-            for name in ['full_reply_fidelity', 'image_pixels', 'questionnaires', 'passive_promotion', 'confirmed_deletion', 'live_disk_save', 'popup_export']:
-                self.report['gates'].setdefault(name, {'status': 'failed', 'error': 'Not yet verified in this run'})
-        except Exception:
-            traceback.print_exc()
-        finally:
-            self.report['passed'] = bool(self.report['gates']) and all(g['status'] == 'passed' for g in self.report['gates'].values())
-            self.save_report()
-            for connection in [self.options, self.chat, self.browser]:
-                if connection:
-                    connection.close()
-        return self.report['passed']
+        """Compatibility entry point; use the shared platform DAG and lifecycle."""
+        from scripts.framework.platforms.core import run_session
+        from scripts.framework.platforms.chatgpt import ChatGPTPlugin
+        return run_session(ChatGPTPlugin.session(self), {})
