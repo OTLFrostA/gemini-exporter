@@ -68,6 +68,15 @@ export const geminiListFixtures = {
     browserPassiveCaptureWire: () => wire([
         sourceRow('passive', 'Captured title', 1700000000),
     ]),
+    rpcIngestWire: () => wire([sourceRow('abcdef123456', 'Server title', 1700000000)]),
+    observedPageWire: () => wire([
+        sourceRow('abcdef123', 'Newest', 1700000020),
+        sourceRow('abcdef456', 'Older', 1700000010),
+    ], 'tC_tail'),
+    mixedInvalidParsedPage: () => parsed([
+        ['c_unknown', 'Invalid'],
+        sourceRow('valid_123', 'Valid Chat', 1700000000),
+    ]),
 
     domMetadata: () => {
         const header = { textContent: 'Header title' };
