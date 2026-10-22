@@ -18,6 +18,14 @@
 
 中英双语 · 明暗主题 · 导出状态与失败重试
 
+## 📸 产品截图
+
+![Gemini Exporter v2 中文工作台，展示示例对话](./store_assets/screenshot_3_1280x800.png)
+
+[深色模式及实时保存](./store_assets/screenshot_2_1280x800.png) · [快捷导出弹窗](./store_assets/screenshot_popup_v2.png)
+
+*截图来自实际运行的 v2 扩展，所有对话均为匿名示例数据。*
+
 ## 🚀 三步开始
 
 1. **安装插件**，打开 [Google Gemini](https://gemini.google.com) 中的对话。

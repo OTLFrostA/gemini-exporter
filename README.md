@@ -18,6 +18,14 @@
 
 English/简体中文 interface · Dark/light theme · Export status and retry tools
 
+## 📸 Preview
+
+![Gemini Exporter v2 workbench with demo conversations](./store_assets/screenshot_1_1280x800.png)
+
+[Dark-mode workbench & Live Save](./store_assets/screenshot_2_1280x800.png) · [Quick-export popup](./store_assets/screenshot_popup_v2.png)
+
+*Screenshots were captured from the actual v2 extension with anonymous example conversations.*
+
 ## 🚀 Get started
 
 1. **Install the extension** and open a conversation at [Google Gemini](https://gemini.google.com).

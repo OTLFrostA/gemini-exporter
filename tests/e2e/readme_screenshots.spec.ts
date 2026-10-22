@@ -8,8 +8,9 @@ import * as path from 'node:path';
  * This is intentionally opt-in and uses anonymous fixture conversations, never a real account.
  * Run: CAPTURE_README_SCREENSHOTS=1 npx playwright test tests/e2e/readme_screenshots.spec.ts --workers=1
  */
+test.skip(process.env.CAPTURE_README_SCREENSHOTS !== '1', 'Manual docs screenshot capture only');
+
 test('capture v2 product screenshots from the real extension UI', async ({ context, extensionId }) => {
-    test.skip(process.env.CAPTURE_README_SCREENSHOTS !== '1', 'Manual docs screenshot capture only');
     test.setTimeout(90000);
 
     await seedRegistryAccounts(context);
