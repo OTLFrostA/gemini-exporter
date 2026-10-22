@@ -761,6 +761,9 @@ test('A fallback that already contains loop labels is not duplicated or downgrad
     assert.equal(snapshot.recoveredStrings, 0);
     const recovered = chatGPTInteractiveSnapshot(raw, '[Submit]');
     assert.equal(recovered.recoveredStrings, 3, 'dollar signs in valid bindings are matched literally');
+    const distinctBinding = raw.replace('{#each $questions as', '{#each $questionsExtra as');
+    assert.equal(chatGPTInteractiveSnapshot(distinctBinding, '[Submit]').recoveredStrings, 0,
+        'a different loop binding must not expose an unrelated declaration');
 });
 
 test('Without a fallback, literal recovery remains partial and ignores arrays outside rendered loops', () => {

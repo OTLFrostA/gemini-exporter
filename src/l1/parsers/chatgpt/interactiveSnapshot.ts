@@ -85,10 +85,11 @@ export function chatGPTInteractiveSnapshot(raw: string, fallback?: string): Chat
     const recovered: string[] = [];
     let recoveredStrings = 0;
     if (raw.length <= 1_000_000) {
+        const renderedBindings = new Set([...raw.matchAll(/\{#each\s+([A-Za-z_$][\w$]*)\s+as\b/g)]
+            .map(match => match[1]));
         for (const declaration of raw.matchAll(/\{@body\s+(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*/g)) {
             // Do not turn unrelated configuration arrays into visible content.
-            const binding = declaration[1].replace(/[$]/g, '\\$&');
-            if (!new RegExp('\\{#each\\s+' + binding + '\\s+as\\b').test(raw)) continue;
+            if (!renderedBindings.has(declaration[1])) continue;
             const value = literalAt(raw, declaration.index + declaration[0].length);
             if (!Array.isArray(value)) continue;
             for (const item of value) {
