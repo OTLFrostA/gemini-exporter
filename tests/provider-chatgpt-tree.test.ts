@@ -1,3 +1,4 @@
+import { chatGPTInteractiveSnapshot } from '../src/l1/parsers/chatgpt/interactiveSnapshot.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { getDetail } from '../src/l3a/storageService.js';
@@ -303,7 +304,8 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     const userMsg = detail.messages.find(m => m.id === 'u1');
     assert.deepEqual(userMsg?.content.map(b => b.type), ['paragraph', 'image', 'paragraph']);
     const toolMsg = detail.messages.find(m => m.id === 't1');
-    assert.deepEqual(toolMsg?.attachmentIds, [detail.assets[1].id]);
+    assert.equal(toolMsg?.attachmentIds, undefined);
+    assert.deepEqual(toolMsg?.content.filter(b => b.type === 'image').map(b => b.assetId), [detail.assets[1].id]);
 
 });
 
@@ -457,7 +459,7 @@ test('repeated image pointers reuse one asset instead of breaking closure', () =
     });
     assert.equal(parsed.conversation.detail.assets.length, 1);
     assert.deepEqual(
-        parsed.conversation.detail.messages.filter((m) => m.id === 't1' || m.id === 't2').map((m) => m.attachmentIds),
+        parsed.conversation.detail.messages.filter((m) => m.id === 't1' || m.id === 't2').map((m) => m.content.filter(b => b.type === 'image').map(b => b.assetId)),
         [['img-file_dup'], ['img-file_dup']],
     );
 });
@@ -649,4 +651,64 @@ test('optional access helper never prompts and registers only on grant', async (
         ProviderRegistry.unregister('chatgpt');
         holder.chrome = previous;
     }
+});
+
+test('Intelligent UI questionnaires use the provider fallback without executing or exporting component code', () => {
+    const raw = '<radio-group value={issue}><radio>Menu unavailable</radio></radio-group>';
+    const fallback = 'Which issue?\n\nMenu unavailable\n\nCannot switch\n\nWhich platform?\n\nBrowser\n\nMobile\n\n[Diagnose]';
+    const assistant = textNode('answer', 'question', 'assistant', raw);
+    assistant.message!.metadata = { model_dil_v2: { fallbackMarkdown: fallback } };
+    const conversation: ChatGPTApiConversationWithId = {
+        id: 'questionnaire', title: 'Questionnaire', create_time: 1, update_time: 2,
+        current_node: 'answer', is_archived: false,
+        mapping: {
+            root: { id: 'root', children: ['question'] },
+            question: textNode('question', 'root', 'user', 'Help me diagnose'),
+            answer: assistant,
+        },
+    };
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    const body = JSON.stringify(parsed.conversation.detail.messages[1].content);
+    for (const label of ['Which issue?', 'Menu unavailable', 'Cannot switch', 'Which platform?', 'Browser', 'Mobile', 'Diagnose'])
+        assert.ok(body.includes(label), `missing questionnaire label: ${label}`);
+    assert.ok(!body.includes('radio-group'));
+    assert.ok(!body.includes('value={issue}'));
+    assert.equal(assistant.message!.content.content_type, 'text');
+    assert.equal((assistant.message!.content as { parts: string[] }).parts[0], raw, 'raw source remains unchanged');
+});
+
+
+test('Loop-generated questionnaire data survives an official fallback that omits every question', () => {
+    const raw = `{@body const questions = [{q:"Which waste?",opts:["Peels","Plastic","Glass"]},{q:"How to aerate?",opts:["Mix","Seal","Flood"]}]}
+{#each questions as question, i}<text>{question.q}</text>{/each}`;
+    const snapshot = chatGPTInteractiveSnapshot(raw, '# Compost quiz\n\n[Submit]');
+    assert.equal(snapshot.incomplete, true);
+    for (const label of ['Which waste?', 'Peels', 'Plastic', 'Glass', 'How to aerate?', 'Mix', 'Seal', 'Flood', '[Submit]'])
+        assert.ok(snapshot.text.includes(label), label);
+    assert.ok(!snapshot.text.includes('{#each'));
+    const answer = textNode('answer', 'question', 'assistant', raw);
+    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: '# Compost quiz\n\n[Submit]' } };
+    const parsed = parseChatGPTConversation({ assetsByNode: new Map(), conversation: {
+        id: 'dynamic-quiz', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
+    } });
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    assert.ok(parsed.diagnostics.some(item => item.code === 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE'));
+    assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('Peels'));
+});
+
+test('Interactive snapshot rejects executable bindings and handles empty fallback-only source', () => {
+    for (const expression of ['fetch("https://invalid.example")', '[{q:run()}]', '["hidden"].map(run)', '["hidden"] + run()', '[...secrets]', '[{get q(){return "hidden"}}]']) {
+        const snapshot = chatGPTInteractiveSnapshot(`{@body const questions = ${expression}}{#each questions as q}<text>{q}</text>{/each}`, '[Submit]');
+        assert.equal(snapshot.incomplete, true);
+        assert.ok(!snapshot.text.includes('hidden'));
+        assert.ok(!snapshot.text.includes('fetch('));
+    }
+    const answer = textNode('answer', 'question', 'assistant', '');
+    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: 'Question and options' } };
+    assert.equal(shouldSkipChatGPTMessage(answer.message), false);
+    answer.message!.metadata = { model_dil_v2: {} };
+    assert.equal(shouldSkipChatGPTMessage(answer.message), false);
+    assert.equal(chatGPTInteractiveSnapshot('').incomplete, true);
+    assert.ok(chatGPTInteractiveSnapshot('{@body const q = [{"text" : "safe <tag> *value*", "opts": ["a", "b"]}]}{#each q as x}', 'Submit').text.includes('safe \\<tag\\> \\*value\\*'));
 });

@@ -37,6 +37,8 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
     await expect(page.locator('#status')).toContainText('Reached the end');
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#list')).toContainText('ChatGPT history from source');
+    await expect(page.locator('#list .open-link')).toHaveAttribute('href', 'https://chatgpt.com/c/gpt-chat');
+    await expect(page.locator('#list .open-link')).toHaveAttribute('aria-label', 'Open in ChatGPT');
     const id = await page.locator('#accountIdSelect').inputValue();
     expect(await page.evaluate(async id => {
         const api = Reflect.get(window, 'uiFixture');

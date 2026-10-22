@@ -9,8 +9,10 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const SCAN_ROOTS = ['dist', 'src', 'lib', 'icons', '_locales'];
 const FONT_EXTS = new Set(['.ttf', '.otf', '.ttc', '.otc', '.woff', '.woff2', '.eot']);
 const FONT_DIR = 'src/l4/format/pdf/sandbox/fonts/';
-const TOTAL_FONT_BUDGET_BYTES = 20 * 1024 * 1024;
+const TOTAL_FONT_BUDGET_BYTES = 22 * 1024 * 1024;
 const APPROVED_FONTS = [
+    { file: 'NotoEmoji-Variable.ttf', sha256: 'de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551',
+      license: 'OFL-NotoEmoji.txt', licenseSha256: '500bb1ccf43df7bbb522112f9133a52b16e1c35e809632f5d8609b179152de5b' },
     { file: 'NewCMMath-Regular.otf', sha256: '5e82df214f99cc7057e8236f3dab06f8fac95a23ddc2f0fd41ddeb2f38ea72fe',
       license: 'GUST-FONT-LICENSE.txt', licenseSha256: '49ea6cb9257bbee0a3979c48a774cd221550ac1c20c95549efe45fc99cc18050' },
     { file: 'NotoSansCJKsc-Regular.otf', sha256: '2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b',

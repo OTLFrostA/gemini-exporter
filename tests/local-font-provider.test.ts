@@ -358,7 +358,7 @@ test('mono selection: mirrors the Typst font-mono family stack', () => {
     const declaration = /#let font-mono = \(([\s\S]*?)\)/.exec(theme);
     if (!declaration) throw new Error('PDF template should declare font-mono');
     assert.deepStrictEqual([...declaration[1].matchAll(/"([^"]+)"/g)].map((match: RegExpMatchArray) => match[1]),
-        [...MONO_FONT_STACK, 'Noto Sans Mono', 'Noto Sans CJK SC']);
+        [...MONO_FONT_STACK, 'Noto Sans Mono', 'Noto Sans CJK SC', 'Noto Emoji']);
 });
 
 test('mono selection: default eight-font limit always reserves one installed real mono face', async () => {

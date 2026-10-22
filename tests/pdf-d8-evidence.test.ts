@@ -477,3 +477,13 @@ test("pdfTextExtract: marked content /ActualText replaces composite glyphs witho
     assert.strictEqual(extracted.text, "()");
     assert.ok(!extracted.text.includes(String.fromCharCode(0xfffd)), "no tofu");
 });
+
+test('offline emoji fallback preserves selectable conversation symbols without device fonts', async () => {
+    const symbols = ['🎉', '💬', '🧠', '✍', '🖼', '🌅', '🐈'];
+    const result = await compileOnce(makeDomain([msg('emoji', 'assistant', [para('Emoji: ' + symbols.join(' '))])]));
+    assertPdfMagic(result.pdfBytes);
+    const extracted = extractPdfText(result.pdfBytes);
+    for (const symbol of symbols) assert.ok(extracted.text.includes(symbol), `missing emoji ${symbol}`);
+    assert.equal(extracted.imageXObjectCount, 0, 'emoji remain font glyphs, not downloaded pictures');
+    assert.ok(!extracted.text.includes('�'));
+});

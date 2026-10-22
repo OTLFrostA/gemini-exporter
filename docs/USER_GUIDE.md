@@ -66,4 +66,6 @@ Takeout can supplement what Gemini exposes to an online scan. It cannot guarante
 
 **Can I back up ChatGPT, Claude, or Grok?** Source builds include experimental ChatGPT Workbench scanning and export: open ChatGPT and log in, click **Connect ChatGPT**, grant optional site access, then sync and export. ChatGPT popup export and Live Save are not supported. Claude and Grok are not implemented.
 
+**What happens to ChatGPT questionnaires and interactive cards?** Exports preserve static text using the source Markdown fallback. For loop-generated forms, literal question/option data is recovered without running component code. These dynamic snapshots are marked incomplete because computed content and selected answers may be unavailable. Buttons become labels; exported files do not submit forms or run ChatGPT actions.
+
 For developer documentation, see [v2 module architecture](../src/README.md) and the [testing guide](../tests/README.md). Read the [privacy policy](./PRIVACY_POLICY.md) for data-handling details.

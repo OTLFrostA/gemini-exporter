@@ -29,6 +29,7 @@
   "Noto Sans CJK SC",
   "Noto Sans",
   "DejaVu Sans",
+  "Noto Emoji",
 )
 
 #let font-mono = (
@@ -40,6 +41,7 @@
   "DejaVu Sans Mono",
   "Noto Sans Mono",
   "Noto Sans CJK SC",
+  "Noto Emoji",
 )
 
 #let font-math = (

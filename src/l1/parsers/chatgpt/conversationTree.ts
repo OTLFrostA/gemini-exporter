@@ -3,6 +3,7 @@
  * No fetch, no DOM — fully unit-testable.
  * @unverified-provider-scaffold Awaiting 9222 live-payload verification.
  */
+import { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
 import type {
     ChatGPTApiConversationWithId,
     ChatGPTConversationNode,
@@ -42,6 +43,7 @@ export function shouldSkipChatGPTMessage(message?: ChatGPTNodeMessage): boolean 
         message.author.role === 'assistant'
         && isTextContent(message)
         && !message.content.parts.join('').trim()
+        && !message.metadata?.model_dil_v2
     ) {
         return true;
     }
@@ -62,10 +64,9 @@ function copyChatGPTNode(node: ChatGPTConversationNode): ChatGPTConversationNode
     if (!message) return { ...node };
     if (isTextContent(message)) {
         const fallback = message.metadata?.model_dil_v2?.fallbackMarkdown;
-        const parts =
-            typeof fallback === 'string' && fallback.trim()
-                ? [fallback]
-                : [...message.content.parts];
+        const parts = message.metadata?.model_dil_v2
+            ? [chatGPTInteractiveSnapshot(message.content.parts.join(''), fallback).text]
+            : [...message.content.parts];
         return {
             ...node,
             message: { ...message, content: { content_type: 'text', parts }, metadata: message.metadata && { ...message.metadata } },

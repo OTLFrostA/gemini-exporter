@@ -63,7 +63,8 @@ test('ChatGPT missing image bytes does not become missing body evidence', () => 
     assert.equal(result.conversation.detail.quality.status, 'complete');
     assert.equal(result.conversation.detail.assets.length, 1);
     assert.ok(result.diagnostics.some(d => d.code === 'CHATGPT_IMAGE_ASSET_UNAVAILABLE'));
-    assert.deepEqual(result.conversation.detail.messages[0].attachmentIds, [result.conversation.detail.assets[0].id]);
+    assert.equal(result.conversation.detail.messages[0].attachmentIds, undefined);
+    assert.deepEqual(result.conversation.detail.messages[0].content.filter(b => b.type === 'image').map(b => b.assetId), [result.conversation.detail.assets[0].id]);
 });
 
 test('ChatGPT source-native paging fields remain evidence, not Domain Index fields', () => {
