@@ -80,7 +80,7 @@ export interface ChatGPTApiConversationItem {
 }
 
 export interface ChatGPTApiConversations {
-    has_missing_conversations: boolean;
+    has_missing_conversations?: boolean;
     items: ChatGPTApiConversationItem[];
     limit: number;
     offset: number;

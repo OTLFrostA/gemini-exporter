@@ -80,3 +80,12 @@ test('ChatGPT source-native paging fields remain evidence, not Domain Index fiel
     assert.equal('total' in parsed.conversations[0], false);
     assert.throws(() => parseChatGPTList({ items: [], total: 0, offset: -1, limit: 100 }), TypeError);
 });
+
+test('ChatGPT optional legacy missing flag preserves absence and rejects malformed values', () => {
+    const page = { items: [], total: 0, offset: 0, limit: 100 };
+    assert.equal(parseChatGPTList(page).hasMissingConversations, undefined);
+    assert.equal(parseChatGPTList({ ...page, has_missing_conversations: true }).hasMissingConversations, true);
+    for (const value of [null, 'false', 0, {}]) {
+        assert.throws(() => parseChatGPTList({ ...page, has_missing_conversations: value }), TypeError);
+    }
+});

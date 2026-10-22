@@ -543,6 +543,50 @@ test('listConversations paginates until the reported total is reached', async ()
 
 });
 
+test('ChatGPT current list schema without the legacy missing flag traverses all pages', async () => {
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
+    const offsets: number[] = [];
+    const committed: Array<{ page: number; total: number; trustedHead: boolean }> = [];
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({
+            accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' },
+        }));
+        const offset = Number(new URL(url).searchParams.get('offset'));
+        offsets.push(offset);
+        return new Response(JSON.stringify({
+            items: Array.from({ length: offset === 0 ? 100 : 2 }, (_, i) => ({
+                id: `conversation-${offset + i}`, title: `Conversation ${offset + i}`,
+                create_time: 1, update_time: 1000 - offset - i,
+            })),
+            total: 102, limit: 100, offset,
+        }));
+    } });
+    assert.equal(await provider.listConversations({
+        accountId: account.id, streamId: 'recent',
+        onPageCommitted: async page => {
+            committed.push({ page: page.page, total: page.totalObserved, trustedHead: !!page.scanHead });
+            return false;
+        },
+    }), 'source_end');
+    assert.deepEqual(offsets, [0, 100]);
+    assert.deepEqual(committed, [
+        { page: 1, total: 100, trustedHead: true },
+        { page: 2, total: 102, trustedHead: false },
+    ]);
+    assert.equal((await getConversations(account.id)).length, 102);
+});
+
+test('ChatGPT empty current list schema proves source exhaustion', async () => {
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
+    const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
+        url.endsWith('/api/auth/session')
+            ? { accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } }
+            : { items: [], total: 0, limit: 100, offset: 0 },
+    )) });
+    assert.equal(await provider.listConversations({ accountId: account.id, streamId: 'recent' }), 'source_end');
+    assert.equal((await getConversations(account.id)).length, 0);
+});
+
 test('ChatGPT Detail never relabels a foreign source conversation ID', async () => {
     const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
         String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : { id: 'other-conversation' },
@@ -561,6 +605,11 @@ test('ChatGPT list refuses source_end when pagination, ordering or completeness 
         { items: [{ id: 'missing-row', title: 'Incomplete', update_time: 2 }], total: 1, limit: 100, offset: 0, has_missing_conversations: true },
         { items: [{ id: 'wrong-offset', title: 'Wrong offset', update_time: 2 }], total: 1, limit: 100, offset: 100, has_missing_conversations: false },
         { items: [{ id: 'missing-total', title: 'Missing total', update_time: 2 }], limit: 100, offset: 0, has_missing_conversations: false },
+        // Omitting the legacy flag cannot compensate for incomplete page evidence.
+        { items: [{ id: 'short-page', title: 'Short page', update_time: 2 }], total: 2, limit: 100, offset: 0 },
+        { items: [{ id: 'no-total', title: 'No total', update_time: 2 }], limit: 100, offset: 0 },
+        { items: [{ id: 'bad-offset', title: 'Bad offset', update_time: 2 }], total: 1, limit: 100, offset: 100 },
+        { items: [{ id: 'no-limit', title: 'No limit', update_time: 2 }], total: 1, offset: 0 },
     ];
     for (const page of cases) {
         const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(

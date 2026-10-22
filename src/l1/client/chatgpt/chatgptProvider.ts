@@ -137,7 +137,10 @@ export class ChatGPTProvider implements AIProvider {
             // An absent cursor by itself cannot prove source exhaustion.
             const valid = result.total !== undefined && result.total >= offset + count
                 && result.offset === offset && result.limit === 100
-                && result.hasMissingConversations === false
+                // Current backend responses omit this legacy flag. The total,
+                // offset and page size still prove exhaustion; an explicit
+                // missing-conversations warning must continue to reject it.
+                && result.hasMissingConversations !== true
                 && count <= 100 && (sourceEnd || count === 100)
                 && (expectedTotal === undefined || expectedTotal === result.total);
             expectedTotal ??= result.total;
