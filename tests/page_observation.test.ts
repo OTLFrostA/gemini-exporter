@@ -62,7 +62,7 @@ test('captured expanded webpage recent filter establishes request identity witho
 });
 
 test('list coverage uses the parser failure outcome, never the diagnostic payload', () => {
-    const result = geminiListFixtures.observationOrderedPage();
+    const result = geminiListFixtures.observationSinglePage();
     const request = { streamId: 'recent' as const, requestCursor: null };
     const debug = { error: 'NO_INNER_STR' as const, bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null };
     assert.deepEqual(geminiListObservation({ ...result, _debug: debug }, request, 'account'),
