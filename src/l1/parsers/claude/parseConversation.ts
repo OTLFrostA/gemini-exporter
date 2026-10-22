@@ -71,7 +71,7 @@ function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext):
             } else if (block.type === 'tool_use') {
                 const input = object(block.input);
                 const value = input?.content;
-                if (typeof value === 'string') {
+                if (typeof value === 'string' && (input?.command === undefined || input.command === 'create')) {
                     const name = typeof input?.title === 'string' ? input.title
                         : typeof block.name === 'string' ? block.name : 'Artifact';
                     content.push(paragraph('Artifact: ' + name));
@@ -106,6 +106,7 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
         diagnostics, sourceRef: { providerId: 'claude', locator: 'conversation:' + requestedId },
     };
     let partial = false;
+    const sourceModel = typeof data.model === 'string' && data.model.trim() ? data.model : undefined;
     const messages: DomainMessage[] = [];
     for (const message of branch.messages) {
         if (message.sender !== 'human' && message.sender !== 'assistant') continue;
@@ -113,7 +114,7 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
             sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } });
         if (rendered.incomplete) partial = true;
         const timestamp = claudeTimestamp(message.created_at);
-        const model = typeof message.model === 'string' && message.model.trim() ? message.model : undefined;
+        const model = typeof message.model === 'string' && message.model.trim() ? message.model : sourceModel;
         messages.push({
             id: String(message.uuid), role: message.sender === 'human' ? 'user' : 'assistant',
             content: rendered.content,
