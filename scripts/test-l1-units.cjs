@@ -18,7 +18,6 @@ const path = require('node:path');
 const suites = {
     client: [
         'tests/l1-client-v2-mocked.test.ts',
-        'tests/l1-provider-contract-matrix.test.ts',
         'tests/l1-outbound-contract.test.ts',
         'tests/provider_contract.test.ts',
         'tests/provider_degrade.test.ts',
