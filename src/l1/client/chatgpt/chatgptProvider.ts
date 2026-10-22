@@ -212,7 +212,9 @@ export class ChatGPTProvider implements AIProvider {
             const bytes = new Uint8Array(await response.arrayBuffer());
             signal?.throwIfAborted();
             if (!bytes.byteLength) throw new ResourceProcessingError('Empty ChatGPT resource');
-            return { bytes, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
+            const mediaType = asset.mediaType ?? exchange.mimeType ?? response.headers.get('content-type')?.split(';')[0].trim();
+            const name = asset.name ?? exchange.fileName;
+            return { bytes, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
         };
         return this.resources ? this.resources.acquire(key, asset, signal, remote) : remote();
     }

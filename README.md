@@ -44,11 +44,13 @@ English/简体中文 interface · Dark/light theme · Export status and retry to
 
 **Have older conversations?** Import an original [Google Takeout](https://takeout.google.com/settings/takeout/custom/gemini) ZIP in the Workbench.
 
+**ChatGPT (experimental, source builds):** Open ChatGPT and log in, then click **Connect ChatGPT** in the Workbench and grant the optional site access. Select the ChatGPT account, sync its history, and export selected conversations. ChatGPT currently supports Workbench scanning and exports; popup export and Live Save remain Gemini features.
+
 *Note:* **Sync All** updates the conversation list; **Export selected** creates backup files. Some expired source attachments may no longer be recoverable.
 
 ## 🔒 Privacy first
 
-Your exports are processed on your device, not on a developer-operated server. The extension uses your existing Gemini browser session to retrieve requested conversations and resources from Google. **Gemini is the currently supported source**; other AI platforms are not yet supported.
+Your exports are processed on your device, not on a developer-operated server. The extension uses your existing browser sessions to retrieve requested conversations and resources from Google Gemini, or from ChatGPT after you grant optional site access.
 
 ## 🛠️ Build from source
 

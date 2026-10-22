@@ -64,6 +64,6 @@ Takeout can supplement what Gemini exposes to an online scan. It cannot guarante
 
 **Why does PDF ask to access local fonts?** The local PDF renderer may request Chrome's Local Font Access permission to use installed fonts, especially for non-Latin scripts. Your document is compiled locally.
 
-**Can I back up ChatGPT, Claude, or Grok?** Not with this release. Google Gemini is the currently implemented export source.
+**Can I back up ChatGPT, Claude, or Grok?** Source builds include experimental ChatGPT Workbench scanning and export: open ChatGPT and log in, click **Connect ChatGPT**, grant optional site access, then sync and export. ChatGPT popup export and Live Save are not supported. Claude and Grok are not implemented.
 
 For developer documentation, see [v2 module architecture](../src/README.md) and the [testing guide](../tests/README.md). Read the [privacy policy](./PRIVACY_POLICY.md) for data-handling details.

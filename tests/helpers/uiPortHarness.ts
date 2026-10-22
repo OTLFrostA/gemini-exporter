@@ -39,6 +39,8 @@ export const runExport = async (request,options={}) => {h.exports.push(request);
  const exported = aborted ? 0 : request.keys.length - failed.length;
  return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;
+export const requestChatGPTConnection = async () => false;
+export const discoverChatGPTAccounts = async () => [];
 export const sendTabMessage = (tabId,message,timeoutMs) => {
  h.tabRequests.push({tabId,message,timeoutMs});
  return chrome.tabs.sendMessage(tabId,message);

@@ -292,7 +292,10 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     assert.equal(detail.assets.length, 2);
     assert.equal(detail.assets[0].sourceUri, 'sediment://file_cat');
     const key = { accountId: account.id, conversationId: 'conv-img' };
-    assert.deepEqual((await provider.acquireResource(key, detail.assets[0])).bytes, pngBytes);
+    const downloaded = await provider.acquireResource(key, detail.assets[0]);
+    assert.deepEqual(downloaded.bytes, pngBytes);
+    assert.equal(downloaded.mediaType, 'image/png');
+    assert.equal(downloaded.name, 'cat.png');
     await assert.rejects(provider.acquireResource(key, detail.assets[1]), /404/);
     assert.equal(detail.quality.status, 'complete');
     const after = await getDetail(storageIdentity('chatgpt', account.id, 'conv-img'));
