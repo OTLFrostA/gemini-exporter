@@ -6,7 +6,7 @@ import type { ResourceBytes } from '../../../shared/resources/resourceResult.js'
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
 import { ingestIndexes, ingestDetail } from '../../../l2/ingestion.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
-import type { AIProvider, ListEnd, ProviderListOptions, ProviderReadiness, PageEvidence } from '../aiProvider.js';
+import type { AIProvider, ListEnd, ProviderListOptions, ProviderReadiness } from '../aiProvider.js';
 import { parseClaudeList } from '../../parsers/claude/parseList.js';
 import { parseClaudeConversation } from '../../parsers/claude/parseConversation.js';
 import { readClaudeSource } from './claudeAccess.js';
@@ -59,18 +59,18 @@ export class ClaudeProvider implements AIProvider {
         const path = '/api/organizations/' + account.providerAccountId + '/chat_conversations';
         const requestedAt = Date.now();
         const parsed = parseClaudeList(await this.get(path, account, options.signal));
-        const evidence: PageEvidence = {
-            streamId: options.streamId, requestCursor: null, nextCursor: null,
-            requestedAt, requestKnown: true, valid: true, ordered: true, keys: parsed.keys,
-        };
+        // This endpoint returns an array without a total/next-page marker. We can
+        // index the observed rows, but cannot prove remote source exhaustion.
+        // Do not fabricate a trusted Coverage boundary or full-scan completion.
+        void requestedAt;
         await ingestIndexes(account.id, parsed.conversations.map(item => ({ conversationId: item.id, fields: {
             ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
             ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}),
             ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}),
-        } })), evidence);
+        } })), undefined);
         options.signal?.throwIfAborted();
-        await options.onPageCommitted?.({ page: 1, totalObserved: parsed.conversations.length, scanHead: evidence });
-        return 'source_end';
+        await options.onPageCommitted?.({ page: 1, totalObserved: parsed.conversations.length });
+        return 'max_pages';
     }
     async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void> {
         const account = await this.account(accountId);
