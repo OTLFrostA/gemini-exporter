@@ -49,6 +49,9 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
                         return response.json() as Promise<unknown>;
                     };
                     if (organization) {
+                        const cookieOrg = document.cookie.match(/(?:^|;\\s*)lastActiveOrg=([^;]+)/)?.[1];
+                        if (cookieOrg && decodeURIComponent(cookieOrg) !== organization)
+                            throw new Error('Active Claude organization differs from selected account');
                         const organizations = await getJson('/api/organizations');
                         if (!Array.isArray(organizations) || !organizations.some(
                             org => org && typeof org === 'object' && org.uuid === organization))
