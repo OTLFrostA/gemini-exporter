@@ -8,6 +8,7 @@ import { createSourceResourceContext } from '../src/l1/resources/sourceResources
 import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { sourceDetail, sourceList, sourceMessage } from './helpers/l1SourceFixture.js';
+import type { AIProvider } from '../src/l1/client/aiProvider.js';
 
 beforeEach(() => ports.reset());
 const route = async () => 'u0';
@@ -20,39 +21,100 @@ const client = (pages: ReturnType<typeof sourceList>[]) => ({
     async getConversationDetail() { return sourceDetail(); },
 });
 
-test('Gemini Client commits canonical keyless Index/page evidence before callback', async () => {
-    const first = sourceList(['source_alpha'], 'tC_NEXT_123456789');
-    const second = sourceList(['source_beta']);
-    const provider = new GeminiProvider(client([first, second]), route);
-    const seen: Array<{ page: number; committed: number; head: boolean }> = [];
-    const end = await provider.listConversations({
-        accountId: GEMINI_ACCOUNT.id, streamId: 'recent',
-        onPageCommitted: async info => {
-            seen.push({ page: info.page, committed: ports.indexes.length, head: !!info.scanHead });
-            return false;
-        },
-    });
-    assert.equal(end, 'source_end');
-    assert.deepEqual(seen, [{ page: 1, committed: 1, head: true }, { page: 2, committed: 2, head: false }]);
-    assert.deepEqual(ports.indexes.map(call => call.items.map(row => row.conversationId)),
-        [['source_alpha'], ['source_beta']]);
-    assert.equal(ports.indexes[0].accountId, GEMINI_ACCOUNT.id);
-    assert.equal(ports.indexes[0].page?.requestCursor, null);
-    assert.equal(ports.indexes[0].page?.nextCursor, 'tC_NEXT_123456789');
-    assert.equal(ports.indexes[0].page?.keys[0]?.time, 1700000000000);
-    assert.equal(ports.indexes[1].page?.nextCursor, null);
-    assert.ok(ports.indexes.every(call => call.page?.valid && call.page?.requestKnown));
+/**
+ * Extracted from the existing Gemini two-page and ChatGPT one-page List tests.
+ * Only native source setup/expectations differ; the public L1 -> L2 contract
+ * assertions run identically for both real provider implementations.
+ */
+const chatgptListProvider = (untrusted = false) => new ChatGPTProvider({
+    fetchFn: async (url: string) => new Response(JSON.stringify(
+        url.endsWith('/api/auth/session')
+            ? { accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' } }
+            : untrusted
+                ? { items: [{ id: 'incomplete', update_time: 1700000010 }],
+                    total: 1, offset: 0, limit: 100, has_missing_conversations: true }
+                : { items: [{ id: 'chatgpt-source', title: 'Owned title', create_time: 1700000000,
+                    update_time: 1700000010 }], total: 1, offset: 0, limit: 100,
+                    has_missing_conversations: false },
+    ), { status: 200 }),
 });
 
-test('L1 preserves Index facts without certifying an untrusted page or default account', async () => {
-    const untrusted = sourceList(['source_alpha']);
-    untrusted.pageEvidence.valid = false;
-    await assert.rejects(new GeminiProvider(client([untrusted]), route).listConversations({
-        accountId: GEMINI_ACCOUNT.id, streamId: 'recent',
-    }), /Unverified Gemini list page/);
-    assert.equal(ports.indexes.length, 1);
-    assert.equal(ports.indexes[0].page?.valid, false);
-    ports.reset();
+type ListContractCase = {
+    name: string;
+    accountId: string;
+    expectedIds: readonly (readonly string[])[];
+    expectedHeads: readonly boolean[];
+    createProvider: () => AIProvider;
+    createUntrustedProvider: () => AIProvider;
+    assertNativeEvidence: () => void;
+};
+
+const listContractCases: readonly ListContractCase[] = [
+    {
+        name: 'Gemini', accountId: GEMINI_ACCOUNT.id,
+        expectedIds: [['source_alpha'], ['source_beta']], expectedHeads: [true, false],
+        createProvider: () => new GeminiProvider(client([
+            sourceList(['source_alpha'], 'tC_NEXT_123456789'), sourceList(['source_beta']),
+        ]), route),
+        createUntrustedProvider: () => {
+            const untrusted = sourceList(['source_alpha']);
+            untrusted.pageEvidence.valid = false;
+            return new GeminiProvider(client([untrusted]), route);
+        },
+        assertNativeEvidence: () => {
+            assert.equal(ports.indexes[0].page?.requestCursor, null);
+            assert.equal(ports.indexes[0].page?.nextCursor, 'tC_NEXT_123456789');
+            assert.equal(ports.indexes[0].page?.keys[0]?.time, 1700000000000);
+            assert.equal(ports.indexes[1].page?.nextCursor, null);
+        },
+    },
+    {
+        name: 'ChatGPT', accountId: CHATGPT_ACCOUNT.id,
+        expectedIds: [['chatgpt-source']], expectedHeads: [true],
+        createProvider: () => chatgptListProvider(),
+        createUntrustedProvider: () => chatgptListProvider(true),
+        assertNativeEvidence: () => {
+            assert.deepEqual(ports.indexes[0].items, [{
+                conversationId: 'chatgpt-source', fields: {
+                    title: 'Owned title', titleSource: 'provider', createdAt: 1700000000000,
+                    updatedAt: 1700000010000,
+                },
+            }]);
+            assert.equal(ports.indexes[0].page?.keys[0]?.time, 1700000010000);
+            assert.equal(ports.indexes[0].page?.nextCursor, null);
+        },
+    },
+];
+
+for (const fixture of listContractCases) {
+    test(`${fixture.name} Client commits canonical keyless Index/page evidence before callback`, async () => {
+        const seen: Array<{ page: number; committed: number; head: boolean }> = [];
+        const end = await fixture.createProvider().listConversations({
+            accountId: fixture.accountId, streamId: 'recent',
+            onPageCommitted: async info => {
+                seen.push({ page: info.page, committed: ports.indexes.length, head: !!info.scanHead });
+                return false;
+            },
+        });
+        assert.equal(end, 'source_end');
+        assert.deepEqual(seen, fixture.expectedIds.map((_, index) =>
+            ({ page: index + 1, committed: index + 1, head: fixture.expectedHeads[index] })));
+        assert.deepEqual(ports.indexes.map(call => call.items.map(row => row.conversationId)), fixture.expectedIds);
+        assert.ok(ports.indexes.every(call => call.accountId === fixture.accountId));
+        assert.ok(ports.indexes.every(call => call.page?.valid && call.page?.requestKnown));
+        fixture.assertNativeEvidence();
+    });
+
+    test(`${fixture.name} Client admits Index facts without certifying untrusted source pages`, async () => {
+        await assert.rejects(fixture.createUntrustedProvider().listConversations({
+            accountId: fixture.accountId, streamId: 'recent',
+        }), /Unverified .* list page/);
+        assert.equal(ports.indexes.length, 1);
+        assert.equal(ports.indexes[0].page?.valid, false);
+    });
+}
+
+test('Gemini default account cannot contribute trusted Coverage', async () => {
     await assert.rejects(new GeminiProvider(client([sourceList(['source_alpha'])]), route).listConversations({
         accountId: DEFAULT_ACCOUNT.id, streamId: 'recent',
     }), /Unverified Gemini list endpoint/);
@@ -159,44 +221,6 @@ test('Client refuses changed account route and mismatched Provider before commit
     await assert.rejects(foreign.listConversations({ accountId: CHATGPT_ACCOUNT.id, streamId: 'recent' }),
         /Provider account mismatch/);
 });
-
-test('ChatGPT uses the same v2 Index/page port and checks native completeness before source_end', async () => {
-    const fetchFn = async (url: string) => new Response(JSON.stringify(
-        url.endsWith('/api/auth/session')
-            ? { accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' } }
-            : { items: [{ id: 'chatgpt-source', title: 'Owned title', create_time: 1700000000,
-                update_time: 1700000010 }], total: 1, offset: 0, limit: 100, has_missing_conversations: false },
-    ), { status: 200 });
-    const provider = new ChatGPTProvider({ fetchFn });
-    const committed: number[] = [];
-    const end = await provider.listConversations({
-        accountId: CHATGPT_ACCOUNT.id, streamId: 'recent',
-        onPageCommitted: async progress => { committed.push(ports.indexes.length); assert.ok(progress.scanHead); return false; },
-    });
-    assert.equal(end, 'source_end');
-    assert.deepEqual(committed, [1]);
-    assert.deepEqual(ports.indexes[0].items, [{
-        conversationId: 'chatgpt-source', fields: {
-            title: 'Owned title', titleSource: 'provider', createdAt: 1700000000000,
-            updatedAt: 1700000010000,
-        },
-    }]);
-    assert.equal(ports.indexes[0].page?.keys[0]?.time, 1700000010000);
-    assert.equal(ports.indexes[0].page?.nextCursor, null);
-
-    ports.reset();
-    const invalid = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
-        url.endsWith('/api/auth/session')
-            ? { accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' } }
-            : { items: [{ id: 'incomplete', update_time: 1700000010 }],
-                total: 1, offset: 0, limit: 100, has_missing_conversations: true },
-    ), { status: 200 }) });
-    await assert.rejects(invalid.listConversations({ accountId: CHATGPT_ACCOUNT.id, streamId: 'recent' }),
-        /Unverified ChatGPT list page/);
-    assert.equal(ports.indexes.length, 1);
-    assert.equal(ports.indexes[0].page?.valid, false);
-});
-
 
 test('Detail diagnostics expose parsing evidence and L2 admission without exporting source bodies', async () => {
     const page = sourceDetail({ turnsRejected: 2, messages: [{
