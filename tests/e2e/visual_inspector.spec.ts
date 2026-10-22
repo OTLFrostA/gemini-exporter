@@ -108,15 +108,19 @@ test('manual Tour opens and closes without obsolete v1 tour-state persistence', 
     await expect(page.locator('.tour-popover')).toHaveCount(0);
 });
 
-test('retired v1 feature spotlight does not appear from legacy version evidence in v2 Settings', async ({ context, extensionId }) => {
+test('approved 2.0 upgrade notice shows once without resurrecting retired v1 feature tips', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').updateSettings({ lastSeenFeatureVersion: '1.4.0' }));
     await page.reload(); await exposeUIStorage(page);
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Gemini Exporter 2.0 is Here!');
+    await expect.poll(async () => (await page.evaluate(async () =>
+        Reflect.get(globalThis, 'uiFixture').getSettings())).lastSeenFeatureVersion).toBe('2.0.0');
+    await page.getByRole('button', { name: 'Got it!', exact: true }).click();
+    await page.reload(); await exposeUIStorage(page);
     await expect(page.locator('.tour-popover')).toHaveCount(0);
-    expect((await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').getSettings())).lastSeenFeatureVersion).toBe('1.4.0');
     await page.locator('#btnTourGuide').click();
-    await expect(page.locator('.tour-popover')).toBeVisible();
+    await expect(page.locator('.tour-popover h2')).toHaveText('Connect Gemini');
     await page.getByRole('button', { name: 'Skip', exact: true }).click();
 });
 

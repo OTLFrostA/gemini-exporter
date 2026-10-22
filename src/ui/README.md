@@ -8,7 +8,7 @@ Settings and two record-cleanup actions. Clearing scan records keeps all archive
 conversations, accounts, files and directory handles.
 
 Installation Tour consumes `?startTour=1` immediately; it has no persistent flag.
-Spotlight/Takeout acknowledgment follows actual display and dismissal. The Content Badge owns its account-scoped count display and Pull: it refreshes
+Version Spotlight is recorded on actual display (once per upgrade, never on fresh install); Takeout acknowledgment follows dismissal. The Content Badge owns its account-scoped count display and Pull: it refreshes
 after account recognition or change, when a hidden page becomes visible, and
 approximately every 60 seconds while visible. Background only serves the existing
 read-only count IPC; there is no index-commit push or second count store.

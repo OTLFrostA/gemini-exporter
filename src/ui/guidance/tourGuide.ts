@@ -32,7 +32,7 @@ type Placement = 'top' | 'bottom' | 'left' | 'right';
 
 /** Render the original main Tour card and highlight, retaining v2's physical click cutout. */
 function overlay(
-    target: HTMLElement | null | (() => HTMLElement | null), title: string, description: string, interactive: boolean,
+    target: HTMLElement | null | (() => HTMLElement | null), title: string, description: string | HTMLElement, interactive: boolean,
     related: HTMLElement[] = [], placement: Placement = 'bottom', badgeText?: string, hint?: string,
 ): HTMLElement {
     cleanupStep?.(); cleanupStep = undefined;
@@ -66,7 +66,8 @@ function overlay(
     heading.textContent = title;
     const body = document.createElement('div');
     body.className = 'tour-content';
-    body.textContent = description;
+    if (typeof description === 'string') body.textContent = description;
+    else body.append(description);
     popover.append(header, heading, body);
     if (hint) {
         const hintBox = document.createElement('div');
@@ -316,6 +317,45 @@ export function startFeatureSpotlight(version: string, stepId: string, dismissed
     relayout?.();
     return true;
 }
+/** One-time release notice for users crossing from v1 to 2.0. No feature target. */
+export function showV2UpgradeSpotlight(openFeedback: () => void): boolean {
+    if (modalOpen()) return false;
+    mode = 'spotlight';
+    const copy = document.createElement('div');
+    copy.className = 'tour-upgrade-copy';
+    const paragraph = (message: string): HTMLParagraphElement => {
+        const p = document.createElement('p');
+        p.textContent = message;
+        copy.append(p);
+        return p;
+    };
+    paragraph(text(
+        "We've rebuilt Gemini Exporter from the ground up for better long-term stability and reliability.",
+        '我们从底层重构了 Gemini Exporter，以提升长期稳定性和可靠性。'));
+    const notice = paragraph(text(
+        'Some scan records may be missing after this upgrade. Your original Gemini chats are safe.',
+        '升级后，部分扫描记录可能不再显示。您在 Gemini 中的原始对话不受影响。'));
+    const warning = document.createElement('strong');
+    warning.textContent = text('Important: ', '重要提示：');
+    notice.prepend(warning);
+    paragraph(text(
+        "To restore them, simply scan again. If that doesn't work, try Clear Scan Records and rescan.",
+        '重新扫描即可恢复。如果仍有问题，请先清除扫描记录，然后再次扫描。'));
+    paragraph(text(
+        'Having trouble? Please let us know through Leave Feedback!',
+        '遇到问题？欢迎通过「留言反馈」告诉我们！'));
+    const popover = overlay(null,
+        text('Gemini Exporter 2.0 is Here!', 'Gemini Exporter 2.0 正式发布！'),
+        copy, false, [], 'bottom', '✨ ' + text('MAJOR UPDATE', '重大更新'));
+    popover.classList.add('tour-upgrade-popover');
+    const bar = footer(popover);
+    bar.classList.add('tour-upgrade-footer');
+    button(bar, text('Leave Feedback', '留言反馈'),
+        () => { close(); openFeedback(); }, 'tourUpgradeFeedbackBtn', 'tour-nav-btn');
+    button(bar, text('Got it!', '知道了！'), close, 'tourUpgradeDismissBtn', 'tour-nav-btn primary');
+    relayout?.();
+    return true;
+}
 export function showTakeoutPrompt(
     count: number, dismissed: () => void, importFile: () => void, openTakeout: () => void,
 ): boolean {
@@ -345,5 +385,5 @@ export function showTakeoutPrompt(
     return true;
 }
 export const TourGuide = { startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
-    startFeatureSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };
+    startFeatureSpotlight, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };
 export default TourGuide;

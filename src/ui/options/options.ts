@@ -14,7 +14,7 @@ import { renderList } from './views/listView.js';
 import { readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
-import { DIRECT_WRITE_THRESHOLD } from '../../shared/utils/constants.js';
+import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constants.js';
 import { showDirectWritePrompt } from './views/directWritePrompt.js';
 
 type Level = 'info' | 'warn' | 'error';
@@ -514,7 +514,10 @@ export async function initWorkbench(): Promise<void> {
     else {
         const current = chrome.runtime.getManifest().version;
         const feature = getLatestEligibleFeature(settings.lastSeenFeatureVersion ?? current, current);
-        if (feature && TourGuide.startFeatureSpotlight(feature.version, feature.stepId, () => {})) {
+        const shown = feature && ('stepId' in feature
+            ? TourGuide.startFeatureSpotlight(feature.version, feature.stepId, () => {})
+            : TourGuide.showV2UpgradeSpotlight(() => { void chrome.tabs.create({ url: FEEDBACK_URL }); }));
+        if (shown) {
             // Persist on display, not dismissal; each announced feature is shown at most once.
             void updateSettings({ lastSeenFeatureVersion: feature.version })
                 .catch(error => status(errorText(error), 'error'));

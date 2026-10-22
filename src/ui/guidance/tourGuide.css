@@ -280,3 +280,9 @@
   justify-content: flex-end;
 }
 
+
+/* A centered release notice, distinct from target-based feature tours. */
+.tour-upgrade-popover { width: 440px; }
+.tour-upgrade-copy p { margin: 0 0 11px; }
+.tour-upgrade-copy p:last-child { margin-bottom: 0; }
+.tour-upgrade-footer { justify-content: flex-end; gap: 8px; }

@@ -13,7 +13,7 @@ test('feature version comparison uses numeric components at the current shared o
     for (const [a, b, expected] of [['1.10.0', '1.9.0', true], ['1.5.0', '1.5.0', false], ['1.4.0', '1.5.0', false], ['2.0.0', '1.99.99', true]] as const) assert.equal(isVersionGreater(a, b), expected);
 });
 test('featureReleases - latest eligible release arbitration excludes old, future and unusable baselines', () => {
-    assert.equal(FEATURE_RELEASES.length, 0, 'v1 announcements are not approved v2 announcements');
+    assert.deepEqual(FEATURE_RELEASES, [{ version: '2.0.0', kind: 'upgrade' }], 'only approved v2 announcements are eligible');
     assert.equal(getLatestEligibleFeature('1.4.0', '1.8.1'), null);
     // Supply explicit announcements only for testing the arbitration algorithm.
     const previous = FEATURE_RELEASES.slice();
@@ -24,11 +24,37 @@ test('featureReleases - latest eligible release arbitration excludes old, future
     for (const baseline of ['', 'invalid', '1.7.0', '1.8.1', '2.0.0']) assert.equal(getLatestEligibleFeature(baseline, '1.8.1'), null);
     } finally { FEATURE_RELEASES.splice(0, FEATURE_RELEASES.length, ...previous); }
 });
+test('2.0 release requires a previous version below 2.0.0, not a new installation', () => {
+    assert.deepEqual(getLatestEligibleFeature('1.8.1', '2.0.0'), { version: '2.0.0', kind: 'upgrade' });
+    assert.deepEqual(getLatestEligibleFeature('1.7.0', '2.0.1'), { version: '2.0.0', kind: 'upgrade' });
+    for (const [seen, current] of [['2.0.0', '2.0.0'], ['2.0.0', '2.0.1'],
+        ['1.8.1', '1.8.1'], ['', '2.0.0'], ['invalid', '2.0.0']]) {
+        assert.equal(getLatestEligibleFeature(seen, current), null);
+    }
+});
 test('last seen feature version persists through Application Settings', async () => {
     const env = indexStorage(); try {
         await updateSettings({ lastSeenFeatureVersion: '1.5.0' }); assert.equal((await getSettings()).lastSeenFeatureVersion, '1.5.0');
         await updateSettings({ lastSeenFeatureVersion: '1.7.0' }); assert.equal((await getSettings()).lastSeenFeatureVersion, '1.7.0');
     } finally { env.restore(); }
+});
+test('Options shows the 2.0 notice once for upgrades and opens the existing feedback form', async () => {
+    page = await browser.newPage();
+    await mount(page, 'options', { manifestVersion: '2.0.0', settings: { lastSeenFeatureVersion: '1.8.1' } });
+    await page.getByRole('heading', { name: 'Gemini Exporter 2.0 is Here!' }).waitFor();
+    assert.match(await page.locator('.tour-upgrade-copy').innerText(), /Your original Gemini chats are safe/);
+    assert.deepEqual((await read(page, 'patches')).filter((patch: { lastSeenFeatureVersion?: string }) =>
+        patch.lastSeenFeatureVersion), [{ lastSeenFeatureVersion: '2.0.0' }]);
+    await page.getByRole('button', { name: 'Leave Feedback' }).click();
+    assert.equal(await page.locator('.tour-popover').count(), 0);
+    assert.deepEqual(await read(page, 'openedUrls'), ['https://tally.so/r/Y56ZBB']);
+});
+test('Options does not show the 2.0 notice on a new 2.0 installation', async () => {
+    page = await browser.newPage();
+    await mount(page, 'options', { manifestVersion: '2.0.0', settings: { lastSeenFeatureVersion: '2.0.0' } });
+    await page.locator('#list .item').waitFor();
+    assert.equal(await page.locator('.tour-popover').count(), 0);
+    assert.deepEqual(await read(page, 'patches'), []);
 });
 test('TourGuide - Spotlight activates, excludes competing modals and dismisses exactly once', async () => {
     page = await browser.newPage(); await mount(page, 'options'); await page.locator('#list .item').waitFor();
