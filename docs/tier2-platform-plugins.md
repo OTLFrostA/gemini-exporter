@@ -57,8 +57,26 @@ specialized acceptance assertions belong to plugins. Shared orchestration does
 not assume Gemini or require every platform to implement Takeout. Capabilities
 are declarations of the plugin's test scope, not passed assertions or product
 feature parity. Missing capabilities are absent from that platform's scope;
-they are never inserted as passing tests. This refactor preserves existing
-coverage; it does not certify new ChatGPT UI features.
+they are never inserted as passing tests. The ChatGPT plugin schedules 22 cases:
+native onboarding and badge; passive sidebar collection; 5/8-turn live chats;
+independent golden capture; active history scan and account ownership; keyword,
+ID and clear-search controls, selection and language; an initial physical export;
+live save and older-chat promotion with export advancement; confirmed remote
+deletion; physical Markdown/HTML/PDF/JSON and full-reply comparison; golden image
+pixels and static questionnaire fidelity; popup export; complete/partial skip;
+image export with a stale tab; explicit local cleanup and rescan; and actual
+uninstall/reinstall. A declared case is not evidence that a live run passed.
+Gemini Takeout import/title promotion and Gemini wire-format comparison remain
+Gemini-specific, rather than fake ChatGPT passes. Questionnaire exports preserve
+the available static content; executing questionnaire controls in an exported
+document is outside this acceptance contract.
+
+Passive collection must work without clicking Sync or issuing a test-generated
+list request: after a native page reload, every visible sidebar conversation
+must exist under the current Account in L2. ChatGPT currently supplies the first
+page through its router's workspace-bound `sidebarHistory.chats` loader; later
+`GET /backend-api/conversations` pages are observed separately. The first page
+does not create full-history Coverage. Active scan remains a separate gate.
 
 The default output root is `tests/output/tier2/` (override with `--output-dir`).
 `tier2-report.json` records every selected platform, declared plan, scheduled

@@ -18,6 +18,7 @@ from scripts.framework.json_archive import validate_json_archive
 from scripts.framework.v2_probe import install_probe
 from scripts.framework.actions import CDPActions
 from scripts.framework.image_evidence import capture_webpage_images, assert_image_files
+from scripts.framework.chatgpt_acceptance import ChatGPTAcceptance
 
 
 def wait_for(operation, timeout=90, interval=.5):
@@ -45,7 +46,7 @@ def current_branch(raw):
     return list(reversed(result))
 
 
-class ChatGPTLiveRunner:
+class ChatGPTLiveRunner(ChatGPTAcceptance):
     def __init__(self, port=9222, output_dir=None, dataset=None, delay=6):
         self.port, self.delay = port, delay
         self.root = Path(__file__).resolve().parents[2]
@@ -54,6 +55,7 @@ class ChatGPTLiveRunner:
         self.dataset = dataset
         self.golden = json.loads((self.root/'tests/fixtures/chatgpt_tier2_golden.json').read_text())
         self.report = {'provider': 'chatgpt', 'gates': {}, 'records': []}
+        self.initial_exports = {}
         self.chat = self.options = self.browser = None
 
     def save_report(self):
@@ -79,7 +81,7 @@ class ChatGPTLiveRunner:
             raise ValueError('Open the logged-in ChatGPT test account on this CDP port')
         self.chat = CDPConnection(target['webSocketDebuggerUrl'])
         self.browser = CDPConnection(get_browser_ws_url(self.port))
-        # Resolve the plugin by its installed path, never by the first extension target.
+        self.clean_install()
         result = self.browser.call('Extensions.loadUnpacked', {'path': str(self.root)})
         if 'error' in result:
             raise ValueError(result['error'])
@@ -89,23 +91,27 @@ class ChatGPTLiveRunner:
         self.chat.call('Page.reload')
         wait_for(lambda: self.chat.eval("!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
         url = f'chrome-extension://{self.ext_id}/src/ui/options/options.html'
-        target = next((t for t in get_tabs(self.port) if t.get('url') == url), None)
-        if not target:
-            tid = self.browser.call('Target.createTarget', {'url': url})['result']['targetId']
-            target = wait_for(lambda: next((t for t in get_tabs(self.port) if t['id'] == tid), None))
+        # Installation itself opens ?startTour=1. Reuse that tab; creating an
+        # exact-URL duplicate races the native onboarding and hides failures.
+        target = wait_for(lambda: next((t for t in get_tabs(self.port)
+                                       if t.get('url', '').startswith(url)), None), 20)
         self.options = CDPConnection(target['webSocketDebuggerUrl'])
-        self.options.call('Page.reload')
         self.ready()
+        if not CDPActions.verify_onboarding_tour(self.port, self.ext_id):
+            raise ValueError('Fresh-install onboarding did not complete')
+        self.gate('onboarding', lambda: {'physicalTour': True})
         granted = self.options.eval("chrome.permissions.contains({origins:['https://chatgpt.com/*','https://chat.openai.com/*']})", await_promise=True)
         if not granted:
             print('Site permission required: use Connect ChatGPT in the open Workbench.', flush=True)
             wait_for(lambda: self.options.eval("chrome.permissions.contains({origins:['https://chatgpt.com/*','https://chat.openai.com/*']})", await_promise=True), 600, 2)
         self.options.eval("document.getElementById('btnConnectChatGPT').click()", user_gesture=True)
         self.ready()
+        self.chat.call('Page.reload')
+        wait_for(lambda: self.chat.eval("!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
         account = self.options.eval("document.querySelector('#accountIdSelect option:checked')?.textContent||document.getElementById('accountName').textContent")
         if 'ChatGPT' not in account:
             raise ValueError('Canonical ChatGPT account not selected: ' + account)
-        return {'extensionId': self.ext_id, 'accountVerified': True}
+        return {'extensionId': self.ext_id, 'accountVerified': True, 'cleanInstall': True}
 
     def ready(self, timeout=180):
         return wait_for(lambda: self.options.eval("document.body?.dataset.busy==='false'&&!document.getElementById('btnSyncAll')?.disabled"), timeout)
@@ -272,7 +278,13 @@ class ChatGPTLiveRunner:
         return {'conversationIds': ids, 'rounds': [len(s['turns']) for s in scenarios]}
 
     def sync(self):
-        self.options.eval("document.getElementById('btnSyncAll').click()", user_gesture=True)
+        from scripts.framework.assertions import assert_full_scan_coverage
+        from scripts.framework.v2_probe import snapshot
+        evidence = CDPActions.trigger_deep_scan(self.options)
+        ok, message = assert_full_scan_coverage(evidence, snapshot(self.options, 'chatgpt')['coverage'])
+        if not ok:
+            raise ValueError(message)
+        self.report['scanEvidence'] = evidence
         self.ready()
         rows = self.options.eval("[...document.querySelectorAll('#list .item')].map(e=>({id:e.dataset.chatId,title:e.querySelector('.title').textContent,href:e.querySelector('a.open-link').href}))")
         if any(cid not in [r['id'] for r in rows] for cid in self.chat_ids):
@@ -377,6 +389,7 @@ class ChatGPTLiveRunner:
                 'test and a Markdown table comparing the valid and invalid cases. '
                 f'Observation stamp: {int(time.time())}.')
             self.send(append)
+            self.assert_export_advancement(older)
             def promoted():
                 ids = self.options.eval("[...document.querySelectorAll('#list .item')].map(e=>e.dataset.chatId)")
                 return ids if ids and ids[0] == older else None

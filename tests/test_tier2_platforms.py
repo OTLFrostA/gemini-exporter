@@ -141,7 +141,7 @@ class PlatformsTest(unittest.TestCase):
             plugins = load_plugins().select(['all'])
             runner = Tier2Runner(plugins, RunConfig())
             self.assertEqual(len(runner.plan()['gemini']['features']), 25)
-            self.assertEqual(len(runner.plan()['chatgpt']['features']), 9)
+            self.assertEqual(len(runner.plan()['chatgpt']['features']), 22)
             targeted = Tier2Runner([plugins[1]], RunConfig(target_features='full_reply_fidelity'))
             active = {f['id'] for f in targeted.plan()['chatgpt']['features'] if f['scheduled']}
             self.assertIn('complex_multiturn', active)
@@ -209,7 +209,8 @@ class PlatformsTest(unittest.TestCase):
 
     def test_chatgpt_adapter_uses_common_dag_and_preserves_failure_evidence(self):
         from scripts.framework.platforms.chatgpt import ChatGPTPlugin
-        runtime = SimpleNamespace(report={'gates': {}}, options=Mock(), chat=Mock(), browser=Mock(),
+        runtime = SimpleNamespace(report={'gates': {}, 'scan': [{'id': 'id', 'title': 'title'}]},
+                                  port=9222, ext_id='test', fresh_options=Mock(), options=Mock(), chat=Mock(), browser=Mock(),
                                   save_report=Mock(), root=Path('/unused'), output=Path('/unused'), chat_ids=['id'])
         def gate(name, operation):
             result = operation()
@@ -217,17 +218,22 @@ class PlatformsTest(unittest.TestCase):
             return result
         runtime.gate = gate
         for name in ('prepare', 'generate', 'capture_golden', 'sync', 'confirmed_deletion',
-                     'exports', 'popup_export'):
+                     'exports', 'popup_export', 'page_badge', 'passive_sidebar', 'account_boundary', 'initial_export',
+                     'fast_skip', 'stale_tab_images', 'cleanup_records', 'uninstall_lifecycle'):
             setattr(runtime, name, Mock(return_value={}))
         def lifecycle():
-            for key in ('live_disk_save', 'passive_promotion'):
+            for key in ('live_disk_save', 'passive_promotion', 'export_record_advancement'):
                 runtime.report['gates'][key] = {'status': 'passed'}
         runtime.lifecycle = lifecycle
         # Golden export's mandatory evidence is deliberately absent.
         runtime.golden_exports = Mock(return_value={})
         plugin = ChatGPTPlugin()
         plugin.open = lambda config: ChatGPTPlugin.session(runtime)
-        with patch('scripts.framework.chatgpt_evidence.assert_full_exports', return_value={}):
+        from scripts.framework.cases import workbench
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch('scripts.framework.chatgpt_evidence.assert_full_exports', return_value={}))
+            for name in ('SearchKeywordCase', 'SearchIdCase', 'SearchClearCase', 'SelectionControlsCase', 'LanguageToggleCase'):
+                stack.enter_context(patch.object(getattr(workbench, name), 'execute', return_value=(True, 'evidence', {})))
             passed, report = self.run_matrix([plugin])
         self.assertFalse(passed)
         statuses = {f['id']: f['status'] for f in report['platforms']['chatgpt']['features']}

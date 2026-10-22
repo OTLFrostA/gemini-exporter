@@ -12,6 +12,7 @@ export async function syncChatGPTContentScripts(): Promise<void> {
     const missing = ids.filter(id => !registered.some(item => item.id === id));
     if (missing.length) await chrome.scripting.registerContentScripts(missing.map(id => ({ id,
         matches: [...CHATGPT_OPTIONAL_ORIGINS], runAt: 'document_start', allFrames: false, persistAcrossSessions: true,
+        ...(id === ids[1] ? { css: ['src/ui/badge/content.css'] } : {}),
         js: [id === ids[0] ? 'dist/content/chatgpt-hook.js' : 'dist/content/chatgpt-content.js'],
         world: id === ids[0] ? 'MAIN' : 'ISOLATED' })));
 }

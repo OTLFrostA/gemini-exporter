@@ -4,9 +4,10 @@ export const CHATGPT_SOURCE_EVENT = 'gemini-exporter:chatgpt-source-v1';
 export const chatGPTConversationId = (value: unknown): value is string =>
     typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 
-export function chatGPTRequest(url: string, method: string): { kind: 'detail' | 'stream' | 'delete'; conversationId?: string; method?: 'DELETE' } | null {
+export function chatGPTRequest(url: string, method: string): { kind: 'list' | 'detail' | 'stream' | 'delete'; conversationId?: string; method?: 'DELETE' } | null {
     const source = new URL(url);
     if (source.protocol !== 'https:' || !['chatgpt.com', 'chat.openai.com'].includes(source.hostname)) return null;
+    if (method === 'GET' && source.pathname === '/backend-api/conversations') return { kind: 'list' };
     const deletion = /^\/backend-api\/conversation\/id\/([a-f0-9-]+)$/.exec(source.pathname);
     if (method === 'DELETE' && deletion && chatGPTConversationId(deletion[1])) return {kind:'delete',conversationId:deletion[1],method:'DELETE'};
     const match = /^\/backend-api\/(f\/)?conversation(?:\/([a-f0-9-]+))?$/.exec(source.pathname);

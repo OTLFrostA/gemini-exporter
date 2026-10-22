@@ -2,6 +2,7 @@ import { registerCleanup } from './cleanupRegistry.js';
 import { getOrCreateAccount } from '../api/accountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
 import { CrossWorldEvents } from '../../l1/protocol/gemini/protocol.js';
+import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
 import { detectSlotFromUrl } from '../../shared/utils/pathUtils.js';
 
 export interface AccountContext { readonly providerId: string; readonly accountId: string; readonly slot: string }
@@ -15,6 +16,7 @@ export function setAccountChangedHandler(handler: () => void): void {
 }
 let latestSignature: string | null = null;
 let pending: { signature: string; result: Promise<AccountContext | null> } | null = null;
+const providerNow = () => typeof location !== 'undefined' && ['chatgpt.com', 'chat.openai.com'].includes(location.hostname) ? 'chatgpt' : 'gemini';
 const slotNow = () => detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
 
 export function invalidateAccountContext(): void {
@@ -38,6 +40,8 @@ export function matchesCurrentAccount(observation: Omit<Account, 'id'>): boolean
 /** The isolated world cannot infer the current Gaia from arbitrary DOM emails. */
 function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
     if (typeof window === 'undefined') return Promise.resolve(null);
+    if (providerNow() === 'chatgpt') return fetch('/api/auth/session', { credentials: 'include' })
+        .then(async response => response.ok ? chatgptAccountObservation(await response.json()) : null);
     return new Promise((resolve, reject) => {
         const requestId = crypto.randomUUID();
         let unregister = () => {};
@@ -81,7 +85,7 @@ export async function resolveCurrentAccount(observed?: Omit<Account, 'id'> | nul
         return null;
     }
     const observation = readAccountParameters(observed);
-    if (observation.providerId !== 'gemini') throw new TypeError('Wrong account observation provider');
+    if (observation.providerId !== providerNow()) throw new TypeError('Wrong account observation provider');
     const current = getAccountContext();
     const signature = JSON.stringify([capturedSlot, observation]);
     if (pending?.signature === signature) return pending.result;

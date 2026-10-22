@@ -1,47 +1,5 @@
 [
   {
-    "id": "seismology_two_layer_refraction_travel_times",
-    "title": "Seismology: two-layer refraction and travel-time evidence",
-    "domain": "geophysics_seismic_refraction",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational illustration of a synthetic two-layer seismic survey, with a surface source, five geophones, direct rays and a critically refracted ray. Label layer velocities, depth and travel-time axes; clearly mark the diagram as fictional teaching data.",
-      "Derive direct and head-wave travel times for a horizontal two-layer medium in LaTeX. State the velocity ordering, critical angle, intercept time and crossover distance, with consistent units and geometric assumptions.",
-      "Write complete runnable standard-library Python that generates travel times for a supplied depth and velocities, selects first arrivals and estimates depth from an intercept. Test zero distance, the crossover, invalid velocity ordering and sensitivity to timing noise.",
-      "Present a Markdown table of distances, both candidate arrival times, the selected first arrival and inferred depth. Distinguish executed numerical output from illustrative values and discuss which observations constrain each parameter.",
-      "Write a detailed English-Chinese reproducibility report linking the image, equations and code. Explain hidden-layer ambiguity, dipping interfaces, uncertainty and why a good travel-time fit does not uniquely identify the subsurface."
-    ]
-  },
-  {
-    "id": "information_theory_huffman_prefix_certificates",
-    "title": "Information theory: Huffman coding and prefix certificates",
-    "domain": "information_theory_prefix_coding",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define binary prefix codes, entropy and expected code length in LaTeX. Supply a concrete six-symbol positive integer frequency table and explain the distinction between symbol probability and observed counts.",
-      "Write complete runnable standard-library Python implementing deterministic Huffman construction with explicit tie breaking, encode and decode operations. Include validation for duplicate symbols, negative counts and an empty alphabet.",
-      "Implement an independent prefix-freeness checker and round-trip tests. Cover a single-symbol alphabet, equal weights, malformed bitstrings and truncated codewords, with a clearly stated single-symbol convention.",
-      "Derive the Kraft inequality and the entropy bounds for expected Huffman length. Distinguish the integer-length constraint from the ideal real-valued code lengths and state the conditions for equality.",
-      "Present the chosen symbol counts, probabilities, codewords and length contributions in a Markdown table. Report the weighted average length and compression ratio including the assumed original symbol width.",
-      "Build an exhaustive independent oracle for small alphabets by enumerating feasible length profiles and compare its optimum against the Huffman result. State the enumeration limit and avoid claiming empirical testing alone proves optimality.",
-      "Analyze encoding, decoding and tree construction time and space in LaTeX. Explain how headers, byte padding and a changed source distribution affect physical file size.",
-      "Produce a detailed English-Chinese technical report combining the runnable code, prefix certificate, tables, mathematical bounds and limitations. Mark clearly which results were executed and which were derived."
-    ]
-  },
-  {
     "id": "materials_binary_eutectic_phase_paths",
     "title": "Binary eutectic: phase paths and lever-rule evidence",
     "domain": "materials_science_binary_phase_equilibrium",
@@ -410,6 +368,48 @@
       "Construct a counterexample showing why observed pairwise failure correlation does not uniquely identify a common-cause model. Provide two normalized joint distributions with the same chosen marginal statistics but different higher-order events.",
       "Add deterministic Monte Carlo as a secondary check with a fixed seed, Wilson confidence intervals and sample-size justification. Explain why sampling agreement is weaker than exact enumeration.",
       "Package a reproducible reliability report with complete Python tests, exact fractions, LaTeX identities and a Markdown decision table. Distinguish structural assumptions, measured quantities and unsupported causal conclusions."
+    ]
+  },
+  {
+    "id": "astronomy_transit_chord_limb_darkening",
+    "title": "Exoplanet transits: chord geometry and inference limits",
+    "domain": "astronomy_transit_geometry",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original fictional astronomy teaching illustration of an exoplanet crossing a star, with a sky-plane transit chord, impact parameter and a schematic light curve. Label schematic quantities and distinguish synthetic geometry from measured telescope data.",
+      "Derive the uniform-brightness small-planet transit depth and duration for a circular orbit in LaTeX. State the inclination convention, impact parameter, stellar radius, planet radius, and validity limits; keep all units consistent.",
+      "Write runnable standard-library Python evaluating circle-overlap area and normalized flux for arbitrary projected separation, including no overlap, full containment, tangency and zero radius. Include independent symmetry and monotonicity tests.",
+      "Build a Markdown table for five projected separations using a stated radius ratio, and compare the exact uniform-disc model with the small-planet approximation. Explain how limb darkening biases a naive radius inference.",
+      "Produce a detailed English-Chinese technical report combining the code, mathematical derivation and a contact-point ASCII diagram. Discuss grazing transits, orbital eccentricity and parameter degeneracies; distinguish executed results from analytic claims."
+    ]
+  },
+  {
+    "id": "graph_theory_bipartite_vertex_cover_certificate",
+    "title": "Bipartite matching: augmenting paths and dual certificates",
+    "domain": "graph_theory_matching_vertex_cover",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a nontrivial bipartite scheduling instance with six workers and seven tasks, including an isolated vertex and a greedy matching trap. State exact edge lists and the objective, without solving it yet.",
+      "Derive the alternating-path characterization of maximum matching and explain why a maximal matching is insufficient. Express the augmenting-path invariant in LaTeX and give a concrete greedy counterexample from this instance.",
+      "Write complete runnable standard-library Python for deterministic augmenting-path bipartite matching, validating vertex partitions, duplicate edges and endpoints. Include empty, disconnected and isolated-vertex cases.",
+      "Implement an independent exhaustive matching oracle for small instances and property tests comparing cardinalities. Bound enumeration size and clearly separate empirical coverage from proof of correctness.",
+      "Derive Konig's theorem constructively: obtain a minimum vertex cover from alternating reachability after maximum matching. State the starting set, traversal directions and the equality certificate in LaTeX.",
+      "Provide a Markdown table listing each matched pair, unmatched vertices, alternating reachable sets and the minimum vertex cover. Verify every input edge is covered and that cover size equals matching size.",
+      "Analyze worst-case time and space, then compare the simple algorithm with Hopcroft-Karp. Explain which structural assumptions fail for nonbipartite graphs and supply a smallest odd-cycle counterexample.",
+      "Produce a detailed bilingual technical report with runnable code, exact input, an ASCII alternating-path diagram and the matching/cover dual certificate. Flag all assumptions and distinguish computed output from unexecuted examples."
     ]
   }
 ]

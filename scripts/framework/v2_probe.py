@@ -22,6 +22,7 @@ def install_probe(cdp):
         cdp.eval(probe_bundle())
 
 
-def snapshot(cdp):
+def snapshot(cdp, provider_id="gemini"):
     install_probe(cdp)
-    return cdp.eval('globalThis.__tier2V2.snapshot()', await_promise=True)
+    import json
+    return cdp.eval('globalThis.__tier2V2.snapshot('+json.dumps(provider_id)+')', await_promise=True)

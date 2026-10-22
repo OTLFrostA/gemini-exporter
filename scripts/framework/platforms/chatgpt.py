@@ -27,6 +27,8 @@ class ChatGPTCase(FeatureTestCase):
                 raise ValueError(f'Missing mandatory evidence: {missing}')
             return detail
         detail = runtime.gate(self.feature_id, verify)
+        if self.method == 'sync':
+            ctx.search_keyword = runtime.report['scan'][0]['title']
         return True, 'Physical evidence verified', {'evidence': detail}
 
 
@@ -34,12 +36,17 @@ class ChatGPTCase(FeatureTestCase):
 def build_dag():
     dag = DAGRunner()
     stages = [
-        ('complex_multiturn', 'generate', FeatureDomain.PAGE_CHAT, (), ()),
+        ('page_badge', 'page_badge', FeatureDomain.PAGE_CHAT, (), ()),
+        ('passive_sidebar', 'passive_sidebar', FeatureDomain.WORKBENCH, ('page_badge',), ()),
+        ('complex_multiturn', 'generate', FeatureDomain.PAGE_CHAT, ('passive_sidebar',), ()),
         ('independent_golden_capture', 'capture_golden', FeatureDomain.PAGE_CHAT,
          ('complex_multiturn',), ()),
         ('scan', 'sync', FeatureDomain.WORKBENCH, ('independent_golden_capture',), ()),
-        ('passive_lifecycle', 'lifecycle', FeatureDomain.LIFECYCLE, ('scan',),
-         ('live_disk_save', 'passive_promotion')),
+        ('initial_export_baseline', 'initial_export', FeatureDomain.EXPORT_DISK,
+         ('feat_search_clear_restore', 'feat_selection_controls', 'feat_language_toggle'), ()),
+        ('account_boundary', 'account_boundary', FeatureDomain.LIFECYCLE, ('scan',), ()),
+        ('passive_lifecycle', 'lifecycle', FeatureDomain.LIFECYCLE, ('initial_export_baseline', 'account_boundary'),
+         ('live_disk_save', 'passive_promotion', 'export_record_advancement')),
         ('confirmed_deletion', 'confirmed_deletion', FeatureDomain.LIFECYCLE,
          ('passive_lifecycle',), ()),
         ('physical_four_format_export', 'exports', FeatureDomain.EXPORT_DISK,
@@ -50,16 +57,28 @@ def build_dag():
          ('physical_four_format_export',), ('image_pixels', 'questionnaires')),
         ('popup_export', 'popup_export', FeatureDomain.EXPORT_DISK,
          ('full_reply_fidelity', 'golden_physical_exports'), ()),
+        ('fast_skip', 'fast_skip', FeatureDomain.EXPORT_DISK, ('popup_export',), ()),
+        ('stale_tab_images', 'stale_tab_images', FeatureDomain.EXPORT_DISK, ('fast_skip',), ()),
+        ('explicit_cleanup', 'cleanup_records', FeatureDomain.LIFECYCLE, ('stale_tab_images',), ()),
+        ('uninstall_lifecycle', 'uninstall_lifecycle', FeatureDomain.LIFECYCLE, ('explicit_cleanup',), ()),
     ]
     for args in stages:
         dag.register(ChatGPTCase(*args))
+    from scripts.framework.cases.workbench import (
+        SearchKeywordCase, SearchIdCase, SearchClearCase, SelectionControlsCase, LanguageToggleCase,
+    )
+    dag.register(SearchKeywordCase(prerequisites=['scan']))
+    dag.register(SearchIdCase(prerequisites=['feat_search_filter_by_keyword']))
+    dag.register(SearchClearCase(prerequisites=['feat_search_filter_by_id']))
+    dag.register(SelectionControlsCase(prerequisites=['feat_search_clear_restore']))
+    dag.register(LanguageToggleCase(prerequisites=['feat_selection_controls']))
     return dag
 
 
 class ChatGPTPlugin:
     id = 'chatgpt'
     capabilities = ('chat', 'scan', 'live_save', 'promotion', 'deletion', 'export',
-                    'images', 'questionnaires', 'popup')
+                    'images', 'questionnaires', 'popup', 'workbench', 'onboarding', 'cleanup', 'installation')
     accepted_options = ()
 
     def features(self):
@@ -78,7 +97,14 @@ class ChatGPTPlugin:
         if domain:
             targets.update(case.feature_id for case in dag.cases.values()
                            if case.domain.name.lower() == domain)
-        ctx = SimpleNamespace(runtime=runtime, registry=FeatureRegistry(standard=False))
+        ctx = SimpleNamespace(runtime=runtime, registry=FeatureRegistry(standard=False),
+                              platform_id='chatgpt', port=runtime.port, shared_data={},
+                              connect_options=runtime.fresh_options)
+
+        def prepare():
+            detail = runtime.gate('connection', runtime.prepare)
+            ctx.ext_id = runtime.ext_id
+            return detail
 
         def finalize():
             # Mirror the shared DAG, including failed and blocked cases, into the
@@ -108,5 +134,5 @@ class ChatGPTPlugin:
                 raise RuntimeError('; '.join(errors))
 
         return PlatformSession(dag, ctx,
-            lambda: runtime.gate('connection', runtime.prepare), close, finalize,
+            prepare, close, finalize,
             list(targets) if targets else None)

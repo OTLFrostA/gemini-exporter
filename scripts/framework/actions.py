@@ -172,7 +172,7 @@ class ExtensionActions:
         """)
         # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
         start = time.time()
-        total_items = len((snapshot(cdp_opt) or {}).get('rows', []))
+        total_items = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
 
         while time.time() - start < timeout:
             visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
