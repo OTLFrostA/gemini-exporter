@@ -256,7 +256,7 @@ export async function initWorkbench(): Promise<void> {
         catch (error) {
             statusError(error);
             if (kind === 'scan' && error instanceof Error &&
-                (error.message === 'Open Gemini or ChatGPT, log in and connect the account before scanning.'
+                (error.message === 'Open Gemini, ChatGPT or Claude and connect an account before scanning.'
                     || error.message === 'Open Gemini, log in and refresh the page before scanning.'))
                 connectionError = error.message;
         }
