@@ -341,10 +341,14 @@ export async function initWorkbench(): Promise<void> {
             complete: () => text('Reached the end of this Recent source', '已达到本次 Recent 来源尽头'),
             provider_limit: () => text('Source online access limit', '来源在线访问范围限制'),
             max_pages: () => text('Local page budget reached', '已达到本地页数预算'),
+            invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
             aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败')
         };
-        status(() => `${reasons[result.reason ?? result.status]?.() ?? text('Scan finished', '扫描已结束')} · ${result.pagesFetched} / ${result.conversationsFetched}`,
-            result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info');
+        const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
+        status(() => `${reasons[reason]?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))} · ${result.pagesFetched} / ${result.conversationsFetched}`,
+            result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info',
+            // Keep upstream diagnostic details in the log without exposing untranslated UI text.
+            result.status === 'error' ? `Scan failed (${result.reason ?? 'unknown'}) · ${result.pagesFetched} / ${result.conversationsFetched}` : undefined);
         settings = await readSettings();
         if (result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
             const shown = TourGuide.showTakeoutPrompt(result.conversationsFetched,

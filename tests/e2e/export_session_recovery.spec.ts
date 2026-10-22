@@ -40,6 +40,7 @@ test('active export locks scan, settings and selection through cancellation and 
     await expect(page.locator('input[value="browserDownload"]')).toBeChecked();
     const request = (await read(page, 'exports'))[0];
     const progress = await page.locator('#status').textContent();
+    const originalLog = await page.locator('#log').textContent();
     await expect(page.locator('#devToggle')).toBeEnabled();
     await page.locator('#devToggle').check();
     await expect(page.locator('body')).toHaveClass(/dev-mode/);
@@ -49,7 +50,8 @@ test('active export locks scan, settings and selection through cancellation and 
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
     await expect.poll(async () => (await read(page, 'settings')).language).toBe('zh');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
-    await expect(page.locator('#status')).toHaveText(progress!);
+    await expect(page.locator('#status')).toHaveText('正在处理 1/1');
+    await expect(page.locator('#log')).toHaveText(originalLog!);
     await expect(page.locator('#format')).toBeDisabled();
     expect(await read(page, 'exports')).toEqual([request]);
     await page.locator('#devToggle').uncheck();
@@ -57,6 +59,8 @@ test('active export locks scan, settings and selection through cancellation and 
     await expect(page.locator('#langToggle')).toBeEnabled();
     await page.locator('#langToggle').check();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('#status')).toHaveText(progress!);
+    await expect(page.locator('#log')).toHaveText(originalLog!);
     await page.locator('#list span').click({force:true});await expect(page.locator('#list input')).toBeChecked();await page.locator('#btnCancel').click();await expect(page.locator('#btnSyncAll')).toBeDisabled();
     await expect(page.locator('#exportOptionsLock')).toBeVisible();
     await page.evaluate(()=>Reflect.get(window,'harness').finishExport());await expect(page.locator('#btnSyncAll')).toBeEnabled();await expect(page.locator('#list input')).toBeEnabled();await expect(page.locator('#status')).toContainText('Cancelled');expect((await read(page,'exports')).length).toBe(1);

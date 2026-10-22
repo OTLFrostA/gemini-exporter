@@ -180,3 +180,17 @@ test('i18n - popup status re-renders when another view updates language', async 
     });
     await page.waitForFunction(() => document.getElementById('status')?.textContent === '已发起下载');
 });
+
+test('i18n - known scan failures translate from structured diagnostics while preserving raw reasons', async () => {
+    page = await browser.newPage();
+    await mount(page, 'options', { scanResult: { status: 'error', reason: 'Gemini list failed: invalid_response',
+        diagnostics: { providerId: 'gemini', streamId: 'recent', page: 1, requestCursor: null,
+            failure: 'invalid_response' }, pagesFetched: 0, conversationsFetched: 0 } });
+    await page.locator('#btnSyncAll').click();
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Scan failed: invalid Gemini response · 0 / 0');
+    const originalLog = await page.locator('#log').textContent();
+    assert.match(originalLog ?? '', /invalid_response/);
+    await page.locator('#langToggle').setChecked(false);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === '扫描失败：Gemini 返回无效响应 · 0 / 0');
+    assert.equal(await page.locator('#log').textContent(), originalLog);
+});

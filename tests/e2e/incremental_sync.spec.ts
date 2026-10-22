@@ -31,7 +31,8 @@ test('diagnostic download includes the failed scan page and its native error env
     }));
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');
-    await expect(options.locator('#status')).toContainText('invalid_response');
+    await expect(options.locator('#status')).toContainText('Scan failed: invalid Gemini response');
+    await expect(options.locator('#log')).toContainText('invalid_response');
     await expect(options.locator('#btnSyncAll')).toBeEnabled();
     await options.check('#devToggle');
     const downloaded = options.waitForEvent('download');
@@ -40,6 +41,7 @@ test('diagnostic download includes the failed scan page and its native error env
     const download = await downloaded;
     const report = JSON.parse(await readFile((await download.path())!, 'utf8'));
     expect(report.scanRuns).toHaveLength(1);
+    expect(report.scanRuns[0].result.reason).toContain('invalid_response');
     expect(report.scanRuns[0]).toMatchObject({ accountId, forceFull: false,
         result: { status: 'error', pagesFetched: 0, diagnostics: {
             providerId: 'gemini', streamId: 'recent', page: 1, requestCursor: null,
