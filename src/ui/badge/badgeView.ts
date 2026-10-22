@@ -9,13 +9,13 @@ let badge: HTMLElement | null = null;
 let accountId: string | null = null;
 let count: number | null = null;
 let feedback: 'ok' | 'partial' | 'failed' | 'unavailable' | null = null;
-let feedbackSummary = '';
+let feedbackResult: ExportResult | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let countPoll: ReturnType<typeof setInterval> | undefined;
 let dragging = false;
 let alive = false;
 let positionChanged = false;
-const clearFeedback = () => { clearTimeout(timer); timer = undefined; feedback = null; feedbackSummary = ''; };
+const clearFeedback = () => { clearTimeout(timer); timer = undefined; feedback = null; feedbackResult = null; };
 const stopCountPolling = () => {
     if (countPoll !== undefined) clearInterval(countPoll);
     countPoll = undefined;
@@ -31,14 +31,14 @@ const startCountPolling = () => {
 function render(): void {
     const label = badge?.querySelector('#geminiExportBadgeText');
     if (!label) return;
-    if (badge) badge.title = feedbackSummary;
+    if (badge) badge.title = feedbackResult ? exportSummary(feedbackResult) : '';
     label.textContent = feedback === 'unavailable' ? text('Saved; source attachments unavailable', '已保存，含来源失效附件')
         : feedback === 'ok' ? text('✓ Saved', '✓ 已保存')
         : feedback === 'partial' ? text('Some content was not saved', '部分内容未保存')
         : feedback === 'failed' ? text('Save failed', '保存失败')
         : !accountId ? text('Current account unavailable', '无法识别当前账户')
         : count === null ? text('Count unavailable', '数量暂不可用')
-        : text(`${count} conversations indexed`, `已收录 ${count} 条对话`);
+        : text(`${count} conversation${count === 1 ? '' : 's'} indexed`, `已收录 ${count} 条对话`);
 }
 function position(left: number, top: number): void {
     if (!badge) return;
@@ -74,13 +74,13 @@ function showLiveSaveResultImpl(result: ExportResult | null, id: string): void {
     const outcome = result.failed.length || result.aborted ? 'failed'
         : result.exported && result.partial ? (result.attachmentIssues?.length && result.attachmentIssues.every(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED') && result.otherPartial === 0 ? 'unavailable' : 'partial') : result.exported ? 'ok' : null;
     if (!outcome) return;
-    clearFeedback(); feedback = outcome; feedbackSummary = exportSummary(result); render();
-    timer = setTimeout(() => { feedback = null; feedbackSummary = ''; timer = undefined; render(); }, 3000);
+    clearFeedback(); feedback = outcome; feedbackResult = result; render();
+    timer = setTimeout(() => { feedback = null; feedbackResult = null; timer = undefined; render(); }, 3000);
 }
 function showLiveSaveErrorImpl(id: string): void {
     if (!alive || id !== accountId) return;
     clearFeedback(); feedback = 'failed'; render();
-    timer = setTimeout(() => { feedback = null; feedbackSummary = ''; timer = undefined; render(); }, 3000);
+    timer = setTimeout(() => { feedback = null; feedbackResult = null; timer = undefined; render(); }, 3000);
 }
 function ensureBadgeImpl(): HTMLElement | null {
     if (typeof document === 'undefined') return null;

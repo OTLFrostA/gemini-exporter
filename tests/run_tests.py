@@ -95,7 +95,7 @@ def test_html_includes():
 def test_i18n_keys():
     # V2 UI supports two intentional static-label mechanisms:
     #  1. data-en/data-zh (and data-ui-* pairs) for inline labels;
-    #  2. data-i18n, data-i18n-title and data-i18n-placeholder for the
+    #  2. data-i18n, data-i18n-title, data-i18n-placeholder and aria labels for the
     #     existing UI_COPY dictionary consumed by labelPage().
     # Removing those active attributes would break language switching. Verify
     # complete EN/ZH translations instead of banning one of the two mechanisms.
@@ -122,7 +122,7 @@ def test_i18n_keys():
                 if en in pairs or zh in pairs:
                     assert pairs.get(en) and pairs.get(zh), f"Incomplete inline bilingual label: {attrs}"
                     self.count += 1
-            for attr in ("data-i18n", "data-i18n-title", "data-i18n-placeholder"):
+            for attr in ("data-i18n", "data-i18n-title", "data-i18n-placeholder", "data-i18n-aria-label"):
                 if attr not in pairs:
                     continue
                 key = pairs[attr]

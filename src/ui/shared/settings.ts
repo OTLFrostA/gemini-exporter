@@ -10,6 +10,7 @@ export function useSettings(settings: GlobalSettings, applyDocumentLanguage = tr
     }
 }
 export const text = (en: string, zh: string): string => language === 'zh' ? zh : en;
+export const uiLocale = (): string => language === 'zh' ? 'zh-CN' : 'en-US';
 export function labelThemeToggle(button: HTMLButtonElement, settings?: GlobalSettings): void {
     const light = settings?.theme === 'light';
     const label = light ? text('Switch to dark mode', '切换到深色模式')
@@ -27,20 +28,31 @@ export function observeSettings(refresh: () => void): () => void {
     chrome.storage.onChanged.addListener(listener);
     return () => chrome.storage.onChanged.removeListener(listener);
 }
+/** Runtime errors are diagnostic facts; only UI translates their user-facing presentation. */
+const ERROR_ZH: Readonly<Record<string, string>> = {
+    'Open Gemini, log in and refresh the page before scanning.': '请先打开 Gemini 并登录，刷新 Gemini 页面后再同步会话。',
+    'Multiple Gemini accounts are open. Select the account to scan.': '当前打开了多个 Gemini 账号，请选择要同步的账号。',
+    'Multiple Gemini accounts or ChatGPT accounts are open. Select the account to scan.': '当前打开了多个 Gemini 或 ChatGPT 账号，请选择要同步的账号。',
+    'Open Gemini or ChatGPT, log in and connect the account before scanning.': '请打开 Gemini 并登录、刷新页面，或打开 ChatGPT 并登录后点击“连接 ChatGPT”。',
+    'Open ChatGPT, log in and connect the selected account before scanning.': '请打开 ChatGPT，登录所选账号后点击“连接 ChatGPT”。',
+    'Select a Gemini account before importing Takeout': '导入 Takeout 前，请先选择 Gemini 账号。',
+    'Directory picker unavailable': '当前浏览器无法打开文件夹选择器。',
+    'Directory permission not granted': '尚未获得文件夹访问权限。',
+    'Folder permission denied': '文件夹访问权限被拒绝。',
+    'Authorize a folder first': '请先授权文件夹。',
+    'No trusted current conversation': '无法确认当前对话。',
+    'Takeout requires an account UUID': '导入 Takeout 时缺少账号信息。',
+    'Takeout requires an existing Gemini account': '导入 Takeout 前，需要选择已有的 Gemini 账号。',
+    'Unsupported Takeout structure': '不支持此 Takeout 压缩包的结构。'
+};
 export function errorText(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
-    // Runtime errors remain language-neutral; translate known user actions at the UI boundary.
-    if (message === 'Open Gemini, log in and refresh the page before scanning.')
-        return text(message, '请先打开 Gemini 并登录，刷新 Gemini 页面后再同步会话。');
-    if (message === 'Multiple Gemini accounts are open. Select the account to scan.')
-        return text(message, '当前打开了多个 Gemini 账号，请选择要同步的账号。');
-    if (message === 'Multiple Gemini accounts or ChatGPT accounts are open. Select the account to scan.')
-        return text(message, '当前打开了多个 Gemini 或 ChatGPT 账号，请选择要同步的账号。');
-    if (message === 'Open Gemini or ChatGPT, log in and connect the account before scanning.')
-        return text(message, '请打开 Gemini 并登录、刷新页面，或打开 ChatGPT 并登录后点击“连接 ChatGPT”。');
-    if (message === 'Open ChatGPT, log in and connect the selected account before scanning.')
-        return text(message, '请打开 ChatGPT，登录所选账号后点击“连接 ChatGPT”。');
-    return message;
+    if (message === 'JSZip 库未加载，无法解析 ZIP')
+        return text('ZIP reader unavailable; cannot parse the archive.', message);
+    const translation = ERROR_ZH[message];
+    if (translation) return text(message, translation);
+    // Unexpected diagnostics remain available in the logs, not leaked as untranslated UI.
+    return text(message || 'Operation failed', '操作失败，请重试；详情请查看日志或诊断报告。');
 }
 /** Translate static UI nodes only; dynamic titles, messages, paths and logs are rendered by their views. */
 export function labelPage(): void {
@@ -60,5 +72,9 @@ export function labelPage(): void {
     for (const el of document.querySelectorAll<HTMLInputElement>('[data-i18n-placeholder]')) {
         const label = copy[el.dataset.i18nPlaceholder!];
         if (label) el.placeholder = label;
+    }
+    for (const el of document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]')) {
+        const label = copy[el.dataset.i18nAriaLabel!];
+        if (label) el.setAttribute('aria-label', label);
     }
 }

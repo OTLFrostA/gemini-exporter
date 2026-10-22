@@ -75,3 +75,122 @@ test('i18n - business Settings stays independent from DOM translation and docume
     assert.doesNotMatch(source, /\b(?:document|HTMLElement|querySelector|createElement|navigator)\b/);
     assert.match(readFileSync('src/ui/shared/settings.ts', 'utf8'), /export function labelPage/);
 });
+
+test('i18n - static tooltips and accessible group labels switch with the workbench language', async () => {
+    await open();
+    assert.equal(await page.locator('#devModeWrapper').getAttribute('title'), 'Show developer diagnostics and advanced controls');
+    assert.equal(await page.locator('#btnClearExported').getAttribute('title'), 'Clear export records only; keep conversations and downloaded files');
+    assert.equal(await page.locator('#localDataControls').getAttribute('aria-label'), 'Local records');
+    await page.locator('#langToggle').setChecked(false);
+    await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    assert.equal(await page.locator('#devModeWrapper').getAttribute('title'), '显示开发者诊断及高级选项');
+    assert.equal(await page.locator('#btnClearScan').getAttribute('title'), '清除该账号的本地对话、扫描覆盖和导出记录；保留已下载的文件');
+    assert.equal(await page.locator('#localDataControls').getAttribute('aria-label'), '本地记录');
+    await page.locator('#langToggle').setChecked(true);
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
+    assert.equal(await page.locator('#localDataControls').getAttribute('aria-label'), 'Local records');
+});
+
+test('i18n - current scan progress and result switch languages, historical log messages do not', async () => {
+    await open();
+    await page.evaluate(() => { Reflect.get(window, 'harness').holdScan = true; });
+    await page.locator('#btnSyncAll').click();
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Committed 2 pages, 150 source entries');
+    const originalLog = await page.locator('#log').textContent();
+    assert.match(originalLog ?? '', /Resolving conversation source/);
+    await page.locator('#langToggle').setChecked(false);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已接纳 2 页、150 条来源记录');
+    assert.equal(await page.locator('#progText').textContent(), '已接纳 2 页、150 条来源记录');
+    assert.equal(await page.locator('#log').textContent(), originalLog);
+    await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已达到本地页数预算 · 2 / 150');
+    const completedLog = await page.locator('#log').textContent();
+    await page.locator('#langToggle').setChecked(true);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Local page budget reached · 2 / 150');
+    assert.equal(await page.locator('#log').textContent(), completedLog);
+});
+
+test('i18n - log Ready caption uses initial language but existing entries remain unchanged', async () => {
+    page = await browser.newPage();
+    await mount(page, 'options', { settings: { language: 'zh' } });
+    await page.locator('#accountIdSelect').waitFor();
+    await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    assert.equal((await page.locator('#log').textContent())?.trim(), '就绪');
+    await page.locator('#langToggle').setChecked(true);
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
+    assert.equal((await page.locator('#log').textContent())?.trim(), '就绪');
+});
+
+test('i18n - Takeout status uses localized outcome and switches without rewriting logs', async () => {
+    await open();
+    await page.locator('#langToggle').setChecked(false);
+    await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    const chooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#btnImportTakeout').click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles({ name: 'Takeout.zip', mimeType: 'application/zip', buffer: Buffer.from('fixture') });
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已提交 2 条对话（部分完成）');
+    const log = await page.locator('#log').textContent();
+    await page.locator('#langToggle').setChecked(true);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Imported 2 conversations (partial)');
+    assert.equal(await page.locator('#log').textContent(), log);
+});
+
+test('i18n - known and unexpected errors localize in UI while logs preserve raw diagnostics', async () => {
+    await open();
+    await page.locator('#langToggle').setChecked(false);
+    await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    const labels = await page.evaluate(() => {
+        const { errorText } = Reflect.get(window, 'testUi').settings;
+        return [errorText(new Error('Directory picker unavailable')),
+            errorText(new Error('Select a Gemini account before importing Takeout')),
+            errorText(new Error('Injected scan failure'))];
+    });
+    assert.deepEqual(labels, ['当前浏览器无法打开文件夹选择器。', '导入 Takeout 前，请先选择 Gemini 账号。',
+        '操作失败，请重试；详情请查看日志或诊断报告。']);
+    await page.evaluate(() => { Reflect.get(window, 'harness').failScan = true; });
+    await page.locator('#btnSyncAll').click();
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === '操作失败，请重试；详情请查看日志或诊断报告。');
+    assert.match(await page.locator('#log').textContent() ?? '', /Injected scan failure/);
+    const logged = await page.locator('#log').textContent();
+    await page.locator('#langToggle').setChecked(true);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Injected scan failure');
+    assert.equal(await page.locator('#log').textContent(), logged);
+});
+
+test('i18n - displayed conversation timestamps use the selected interface locale', async () => {
+    await open();
+    const english = await page.locator('#list .item .meta').first().textContent();
+    await page.locator('#langToggle').setChecked(false);
+    await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    const chinese = await page.locator('#list .item .meta').first().textContent();
+    assert.ok(english?.trim());
+    assert.ok(chinese?.trim());
+    assert.notEqual(chinese, english);
+});
+
+test('i18n - popup status re-renders when another view updates language', async () => {
+    await open('popup');
+    await page.locator('#btnCurrent').click();
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Download initiated');
+    await page.evaluate(() => {
+        const harness = Reflect.get(window, 'harness');
+        harness.settings.language = 'zh';
+        harness.fireSettingsChange('local');
+    });
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已发起下载');
+});
+
+test('i18n - known scan failures translate from structured diagnostics while preserving raw reasons', async () => {
+    page = await browser.newPage();
+    await mount(page, 'options', { scanResult: { status: 'error', reason: 'Gemini list failed: invalid_response',
+        diagnostics: { providerId: 'gemini', streamId: 'recent', page: 1, requestCursor: null,
+            failure: 'invalid_response' }, pagesFetched: 0, conversationsFetched: 0 } });
+    await page.locator('#btnSyncAll').click();
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Scan failed: invalid Gemini response · 0 / 0');
+    const originalLog = await page.locator('#log').textContent();
+    assert.match(originalLog ?? '', /invalid_response/);
+    await page.locator('#langToggle').setChecked(false);
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === '扫描失败：Gemini 返回无效响应 · 0 / 0');
+    assert.equal(await page.locator('#log').textContent(), originalLog);
+});
