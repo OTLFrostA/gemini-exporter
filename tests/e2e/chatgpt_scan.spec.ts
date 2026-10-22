@@ -1,10 +1,13 @@
 import { test, expect } from './fixtures';
 import { openOptions } from './uiFixture';
+import { chatgptList } from '../fixtures/providers/chatgpt.js';
 
 // Optional permission UI and remote HTTP are browser boundaries. The real
 // Workbench, discovery, account registry, provider, L2 and IDB run unchanged.
 async function source(page: import('@playwright/test').Page, allow: boolean) {
-    await page.evaluate(allow => {
+    const list = chatgptList({ items: [{ id: 'gpt-chat', title: 'ChatGPT history from source',
+        create_time: 1700000000, update_time: 1700000010 }], total: 1 });
+    await page.evaluate(({ allow, list }) => {
         let granted = false;
         const query = chrome.tabs.query.bind(chrome.tabs);
         Object.defineProperty(chrome.permissions, 'contains', { configurable: true, value: async () => granted });
@@ -22,10 +25,9 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
             if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({
                 accessToken: 'test-token', user: { id: 'chatgpt-user', name: 'GPT test account' }, account: { id: 'workspace' },
             }));
-            return new Response(JSON.stringify({ items: [{ id: 'gpt-chat', title: 'ChatGPT history from source',
-                create_time: 1700000000, update_time: 1700000010 }], total: 1, offset: 0, limit: 100 }));
+            return new Response(JSON.stringify(list));
         };
-    }, allow);
+    }, { allow, list });
 }
 
 test('Connect ChatGPT selects its verified account and Sync All commits only its history', async ({ context, extensionId }) => {
