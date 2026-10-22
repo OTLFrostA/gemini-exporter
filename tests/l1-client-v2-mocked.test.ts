@@ -7,7 +7,9 @@ import { ConfirmedGeminiConversationNotFound } from '../src/l1/client/gemini/gem
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
-import { sourceDetail, sourceList, sourceMessage } from './helpers/l1SourceFixture.js';
+import { sourceDetail, sourceMessage } from './helpers/l1SourceFixture.js';
+import { geminiList as sourceList } from './fixtures/providers/gemini.js';
+import { chatgptList } from './fixtures/providers/chatgpt.js';
 import type { AIProvider } from '../src/l1/client/aiProvider.js';
 
 beforeEach(() => ports.reset());
@@ -31,11 +33,10 @@ const chatgptListProvider = (untrusted = false) => new ChatGPTProvider({
         url.endsWith('/api/auth/session')
             ? { accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' } }
             : untrusted
-                ? { items: [{ id: 'incomplete', update_time: 1700000010 }],
-                    total: 1, offset: 0, limit: 100, has_missing_conversations: true }
-                : { items: [{ id: 'chatgpt-source', title: 'Owned title', create_time: 1700000000,
-                    update_time: 1700000010 }], total: 1, offset: 0, limit: 100,
-                    has_missing_conversations: false },
+                ? chatgptList({ items: [{ id: 'incomplete', update_time: 1700000010 }],
+                    total: 1, hasMissingConversations: true })
+                : chatgptList({ items: [{ id: 'chatgpt-source', title: 'Owned title', create_time: 1700000000,
+                    update_time: 1700000010 }], total: 1, hasMissingConversations: false }),
     ), { status: 200 }),
 });
 
