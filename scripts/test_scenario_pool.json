@@ -1,47 +1,5 @@
 [
   {
-    "id": "materials_binary_eutectic_phase_paths",
-    "title": "Binary eutectic: phase paths and lever-rule evidence",
-    "domain": "materials_science_binary_phase_equilibrium",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational illustration of a fictional binary eutectic alloy laboratory: two crucibles, a cooling sample, idealized alpha and beta grains, and a schematic temperature-composition diagram. Mark the eutectic point and distinguish schematic drawing from measured data.",
-      "Derive the lever rule in LaTeX from component mass balance for a two-phase alloy. State the composition basis and explain why the rule does not determine cooling rate or grain size.",
-      "Write runnable standard-library Python computing phase fractions from supplied tie-line endpoints. Reject reversed endpoints, out-of-range compositions and nonfinite input; test both pure-phase limits and conservation.",
-      "Build a Markdown table for five bulk compositions across one tie line with exact fractions and reconstructed bulk composition. Distinguish assumptions, analytically derived values and any executed output.",
-      "Write a detailed bilingual English-Chinese report tracing a hypoeutectic cooling path. Include an aligned ASCII flow diagram, discuss equilibrium versus kinetic effects, and explain why microstructure cannot be inferred uniquely from a phase diagram."
-    ]
-  },
-  {
-    "id": "coding_theory_hamming_secded_syndrome",
-    "title": "Extended Hamming codes: syndrome and error certificates",
-    "domain": "coding_theory_binary_linear_codes",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define an extended binary Hamming (8,4) SECDED code using explicit bit positions and parity conventions. Derive its parity-check equations in LaTeX and specify the ordering of message and parity bits.",
-      "Write standard-library Python to encode all 16 four-bit messages and calculate syndromes. Include tests for valid codewords and the all-zero message.",
-      "Implement a decoder distinguishing clean, corrected single-bit, detected double-bit and invalid inputs. Explain the global parity bit case and avoid claiming correction of arbitrary multiple errors.",
-      "Exhaustively enumerate every single-bit corruption and every double-bit corruption of every codeword. Check correction or detection against an independent Hamming-distance calculation.",
-      "Provide Markdown tables for representative corruption patterns, received vectors, syndrome, global parity and decoder action. Say whether values were computed by execution or derived manually.",
-      "Draw an aligned ASCII decision diagram for syndrome and parity cases, then give counterexamples showing how three-bit errors can be miscorrected. Explain the bounded fault model.",
-      "Derive minimum-distance and redundancy properties, compare detection with correction guarantees, and explain why an undetected four-bit error does not contradict SECDED.",
-      "Write a detailed bilingual English-Chinese engineering audit covering bit ordering, parity convention, exhaustive tests, decoder status semantics and the limits of applying this toy code to burst faults."
-    ]
-  },
-  {
     "id": "acoustics_helmholtz_resonator_dimensions",
     "title": "Acoustics: Helmholtz resonator geometry and tuning",
     "domain": "acoustics_helmholtz_resonance",
@@ -410,6 +368,48 @@
       "Provide a Markdown table listing each matched pair, unmatched vertices, alternating reachable sets and the minimum vertex cover. Verify every input edge is covered and that cover size equals matching size.",
       "Analyze worst-case time and space, then compare the simple algorithm with Hopcroft-Karp. Explain which structural assumptions fail for nonbipartite graphs and supply a smallest odd-cycle counterexample.",
       "Produce a detailed bilingual technical report with runnable code, exact input, an ASCII alternating-path diagram and the matching/cover dual certificate. Flag all assumptions and distinguish computed output from unexecuted examples."
+    ]
+  },
+  {
+    "id": "fluid_capillary_rise_contact_angle_hysteresis",
+    "title": "Capillary rise: pressure balance and contact-angle uncertainty",
+    "domain": "fluid_mechanics_capillarity",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational illustration of a fictional capillary-rise experiment: a narrow glass tube, liquid reservoir, meniscus, contact angle and height scale. Clearly mark the illustration as schematic, not measured evidence.",
+      "Derive Jurin's law in LaTeX from hydrostatic and Laplace pressure balance. Define the contact-angle convention, dimensional units and the assumptions about tube size, evaporation and equilibrium.",
+      "Write runnable standard-library Python estimating rise height for water-like and oil-like fictional liquids, with input validation for radius, density, surface tension and angle. Test zero angle, ninety degrees and negative rise.",
+      "Build a Markdown table comparing five tube radii, predicted rise, Bond number and sensitivity to a stated contact-angle uncertainty. Distinguish derived numbers from executed output and discuss when the approximation fails.",
+      "Write a detailed bilingual English-Chinese laboratory audit with an aligned ASCII diagram, an uncertainty budget and a counterexample involving contact-angle hysteresis. Explain why a single observed height does not uniquely determine surface tension."
+    ]
+  },
+  {
+    "id": "database_serializability_precedence_graph_cycles",
+    "title": "Database schedules: conflict serializability and cycle certificates",
+    "domain": "database_transaction_serializability",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define conflict serializability for a finite read-write transaction schedule. Specify what counts as a conflict and derive why an acyclic precedence graph admits a serial ordering; distinguish this from strictness and recoverability.",
+      "Write standard-library Python parsing transaction operations and constructing a precedence graph with an explicit operation-pair witness for every edge. Reject malformed operations and duplicate operation identifiers.",
+      "Implement a topological-order certificate or an explicit directed-cycle certificate. Include isolated transactions, self operations and multiple conflicting operations between the same pair.",
+      "Create a Markdown table of at least six schedules covering serial, interleaved serializable, cyclic, dirty-read, recoverable and nonrecoverable cases. Explain which conclusions require commit/abort markers.",
+      "Write an independent exhaustive serial-order oracle for tiny schedules. Compare its conflict-order constraints with your graph algorithm over enumerated schedules without mistaking a bounded test for a universal proof.",
+      "Derive time and space complexity in LaTeX for both a simple quadratic graph builder and a version using per-item access history. Draw an aligned ASCII diagram showing one witnessed cycle.",
+      "Give counterexamples separating conflict serializability, view serializability and strictness, including a blind-write example. Clearly identify the assumptions needed for each claim.",
+      "Write a detailed bilingual English-Chinese engineering audit with complete runnable code, deterministic tests, certificate validation and the limits of inferring database isolation guarantees from observed finite schedules."
     ]
   }
 ]

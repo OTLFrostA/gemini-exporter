@@ -50,6 +50,7 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
     def __init__(self, port=9222, output_dir=None, dataset=None, delay=6):
         self.port, self.delay = port, delay
         self.root = Path(__file__).resolve().parents[2]
+        self.extension_root = self.root
         self.output = Path(output_dir or self.root/'tests/output/chatgpt_live')
         self.output.mkdir(parents=True, exist_ok=True)
         self.dataset = dataset
@@ -75,6 +76,7 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
 
     def prepare(self):
         subprocess.run(['node', 'build.js'], cwd=self.root, check=True)
+        self.prepare_extension()
         tabs = get_tabs(self.port)
         target = next((t for t in tabs if t.get('url', '').startswith('https://chatgpt.com/')), None)
         if not target:
@@ -82,7 +84,7 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         self.chat = CDPConnection(target['webSocketDebuggerUrl'])
         self.browser = CDPConnection(get_browser_ws_url(self.port))
         self.clean_install()
-        result = self.browser.call('Extensions.loadUnpacked', {'path': str(self.root)})
+        result = self.browser.call('Extensions.loadUnpacked', {'path': str(self.extension_root)})
         if 'error' in result:
             raise ValueError(result['error'])
         self.ext_id = result['result']['id']
@@ -212,6 +214,17 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
             raise ValueError('Webpage settled but source reply is not complete')
         cid = self.chat.eval("location.pathname.split('/c/')[1].split('/')[0]")
         (self.output/f'{cid}.source.json').write_text(json.dumps(raw, ensure_ascii=False))
+        # Freeze generated-image evidence while its actual turn is still
+        # rendered. ChatGPT paginates older messages after later turns arrive.
+        from scripts.framework.chatgpt_evidence import authored_messages
+        image_path = self.output/f'{cid}.image-webpage-evidence.json'
+        captured = json.loads(image_path.read_text()) if image_path.exists() else []
+        known_ids = {mid for image in captured for mid in str(image.get('turn', '')).split()}
+        missing_images = [message['id'] for message in authored_messages(raw)
+                          if message.get('imagePointers') and message['id'] not in known_ids]
+        if missing_images:
+            captured += capture_webpage_images(self.chat, cid, timeout=90, provider_id='chatgpt', message_ids=missing_images)
+            image_path.write_text(json.dumps(captured))
         dom = self.webpage()
         if not dom:
             raise ValueError('No independently captured webpage messages')
@@ -295,6 +308,14 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         return rows
 
     def capture_golden(self):
+        # A scene may actually generate an image. Freeze native pixels before
+        # export rather than treating its image-only tool message as noise.
+        from scripts.framework.chatgpt_evidence import authored_messages
+        for scene_id in self.chat_ids:
+            raw = json.loads((self.output/f'{scene_id}.source.json').read_text())
+            if any(message.get('imagePointers') for message in authored_messages(raw)):
+                if not (self.output/f'{scene_id}.image-webpage-evidence.json').is_file():
+                    raise ValueError('Missing independent scene image evidence captured during live generation')
         cid = self.golden['image']
         self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
         self.image_evidence = capture_webpage_images(self.chat, cid, timeout=90, provider_id='chatgpt')

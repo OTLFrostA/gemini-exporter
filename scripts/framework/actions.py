@@ -188,7 +188,7 @@ class ExtensionActions:
         return cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
 
     @staticmethod
-    def clear_search_workbench(cdp_opt, timeout: float = 3.0) -> int:
+    def clear_search_workbench(cdp_opt, timeout: float = 3.0, provider_id: str = 'gemini') -> int:
         """清空 Options 工作台搜索框并等待完整列表恢复，返回恢复后的列表总数"""
         cdp_opt.eval(f"""
         (() => {{
@@ -202,7 +202,7 @@ class ExtensionActions:
         """)
         # 轮询等待搜索防抖及全量列表恢复
         start = time.time()
-        target_total = len((snapshot(cdp_opt) or {}).get('rows', []))
+        target_total = len((snapshot(cdp_opt, provider_id) or {}).get('rows', []))
 
         while time.time() - start < timeout:
             visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0

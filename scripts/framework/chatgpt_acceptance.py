@@ -1,6 +1,8 @@
 """Full live acceptance operations supplementing ChatGPT source/export evidence."""
 import hashlib
 import json
+import os
+import shutil
 import time
 import zipfile
 from pathlib import Path
@@ -11,6 +13,25 @@ from scripts.framework.v2_probe import install_probe, snapshot
 
 
 class ChatGPTAcceptance:
+    def prepare_extension(self):
+        """Explicit local-only install flavor; never edit the shipping manifest."""
+        self.extension_root = self.root
+        if os.environ.get('TIER2_CHATGPT_REQUIRED_HOSTS') != '1':
+            self.report['testInstallMode'] = 'optional-chatgpt-hosts'
+            return
+        target = self.root/'temp/tier2-chatgpt-required-hosts'
+        shutil.rmtree(target, ignore_errors=True)
+        target.mkdir(parents=True)
+        for name in ('src', 'dist', 'lib', 'icons', '_locales'):
+            shutil.copytree(self.root/name, target/name)
+        manifest = json.loads((self.root/'manifest.json').read_text())
+        hosts = ['https://chatgpt.com/*', 'https://chat.openai.com/*']
+        manifest['host_permissions'] = list(dict.fromkeys(manifest.get('host_permissions', [])+hosts))
+        manifest['optional_host_permissions'] = [host for host in manifest.get('optional_host_permissions', []) if host not in hosts]
+        (target/'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n')
+        self.extension_root = target
+        self.report['testInstallMode'] = 'required-chatgpt-hosts'
+
     def clean_install(self):
         """Replace only this product's unpacked install, keeping one enabled copy."""
         entries = self.browser.call('Extensions.getExtensions').get('result', {}).get('extensions')
@@ -183,7 +204,7 @@ class ChatGPTAcceptance:
             stale = CDPConnection(target['webSocketDebuggerUrl'])
             wait_for(lambda: stale.eval("!!document.getElementById('prompt-textarea')"), 30)
             # Replace extension contexts, preserving Chrome's actual optional grant.
-            result = self.browser.call('Extensions.loadUnpacked', {'path': str(self.root)})
+            result = self.browser.call('Extensions.loadUnpacked', {'path': str(self.extension_root)})
             if result.get('error'):
                 raise ValueError(result['error'])
             self.options.close()
@@ -240,7 +261,7 @@ class ChatGPTAcceptance:
         if removed.get('error'):
             raise ValueError(removed['error'])
         wait_for(lambda: all(e['id'] != old for e in self.browser.call('Extensions.getExtensions')['result']['extensions']), 10)
-        loaded = self.browser.call('Extensions.loadUnpacked', {'path': str(self.root)})
+        loaded = self.browser.call('Extensions.loadUnpacked', {'path': str(self.extension_root)})
         if loaded.get('error') or not loaded.get('result', {}).get('id'):
             raise ValueError('Clean restoration failed')
         self.ext_id = loaded['result']['id']

@@ -27,7 +27,7 @@ class SearchKeywordCase(FeatureTestCase):
             keyword = getattr(ctx, "search_keyword", "Python")
             CDPActions.search_workbench(cdp_opt, keyword)
             filter_kw_ok, filter_kw_msg, details = CDPAssertions.assert_search_filter(cdp_opt, keyword)
-            CDPActions.clear_search_workbench(cdp_opt)
+            CDPActions.clear_search_workbench(cdp_opt, provider_id=getattr(ctx, 'platform_id', 'gemini'))
             if filter_kw_ok:
                 return True, "关键词过滤列表正常收缩并恢复", details
             return False, filter_kw_msg, details
@@ -97,7 +97,7 @@ class SearchClearCase(FeatureTestCase):
             # filtered selection immediately before testing clear/restore.
             CDPActions.search_workbench(cdp_opt, target_search_id)
             CDPActions.select_workbench_item(cdp_opt, target_search_id, True)
-            restored_count = CDPActions.clear_search_workbench(cdp_opt)
+            restored_count = CDPActions.clear_search_workbench(cdp_opt, provider_id=getattr(ctx, 'platform_id', 'gemini'))
             # 以独立 Store 数据为全量预期；Store 不可访问时明确 FAIL，不用 DOM 数量替代
             state = snapshot(cdp_opt, getattr(ctx, "platform_id", "gemini"))
             total_store = len(state['rows']) if isinstance(state, dict) and isinstance(state.get('rows'), list) else None
@@ -136,7 +136,7 @@ class SelectionControlsCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             # 确保从全量列表基线开始，避免残留搜索过滤干扰计数
-            CDPActions.clear_search_workbench(cdp_opt)
+            CDPActions.clear_search_workbench(cdp_opt, provider_id=getattr(ctx, 'platform_id', 'gemini'))
             CDPActions.toggle_select_none(cdp_opt)
             time.sleep(0.2)
             none_state = CDPAssertions.assert_selection_state(cdp_opt)

@@ -81,6 +81,22 @@ class PdfEvidenceTests(unittest.TestCase):
 
 
 class ChatGPTSourceEvidenceTests(unittest.TestCase):
+    def test_image_only_tool_message_is_visible_but_tool_chatter_is_not(self):
+        from scripts.framework.chatgpt_evidence import authored_messages
+        messages = [
+            {'id': 'u', 'author': {'role': 'user'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Draw it']}},
+            {'id': 'image', 'author': {'role': 'tool'}, 'recipient': 'all', 'content': {'content_type': 'multimodal_text', 'parts': [
+                {'content_type': 'image_asset_pointer', 'asset_pointer': 'sediment://file-image'}]}},
+            {'id': 'noise', 'author': {'role': 'tool'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Internal tool receipt']}},
+            {'id': 'a', 'author': {'role': 'assistant'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Here is the drawing']}},
+        ]
+        mapping = {m['id']: {'message': m, 'parent': messages[i-1]['id'] if i else None} for i, m in enumerate(messages)}
+        actual = authored_messages({'mapping': mapping, 'current_node': 'a'})
+        self.assertEqual([m['id'] for m in actual], ['u', 'image', 'a'])
+        self.assertEqual(actual[1]['role'], 'assistant')
+        self.assertEqual(actual[1]['text'], '')
+        self.assertEqual(actual[1]['imagePointers'], ['sediment://file-image'])
+
     def test_visible_thoughts_belong_only_to_the_following_answer(self):
         from scripts.framework.chatgpt_evidence import authored_messages
         messages = [

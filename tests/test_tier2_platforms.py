@@ -67,6 +67,34 @@ class Plugin:
 
 
 class PlatformsTest(unittest.TestCase):
+    def test_local_required_hosts_never_change_release_manifest_or_reuse_stale_assets(self):
+        from scripts.framework.chatgpt_acceptance import ChatGPTAcceptance
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = (Path(__file__).resolve().parents[1]/'manifest.json').read_text()
+            (root/'manifest.json').write_text(source)
+            for name in ('src', 'dist', 'lib', 'icons', '_locales'):
+                (root/name).mkdir()
+                (root/name/'asset').write_text('first-build')
+            runtime = SimpleNamespace(root=root, report={})
+            with patch.dict('os.environ', {'TIER2_CHATGPT_REQUIRED_HOSTS': '1'}):
+                ChatGPTAcceptance.prepare_extension(runtime)
+                staged = json.loads((runtime.extension_root/'manifest.json').read_text())
+                for host in ('https://chatgpt.com/*', 'https://chat.openai.com/*'):
+                    self.assertIn(host, staged['host_permissions'])
+                    self.assertNotIn(host, staged['optional_host_permissions'])
+                self.assertEqual((root/'manifest.json').read_text(), source)
+                (runtime.extension_root/'stale').write_text('stale')
+                (root/'dist/asset').write_text('second-build')
+                ChatGPTAcceptance.prepare_extension(runtime)
+                self.assertFalse((runtime.extension_root/'stale').exists())
+                self.assertEqual((runtime.extension_root/'dist/asset').read_text(), 'second-build')
+            with patch.dict('os.environ', {'TIER2_CHATGPT_REQUIRED_HOSTS': ''}):
+                ChatGPTAcceptance.prepare_extension(runtime)
+            self.assertEqual(runtime.extension_root, root)
+            self.assertEqual((root/'manifest.json').read_text(), source)
+            self.assertEqual(runtime.report['testInstallMode'], 'optional-chatgpt-hosts')
+
     def run_matrix(self, plugins, **kwargs):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             runner = Tier2Runner(plugins, RunConfig(output_dir=folder, **kwargs))

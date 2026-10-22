@@ -168,7 +168,7 @@ function packageExtension() {
     const { execSync } = require('child_process');
     execSync(`zip -r "${zipName}" manifest.json _locales icons lib LICENSE THIRD_PARTY_NOTICES.md README.md README_zh.md`, { cwd: ROOT, stdio: 'ignore' });
     execSync(`zip -r "${zipName}" src -x 'src/*.ts' 'src/*/*.ts' 'src/*/*/*.ts' 'src/*/*/*/*.ts' 'src/README.md'`, { cwd: ROOT, stdio: 'ignore' });
-    execSync(`zip -r "${zipName}" dist -i 'dist/background/background.js' 'dist/content/content.js' 'dist/content/hook.js' 'dist/ui/options.js' 'dist/ui/popup.js' 'dist/ui/sandbox/typst-compile.js'`, { cwd: ROOT, stdio: 'ignore' });
+    execSync(`zip -r "${zipName}" dist -i ${EXPECTED_BUNDLES.map(file => `'${file}'`).join(' ')}`, { cwd: ROOT, stdio: 'ignore' });
 
     const stats = fs.statSync(zipPath);
     const kb = (stats.size / 1024).toFixed(1);

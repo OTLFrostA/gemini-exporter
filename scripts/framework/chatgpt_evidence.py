@@ -39,7 +39,10 @@ def authored_messages(raw):
                 pending_thoughts.extend(t for t in [thought.get('summary'), thought.get('content')] if t)
         if message.get('author', {}).get('role') == 'user':
             pending_thoughts = []
-        if message.get('author', {}).get('role') not in ('user', 'assistant') or message.get('recipient') != 'all':
+        role = message.get('author', {}).get('role')
+        pointers = [p['asset_pointer'] for p in content.get('parts', []) if isinstance(p, dict)
+                    and p.get('content_type') == 'image_asset_pointer' and p.get('asset_pointer')]
+        if (role not in ('user', 'assistant') and not (role == 'tool' and pointers)) or message.get('recipient') != 'all':
             continue
         if meta.get('is_visually_hidden_from_conversation') or meta.get('is_thinking_preamble_message'):
             continue
@@ -49,13 +52,14 @@ def authored_messages(raw):
         text = ''.join(p for p in content.get('parts', []) if isinstance(p, str))
         if meta.get('model_dil_v2'):
             text = meta['model_dil_v2'].get('fallbackMarkdown', text)
-        if text.strip():
-            result.append(dict(id=message['id'], role=message['author']['role'], text=text, thoughts=pending_thoughts))
+        if text.strip() or pointers:
+            result.append(dict(id=message['id'], role='assistant' if role == 'tool' else role,
+                               text=text, thoughts=pending_thoughts, **({'imagePointers': pointers} if pointers else {})))
             pending_thoughts = []
     return result
 
 
-def assert_full_exports(root, output, conversation_ids):
+def assert_full_exports(root, output, conversation_ids, image_cdp=None):
     result = []
     for cid in conversation_ids:
         raw = json.loads((output/f'{cid}.source.json').read_text())
@@ -77,6 +81,33 @@ def assert_full_exports(root, output, conversation_ids):
             raise ValueError(f'{cid}: PDF has no extractable tagged content')
         codes, evidence = [], []
         for index, (source, body, html_body) in enumerate(zip(expected, bodies, html_bodies)):
+            if source.get('imagePointers'):
+                from scripts.framework.archive_resources import resource_references, resolve_archive_reference
+                from scripts.framework.image_evidence import assert_image_files
+                md_refs = resource_references(body, kind='image')
+                html_refs = [n.attrs['src'] for n in html_body.walk() if n.tag == 'img']
+                if len(md_refs) != len(source['imagePointers']) or len(html_refs) != len(md_refs):
+                    raise ValueError(f'{cid}: generated image message missing/duplicated in physical Markdown/HTML')
+                entries = []
+                for md_ref, html_ref in zip(md_refs, html_refs):
+                    md_name = resolve_archive_reference(document.stem+'.md', md_ref)
+                    html_name = resolve_archive_reference(document.stem+'.html', html_ref)
+                    if not md_name or not html_name:
+                        raise ValueError(f'{cid}: image is not a local physical attachment')
+                    data = (exports/'markdown'/md_name).read_bytes()
+                    if data != (exports/'html'/html_name).read_bytes():
+                        raise ValueError(f'{cid}: image bytes differ between formats')
+                    entries.append((md_name, data))
+                captured = json.loads((output/f'{cid}.image-webpage-evidence.json').read_text())
+                # Each image-only tool message is a separate visible assistant
+                # message. Match its native message ID rather than assuming
+                # one assistant message per user turn.
+                wanted_images = [item for item in captured if source['id'] in str(item.get('turn', ''))]
+                if not wanted_images or image_cdp is None:
+                    raise ValueError(f'{cid}: missing independent generated-image pixel evidence')
+                assert_image_files(image_cdp, wanted_images, entries)
+                if not source['text'].strip():
+                    continue
             source_fact = markdown_fact(root, source['text'], chatgpt=True)
             target_fact = markdown_fact(root, body)
             wanted, actual = compact(source_fact['text']), compact(target_fact['text'])

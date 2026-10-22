@@ -16,7 +16,7 @@ class ChatGPTCase(FeatureTestCase):
         runtime = ctx.runtime
         if self.method == 'assert_full_exports':
             from scripts.framework.chatgpt_evidence import assert_full_exports
-            operation = lambda: assert_full_exports(runtime.root, runtime.output, runtime.chat_ids)
+            operation = lambda: assert_full_exports(runtime.root, runtime.output, runtime.chat_ids, image_cdp=runtime.options)
         else:
             operation = getattr(runtime, self.method)
         def verify():

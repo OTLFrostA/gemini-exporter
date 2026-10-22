@@ -92,6 +92,16 @@ Gemini's clean reinstall can clear optional site grants, and ChatGPT waits for
 an actual user-granted connection. A multi-platform run may therefore need that
 authorization. No permissions or lifecycle acceptance steps are bypassed.
 
+For local ChatGPT iteration, `TIER2_CHATGPT_REQUIRED_HOSTS=1 npm run test:tier2 --
+--platform chatgpt` builds an unpacked copy in the ignored
+`temp/tier2-chatgpt-required-hosts/` directory. Only that copy makes both ChatGPT
+hosts required, so clean reinstalls no longer need repeated optional grants.
+The source/release manifest is unchanged; normal packaging never reads this
+directory. The live report records `testInstallMode: required-chatgpt-hosts`.
+This mode tests the full workflow with installed host access; it does not verify
+the optional-permission prompt UX of the shipping build. Disable the environment
+variable to return to the ordinary optional-permission install.
+
 ## Adding a platform
 
 A plugin provides `id`, `capabilities`, `accepted_options`, `features()` and
