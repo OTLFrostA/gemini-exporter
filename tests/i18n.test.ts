@@ -97,7 +97,7 @@ test('i18n - current scan progress and result switch languages, historical log m
     await page.locator('#btnSyncAll').click();
     await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Committed 2 pages, 150 source entries');
     const originalLog = await page.locator('#log').textContent();
-    assert.match(originalLog ?? '', /Resolving Gemini source/);
+    assert.match(originalLog ?? '', /Resolving conversation source/);
     await page.locator('#langToggle').setChecked(false);
     await page.waitForFunction(() => document.getElementById('status')?.textContent === '已接纳 2 页、150 条来源记录');
     assert.equal(await page.locator('#progText').textContent(), '已接纳 2 页、150 条来源记录');
