@@ -96,15 +96,7 @@ test('Gemini list requires an explicit natural-terminal cursor, not an unrecogni
 });
 
 test('DOM metadata preserves title precedence and keeps UI labels and observation clocks out of Domain', () => {
-    const header = { textContent: 'Header title' };
-    const sidebar = { textContent: 'Google Gemini', href: 'https://gemini.google.com/app/boundary123',
-        querySelector: () => null };
-    const query = { textContent: 'First user question' };
-    const doc = { title: 'Google Gemini',
-        querySelectorAll: (selector: string) => selector.includes('a[href') ? [sidebar]
-            : selector.includes('conversation-title') ? [header] : [],
-        querySelector: (selector: string) => selector.startsWith('user-query') ? query : null,
-    } as unknown as Document;
+    const { header, doc } = geminiListFixtures.domMetadata();
     const [index] = parseGeminiDomList(doc);
     assert.equal(index.title, '');
     assert.equal(index.titleSource, 'dom');
