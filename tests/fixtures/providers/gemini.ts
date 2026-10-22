@@ -33,9 +33,8 @@ export const geminiListFixtures = {
     providerLimit: () => parseList(JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]],
     ])),
-    genericBardError: (error: string) => parseList(JSON.stringify([
-        ['wrb.fr', 'MaZiqc', null, null, null, ['generic', error]],
-    ])),
+    invalidBardErrors: () => ['BardErrorInfo: cursor expired', '["BardErrorInfo",9999]'].map(error =>
+        parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['generic', error]]]))),
     malformedWire: () => parseList('garbage'),
 
     boundaryObservation: () => parsed([boundaryRow()]),
@@ -64,6 +63,7 @@ export const geminiListFixtures = {
     contractEmptyPage: () => parsed(),
     contractWire: (nextCursor: string | null = null) => wire([contractRow()], nextCursor),
     contractEmptyWire: () => wire(),
+    contractDetailSidecar: () => ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [contractRow()]])],
 
     browserPassiveCaptureWire: () => wire([
         sourceRow('passive', 'Captured title', 1700000000),
