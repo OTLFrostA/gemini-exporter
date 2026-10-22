@@ -55,7 +55,7 @@ test('provider commits indexes before progress and exposes control facts only', 
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
         url.includes('/api/auth/session') ? { accessToken: 'test-token', user: { id: 'u-index' }, account: { id: 'w-index' } }
             : chatgptList({ items: [{ id: 'listed', title: 'Listed chat', update_time: 1700000060 }],
-                total: 1, hasMissingConversations: false })
+                total: 1, offset: 0, limit: 100, hasMissingConversations: false })
     )) });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-index', 'w-index']));
     let observed: unknown;
