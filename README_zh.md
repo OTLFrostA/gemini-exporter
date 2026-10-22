@@ -1,242 +1,59 @@
-# 🌌 Gemini Exporter
+# 🌌 Gemini Exporter - Save All Your Chats
 
 <p align="left">
   <a href="./README.md">English</a> | <b>简体中文</b>
 </p>
 
-<p align="left">
-  <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_zh&utm_campaign=github_repo" target="_blank">
-    <img src="https://img.shields.io/badge/Chrome%20%E5%BA%94%E7%94%A8%E5%95%86%E5%BA%97-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome 应用商店">
-  </a>
-  <img src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-2.0.0-orange.svg?style=for-the-badge" alt="版本: 2.0.0">
-  <img src="https://img.shields.io/badge/%E5%BC%80%E6%BA%90%E5%8D%8F%E8%AE%AE-MIT-green.svg?style=for-the-badge" alt="开源协议: MIT">
-</p>
+**你的 Gemini 对话，值得自己保存。** Gemini Exporter 是一款**免费、开源、完全在本地处理导出的**浏览器扩展，把 Google Gemini 对话保存成自己掌控的文件。无需 API Key、另行注册账号，也没有统计追踪。
 
-> **简单、隐私安全、完全开源的 Google Gemini 对话批量导出与备份工具。**  
-> 一键将你的全部 Gemini 历史对话导出为精美的 **Markdown**、**1:1 像素级还原独立 HTML 网页**（支持亮/暗主题切换）、**PDF**、**JSON** 或包含完整图片附件的 **ZIP 压缩包**，无缝导入 **Obsidian**、**Notion**、**Logseq** 等本地个人知识库。
+**[前往 Chrome 应用商店安装](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_zh&utm_campaign=github_repo)** · [MIT 开源协议](./LICENSE)
 
----
+## ✨ 核心功能
 
-## ✨ 为什么选择 Gemini Exporter？
+- **单篇或批量备份**：一键保存当前对话，或扫描历史后按需选择批量导出。
+- **四种格式**：**Markdown、HTML、PDF、JSON**，支持保存可获取的图片与文件附件。
+- **两种保存方式**：浏览器下载或直接写入本地文件夹；浏览器下载多个文件时自动打包 ZIP。
+- **持续保存更新**：增量扫描、跳过未变化的已导出对话，以及保存到本地文件夹的 **Markdown 实时保存**。
+- **补全旧对话**：导入 Google Takeout 原始 ZIP，补充 Gemini 网页当前可访问的历史。
 
-- 🔒 **100% 本地运行与隐私零泄露**：
-  - 完全在浏览器本地沙箱内处理数据，**绝不上报任何账号凭据、Cookie 或对话内容至外部服务器**。
-- ⚡ **零配置开箱即用**：
-  - 无需申请繁琐的 API Key，无需配置 Token 或输入密码。只要在浏览器中正常使用 Google Gemini 即可。
-- 💾 **实时无感自动保存 (v1.6.0 重磅特性)**：
-  - 支持通过浏览器原生 FileSystem Access API 或本地 IndexedDB，在对话生成结束时**自动将最新轮次写入本地指定磁盘文件夹**。
-  - 无需手动点击、零感知延迟：在网页端正常聊 Gemini，本地笔记文件夹内的 Markdown 与配图即刻同步更新！
-  - **一键手势恢复授权**：浏览器重启后，若后台目录句柄权限降权为 `prompt`，控制台会自动出现一键重授权提示，单次点击即可恢复物理直写。
-- 📝 **精美的 Markdown 与 1:1 独立 HTML 双引擎排版**：
-  - **标准 Markdown (`.md`)**：代码块全语法高亮、完美渲染 LaTeX 数学公式、折叠显示 AI 深度思考过程（`<details>` 标签）并完整保留网络引用来源。
-  - **1:1 像素级还原独立 HTML (`.html`)**：单文件完整复刻 Gemini 官方网页对话体验，内置亮色/暗色主题无缝切换、代码块一键复制（含离线 file:// 协议兼容兜底）、KaTeX 公式渲染、思考过程折叠，并内置 `@media print` 印刷级样式（旧版备选方案：浏览器 `Cmd/Ctrl + P` 打印为 PDF）。
-  - **本地 PDF 导出 (`.pdf`)**：原生 PDF 导出，100% 在本机编译，不向任何服务器发送数据。限制：导出时请保持工作台导出页面打开；浏览器可能请求读取已安装字体名称/元数据（Local Font Access）以渲染中文；数学公式渲染为可选中的文本。
-- 🖼️ **完整的图片与附件归档**：
-  - 自动下载对话中你上传的文件与图片（PDF、文档等）。
-  - 自动保存 AI 生成的高清画作（Imagen）。
-  - 完整备份深度研究（Deep Research）独立长篇报告。
-  - 所有图片与资源自动存放于 `assets/` 文件夹，在 Markdown 与独立 HTML 中均采用 100% 兼容的相对路径规范引用。
-  - **STORE 模式零压缩内存保护**：高清二进制媒体附件在打包进入 ZIP 时采用 STORE 原样存储模式，彻底规避 200MB+ 批量多模态导出时因多重 Deflate 压缩导致的浏览器标签页内存溢出崩溃（OOM）。
-- 🗄️ **两级存储架构与配额安全隔离**：
-  - 突破 Chrome `chrome.storage.local` 的 10MB 配额硬限制：顶层仅保存轻量索引（严格控制在安全水位内），全量对话多轮次与消息正文实体安全沉淀至 IndexedDB（`conversationDetailStore.ts`）。
-  - 支持轻松承载成千上万条深度对话，彻底杜绝数据截断或存储满载崩溃。
-- 📊 **可视化批量管理工作台 (Workbench)**：
-  - 沉浸式深色模式面板，轻松浏览、搜索与管理数百条历史对话。
-  - 支持按状态智能筛选：*全部*、*未导出*、*有新回复待更新* 或 *已导出*。
-  - 完整支持 **中英双语界面**，右上角一键切换。
-  - 动态元素几何定位的 6 步沉浸式 **新手交互向导**。
-- 🔄 **智能增量备份**：
-  - 只备份新内容！当旧会话收到新的提问或回复时，工作台会自动将其标记为“待更新”，一键即可增量导出，省时省力。
-- 📥 **支持 Google Takeout 历史归档导入**：
-  - 轻松导入官方 Google Takeout 导出的历史数据压缩包，帮你找回因 Gemini 网页侧边栏滚动上限（约 600 条）而无法直接拉取的更早历史对话。
-- 👥 **真实多账号身份隔离与凭据零借调**：
-  - 基于 `accountSniffer.ts` 智能嗅探当前会话的真实 Google 邮箱、显示名称与 Gaia ID。
-  - 工作台下拉菜单直观展示真实账户邮箱，告别冰冷生涩的抽象槽位 ID。
-  - 各账号间凭据命名空间与会话实体物理隔离，多标签页通信严格绑定 Slot，绝不跨账号借调 Token 或错发 RPC。
-- 🌐 **通用 AI Provider 架构**：
-  - 底层基于模型无关的 `AIProvider` 规范构建，预留多模型平台生态接入能力。
+中英双语 · 明暗主题 · 导出状态与失败重试
 
----
+## 📸 产品截图
 
-## 🏛️ 模块化系统架构概览
+![Gemini Exporter v2 中文工作台，展示示例对话](./store_assets/screenshot_3_1280x800.png)
 
-Gemini Exporter 严格遵循 Chrome Extension MV3 分层解耦设计，核心业务领域与解析逻辑实现 **零 DOM 渲染依赖**，可在 Node.js 测试、Service Worker 与扩展页面中无缝复用。
+[深色模式及实时保存](./store_assets/screenshot_2_1280x800.png) · [快捷导出弹窗](./store_assets/screenshot_popup_v2.png)
 
-```mermaid
-graph LR
-    subgraph 注入层 ["页面注入层 (Injection)"]
-        HOOK["hookCredentials.ts<br/>(主世界 MAIN 凭据拦截器)"]
-        SNIFFER["accountSniffer.ts<br/>(真实账号身份嗅探)"]
-        CS["content.ts & messageBridge<br/>(隔离世界 ISOLATED 桥接)"]
-    end
+*截图来自实际运行的 v2 扩展，所有对话均为匿名示例数据。*
 
-    subgraph 后台服务 ["Service Worker"]
-        SW["background.ts<br/>(保活心跳 / 终止管理 / 生命周期)"]
-        LH["liveSaveHandler.ts<br/>(FileSystem 目录句柄直写)"]
-    end
+## 🚀 三步开始
 
-    subgraph 核心引擎 ["核心领域引擎 (零 DOM 依赖)"]
-        PROV["通用 AI Provider<br/>(Gemini；ChatGPT 为预留扩展点)"]
-        API["RPC 客户端 & 解析器<br/>(batchexecute & JSPB)"]
-        ENG["导出编排与格式化<br/>(Markdown / 1:1 HTML / STORE ZIP)"]
-        TAKEOUT["Takeout 离线合流<br/>(ZipBombGuard & MediaIndex)"]
-        SSOT["单点真理工具库<br/>(权威标题仲裁 & 去重)"]
-    end
+1. **安装插件**，打开 [Google Gemini](https://gemini.google.com) 中的对话。
+2. **选择要保存的内容**：在插件弹窗点击**导出当前对话**；或打开**工作台**，点击**同步会话**并勾选需要备份的对话。
+3. **导出文件**：在工作台选择格式与**浏览器下载 / 保存到本地文件夹**，点击**导出选中**。
 
-    subgraph 展现与存储 ["UI 展现与两级存储"]
-        WORKBENCH["Options 工作台<br/>(MVC 架构 & 响应式状态)"]
-        POPUP["Popup 快捷操作中心<br/>(单篇快速导出)"]
-        STORAGE["两级存储引擎<br/>(chrome.storage.local & IndexedDB 详情仓储)"]
-    end
+**想自动保存？** 在工作台选择**保存到本地文件夹**，授权目录、选择 **Markdown**，然后开启**实时保存**。切换到其他格式或浏览器下载时会暂停。
 
-    HOOK --> CS
-    SNIFFER --> CS
-    CS <--> SW
-    CS --> PROV
-    SW --> ENG
-    SW --> LH
-    WORKBENCH --> ENG
-    WORKBENCH --> TAKEOUT
-    POPUP --> ENG
-    ENG --> STORAGE
-    TAKEOUT --> SSOT
+**想补全更早历史？** 在工作台导入 [Google Takeout](https://takeout.google.com/settings/takeout/custom/gemini) 原始 ZIP。
+
+*注意：***同步会话**只更新会话目录，**导出选中**才会生成备份文件；部分过期附件可能无法恢复。
+
+## 🔒 隐私优先
+
+导出处理在本机完成，**不会上传到开发者运营的服务器**。插件通过现有的 Gemini 登录会话从 Google 获取你请求的对话与资源。**目前仅支持导出 Gemini**，尚不支持其他 AI 平台。
+
+## 🛠️ 从源码安装
+
+```bash
+git clone https://github.com/OTLFrostA/gemini-exporter.git
+cd gemini-exporter
+npm install && npm run build
 ```
 
-> 📖 如需查阅完整高清系统模块图、全项目 AST 逻辑映射表与 6 大核心数据流全链路时序图，请访问 **[系统架构与工程规范指南](./docs/architecture.md)**。
+打开 Chrome 的 `chrome://extensions/`，开启**开发者模式**，点击**加载已解压的扩展程序**并选择仓库目录。
 
----
+## 📚 更多文档
 
-## 📥 安装指南
+[使用指南与常见问题](./docs/USER_GUIDE_zh.md) · [隐私政策](./docs/PRIVACY_POLICY.md) · [v2 架构](./src/README.md) · [测试指南](./tests/README.md)
 
-### 方式一：Chrome 网上应用店一键安装（官方推荐）
-
-通过 Chrome 官方商店一键获取最新正式版：
-
-👉 **[前往 Chrome 应用商店安装 Gemini Exporter](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_zh&utm_campaign=github_repo)**
-
-*(支持 Google Chrome、Microsoft Edge、Brave、Arc、Vivaldi 等所有基于 Chromium 的现代浏览器。)*
-
-### 方式二：通过源码 / 开发者模式安装
-
-1. 下载或克隆本仓库到本地：
-   ```bash
-   git clone https://github.com/OTLFrostA/gemini-exporter.git
-   ```
-2. 编译生产打包文件：
-   ```bash
-   npm install
-   node build.js
-   ```
-3. 在浏览器中打开扩展管理页面：
-   - **Chrome**: 在地址栏访问 `chrome://extensions/`
-   - **Edge**: 在地址栏访问 `edge://extensions/`
-4. 打开页面右上角的 **“开发者模式” (Developer mode)** 开关。
-5. 点击左上角的 **“加载已解压的扩展程序” (Load unpacked)**，选择本项目文件夹即可完成安装。
-
----
-
-## 🚀 使用指南
-
-### 1. 快速导出当前单篇对话 (Popup)
-1. 在浏览器中打开 [Google Gemini](https://gemini.google.com) 的任意对话。
-2. 点击浏览器右上角扩展栏的 **Gemini Exporter** 图标。
-3. 切换顶部的导出格式标签（**Markdown**、**HTML**、或 **JSON (标准)**），点击 **“📥 导出当前页面”** 即可立即下载当前会话。
-
-### 2. 批量管理与导出全部对话 (Workbench)
-1. 点击插件图标中的 **“去控制台批量导出 ↗”**（或右键插件图标选择“选项”）。
-2. 初次使用可跟随 7 步 **新手引导教程** 熟悉核心功能。
-3. 点击 **“同步会话”**：首次保存网页端可访问的历史，后续只扫描新增活动，连接到已保存的范围后停止。若 Google 限制更早历史，可导入 Google Takeout 补全。本次未出现的会话仍保留本地归档；没有新增活动的老会话改名，可能在之后访问或导出时才更新。
-4. 勾选想要导出的对话（支持按状态过滤：*全部* / *未导出* / *有更新待重导* / *已导出*）。
-5. 选择导出格式（**Markdown**、**HTML** 或 **JSON**），点击 **“导出选中 → ZIP”** 打包下载（也可选择直接写入本地文件夹）。
-
-### 3. 配置实时无感自动保存到本地文件夹
-1. 在工作台中进入 **“设置”**，开启 **“自动保存到本地文件夹”** 开关；
-2. 点击 **“选择文件夹”**，授权选择你的个人笔记根目录（如 Obsidian Vault 或本地文档文件夹）；
-3. 随后在 Google Gemini 正常对话，每当 AI 回复生成完毕，插件会自动在后台静默将最新轮次写入该文件夹，配图同步落地！
-
-### 4. 使用 Google Takeout 归档数年远古历史
-如果你的账号有上千条历史对话，Gemini 网页端侧边栏受官方技术限制通常只支持滚动浏览约 600 条记录。如需完整备份更早的远古会话：
-1. 点击打开 **[Google Takeout (已预选 Gemini)](https://takeout.google.com/settings/takeout/custom/gemini)**，直接点击“下一步”并创建导出，下载生成的 Takeout ZIP 压缩包。
-2. 在 Gemini Exporter 工作台的 **“Google Takeout 导入”** 区域拖入该 ZIP 文件。
-3. 扩展程序会在本地离线解压、清洗 HTML 并自动合流历史会话与媒体附件！
-
----
-
-## 💡 与 Obsidian、Notion 等知识库联动
-
-- **Obsidian**: 直接将导出的 ZIP 压缩包解压到你的 Obsidian 仓库（Vault）文件夹中，或者将“实时自动保存”的目标直接设为 Vault 根目录。所有 Markdown 笔记与 `assets/` 中的图片附件将瞬间建立关联并支持双向链接。
-- **Notion**: 将导出的 Markdown 文件直接拖入 Notion 页面，即可自动转为原生的 Notion 页面与排版块。
-- **浏览器离线归档**: 选择 **HTML** 格式导出，无需联网即可在任意浏览器中以 1:1 Gemini 原生界面浏览历史对话，支持亮/暗主题切换。（HTML 经 `Cmd/Ctrl + P` 打印为 PDF 作为旧版备选方案保留；直接导出 PDF 请使用本地 PDF 导出。）
-- **Logseq / 本地文件夹**: 在工作台中开启 **“直接保存到本地文件夹”**，利用现代文件系统权限直接将文件写入你的本地磁盘。
-
----
-
-## 🧪 严格的三层测试质量保证体系
-
-项目构建了行业领先的 3 层测试防线，兼顾 CI 极速验证与真实环境闭环：
-
-- **第一层：CI 自动化极速门禁 (`npm test`)**：
-  - Scoped zero-any 门禁 (`node scripts/check-zero-any.cjs`)；
-  - TypeScript 严格类型检查 (`tsc --noEmit`)；
-  - 当前全量核心单元测试套件 (`python3 tests/run_tests.py`)；
-  - esbuild 5 大 Bundle 纯打包构建检查 (`node build.js`)；
-  - 当前全量无头 Playwright 端到端浏览器测试 (`playwright test`)；
-  - *日常开发推荐*：`npm run test:changed` 秒级（5~15s）运行改动影响传递测试。
-- **第二层：真实 Chrome 全流程实跑测试 (`npm run test:tier2`)**：
-  - 依托 9222 调试端口与真实 Google 账号交互；
-  - 维持 20 题多模态高价值场景动态池（覆盖 Imagen 生图、LaTeX、代码块、长文本报告）；
-  - 统一等待新回复结束并稳定，不根据提示词关键词或预期回复类型判断完成；
-  - 以实际导出文件验收：固定 golden 图片会话逐轮核对图片引用、可解码的附件与网页画面，允许预览图和原图的分辨率、压缩差异；实时回复实际含图时，对实时落盘文件执行同样核对。
-- **第三层：纯视觉 AI 盲测与自主质检 (`python3 scripts/test_visual_agent.py --playground` / `python3 scripts/test_visual_agent.py --api`)**：
-  - 采用双途径纯截屏感知架构（无 Context 子智能体交互靶场 / 自定义多模态 AI 接口），零 DOM 泄露、硬件级物理鼠标/键盘事件驱动；
-  - 闭环产出结构化 UX 体验评分卡与 HTML 视觉审计报告（`tests/output/visual_audit/`）。
-
----
-
-## ❓ 常见问题 (FAQ)
-
-<details>
-<summary><b>我的数据安全吗？插件会上传我的对话吗？</b></summary>
-绝对安全。Gemini Exporter 是一款完全开源的本地工具，没有任何后端服务器，也不包含任何统计、分析或跟踪代码。所有的解析、打包与导出都在你的电脑浏览器本地完成，绝不会收集或上传任何个人数据。
-</details>
-
-<details>
-<summary><b>我需要购买 Gemini Advanced 或申请 API Key 吗？</b></summary>
-不需要。无论是免费版 Gemini 用户还是 Advanced/Pro 付费用户均可直接使用，也无需额外购买或配置任何 API Key。
-</details>
-
-<details>
-<summary><b>为什么 Gemini 网页有时滚动到约 600 条就无法继续向下滚了？</b></summary>
-这是 Google Gemini 网页端自身对历史侧边栏列表的分页限制（即使不使用插件，手动在官方网页一直往下滚也会遇到）。如果你需要归档超过此数量的历史，推荐使用本项目内置的 <b>Google Takeout 导入</b> 功能，完美找回并导出全部早期记录。
-</details>
-
-<details>
-<summary><b>实时自动保存在不打开工作台时能工作吗？</b></summary>
-可以。实时自动保存由 Gemini 网页内的流式监视器感知，并通过持久化在 IndexedDB 中的 FileSystem 目录句柄由 Background 线程直接调度写入，无需常驻打开 Options 工作台。若浏览器重启导致目录句柄降权且处于无头环境，工作台中会自动提示一键重授权，单次点击即可恢复自动保存。
-</details>
-
-<details>
-<summary><b>插件能承受上千条长对话吗？会不会超出浏览器存储配额？</b></summary>
-完全可以！得益于我们的<b>两级存储架构</b>，快速索引保存在 <code>chrome.storage.local</code> 中（严格压制在 10MB 配额安全水位以内），而完整的对话轮次与重消息体则下沉持久化至本地 IndexedDB（<code>conversationDetailStore</code>）。你可以放心保存成千上万条对话而无需担心存储满载或数据截断。
-</details>
-
-<details>
-<summary><b>多账号切换是如何工作的？</b></summary>
-Gemini Exporter 会基于 <code>accountSniffer.ts</code> 自动嗅探当前激活标签页的真实 Google 账户邮箱与 Gaia ID。每个账号被分配完全独立的物理隔离存储空间与凭据 Slot。你可以在工作台右上角按邮箱直接切换，完全杜绝账号间凭据借调与命令错发。
-</details>
-
----
-
-## 🔒 隐私与开源协议
-
-- **隐私政策**: 欢迎查阅详细的 [隐私政策 (Privacy Policy)](./docs/PRIVACY_POLICY.md)。
-- **开源协议**: 本项目基于 **[MIT License](./LICENSE)** 授权开源。
-- **架构与开发者指南**: 详见 [docs/architecture.md](./docs/architecture.md) 与 [src/README.md](./src/README.md)。
-- **测试指南**: 详见 [tests/README.md](./tests/README.md)。
-
----
-
-## ⚠️ 免责声明
-
-- **Gemini Exporter** 是一款独立的个人数据备份开源工具，**与 Google LLC 或 Google Gemini 不存在任何隶属、赞助或背书关系**。
-- "Google" 与 "Gemini" 为 Google LLC 的注册商标。
+Gemini Exporter 是独立开源项目，**与 Google 无隶属或背书关系**。Google 和 Gemini 为 Google LLC 的商标。
