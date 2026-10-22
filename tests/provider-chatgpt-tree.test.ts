@@ -890,3 +890,12 @@ test('DIL fallback norm escapes preserve all table cells and math', () => {
     assert.ok(serialized.includes('Vert{}'));
     assert.ok(!serialized.includes('inlineCode'));
 });
+
+test('an unclosed inline opener cannot consume formulas in later table cells or rows', () => {
+    const source = String.raw`| Bulk \(C_0\) \(wt% B) | \(f_\alpha\) \(exact) | \(f_\beta\) \(exact) |
+| --- | --- | --- |
+| 20 | \(1\) | \(0\) |`;
+    const actual = preprocessChatGPTMarkdown(source);
+    assert.ok(actual.includes(String.raw`| Bulk $C_0$ \(wt% B) | $f_\alpha$ \(exact) | $f_\beta$ \(exact) |`));
+    assert.ok(actual.includes('| 20 | $1$ | $0$ |'));
+});

@@ -14,13 +14,31 @@ def compact(text):
     return ''.join(c for c in unicodedata.normalize('NFKC', text) if not c.isspace() and c not in '\u200b\ufeff')
 
 
+def _image_control_text(match):
+    """A well-formed gallery request is UI metadata, not authored prose.
+
+    Malformed payloads and literal code must remain visible to the oracle.
+    Image fidelity is checked independently against physical attachments.
+    """
+    try:
+        value = json.loads(match[1])
+    except (ValueError, TypeError):
+        return match[0]
+    if (isinstance(value, dict) and isinstance(value.get('query'), list)
+            and value['query'] and all(isinstance(q, str) and q for q in value['query'])
+            and set(value) <= {'query', 'aspect_ratio', 'layout', 'num_per_query'}):
+        return ''
+    return match[0]
+
+
 def markdown_fact(root, text, chatgpt=False):
     if chatgpt:
         # Independent source dialect reader. Protect authored code from math rewrites.
         parts = re.split(r'(```[\s\S]*?(?:```|$)|`[^`\n]+`)', text)
         for i in range(0, len(parts), 2):
+            parts[i] = re.sub(r'\ue200image_group\ue202([^\ue201]*)\ue201', _image_control_text, parts[i])
             parts[i] = re.sub(r'\\\[([\s\S]*?)\\\]', lambda m: '\n$$\n'+m[1]+'\n$$\n', parts[i])
-            parts[i] = re.sub(r'\\\(([\s\S]*?)\\\)', lambda m: '$'+m[1]+'$', parts[i])
+            parts[i] = re.sub(r'\\\(((?:(?!\\\()[^\r\n])+?)\\\)', lambda m: '$'+m[1]+'$', parts[i])
         text = ''.join(parts)
     result = subprocess.run(['node', str(root/'scripts/framework/markdown_evidence.mjs')],
         input=json.dumps({'text': text, 'segments': True}), capture_output=True, text=True, timeout=30, check=True)

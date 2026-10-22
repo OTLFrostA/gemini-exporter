@@ -81,6 +81,27 @@ class PdfEvidenceTests(unittest.TestCase):
 
 
 class ChatGPTSourceEvidenceTests(unittest.TestCase):
+    def test_gallery_controls_are_metadata_but_code_and_invalid_payloads_survive(self):
+        from scripts.framework.chatgpt_evidence import markdown_fact
+        root = Path(__file__).resolve().parents[1]
+        marker = '\ue200image_group\ue202{"query":["alloy"],"layout":"carousel"}\ue201'
+        self.assertEqual(markdown_fact(root, 'Before '+marker+' After', chatgpt=True)['text'], 'Before  After')
+        self.assertIn(marker, markdown_fact(root, '`'+marker+'`', chatgpt=True)['text'])
+        for invalid in ['{"query":false}', '{broken', '{"query":["alloy"],"authored":"retain"}']:
+            raw = '\ue200image_group\ue202'+invalid+'\ue201'
+            self.assertIn(raw, markdown_fact(root, raw, chatgpt=True)['text'])
+
+    def test_unclosed_formula_does_not_cross_table_cells(self):
+        from scripts.framework.chatgpt_evidence import markdown_fact
+        root = Path(__file__).resolve().parents[1]
+        source = r"""| \(f_\alpha\) \(exact) | \(f_\beta\) \(exact) |
+| --- | --- |
+| \(1\) | \(0\) |"""
+        expected = r"""| $f_\alpha$ (exact) | $f_\beta$ (exact) |
+| --- | --- |
+| $1$ | $0$ |"""
+        self.assertEqual(markdown_fact(root, source, chatgpt=True)['text'], markdown_fact(root, expected)['text'])
+
     def test_image_only_tool_message_is_visible_but_tool_chatter_is_not(self):
         from scripts.framework.chatgpt_evidence import authored_messages
         messages = [
