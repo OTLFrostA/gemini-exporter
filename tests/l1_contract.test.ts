@@ -22,6 +22,7 @@ import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
 import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { geminiListWire, geminiListRows } from './fixtures/providers/gemini.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 
 let storage: ReturnType<typeof indexStorage>;
@@ -32,8 +33,8 @@ beforeEach(() => {
 });
 afterEach(() => storage.restore());
 const row = (id = 'source_chat_123', seconds = 1700000050) => [`c_${id}`, 'Source title', null, null, null, [seconds, 0]];
-const listWire = (rows: unknown[] = [], next: string | null = null) => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, next, rows])]]);
-const list = (rows: unknown[] = [], next: string | null = null) => parseList(listWire(rows, next));
+const listWire = geminiListWire;
+const list = geminiListRows;
 function client(pages: (ListParseResult | Error)[], requests: unknown[] = []): GeminiProviderClient {
     return { async getConversationList(cursor, slot, filter, options) {
         requests.push({ cursor, slot, filter, signal: options?.signal });
