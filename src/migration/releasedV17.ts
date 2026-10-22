@@ -20,11 +20,9 @@ function exportRecord(value: unknown): ExportRecord | undefined {
     if (!['markdown', 'html', 'pdf', 'json'].includes(String(format))) return;
     const exportedAt = time(value.exportedAt);
     if (exportedAt === undefined) return;
-    const chatTime = time(value.chatTime);
     return { exportedAt, format: format as ExportFormat,
         status: value.status === 'partial' || value.hasFailedAssets === true || value.truncated === true
-            || value.isTruncated === true || !!value.truncateReason ? 'partial' : 'ok',
-        ...(chatTime === undefined ? {} : { chatTime }) };
+            || value.isTruncated === true || !!value.truncateReason ? 'partial' : 'ok' };
 }
 
 /** Released 1.7 used slot lists, not the later UUID schema. Bodies and coverage are refetched.
@@ -69,10 +67,9 @@ export async function upgradeReleasedV17(initial: Record<string, unknown>): Prom
             const title = string(row.title);
             const titleSource = row.titleSource === 'user' ? 'user'
                 : ['rpc', 'dom', 'provider'].includes(String(row.titleSource)) ? 'provider' : 'derived';
-            const updatedAt = time(row.updatedAt) ?? time(row.chatTime) ?? time(row.timestamp);
             const createdAt = time(row.createdAt);
             indexes.push(restoreConversationIndex({ key, ...(title ? { title, titleSource } : {}),
-                ...(updatedAt === undefined ? {} : { updatedAt }), ...(createdAt === undefined ? {} : { createdAt }) }));
+                ...(createdAt === undefined ? {} : { createdAt }) }));
         }
         await putIndexes(indexes);
         // Prefer canonical entries over c_ aliases, regardless of object insertion order.

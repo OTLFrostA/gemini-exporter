@@ -1,3 +1,4 @@
+import { notifyDomainChanged } from '../../runtime/api/domainChanges.js';
 import { getAccount } from '../../runtime/api/accountRegistry.js';
 import { DEFAULT_ACCOUNT_KEY, isAccountId } from '../../l2/accountRegistry.js';
 import { defaultGeminiProvider } from '../../l1/client/gemini/geminiProvider.js';
@@ -44,6 +45,7 @@ export async function scanAll(request: ScanRequest, options: {
         let verifiedStop = false;
         const end = await provider.listConversations({ accountId, streamId: 'recent', signal: options.signal,
             onPageCommitted: async info => {
+                notifyDomainChanged(accountId);
                 counts.pagesFetched = info.page;
                 counts.conversationsFetched = info.totalObserved;
                 scanHead ??= info.scanHead;

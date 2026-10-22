@@ -721,6 +721,17 @@ class ScanAndImportTests(unittest.TestCase):
     def validate_takeout(self, record, source, media=None):
         return validate_takeout_records([CID], media or {}, [record], source, self.account)[0]
 
+    def test_takeout_activity_time_is_current_schema_without_an_online_version(self):
+        record, source = self.takeout_fixture()
+        record['domain']['index']['activityAt'] = 1788374039661
+        record['summary']['activityAt'] = 1788374039661
+        self.assertTrue(self.validate_takeout(record, source))
+        self.assertNotIn('updatedAt', record['domain']['index'])
+        for invalid in ('yesterday', float('nan'), True):
+            record['domain']['index']['activityAt'] = invalid
+            record['summary']['activityAt'] = invalid
+            self.assertFalse(self.validate_takeout(record, source))
+
     def test_takeout_current_keys_and_readable_asset_bytes_required(self):
         record, source = self.takeout_fixture()
         asset = {'id':'image', 'kind':'image', 'sourceUri':'Takeout/image.png'}
@@ -1001,6 +1012,9 @@ class CoverageTests(unittest.TestCase):
         self.assertTrue(assert_archive_targets([f'Chat_{CID[-6:]}.html'], [CID], '.html')[0])
         self.assertFalse(assert_archive_targets([f'Chat_{OTHER[-6:]}.html'], [CID], '.html')[0])
         self.assertFalse(assert_archive_targets([f'Chat_{CID[-6:]}.md', f'Old_{OTHER[-6:]}.md'], [CID], '.md', [OTHER])[0])
+        self.assertTrue(assert_archive_targets([f'Chat_{CID[-6:]}.md', 'files/report.md',
+                                               f'files/attachment_{OTHER[-6:]}.md'], [CID], '.md', [OTHER])[0])
+        self.assertFalse(assert_archive_targets([f'files/Chat_{CID[-6:]}.md'], [CID], '.md')[0])
 
     def test_missing_format_target_fails_before_download(self):
         ctx = MagicMock()

@@ -1,3 +1,4 @@
+import { notifyDomainChanged } from '../../../runtime/api/domainChanges.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { SourceResourceContext } from '../../resources/sourceResources.js';
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
@@ -56,8 +57,12 @@ export async function importTakeout(file: File, accountId: Account['id'], onProg
             if (!result.archiveResources[asset.id] && ![asset.sourceUri, result.acquisitionHints[asset.id]?.url, result.acquisitionHints[asset.id]?.sourceUrl].some(uri => /^(?:https?:\/\/|\/\/|data:)/i.test(uri ?? ''))
                 && !result.acquisitionHints[asset.id]?.dataBase64) resourceFailure = true;
         }
-        if ((resultIndex + 1) % 50 === 0) await new Promise<void>(resume => setTimeout(resume, 0));
+        if ((resultIndex + 1) % 50 === 0) {
+            notifyDomainChanged(accountId);
+            await new Promise<void>(resume => setTimeout(resume, 0));
+        }
     }
+    notifyDomainChanged(accountId);
     onProgress?.(100);
     return { imported: importedIds.size, status: resourceFailure
         || results.some(result => result.conversation.detail.quality.status !== 'complete') ? 'partial' : 'ok' };

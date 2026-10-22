@@ -1,3 +1,4 @@
+import { observeDomainChanges } from '../../runtime/api/domainChanges.js';
 import { exportSummary } from '../shared/exportSummary.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { updateSettings, isLiveSaveEffective, type GlobalSettings } from '../../application/settings/index.js';
@@ -16,10 +17,21 @@ import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
 import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constants.js';
 import { showDirectWritePrompt } from './views/directWritePrompt.js';
+import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../application/export/types.js';
 
 type Level = 'info' | 'warn' | 'error';
 type Action = 'scan' | 'export' | 'takeout' | 'cleanup' | null;
 interface LogEntry { at: number; level: Level; message: string }
+interface ExportRunDiagnostic {
+    startedAt: number;
+    finishedAt?: number;
+    request: UIExportRequest;
+    items: (ExportItemUpdate & { at: number; title?: string })[];
+    diagnostics: (ExportDiagnostic & { at: number; title?: string })[];
+    droppedDiagnostics: number;
+    result?: ExportResult;
+    error?: string;
+}
 
 /** Main's complete workbench presentation, backed by the v2 Application/Runtime ports. */
 export async function initWorkbench(): Promise<void> {
@@ -29,6 +41,7 @@ export async function initWorkbench(): Promise<void> {
     let directoryAvailable = false;
     let busy = false;
     let themeSaving = false;
+    let presentationSaving = false;
     let action: Action = null;
     let controller: AbortController | null = null;
     let lastRequest: UIExportRequest | null = null;
@@ -39,6 +52,8 @@ export async function initWorkbench(): Promise<void> {
     // Browser batches are only staged until their final download is initiated.
     const preparedExportKeys = new Set<string>();
     const log: LogEntry[] = [];
+    const exportRuns: ExportRunDiagnostic[] = [];
+    let droppedExportRuns = 0;
     const scanRuns: { startedAt: number; finishedAt: number; accountId: string | null; forceFull: boolean; result: ScanResult }[] = [];
     const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -99,10 +114,12 @@ export async function initWorkbench(): Promise<void> {
         document.body.dataset.busy = String(busy);
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
-            'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan','devToggle',
-            'langToggle','chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
+            'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan',
+            'chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
             'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
+        for (const id of ['devToggle', 'langToggle'])
+            el<HTMLInputElement>(id).disabled = !settings || presentationSaving;
         el('delivery').setAttribute('aria-label', text('Export to', '导出到'));
         el('exportOptionsLock').hidden = !(busy && action === 'export');
         el('exportOptionsLock').textContent = text('Exporting — options are locked', '导出中，选项已锁定');
@@ -224,45 +241,64 @@ export async function initWorkbench(): Promise<void> {
     };
     const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async () => {
         lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
+        const run: ExportRunDiagnostic = { startedAt: Date.now(), request: lastRequest,
+            items: [], diagnostics: [], droppedDiagnostics: 0 };
+        exportRuns.push(run);
+        if (exportRuns.length > 10) { exportRuns.shift(); droppedExportRuns++; }
+        const titleFor = (key: UIExportRequest['keys'][number] | undefined) => key
+            && state.indexes.find(index => index.key.accountId === key.accountId
+                && index.key.conversationId === key.conversationId)?.title;
         failed = []; dismissedFailures = false; preparedExportKeys.clear(); render();
         status(text('Preparing export…', '正在准备导出…'));
-        await fonts;
-        if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
-            throw new Error(text('Authorize a folder first', '请先授权文件夹'));
-        const processed = new Set<string>();
-        let saved = 0;
-        const result = await runExport(request, { signal: controller!.signal,
-            onProgress: p => progress(text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
-            onItemUpdate: update => {
-                processed.add(`${update.key.accountId}/${update.key.conversationId}`);
-                if (update.status === 'failed' && !failed.some(key =>
-                    key.accountId === update.key.accountId && key.conversationId === update.key.conversationId))
-                    failed = [...failed, update.key];
-                if (update.status === 'exported') {
-                    saved++;
-                    failed = failed.filter(key => key.accountId !== update.key.accountId || key.conversationId !== update.key.conversationId);
+        try {
+            await fonts;
+            if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
+                throw new Error(text('Authorize a folder first', '请先授权文件夹'));
+            const processed = new Set<string>();
+            let saved = 0;
+            const result = await runExport(request, { signal: controller!.signal,
+                onDiagnostic: diagnostic => {
+                    if (run.diagnostics.length >= 10000) { run.droppedDiagnostics++; return; }
+                    run.diagnostics.push({ ...diagnostic, at: Date.now(), title: titleFor(diagnostic.key) });
+                },
+                onProgress: p => progress(text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
+                onItemUpdate: update => {
+                    run.items.push({ ...update, at: Date.now(), title: titleFor(update.key) });
+                    processed.add(`${update.key.accountId}/${update.key.conversationId}`);
+                    if (update.status === 'failed' && !failed.some(key =>
+                        key.accountId === update.key.accountId && key.conversationId === update.key.conversationId))
+                        failed = [...failed, update.key];
+                    if (update.status === 'exported') {
+                        saved++;
+                        failed = failed.filter(key => key.accountId !== update.key.accountId || key.conversationId !== update.key.conversationId);
+                    }
+                    if (update.key.accountId === state.accountId) {
+                        if (update.status === 'prepared') preparedExportKeys.add(update.key.conversationId);
+                        else preparedExportKeys.delete(update.key.conversationId);
+                        if (update.status === 'exported') state.records[update.key.conversationId] = update.record;
+                    }
+                    const total = request.keys.length;
+                    // Reserve the last 10% for Browser batch delivery; staging is not a receipt.
+                    const percent = total ? Math.round(processed.size / total *
+                        (request.delivery === 'browserDownload' ? 90 : 100)) : 100;
+                    progress(request.delivery === 'browserDownload'
+                        ? text(`Processed ${processed.size}/${total} · prepared ${preparedExportKeys.size} for download`,
+                            `已处理 ${processed.size}/${total} · 已准备 ${preparedExportKeys.size} 条待下载`)
+                        : text(`Processed ${processed.size}/${total} · saved ${saved}`,
+                            `已处理 ${processed.size}/${total} · 已保存 ${saved}`), percent);
+                    // Skipping changes progress only; the row's stored outcome and selection are unchanged.
+                    if (update.status !== 'skipped') renderConversations();
                 }
-                if (update.key.accountId === state.accountId) {
-                    if (update.status === 'prepared') preparedExportKeys.add(update.key.conversationId);
-                    else preparedExportKeys.delete(update.key.conversationId);
-                    if (update.status === 'exported') state.records[update.key.conversationId] = update.record;
-                }
-                const total = request.keys.length;
-                // Reserve the last 10% for Browser batch delivery; staging is not a receipt.
-                const percent = total ? Math.round(processed.size / total *
-                    (request.delivery === 'browserDownload' ? 90 : 100)) : 100;
-                progress(request.delivery === 'browserDownload'
-                    ? text(`Processed ${processed.size}/${total} · prepared ${preparedExportKeys.size} for download`,
-                        `已处理 ${processed.size}/${total} · 已准备 ${preparedExportKeys.size} 条待下载`)
-                    : text(`Processed ${processed.size}/${total} · saved ${saved}`,
-                        `已处理 ${processed.size}/${total} · 已保存 ${saved}`), percent);
-                renderConversations();
-            }
-        });
-        preparedExportKeys.clear();
-        el<HTMLElement>('bar').style.width = '100%';
-        failed = [...result.failed];
-        status(exportSummary(result), failed.length || result.aborted || result.partial ? 'warn' : 'info');
+            });
+            run.result = result;
+            preparedExportKeys.clear();
+            el<HTMLElement>('bar').style.width = '100%';
+            failed = [...result.failed];
+            status(exportSummary(result), failed.length || result.aborted || result.partial ? 'warn' : 'info');
+        } catch (error) {
+            run.error = error instanceof Error ? error.message : String(error);
+            throw error;
+        } finally { run.finishedAt = Date.now(); }
      }, true);
     const scan = (forceFull = false) => perform('scan', async () => {
         const startedAt = Date.now();
@@ -403,7 +439,7 @@ export async function initWorkbench(): Promise<void> {
         el(id).addEventListener('click', () => {
             const accountId = state.accountId;
             if (!accountId || busy || !window.confirm(scanRecords
-                ? text('Clear scan coverage and export records? Conversations and files stay. The next scan will retry history within source and local limits.', '清除扫描覆盖及导出记录？保留对话和磁盘文件。下次扫描将在来源范围和本地预算内重新尝试历史。')
+                ? text('Clear all local conversations, scan coverage and export records for this account? Downloaded files and other accounts stay. Sync again to rebuild the list.', '清空当前账号的全部本地对话、扫描覆盖和导出记录？保留已下载文件及其他账号的数据。之后需要重新同步会话。')
                 : text('Clear export records? Conversations and files are kept.', '清除导出记录？保留对话和文件。'))) return;
             void perform('cleanup', async () => {
                 if (scanRecords) await Cleanup.clearLocalScanRecords(accountId);
@@ -425,8 +461,7 @@ export async function initWorkbench(): Promise<void> {
     el('btnSelectAll').addEventListener('click', () => { state.selectVisible(); renderConversations(); });
     el('btnSelectNone').addEventListener('click', () => { state.selected.clear(); renderConversations(); });
     const settingControls = { format: 'defaultFormat', skipExported: 'skipExported',
-        includeAssets: 'includeAssets', liveSaveDiskToggle: 'enabledDisk',
-        devToggle: 'developerMode' } as const;
+        includeAssets: 'includeAssets', liveSaveDiskToggle: 'enabledDisk' } as const;
     for (const [id, field] of Object.entries(settingControls)) el<HTMLInputElement>(id).addEventListener('change', () => {
         const input = el<HTMLInputElement>(id);
         // A disabled Live Save switch must never mutate persisted intent.
@@ -450,15 +485,21 @@ export async function initWorkbench(): Promise<void> {
             .catch(error => { settings = previous; useSettings(previous); status(errorText(error), 'error'); })
             .finally(() => { themeSaving = false; render(); });
     });
-    el<HTMLInputElement>('langToggle').addEventListener('change', () => {
-        if (busy || !settings) { render(); return; }
-        const language = el<HTMLInputElement>('langToggle').checked ? 'en' : 'zh';
+    const savePresentation = async (patch: Pick<GlobalSettings, 'developerMode'> | Pick<GlobalSettings, 'language'>) => {
+        if (!settings || presentationSaving) { render(); return; }
         const prior = settings;
-        settings = { ...settings, language }; useSettings(settings);
-        void perform('cleanup', async () => {
-            try { await updateSettings({ language }); settings = await readSettings(); }
-            catch (error) { settings = prior; useSettings(prior); throw error; }
-        });
+        presentationSaving = true;
+        settings = { ...settings, ...patch }; useSettings(settings); render();
+        // Display preferences must not acquire or reset the running task's busy/controller state.
+        try { await updateSettings(patch); settings = await readSettings(); }
+        catch (error) { settings = prior; useSettings(prior); status(errorText(error), 'error'); }
+        finally { presentationSaving = false; render(); }
+    };
+    el<HTMLInputElement>('devToggle').addEventListener('change', () => {
+        void savePresentation({ developerMode: el<HTMLInputElement>('devToggle').checked });
+    });
+    el<HTMLInputElement>('langToggle').addEventListener('change', () => {
+        void savePresentation({ language: el<HTMLInputElement>('langToggle').checked ? 'en' : 'zh' });
     });
     el('logFilter').addEventListener('input', renderLog);
     el('logLevel').addEventListener('change', renderLog);
@@ -467,7 +508,15 @@ export async function initWorkbench(): Promise<void> {
     });
     el('btnClearLog').addEventListener('click', () => { log.length = 0; renderLog(); });
     el('btnExportDiag').addEventListener('click', () => {
-        const payload = JSON.stringify({ generatedAt: Date.now(), accountId: state.accountId, scanRuns, logs: log }, null, 2);
+        const currentExportIssues = state.indexes.flatMap(index => {
+            const record = state.records[index.key.conversationId];
+            return record?.status === 'partial' ? [{ key: index.key, title: index.title, record,
+                reasonAvailability: 'Stored outcome only; exact causes require a captured export run' }] : [];
+        });
+        const payload = JSON.stringify({ schemaVersion: 2, generatedAt: Date.now(),
+            extensionVersion: chrome.runtime.getManifest().version, userAgent: navigator.userAgent,
+            accountId: state.accountId, scanRuns, exportRuns, droppedExportRuns,
+            currentExportIssues, logs: log }, null, 2);
         const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
         const link = document.createElement('a'); link.href = url; link.download = 'gemini-exporter-ui-diagnostics.json';
         link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -485,17 +534,10 @@ export async function initWorkbench(): Promise<void> {
             render();
         })().catch(e => status(errorText(e), 'error'));
     };
-    const onDomainChanged = (message: unknown, sender: chrome.runtime.MessageSender): void => {
-        if (sender.id !== chrome.runtime.id || sender.tab
-            || sender.url && !sender.url.startsWith(chrome.runtime.getURL(''))
-            || !message || typeof message !== 'object' || !('action' in message) || message.action !== 'domainChanged'
-            || !('accountId' in message) || typeof message.accountId !== 'string') return;
-        void refresh().catch(e => status(errorText(e), 'error'));
-    };
-    chrome.runtime.onMessage.addListener(onDomainChanged);
+    const stopDomainChanges = observeDomainChanges(() => refresh().catch(e => status(errorText(e), 'error')));
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
-        stopSettings(); chrome.runtime.onMessage.removeListener(onDomainChanged);
+        stopSettings(); stopDomainChanges();
         window.removeEventListener('focus', onFocus); TourGuide.destroy();
     }, { once: true });
     renderLog(); render();

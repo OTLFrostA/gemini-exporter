@@ -8,6 +8,8 @@ const mock = `
 const h = globalThis.harness;
 export const DIRECT_WRITE_THRESHOLD = 20;
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
+export const indexActivityTime = i => i.updatedAt === undefined ? i.activityAt : i.activityAt === undefined ? i.updatedAt : Math.max(i.updatedAt,i.activityAt);
+export const compareConversationIndexes = (a,b) => (indexActivityTime(b) ?? -Infinity) - (indexActivityTime(a) ?? -Infinity);
 export const resourceIssueKind = f => f.code === 'RESOURCE_SOURCE_EXPIRED' ? 'expired' : f.code === 'RESOURCE_ACCESS_RESTRICTED' ? 'restricted' : f.code === 'RESOURCE_PROCESSING_FAILED' ? 'processing' : 'download';
 export const resourceFailureText = (f, locale) => locale === 'zh' ? '附件不可用' : 'Attachment unavailable';
 export const getSettings = async () => ({...h.settings});
@@ -41,9 +43,10 @@ export const sendTabMessage = (tabId,message,timeoutMs) => {
  h.tabRequests.push({tabId,message,timeoutMs});
  return chrome.tabs.sendMessage(tabId,message);
 };
-export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
+export const observeDomainChanges = listener => {h.domainListener=listener;return ()=>{h.domainListener=null;};};
+export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');h.scanProgress=options.onProgress;options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
 export const clearLocalExportRecords = async id => {h.clears.push(['exports',id]);};
-export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);};
+export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);h.indexes=h.indexes.filter(row=>row.key.accountId!==id);delete h.records[id];};
 export const importTakeout = async (file,id,progress) => {h.imports.push(id);if(h.holdImport)await new Promise(resolve=>h.finishImport=resolve);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);return {imported:2,status:'partial'};};
 export const getDirectoryHandle = async () => h.directory;
 export const setDirectoryHandle = async handle => {h.directory=handle;};

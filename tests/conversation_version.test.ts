@@ -68,7 +68,7 @@ test('Detail savedAt follows known source evidence even for partial or metadata-
     const unknown = await commitSource(detail([1700000000, 0], undefined, false, 'unknown_chat'));
     assert.equal(unknown.conversation.detail.savedAt, undefined);
     const conflicting = await commitSource(detail([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'));
-    assert.equal(conflicting.conversation.detail.quality.status, 'partial');
+    assert.equal(conflicting.conversation.detail.quality.status, 'complete');
     assert.equal(conflicting.conversation.detail.savedAt, 1700000000000);
     const metadata = parseGeminiRpcConversation(wire([['MaZiqc', [null, null, [['c_metadata_chat', 'Metadata only', null, null, null, [1700000000, 0]]]]]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'metadata_chat' });
     assert.equal((await commitSource(metadata)).conversation.detail.savedAt, 1700000000000);
@@ -87,7 +87,7 @@ test('diagnostic deletion or spoofed diagnostic codes cannot change merged Detai
     const healthy = detail([1700000000, 0], [1700000005, 0]);
     const rejected = {   ...healthy, conversation: { ...healthy.conversation, detail: {   ...healthy.conversation.detail, quality: { status: 'partial' as const, rejectedTurns: 1 } } } };
     const mismatched = detail([1700000010, 0], [1700000005, 0]);
-    for (const [input, expected] of [[healthy, 'unknown'], [rejected, 'partial'], [mismatched, 'partial']] as const) {
+    for (const [input, expected] of [[healthy, 'unknown'], [rejected, 'partial'], [mismatched, 'unknown']] as const) {
         const warnings = [{ severity: 'error' as const, code: 'GEMINI_TURNS_REJECTED', message: 'diagnostic only' },
             { severity: 'error' as const, code: 'CONVERSATION_VERSION_MISMATCH', message: 'diagnostic only' }];
         const records = [[], warnings].map(diagnostics => {

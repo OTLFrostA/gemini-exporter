@@ -20,7 +20,7 @@ def save_sync_evidence(ctx, name, evidence):
 
 def clear_scan_records(cdp):
     install_probe(cdp)
-    cdp.eval('globalThis.__tier2V2.clearScanRecords()', await_promise=True)
+    cdp.eval('globalThis.__tier2V2.resetScanCoverage()', await_promise=True)
 
 
 def wait_for_prior_scan(cdp, timeout=330):

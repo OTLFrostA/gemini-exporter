@@ -10,7 +10,7 @@ export function semanticTitleSource(source?: string): TitleSource {
 }
 export interface ParsedMetadataInput {
     account?: Account; providerId: string; id: string; title?: string; titleSource?: string;
-    createdAt?: number; updatedAt?: number; url?: string; messageCount?: number;
+    createdAt?: number; updatedAt?: number; activityAt?: number; url?: string; messageCount?: number;
 }
 /** Source paths become semantics here. Domain never ranks RPC versus DOM. */
 export function parseIndexMetadata(input: ParsedMetadataInput, source: ConversationIngestionSource = 'detail'): Omit<DomainConversationIndex, 'key'> {
@@ -20,5 +20,5 @@ export function parseIndexMetadata(input: ParsedMetadataInput, source: Conversat
     const title = !isBrandPlaceholderTitle(candidate) && (isRealTitle(candidate, id) || (input.providerId !== 'gemini' || source === 'takeout' || input.titleSource === 'takeout') && candidate) ? candidate : undefined;
     return {
         ...(title ? { title, titleSource: semanticTitleSource(input.titleSource ?? (source === 'takeout' ? 'takeout' : undefined)) } : {}),
-        ...(input.createdAt !== undefined ? { createdAt: input.createdAt } : {}), ...(input.updatedAt !== undefined ? { updatedAt: input.updatedAt } : {}) };
+        ...(input.createdAt !== undefined ? { createdAt: input.createdAt } : {}), ...(input.updatedAt !== undefined ? { updatedAt: input.updatedAt } : {}), ...(input.activityAt !== undefined ? { activityAt: input.activityAt } : {}) };
 }

@@ -40,6 +40,7 @@ export const ports = {
     details: [] as DetailCall[],
     deletions: [] as DeletedCall[],
     lookups: [] as string[],
+    notifications: [] as string[],
     detailDecision: { accepted: true, changed: true } as DetailIngestResult,
     indexError: null as Error | null,
     detailError: null as Error | null,
@@ -50,7 +51,7 @@ export const ports = {
     current: null as AccountContext | null,
     reset() {
         this.accounts = new Map(initialAccounts.map(account => [account.id, { ...account }]));
-        this.indexes.length = 0; this.details.length = 0; this.deletions.length = 0; this.lookups.length = 0;
+        this.notifications.length = 0; this.indexes.length = 0; this.details.length = 0; this.deletions.length = 0; this.lookups.length = 0;
         this.detailDecision = { accepted: true, changed: true };
         this.indexError = null; this.detailError = null; this.deletionError = null;
         this.beforeIndexCommit = undefined; this.beforeDetailCommit = undefined;
@@ -278,6 +279,7 @@ export function installL1V2Mocks(): void {
         if (parentPath.includes('/src/l1/') || parentPath.includes('/src/shared/')) {
             if (request.endsWith('/l2/ingestion.js')) return ingestion;
             if (request.endsWith('/runtime/api/domainIngestion.js')) return ingestion;
+            if (request.endsWith('/runtime/api/domainChanges.js')) return { notifyDomainChanged: (id: string) => { ports.notifications.push(id); } };
             if (request.endsWith('/runtime/api/accountRegistry.js')) return accountRegistry;
             if (request.endsWith('/runtime/content/accountContext.js')) return accountContext;
             if (request.endsWith('/runtime/content/cleanupRegistry.js')) return { registerCleanup: () => () => {} };

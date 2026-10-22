@@ -4,8 +4,13 @@ Implements the frozen [UI design](https://app.notion.com/p/3fb5d4d759e181cdad0fc
 
 Popup exports the trusted current key. Options maintains an account-scoped read
 mirror and explicit selection, calling Application for Scan, Export, Takeout,
-Settings and two record-cleanup actions. Clearing scan records keeps all archived
-conversations, accounts, files and directory handles.
+Settings and two record-cleanup actions. Clearing scan records explicitly removes
+the selected account’s local Index, Detail, Coverage and export history after confirmation.
+Accounts, downloaded files, directory handles and other accounts’ data remain.
+Scan and export stop controls appear below their shared progress bar in a sticky panel.
+Options subscribes to Runtime committed-data invalidations from local and remote extension
+contexts. List reads and rendering run asynchronously; scan progress callbacks only update
+progress. Producers never wait for UI reads, and observer failures cannot fail a commit.
 
 Installation Tour consumes `?startTour=1` immediately; it has no persistent flag.
 Version Spotlight is recorded on actual display (once per upgrade, never on fresh install); Takeout acknowledgment follows dismissal. The Content Badge owns its account-scoped count display and Pull: it refreshes

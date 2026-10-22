@@ -53,7 +53,7 @@ async function expectVerifiedSource(page: import('@playwright/test').Page) {
     }, accountId)).toMatch(/^u\d+$/);
 }
 
-test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset preserves Domain and clears ExportRecords', async ({ context, extensionId }) => {
+test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset clears local Domain and ExportRecords', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.evaluate(async accountId => {
         const api = Reflect.get(globalThis,'probeFixture');
@@ -70,10 +70,10 @@ test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset preserves
     const before = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').snapshot());
     await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').clearScanRecords());
     const after = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').snapshot());
-    expect(after.coverage).toBeNull(); expect(after.rows).toEqual(before.rows);
+    expect(after.coverage).toBeNull(); expect(after.rows).toEqual([]);
     expect(Object.keys(before.records)).toEqual(['probe']); expect(after.records).toEqual({});
     const [conversation] = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').conversations(['probe']));
-    expect(conversation.domain.detail.messages).toHaveLength(2);
+    expect(conversation.domain).toBeNull();
     await page.locator('#accountIdSelect').selectOption('10000000-0000-4000-8000-000000000002');
     expect((await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').snapshot())).rows).toEqual([]);
 });

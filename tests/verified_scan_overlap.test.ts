@@ -1,3 +1,4 @@
+import { observeDomainChanges } from '../src/runtime/api/domainChanges.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -61,6 +62,37 @@ test('failed scan retains the bound parser diagnostics without establishing cove
         assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range ?? null, null);
     } finally {
         ProviderRegistry.unregister('gemini');
+        if (original) ProviderRegistry.register(original);
+        store.restore();
+    }
+});
+
+
+test('active scan publishes committed pages without waiting for the view to refresh', async () => {
+    const store = indexStorage();
+    const original = ProviderRegistry.get('gemini');
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const notifications: string[] = [];
+    let finishedViewReads = 0;
+    const stop = observeDomainChanges(async id => { notifications.push(id); await gate; finishedViewReads++; });
+    const provider = Object.create(defaultGeminiProvider) as typeof defaultGeminiProvider;
+    provider.listConversations = async options => {
+        await options.onPageCommitted?.({ page: 1, totalObserved: 50 });
+        await options.onPageCommitted?.({ page: 2, totalObserved: 100 });
+        return 'source_end';
+    };
+    ProviderRegistry.unregister('gemini'); ProviderRegistry.register(provider);
+    try {
+        const result = await scanAll({ accountId: ACCOUNT_UUID });
+        assert.equal(result.status, 'complete');
+        assert.equal(result.conversationsFetched, 100);
+        assert.deepEqual(notifications, [ACCOUNT_UUID, ACCOUNT_UUID]);
+        assert.equal(finishedViewReads, 0, 'view work must not block page fetching or scan completion');
+        release(); await new Promise<void>(resolve => setTimeout(resolve, 0));
+        assert.equal(finishedViewReads, 2);
+    } finally {
+        release(); stop(); ProviderRegistry.unregister('gemini');
         if (original) ProviderRegistry.register(original);
         store.restore();
     }

@@ -260,7 +260,7 @@ test('UI v2: Takeout prompts at 151 committed records regardless of Scan reason'
     await page.locator('#btnSyncAll').click();
     await expect(page.locator('.tour-popover')).toHaveCount(0);
 });
-test('UI v2: settings preserve Live Save intent, record cleanup never deletes conversations', async ({ page }) => {
+test('UI v2: settings preserve Live Save intent while scan reset clears local conversations', async ({ page }) => {
     await mount(page,'options', { directoryName: 'MyVault', settings: { exportDelivery: 'folderWriter' } }); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
     await page.locator('#format').selectOption('pdf');
     await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
@@ -270,7 +270,7 @@ test('UI v2: settings preserve Live Save intent, record cleanup never deletes co
     await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled(); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
     page.on('dialog',dialog=>dialog.accept()); await page.locator('#btnClearScan').click();
     await expect(page.locator('#status')).toHaveText('Records cleared'); expect(await read(page,'clears')).toEqual([['scan',A]]);
-    await expect(page.locator('#list .item')).toHaveCount(1); expect((await read(page,'settings')).enabledDisk).toBe(true);
+    await expect(page.locator('#list .item')).toHaveCount(0); expect((await read(page,'settings')).enabledDisk).toBe(true);
 });
 test('UI v2: Takeout file input directly imports into current account and reports partial', async ({ page }) => {
     await mount(page,'options'); await page.locator('#accountIdSelect').selectOption(B);
@@ -367,4 +367,49 @@ test('UI v2: final Tutorial button closes without opening feedback, actual feedb
     await lastStep(); const popup = page.waitForEvent('popup'); await page.locator('#feedbackBox').click();
     const feedback = await popup; await expect(page.locator('.tour-overlay-container')).toHaveCount(0); await feedback.close();
     expect(await read(page,'patches')).toEqual([]);
+});
+
+for (const mode of ['scan','export'] as const) test(`UI v2: ${mode} stop button is below the progress bar`, async ({page}) => {
+    await mount(page,'options',{holdScan:true,holdExport:true});
+    if (mode === 'export') {
+        await page.locator('#btnSelectAll').click();
+        await page.locator('#btnExport').click();
+    } else await page.locator('#btnSyncAll').click();
+    const stop = page.locator(mode === 'scan' ? '#btnStopScan' : '#btnCancel');
+    await expect(stop).toBeVisible();
+    await expect(stop).toBeInViewport();
+    const bar = await page.locator('#progWrap').boundingBox();
+    const button = await stop.boundingBox();
+    expect(bar).toBeTruthy(); expect(button).toBeTruthy();
+    expect(button!.y).toBeGreaterThanOrEqual(bar!.y + bar!.height);
+    await page.screenshot({path:`tests/output/visual_audit/${mode}-stop-below-progress.png`});
+    await stop.click();
+    await expect(page.locator('#status')).toHaveText('Cancelling…');
+    await page.evaluate(mode => { const h = Reflect.get(window,'harness'); if (mode === 'scan') h.finishScan(); else h.finishExport(); },mode);
+    await expect(stop).toBeHidden();
+});
+
+
+test('UI v2: committed scan pages appear before completion and preserve selection', async ({ page }) => {
+    await mount(page, 'options', { holdScan: true });
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnSyncAll').click();
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
+    for (let pageNumber = 3; pageNumber <= 4; pageNumber++) {
+        await page.evaluate(async ({ accountId, pageNumber }) => {
+            const h = (window as any).harness;
+            h.indexes.push({ key: { accountId, conversationId: `scanned-${pageNumber}` },
+                title: `Committed page ${pageNumber}`, updatedAt: pageNumber + 10 });
+            h.scanProgress({ pagesFetched: pageNumber, conversationsFetched: pageNumber * 50 });
+            h.domainListener(accountId);
+        }, { accountId: A, pageNumber });
+        await expect(page.locator('#list')).toContainText(`Committed page ${pageNumber}`);
+        await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
+        await expect(page.locator('#btnStopScan')).toBeVisible();
+    }
+    await expect(page.locator('#list input[type="checkbox"]:checked')).toHaveCount(1);
+    await page.evaluate(() => (window as any).harness.finishScan());
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await expect(page.locator('#list')).toContainText('Committed page 3');
+    await expect(page.locator('#list')).toContainText('Committed page 4');
 });

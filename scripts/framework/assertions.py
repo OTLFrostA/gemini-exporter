@@ -112,7 +112,9 @@ def assert_turn_content(text: str, evidence: List[Dict[str, Any]]) -> Tuple[bool
 
 def assert_archive_targets(names: List[str], target_ids: List[str], extension: str,
                            excluded_ids: Optional[List[str]] = None) -> Tuple[bool, str]:
-    entries = [n for n in names if n.endswith(extension) and not os.path.basename(n).startswith('.')]
+    # Conversation documents are root entries; files/ and assets/ may contain the same extension.
+    entries = [n for n in names if n.endswith(extension) and '/' not in n.replace('\\', '/').removeprefix('./')
+               and not os.path.basename(n).startswith('.')]
     missing = [cid for cid in target_ids if not any(os.path.basename(n).endswith(f"_{cid.removeprefix('c_')[-6:]}{extension}") for n in entries)]
     forbidden = [cid for cid in (excluded_ids or []) if any(os.path.basename(n).endswith(f"_{cid.removeprefix('c_')[-6:]}{extension}") for n in entries)]
     if not target_ids or missing or forbidden:
@@ -191,7 +193,7 @@ def index_rows(state):
         return None
     result = {}
     for row in rows:
-        if not isinstance(row, dict) or set(row) - {'key', 'title', 'titleSource', 'createdAt', 'updatedAt'}:
+        if not isinstance(row, dict) or set(row) - {'key', 'title', 'titleSource', 'createdAt', 'updatedAt', 'activityAt'}:
             return None
         key = row.get('key')
         if (not isinstance(key, dict) or set(key) != {'accountId', 'conversationId'}
@@ -204,7 +206,7 @@ def index_rows(state):
                                or row['titleSource'] not in ('user', 'provider', 'derived')):
             return None
         if any(type(row[field]) not in (int, float) or not math.isfinite(row[field])
-               for field in ('createdAt', 'updatedAt') if field in row):
+               for field in ('createdAt', 'updatedAt', 'activityAt') if field in row):
             return None
         result[key['conversationId']] = row
     return result

@@ -50,6 +50,7 @@ const originalLoad = loader._load;
 loader._load = (request, parent, isMain) => {
     const caller = parent?.filename.replace(/\\/g, '/') ?? '';
     if (caller.includes('/src/migration/')) {
+        if (request === './sourceVersions.js') return { repairSourceVersions: async () => {} };
         if (request === './releasedV17.js') return { upgradeReleasedV17: async () => { throw new Error('No released-1.7 fixture in this isolated UUID test'); } };
         if (request === '../l2/accountRegistry.js') return { readAccountRegistry };
         if (request === '../l2/conversationIndex.js') return { restoreConversationIndex };
@@ -144,7 +145,7 @@ test('Migration maps legacy Account, Index and ExportRecord facts into frozen v2
     await ensureUpgraded();
     assert.deepEqual(recorded.accounts, [A]);
     assert.equal(recorded.indexes.length, 1);
-    assert.equal(recorded.indexes[0][0].updatedAt, 1700000000000);
+    assert.equal(recorded.indexes[0][0].updatedAt, undefined);
     assert.deepEqual(recorded.exports, [{
         key: { accountId: A.id, conversationId: 'abc' },
         record: { exportedAt: 1700000000001, format: 'html', status: 'ok' },

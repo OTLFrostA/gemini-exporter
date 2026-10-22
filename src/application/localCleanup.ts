@@ -1,10 +1,13 @@
+import { notifyDomainChanged } from '../runtime/api/domainChanges.js';
 import { clearStoredAccountExportRecords, clearStoredAccountScanRecords } from '../l3a/storageService.js';
 
 /** Reset only export skip history for the selected account. */
-export function clearLocalExportRecords(accountId: string): Promise<void> {
-    return clearStoredAccountExportRecords(accountId);
+export async function clearLocalExportRecords(accountId: string): Promise<void> {
+    await clearStoredAccountExportRecords(accountId);
+    notifyDomainChanged(accountId);
 }
-/** Reset trusted scan boundaries and export skip history together. */
-export function clearLocalScanRecords(accountId: string): Promise<void> {
-    return clearStoredAccountScanRecords(accountId);
+/** Explicitly clear the selected account’s local conversations, scan coverage and export history. */
+export async function clearLocalScanRecords(accountId: string): Promise<void> {
+    await clearStoredAccountScanRecords(accountId);
+    notifyDomainChanged(accountId);
 }

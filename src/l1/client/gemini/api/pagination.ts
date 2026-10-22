@@ -1,3 +1,5 @@
+import { ConfirmedSourceEmptyError } from '../../sourceErrors.js';
+import { hasConfirmedEmptyTurns } from './emptyDetail.js';
 import type { Account } from '../../../../l2/accountRegistry.js';
 import { mergeConversationPages } from '../../../parsers/gemini/rpc/mergePages.js';
 import type { SourceConversationParseResult } from '../../../parsers/parsingResult.js';
@@ -98,6 +100,9 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
     // empty body to L2 as though Gemini had returned the conversation.
     const explicitlyEmpty = pages.length === 1 && !token && !truncateReason && isExplicitlyEmptyDetail(first);
     if (!hasMessages && !explicitlyEmpty) {
+        if (pages.length === 1 && !token && !truncateReason && hasConfirmedEmptyTurns(first, expectedId)) {
+            throw new ConfirmedSourceEmptyError();
+        }
         throw new Error('GEMINI_DETAIL_EMPTY_UNVERIFIED: Detail returned no verifiable messages');
     }
     const result = mergeConversationPages(pages, truncateReason, !token && hasMessages);

@@ -85,6 +85,8 @@ export function selectConversationDetail<T extends { detail: DomainConversationD
     if (!existing) return incoming;
     if (!sameConversationKey(existing.detail.key, incoming.detail.key)) throw new TypeError('Detail identity mismatch');
     if (existing.detail.quality.status === 'complete' && incoming.detail.quality.status !== 'complete') return existing;
+    // An unversioned archive cannot supersede a snapshot with an online version.
+    if (existing.detail.savedAt !== undefined && incoming.detail.savedAt === undefined) return existing;
     if (existing.detail.savedAt !== undefined && incoming.detail.savedAt !== undefined && incoming.detail.savedAt < existing.detail.savedAt) return existing;
     return incoming;
 }

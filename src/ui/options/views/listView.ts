@@ -1,5 +1,6 @@
 import { attachmentFailure, attachmentIssueText } from '../../shared/exportSummary.js';
 import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
+import { indexActivityTime } from '../../../l2/conversationIndex.js';
 import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';
 import type { ExportRecord } from '../../../application/export/types.js';
 import type { ConversationViewState } from '../state/conversationsStore.js';
@@ -63,7 +64,7 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
             heading.append(badge);
         }
         const meta = document.createElement('small'); meta.className = 'meta'; meta.style.display = 'block';
-        const seen = date(index.updatedAt);
+        const seen = date(indexActivityTime(index));
         meta.textContent = [seen, record ? `${text('Last export', '上次导出')} · ${record.format}` : ''].filter(Boolean).join(' · ');
         body.append(heading, meta);
         if (record?.attachmentIssues?.length) {

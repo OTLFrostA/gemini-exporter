@@ -1,6 +1,7 @@
 import { listAccounts } from '../../../runtime/api/accountRegistry.js';
 import { listIndexes, listExportRecords } from '../../../l3a/storageService.js';
 import type { Account } from '../../../l2/accountRegistry.js';
+import { compareConversationIndexes } from '../../../l2/conversationIndex.js';
 import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';
 import type { ExportRecord } from '../../../application/export/types.js';
 
@@ -43,7 +44,7 @@ export class ConversationViewState {
                 || this.filter === 'no_record' && !record
                 || this.filter === 'has_record' && !!record;
             return matches && (!query || `${row.title ?? ''} ${row.key.conversationId}`.toLowerCase().includes(query));
-        }).sort((a, b) => (b.updatedAt ?? -Infinity) - (a.updatedAt ?? -Infinity));
+        }).sort(compareConversationIndexes);
     }
     keys() {
         return this.indexes.filter(row => this.selected.has(row.key.conversationId)).map(row => ({ ...row.key }));

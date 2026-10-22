@@ -85,3 +85,20 @@ test('L1 diagnostic differences cannot silently change L2 quality or Application
         assert.deepEqual(summaries[0], summaries[1]);
     }
 });
+
+test('skip permits only same-version, same-format partials whose sole failures are attachment 404s', () => {
+    const base: ExportRecord = { exportedAt: 200, chatTime: 100, format: 'markdown', status: 'partial',
+        attachmentIssues: [{ resourceId: 'image', name: 'image', code: 'RESOURCE_SOURCE_EXPIRED', httpStatus: 404 }] };
+    const enabled = { ...request, format: 'markdown' as const, skipUnchanged: true };
+    assert.equal(shouldSkipExport(base, 100, enabled), true);
+    assert.equal(shouldSkipExport({ ...base, otherContentMissing: false }, 100, enabled), true);
+    for (const record of [{ ...base, otherContentMissing: true }, { ...base, attachmentIssues: [] },
+        { ...base, attachmentIssues: [...base.attachmentIssues!, { resourceId: 'other', name: 'other', code: 'RESOURCE_SOURCE_EXPIRED', httpStatus: 403 }] },
+        { ...base, attachmentIssues: [{ resourceId: 'other', name: 'other', code: 'RESOURCE_PROCESSING_FAILED', httpStatus: 404 }] }]) {
+        assert.equal(shouldSkipExport(record, 100, enabled), false);
+    }
+    assert.equal(shouldSkipExport(base, 101, enabled), false);
+    assert.equal(shouldSkipExport(base, undefined, enabled), false);
+    assert.equal(shouldSkipExport(base, 100, { ...enabled, skipUnchanged: false }), false);
+    assert.equal(shouldSkipExport(base, 100, { ...enabled, format: 'pdf' }), false);
+});

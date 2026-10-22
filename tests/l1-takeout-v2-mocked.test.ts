@@ -32,6 +32,7 @@ test('Takeout calls only the frozen v2 Detail ingestion port with keyless source
     assert.equal('key' in ports.details[0].detail, false);
     assert.equal('key' in (ports.details[0].indexFields ?? {}), false);
     assert.deepEqual(ports.indexes, [], 'Import does not manufacture online list Coverage');
+    assert.deepEqual(ports.notifications, [GEMINI_ACCOUNT.id]);
     assert.equal(progress.at(-1), 100);
     assert.ok(progress.every(p => Number.isFinite(p) && p >= 0 && p <= 100));
 });
