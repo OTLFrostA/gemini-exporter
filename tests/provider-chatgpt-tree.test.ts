@@ -38,6 +38,7 @@ import {
     requestChatGPTAccess,
 } from '../src/l1/client/chatgpt/chatgptAccess.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { chatgptList } from './fixtures/providers/chatgpt.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type {
     ChatGPTApiConversationWithId,
@@ -548,9 +549,9 @@ test('listConversations paginates until the reported total is reached', async ()
                 { id: 'b', title: 'B', create_time: 1, update_time: 1 },
                 { id: 'c', title: 'C', create_time: 1, update_time: 0.5 },
             ];
-            return Promise.resolve(new Response(JSON.stringify({
-                items, total: 3, limit: 100, offset: 0, has_missing_conversations: false,
-            }), { status: 200 }));
+            return Promise.resolve(new Response(JSON.stringify(chatgptList({
+                items, total: 3, hasMissingConversations: false,
+            })), { status: 200 }));
         },
     });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
@@ -572,13 +573,13 @@ test('ChatGPT current list schema without the legacy missing flag traverses all 
         }));
         const offset = Number(new URL(url).searchParams.get('offset'));
         offsets.push(offset);
-        return new Response(JSON.stringify({
+        return new Response(JSON.stringify(chatgptList({
             items: Array.from({ length: offset === 0 ? 100 : 2 }, (_, i) => ({
                 id: `conversation-${offset + i}`, title: `Conversation ${offset + i}`,
                 create_time: 1, update_time: 1000 - offset - i,
             })),
-            total: 102, limit: 100, offset,
-        }));
+            total: 102, offset,
+        })));
     } });
     assert.equal(await provider.listConversations({
         accountId: account.id, streamId: 'recent',
