@@ -167,7 +167,7 @@ test('ChatGPT uses the same v2 Index/page port and checks native completeness be
         url.endsWith('/api/auth/session')
             ? { accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' } }
             : chatgptList({ items: [{ id: 'chatgpt-source', title: 'Owned title', create_time: 1700000000,
-                update_time: 1700000010 }], total: 1, hasMissingConversations: false }),
+                update_time: 1700000010 }], total: 1, offset: 0, limit: 100, hasMissingConversations: false }),
     ), { status: 200 });
     const provider = new ChatGPTProvider({ fetchFn });
     const committed: number[] = [];
@@ -191,7 +191,7 @@ test('ChatGPT uses the same v2 Index/page port and checks native completeness be
         url.endsWith('/api/auth/session')
             ? { accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' } }
             : chatgptList({ items: [{ id: 'incomplete', update_time: 1700000010 }],
-                total: 1, hasMissingConversations: true }),
+                total: 1, offset: 0, limit: 100, hasMissingConversations: true }),
     ), { status: 200 }) });
     await assert.rejects(invalid.listConversations({ accountId: CHATGPT_ACCOUNT.id, streamId: 'recent' }),
         /Unverified ChatGPT list page/);
