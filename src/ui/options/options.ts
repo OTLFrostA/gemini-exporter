@@ -336,7 +336,7 @@ export async function initWorkbench(): Promise<void> {
                 if (!busy || signal.aborted) return;
                 progress(() => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
                     `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`));
-                slowHint.style.display = p.conversationsFetched > 200 ? 'block' : 'none';
+                slowHint.style.display = p.conversationsFetched > 200 && state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini' ? 'block' : 'none';
             } });
         scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result });
         if (scanRuns.length > 10) scanRuns.shift();
@@ -344,7 +344,9 @@ export async function initWorkbench(): Promise<void> {
             up_to_date: () => text('Connected to trusted history coverage', '已衔接可信历史范围'),
             complete: () => text('Reached the end of this Recent source', '已达到本次 Recent 来源尽头'),
             provider_limit: () => text('Source online access limit', '来源在线访问范围限制'),
-            max_pages: () => text('Local page budget reached', '已达到本地页数预算'),
+            max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
+                ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
+                : text('Local page budget reached', '已达到本地页数预算'),
             invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
             aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败')
         };
