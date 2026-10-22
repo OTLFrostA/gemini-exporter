@@ -82,6 +82,7 @@ export const geminiListFixtures = {
         sourceRow('abcdef123', 'abcdef123', 1700000020),
         sourceRow('abcdef456', 'abcdef456', 1700000010),
     ]),
+    observationSinglePage: () => parsed([sourceRow('abcdef123', 'abcdef123', 1700000020)]),
     observationFallbackTimePage: () => {
         const fallback = sourceRow('abcdef123', 'abcdef123', 1700000020);
         fallback[2] = fallback[5];
