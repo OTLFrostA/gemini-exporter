@@ -71,7 +71,7 @@ test('ChatGPT missing image bytes does not become missing body evidence', () => 
 test('ChatGPT source-native paging fields remain evidence, not Domain Index fields', () => {
     const parsed = parseChatGPTList(chatgptList({
         items: [{ id: 'chat-1', title: 'Title', create_time: 1700000000, update_time: 1700000010 }],
-        total: 1, hasMissingConversations: false,
+        total: 1, offset: 0, limit: 100, hasMissingConversations: false,
     }));
     assert.equal(parsed.total, 1);
     assert.equal(parsed.offset, 0);
@@ -84,9 +84,9 @@ test('ChatGPT source-native paging fields remain evidence, not Domain Index fiel
 });
 
 test('ChatGPT optional legacy missing flag preserves absence and rejects malformed values', () => {
-    const page = chatgptList();
+    const page = chatgptList({ total: 0, offset: 0, limit: 100 });
     assert.equal(parseChatGPTList(page).hasMissingConversations, undefined);
-    assert.equal(parseChatGPTList(chatgptList({ hasMissingConversations: true })).hasMissingConversations, true);
+    assert.equal(parseChatGPTList(chatgptList({ total: 0, offset: 0, limit: 100, hasMissingConversations: true })).hasMissingConversations, true);
     for (const value of [null, 'false', 0, {}]) {
         assert.throws(() => parseChatGPTList({ ...page, has_missing_conversations: value }), TypeError);
     }
