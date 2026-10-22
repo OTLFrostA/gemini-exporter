@@ -80,5 +80,23 @@ class PdfEvidenceTests(unittest.TestCase):
         self.assertFalse(assert_pdf_turn_content({'contentRuns': [{'kind': 'text', 'text': 'Question.Repeated.'}]}, ev)[0])
 
 
+class ChatGPTSourceEvidenceTests(unittest.TestCase):
+    def test_visible_thoughts_belong_only_to_the_following_answer(self):
+        from scripts.framework.chatgpt_evidence import authored_messages
+        messages = [
+            {'id': 'u1', 'author': {'role': 'user'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Question']}},
+            {'id': 't1', 'author': {'role': 'assistant'}, 'recipient': 'all', 'metadata': {'is_visually_hidden_from_conversation': True}, 'content': {'content_type': 'thoughts', 'thoughts': [{'summary': 'Duration', 'content': r'Ratio \(x/y\)'}]}},
+            {'id': 'a1', 'author': {'role': 'assistant'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Answer']}},
+            {'id': 't2', 'author': {'role': 'assistant'}, 'recipient': 'all', 'content': {'content_type': 'thoughts', 'thoughts': [{'content': 'Abandoned'}]}},
+            {'id': 'u2', 'author': {'role': 'user'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Next']}},
+            {'id': 'a2', 'author': {'role': 'assistant'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Second']}},
+        ]
+        mapping = {m['id']: {'message': m, 'parent': messages[i-1]['id'] if i else None} for i, m in enumerate(messages)}
+        actual = authored_messages({'mapping': mapping, 'current_node': 'a2'})
+        self.assertEqual([m['id'] for m in actual], ['u1', 'a1', 'u2', 'a2'])
+        self.assertEqual(actual[1]['thoughts'], ['Duration', r'Ratio \(x/y\)'])
+        self.assertEqual([actual[i]['thoughts'] for i in [0, 2, 3]], [[], [], []])
+
+
 if __name__ == '__main__':
     unittest.main()

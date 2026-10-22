@@ -58,18 +58,75 @@ export function shouldSkipChatGPTMessage(message?: ChatGPTNodeMessage): boolean 
     return false;
 }
 
+/** Bind galleries through static query/resolution IDs; never execute DIL code or
+ * infer ordering from componentResults object insertion order. */
+function dilGalleryParts(text: string, message: ChatGPTNodeMessage): Array<string | { content_type: string; asset_pointer: string }> | null {
+    const markers = [...text.matchAll(/\uE200image_group\uE202([^\uE201]*)\uE201/g)];
+    if (!markers.length) return null;
+    const dil = message.metadata?.model_dil_v2;
+    const results = dil?.appData?.opGenui?.componentResults ?? {};
+    const bindings = new Map<string, string[]>();
+    // This deliberately accepts only observed, literal AsyncImage props. Dynamic
+    // expressions remain fallback text instead of being guessed or evaluated.
+    for (const match of (dil?.code ?? '').matchAll(/__dil\.jsx\(AsyncImage,\{([^{}]*)\}\)/g)) {
+        const query = /"query":("(?:\\.|[^"\\])*")/.exec(match[1]);
+        const resolution = /"__resolutionId":__dilConstants\["([^"\]]+)"\]/.exec(match[1]);
+        if (!query || !resolution) continue;
+        const id = dil?.constants?.[resolution[1]];
+        if (typeof id !== 'string') continue;
+        try {
+            const key: unknown = JSON.parse(query[1]);
+            if (typeof key === 'string') bindings.set(key, [...(bindings.get(key) ?? []), id]);
+        } catch { /* Nonliteral props are not eligible. */ }
+    }
+    const resolved = Object.values(results).filter(item => item?.componentName === 'AsyncImage' && item.status === 'resolved');
+    const parts: Array<string | { content_type: string; asset_pointer: string }> = [];
+    let cursor = 0, converted = false;
+    for (const marker of markers) {
+        let result: typeof resolved[number] | undefined;
+        try {
+            const payload: unknown = JSON.parse(marker[1]);
+            if (payload && typeof payload === 'object' && 'query' in payload && Array.isArray(payload.query) && payload.query.length === 1) {
+                const ids = bindings.get(payload.query[0]);
+                if (ids?.length === 1) result = results[ids[0]];
+            }
+        } catch { /* Preserve malformed markers. */ }
+        if (!result && markers.length === 1 && resolved.length === 1) result = resolved[0];
+        const selected = result;
+        const pointers = selected?.componentName === 'AsyncImage' && selected.status === 'resolved'
+            ? (selected.state?.images ?? []).map(image => image.content_url ?? image.thumbnail_url).filter((url): url is string => {
+                if (typeof url !== 'string' || !selected.safe_urls?.includes(url)) return false;
+                try { const parsed = new URL(url); return parsed.protocol === 'https:' && parsed.hostname === 'images.openai.com'; }
+                catch { return false; }
+            }) : [];
+        parts.push(text.slice(cursor, marker.index));
+        if (pointers.length) {
+            parts.push(...[...new Set(pointers)].map(pointer => ({ content_type: 'image_asset_pointer', asset_pointer: pointer })));
+            converted = true;
+        } else parts.push(marker[0]);
+        cursor = (marker.index ?? 0) + marker[0].length;
+    }
+    parts.push(text.slice(cursor));
+    return converted ? parts : null;
+}
+
 /** Copy a node so repeat exports never mutate the cached raw mapping. */
 function copyChatGPTNode(node: ChatGPTConversationNode): ChatGPTConversationNode {
     const message = node.message;
     if (!message) return { ...node };
     if (isTextContent(message)) {
-        const fallback = message.metadata?.model_dil_v2?.fallbackMarkdown;
+        // DIL fallback escapes a norm's backslash again for its GFM table.
+        // Undo only that observed fallback encoding inside bracket math.
+        const fallback = message.metadata?.model_dil_v2?.fallbackMarkdown?.replace(
+            /\\\(([\s\S]*?)\\\)/g, (_raw, math: string) => `\\(${math.replace(/\\\\\|/g, '\\Vert{}')}\\)`);
         const parts = message.metadata?.model_dil_v2
             ? [chatGPTInteractiveSnapshot(message.content.parts.join(''), fallback).text]
             : [...message.content.parts];
+        const gallery = dilGalleryParts(parts.join(''), message);
         return {
             ...node,
-            message: { ...message, content: { content_type: 'text', parts }, metadata: message.metadata && { ...message.metadata } },
+            message: { ...message, content: gallery ? { content_type: 'multimodal_text', parts: gallery }
+                : { content_type: 'text', parts }, metadata: message.metadata && { ...message.metadata } },
         };
     }
     return {
@@ -211,6 +268,12 @@ export function chatGPTNodeText(node: ChatGPTConversationNode): string {
 
 /** Deterministic asset id derived from the pointer (stable across exports). */
 export function assetIdForPointer(pointer: string): string {
+    if (/^https:\/\//.test(pointer)) {
+        // Signed gallery URLs can exceed filesystem component limits.
+        let hash = 0xcbf29ce484222325n;
+        for (const byte of new TextEncoder().encode(pointer)) hash = BigInt.asUintN(64, (hash ^ BigInt(byte)) * 0x100000001b3n);
+        return `img-url-${hash.toString(16).padStart(16, '0')}`;
+    }
     return `img-${pointer.replace('sediment://', '').replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 }
 

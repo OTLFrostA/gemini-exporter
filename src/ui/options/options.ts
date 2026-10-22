@@ -164,12 +164,10 @@ export async function initWorkbench(): Promise<void> {
             // Changing the export destination or format pauses Live Save without forgetting intent.
             el<HTMLInputElement>('liveSaveDiskToggle').checked = settings.enabledDisk;
             el<HTMLInputElement>('liveSaveDiskToggle').disabled =
-                busy || account?.providerId === 'chatgpt' || !folderSelected || settings.defaultFormat !== 'markdown' || !directoryAvailable;
+                busy || !folderSelected || settings.defaultFormat !== 'markdown' || !directoryAvailable;
             const liveStatus = el<HTMLElement>('liveSaveStatus');
             liveStatus.hidden = !settings.enabledDisk;
-            liveStatus.textContent = account?.providerId === 'chatgpt'
-                ? text('Paused: Live Save is available for Gemini', '已暂停 · 实时保存仅支持 Gemini')
-                : isLiveSaveEffective(settings, directoryAvailable)
+            liveStatus.textContent = isLiveSaveEffective(settings, directoryAvailable)
                 ? text('Live Save active', '实时保存已开启')
                 : !folderSelected
                     ? text('Paused: select local folder to resume', '已暂停 · 选择本地文件夹后恢复')

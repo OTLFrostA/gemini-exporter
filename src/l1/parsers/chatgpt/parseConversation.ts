@@ -190,6 +190,9 @@ function messageOfNode(
  * parents, cycles and absent current_node must never claim full body coverage. */
 function branchCoverage(conversation: ChatGPTApiConversationWithId): 'complete' | 'partial' | 'unknown' {
     if (!conversation.current_node) return 'unknown';
+    const leaf = conversation.mapping[conversation.current_node]?.message;
+    if (leaf?.author.role === 'assistant' && (leaf.end_turn === false
+        || leaf.status !== undefined && leaf.status !== 'finished_successfully')) return 'partial';
     let id: string | undefined = conversation.current_node;
     const seen = new Set<string>();
     while (id) {
@@ -212,17 +215,26 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
         sourceRef: { providerId: 'chatgpt', locator: `conversation:${conversation.id}` },
     };
     const nodes = processChatGPTMapping(conversation);
-    const interactiveIncomplete = nodes.some(node => {
+    const interactiveSnapshots = nodes.flatMap(node => {
         const raw = conversation.mapping[node.id]?.message;
-        return !!raw?.metadata?.model_dil_v2 && raw.content.content_type === 'text' && chatGPTInteractiveSnapshot(
-            (raw.content.parts ?? []).join(''), raw.metadata?.model_dil_v2?.fallbackMarkdown).incomplete;
+        return raw?.metadata?.model_dil_v2 && raw.content.content_type === 'text'
+            ? [{ messageId: raw.id, snapshot: chatGPTInteractiveSnapshot(
+                (raw.content.parts ?? []).join(''), raw.metadata.model_dil_v2.fallbackMarkdown) }] : [];
     });
-    if (interactiveIncomplete) contentDiagnostics.push({
-        id: 'chatgpt-interactive-static-snapshot', severity: 'warning',
-        code: 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE',
-        message: 'Interactive content exported as a static snapshot; dynamic content or selections may be unavailable.',
-        sourceRef: ctx.sourceRef,
-    });
+    const interactiveIncomplete = interactiveSnapshots.some(({ snapshot }) => snapshot.incomplete);
+    for (const { messageId, snapshot } of interactiveSnapshots) {
+        if (!snapshot.interactive) continue;
+        contentDiagnostics.push({
+            id: `chatgpt-interactive-snapshot:${messageId}`, severity: snapshot.incomplete ? 'warning' : 'info',
+            code: snapshot.incomplete ? 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE' : 'CHATGPT_INTERACTIVE_STATIC_SNAPSHOT',
+            message: snapshot.incomplete
+                ? 'No usable Markdown fallback; only recoverable static content could be exported.'
+                : 'Provider Markdown fallback preserved. Interactive controls are represented as static text.',
+            sourceRef: { ...ctx.sourceRef, providerMessageId: messageId },
+            details: { representation: snapshot.representation, recoveredStrings: snapshot.recoveredStrings,
+                interactiveBehaviorPreserved: false },
+        });
+    }
     const branchSlug = extractChatGPTModelSlug(conversation.mapping, nodes);
     const startId = conversation.current_node || nodes[nodes.length - 1]?.id || '';
     const thinkingByNode = collectChatGPTThinking(

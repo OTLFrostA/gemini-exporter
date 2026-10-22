@@ -42,6 +42,8 @@ const DEFINE_VERSION = {
 const BUNDLE_ENTRIES = {
     'content/content': path.join(SRC, 'runtime', 'content', 'content.ts'),
     'content/hook': path.join(SRC, 'l1', 'sniffer', 'gemini', 'hookCredentials.ts'),
+    'content/chatgpt-hook': path.join(SRC, 'l1', 'sniffer', 'chatgpt', 'hook.ts'),
+    'content/chatgpt-content': path.join(SRC, 'runtime', 'content', 'chatgptContent.ts'),
     'background/background': path.join(SRC, 'runtime', 'background', 'background.ts'),
     'ui/popup': path.join(SRC, 'ui', 'popup', 'popup.ts'),
     'ui/options': path.join(SRC, 'ui', 'options', 'options.ts'),
@@ -54,6 +56,8 @@ const SANDBOX_ENTRIES = {
 const EXPECTED_BUNDLES = [
     'dist/content/content.js',
     'dist/content/hook.js',
+    'dist/content/chatgpt-hook.js',
+    'dist/content/chatgpt-content.js',
     'dist/background/background.js',
     'dist/ui/popup.js',
     'dist/ui/options.js',

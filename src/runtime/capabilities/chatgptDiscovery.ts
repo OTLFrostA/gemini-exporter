@@ -2,6 +2,7 @@ import { getOrCreateAccount } from '../api/accountRegistry.js';
 import { hasChatGPTAccess, ensureChatGPTRegistered, requestChatGPTAccess } from '../../l1/client/chatgpt/chatgptAccess.js';
 import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
 import type { Account } from '../../l2/accountRegistry.js';
+import { syncChatGPTContentScripts } from './chatgptInjection.js';
 
 /** Called directly by the Connect button, preserving its user gesture. */
 export function requestChatGPTConnection(): Promise<boolean> { return requestChatGPTAccess(); }
@@ -18,6 +19,7 @@ export async function discoverChatGPTAccounts(): Promise<Account[]> {
     if (!observation || !session || typeof session !== 'object'
         || !('accessToken' in session) || typeof session.accessToken !== 'string' || !session.accessToken) return [];
     await ensureChatGPTRegistered();
+    await syncChatGPTContentScripts();
     return [await getOrCreateAccount(observation.providerId, observation.providerAccountId,
         observation.email, observation.displayName)];
 }

@@ -457,3 +457,18 @@ test('successful resource recovery also resolves an earlier transient body refre
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 0);
 });
+
+
+test('renewable provider resource locators export all formats without redundant body refreshes', async t => {
+    const {detail}=seed('first',{assets:true});
+    detail.assets[0].sourceUri='sediment://file-image';
+    detail.assets[1].sourceUri='file-download:file-document';
+    provider.canAcquireResourceDirectly=asset=>/^(sediment:\/\/|file-download:)/.test(asset.sourceUri??'');
+    t.after(()=>{delete provider.canAcquireResourceDirectly;});
+    provider.fetchConversationDetail=async()=>{events.push('refresh');throw new Error('429: unnecessary body refresh');};
+    for(const format of ['markdown','html','json','pdf'] as const){
+        const result=await runExport(request({format}));assert.equal(result.exported,1);assert.equal(result.partial,0);
+    }
+    assert.equal(events.includes('refresh'),false);
+    assert.equal(events.filter(e=>e==='acquire:image').length,4,'each task still actually acquires the image');
+});

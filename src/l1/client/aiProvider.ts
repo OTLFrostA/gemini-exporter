@@ -46,6 +46,8 @@ export interface AIProvider {
     checkReadiness(accountId: Account['id']): Promise<ProviderReadiness>;
     listConversations(options: ProviderListOptions): Promise<ListEnd>;
     fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void>;
+    /** Stable provider locators can reacquire bytes without refreshing the whole Detail. */
+    canAcquireResourceDirectly?(asset: DomainAsset): boolean;
     acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes>;
     matchesUrl(url: string): boolean;
 }

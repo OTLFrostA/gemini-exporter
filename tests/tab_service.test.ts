@@ -51,7 +51,7 @@ test('Tab routing requires a registered real Account UUID, not a Gemini URL slot
     await assert.rejects(route.resolveAccountTab('u0'), /UUID/);
     await assert.rejects(route.resolveAccountTab('https://gemini.google.com/u/0/app'), /UUID/);
     await assert.rejects(route.resolveAccountTab(B.replace(/.$/, 'x')), /UUID|supported|matches/);
-    await assert.rejects(route.getAITab('chatgpt', A), /production Content Script/);
+    await assert.rejects(route.getAITab('chatgpt', A), /Provider\/account mismatch/);
 });
 
 test('Verified Provider + Account match wins over first tab or URL slot; active match is preferred', async t => {
@@ -141,7 +141,7 @@ test('Content operation fixes target Account once and never fails over after sen
     await assert.rejects(router().sendToGeminiTab({ action: 'getImageBlob', url: 'https://lh3.googleusercontent.com/x' }, A), /Tab navigated/);
     assert.deepEqual(sends.filter(value => value.action === 'getImageBlob'), [{ id: 9, action: 'getImageBlob', accountId: A }]);
     await assert.rejects(router().sendToGeminiTab({ action: 'getImageBlob' }), /UUID/);
-    await assert.rejects(router().sendToAITab('chatgpt', { action: 'ping' }, A), /production Content Script/);
+    await assert.rejects(router().sendToAITab('chatgpt', { action: 'ping' }, A), /Provider\/account mismatch/);
 });
 
 test('Uninjected/closed tab errors are never successful delivery acknowledgements', async t => {

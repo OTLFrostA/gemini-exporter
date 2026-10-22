@@ -13,6 +13,8 @@ const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.goo
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
     const ports = { 'src/application/conversations/refreshConversation.js': { refreshConversation: () => assert.fail('Unexpected source refresh') }, 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
+        'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
+        'src/runtime/capabilities/chatgptInjection.js': { syncChatGPTContentScripts: async () => {} },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
@@ -146,6 +148,24 @@ test('provider mismatch is rejected before L2 admission', async () => {
     await assert.rejects(guard.requireContentAccount(sender, uuid), /mismatch/);
 });
 
+test('ChatGPT Content is isolated from Gemini, requires a current site grant and matches its document Account', async () => {
+    global.chrome = chromeBase() as any;
+    let granted = true;
+    const gpt = { ...account, providerId: 'chatgpt', providerAccountId: '["subject","workspace"]' };
+    const guard = load('src/runtime/background/contentSender.ts', {
+        'src/l3a/storageService.js': { getAccount: async () => gpt },
+        'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => granted },
+    });
+    const from = { ...sender, url: 'https://chatgpt.com/c/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' };
+    assert.deepEqual(await guard.requireContentAccount(from, uuid), gpt);
+    await assert.rejects(guard.requireContentAccount(sender, uuid), /mismatch/);
+    granted = false;
+    await assert.rejects(guard.requireContentAccount(from, uuid), /revoked/);
+    granted = true;
+    Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, _options: unknown, reply: Function) => reply({ ok: true, accountContext: { accountId: otherUuid, providerId: 'chatgpt' } }));
+    await assert.rejects(guard.requireCurrentContentAccount(from, uuid), /sending Tab/);
+});
+
 test('Content ingestion sends only JSON facts and propagates worker failure', async () => {
     global.location = { protocol: 'https:' } as any;
     let sent: unknown;
@@ -239,7 +259,7 @@ test('routing matches Provider and UUID, prefers matching active Tab, and never 
     assert.equal(sent.at(-1).message.accountId, uuid);
     await assert.rejects(routing.getGeminiTab(), /UUID/);
     await assert.rejects(routing.resolveAccountTab('u0'), /UUID/);
-    await assert.rejects(routing.getAITab('chatgpt', uuid), /production/);
+    await assert.rejects(routing.getAITab('chatgpt', uuid), /Provider\/account mismatch/);
 });
 test('routing rejects matching UUID from wrong Provider and uninjected Tabs', async () => {
     global.chrome = { runtime: {}, tabs: { query: async () => [{ id: 1 }], sendMessage: (_: unknown, __: unknown, cb: Function) => cb({ ok: true, accountContext: { accountId: uuid, providerId: 'chatgpt' } }) } } as any;

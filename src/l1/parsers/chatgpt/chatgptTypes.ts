@@ -32,7 +32,16 @@ export interface ChatGPTNodeMessage {
         aggregate_result?: {
             messages?: Array<{ message_type: string; image_url?: string }>;
         };
-        model_dil_v2?: { fallbackMarkdown?: string };
+        model_dil_v2?: {
+            fallbackMarkdown?: string;
+            code?: string;
+            constants?: Record<string, unknown>;
+            appData?: { opGenui?: { componentResults?: Record<string, {
+                componentName?: string; status?: string;
+                state?: { images?: Array<{ content_url?: string; thumbnail_url?: string; title?: string }> };
+                safe_urls?: string[];
+            }> } };
+        };
         /** Tether web citations: each entry carries its source in metadata. */
         citations?: Array<{ metadata?: { title?: string; url?: string; text?: string } }>;
         /** New-style grouped web references with item/source lists. */

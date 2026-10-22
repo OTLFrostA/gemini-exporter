@@ -1,128 +1,5 @@
 [
   {
-    "id": "numerical_optimization_projected_gradient_simplex",
-    "domain": "numerical_optimization_simplex",
-    "title": "Constrained optimization: projected gradients on the simplex",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a convex quadratic program on the probability simplex. State feasibility, first-order optimality and the Karush-Kuhn-Tucker conditions in LaTeX.",
-      "Derive Euclidean projection onto the simplex using sorted breakpoints. Work a three-coordinate example and explain active sets in a Markdown table.",
-      "Write complete runnable standard-library Python for simplex projection and projected gradient descent. Include assertions for feasibility, optimality residuals and monotonic objective decrease.",
-      "Compare projected gradient, coordinate descent and an active-set solve in a Markdown table. Give counterexamples for an excessive step size, an indefinite Hessian and nearly tied breakpoints.",
-      "Design a reproducible convergence audit on small rational quadratic programs. Provide equations, executable residual checks and a Markdown report separating numerical evidence from theoretical guarantees."
-    ]
-  },
-  {
-    "id": "computational_geometry_polygon_winding_exact_predicates",
-    "domain": "computational_geometry_polygon_winding",
-    "title": "Polygon geometry: winding numbers and robust boundary classification",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define signed polygon area, winding number and point membership for an oriented simple polygon. State how boundary points are classified and explain conventions in English and Chinese.",
-      "Derive an integer orientation predicate and half-open ray-crossing rule that handles horizontal edges and vertices without double counting. Show a concave polygon example in a Markdown table.",
-      "Write complete standard-library Python for exact point-in-polygon classification with integer coordinates. Include separate inside, outside and boundary outcomes.",
-      "Extend the implementation with signed area, centroid and orientation normalization. Show the LaTeX derivation and test invariance under cyclic vertex permutation.",
-      "Build tests for points on vertices, near horizontal edges, negative coordinates, repeated closing vertices and degenerate zero-area inputs. Explain each expected result.",
-      "Compare winding-number, parity-crossing, triangulation and convex-half-plane methods in a Markdown table of assumptions, complexity and boundary guarantees.",
-      "Generate a deterministic collection of small polygons and cross-check exact predicates against an independently implemented triangulation oracle. Explain the limits of random testing.",
-      "Create a reproducible robustness report with runnable Python tests, LaTeX error bounds for floating-point alternatives and a Markdown summary distinguishing numerical ambiguity from invalid geometry."
-    ]
-  },
-  {
-    "id": "graph_theory_residual_network_flow_certificate",
-    "domain": "graph_theory_maximum_flow",
-    "title": "Maximum flow: residual networks and minimum-cut certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a directed capacitated network, feasible flow and residual capacity. Derive conservation in LaTeX and explain reverse edges in English and Chinese using a six-vertex example.",
-      "Compute an augmenting-path trace for the example and show a Markdown table with path, bottleneck, residual updates and total flow. Include one augmentation that cancels earlier flow.",
-      "Write complete standard-library Python implementing Edmonds-Karp with parallel edges and zero capacities. Return both the edge flows and the source-side minimum cut.",
-      "Construct an independent exhaustive cut oracle for small graphs and test the implementation on deterministic random networks. Include disconnected sink, antiparallel edges and multiple optimal flows.",
-      "Produce a reproducible verification report with runnable Python, a LaTeX proof of the max-flow/min-cut certificate and a Markdown complexity comparison with Dinic. Distinguish a nonunique optimum from an invalid certificate."
-    ]
-  },
-  {
-    "id": "queueing_theory_finite_capacity_birth_death",
-    "domain": "queueing_finite_capacity_birth_death",
-    "title": "Finite-capacity queues: stationary balance and blocking probability",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define an M/M/1/K queue with state zero through K and state-dependent arrival admission. Write its generator and explain offered versus admitted traffic in English and Chinese.",
-      "Derive the stationary distribution and stable formulas for utilization, blocking probability and throughput, including the exact rho=1 limit. Show all normalization steps in LaTeX.",
-      "Create a Markdown table for three arrival rates and two capacities with stationary mean occupancy, blocking and effective throughput. Explicitly state units and rounding.",
-      "Write complete standard-library Python using stable recurrence and normalization to compute the distribution, including validation for zero arrival rate and invalid service rate.",
-      "Implement an independent continuous-time event simulation with a seeded RNG, warmup and observation horizon. Accumulate time-weighted occupancy instead of averaging arrival observations.",
-      "Compare analytic results and simulation with confidence intervals. Explain bias from warmup, censoring and rare blocking without treating random deviations as implementation errors.",
-      "Extend the balance equations to M/M/c/K and produce a Markdown comparison at fixed total service capacity. Derive the piecewise departure rates and test c=1 equivalence.",
-      "Prepare a reproducible report with Python, LaTeX formulas and automated invariants for normalization, flow balance and Little's law using admitted throughput. Include edge cases K=1 and arrival rate approaching zero."
-    ]
-  },
-  {
-    "id": "number_theory_crt_non_coprime_reconstruction",
-    "domain": "number_theory_generalized_crt",
-    "title": "Generalized Chinese remainder reconstruction and consistency certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define simultaneous integer congruences with noncoprime moduli. Derive the gcd compatibility condition in LaTeX and explain the meaning of a residue class in English and Chinese.",
-      "Work through one compatible and one incompatible three-modulus example. Show a Markdown table of gcd, Bezout coefficients, merged residue and merged modulus at each step.",
-      "Write complete standard-library Python implementing extended Euclid and generalized CRT. Return a normalized residue and least common multiple or an explicit inconsistency certificate.",
-      "Build an independent exhaustive enumeration oracle for small moduli and compare it with the implementation. Cover modulus one, negative residues, repeated constraints and contradictory duplicates.",
-      "Prepare a reproducible validation report with executable tests, a LaTeX correctness proof and a Markdown comparison of pairwise-coprime versus generalized reconstruction. Explain how input magnitude affects integer complexity."
-    ]
-  },
-  {
-    "id": "finance_fixed_income_duration_convexity_cashflow",
-    "domain": "finance_bond_cashflow_sensitivity",
-    "title": "Bond cash flows: discounting, duration, convexity and yield inversion",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a fixed-coupon bond with explicit payment times, face value and continuously compounded flat yield. Derive its price from cash flows in LaTeX and explain units in English and Chinese.",
-      "Derive first and second price derivatives, Macaulay duration and convexity under continuous compounding. State how the formulas change under periodic compounding.",
-      "Calculate a Markdown table for three maturities and three yields with price, duration and convexity. Include a zero-coupon consistency check.",
-      "Write complete standard-library Python for cash-flow generation and stable pricing. Validate payment frequencies, nonnegative maturity and finite rates.",
-      "Implement yield inversion using a bracketed root solver. Show how you find the bracket and handle targets for which no finite solution exists under the stated cash-flow assumptions.",
-      "Cross-check analytic derivatives against central differences with multiple step sizes. Explain truncation and cancellation errors and show a Markdown convergence table.",
-      "Compare exact price changes under positive and negative yield shocks with duration-only and duration-plus-convexity approximations. Explain asymmetry using the LaTeX Taylor expansion.",
-      "Build a reproducible report with runnable Python and invariant tests for scaling cash flows, zero-coupon limits and monotonicity. Distinguish numerical solver failure from inconsistent financial inputs."
-    ]
-  },
-  {
     "id": "seismology_two_layer_refraction_travel_times",
     "title": "Seismology: two-layer refraction and travel-time evidence",
     "domain": "geophysics_seismic_refraction",
@@ -411,6 +288,128 @@
       "Add negative tests for infeasible supplies, disconnected demand, zero capacity and negative-cost cycles. Explain which cases are infeasibility versus optimization.",
       "Build an independent exhaustive checker for tiny integer networks and compare its optimum with the solver, reporting discrepancies as a Markdown table.",
       "Write a final reproducible audit with primal conservation checks, a dual reduced-cost certificate, complete Python tests and a discussion of computational limits."
+    ]
+  },
+  {
+    "id": "control_theory_observability_gramian_certificate",
+    "domain": "control_linear_system_observability",
+    "title": "Linear systems: observability, hidden states and Gramian certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define observability for a continuous-time linear system with three states. Derive the observability matrix in LaTeX and explain hidden states in English and Chinese. Choose one observable and one unobservable rational example.",
+      "Compute ranks, null spaces and indistinguishable initial states for both examples. Show a Markdown table of measured outputs, assumptions and exact conclusions. Distinguish numerical ill-conditioning from mathematical rank deficiency.",
+      "Write complete standard-library Python implementing rational Gaussian elimination and observability checks using fractions.Fraction. Validate matrix dimensions and return an explicit unobservable-state certificate.",
+      "Derive the finite-horizon observability Gramian and its connection to output energy. Implement a numerical midpoint integration oracle and compare against the rational rank certificate, with a reproducible tolerance study.",
+      "Prepare a reproducible report with executable Python tests, LaTeX proofs and a Markdown summary. Cover zero output matrix, repeated eigenvalues, one-dimensional systems and near-unobservable perturbations."
+    ]
+  },
+  {
+    "id": "thermodynamics_heat_pump_energy_entropy_audit",
+    "domain": "thermodynamics_heat_pump_cycles",
+    "title": "Heat pumps: energy balance, entropy generation and feasible COP",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Define a steady-state heat pump operating between two reservoirs. Derive first- and second-law constraints in LaTeX, with consistent heat/work signs, and explain the distinction between COP and efficiency in English and Chinese.",
+      "Build a Markdown table for three hot-side temperatures and two cold-side temperatures, giving Carnot COP in heating and cooling modes. Convert Celsius to kelvin explicitly and flag invalid temperature orderings.",
+      "Write complete standard-library Python to validate reservoir inputs and compute work, heat rejection and entropy generation for a proposed operating point. Return physical units and reject impossible COP claims.",
+      "Develop an independent second-law feasibility oracle from total entropy change, without using the Carnot COP formula. Cross-check a deterministic grid including reversible, irreversible and impossible cycles.",
+      "Extend the model to a finite heat-exchanger approach temperature and derive the resulting reduction in attainable COP. Quantify sensitivity using central differences and an analytic derivative.",
+      "Compare direct electric heating, an idealized heat pump and a practical heat pump in a Markdown table at fixed delivered heat. State the system boundary and distinguish electricity consumption from primary energy assumptions.",
+      "Investigate limiting cases: equal reservoir temperatures, very small temperature lifts, nonpositive kelvin and negative requested heat delivery. Provide runnable tests and explain singular limits without accepting invalid physical inputs.",
+      "Produce a reproducible engineering audit with Python tests, LaTeX energy/entropy balances and a Markdown decision table separating infeasible, reversible-bound and feasible irreversible operating points."
+    ]
+  },
+  {
+    "id": "probability_absorbing_markov_chain_rewards",
+    "domain": "probability_absorbing_markov_chains",
+    "title": "Absorbing chains: exact hitting times and reward certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a finite absorbing Markov chain with three transient and two absorbing states. Give rational transition probabilities, bilingual state descriptions and the canonical block matrix in LaTeX.",
+      "Derive absorption probabilities and expected hitting times from the fundamental matrix. Work the rational example and show a Markdown table of statewise results with units.",
+      "Implement exact Gaussian elimination and chain analysis using Python fractions in the standard library. Return absorption probabilities, expected durations and accumulated rewards with executable assertions.",
+      "Test against an independently enumerated finite-horizon path expansion and bound its remaining probability mass. Include unreachable absorbing states, immediate absorption and a closed nonabsorbing class.",
+      "Produce a reproducible audit with runnable tests, LaTeX residual certificates and a Markdown comparison of exact linear solves and Monte Carlo. Distinguish infinite hitting times from numerical singularity."
+    ]
+  },
+  {
+    "id": "signal_processing_sampling_aliasing_reconstruction",
+    "domain": "signal_sampling_aliasing",
+    "title": "Sampling: alias classes and reconstruction evidence",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a continuous multitone signal and uniform sampling convention with explicit hertz and seconds. Derive the discrete samples in LaTeX and explain the frequency-equivalence classes in English and Chinese.",
+      "Construct two distinct continuous signals with identical samples at a stated rate. Show a Markdown table of original frequencies, aliased frequencies, phases and the assumptions that make reconstruction unique.",
+      "Implement a deterministic standard-library Python sample generator and direct DFT. Document normalization, complex signs and frequency-bin units; include executable assertions for a coherent tone.",
+      "Derive leakage for an off-bin tone using the finite geometric sum. Compare rectangular and Hann windows with formulas and a Markdown table distinguishing amplitude bias and frequency resolution.",
+      "Write a windowed-sinc reconstruction routine for a finite sample record. Explain edge effects and why finite records cannot reproduce the infinite ideal reconstruction exactly.",
+      "Design tests for DC, Nyquist-frequency signals, phase reversal, above-Nyquist tones and noncoherent records. Provide runnable Python tests with explicit tolerances justified by the signal amplitudes.",
+      "Cross-check the DFT against independent sinusoidal least squares at known frequencies. Show residuals and give a counterexample where a small sampled residual does not establish the true continuous frequency.",
+      "Produce a reproducible sampling audit with complete Python, LaTeX error bounds and a Markdown report distinguishing alias ambiguity, leakage and numerical roundoff. State exactly which conclusions the measurements support."
+    ]
+  },
+  {
+    "id": "robotics_planar_arm_jacobian_singularity",
+    "domain": "robotics_kinematics",
+    "title": "Planar robot: inverse kinematics and singularity certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a two-link planar robot with links 0.7 and 0.5 metres. Derive its forward kinematics and analytic Jacobian in LaTeX; explain coordinates and angle units in English and Chinese.",
+      "Derive both inverse-kinematic branches for target (0.6,0.5) metres. Show a Markdown table of angles, reconstructed positions, residuals and Jacobian determinants; distinguish unreachable and singular targets.",
+      "Implement forward and inverse kinematics in standard-library Python, including numerical domain clamps with justified tolerances. Supply runnable assertions for both branches, boundary targets and an unreachable point.",
+      "Derive the velocity inverse and damped least-squares alternative. Compare both near straight-arm singularity using a reproducible Python experiment and a Markdown table; explain why small Cartesian residual does not imply bounded joint velocity.",
+      "Produce a complete reproducible kinematics audit combining Python tests, LaTeX derivations, angle-wrap conventions and bilingual conclusions. Include counterexamples for sign errors, branch loss and unit confusion."
+    ]
+  },
+  {
+    "id": "reliability_common_cause_fault_tree",
+    "domain": "reliability_fault_tree",
+    "title": "Redundant systems: common-cause failures and exact reliability",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a two-channel redundant safety system with individual failure probability p and a common-cause probability q. Derive the exact system failure probability under explicitly stated conditional-independence assumptions, in LaTeX and bilingual prose.",
+      "Compare an independent model and a common-cause model for p=0.02, q=0.003. Show a Markdown probability table with joint outcomes, normalization and an explanation of which marginal probabilities change.",
+      "Implement exact state enumeration with Python fractions.Fraction. Include runnable checks of probability mass, q=0, q=1 and p=0 or 1, and avoid counting common-cause outcomes twice.",
+      "Extend the system to two-out-of-three voting. Derive the binomial expression conditional on no common cause, enumerate all states and cross-check formula against exact code.",
+      "Derive partial sensitivities with respect to p and q for both architectures. Make a Markdown comparison table and explain when adding redundancy provides little improvement.",
+      "Construct a counterexample showing why observed pairwise failure correlation does not uniquely identify a common-cause model. Provide two normalized joint distributions with the same chosen marginal statistics but different higher-order events.",
+      "Add deterministic Monte Carlo as a secondary check with a fixed seed, Wilson confidence intervals and sample-size justification. Explain why sampling agreement is weaker than exact enumeration.",
+      "Package a reproducible reliability report with complete Python tests, exact fractions, LaTeX identities and a Markdown decision table. Distinguish structural assumptions, measured quantities and unsupported causal conclusions."
     ]
   }
 ]

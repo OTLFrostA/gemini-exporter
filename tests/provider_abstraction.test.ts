@@ -44,14 +44,14 @@ test('TabService - getAITab and sendToAITab integration', async () => {
             runtime
         };
 
-        await assert.rejects(TabService.getAITab('chatgpt'), /no production Content Script/);
+        await assert.rejects(TabService.getAITab('chatgpt'), /Provider\/account mismatch/);
 
         await require('../src/l3a/storageService.js').putAccount({ id: ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '10000000001' });
         bindTabAccounts({ 202: ACCOUNT_UUID });
         const geminiTab = await TabService.getAITab('gemini', ACCOUNT_UUID);
         assert.strictEqual(geminiTab?.id, 202, 'Should resolve Gemini tab');
 
-        await assert.rejects(TabService.sendToAITab('chatgpt', { action: 'test' }), /no production Content Script/);
+        await assert.rejects(TabService.sendToAITab('chatgpt', { action: 'test' }), /Provider\/account mismatch/);
         const res = await TabService.sendToAITab('gemini', { action: 'test' }, ACCOUNT_UUID);
         assert.deepStrictEqual(res, { ok: true, data: 'tab-response' });
         assert.deepStrictEqual(queries, ['https://gemini.google.com/*', 'https://gemini.google.com/*']);

@@ -5,6 +5,7 @@
   "version": "2.0.0",
   "description": "__MSG_extDesc__",
   "permissions": [
+    "scripting",
     "storage",
     "unlimitedStorage"
   ],
@@ -14,7 +15,8 @@
     "https://*.usercontent.google.com/*",
     "https://drive.google.com/*",
     "https://lh3.google.com/*",
-    "https://*.gstatic.com/*"
+    "https://*.gstatic.com/*",
+    "https://images.openai.com/*"
   ],
   "optional_host_permissions": [
     "https://chatgpt.com/*",
