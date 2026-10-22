@@ -12,6 +12,7 @@ import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 import { discoverChatGPTAccounts, requestChatGPTConnection } from '../../runtime/capabilities/chatgptDiscovery.js';
+import { discoverClaudeAccounts, requestClaudeConnection } from '../../runtime/capabilities/claudeDiscovery.js';
 import { renderList } from './views/listView.js';
 import { readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
@@ -139,7 +140,7 @@ export async function initWorkbench(): Promise<void> {
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
             'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan',
             'chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
-            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide','btnConnectChatGPT'];
+            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide','btnConnectChatGPT','btnConnectClaude'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
             el<HTMLInputElement>(id).disabled = !settings || presentationSaving;
@@ -159,14 +160,14 @@ export async function initWorkbench(): Promise<void> {
         for (const account of state.accounts) {
             const option = document.createElement('option');
             option.value = account.id;
-            option.textContent = `${account.providerId === 'chatgpt' ? 'ChatGPT · ' : ''}${account.displayName || account.email || `${account.providerId} · ${account.providerAccountId}`}`;
+            option.textContent = `${account.providerId === 'chatgpt' ? 'ChatGPT · ' : account.providerId === 'claude' ? 'Claude · ' : ''}${account.displayName || account.email || `${account.providerId} · ${account.providerAccountId}`}`;
             selector.append(option);
         }
         selector.value = state.accountId ?? '';
         selector.style.display = state.accounts.length < 2 ? 'none' : 'inline-flex';
         const account = state.accounts.find(a => a.id === state.accountId);
         const name = account?.displayName || account?.email || account?.providerAccountId || text('No local account', '暂无本地账户');
-        el('accountName').textContent = state.accounts.length < 2 ? `${account?.providerId === 'chatgpt' ? 'ChatGPT · ' : ''}${name}` : '';
+        el('accountName').textContent = state.accounts.length < 2 ? `${account?.providerId === 'chatgpt' ? 'ChatGPT · ' : account?.providerId === 'claude' ? 'Claude · ' : ''}${name}` : '';
         el('takeoutAccountName').textContent = state.accountId
             ? account?.providerId === 'gemini' ? `→ ${name}` : text('Select Gemini', '请选择 Gemini')
             : text('First import', '首次导入');
@@ -377,6 +378,17 @@ export async function initWorkbench(): Promise<void> {
             if (!accounts.length) throw new Error(text('Open ChatGPT and log in, then connect again.', '请打开 ChatGPT 并登录，然后重新连接。'));
             await select(accounts[0].id);
             status(text('ChatGPT connected. Sync conversations to load history.', 'ChatGPT 已连接，点击同步会话加载历史。'));
+        });
+    });
+    el('btnConnectClaude').addEventListener('click', () => {
+        if (busy) return;
+        const access = requestClaudeConnection();
+        void perform('scan', async () => {
+            if (!await access) throw new Error(text('Claude access was not granted.', '未授予 Claude 访问权限。'));
+            const accounts = await discoverClaudeAccounts();
+            if (!accounts.length) throw new Error(text('Open Claude and log in, then connect again.', '请打开 Claude 并登录，然后重新连接。'));
+            await select(accounts[0].id);
+            status(text('Claude connected. Sync conversations to load history.', 'Claude 已连接，点击同步会话加载历史。'));
         });
     });
     el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scan(true); });
