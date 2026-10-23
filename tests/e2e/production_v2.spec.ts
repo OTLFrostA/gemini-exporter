@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
-import { geminiListFixtures } from '../fixtures/providers/gemini.js';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 
 const accountId = '10000000-0000-4000-8000-000000000001';
 let bundle: string;
@@ -104,7 +104,7 @@ test('real Content discovery resolves scan targets, deduplicates tabs and reject
 test('MAIN fetch → isolated L1 → Background L2 commits in extension IDB and updates Badge; forged export is inert', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     const source = await sourcePage(context);
-    const wire = geminiListFixtures.browserPassiveCaptureWire();
+    const wire = geminiListGen('G_E2E_PRODUCTION_V2_01');
     await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
     await source.evaluate(async () => {
         await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]) }) });
