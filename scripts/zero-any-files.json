@@ -140,5 +140,6 @@
   "src/l1/sniffer/chatgpt/hook.ts",
   "src/runtime/content/chatgptContent.ts",
   "src/runtime/capabilities/chatgptInjection.ts",
-  "tests/chatgpt-capture.test.ts"
+  "tests/chatgpt-capture.test.ts",
+  "src/l1/client/gemini/api/rpcClient.ts"
 ]
