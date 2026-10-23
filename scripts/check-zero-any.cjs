@@ -92,3 +92,5 @@ console.log('SOURCE_LINT_AUDIT_END');
 process.exitCode = 1;
 
 // extractor baseline audit, temporary
+
+// structured parser baseline run trigger
