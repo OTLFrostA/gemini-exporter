@@ -193,6 +193,8 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     assert.equal(decoded.timestamp, 1700000000500);
     assert.equal(decoded.userMessageId, 'r_AB12');
     assert.equal(decoded.fallbackTurnId, 'r_AB12');
+    assert.equal(decoded.rawProviderRequestId, 'r_AB12');
+    assert.equal(decoded.providerRequestId, 'ab12');
     assert.equal(decoded.userPayload, raw[2]);
     assert.equal(decoded.candidateIndex, 1);
     assert.deepEqual(decoded.candidate, {
@@ -207,6 +209,11 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     assert.equal(modelMessages.length, 1);
     assert.equal(modelMessages[0].content, 'Selected answer');
     assert.equal(modelMessages[0].id, 'rc_selected');
+    // Source-only evidence retains the provider's original request token.
+    for (const message of parsed.messages) {
+        assert.equal(message.rawProviderRequestId, 'r_AB12');
+        assert.equal(message.providerRequestId, 'r_AB12');
+    }
 });
 
 test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw media evidence', () => {
@@ -223,6 +230,8 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     const decodedPartial = decodeTurn(partial);
     assert.ok(decodedPartial);
     assert.equal(decodedPartial.timestamp, null);
+    assert.equal(decodedPartial.rawProviderRequestId, undefined);
+    assert.equal(decodedPartial.providerRequestId, undefined);
     assert.equal(decodedPartial.candidateIndex, 0);
     assert.equal(decodedPartial.candidate?.id, '');
     assert.equal(decodedPartial.candidate?.text, 'Text without an ID');
