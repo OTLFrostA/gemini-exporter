@@ -2,9 +2,7 @@ import * as source from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js
 import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult } from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 export * from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 export interface GeminiParserAttachmentsModule {
-    IMAGE_GEN_RE: RegExp;
     isInternalChipUrl: (u?: string | null) => boolean;
-    extractImageSelectionIndex: (sourceUrl?: string | null) => number | undefined;
     getImageDedupKey: (imageObj: Partial<ImageAttachment>) => string;
     filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
     extractImageEvidence: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
