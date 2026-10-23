@@ -1,7 +1,6 @@
 import { STEPS } from './tourSteps.js';
 import { text } from '../shared/settings.js';
 import { mountTourConnection } from './tourConnection.js';
-export { STEPS } from './tourSteps.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
 let mode: 'tour' | 'spotlight' | 'takeout' | null = null;
@@ -350,4 +349,3 @@ export function showTakeoutPrompt(
 }
 export const TourGuide = { startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
     startFeatureSpotlight, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };
-export default TourGuide;

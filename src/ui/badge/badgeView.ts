@@ -159,4 +159,3 @@ export const ensureBadge: () => HTMLElement | null = ensureBadgeImpl;
 export const showLiveSaveResult: (result: ExportResult | null, accountId: string) => void = showLiveSaveResultImpl;
 export const showLiveSaveError: (accountId: string) => void = showLiveSaveErrorImpl;
 export const BadgeView = { ensureBadge, refreshAccount, showLiveSaveResult, showLiveSaveError };
-export default BadgeView;

@@ -509,7 +509,3 @@ export const AssetFetcher = {
     inferImageExt,
     fetchWithCredentialFallback
 };
-
-
-export default AssetFetcher;
-
