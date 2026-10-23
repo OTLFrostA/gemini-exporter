@@ -162,6 +162,16 @@ npm run test:tier2 -- --platform claude
 npm run test:tier2 -- --platform claude --platform-option claude.golden=/path/golden.json
 ```
 
+Claude Tier 2 selects **Haiku** before every new prompt, including lifecycle
+prompts and historical-conversation appends. It uses the native model menu
+(including “More models”) and confirms the selected family again at dispatch.
+Only an available model radio item is eligible: missing/locked Haiku blocks the
+send, without selecting an upgrade or another model. The report records the
+Haiku policy and each attempted prompt's selected model. Native model-menu checks
+on both an existing conversation and a new conversation passed without sending
+messages; this does not establish that the current account quota permits Haiku
+generation. Historical golden conversations keep their original models.
+
 Claude is registered alongside Gemini and ChatGPT; `--platforms all` now selects
 all three. Its 22-case plan uses the same scheduler, workbench cases, session
 finalization and CDP installation/download helpers. The golden JSON has a

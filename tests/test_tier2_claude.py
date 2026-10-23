@@ -28,6 +28,63 @@ class ClaudeTier2Tests(unittest.TestCase):
     def runner(self, folder):
         return ClaudeLiveRunner(output_dir=folder, delay=0)
 
+    def test_haiku_selection_checks_existing_model_without_opening_menus(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.chat = Mock()
+            runner.chat.eval.return_value = {'label': '模型：Haiku 5.5', 'haiku': True}
+            self.assertEqual(runner.ensure_haiku(), {'family': 'haiku', 'label': '模型：Haiku 5.5'})
+            runner.chat.eval.assert_called_once()
+            runner.chat.call.assert_not_called()
+
+    def test_haiku_selection_uses_available_radio_in_more_models_and_verifies_change(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.chat = Mock()
+            chosen, reads = False, 0
+            def evaluate(expression, **kwargs):
+                nonlocal chosen, reads
+                if 'return {label,haiku:' in expression:
+                    self.assertNotIn('\b', expression, 'JavaScript word boundaries must not become backspace characters')
+                    return {'label': 'Haiku 5.5' if chosen else 'Sonnet 5.5', 'haiku': chosen}
+                if 'selectable:' in expression:
+                    reads += 1
+                    return [] if reads == 1 else [
+                        {'id': 'claude-haiku-locked', 'label': 'Haiku Upgrade', 'selectable': False},
+                        {'id': 'claude-haiku-5-5', 'label': 'Haiku 5.5', 'selectable': True}]
+                if 'return e.id' in expression:
+                    return 'more-models'
+                if "e.scrollIntoView({block:'nearest'})" in expression:
+                    self.assertIn('claude-haiku-5-5', expression)
+                    self.assertNotIn('claude-haiku-locked', expression)
+                    chosen = True
+                return True
+            runner.chat.eval.side_effect = evaluate
+            self.assertEqual(runner.ensure_haiku()['id'], 'claude-haiku-5-5')
+            self.assertEqual(reads, 2)
+            self.assertEqual(runner.report['modelSelection']['status'], 'selected')
+            runner.chat.call.assert_not_called()
+
+    def test_unavailable_haiku_blocks_send_before_composer_or_source_acquisition(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.chat = Mock()
+            def evaluate(expression, **kwargs):
+                if 'return {label,haiku:' in expression:
+                    return {'label': 'Sonnet 5.5', 'haiku': False}
+                if 'selectable:' in expression:
+                    return [{'id': 'claude-haiku-5-5', 'label': 'Haiku Upgrade', 'selectable': False}]
+                if 'return e.id' in expression:
+                    return None
+                return True
+            runner.chat.eval.side_effect = evaluate
+            with self.assertRaisesRegex(ValueError, 'Haiku is unavailable'):
+                runner.send('Do not send with Sonnet')
+            runner.chat.call.assert_not_called()
+            self.assertEqual(runner.report['sourceRequests'], 0)
+            self.assertEqual(runner.report['modelSelection']['status'], 'blocked')
+            self.assertNotIn('sendAttempts', runner.report)
+
     def test_registered_full_plan_keeps_failures_independent(self):
         from scripts.framework.platforms import load_plugins
         self.assertEqual([p.id for p in load_plugins().select(['all'])], ['gemini', 'chatgpt', 'claude'])
@@ -216,6 +273,8 @@ class ClaudeTier2Tests(unittest.TestCase):
     def test_send_saves_dom_progress_without_source_polling_and_rejects_pending_question(self):
         with tempfile.TemporaryDirectory() as folder:
             runner = self.runner(folder)
+            model = {'family': 'haiku', 'label': 'Haiku 5.5'}
+            runner.ensure_haiku = Mock(return_value=model)
             runner.chat = Mock()
             messages = [{'id': 'u', 'role': 'user', 'text': 'Question'}, {'id': 'new', 'role': 'assistant', 'text': 'Answer'}]
             runner.webpage = Mock(side_effect=[[], messages, messages, messages, messages])
@@ -231,7 +290,7 @@ class ClaudeTier2Tests(unittest.TestCase):
             with patch('scripts.framework.claude_live.wait_for', side_effect=wait):
                 self.assertEqual(runner.send('Question'), 'one')
             runner.source.assert_not_called()
-            self.assertEqual(runner.report['sendAttempts'], [{'prompt': 'Question', 'dispatched': True}])
+            self.assertEqual(runner.report['sendAttempts'], [{'prompt': 'Question', 'model': model, 'dispatched': True}])
             self.assertEqual(json.loads((Path(folder)/'one.progress.json').read_text())['prompts'], ['Question'])
             runner.webpage = Mock(return_value=messages)
             runner.chat.eval.side_effect = lambda expression, **kw: {'question': True} if expression.startswith('({stop:') else True
@@ -243,6 +302,7 @@ class ClaudeTier2Tests(unittest.TestCase):
     def test_native_quota_fails_before_mutating_composer_without_source_requests(self):
         with tempfile.TemporaryDirectory() as folder:
             runner = self.runner(folder)
+            runner.ensure_haiku = Mock(return_value={'family': 'haiku', 'label': 'Haiku 5.5'})
             runner.chat = Mock()
             runner.chat.eval.return_value = '您的免费消息额度已用完，将于 02:00 恢复'
             with self.assertRaisesRegex(ValueError, 'quota exhausted \(not HTTP 429\)'):
@@ -314,6 +374,7 @@ class ClaudeTier2Tests(unittest.TestCase):
     def test_native_reply_identity_survives_virtualized_message_counts(self):
         with tempfile.TemporaryDirectory() as folder:
             runner = self.runner(folder)
+            runner.ensure_haiku = Mock(return_value={'family': 'haiku', 'label': 'Haiku 5.5'})
             runner.chat = Mock()
             old = [{'id': str(i), 'role': 'assistant', 'text': 'Old'} for i in range(5)]
             visible = [{'role': 'user', 'text': 'Question'}, {'id': 'new-reply', 'role': 'assistant', 'text': 'Final answer'}]

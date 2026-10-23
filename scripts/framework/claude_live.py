@@ -70,7 +70,8 @@ class ClaudeLiveRunner(BrowserAcceptance):
         self.output = Path(output_dir or self.root/'tests/output/claude_live').resolve()
         self.output.mkdir(parents=True, exist_ok=True)
         self.config = options or {}
-        self.report = {'provider': self.platform_id, 'gates': {}, 'records': [], 'sourceRequests': 0}
+        self.report = {'provider': self.platform_id, 'gates': {}, 'records': [], 'sourceRequests': 0,
+                       'modelPolicy': {'family': 'haiku', 'fallback': False}}
         self.chat = self.options = self.browser = None
         self.chat_ids, self.initial_exports = [], {}
         self.org = None
@@ -176,7 +177,60 @@ class ClaudeLiveRunner(BrowserAcceptance):
             self.save_report()
             raise ValueError('Claude native message quota exhausted (not HTTP 429): '+notice)
 
+    def ensure_haiku(self):
+        """Select an available native Haiku option, never an upgrade or fallback."""
+        state_expression = r"""(()=>{const e=document.querySelector('[data-testid=model-selector-dropdown]');
+            if(!e||e.disabled||e.getAttribute('aria-disabled')==='true')return null;
+            const label=e.getAttribute('aria-label')||e.innerText;
+            return {label,haiku:/\bhaiku\b/i.test(label)};})()"""
+        state = wait_for(lambda: self.chat.eval(state_expression), 30)
+        if state['haiku']:
+            return {'family': 'haiku', 'label': state['label']}
+        try:
+            self.chat.eval("""(()=>{const e=document.querySelector('[data-testid=model-selector-dropdown]');
+                if(e.getAttribute('aria-expanded')!=='true')e.click();})()""", user_gesture=True)
+            wait_for(lambda: self.chat.eval("""(()=>{const b=document.querySelector('[data-testid=model-selector-dropdown]');
+                return [...document.querySelectorAll('[role=menu]')].some(e=>e.getAttribute('aria-labelledby')===b?.id);})()"""), 10)
+            choices_expression = """[...document.querySelectorAll('[role=menu] [data-model-id]')].map(e=>({
+                id:e.dataset.modelId,label:e.innerText,selectable:e.getAttribute('role')==='menuitemradio'
+                    &&!e.hasAttribute('data-disabled')&&e.getAttribute('aria-disabled')!=='true'}))"""
+            choices = self.chat.eval(choices_expression) or []
+            def available(items):
+                return next((m for m in items if m['selectable'] and re.search(r'\bhaiku\b', m['id'], re.I)), None)
+            selected = available(choices)
+            if not selected:
+                submenu = self.chat.eval("""(()=>{const b=document.querySelector('[data-testid=model-selector-dropdown]');
+                    const menu=[...document.querySelectorAll('[role=menu]')].find(e=>e.getAttribute('aria-labelledby')===b?.id);
+                    const e=[...(menu?.querySelectorAll('[role=menuitem][aria-haspopup=menu]')||[])]
+                        .find(e=>/^(更多模型|More models)$/i.test(e.innerText.split('\\n')[0].trim()));
+                    if(!e)return null;if(e.getAttribute('aria-expanded')!=='true')e.click();return e.id;})()""", user_gesture=True)
+                if submenu:
+                    wait_for(lambda: self.chat.eval("[...document.querySelectorAll('[role=menu]')].some(e=>e.getAttribute('aria-labelledby')==="+json.dumps(submenu)+")"), 10)
+                    choices = self.chat.eval(choices_expression) or []
+                    selected = available(choices)
+            if not selected:
+                self.report['modelSelection'] = {'status': 'blocked', 'family': 'haiku', 'available': choices}
+                self.save_report()
+                raise ValueError('Claude Haiku is unavailable on this account; refusing another model or an upgrade')
+            clicked = self.chat.eval("""(()=>{const e=[...document.querySelectorAll('[role=menu] [role=menuitemradio][data-model-id]')]
+                .find(e=>e.dataset.modelId==="""+json.dumps(selected['id'])+"""&&!e.hasAttribute('data-disabled')&&e.getAttribute('aria-disabled')!=='true');
+                if(!e)return false;e.scrollIntoView({block:'nearest'});e.click();return true;})()""", user_gesture=True)
+            if not clicked:
+                raise ValueError('Claude Haiku selection changed; no message sent')
+            def verified():
+                current = self.chat.eval(state_expression)
+                return current if current and current['haiku'] else None
+            state = wait_for(verified, 10)
+            result = {'family': 'haiku', 'id': selected['id'], 'label': state['label']}
+            self.report['modelSelection'] = {'status': 'selected', **result}
+            self.save_report()
+            return result
+        finally:
+            self.chat.eval("""(()=>{const e=document.querySelector('[data-testid=model-selector-dropdown]');
+                if(e?.getAttribute('aria-expanded')==='true')e.click();})()""", user_gesture=True)
+
     def send(self, prompt):
+        model = self.ensure_haiku()
         self.assert_message_quota()
         previous_ids = {m.get('id') for m in self.webpage() if m['role'] == 'assistant'}
         selector = '[data-testid=chat-input]'
@@ -187,10 +241,12 @@ class ClaudeLiveRunner(BrowserAcceptance):
             self.assert_message_quota()
             return self.chat.eval("!!document.querySelector('[data-testid=chat-input-send]:not(:disabled)')")
         wait_for(can_send)
-        attempt = {'prompt': prompt, 'dispatched': False}
+        attempt = {'prompt': prompt, 'model': model, 'dispatched': False}
         self.report.setdefault('sendAttempts', []).append(attempt)
         self.save_report()  # A failed/partial reply must not hide the attempted send.
-        dispatched = self.chat.eval("(()=>{const e=document.querySelector('[data-testid=chat-input-send]:not(:disabled)');if(!e)return false;e.click();return true})()", user_gesture=True)
+        dispatched = self.chat.eval(r"""(()=>{const model=document.querySelector('[data-testid=model-selector-dropdown]');
+            if(!model||!/\bhaiku\b/i.test(model.getAttribute('aria-label')||model.innerText))return false;
+            const e=document.querySelector('[data-testid=chat-input-send]:not(:disabled)');if(!e)return false;e.click();return true})()""", user_gesture=True)
         attempt['dispatched'] = dispatched is True
         self.save_report()
         if dispatched is not True:
