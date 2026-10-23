@@ -74,8 +74,7 @@ const fixtureMap = {
         JSON.stringify([['wrb.fr', 'generic_rpc', '[]', null]]),
     'G_REGRESSION_SLOT_ISOLATION_LIST_01': () =>
         JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_slot_isolation', 'Title']]])]]),
-    'G_REGRESSION_BRACKET_TITLE_LIST_01': () =>
-        \`)]}'\\n\\n[[ "wrb.fr", "MaZiqc", "[[\\\\"c_123\\\\", \\\\"Title [with bracket]\\\\", [1700000000, 0]]]" ]]\`,
+    'G_REGRESSION_BRACKET_TITLE_LIST_01': () => `)]}'\n\n[[ "wrb.fr", "MaZiqc", "[[\\"c_123\\", \\"Title [with bracket]\\", [1700000000, 0]]]" ]]`,
     'G_SOURCE_EMPTY_01': () => geminiList([]),
     'G_SOURCE_ONE_01': () => geminiList(["one"]),
     'G_SOURCE_TWO_01': () => geminiList(["two"]),
