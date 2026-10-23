@@ -42,13 +42,15 @@ the shared pool. Replenish the pool after live runs per AGENTS.md.
   dependency closure, serial platform orchestration, preparation/finalization/
   cleanup, aggregate status and physical JSON reporting. No provider branches.
 - `scheduler.py`: shared case execution, prerequisites, ordering, targeted
-  subgraphs, failures and blocked dependencies. Both built-in plugins use this.
+  subgraphs, failures and blocked dependencies. All built-in plugins use this.
 - `platforms/gemini.py` and `gemini_runtime.py`: existing 25 Gemini cases and
   Gemini environment preparation, including Takeout and extension lifecycle.
 - `platforms/chatgpt.py`: the ChatGPT cases now run through the same scheduler;
   `chatgpt_live.py` contains site operations and physical evidence collection.
   Mandatory nested evidence (live save, promotion, image pixels, questionnaires)
   still blocks a case if missing. They are not inferred from a successful scan.
+- `platforms/claude.py`: Claude cases and acceptance dependencies; `claude_live.py`
+  supplies site operations and `claude_evidence.py` reads independent disk evidence.
 - `driver/PlatformRegistry`: lower-level browser driver registration; distinct
   from acceptance suite plugin registration. A suite may use such a driver.
 
@@ -150,3 +152,63 @@ or implicit third-party plugin execution. Adding a plugin requires no changes to
 the CLI, common runner or scheduler. Contract tests exercise a third plugin,
 platform failure isolation, dependency blocking, option scoping, preflight,
 cleanup failure and platform-specific discovery.
+
+## Claude
+
+```bash
+npm run test:tier2 -- --platform claude --plan
+npm run test:tier2 -- --platform claude
+# Another test account can supply its own native-interaction golden conversations:
+npm run test:tier2 -- --platform claude --platform-option claude.golden=/path/golden.json
+```
+
+Claude is registered alongside Gemini and ChatGPT; `--platforms all` now selects
+all three. Its 22-case plan uses the same scheduler, workbench cases, session
+finalization and CDP installation/download helpers. The golden JSON has a
+`conversationIds` array; the default identifies the test account's three-round
+backup conversation containing real AskUserQuestion and Write → Artifact tools.
+Golden source must actually contain these tools. Missing, inaccessible or
+incomplete golden source fails the gate.
+
+Live generation requires two scenarios with at least 5 and 8 turns. The reserved
+pair is written to `scenarios.json`; rerunning that output directory reuses the
+pair without consuming two more pool entries. Every submitted prompt is saved
+locally after the native reply settles. Source APIs are never polled: a fresh
+pair needs two final detail reads; resuming verifies each saved remote prefix
+once and never replays a divergent prompt. An open native questionnaire fails
+with an input-required error instead of being recorded as a completed response.
+The runner does not select questionnaire answers automatically. The fixed golden
+checks previously answered native questions and their exported static content.
+HTTP 429 stops further Claude gate operations; uninstall restoration remains
+available. No source request is automatically retried.
+
+The independent oracle reads physical Markdown, HTML, JSON and tagged PDF files.
+It checks branch/message identity, complete parser quality, every authored text
+fragment, native question headers/options/descriptions/answers, Artifact source
+code and exact code indentation. PDF prose/code order and formula structure use
+the shared PDF oracle; this is not visual PDF inspection. One terminal code line
+ending is normalized across Markdown fences and HTML, never indentation. Private
+memory tool bodies are not expected in exported authored content. Binary/image
+pixel fidelity and stale-tab attachment recovery are not part of this Claude
+plan; they must not be inferred from its text/Artifact checks. Its skip gate
+currently covers the all-unchanged case, not the mixed changed/unchanged case.
+
+Full-run gates include page badge, passive sidebar capture, explicit scan
+coverage, live disk save, older-chat promotion/receipt advancement, confirmed
+remote deletion, popup, local cleanup/rescan and uninstall/reinstall. Ordering
+edges let independent scan/export audits run after passive or coverage failures;
+those failures still make the complete suite fail. They are not waived or
+turned into supported-product claims. Claude's current list endpoint does not
+provide a trusted exhaustion marker, and its production integration lacks the
+passive capture and popup context needed by several gates. **A full Claude Tier 2
+pass is not claimed.** Fresh installation also clears the optional Claude grant;
+the real Connect Claude permission step remains required.
+
+Validation of this adapter used the existing authorized 9222 installation, one
+independent detail read and one real list scan. Five existing conversations were
+downloaded in all four formats; the six-message questionnaire/Artifact golden
+passed the physical oracle (three code blocks, six PDF pages). That targeted
+check exposed and fixed Workbench links incorrectly pointing Claude IDs at
+Gemini. It was not a clean-install 5/8-turn full run, and does not establish
+coverage of the remaining lifecycle gates. Local account response bodies and
+exported files remain ignored under `tests/output/`.

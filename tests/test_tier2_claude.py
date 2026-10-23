@@ -1,0 +1,230 @@
+"""Claude Tier 2 contracts: request budgets, source integrity and physical fidelity."""
+import json
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import Mock, patch
+
+from scripts.framework.claude_live import ClaudeLiveRunner, completed_branch, ROOT_MESSAGE
+from scripts.framework.claude_evidence import source_fragments, assert_full_exports
+from scripts.framework.platforms.claude import ClaudePlugin, build_dag
+from scripts.framework.platforms.core import resolve_plan
+
+
+def source(cid, prompts):
+    messages = []
+    parent = ROOT_MESSAGE
+    for i, prompt in enumerate(prompts):
+        for role, text in [('human', prompt), ('assistant', 'Answer '+prompt)]:
+            mid = f'{i}-{role}'
+            messages.append({'uuid': mid, 'sender': role, 'parent_message_uuid': parent,
+                             'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': text, 'stop_timestamp': 'done'}]})
+            parent = mid
+    return {'uuid': cid, 'current_leaf_message_uuid': parent, 'chat_messages': messages}
+
+
+class ClaudeTier2Tests(unittest.TestCase):
+    def runner(self, folder):
+        return ClaudeLiveRunner(output_dir=folder, delay=0)
+
+    def test_registered_full_plan_keeps_failures_independent(self):
+        from scripts.framework.platforms import load_plugins
+        self.assertEqual([p.id for p in load_plugins().select(['all'])], ['gemini', 'chatgpt', 'claude'])
+        specs = resolve_plan(ClaudePlugin().features())
+        self.assertEqual(len(specs), 22)
+        self.assertTrue(all(s['scheduled'] for s in specs))
+        cases = build_dag().cases
+        self.assertNotIn('page_badge', cases['complex_multiturn'].prerequisites)
+        self.assertNotIn('scan_coverage', cases['physical_four_format_export'].prerequisites)
+        self.assertIn('scan_coverage', cases['physical_four_format_export'].after)
+        self.assertEqual(cases['passive_lifecycle'].evidence, ('live_disk_save', 'passive_promotion', 'export_record_advancement'))
+
+    def test_branch_ignores_siblings_and_rejects_cycles_missing_parents_and_unfinished_turns(self):
+        raw = source('one', ['p'])
+        raw['chat_messages'].append({'uuid': 'sibling', 'sender': 'assistant', 'parent_message_uuid': '0-human'})
+        self.assertEqual([m['uuid'] for m in completed_branch(raw)], ['0-human', '0-assistant'])
+        for mutation, error in [
+            (lambda r: r['chat_messages'][0].update(parent_message_uuid='0-assistant'), 'Cyclic'),
+            (lambda r: r['chat_messages'][0].update(parent_message_uuid='missing'), 'missing'),
+            (lambda r: r['chat_messages'][1].update(stop_reason='tool_use'), 'incomplete'),
+            (lambda r: r['chat_messages'][1]['content'][0].update(stop_timestamp=None), 'unfinished'),
+            (lambda r: r.update(current_leaf_message_uuid='0-human'), 'before an assistant'),
+        ]:
+            candidate = source('one', ['p'])
+            mutation(candidate)
+            with self.assertRaisesRegex(ValueError, error):
+                completed_branch(candidate)
+
+    def test_429_has_one_request_no_retry_or_sleep(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.org = 'org'
+            runner.chat = Mock()
+            runner.chat.call.side_effect = [
+                {'result': {'frameTree': {'frame': {'id': 'frame'}}}},
+                {'result': {'executionContextId': 7}},
+                {'result': {'result': {'value': {'sourceError': 429, 'retryAfter': '30'}}}},
+            ]
+            with patch('scripts.framework.claude_live.time.sleep') as sleep:
+                with self.assertRaisesRegex(ValueError, 'HTTP 429; no retries'):
+                    runner.source('a'*36)
+            self.assertEqual(runner.report['sourceRequests'], 1)
+            sleep.assert_not_called()
+            requests = [c for c in runner.chat.call.call_args_list if c.args[0] == 'Runtime.evaluate']
+            blocked = Mock()
+            with self.assertRaisesRegex(RuntimeError, 'further provider operations stopped'):
+                runner.gate('scan', blocked)
+            blocked.assert_not_called()
+            self.assertEqual(len(requests), 1)
+            self.assertEqual(requests[0].args[1]['contextId'], 7)
+
+    def test_incomplete_source_never_overwrites_previous_evidence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            path = Path(folder)/'one.source.json'
+            path.write_text('previous')
+            raw = source('one', ['p'])
+            raw['chat_messages'][-1]['stop_reason'] = 'tool_use'
+            runner.source = Mock(return_value=raw)
+            with self.assertRaisesRegex(ValueError, 'incomplete'):
+                runner.freeze_source('one', ['p'])
+            self.assertEqual(path.read_text(), 'previous')
+            runner.source.assert_called_once_with('one')
+
+    def test_thirteen_turns_only_two_final_source_reads_and_resume_posts_nothing(self):
+        dataset = [{'turns': [f'{s}-{i}' for i in range(n)]} for s, n in [('first', 5), ('second', 8)]]
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.dataset, runner.chat = dataset, Mock()
+            prompts = {'one': [], 'two': []}
+            def send(prompt):
+                cid = 'one' if prompt.startswith('first') else 'two'
+                prompts[cid].append(prompt)
+                (Path(folder)/f'{cid}.progress.json').write_text(json.dumps({'prompts': prompts[cid]}))
+                return cid
+            runner.send = Mock(side_effect=send)
+            runner.source = Mock(side_effect=lambda cid: source(cid, prompts[cid]))
+            runner.generate()
+            self.assertEqual(runner.send.call_count, 13)
+            self.assertEqual(runner.source.call_count, 2)
+            resumed = self.runner(folder)
+            resumed.chat, resumed.send = Mock(), Mock()
+            resumed.source = Mock(side_effect=lambda cid: source(cid, prompts[cid]))
+            resumed.generate()
+            resumed.send.assert_not_called()
+            self.assertEqual(resumed.source.call_count, 2)
+
+    def test_resume_remote_divergence_does_not_repost(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.dataset = [{'turns': [f'{s}{i}' for i in range(n)]} for s,n in [('a',5),('b',8)]]
+            (Path(folder)/'one.progress.json').write_text(json.dumps({'prompts': ['a0']}))
+            runner.source, runner.send, runner.chat = Mock(return_value=source('one', ['changed'])), Mock(), Mock()
+            with self.assertRaisesRegex(ValueError, 'refusing to replay'):
+                runner.generate()
+            runner.send.assert_not_called()
+
+    def test_native_questionnaire_artifact_and_memory_oracle(self):
+        fragments, codes = source_fragments({'content': [
+            {'type': 'text', 'text': 'Authored prose'},
+            {'type': 'tool_use', 'name': 'AskUserQuestion', 'input': {'questions': [
+                {'header': 'OS', 'question': 'Choose OS', 'options': [{'label': 'Linux', 'description': 'A description'}]}]}},
+            {'type': 'tool_result', 'name': 'AskUserQuestion', 'content': [{'type': 'text', 'text': 'Selected Linux'}]},
+            {'type': 'tool_use', 'name': 'Write', 'input': {'content': '<h1>Artifact</h1>\n'}},
+            {'type': 'tool_result', 'name': 'memory_read', 'content': [{'type': 'text', 'text': 'PRIVATE MEMORY'}]},
+        ]})
+        self.assertEqual(fragments, ['Authored prose', 'OS', 'Choose OS', 'Linux', 'A description', 'Selected Linux'])
+        self.assertEqual(codes, ['<h1>Artifact</h1>'])
+
+    def test_physical_oracle_rejects_lost_text_and_changed_code(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            raw = source('one', ['Prompt'])
+            raw['chat_messages'][1]['content'][0]['text'] = 'Full answer.\n\n```python\n  print(1)\n```'
+            (output/'one.source.json').write_text(json.dumps(raw))
+            for fmt in ('json', 'markdown', 'html', 'pdf'):
+                (output/'downloads'/fmt).mkdir(parents=True)
+            domain = {'quality': {'status': 'complete'}, 'messages': [
+                {'id': '0-human', 'role': 'user'}, {'id': '0-assistant', 'role': 'assistant'}]}
+            document = {'conversation': {'index': {'key': {'conversationId': 'one'}}, 'detail': domain}}
+            (output/'downloads/json/one.json').write_text(json.dumps(document))
+            md = output/'downloads/markdown/one.md'
+            html = output/'downloads/html/one.html'
+            md.write_text('## 👤 User\nPrompt\n## 🤖 Assistant\nFull answer.\n\n```python\n  print(1)\n```')
+            html.write_text('<div class="gem-prompt-content">Prompt</div><div class="gem-model-content"><p>Full answer.</p><pre><code>  print(1)</code></pre></div>')
+            with patch('scripts.framework.claude_evidence.PdfExportDownloadCase._extract_pdf_info', return_value={'contentRuns': [1], 'pageCount': 1}), patch('scripts.framework.claude_evidence.assert_pdf_turn_content', return_value=(True, 'ok')):
+                self.assertEqual(assert_full_exports(root, output, ['one'])[0]['messages'], 2)
+                raw['chat_messages'][1]['content'].append(dict(raw['chat_messages'][1]['content'][0]))
+                (output/'one.source.json').write_text(json.dumps(raw))
+                with self.assertRaisesRegex(ValueError, 'authored fragment'):
+                    assert_full_exports(root, output, ['one'])
+                raw['chat_messages'][1]['content'].pop()
+                (output/'one.source.json').write_text(json.dumps(raw))
+                md.write_text(md.read_text().replace('Full answer.', 'answer.'))
+                with self.assertRaisesRegex(ValueError, 'authored fragment'):
+                    assert_full_exports(root, output, ['one'])
+                md.write_text(md.read_text().replace('answer.', 'Full answer.').replace('  print(1)', 'print(1)'))
+                with self.assertRaisesRegex(ValueError, 'indentation changed'):
+                    assert_full_exports(root, output, ['one'])
+
+    def test_send_saves_dom_progress_without_source_polling_and_rejects_pending_question(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.chat = Mock()
+            messages = [{'role': 'user', 'text': 'Question'}, {'role': 'assistant', 'text': 'Answer'}]
+            runner.webpage = Mock(side_effect=[[], messages, messages, messages, messages])
+            runner.source = Mock(side_effect=AssertionError('Per-turn source API forbidden'))
+            runner.chat.eval.side_effect = lambda expression, **kw: ('one' if 'location.pathname.split' in expression
+                else {'stop': False, 'question': False} if expression.startswith('({stop:') else True)
+            def wait(operation, *args):
+                for _ in range(8):
+                    result = operation()
+                    if result:
+                        return result
+                raise TimeoutError('did not settle')
+            with patch('scripts.framework.claude_live.wait_for', side_effect=wait):
+                self.assertEqual(runner.send('Question'), 'one')
+            runner.source.assert_not_called()
+            self.assertEqual(json.loads((Path(folder)/'one.progress.json').read_text())['prompts'], ['Question'])
+            runner.webpage = Mock(return_value=messages)
+            runner.chat.eval.side_effect = lambda expression, **kw: {'question': True} if expression.startswith('({stop:') else True
+            with patch('scripts.framework.claude_live.wait_for', side_effect=wait):
+                with self.assertRaisesRegex(ValueError, 'requires input'):
+                    runner.send('Another question')
+            self.assertEqual(json.loads((Path(folder)/'one.progress.json').read_text())['prompts'], ['Question'])
+
+    def test_missing_nested_lifecycle_evidence_fails_even_when_operation_returns(self):
+        from scripts.framework.platforms.claude import ClaudeCase
+        from scripts.framework.features import FeatureDomain
+        case = ClaudeCase('passive_lifecycle', 'lifecycle', FeatureDomain.LIFECYCLE,
+                          evidence=('live_disk_save', 'passive_promotion', 'export_record_advancement'))
+        runtime = SimpleNamespace(report={'gates': {}}, lifecycle=lambda: {'returned': True},
+                                  gate=lambda name, operation: operation())
+        with self.assertRaisesRegex(ValueError, 'Missing mandatory evidence'):
+            case.execute(SimpleNamespace(runtime=runtime))
+
+    def test_physical_downloads_cannot_reuse_previous_extracted_files(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.options, runner.browser, runner.ready = Mock(), Mock(), Mock()
+            runner.report['scan'] = [{'id': 'one'}, {'id': 'two'}]
+            old = Path(folder)/'downloads/json'
+            old.mkdir(parents=True)
+            (old/'stale.json').write_text('old evidence')
+            def export(ids, destination, fmt):
+                path = destination/'export.zip'
+                with zipfile.ZipFile(path, 'w') as archive:
+                    for cid in ['one', 'wrong']:
+                        key = {'accountId': 'account', 'conversationId': cid}
+                        document = {'format': 'gemini-exporter-domain', 'version': 1, 'account': {'id': 'account'},
+                                    'conversation': {'index': {'key': key}, 'detail': {'key': key, 'messages': [], 'assets': []}}, 'resources': {}}
+                        archive.writestr(cid+'.json' if fmt == 'json' else cid+'.txt', json.dumps(document))
+                return path
+            runner.export_selected = export
+            with self.assertRaisesRegex(ValueError, 'selected conversation identities'):
+                runner.physical_exports()
+            self.assertFalse((Path(folder)/'downloads/json/stale.json').exists())
+            self.assertEqual(len(list(Path(folder).glob('downloads-previous-*/json/stale.json'))), 1)
