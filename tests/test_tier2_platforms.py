@@ -67,6 +67,31 @@ class Plugin:
 
 
 class PlatformsTest(unittest.TestCase):
+    def test_chatgpt_account_detail_check_follows_physical_hydration(self):
+        from scripts.framework.platforms.chatgpt import build_dag
+        order = [case.feature_id for case in build_dag().get_execution_order()]
+        self.assertLess(order.index('initial_export_baseline'), order.index('account_boundary'))
+
+
+    def test_native_conversation_load_errors_retry_with_a_bounded_cooldown(self):
+        from scripts.framework.chatgpt_live import ChatGPTLiveRunner
+        chat = Mock()
+        chat.eval.side_effect = [{'path': '/c/one', 'failed': True}, {'path': '/c/one', 'failed': False}]
+        runtime = SimpleNamespace(chat=chat, webpage=lambda: [{'id': 'actual'}])
+        with patch('scripts.framework.chatgpt_live.time.sleep') as sleep:
+            ChatGPTLiveRunner.open_conversation(runtime, 'one')
+        sleep.assert_called_once_with(60)
+        self.assertEqual(chat.call.call_count, 2)
+        chat.reset_mock()
+        chat.eval.side_effect = None
+        chat.eval.return_value = {'path': '/c/one', 'failed': True}
+        with patch('scripts.framework.chatgpt_live.time.sleep') as sleep:
+            with self.assertRaisesRegex(ValueError, 'four attempts'):
+                ChatGPTLiveRunner.open_conversation(runtime, 'one')
+        self.assertEqual(sleep.call_count, 3)
+        self.assertEqual(chat.call.call_count, 4)
+
+
     def test_local_required_hosts_never_change_release_manifest_or_reuse_stale_assets(self):
         from scripts.framework.chatgpt_acceptance import ChatGPTAcceptance
         with tempfile.TemporaryDirectory() as folder:

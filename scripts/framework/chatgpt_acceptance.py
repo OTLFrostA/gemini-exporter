@@ -104,7 +104,7 @@ class ChatGPTAcceptance:
         folder = Path(folder)
         folder.mkdir(parents=True, exist_ok=True)
         self.select_ids(ids)
-        path = CDPActions.trigger_export_zip(self.options, str(folder), max_wait=600,
+        path = CDPActions.trigger_export_zip(self.options, str(folder), max_wait=max(600, len(ids)*120),
                                             skip_exported=False, format_type=fmt, allow_standalone=True)
         if not path:
             raise ValueError('Physical export did not arrive')

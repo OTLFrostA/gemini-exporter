@@ -44,7 +44,7 @@ def build_dag():
         ('scan', 'sync', FeatureDomain.WORKBENCH, ('independent_golden_capture',), ()),
         ('initial_export_baseline', 'initial_export', FeatureDomain.EXPORT_DISK,
          ('feat_search_clear_restore', 'feat_selection_controls', 'feat_language_toggle'), ()),
-        ('account_boundary', 'account_boundary', FeatureDomain.LIFECYCLE, ('scan',), ()),
+        ('account_boundary', 'account_boundary', FeatureDomain.LIFECYCLE, ('initial_export_baseline',), ()),
         ('passive_lifecycle', 'lifecycle', FeatureDomain.LIFECYCLE, ('initial_export_baseline', 'account_boundary'),
          ('live_disk_save', 'passive_promotion', 'export_record_advancement')),
         ('confirmed_deletion', 'confirmed_deletion', FeatureDomain.LIFECYCLE,

@@ -307,6 +307,30 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         self.report['scan'] = rows
         return rows
 
+    def open_conversation(self, cid):
+        """Wait for native content and retry explicit load errors with a cooldown.
+
+        The page can render a composer/region even when its detail fetch failed.
+        That shell is not evidence of a loaded conversation.
+        """
+        for attempt in range(4):
+            self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
+            def loaded():
+                state = self.chat.eval("""({path:location.pathname,
+                    failed:/无法加载此.*对话|Unable to load conversation|Couldn't load conversation/i.test(document.body?.innerText||'')})""") or {}
+                if state.get('path') != '/c/'+cid:
+                    return None
+                if state.get('failed'):
+                    return 'failed'
+                return 'loaded' if self.webpage() else None
+            status = wait_for(loaded, 90, 1)
+            if status == 'loaded':
+                return
+            if attempt == 3:
+                raise ValueError('Native ChatGPT conversation failed to load after four attempts: '+cid)
+            print(f'  Native conversation load failed; cooling down 60s before retry {attempt+1}/3', flush=True)
+            time.sleep(60)
+
     def capture_golden(self):
         # A scene may actually generate an image. Freeze native pixels before
         # export rather than treating its image-only tool message as noise.
@@ -317,12 +341,12 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
                 if not (self.output/f'{scene_id}.image-webpage-evidence.json').is_file():
                     raise ValueError('Missing independent scene image evidence captured during live generation')
         cid = self.golden['image']
-        self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
+        self.open_conversation(cid)
         self.image_evidence = capture_webpage_images(self.chat, cid, timeout=90, provider_id='chatgpt')
         (self.output/'image-webpage-evidence.json').write_text(json.dumps(self.image_evidence))
         for questionnaire in self.golden['questionnaires']:
             cid = questionnaire['id']
-            self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
+            self.open_conversation(cid)
             def visible():
                 if self.chat.eval('location.pathname') != '/c/'+cid:
                     return None
@@ -438,8 +462,7 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         retained_ids = self.options.eval("[...document.querySelectorAll('#list .item')].map(e=>e.dataset.chatId).filter(id=>id!=="+json.dumps(cid)+")")
         # Record other-account indexes too; the page operation must be scoped to this account.
         other_before = self.options.eval("(async()=>{const accounts=await __tier2V2.listAccounts();return Promise.all(accounts.filter(a=>a.id!==document.getElementById('accountIdSelect').value).map(async a=>({id:a.id,account:await __tier2V2.getAccount(a.id)})))})()", await_promise=True)
-        self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
-        wait_for(lambda: self.chat.eval("location.pathname==="+json.dumps('/c/'+cid)+"&&!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
+        self.open_conversation(cid)
         # The sidebar contains duplicate hidden mobile triggers. Use the current
         # conversation toolbar and activate its tab through the extension API.
         self.options.eval("(async()=>{const tabs=await chrome.tabs.query({});const t=tabs.find(t=>t.url==="+json.dumps('https://chatgpt.com/c/'+cid)+");if(!t)throw Error('No deletion source tab');await chrome.windows.update(t.windowId,{focused:true});await chrome.tabs.update(t.id,{active:true})})()", await_promise=True)
@@ -476,8 +499,7 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
 
     def popup_export(self):
         cid = self.chat_ids[0]
-        self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
-        wait_for(lambda: self.chat.eval("location.pathname==="+json.dumps('/c/'+cid)+"&&!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
+        self.open_conversation(cid)
         tab_id = self.options.eval("(async()=>{const tabs=await chrome.tabs.query({});const t=tabs.find(t=>t.url==="+json.dumps('https://chatgpt.com/c/'+cid)+");if(!t)throw Error('No source tab');await chrome.windows.update(t.windowId,{focused:true});await chrome.tabs.update(t.id,{active:true});return t.id})()", await_promise=True)
         folder = (self.output/'popup-downloads').resolve(); folder.mkdir(exist_ok=True)
         self.browser.call('Browser.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': str(folder)})
@@ -527,7 +549,7 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
                 self.options.eval("document.getElementById('btnSelectAll').click()", user_gesture=True)
                 before = set(folder.iterdir())
                 self.options.eval("document.getElementById('btnExport').click()", user_gesture=True)
-                self.ready(600)
+                self.ready(max(600, len(self.report['scan'])*120))
                 fresh = wait_for(lambda: [p for p in folder.iterdir() if p not in before and p.is_file() and p.suffix != '.crdownload'], 60)
                 if len(fresh) != 1:
                     raise ValueError('Ambiguous physical download')
