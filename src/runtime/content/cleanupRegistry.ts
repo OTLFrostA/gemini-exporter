@@ -32,7 +32,3 @@ export function runCleanups(): void {
     }
 }
 
-export function pendingCleanupCount(): number {
-    if (typeof window === 'undefined') return 0;
-    return Array.isArray(window.__gemExporterCleanups) ? window.__gemExporterCleanups.length : 0;
-}

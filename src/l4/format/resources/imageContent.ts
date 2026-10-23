@@ -2,11 +2,6 @@ import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 
 export const MAX_ASSET_BYTES = 50 * 1024 * 1024;
 
-export function buildVirtualAssetPath(hashHex: string, ext: string): string {
-    const h = hashHex.toLowerCase();
-    return `assets/sha256/${h.slice(0, 2)}/${h.slice(2, 4)}/${h}.${ext}`;
-}
-
 interface ImageTypeInfo {
     mime: string;
     ext: string;

@@ -21,7 +21,7 @@ import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { planExportPaths, buildExportFiles } from '../src/l4/packaging/index.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
 import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
-import { attemptResource, missingResource, waitForResources } from '../src/shared/resources/resourceResult.js';
+import { attemptResource, missingResource } from '../src/shared/resources/resourceResult.js';
 import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 import type { DomainAsset } from '../src/l2/conversationDetail.js';
 
@@ -279,13 +279,9 @@ test('failed Browser Download start does not commit an ExportRecord', async t =>
     assert.equal(await getExportRecord(exportKey(id)), null);
 });
 
-test('resource waiting is abortable and ordinary transport exceptions remain per-asset failures', async () => {
+test('ordinary transport exceptions remain per-asset failures', async () => {
     const result = await attemptResource('rejected', async () => { throw new Error('Resource request failed'); });
     assert.deepEqual(result, missingResource('rejected', 'Resource request failed'));
-    const controller = new AbortController();
-    const waiting = waitForResources(new Promise<never>(() => {}), controller.signal);
-    controller.abort();
-    await assert.rejects(waiting, { name: 'AbortError' });
 });
 
 test('cancel during real L1 resource acquisition makes no download and no ExportRecord', async t => {

@@ -3,7 +3,7 @@
 // source-text regex matching must not be used as a substitute for that flow.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerCleanup, runCleanups, pendingCleanupCount } from '../src/runtime/content/cleanupRegistry.js';
+import { registerCleanup, runCleanups } from '../src/runtime/content/cleanupRegistry.js';
 import { MessageRouter } from '../src/runtime/content/messageRouter.js';
 import { init as initMessageBridge } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { PageObserver } from '../src/runtime/content/pageObserver.js';
@@ -71,15 +71,15 @@ function withMockHost(run: (host: { win: ReturnType<typeof makeWindow>; chrome: 
 }
 
 test('cleanup registry runs callbacks once and isolates a throwing cleanup', () => {
-    withMockHost(() => {
+    withMockHost(({ win }) => {
         const calls: string[] = [];
         registerCleanup(() => calls.push('first'));
         registerCleanup(() => { calls.push('throws'); throw new Error('simulated cleanup exception'); });
         registerCleanup(() => calls.push('last'));
-        assert.equal(pendingCleanupCount(), 3);
+        assert.equal(win.__gemExporterCleanups.length, 3);
         assert.doesNotThrow(() => runCleanups());
         assert.deepEqual(calls, ['first', 'throws', 'last']);
-        assert.equal(pendingCleanupCount(), 0);
+        assert.equal(win.__gemExporterCleanups.length, 0);
         runCleanups();
         assert.deepEqual(calls, ['first', 'throws', 'last'], 'no cleanup runs twice');
     });

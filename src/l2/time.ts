@@ -6,13 +6,3 @@ export function normalizeTimestamp(value: unknown): number | undefined {
     const time = /^-?\d+$/.test(s) ? Number(s) : Date.parse(s);
     return Number.isSafeInteger(time) ? time : undefined;
 }
-
-/** Boundary conversion of independent source-authored conversation times. */
-export function normalizeConversationTimes(source: { createdAt?: unknown; updatedAt?: unknown }): {
-    createdAt?: number; updatedAt?: number;
-} {
-    const createdAt = normalizeTimestamp(source.createdAt);
-    const updatedAt = normalizeTimestamp(source.updatedAt);
-    return { ...(createdAt !== undefined ? { createdAt } : {}),
-        ...(updatedAt !== undefined ? { updatedAt } : {}) };
-}

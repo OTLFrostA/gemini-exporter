@@ -11,7 +11,7 @@ const path = require('path');
 const { parseFixture } = require('./helpers/documentFixture.js');
 const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { assertDomainClosure } = require('../src/l2/closure.js');
-const { extractBlockText, extractInlineText } = require('../src/l2/content/unknownFallback.js');
+const { textOfBlock, textOfInline } = require('./helpers/contentText.js');
 const { renderDocumentMarkdown } = require('../src/l4/format/markdown/renderMarkdown.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
@@ -78,7 +78,7 @@ test('markdown body keeps block order and structure', async () => {
     assert.strictEqual(imgAsset.kind, 'image');
     assert.equal(resources[imgAsset.id], undefined);
     assert.strictEqual(imgAsset.sourceUri, 'https://example.com/inline.png');
-    assert.strictEqual(extractInlineText(img), 'alt text', 'alt text survives as readable fallback');
+    assert.strictEqual(textOfInline(img), 'alt text', 'alt text survives as readable fallback');
     assert.ok(!diagnostics.some((d: any) => d.code === 'INLINE_IMAGE_DOWNGRADE'), 'no downgrade diagnostic');
     assert.ok(!diagnostics.some((d: any) => d.severity === 'error'), 'no error diagnostics');
 });
@@ -187,7 +187,7 @@ test('unknown role and non-string content are preserved, never dropped', async (
     assert.strictEqual(ub.sourceType, 'message-content');
     assert.strictEqual(ub.text, '{"not": "a string"}');
     assert.deepStrictEqual(Object.keys(ub).sort(), ['sourceType', 'text', 'type']);
-    assert.ok(extractBlockText(ub).length > 0, 'unknown block has a readable fallback');
+    assert.ok(textOfBlock(ub).length > 0, 'unknown block has a readable fallback');
     assert.ok(diagnostics.some((d: any) => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
 });
 

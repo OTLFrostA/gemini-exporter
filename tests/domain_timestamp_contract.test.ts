@@ -1,7 +1,7 @@
 import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeTimestamp, normalizeConversationTimes } from '../src/l2/time.js';
+import { normalizeTimestamp } from '../src/l2/time.js';
 import { validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
@@ -10,8 +10,9 @@ const exportDomainMarkdown = (domain: Parameters<typeof composeDomainDocument>[0
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 const base = (): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('chat'), 'custom'),   titleSource: "derived",   title: 'Times' }, detail: { key: fixtureKey(String('chat'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [] } });
 test('conversation times are independent finite epoch milliseconds and unknown facts are absent', () => {
-    assert.deepEqual(normalizeConversationTimes({ updatedAt: 0 }), { updatedAt: 0 });
-    assert.deepEqual(normalizeConversationTimes({ createdAt: null, updatedAt: '1700000000123' }), { updatedAt: 1700000000123 });
+    assert.equal(normalizeTimestamp(0), 0);
+    assert.equal(normalizeTimestamp(null), undefined);
+    assert.equal(normalizeTimestamp('1700000000123'), 1700000000123);
     assert.equal(normalizeTimestamp('2026-10-06T00:00:00Z'), Date.parse('2026-10-06T00:00:00Z'));
     for (const invalid of [0.5, Number.MAX_SAFE_INTEGER + 1, Number.MIN_SAFE_INTEGER - 1])
         assert.equal(normalizeTimestamp(invalid), undefined);
