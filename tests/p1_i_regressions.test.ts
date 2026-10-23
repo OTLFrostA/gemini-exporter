@@ -1,5 +1,6 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 useIndexStorage();
 /**
  * tests/p1_i_regressions.test.ts
@@ -34,7 +35,7 @@ test('P1-075 - second DELETION_ANCHOR requires the c_ prefix (anchored disciplin
     assert.strictEqual(m![1], 'feedface12345678');
 
     // Quoted form unchanged.
-    const quoted = `[["wrb.fr","GzXR5e","c_aabbccdd11223344",null]]`;
+    const quoted = geminiDeleteGen('G_P1I_QUOTED_DELETE_01');
     const m0 = quoted.match(Proto.DELETION_ANCHORS[0]);
     assert.ok(m0);
     assert.strictEqual(m0![1], 'aabbccdd11223344');
