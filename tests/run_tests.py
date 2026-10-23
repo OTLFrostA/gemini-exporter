@@ -717,7 +717,13 @@ def test_storage_keys_and_constants_ssot():
         assert name in settings, f"V2 Settings missing frozen field: {name}"
     assert "putExportRecord" in exporter and "getExportRecord" in exporter
     assert "LAST_EXPORT_SESSION" not in exporter, "Export must not use persistent V1 sessions"
-    assert "IDB_DATABASES" in constants, "Canonical IDB settings still require one constants owner"
+    idb = source("src/l3a/idb.ts")
+    assert "export const DATABASE_NAME" in idb and "export const DATABASE_VERSION" in idb, (
+        "L3a must own the active IndexedDB name and schema version")
+    assert "indexedDB.open(DATABASE_NAME, DATABASE_VERSION)" in idb, (
+        "IndexedDB must open with the canonical L3a configuration")
+    assert "IDB_DATABASES" not in constants, (
+        "Shared constants must not duplicate the actual L3a database configuration")
 
     build = source("build.js")
     package = source("package.json")
