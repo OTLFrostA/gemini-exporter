@@ -16,7 +16,7 @@ import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { sourceDetail } from './helpers/l1SourceFixture.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
-import { parseGeminiDomList, parseGeminiDomIndex } from '../src/l1/parsers/gemini/dom/parseIndex.js';
+import { parseGeminiDomIndex } from '../src/l1/parsers/gemini/dom/parseIndex.js';
 
 test('ChatGPT lists emit exact Domain indexes with source times and no invented fallback facts', () => {
     const page = parseChatGPTList(chatgptListGen('C_LIST_SOURCE_BOUNDARY_01'));
@@ -104,12 +104,11 @@ test('Gemini list requires an explicit natural-terminal cursor, not an unrecogni
 
 test('DOM metadata preserves title precedence and keeps UI labels and observation clocks out of Domain', () => {
     const { header, doc } = domListGen('G_LIST_SOURCE_BOUNDARY_11');
-    const [index] = parseGeminiDomList(doc);
-    assert.equal(index.title, '');
+    const index = parseGeminiDomIndex(doc, 'boundary123');
+    assert.equal(index.title, 'Header title');
     assert.equal(index.titleSource, 'dom');
-    assert.equal(Reflect.get(index ?? {}, 'cloudAvailability'), undefined);
+    assert.equal(Reflect.get(index, 'cloudAvailability'), undefined);
     assert.equal(Object.hasOwn(index, 'key'), false);
-    assert.equal(parseGeminiDomIndex(doc, 'boundary123').title, 'Header title');
     header.textContent = 'Google Gemini';
     const fallback = parseGeminiDomIndex(doc, 'boundary123');
     assert.equal(fallback.title, 'First user question');
