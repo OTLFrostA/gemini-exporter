@@ -112,7 +112,6 @@ export {
 export const GeminiClientRpcClient: GeminiClientRpcClientModule = {
     GEMINI_API_URL,
     getProtocol,
-    getUtils,
     getApiUrl,
     nextReqid,
     generateFallbackSid,
