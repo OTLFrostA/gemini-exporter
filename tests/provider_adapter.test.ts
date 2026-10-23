@@ -8,13 +8,12 @@ import credentials from '../src/l1/client/gemini/api/credentialManager.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { getDetail } from '../src/l3a/storageService.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 useIndexStorage();
 
 test('adapter: prefixed request IDs use the canonical source ID for admission and task resources', async () => {
-    const turn = [['c_prefixed_detail', 'r_request'], [1700000000, 0], [['Question']],
-        [[['rc_answer', [['Answer ![image](data:image/png;base64,AQID)']]]]]];
-    const raw = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Canonical detail'])]]);
+    const raw = geminiDetailGen('G_PROVIDER_ADAPTER_01');
     const parsed = parseGeminiRpcConversation(raw, { providerId: 'gemini', targetConvId: 'c_prefixed_detail' });
     assert.equal(parsed.conversationId, 'prefixed_detail');
     assert.equal(parsed.conversation.detail.assets.length, 1);
