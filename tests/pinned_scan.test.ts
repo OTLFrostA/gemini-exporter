@@ -8,7 +8,7 @@ import { getCoverage } from '../src/l2/coverageAdmission.js';
 useIndexStorage();
 
 test('each Client call acquires exactly its requested stream with independent cursors', async () => {
-    const pages = [sourceList(['shared'], 'tC_same_token_123456789'), sourceList(), sourceList(['shared'], 'tC_same_token_123456789'), sourceList(['recent'])];
+    const pages = [sourceList('G_SOURCE_SHARED_CURSOR_01'), sourceList('G_SOURCE_EMPTY_01'), sourceList('G_SOURCE_SHARED_CURSOR_01'), sourceList('G_SOURCE_RECENT_01')];
     const requests: unknown[] = [];
     const provider = new GeminiProvider({ getConversationList: async (cursor, _slot, filter) => { requests.push([cursor, filter]); return pages.shift()!; }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     for (const streamId of ['pinned', 'recent']) assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId }), 'source_end');
@@ -17,7 +17,7 @@ test('each Client call acquires exactly its requested stream with independent cu
     assert.ok(await getCoverage(ACCOUNT_UUID, 'recent'));
 });
 test('recent acquisition never implicitly fetches pinned or establishes its coverage', async () => {
-    const provider = new GeminiProvider({ getConversationList: async (_cursor, _slot, filter) => { assert.equal(filter, undefined); return sourceList(); }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    const provider = new GeminiProvider({ getConversationList: async (_cursor, _slot, filter) => { assert.equal(filter, undefined); return sourceList('G_SOURCE_EMPTY_01'); }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent' }), 'source_end');
     assert.equal(await getCoverage(ACCOUNT_UUID, 'pinned'), null);
 });
