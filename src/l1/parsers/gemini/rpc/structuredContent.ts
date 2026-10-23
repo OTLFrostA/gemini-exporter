@@ -115,6 +115,10 @@ export interface GeminiStructuredDecodeIssue {
 
 type DecodeIssues = GeminiStructuredDecodeIssue[];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 export function decodeGeminiAnnotation(wa: unknown, issues?: DecodeIssues): GeminiAnnotation | null {
     const decoded = decodeAnnotation(wa);
     if (!decoded && issues && !issues.length) {
@@ -126,8 +130,8 @@ export function decodeGeminiAnnotation(wa: unknown, issues?: DecodeIssues): Gemi
 
 function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
     if (!wa) return null;
-    if (typeof wa === "object" && !Array.isArray(wa)) {
-        const d = wa as Record<string, unknown>;
+    if (isRecord(wa)) {
+        const d = wa;
         const start = d.start;
         const end = d.end;
         const type = d.type;
@@ -212,7 +216,7 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
 export function decodeGeminiStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructuredNode | null {
     const decoded = decodeStructuredNode(w, issues);
     if (!decoded && issues && !issues.length) {
-        const nodeType = w && typeof w === 'object' && !Array.isArray(w) ? (w as Record<string, unknown>).nodeType : undefined;
+        const nodeType = isRecord(w) ? w.nodeType : undefined;
         issues.push({ kind: 'node',
             ...(typeof nodeType === 'number' ? { nodeType } : {}),
             ...(Array.isArray(w) ? { fields: w.flatMap((value, index) => value == null ? [] : [index]) } : {}),
@@ -223,8 +227,8 @@ export function decodeGeminiStructuredNode(w: unknown, issues?: DecodeIssues): G
 
 function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructuredNode | null {
     if (!w) return null;
-    if (typeof w === "object" && !Array.isArray(w)) {
-        const node = w as Record<string, unknown>;
+    if (isRecord(w)) {
+        const node = w;
         const nodeType = node.nodeType;
         switch (nodeType) {
             case 'citationGroup': {
@@ -291,8 +295,8 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
                 const rawXj = node.Xj;
                 if (rawXj === undefined) return { nodeType: 0 };
                 if (!Array.isArray(rawXj)) return null;
-                const Xj = rawXj.filter((entry): entry is Record<string, unknown> =>
-                    !!entry && typeof entry === "object" && !Array.isArray(entry));
+                const entries: unknown[] = rawXj;
+                const Xj = entries.filter(isRecord);
                 if (Xj.length !== rawXj.length) return null;
                 return { nodeType: 0, Xj };
             case 15: {
@@ -310,8 +314,8 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
                 if (!Array.isArray(node.items)) return null;
                 const items: GeminiListItem[] = [];
                 for (const item of node.items) {
-                    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
-                    const itemRecord = item as Record<string, unknown>;
+                    if (!isRecord(item)) return null;
+                    const itemRecord = item;
                     if (!Array.isArray(itemRecord.children)) return null;
                     const children: GeminiStructuredNode[] = [];
                     for (const c of itemRecord.children) {
@@ -329,13 +333,13 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
                 if (!Array.isArray(node.rows)) return null;
                 const rows: GeminiTableRow[] = [];
                 for (const row of node.rows) {
-                    if (!row || typeof row !== "object" || Array.isArray(row)) return null;
-                    const rawCells = (row as Record<string, unknown>).cells;
+                    if (!isRecord(row)) return null;
+                    const rawCells = row.cells;
                     if (!Array.isArray(rawCells)) return null;
                     const cells: GeminiTableCell[] = [];
                     for (const cell of rawCells) {
-                        if (!cell || typeof cell !== "object" || Array.isArray(cell)) return null;
-                        const cellRecord = cell as Record<string, unknown>;
+                        if (!isRecord(cell)) return null;
+                        const cellRecord = cell;
                         if (!Array.isArray(cellRecord.children)) return null;
                         const children: GeminiStructuredNode[] = [];
                         for (const c of cellRecord.children) {
@@ -601,8 +605,8 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
     if (!raw) return null;
 
     // Case 1: Already structured document object
-    if (typeof raw === "object" && !Array.isArray(raw)) {
-        const doc = raw as Record<string, unknown>;
+    if (isRecord(raw)) {
+        const doc = raw;
         if (Array.isArray(doc.children)) {
             const children: GeminiStructuredNode[] = [];
             for (const ch of doc.children) {
@@ -655,8 +659,8 @@ export type GeminiStructuredExtraction =
 
 export function inspectStructuredContent(turn: unknown, cand?: unknown, candidateIndex = 0): GeminiStructuredExtraction {
     const getStructuredContent = (value: unknown): unknown => {
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-        return (value as Record<string, unknown>).structuredContent;
+        if (!isRecord(value)) return undefined;
+        return value.structuredContent;
     };
     const decode = (raw: unknown): GeminiStructuredExtraction => {
         const issues: DecodeIssues = [];
