@@ -22,26 +22,26 @@ function detailClient(pages: GeminiRpcParseResult[]): GeminiPaginationDetailClie
 }
 const options = { accountId: ACCOUNT_UUID, streamId: 'recent' };
 for (const ids of [[], ['one']]) test(`list: terminal ${ids.length} rows commit before natural end`, async () => {
-    assert.equal(await listProvider([sourceList(ids)]).listConversations(options), 'source_end');
+    assert.equal(await listProvider([sourceList(ids.length ? 'G_SOURCE_ONE_01' : 'G_SOURCE_EMPTY_01')]).listConversations(options), 'source_end');
     assert.equal((await getConversations(ACCOUNT_UUID)).length, ids.length);
     if (ids.length) assert.ok((await getCoverage(ACCOUNT_UUID, 'recent'))?.range);
 });
 test('list: invalid populated page saves valid rows but throws and cannot certify coverage', async () => {
-    const invalid = sourceList(['two']); invalid.pageEvidence.valid = false;
+    const invalid = sourceList('G_SOURCE_TWO_01'); invalid.pageEvidence.valid = false;
     const progress: number[] = [];
-    await assert.rejects(listProvider([sourceList(['one'], 'tC_next'), invalid]).listConversations({ ...options, onPageCommitted: async p => { progress.push(p.totalObserved); return false; } }), /Unverified Gemini list page/);
+    await assert.rejects(listProvider([sourceList('G_SOURCE_ONE_NEXT_01'), invalid]).listConversations({ ...options, onPageCommitted: async p => { progress.push(p.totalObserved); return false; } }), /Unverified Gemini list page/);
     assert.deepEqual((await getConversations(ACCOUNT_UUID)).map(i => i.key.conversationId).sort(), ['one', 'two']);
     assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range, null);
     assert.deepEqual(progress, [1, 2]);
 });
 test('list: loop and ordinary errors propagate after committed progress', async () => {
-    for (const last of [sourceList(['two'], 'tC_loop'), new Error('HTTP 429')]) {
-        await assert.rejects(listProvider([sourceList(['one'], 'tC_loop'), last]).listConversations(options), /loop|429/);
+    for (const last of [sourceList('G_SOURCE_TWO_LOOP_01'), new Error('HTTP 429')]) {
+        await assert.rejects(listProvider([sourceList('G_SOURCE_ONE_LOOP_01'), last]).listConversations(options), /loop|429/);
     }
 });
 test('list: safety budget is internal and reports max_pages without coverage', async () => {
     let pages = 0;
-    const provider = new GeminiProvider({ getConversationList: async () => sourceList(['page_' + ++pages], 'tC_' + pages), getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    const provider = new GeminiProvider({ getConversationList: async () => sourceList(`G_SOURCE_PAGINATION_BUDGET_PAGE_${++pages}`), getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     assert.equal(await provider.listConversations(options), 'max_pages'); assert.equal(pages, 2000);
     assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range, null);
 });

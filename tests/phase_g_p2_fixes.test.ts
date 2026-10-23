@@ -15,7 +15,7 @@ import { getStoredSettings, patchStoredSettings, SETTINGS_KEY } from '../src/l3a
 test('P2-1: safety-budget exhaustion remains distinct from a natural source end', async () => {
     const env = indexStorage(); let calls=0;
     try {
-        const p = new GeminiProvider({getConversationList:async()=>sourceList(['page'+ ++calls], 'tC_'+calls),getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
+        const p = new GeminiProvider({getConversationList:async()=>sourceList(`G_SOURCE_PHASE_BUDGET_PAGE_${++calls}`),getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
         assert.strictEqual(await p.listConversations({accountId:ACCOUNT_UUID,streamId:'recent'}), 'max_pages');
         assert.strictEqual(calls,2000); assert.strictEqual((await listIndexes(ACCOUNT_UUID)).length,2000);
         assert.strictEqual((await getCoverage(ACCOUNT_UUID,'recent'))?.range,null);
@@ -23,7 +23,7 @@ test('P2-1: safety-budget exhaustion remains distinct from a natural source end'
 });
 test('P2-1: empty terminal page is a natural end', async () => {
     const env=indexStorage();try {
-        const p=new GeminiProvider({getConversationList:async()=>sourceList(),getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
+        const p=new GeminiProvider({getConversationList:async()=>sourceList('G_SOURCE_EMPTY_01'),getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
         assert.strictEqual(await p.listConversations({accountId:ACCOUNT_UUID,streamId:'recent'}),'source_end');
     }finally{env.restore();}
 });

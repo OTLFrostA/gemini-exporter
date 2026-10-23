@@ -22,7 +22,7 @@ import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.
 // the unified Export through Content -> Background IPC.
 const account = fixtureAccount();
 const sourceClient = (getDetailFromSource: () => ReturnType<typeof sourceDetail> | Promise<ReturnType<typeof sourceDetail>>) => ({
-    getConversationList: async () => sourceList(),
+    getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'),
     getConversationDetail: async () => getDetailFromSource(),
 });
 const route = async () => 'u0';
@@ -49,7 +49,7 @@ test('v2 detail: L1 commits title, model, reasoning, citations and asset referen
         parsed.transport.decodedPayload = { wire: ['raw-only-evidence'] };
         const expected = structuredClone(parsed.conversation.detail);
         const provider = new GeminiProvider({
-            getConversationList: async () => sourceList(),
+            getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'),
             getConversationDetail: async (id, slot, owner) => {
                 assert.equal(id, 'detail123');
                 assert.equal(slot, 'u0');
@@ -112,7 +112,7 @@ test('v2 detail: transient/ambiguous failures leave local data intact; confirmed
 
         let failure: Error = new Error('temporary failure');
         const provider = new GeminiProvider({
-            getConversationList: async () => sourceList(),
+            getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'),
             getConversationDetail: async () => { throw failure; },
         }, route);
         for (const error of [new Error('temporary failure'), new Error('HTTP 404'),

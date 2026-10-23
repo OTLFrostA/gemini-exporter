@@ -55,7 +55,7 @@ test('Gemini pagination detects token loops, retains committed rows and never ce
     const env = indexStorage();
     let calls = 0;
     const provider = new GeminiProvider({
-        getConversationList: async () => sourceList(['chat_' + ++calls], 'tC_loop'),
+        getConversationList: async () => sourceList(`G_SOURCE_AUDIT_LOOP_PAGE_${++calls}`),
         getConversationDetail: async () => sourceDetail(),
     }, async () => 'u0');
     try {

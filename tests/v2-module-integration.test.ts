@@ -34,7 +34,7 @@ test('L1 → L2 → Composer → Format → Packaging keeps account, resource id
         parsed.conversation.detail.quality.status = 'complete';
         assert.ok(!('key' in parsed.conversation.index));
         assert.ok(!('key' in parsed.conversation.detail));
-        const provider = new GeminiProvider({ getConversationList: async () => sourceList([id]), getConversationDetail: async () => parsed }, async () => 'u0', context);
+        const provider = new GeminiProvider({ getConversationList: async () => sourceList('G_SOURCE_CHAT_01'), getConversationDetail: async () => parsed }, async () => 'u0', context);
         await provider.listConversations({ accountId: account.id, streamId: 'recent', onPageCommitted: async () => {
             assert.ok((await getConversations(account.id)).some(row => row.key.conversationId === id), 'callback observes committed L2 indexes');
             return false;

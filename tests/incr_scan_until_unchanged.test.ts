@@ -10,7 +10,7 @@ test('without a caller stop the Client commits all three pages and reports sourc
     let calls = 0;
     const provider = new GeminiProvider({ getConversationList: async () => {
         const page = calls++;
-        return sourceList(Array.from({ length: 50 }, (_, i) => `chat${page * 50 + i}`), page < 2 ? 'tC_' + page : null);
+        return sourceList(`G_SOURCE_150_PAGE_${page + 1}`);
     }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     const counts: number[] = [];
     assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', onPageCommitted: async info => { counts.push(info.totalObserved); return false; } }), 'source_end');

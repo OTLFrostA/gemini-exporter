@@ -62,7 +62,7 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
         parsed.conversation.detail.assets = [{ id: 'diagram', kind: 'image', mediaType: 'image/png' }];
         parsed.conversation.detail.messages[0].content.push({ type: 'image', assetId: 'diagram' });
         parsed.acquisitionHints = { diagram: { dataBase64: png } };
-        client = { async getConversationList() { return sourceList([key.conversationId]); }, async getConversationDetail() { return parsed; } };
+        client = { async getConversationList() { return sourceList('G_SOURCE_CHAT_01'); }, async getConversationDetail() { return parsed; } };
         ProviderRegistry.register(new GeminiProvider(client, async () => 'u0'));
         assert.equal((await scanAll({ accountId: account.id })).status, 'complete');
         assert.equal(await storage.getDetail(key), null);

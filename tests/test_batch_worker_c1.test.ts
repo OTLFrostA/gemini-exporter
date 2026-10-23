@@ -31,7 +31,7 @@ function native(id: string, title: string, answer: string, updatedAt = 180000000
 function provider(getConversationDetail: (conversationId: string, slot?: string | null) =>
     Promise<ReturnType<typeof native>>, route: (accountId: string) => Promise<string> = async () => 'u0') {
     return new GeminiProvider({
-        getConversationList: async () => sourceList(),
+        getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'),
         getConversationDetail,
     }, route);
 }
@@ -45,7 +45,7 @@ test('C1: native online Detail flows through real L1 -> L2 -> L3a; no BatchWorke
     parsed.acquisitionHints = { diagram: { dataBase64: 'AQID' } };
     const requests: Array<{ id: string; slot: string | null | undefined }> = [];
     const actual = new GeminiProvider({
-        getConversationList: async () => sourceList(),
+        getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'),
         getConversationDetail: async (conversationId, slot) => {
             requests.push({ id: conversationId, slot });
             return parsed;
