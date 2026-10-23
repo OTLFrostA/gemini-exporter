@@ -18,7 +18,6 @@ import {
     shouldSkipChatGPTMessage,
 } from '../src/l1/parsers/chatgpt/conversationTree.js';
 import {
-    arrayBufferToBase64,
     fileIdFromPointer,
     parseFileDownloadPayload,
 } from '../src/l1/client/chatgpt/imageAssets.js';
@@ -194,7 +193,7 @@ test('tool image nodes are kept and their sediment pointers collected', () => {
     assert.deepEqual(chatGPTNodeSegments(toolImage), [{ kind: 'image', pointer: 'sediment://file_abc' }]);
 });
 
-test('files/download helpers narrow payloads and encode bytes', () => {
+test('files/download helpers narrow signed-url payloads', () => {
     assert.equal(fileIdFromPointer('sediment://file_abc'), 'file_abc');
     assert.equal(fileIdFromPointer('https://x/y.png'), null);
     assert.deepEqual(
@@ -203,7 +202,6 @@ test('files/download helpers narrow payloads and encode bytes', () => {
     );
     assert.equal(parseFileDownloadPayload(fileDownloadGen('C_FILE_DOWNLOAD_HELPERS_02')), null);
     assert.equal(parseFileDownloadPayload(null), null);
-    assert.equal(arrayBufferToBase64(new Uint8Array([104, 105]).buffer), 'aGk=');
 });
 
 test('Detail submits image identities; bytes are acquired on demand without changing body quality', async () => {
