@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
@@ -16,13 +17,10 @@ const key = fixtureKey('version_chat');
 const request: ExportRequest = {
     keys: [key], format: 'markdown', delivery: 'browserDownload', includeAssets: true, skipUnchanged: true,
 };
-const wire = (rows: Array<[string, unknown]>) =>
-    JSON.stringify(rows.map(([rpc, payload]) => ['wrb.fr', rpc, JSON.stringify(payload)]));
-function detail(messageTime: number[], version?: number[], more = false) {
-    const turn = [['c_version_chat', 'r_request'], null, [['Question']], [[['rc_answer', [['Answer']]]]], messageTime];
-    const calls: Array<[string, unknown]> = [['hNvQHb', [[turn], more ? 'tCnext' : null, null, []]]];
-    if (version) calls.push(['MaZiqc', [null, null, [['c_version_chat', 'Source title', null, null, null, version]]]]);
-    return parseGeminiRpcConversation(wire(calls), { account, providerId: 'gemini', targetConvId: key.conversationId });
+function detail(keyName: Parameters<typeof geminiDetailGen>[0]) {
+    return parseGeminiRpcConversation(geminiDetailGen(keyName), {
+        account, providerId: 'gemini', targetConvId: key.conversationId,
+    });
 }
 function toDomain(source: SourceConversationParseResult) {
     return restoreDomainSnapshot({
@@ -34,7 +32,7 @@ function toDomain(source: SourceConversationParseResult) {
 }
 
 test('v2 export freshness compares L1 source version to L2 Index rather than the local export clock', () => {
-    const parsed = detail([1700000000, 0], [1700000000, 0]);
+    const parsed = detail('G_VERSION_LAYERS_FRESHNESS_01');
     const conversation = toDomain(parsed);
     const sourceVersion = conversation.detail.savedAt ?? parsed.sourceVersion;
     assert.equal(sourceVersion, parsed.sourceVersion);
@@ -46,22 +44,22 @@ test('v2 export freshness compares L1 source version to L2 Index rather than the
 });
 
 test('v2 JSON carries L2 savedAt as a Detail fact, not an obsolete top-level sourceVersion', () => {
-    const parsed = detail([1700000000, 0], [1700000000, 0]);
+    const parsed = detail('G_VERSION_LAYERS_JSON_01');
     const conversation = toDomain(parsed);
     const archive = JSON.parse(serializeDomainJson(conversation, account, {}));
     assert.equal(archive.version, JSON_ARCHIVE_VERSION);
     assert.equal(archive.conversation.detail.savedAt, parsed.sourceVersion);
     assert.equal('updatedAt' in archive.conversation, false);
     assert.equal('sourceVersion' in archive, false);
-    const partial = toDomain(detail([1700000000, 0], [1700000000, 0], true));
+    const partial = toDomain(detail('G_VERSION_LAYERS_JSON_PARTIAL_01'));
     const partialArchive = JSON.parse(serializeDomainJson(partial, account, {}));
     assert.equal(partialArchive.conversation.detail.savedAt, partial.detail.savedAt);
     assert.equal(partialArchive.conversation.detail.quality.status, partial.detail.quality.status);
 });
 
 test('L1 diagnostic differences cannot silently change L2 quality or Application export eligibility', () => {
-    const healthy = detail([1700000000, 0], [1700000005, 0]);
-    const mismatched = detail([1700000010, 0], [1700000005, 0]);
+    const healthy = detail('G_VERSION_LAYERS_HEALTHY_01');
+    const mismatched = detail('G_VERSION_LAYERS_MISMATCHED_01');
     const warnings = [
         { severity: 'error' as const, code: 'GEMINI_TURNS_REJECTED', message: 'diagnostic only' },
         { severity: 'error' as const, code: 'CONVERSATION_VERSION_MISMATCH', message: 'diagnostic only' },
