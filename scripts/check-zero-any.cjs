@@ -80,3 +80,6 @@ try {
   console.log('STDOUT_SAMPLE', (audit.stdout || '').slice(0,5000));
 }
 console.log('SOURCE_LINT_AUDIT_END');
+
+// This audit-only draft PR intentionally stops CI after collecting the diagnostic summary.
+process.exitCode = 1;
