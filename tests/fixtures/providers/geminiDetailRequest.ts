@@ -6,6 +6,10 @@ function requestBody(args: unknown[]): string {
 }
 
 const fixtureMap = {
+    'G_E2E_DOMAIN_STORAGE_DETAIL_REQUEST_01': () =>
+        requestBody(['c_cross_origin_native', null, null, 1, [1], [4], null, 1]),
+    'G_E2E_PRODUCTION_PASSIVE_DETAIL_REQUEST_01': () =>
+        requestBody(['c_passive', null, null, 1, [1], [4], null, 1]),
     'G_E2E_UUID_DETAIL_REQUEST_STALE_01': () =>
         requestBody(['c_staleuuid123', 10, null, 1, [1], [4], null, 1]),
     'G_E2E_UUID_DETAIL_REQUEST_CURRENT_01': () =>
