@@ -319,3 +319,22 @@ Markdown plus both unchanged original attachment files. Exactly one local
 required-Claude-host install remains enabled. Final Tier 1 passed, including
 164 Playwright tests with one existing skip; Python platform contracts passed
 41 tests. The local report records scoped acceptance separately from full Tier 2.
+
+
+### Claude full-run quota retry (2026-10-23)
+
+The next unfiltered full run completed all five turns of its first scenario.
+The sixth dispatched prompt, which started the eight-turn scenario, produced
+Claude's native five-hour message-limit notice instead of a completed reply.
+The run stopped without retrying: six sends, five completed replies, and one
+independent source snapshot. No HTTP 429 was recorded by the quota evidence.
+The first source contains ten messages and thirteen native tool calls, including
+file creation and code execution; this was not a five-message short-text quota
+measurement. The final matrix remains 3 PASS / 1 FAIL / 18 dependency SKIP,
+not a full Tier 2 pass. Evidence and resumable first-scenario progress are in
+`tests/output/tier2-claude-full-20261023-retry/claude/`.
+
+The two consumed scenarios were replaced with new generalized-CRT and WGS84
+coordinate-transform scenarios, restoring the pool to 20/20. Full Tier 1 passed
+again with 164 Playwright tests passing and the opt-in documentation screenshot
+capture skipped. No product-code change was needed for this account-quota stop.

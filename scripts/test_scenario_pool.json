@@ -1,45 +1,5 @@
 [
   {
-    "id": "electrochemistry_nernst_concentration_cell",
-    "title": "Electrochemistry: concentration cells and unit-safe Nernst calculations",
-    "domain": "electrochemistry_concentration_cells",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Define a synthetic copper concentration cell at 298.15 K with ideal activities 0.010 and 1.000. Show a Markdown table of constants, units and assumptions; distinguish activity from concentration.",
-      "Derive the cell voltage with the Nernst equation in LaTeX, explicitly stating polarity and logarithm convention. Compute the numerical result and dimensional checks.",
-      "Write complete standard-library Python for voltage versus activity ratio and temperature, with validation for nonpositive activities and temperatures.",
-      "Build a Markdown results table for equal activities, reversed activities and a tenfold ratio. Add assert-based tests for zero voltage and sign reversal.",
-      "Write a Chinese-English reproducibility note explaining nonideal activity coefficients, measurement uncertainty, and why an ideal open-circuit voltage does not predict delivered current."
-    ]
-  },
-  {
-    "id": "calendar_scheduling_timezone_fold",
-    "title": "Calendar scheduling: daylight-saving folds, gaps and UTC ordering",
-    "domain": "calendar_timezone_dst",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Design a synthetic meeting scheduler across America/Los_Angeles, Europe/London and Asia/Tokyo. Give a Markdown table around 2026 daylight-saving transitions and distinguish local dates, offsets and instants.",
-      "Explain ambiguous and nonexistent local times with precise examples. State a deterministic rejection or fold policy and use LaTeX to define elapsed time in UTC.",
-      "Write complete Python using datetime and zoneinfo to detect invalid local times via round-trip conversion, accept explicit fold selection, and produce ordered UTC instants.",
-      "Add runnable tests for the 2026 Los Angeles spring gap and autumn fold, an ordinary date, and Tokyo. Display both fold offsets and elapsed minutes in a Markdown table.",
-      "Extend the design to a weekly local-time recurrence while preserving wall-clock time across DST. Explain why adding seven times 24 hours in UTC changes the local schedule.",
-      "Compare recurrence expansion in local time and fixed UTC intervals with code and a Markdown table. Handle missing dates and duplicate occurrence identifiers explicitly.",
-      "Describe validation for overnight meetings, leap days and date-boundary crossings without assuming all days have 86400 local seconds.",
-      "Write a Chinese-English implementation audit with code examples, formulas, reproducibility requirements for timezone database versions, and clearly labelled limitations."
-    ]
-  },
-  {
     "id": "spectroscopy_beer_lambert_mixture_inverse",
     "title": "Spectroscopy: two-component Beer-Lambert inversion and conditioning",
     "domain": "spectroscopy_mixture_identification",
@@ -410,6 +370,47 @@
       "Create a Markdown table of iteration number, bracket endpoints, midpoint, residual and certified error bound for the synthetic example. Independently cross-check two rows.",
       "Compare bisection with Newton iteration on a poorly conditioned synthetic function. Give runnable code and explain the difference between speed, bracketing guarantees and sensitivity without claiming universal superiority.",
       "Write a detailed bilingual reproducibility report linking assumptions, invariants, implementation, tests and the table. Discuss discontinuities, multiple roots, finite precision and limitations of the certificate."
+    ]
+  },
+  {
+    "id": "number_theory_generalized_crt_consistency",
+    "title": "Generalized CRT: compatibility certificates and non-coprime schedules",
+    "domain": "number_theory_generalized_crt",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Three maintenance timers require t ≡ 2 (mod 6), t ≡ 5 (mod 9), and t ≡ 5 (mod 15). Derive the generalized Chinese remainder compatibility rule, solve this system step by step using exact integer arithmetic, and report a Markdown table of each residue check. Write the merged congruence in LaTeX; explain why the period is an lcm rather than a product.",
+      "Implement a Python function merge_congruence(a, m, b, n) using extended Euclid. Accept positive non-coprime moduli, normalize negative residues, and return either the least nonnegative residue and modulus or an explicit incompatibility certificate. Include runnable tests for the preceding timers, modulus one, redundant congruences and an inconsistent pair. Do not enumerate possible times.",
+      "Extend this to merge an arbitrary sequence. Prove the accumulator invariant and distinguish mathematical order independence from the wording of a first-failure certificate. Give a Markdown comparison table for multiple permutations of the original constraints and show exact gcd/lcm intermediates.",
+      "A fourth timer requires t ≡ 1 (mod 4), and each timer has a validity window: 100 ≤ t ≤ 1000. Derive the first and last valid timestamps and their count without scanning the interval. Add property tests against bounded brute force for small moduli; document the inclusive endpoints and integer rounding formulas in LaTeX.",
+      "Audit the implementation against very large integer moduli, negative residues and inconsistent zero-offset schedules. Provide a compact final module with a command-line example, deterministic randomized tests, a complexity discussion in terms of bit length, and a Markdown table showing which invalid inputs raise errors versus yield incompatibility certificates."
+    ]
+  },
+  {
+    "id": "geodesy_wgs84_ecef_enu_roundtrip",
+    "title": "Geodesy: WGS84 ECEF and local ENU with pole-safe inverse transforms",
+    "domain": "geodesy_wgs84_coordinate_transforms",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Build a WGS84 geodesy calculation from latitude 37.4275 degrees, longitude -122.1697 degrees and ellipsoidal height 30 m. Starting from a=6378137 m and inverse flattening 298.257223563, derive eccentricity, prime-vertical radius and the geodetic-to-ECEF equations in LaTeX. Give a Markdown table with units and computed ECEF coordinates, distinguishing ellipsoidal height from orthometric height.",
+      "Write dependency-free Python geodetic_to_ecef with explicit degrees/radians and finite-input validation. Add exact landmark tests at the equator, north/south poles and ±180 degrees longitude. Include numeric output and document which boundary representations refer to the same point.",
+      "Derive a numerically stable ECEF-to-geodetic inverse suitable near the poles. Explain the stopping condition, maximum iterations, failure behavior and longitude convention. Supply runnable Python and a Markdown table comparing inverse errors at the reference point, equator and poles. Treat the Earth center as an explicit domain case.",
+      "Construct the local east-north-up rotation matrix at the reference site and prove its orthonormality and handedness. Convert ECEF displacements to ENU and back without confusing points and vectors. Include tests using each local unit vector and show the matrices and residuals.",
+      "A nearby receiver is at latitude 37.4280 degrees, longitude -122.1689 degrees and ellipsoidal height 42 m. Compute its ECEF offset, local ENU coordinates, horizontal distance and elevation angle relative to the reference. Show a Markdown table with rounded display values while retaining full precision internally.",
+      "Compare the local tangent-plane horizontal distance with a short-distance curvature estimate. Derive the meridional and prime-vertical radii and use them to estimate north/east components from small latitude/longitude changes. Quantify errors and explain why a fixed degrees-to-meters factor fails globally.",
+      "Develop deterministic property tests spanning poles, antimeridian, negative heights and orbital altitudes. Check forward-inverse round trips and ENU norm preservation with clearly separated angular and linear tolerances. Include adversarial inputs and explain undefined longitude at an exact pole without hiding it inside an oversized tolerance.",
+      "Package the transforms as a final small Python module and executable test suite. Provide an API table covering units, longitude normalization, singularities and exceptions, then give a reproducible command-line example for the two receivers. State the limits of a static ellipsoid when tectonic epoch, geoid height or Earth orientation matters."
     ]
   }
 ]
