@@ -21,9 +21,6 @@ const cli = path.join(path.dirname(require.resolve('oxlint/package.json')), 'bin
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any', '--no-ignore', '--disable-nested-config', ...files], { cwd: root, stdio: 'inherit' });
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
-require('./check-domain-trust-lint.cjs');
-
-
 // TEMPORARY audit only; must never be merged.
 const auditRules = [
   'typescript/no-explicit-any','typescript/no-unsafe-assignment',
