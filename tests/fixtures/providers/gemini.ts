@@ -213,6 +213,23 @@ const fixtureMap = {
     'G_E2E_UUID_PROFILE_LIST_01': () =>
         JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null,
             [['c_profile_delay', 'Profile delay', null, null, null, [1700000000, 0]]], null])]]),
+
+    // Fixed single-RPC admission and hook-filter cases; preserve native framing.
+    'G_FROZEN_CONTRACT_LIST_01': () => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, []])]]),
+    'G_REGRESSION_LOCK_DECOY_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[["aabbccdd11223344",null]]', null]]),
+    'G_REGRESSION_LOCK_FILTER_LIST_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'MaZiqc', ['c_123'], null]]),
+    'G_EXTRACTED_REGRESSION_FILTER_LIST_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'MaZiqc', ['c_123'], null]]),
+    'G_REGRESSION_LOCK_REQUEST_LIST_01': () =>
+        `)]}'\n\n[["wrb.fr","MaZiqc","[]",null]]`,
+    'G_EXTRACTED_REGRESSION_REQUEST_LIST_01': () =>
+        `)]}'\n\n[["wrb.fr","MaZiqc","[]",null]]`,
+    'G_REGRESSION_LOCK_CURSOR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]),
+    'G_EXTRACTED_REGRESSION_CURSOR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]),
 };
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
