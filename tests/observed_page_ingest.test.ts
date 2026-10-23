@@ -8,9 +8,9 @@ import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
 import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
-import { geminiListFixtures } from './fixtures/providers/gemini.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 
-const text = geminiListFixtures.observedPageWire();
+const text = geminiListGen('G_OBSERVED_PAGE_INGEST_01');
 const request = { streamId: 'recent' as const, requestCursor: null };
 const parsed = parseList(text);
 const capture = (extra = {}): MessageEvent => ({ origin: location.origin, source: window,
