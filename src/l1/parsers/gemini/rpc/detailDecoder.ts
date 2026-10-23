@@ -69,44 +69,6 @@ function extractUserTextFromPayload(userPayload: unknown): string {
     return "";
 }
 
-/**
- * Extract turn request ID from Gemini JSPB turn structure.
- *
- * Schema investigation evidence:
- * In Google's Gemini JSPB wire format, turn[GEMINI_JSPB_SCHEMA.TURN.ID_META] (index 0)
- * is a metadata tuple [conversationId, requestId, ...].
- * - Standard slot (REQUEST_ID_SLOT = 1): `idMeta[1]` is "r_<requestId>" (e.g. ["c_d3226d9a046c1116", "r_turn_1"]).
- * - Alternate slot 0: `idMeta[0]` is "r_<requestId>" when conversationId is omitted.
- * - String idMeta: `idMeta` is directly "r_<requestId>".
- * - Never search in turn[1] (which is TIMESTAMP: [seconds, nanos]).
- * - Strict contract: no heuristic .find() scanning; unconfirmed slots return undefined to prevent accidental dedupe.
- */
-function extractRawTurnRequestId(turn: unknown): string | undefined {
-    // Indexable raw evidence only; this assertion does not validate a turn.
-    const idMeta = (turn as { [slot: number]: unknown } | null | undefined)?.[GEMINI_JSPB_SCHEMA.TURN.ID_META];
-    let raw: string | undefined;
-
-    if (Array.isArray(idMeta)) {
-        const reqSlot = GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT;
-        if (typeof idMeta[reqSlot] === "string" && idMeta[reqSlot].startsWith("r_")) {
-            raw = idMeta[reqSlot];
-        } else if (typeof idMeta[0] === "string" && idMeta[0].startsWith("r_")) {
-            raw = idMeta[0];
-        }
-    } else if (typeof idMeta === "string" && idMeta.startsWith("r_")) {
-        raw = idMeta;
-    }
-
-    return raw;
-}
-
-function extractTurnRequestId(turn: unknown): string | undefined {
-    const raw = extractRawTurnRequestId(turn);
-    if (!raw) return undefined;
-    const match = raw.match(/^r_([0-9a-fA-F]+)$/i);
-    return match ? match[1].toLowerCase() : raw.replace(/^r_/i, '').toLowerCase();
-}
-
 function isTurn(turn: unknown): boolean {
     if (!Array.isArray(turn) || turn.length < 3) return false;
     const cached = isTurnCache.get(turn);
@@ -303,8 +265,8 @@ function buildUserMessage(
         }
     }
 
-    const rawRequestId = extractRawTurnRequestId(turn.raw);
-    const userRequestId = media.sourceOnly ? rawRequestId : extractTurnRequestId(turn.raw);
+    const rawRequestId = turn.rawProviderRequestId;
+    const userRequestId = media.sourceOnly ? rawRequestId : turn.providerRequestId;
 
     return {
         id: media.sourceOnly ? (rawRequestId ?? "") : userMsgId,
@@ -446,8 +408,8 @@ function parseCandidateResponse(
         responseText = stripInternalChipMarkdown(responseText);
     }
 
-    const rawRequestId = extractRawTurnRequestId(rawTurn);
-    const providerRequestId = media.sourceOnly ? rawRequestId : extractTurnRequestId(rawTurn);
+    const rawRequestId = turn.rawProviderRequestId;
+    const providerRequestId = media.sourceOnly ? rawRequestId : turn.providerRequestId;
     const generatedCount = candImages.filter(img => img.isGenerated).length;
     const generationPrompt = extractUserTextFromPayload(turn.userPayload);
     const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
@@ -677,5 +639,5 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
 }
 
 
-export { decodeGeminiDetail, decodeDetailEvidence, isTurn, isTurnsArray, findTurnsDeep, extractTurnRequestId, DOC_TITLE_FALLBACK_RE };
+export { decodeGeminiDetail, decodeDetailEvidence, isTurn, isTurnsArray, findTurnsDeep, DOC_TITLE_FALLBACK_RE };
 export type { DetailMediaReader };

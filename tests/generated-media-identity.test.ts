@@ -91,8 +91,9 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
     assert.equal(imgs[0].isGenerated, true);
 });
 
-test('regression: extractTurnRequestId schema slot evidence and fallback boundaries', () => {
-    const { extractTurnRequestId } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+test('regression: decodeTurn verifies request identity only in documented slots', () => {
+    const { decodeTurn } = require('../src/l1/parsers/gemini/rpc/extractors.js');
+    const extractTurnRequestId = (turn: unknown): string | undefined => decodeTurn(turn)?.providerRequestId;
     const { GEMINI_JSPB_SCHEMA } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 
     // Verify schema constant
@@ -143,5 +144,15 @@ test('regression: extractTurnRequestId schema slot evidence and fallback boundar
         [1725302200, 0]
     ];
     assert.equal(extractTurnRequestId(turnNoR), undefined, 'Return undefined when no r_ present');
+
+    // The raw evidence must retain original case. Normalization belongs to
+    // the Turn boundary, not to the message and generated-image consumers.
+    const mixedCase = [["c_conv123", "r_AbC-09"], [1725302200, 0]];
+    assert.deepEqual(
+        [decodeTurn(mixedCase)?.rawProviderRequestId, decodeTurn(mixedCase)?.providerRequestId],
+        ['r_AbC-09', 'abc-09']
+    );
+    assert.equal(decodeTurn(turnUnconfirmedSlot)?.rawProviderRequestId, undefined);
+    assert.equal(decodeTurn(turnWithRInTimestamp)?.rawProviderRequestId, undefined);
 });
 
