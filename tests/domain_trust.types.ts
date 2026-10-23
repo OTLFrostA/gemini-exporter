@@ -13,15 +13,12 @@ function typeContract(domain: DomainConversationWithDetail, raw: unknown): void 
 void typeContract;
 
 import type { GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
-import type { GeminiDomParseResult } from '../src/l1/parsers/gemini/dom/parseConversation.js';
 import type { GeminiTakeoutParseResult } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
-function parserOutputs(rpc: GeminiRpcParseResult, dom: GeminiDomParseResult, takeout: GeminiTakeoutParseResult): void {
+function parserOutputs(rpc: GeminiRpcParseResult, takeout: GeminiTakeoutParseResult): void {
     // @ts-expect-error L1 RPC candidates need L2 key binding and validation.
     const trustedRpc: TrustedDomain = rpc.conversation;
-    // @ts-expect-error DOM cannot grant trust or construct a local Key.
-    const trustedDom: TrustedDomain = dom.conversation;
     // @ts-expect-error Pure Takeout output is a source candidate, not stored Domain.
     const trustedTakeout: TrustedDomain = takeout.conversation;
-    void [trustedRpc, trustedDom, trustedTakeout];
+    void [trustedRpc, trustedTakeout];
 }
 void parserOutputs;

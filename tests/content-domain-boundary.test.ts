@@ -1,7 +1,6 @@
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

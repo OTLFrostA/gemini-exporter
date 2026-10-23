@@ -24,8 +24,9 @@ export async function parseFixture(raw: ConversationRecordInput) {
 import type { LegacyResourceHints } from './recordFixture/resourceHints.js';
 import type { DomainConversationWithDetail } from '../../src/l2/conversation.js';
 import { normalizeArchiveResourceName } from '../../src/shared/utils/archivePath.js';
-import { decodeDataUrlAsset, buildDataUrlStorageRef } from '../../src/l4/format/resources/dataUrl.js';
-import { sha256Hex } from '../../src/l4/format/resources/sha256.js';
+import { extractAttachmentInlineBytes } from '../../src/l1/resources/attachmentBytes.js';
+import { buildVirtualAssetPath } from '../../src/l4/format/resources/imageContent.js';
+import { createHash } from 'node:crypto';
 import type { ResourceBindings } from '../../src/l4/packaging/resourceBindings.js';
 
 /** Resource preparation is a side channel; never replace Domain identities with export identities. */
@@ -36,23 +37,31 @@ async function fixtureBindings(conversation: DomainConversationWithDetail, hints
         const dataBase64 = acquisitionHints[asset.id]?.dataBase64;
         if (path) {
             bindings[asset.id] = normalizeArchiveResourceName(path);
-        } else if (dataBase64 || asset.document?.contentMarkdown?.trim()) {
-            // Preserve the existing content-addressed archive namespace for inline bytes.
-            let bytes: Uint8Array;
-            if (dataBase64) {
-                const unpadded = dataBase64.replace(/^data:[^,]*,/i, '').replace(/\s+/g, '');
-                const raw = unpadded.padEnd(Math.ceil(unpadded.length / 4) * 4, '=');
-                const result = await decodeDataUrlAsset(`data:${asset.mediaType ?? 'application/octet-stream'};base64,${raw}`);
-                if (!result.ok) continue;
-                bindings[asset.id] = result.storageRef;
-                continue;
-            } else bytes = new TextEncoder().encode(asset.document!.contentMarkdown!.trim());
-            bindings[asset.id] = buildDataUrlStorageRef(await sha256Hex(bytes), asset.mediaType ?? 'application/octet-stream');
         } else {
-            const uri = [acquisitionHints[asset.id]?.url, acquisitionHints[asset.id]?.sourceUrl, asset.sourceUri].find(value => /^data:/i.test(value ?? ''));
-            if (!uri) continue;
-            const decoded = await decodeDataUrlAsset(uri);
-            if (decoded.ok) bindings[asset.id] = decoded.storageRef;
+            const inlineBytes = dataBase64
+                ? extractAttachmentInlineBytes({ dataBase64 })
+                : extractAttachmentInlineBytes({ contentMarkdown: asset.document?.contentMarkdown });
+            const uri = [acquisitionHints[asset.id]?.url, acquisitionHints[asset.id]?.sourceUrl, asset.sourceUri]
+                .find(value => /^data:/i.test(value ?? ''));
+            let bytes = inlineBytes;
+            if (!bytes && uri) {
+                try {
+                    const response = await fetch(uri);
+                    if (response.ok) bytes = new Uint8Array(await response.arrayBuffer());
+                } catch { /* Unavailable fixture data has no resource binding. */ }
+            }
+            if (!bytes?.byteLength) continue;
+            const mimeType = asset.mediaType ?? uri?.match(/^data:([^;,]+)/i)?.[1] ?? 'application/octet-stream';
+            const extensions: Record<string, string> = {
+                'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg',
+                'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg',
+                'image/bmp': 'bmp', 'image/avif': 'avif', 'image/x-icon': 'ico',
+                'image/tiff': 'tif', 'image/heic': 'heic', 'image/heif': 'heif',
+                'text/plain': 'txt', 'text/html': 'html', 'text/csv': 'csv',
+                'application/pdf': 'pdf', 'application/json': 'json', 'application/zip': 'zip',
+            };
+            const digest = createHash('sha256').update(bytes).digest('hex');
+            bindings[asset.id] = buildVirtualAssetPath(digest, extensions[mimeType] ?? 'bin');
         }
     }
     return bindings;
