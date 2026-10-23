@@ -1,7 +1,6 @@
-import { extractNativeDocuments } from './nativeDocuments.js';
+import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import { extractSourceAttributions } from './sourceAttributions.js';
 import { findListConversationMetadata } from './listMetadata.js';
-import { extractGeneratedFiles } from './generatedFiles.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
 import { stripInternalChipMarkdown } from "../../shared/chipUtils.js";
@@ -362,8 +361,7 @@ function parseCandidateResponse(
     const candImages = media.responseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
     const filteredImages = filterNewImages(candImages, dedupSet);
 
-    const generatedFiles = extractGeneratedFiles(cand);
-    const nativeDocuments = extractNativeDocuments(cand, convId);
+    const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId);
     let docsMeta: DeepResearchDocMeta[] = nativeDocuments.length ? [] : extractDocumentsMeta(candidateBlock);
     if (!nativeDocuments.length && !docsMeta.length) {
         // The conversation envelope contains documents from other turns too.

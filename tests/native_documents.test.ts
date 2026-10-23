@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
-import { extractNativeDocuments } from '../src/l1/parsers/gemini/rpc/nativeDocuments.js';
+import { decodeCandidateArtifacts } from '../src/l1/parsers/gemini/rpc/candidateArtifacts.js';
 
 function packet(kind: number, body: string, suffix = 'report.md') {
     const row: unknown[] = ['c_native_chat_' + suffix, null, 'Source document', null, body];
@@ -37,8 +37,8 @@ test('native document decoding rejects unrelated identities, unknown kinds and m
     const foreign = packet(3, 'Foreign'); foreign[0] = 'c_another_chat_report';
     const noBody = packet(3, '');
     const candidate: unknown[] = []; candidate[30] = [foreign, noBody, packet(26, 'code packet'), packet(99, 'unknown')];
-    assert.deepEqual(extractNativeDocuments(candidate, 'native_chat'), []);
-    assert.deepEqual(extractNativeDocuments(candidate), []);
+    assert.deepEqual(decodeCandidateArtifacts(candidate, 'native_chat').nativeDocuments, []);
+    assert.deepEqual(decodeCandidateArtifacts(candidate).nativeDocuments, []);
 });
 test('native documents stay bound to their answer when titles match', () => {
     const a = capture([packet(3, 'First body', 'first')]);
