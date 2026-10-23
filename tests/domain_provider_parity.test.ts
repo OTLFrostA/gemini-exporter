@@ -1,5 +1,4 @@
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';

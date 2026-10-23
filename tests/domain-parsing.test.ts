@@ -1,8 +1,7 @@
-import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
 import type { ConversationRecordInput } from './helpers/recordFixture/conversationRecord.js';
 import type { DomainFixture } from './helpers/domainFixture.js';
@@ -10,7 +9,7 @@ import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.
 
 const parse = (data: ConversationRecordInput) => historicalFixture(data, { providerId: 'gemini' });
 
-test('unified parsing requires explicit provider identity and implemented format', () => {
+test('historical parsing requires explicit provider identity', () => {
     const data = { source: 'openai-import', messages: [{ role: 'model', model: 'Model A', content: '**Answer**' }] };
     const result = historicalFixture(data, { providerId: 'custom' });
     assert.equal(fixtureAccountFor(result.conversation).providerId, 'custom');
@@ -18,7 +17,6 @@ test('unified parsing requires explicit provider identity and implemented format
     for (const providerId of ['', '  ']) {
         assert.throws(() => historicalFixture(data, { providerId: providerId as never }), /providerId/);
     }
-    assert.throws(() => parseConversation({ account: fixtureAccount('gemini'), format: 'raw-rpc' as never, providerId: 'gemini', data: data as never }), /Unsupported conversation format/);
 });
 
 test('historical record fixtures retain provider inference inside the migration boundary', () => {

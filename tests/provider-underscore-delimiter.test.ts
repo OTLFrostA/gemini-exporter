@@ -1,5 +1,4 @@
 import { sourceDetail, sourceMessage } from './helpers/l1SourceFixture.js';
-const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 /**
  * tests/provider-underscore-delimiter.test.ts
  * Parser-level regression for parseEmphasis() underscore delimiter rules.

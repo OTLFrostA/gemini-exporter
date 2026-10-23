@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
@@ -15,7 +14,7 @@ const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', 
 function turn(prompt = 'Question', seconds: number | null = 1700000000, candidates: unknown[] = [['rc_answer', [['Answer']]]], request = 'r_AB12'): unknown[] {
     return [[ID, request], seconds === null ? null : [seconds, 0], [[prompt]], [candidates]];
 }
-const native = (data: string) => parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-rpc', providerId: 'gemini', data });
+const native = (data: string) => parseGeminiRpcConversation(data, { account: fixtureAccount('gemini'), providerId: 'gemini' });
 const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(block => extractBlockText(block)).join('\n');
 
 test('raw RPC code keeps consecutive blank lines in source Content AST', () => {
@@ -141,7 +140,7 @@ test('raw format validation rejects wrong providers and malformed envelopes', ()
     assert.throws(() => parseGeminiRpcConversation(geminiDetailGen('G_RPC_DOMAIN_13'), { account: fixtureAccount('openai'), providerId: 'openai' }), /providerId gemini/);
     assert.throws(() => parseGeminiRpcConversation({} as never, { account: fixtureAccount('gemini'), providerId: 'gemini' }), /raw response text/);
     for (const key of ['G_RPC_DOMAIN_20', 'G_RPC_DOMAIN_21', 'G_RPC_DOMAIN_14'] as const) assert.throws(() => native(geminiDetailGen(key)), /detail parse fail/);
-    const empty = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-rpc', providerId: 'gemini', data: geminiDetailGen('G_RPC_DOMAIN_15'), targetConvId: ID });
+    const empty = parseGeminiRpcConversation(geminiDetailGen('G_RPC_DOMAIN_15'), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: ID });
     assert.equal(empty.conversationId, ID.replace(/^c_/, ''));
     assert.equal(empty.conversation.detail.messages.length, 0);
 });

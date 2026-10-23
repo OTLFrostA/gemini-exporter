@@ -1,7 +1,6 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 /** Runtime closure and JSON portability of actual Domain and Document AST fixtures. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
