@@ -1,4 +1,5 @@
 export {};
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -29,10 +30,7 @@ test('payloadToMs - converts JSPB timestamp representations to milliseconds', ()
 });
 
 test('extractInnerPayload - standard WRB matching', () => {
-    const mockTop = [
-        ["wrb.fr", "MaZiqc", JSON.stringify([null, [["c_123", "Title 1"]]])],
-        ["wrb.fr", "otherRpc", "{}"]
-    ];
+    const mockTop: unknown = JSON.parse(geminiListGen('G_PARSER_PAYLOAD_TOP_01'));
 
     const res = extractInnerPayload(mockTop, {
         wrb: "wrb.fr",
@@ -46,9 +44,7 @@ test('extractInnerPayload - standard WRB matching', () => {
 });
 
 test('extractInnerPayload - supports array of target RPC IDs', () => {
-    const mockTop = [
-        ["wrb.fr", "hXcbkd", JSON.stringify([null, [["c_legacy", "Legacy Title"]]])]
-    ];
+    const mockTop: unknown = JSON.parse(geminiListGen('G_PARSER_PAYLOAD_LEGACY_01'));
 
     const res = extractInnerPayload(mockTop, {
         wrb: "wrb.fr",
@@ -62,9 +58,7 @@ test('extractInnerPayload - supports array of target RPC IDs', () => {
 
 test('extractInnerPayload - heuristic fallback scanning', () => {
     const innerData = [["turn1"]];
-    const mockTop = [
-        ["unknown_prefix", "unknown_rpc", JSON.stringify(innerData)]
-    ];
+    const mockTop: unknown = JSON.parse(geminiListGen('G_PARSER_PAYLOAD_HEURISTIC_01'));
 
     const res = extractInnerPayload(mockTop, {
         wrb: "wrb.fr",
@@ -78,9 +72,7 @@ test('extractInnerPayload - heuristic fallback scanning', () => {
 });
 
 test('extractInnerPayload - BardErrorInfo extraction', () => {
-    const mockTop = [
-        ["wrb.fr", "error_rpc", null, null, null, ["generic", "BardErrorInfo: quota exceeded"]]
-    ];
+    const mockTop: unknown = JSON.parse(geminiListGen('G_PARSER_PAYLOAD_ERROR_01'));
 
     const res = extractInnerPayload(mockTop, {
         wrb: "wrb.fr",

@@ -1,5 +1,6 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
@@ -14,11 +15,10 @@ async function sourcePage(context: import('@playwright/test').BrowserContext, ti
     await expect(page.locator('#geminiExportBadge')).toBeVisible();
     return page;
 }
-async function captureProviderList(source: import('@playwright/test').Page, id: string, title: string, timeSeconds: number) {
+async function captureProviderList(source: import('@playwright/test').Page, key: Parameters<typeof geminiListGen>[0]) {
     await source.route('**/batchexecute*', route => route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
-            [['c_' + id, title, null, null, null, [timeSeconds, 0]]]])]]),
+        body: geminiListGen(key),
     }));
     // The real MAIN fetch hook captures this response and the isolated L1 bridge
     // commits it through the v2 Background Domain-ingestion port.
@@ -41,7 +41,7 @@ test('provider list evidence updates a derived title in v2 without moving a newe
         { id: newerId, title: '最新对话', titleSource: 'provider', updatedAt: 1700001000000 },
     ]);
     const source = await sourcePage(context, 'Initial loading - Google Gemini');
-    await captureProviderList(source, oldId, '量子纠缠物理原理深度解析', 1700000000);
+    await captureProviderList(source, 'G_DYNAMIC_PAGE_SYNC_01');
     await expect.poll(async () => (await storedIndex(options, oldId))?.title).toBe('量子纠缠物理原理深度解析');
     expect((await storedIndex(options, oldId))?.titleSource).toBe('provider');
     await options.bringToFront();
@@ -57,7 +57,7 @@ test('user-authoritative v2 title ignores lower-authority RPC title and branded 
     const options = await openOptions(context, extensionId);
     await seedConversations(options, [{ id, title: '微服务与分布式事务设计', titleSource: 'user', updatedAt: 1680000000000 }]);
     const source = await sourcePage(context, '微服务与分布式事务设计 - Google Gemini');
-    await captureProviderList(source, id, 'Renamed by Gemini', 1700000200);
+    await captureProviderList(source, 'G_DYNAMIC_PAGE_SYNC_02');
     await expect.poll(async () => (await storedIndex(options, id))?.updatedAt).toBe(1700000200000);
     const index = await storedIndex(options, id);
     expect(index?.title).toBe('微服务与分布式事务设计');

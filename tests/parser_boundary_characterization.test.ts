@@ -25,7 +25,7 @@ function turn(prompt = 'Boundary user prompt', seconds: number | null = 17000000
 test('wire framing: complete chunks survive a malformed chunk and an unfinished tail', () => {
     const first = ['wrb.fr', 'MaZiqc', '[["quoted [bracket] and \\"escape\\""]]'];
     const second = ['wrb.fr', 'hNvQHb', '[]'];
-    const input = `)]}'\n123\n${JSON.stringify([first])}\n[not-json]\n${JSON.stringify([second])}\n[["unfinished`;
+    const input = geminiListGen('G_BOUNDARY_FRAMING_MIXED_01');
     assert.deepEqual(robustFirstPayload(input), [first, second]);
     assert.deepEqual(robustFirstPayload('[["closed string"'), [['closed string']]);
     assert.equal(robustFirstPayload('[["unfinished'), null);
@@ -33,13 +33,21 @@ test('wire framing: complete chunks survive a malformed chunk and an unfinished 
 });
 
 test('inner payload decoding does not yet validate the decoded shape', () => {
-    for (const inner of [null, [], { unexpected: true }, 42, 'scalar']) {
+    for (const [inner, key] of [
+        [null, 'G_BOUNDARY_DETAIL_INNER_NULL_01'],
+        [[], 'G_BOUNDARY_DETAIL_INNER_ARRAY_01'],
+        [{ unexpected: true }, 'G_BOUNDARY_DETAIL_INNER_OBJECT_01'],
+        [42, 'G_BOUNDARY_DETAIL_INNER_NUMBER_01'],
+        ['scalar', 'G_BOUNDARY_DETAIL_INNER_SCALAR_01'],
+    ] as const) {
         const innerStr = JSON.stringify(inner);
-        assert.deepEqual(extractInnerPayload([['wrb.fr', 'hNvQHb', innerStr]], { rpcId: 'hNvQHb' }), {
+        const top: unknown = JSON.parse(geminiDetailGen(key));
+        assert.deepEqual(extractInnerPayload(top, { rpcId: 'hNvQHb' }), {
             inner, innerStr, isStandardWrb: true, bardError: null
         });
     }
-    assert.deepEqual(extractInnerPayload([['wrb.fr', 'hNvQHb', '[broken']], { rpcId: 'hNvQHb' }), {
+    const brokenTop: unknown = JSON.parse(geminiDetailGen('G_BOUNDARY_DETAIL_INNER_BROKEN_01'));
+    assert.deepEqual(extractInnerPayload(brokenTop, { rpcId: 'hNvQHb' }), {
         inner: null, innerStr: '[broken', isStandardWrb: true, bardError: null
     });
 });
@@ -47,7 +55,7 @@ test('inner payload decoding does not yet validate the decoded shape', () => {
 test('list: official timestamp and count slots win while extra fields survive only in raw evidence', () => {
     const row = [ID, 'Boundary title - Gemini', [1690000000], [1680000000], 2, [1700000000, 500000000], null, { extra: true }, null, 7];
     const inner = [null, [row], null, null, 'tC_fallback_cursor', { future: true }];
-    const parsed = parseList(rpc(inner, 'MaZiqc'));
+    const parsed = parseList(geminiListGen('G_BOUNDARY_LIST_SLOTS_01'));
     assert.deepEqual(parsed.conversations, [{
         id: 'boundary12345678', title: 'Boundary title - Gemini', titleSource: 'provider',
         createdAt: 1680000000000, updatedAt: 1700000000500
@@ -69,14 +77,25 @@ test('list: null rows, truncated rows and malformed titles retain current defaul
 });
 
 test('missing or malformed envelopes distinguish list diagnostics from detail failures', () => {
-    for (const text of ['', 'not-json', '[]', rpc(null), rpc([], 'MaZiqc').replace('"[]"', '"[broken"')]) {
+    for (const text of [
+        geminiListGen('G_BOUNDARY_LIST_EMPTY_TEXT_01'),
+        geminiListGen('G_BOUNDARY_LIST_INVALID_JSON_01'),
+        geminiListGen('G_BOUNDARY_LIST_EMPTY_JSON_01'),
+        geminiListGen('G_BOUNDARY_LIST_BAD_DETAIL_01'),
+        geminiListGen('G_BOUNDARY_LIST_BAD_INNER_01'),
+    ]) {
         const list = parseList(text);
         assert.deepEqual(list.conversations, []);
         assert.equal(list.nextPageToken, null);
         assert.equal(list._debug!.error, 'NO_INNER_STR');
     }
-    for (const text of ['', '[]', rpc(null), rpc(false)]) assert.throws(() => decodeGeminiDetail(text), /detail parse fail: invalid/);
-    const empty = decodeGeminiDetail(rpc([]), ID);
+    for (const text of [
+        geminiDetailGen('G_BOUNDARY_DETAIL_EMPTY_TEXT_01'),
+        geminiDetailGen('G_BOUNDARY_DETAIL_EMPTY_JSON_01'),
+        geminiDetailGen('G_BOUNDARY_DETAIL_RPC_NULL_01'),
+        geminiDetailGen('G_BOUNDARY_DETAIL_RPC_FALSE_01'),
+    ]) assert.throws(() => decodeGeminiDetail(text), /detail parse fail: invalid/);
+    const empty = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_RPC_EMPTY_01'), ID);
     assert.equal(empty.id, ID);
     assert.deepEqual(empty.messages, []);
     assert.equal(empty.titleSource, 'default');
@@ -124,7 +143,7 @@ test('detail: extra wrapping and renamed envelope use the existing fallback and 
     const wireTurn = turn();
     const wrapped = { additional: { layers: [[[wireTurn]]] }, extra: true };
     assert.deepEqual(findTurnsDeep(wrapped), [wireTurn]);
-    const parsed = decodeGeminiDetail(rpc(wrapped, 'renamedRpc', 'renamedEnvelope'));
+    const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_RENAMED_01'));
     assert.deepEqual(parsed.messages.map(m => m.content), ['Boundary user prompt', 'Boundary model answer']);
     assert.ok(parsed.schemaDrift?.some(w => w.startsWith('Envelope drift:')));
     assert.deepEqual(parsed._debug!.schemaDriftWarnings, parsed.schemaDrift);
@@ -136,7 +155,7 @@ test('detail: extra wrapping and renamed envelope use the existing fallback and 
 
 test('detail: alternate envelope chunks are searched when the matching RPC has no turns', () => {
     const wireTurn = turn();
-    const text = JSON.stringify([['wrb.fr', 'hNvQHb', '[null]'], ['wrb.fr', 'otherRpc', JSON.stringify([[wireTurn]])]]);
+    const text = geminiDetailGen('G_BOUNDARY_ALTERNATE_RPC_01');
     const parsed = decodeGeminiDetail(text);
     assert.equal(parsed.messages.length, 2);
     assert.deepEqual(parsed._raw, [[wireTurn]]);
@@ -144,8 +163,13 @@ test('detail: alternate envelope chunks are searched when the matching RPC has n
 });
 
 test('detail: missing or malformed titles keep the existing newest-wire-prompt fallback', () => {
-    for (const title of [undefined, null, [], { title: 'wrong shape' }, '', '  ', 'Google Gemini']) {
-        const parsed = decodeGeminiDetail(rpc([[turn('Newest prompt title'), turn('Oldest prompt title')], null, title]));
+    for (const key of [
+        'G_BOUNDARY_TITLE_UNDEFINED_01', 'G_BOUNDARY_TITLE_NULL_01',
+        'G_BOUNDARY_TITLE_EMPTY_01', 'G_BOUNDARY_TITLE_OBJECT_01',
+        'G_BOUNDARY_TITLE_BLANK_01', 'G_BOUNDARY_TITLE_SPACE_01',
+        'G_BOUNDARY_TITLE_GENERIC_01',
+    ] as const) {
+        const parsed = decodeGeminiDetail(geminiDetailGen(key));
         assert.equal(parsed.title, 'Newest prompt title');
         assert.equal(parsed.titleSource, 'sniff');
         assert.equal(Object.hasOwn(parsed, 'titles'), false);

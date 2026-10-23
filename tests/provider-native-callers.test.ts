@@ -10,17 +10,17 @@ import { assertDomainClosure } from '../src/l2/closure.js';
 import { textOfBlock } from './helpers/contentText.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
-function page(request: string, seconds: number, cursor: string | null = null) {
-    const turn = [['c_native', request], [seconds, 0], [[`Question ${request}`]], [[['rc_' + request, [['**Answer**']]]]]];
-    return parseGeminiRpcConversation(JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], cursor, 'Title'])],
-        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_native', 'Title', null, null, null, [1700000010, 0]]]])]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
+function page(key: Parameters<typeof geminiDetailGen>[0]) {
+    return parseGeminiRpcConversation(geminiDetailGen(key), {
+        account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native',
+    });
 }
 const result = (uri?: string, messageId = 'm1', timestamp = 1): SourceConversationParseResult => ({ conversationId: 'native',
     sourceVersion: timestamp, conversation: { index: { titleSource: 'derived', title: 'Title' }, detail: { quality: { status: 'unknown' }, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
         content: [{ type: 'table', rows: [{ cells: [{ children: [{ type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] }, { type: 'image', assetId: 'image' }] }] }] }], attachmentIds: ['image'] }], assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { sourceUri: uri } : {}) }] } }, diagnostics: [], acquisitionHints: {} });
 const activity = (refs: string) => `<div class="outer-cell"><a href="https://gemini.google.com/app/c_native">Chat</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Read ${refs}<br>2026-09-02T12:00:00Z<br><p>Answer</p></div></div>`;
 test('production pagination merges native pages chronologically and closes renamed resources', async () => {
-    const pages = [page('r_new', 1700000010, 'tC_older'), page('r_old', 1700000000)];
+    const pages = [page('G_NATIVE_CALLERS_MIXED_01'), page('G_NATIVE_CALLERS_MIXED_02')];
     let index = 0;
     const detail = await getConversationDetail({ async fetchConversationPage() { return pages[index++]; } }, 'native');
     const native = detail;
@@ -47,7 +47,7 @@ test('page merge dedupes stable messages and shared source images without collap
 });
 
 test('native token loops retain diagnostics and explicitly mark incomplete coverage', async () => {
-    const view = page('r_one', 1700000000, 'tC_repeat');
+    const view = page('G_NATIVE_CALLERS_MIXED_03');
     const detail = await getConversationDetail({ async fetchConversationPage() { return view; } }, 'native');
     assert.equal(detail.evidence?.truncation, 'token_loop');
     assert.equal(detail.conversation.detail.messages.length, 2);
@@ -71,7 +71,7 @@ test('production RPC client parses raw responses without invoking the legacy det
 });
 
 test('native pagination rejects mixed legacy message pages instead of dropping their bodies', async () => {
-    const native = page('r_native', 1700000000, 'tC_old');
+    const native = page('G_NATIVE_CALLERS_MIXED_04');
     const legacy = { id: 'native', messages: [{ role: 'model', content: 'old' }] };
     let index = 0;
     await assert.rejects(getConversationDetail({ async fetchConversationPage() { return [native, legacy][index++] as never; } }, 'native'), TypeError);
@@ -84,7 +84,7 @@ test('metadata-only detail retry follows native pagination to its terminal page'
     const detail = await getConversationDetail({ async fetchConversationPage(_id, token, _sid, options) {
         calls.push({ token, detailOnly: options?.detailOnly });
         if (!options?.detailOnly) return empty;
-        return token ? page('r_older', 1700000000) : page('r_newer', 1700000010, 'tC_retry_older');
+        return token ? page('G_NATIVE_CALLERS_MIXED_05') : page('G_NATIVE_CALLERS_MIXED_06');
     } }, 'native');
     assert.equal(calls.length, 3);
     assert.equal(calls[2].token, 'tC_retry_older');
@@ -127,6 +127,6 @@ test('metadata-only retry cannot hide a subsequent detail-page fetch failure', a
     await assert.rejects(getConversationDetail({ async fetchConversationPage(_id, token, _sid, options) {
         if (!options?.detailOnly) return empty;
         if (token) throw new Error('Interrupted detail chain');
-        return page('r_newer', 1700000010, 'tC_retry_older');
+        return page('G_NATIVE_CALLERS_MIXED_07');
     } }, 'native'), /Interrupted detail chain/);
 });

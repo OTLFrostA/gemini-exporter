@@ -129,8 +129,96 @@ function p1RegressionTurn(userPayload: unknown = [['hello']], text = 'world', ex
     return [['c_abc123def456'], [1700000000, 0], userPayload, [[candidate]]];
 }
 
+function mixedNativePage(request: string, seconds: number, cursor: string | null = null): string {
+    const turn = [['c_native', request], [seconds, 0], [['Question ' + request]],
+        [[['rc_' + request, [['**Answer**']]]]]];
+    return JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[turn], cursor, 'Title'])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_native', 'Title', null, null, null, [1700000010, 0]]]])],
+    ]);
+}
+function mixedNativeDocument(kind: number, body: string, more = false, suffix = 'report.md', metadata = true): string {
+    const row: unknown[] = ['c_native_chat_' + suffix, null, 'Source document', null, body];
+    row[10] = kind;
+    if (metadata) row[8] = [['Metadata that must never become document prose'.repeat(5)]];
+    const candidate: unknown[] = ['rc_native', ['Answer before document']];
+    candidate[30] = [row];
+    const turn = [['c_native_chat', 'r_native'], null, [['Question']], [[candidate]], [1700000010, 0]];
+    return JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[turn], more ? 'next' : null, null, []])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_native_chat', 'Title', null, null, null, [1700000000, 0]]]])],
+    ]);
+}
+
+function boundaryTop(inner: unknown): string {
+    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
+}
+function boundaryTitleWire(value: unknown): string {
+    return rpc([[boundaryTurn('Newest prompt title'), boundaryTurn('Oldest prompt title')], null, value]);
+}
+
 const fixtureMap = {
-    'G_P1E_DETAIL_01': () => rpc([[p1RegressionTurn(undefined,
+    'G_BOUNDARY_DETAIL_INNER_NULL_01': () => boundaryTop(null),
+    'G_BOUNDARY_DETAIL_INNER_ARRAY_01': () => boundaryTop([]),
+    'G_BOUNDARY_DETAIL_INNER_OBJECT_01': () => boundaryTop({ unexpected: true }),
+    'G_BOUNDARY_DETAIL_INNER_NUMBER_01': () => boundaryTop(42),
+    'G_BOUNDARY_DETAIL_INNER_SCALAR_01': () => boundaryTop('scalar'),
+    'G_BOUNDARY_DETAIL_INNER_BROKEN_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', '[broken']]),
+    'G_BOUNDARY_DETAIL_EMPTY_TEXT_01': () => '',
+    'G_BOUNDARY_DETAIL_EMPTY_JSON_01': () => '[]',
+    'G_BOUNDARY_DETAIL_RPC_NULL_01': () => rpc(null),
+    'G_BOUNDARY_DETAIL_RPC_FALSE_01': () => rpc(false),
+    'G_BOUNDARY_DETAIL_RPC_EMPTY_01': () => rpc([]),
+    'G_BOUNDARY_DETAIL_RENAMED_01': () => {
+        const wireTurn = boundaryTurn();
+        const wrapped = { additional: { layers: [[[wireTurn]]] }, extra: true };
+        return ")]}'\n\n" + JSON.stringify([['renamedEnvelope', 'renamedRpc', JSON.stringify(wrapped)]]);
+    },
+    'G_BOUNDARY_TITLE_UNDEFINED_01': () => boundaryTitleWire(undefined),
+    'G_BOUNDARY_TITLE_NULL_01': () => boundaryTitleWire(null),
+    'G_BOUNDARY_TITLE_EMPTY_01': () => boundaryTitleWire([]),
+    'G_BOUNDARY_TITLE_OBJECT_01': () => boundaryTitleWire({ title: 'wrong shape' }),
+    'G_BOUNDARY_TITLE_BLANK_01': () => boundaryTitleWire(''),
+    'G_BOUNDARY_TITLE_SPACE_01': () => boundaryTitleWire('  '),
+    'G_BOUNDARY_TITLE_GENERIC_01': () => boundaryTitleWire('Google Gemini'),
+    'G_NATIVE_CALLERS_MIXED_01': () => mixedNativePage('r_new', 1700000010, 'tC_older'),
+    'G_NATIVE_CALLERS_MIXED_02': () => mixedNativePage('r_old', 1700000000),
+    'G_NATIVE_CALLERS_MIXED_03': () => mixedNativePage('r_one', 1700000000, 'tC_repeat'),
+    'G_NATIVE_CALLERS_MIXED_04': () => mixedNativePage('r_native', 1700000000, 'tC_old'),
+    'G_NATIVE_CALLERS_MIXED_05': () => mixedNativePage('r_older', 1700000000),
+    'G_NATIVE_CALLERS_MIXED_06': () => mixedNativePage('r_newer', 1700000010, 'tC_retry_older'),
+    'G_NATIVE_CALLERS_MIXED_07': () => mixedNativePage('r_newer', 1700000010, 'tC_retry_older'),
+    'G_NATIVE_ACQ_MIXED_01': () => mixedNativePage('r_new', 1700000010, 'tC_older'),
+    'G_NATIVE_ACQ_MIXED_02': () => mixedNativePage('r_old', 1700000000),
+    'G_NATIVE_ACQ_MIXED_03': () => mixedNativePage('r_one', 1700000000, 'tC_repeat'),
+    'G_NATIVE_ACQ_MIXED_04': () => mixedNativePage('r_native', 1700000000, 'tC_old'),
+    'G_NATIVE_ACQ_MIXED_05': () => mixedNativePage('r_older', 1700000000),
+    'G_NATIVE_ACQ_MIXED_06': () => mixedNativePage('r_newer', 1700000010, 'tC_retry_older'),
+    'G_NATIVE_ACQ_MIXED_07': () => mixedNativePage('r_newer', 1700000010, 'tC_retry_older'),
+    'G_NATIVE_DOCUMENT_01': () => mixedNativeDocument(1, '# Report\n\nExact source body'),
+    'G_NATIVE_DOCUMENT_02': () => mixedNativeDocument(1, '# Report\n\nExact source body', true),
+    'G_NATIVE_DOCUMENT_03': () => mixedNativeDocument(2, "```python\nprint(\"ok\")\n```"),
+    'G_NATIVE_DOCUMENT_04': () => mixedNativeDocument(2, "```python\nprint(\"ok\")\n```", true),
+    'G_NATIVE_DOCUMENT_05': () => mixedNativeDocument(3, '# Research\n\nReferences and findings'),
+    'G_NATIVE_DOCUMENT_06': () => mixedNativeDocument(3, '# Research\n\nReferences and findings', true),
+    'G_NATIVE_DOCUMENT_07': () => mixedNativeDocument(3, 'First body', false, 'first', false),
+    'G_NATIVE_DOCUMENT_08': () => mixedNativeDocument(3, 'Second body', false, 'second', false),
+    'G_DYNAMIC_TITLE_ARBITRATION_DETAIL_01': () => {
+        const turn = [['c_sniff_test_chat_888', 'r_question'], [1700000000, 0],
+            [['如何构建高性能分布式缓存系统？']], [[['rc_question', [['构建高性能分布式缓存需要注意这些要点']]]]]];
+        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, ''])]]);
+    },
+    'G_BOUNDARY_ALTERNATE_RPC_01': () => {
+        const turn = [['c_boundary12345678', 'r_AB12'], [1700000000, 500000000],
+            [['Boundary user prompt']], [[['rc_boundary', [['Boundary model answer'], 'en']]]]];
+        return JSON.stringify([
+            ['wrb.fr', 'hNvQHb', '[null]'],
+            ['wrb.fr', 'otherRpc', JSON.stringify([[turn]])],
+        ]);
+    },
+        'G_P1E_DETAIL_01': () => rpc([[p1RegressionTurn(undefined,
         '第一行\nhttps://googleusercontent.com/immersive_entry_chip/abc123\n第三行')]]),
     'G_P1E_DETAIL_02': () => rpc([[p1RegressionTurn(undefined,
         '看这张图\nhttps://googleusercontent.com/image_generation_content/tok999\n结束',

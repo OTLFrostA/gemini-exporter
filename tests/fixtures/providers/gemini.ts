@@ -33,8 +33,65 @@ function p1RegressionList(items: unknown[]): string {
 }
 
 
+function scanFlowWire(rows: unknown[]): string {
+    const inner = JSON.stringify([null, null, rows]);
+    return ")]}'\n\n" + '[["wrb.fr","MaZiqc",' + JSON.stringify(inner) + ']]';
+}
+const scanRows = (renamed = false): unknown[] => [
+    ['c_scan_003', '微服务架构与分布式事务', [1700000200, 0], [1700000200, 0], 8, [1700000200, 0]],
+    ['c_scan_002', 'Rust 高性能异步网络编程', [1700000100, 0], [1700000100, 0], 6, [1700000100, 0]],
+    ['c_scan_001', renamed ? '改名后的老会话' : '量子计算与超导量子比特',
+        [1700000000, 0], [1700000000, 0], 4, [1700000000, 0]],
+];
+const fixedPage = (id: string, title: string, seconds: number): string =>
+    JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+        [['c_' + id, title, null, null, null, [seconds, 0]]]])]]);
+
 const fixtureMap = {
-    'G_P1E_LIST_01': () => p1RegressionList([['c_cnt1234567890', 'T', null, null, null, 1757839234]]),
+    'G_DYNAMIC_PAGE_SYNC_01': () => fixedPage('39d5b41870e49a67', '量子纠缠物理原理深度解析', 1700000000),
+    'G_DYNAMIC_PAGE_SYNC_02': () => fixedPage('takeout_chat_888', 'Renamed by Gemini', 1700000200),
+    'G_DYNAMIC_TITLE_ARBITRATION_01': () => fixedPage('arbitration_chat_999', '官方服务端RPC最终权威标题', 1700000000),
+    'G_DYNAMIC_TITLE_ARBITRATION_02': () => fixedPage('arbitration_chat_999', 'RPC 更晚的标题', 1700000200),
+    'G_DYNAMIC_WATERMARK_LIST_01': () => fixedPage('abcdef123', 'A', 1700000000),
+    'G_DYNAMIC_WATERMARK_LIST_02': () => fixedPage('abcdef123', 'A', 1699999999),
+    'G_DYNAMIC_SCAN_FLOW_LIST_01': () => scanFlowWire(scanRows()),
+    'G_DYNAMIC_SCAN_FLOW_LIST_02': () => scanFlowWire(scanRows(true)),
+    'G_DYNAMIC_SCAN_FLOW_PINNED_01': () => scanFlowWire([
+        ['c_scan_pinned', '置顶的较早会话', null, null, null, [1600000000, 0]],
+    ]),
+    'G_PARSER_PAYLOAD_TOP_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, [['c_123', 'Title 1']]])],
+        ['wrb.fr', 'otherRpc', '{}'],
+    ]),
+    'G_PARSER_PAYLOAD_LEGACY_01': () => JSON.stringify([
+        ['wrb.fr', 'hXcbkd', JSON.stringify([null, [['c_legacy', 'Legacy Title']]])],
+    ]),
+    'G_PARSER_PAYLOAD_HEURISTIC_01': () => JSON.stringify([
+        ['unknown_prefix', 'unknown_rpc', JSON.stringify([['turn1']])],
+    ]),
+    'G_PARSER_PAYLOAD_ERROR_01': () => JSON.stringify([
+        ['wrb.fr', 'error_rpc', null, null, null, ['generic', 'BardErrorInfo: quota exceeded']],
+    ]),
+    'G_BOUNDARY_LIST_SLOTS_01': () => {
+        const row = ['c_boundary12345678', 'Boundary title - Gemini', [1690000000],
+            [1680000000], 2, [1700000000, 500000000], null, { extra: true }, null, 7];
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc',
+            JSON.stringify([null, [row], null, null, 'tC_fallback_cursor', { future: true }])]]);
+    },
+    'G_BOUNDARY_LIST_EMPTY_TEXT_01': () => '',
+    'G_BOUNDARY_LIST_INVALID_JSON_01': () => 'not-json',
+    'G_BOUNDARY_LIST_EMPTY_JSON_01': () => '[]',
+    'G_BOUNDARY_LIST_BAD_DETAIL_01': () => ")]}'\n\n" +
+        JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(null)]]),
+    'G_BOUNDARY_LIST_BAD_INNER_01': () => ")]}'\n\n" +
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[broken']]),
+    'G_BOUNDARY_FRAMING_MIXED_01': () => {
+        const first = ['wrb.fr', 'MaZiqc', '[["quoted [bracket] and \\"escape\\""]]'];
+        const second = ['wrb.fr', 'hNvQHb', '[]'];
+        return ")]}'\n123\n" + JSON.stringify([first]) + '\n[not-json]\n'
+            + JSON.stringify([second]) + '\n[["unfinished';
+    },
+        'G_P1E_LIST_01': () => p1RegressionList([['c_cnt1234567890', 'T', null, null, null, 1757839234]]),
     'G_P1E_LIST_02': () => p1RegressionList([['c_cnt2234567890', 'T2', null, null, 7]]),
     'G_P1E_LIST_03': () => p1RegressionList([['c_nots1234567890', 'NoTime']]),
     'G_P1E_LIST_04': () => p1RegressionList([['c_hasts1234567890', 'HasTime', null, null, null, [1700000000, 0]]]),

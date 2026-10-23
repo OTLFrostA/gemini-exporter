@@ -1,4 +1,5 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import { openOptions, accountId } from './uiFixture';
 
 test.beforeEach(async ({context, extensionId}) => {
@@ -30,14 +31,9 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       });
     });
 
-    // Mock Gemini list response (MaZiqc)
-    const mockListItems = [
-      ["c_scan_003", "微服务架构与分布式事务", [1700000200, 0], [1700000200, 0], 8, [1700000200, 0]],
-      ["c_scan_002", "Rust 高性能异步网络编程", [1700000100, 0], [1700000100, 0], 6, [1700000100, 0]],
-      ["c_scan_001", "量子计算与超导量子比特", [1700000000, 0], [1700000000, 0], 4, [1700000000, 0]]
-    ];
+    // The initial, renamed and pinned List pages are immutable keyed wire samples.
+    let renamed = false;
     const requestedKinds: string[] = [];
-    const pinnedItem = ['c_scan_pinned', '置顶的较早会话', null, null, null, [1600000000, 0]];
     await context.route('**/batchexecute*', async (route) => {
       const wire = new URLSearchParams(route.request().postData() || '').get('f.req');
       const args = JSON.parse(JSON.parse(wire!)[0][0][1]);
@@ -47,11 +43,11 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       // slot 1, with item rows in slot 2. [null, rows, null] may still parse
       // indexes via the legacy fallback slot, but is not a trusted source_end
       // and therefore must NOT establish L2 Coverage.
-      const inner = JSON.stringify([null, null, pinned ? [pinnedItem] : mockListItems]);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: `)]}'\n\n[["wrb.fr","MaZiqc",${JSON.stringify(inner)}]]`
+        body: geminiListGen(pinned ? 'G_DYNAMIC_SCAN_FLOW_PINNED_01'
+          : renamed ? 'G_DYNAMIC_SCAN_FLOW_LIST_02' : 'G_DYNAMIC_SCAN_FLOW_LIST_01')
       });
     });
 
@@ -85,7 +81,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     await geminiPage.reload();
     await expect(geminiPage.locator('#geminiExportBadge')).toContainText('3');
     // Renaming an old item does not change its timestamp or move it ahead of the head.
-    mockListItems[2][1] = '改名后的老会话';
+    renamed = true;
     await optionsPage.click('#btnSyncAll');
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
     await expect(listItems).toHaveCount(3);
