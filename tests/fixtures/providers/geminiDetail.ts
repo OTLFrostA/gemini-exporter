@@ -49,7 +49,10 @@ const fixtureMap = {
         return rpc([[domainTurn('Draw', null, [['rc_image', [['Image'], image]]])]]);
     },
     'G_RPC_DOMAIN_17': () => rpc([[domainTurn('Draw', null, [['rc_inline', [['Image'], ['https://lh3.googleusercontent.com/inline', 1, 1]]]])]]),
-    'G_RPC_DOMAIN_18': () => rpc([[[[DOMAIN_ID], null, [['Question']], [[['', [['Answer']]]]], [[DOMAIN_ID], null, [['Question']], [[['', [['Answer']]]]]]]]),
+    'G_RPC_DOMAIN_18': () => {
+        const rawTurn = [[DOMAIN_ID], null, [['Question']], [[['', [['Answer']]]]]];
+        return rpc([[rawTurn, rawTurn]]);
+    },
     'G_RPC_DOMAIN_19': () => rpc([[domainTurn('Question', null, undefined, 'r_Ab12')]]),
     'G_RPC_DOMAIN_20': () => '',
     'G_RPC_DOMAIN_21': () => 'not JSON',
