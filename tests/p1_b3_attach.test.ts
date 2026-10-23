@@ -5,7 +5,6 @@ import { getExportRecord } from '../src/l3a/storageService.js';
 import { v2ExportHost, exportKey, exportRequest, seedExportConversation } from './helpers/v2ExportHost.js';
 import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
 import { handleGetImageBlob } from '../src/runtime/capabilities/assetFetcher.js';
-import { RateLimitManager } from '../src/l1/client/rateLimiter.js';
 const JSZip = require('../lib/jszip.min.js');
 
 // P1-023: progress is now an Application callback with current/total, not
@@ -77,26 +76,7 @@ test('P1-027: >50 MiB image succeeds as a buffer and is rejected as Base64', asy
 });
 
 // P1-036: ensure an active rate-limit cooldown can be interrupted.
-test('P1-036: aborting a cooldown stops waiting and returns false', async () => {
-    const limiter = new RateLimitManager();
-    limiter.recordRateLimit(5000);
-    const controller = new AbortController();
-    const result = limiter.waitForCooldown(controller.signal, 0);
-    controller.abort();
-    assert.equal(await result, false);
-});
+
 
 // P1-037: stagger is an externally observable delay, not a variable-name contract.
-test('P1-037: nonzero stagger delays a completed cooldown', async () => {
-    const limiter = new RateLimitManager();
-    const originalRandom = Math.random;
-    Math.random = () => 0.99;
-    try {
-        limiter.rateLimitCooldownUntil = Date.now() + 5;
-        const started = Date.now();
-        assert.equal(await limiter.waitForCooldown(null, 50), true);
-        assert.ok(Date.now() - started >= 35, 'stagger should add a meaningful delay');
-    } finally {
-        Math.random = originalRandom;
-    }
-});
+

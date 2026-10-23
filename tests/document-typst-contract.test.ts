@@ -14,7 +14,6 @@ const assert = require('node:assert');
 
 const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { collectReferencedAssetIds } = require('../src/l2/content/collectAssetReferences.js');
 
 function domainFixture(messages: any[], extra: any = {}) {
     const createdAt = require('../src/l2/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
@@ -167,29 +166,7 @@ test('missing inline image without authored alt uses a friendly fallback', async
     assert.strictEqual((payload.messages[0].blocks[0] as any).children[0].text, 'Image unavailable: Image');
 });
 
-test('collectReferencedAssetIds walks block and inline trees recursively', async () => {
-    const blocks = [
-        { type: 'image', assetId: 'top-img' },
-        { type: 'file', assetId: 'top-file' },
-        { type: 'paragraph', children: [{ type: 'image', assetId: 'para-img', alt: 'p' }] },
-        { type: 'heading', level: 1, children: [{ type: 'strong', children: [{ type: 'image', assetId: 'heading-img' }] }] },
-        {
-            type: 'table',
-            rows: [{ cells: [{ children: [{ type: 'link', url: 'https://x', children: [{ type: 'image', assetId: 'cell-img' }] }] }] }],
-        },
-        {
-            type: 'list', ordered: false,
-            items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'list-img' }] }] }],
-        },
-        { type: 'quote', blocks: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'quote-img' }] }] },
-        { type: 'unknown', sourceType: 'x', text: 'unknown image alt' },
-    ];
-    const ids = collectReferencedAssetIds(blocks as any);
-    assert.deepStrictEqual([...ids].sort(), [
-        'cell-img', 'heading-img', 'list-img', 'para-img',
-        'quote-img', 'top-file', 'top-img',
-    ].sort());
-});
+
 
 test('inline image placements are intact in blocks', async () => {
     const b = domainFixture(

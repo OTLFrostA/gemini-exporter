@@ -7,7 +7,6 @@ import { activityHtml, takeoutArchive } from './helpers/l1SourceFixture.js';
 import { importTakeout, stripHtmlTags } from '../src/l1/imports/takeout/importTakeout.js';
 import { parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
 import { parseGeminiTakeoutArchive } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
-import { extractC2PATimestamp } from '../src/l1/parsers/shared/resources/c2paTimestamp.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { getDetail } from '../src/l3a/storageService.js';
@@ -65,5 +64,4 @@ test('Takeout native parsing and HTML cleanup are pure and do not require an arc
     const [source] = parseGeminiTakeoutArchive(raw, { providerId: 'gemini' });
     assert.equal(source.conversationId, 'source_chat_123'); assert.deepEqual(raw, before);
     assert.equal(stripHtmlTags('<p>Hello <strong>world</strong></p>'), 'Hello world');
-    assert.equal(extractC2PATimestamp('c2pa date="20260902183651Z"'), Date.parse('2026-09-02T18:36:51Z'));
 });

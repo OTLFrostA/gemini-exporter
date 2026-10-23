@@ -2,7 +2,7 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseConversation } from '../src/l1/parsers/parseConversation.js';
-import { validateZipFile } from '../src/l1/imports/takeout/zipBombGuard.js';
+import { validateZipFile } from '../src/l1/parsers/shared/archive/zipBombGuard.js';
 
 test('batch A acquisition rejects empty provider bytes instead of claiming success', async () => {
     const { acquireSourceResource } = require('../src/l1/resources/sourceResources.js');

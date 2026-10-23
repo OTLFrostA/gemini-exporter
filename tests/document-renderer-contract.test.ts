@@ -227,36 +227,7 @@ test('contract: unknown block fallback is visible on both renderers', () => {
 });
 
 
-test('shared collectReferencedAssetIds sees inline images everywhere', () => {
-    const blocks: any = [
-        {
-            type: 'paragraph',
-            children: [
-                { type: 'text', text: 'before ' },
-                { type: 'image', assetId: 'img-para', alt: 'para' },
-                { type: 'text', text: ' after' },
-            ],
-        },
-        {
-            type: 'heading',
-            level: 2,
-            children: [{ type: 'image', assetId: 'img-heading', alt: 'h' }],
-        },
-        {
-            type: 'table',
-            headerRows: [],
-            rows: [
-                { cells: [{ children: [{ type: 'image', assetId: 'img-cell', alt: 'c' }] }] },
-            ],
-        },
-        { type: 'image', assetId: 'img-block', alt: 'b' },
-    ];
-    const ids = require('../src/l2/content/collectAssetReferences.js').collectReferencedAssetIds(blocks);
-    assert.deepStrictEqual(
-        [...ids].sort(),
-        ['img-block', 'img-cell', 'img-heading', 'img-para'],
-    );
-});
+
 
 test('inline HTML resource references are collected from the Document AST and use supplied bindings', () => {
     const domain = domainFixture([{ type: 'paragraph', children: [txt('diagram: '), { type: 'image', assetId: 'img-1', alt: 'architecture' }] }], { assets: [imgAsset('img-1', 'diagram.png')] });

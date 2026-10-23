@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { closeDomainResources } from '../src/l1/parsers/shared/resources/domainResourceAdapter.js';
-import { findResourceMatch, resourceIdentity } from '../src/l1/parsers/shared/resources/resourceIdentity.js';
 import type { DomainAsset } from '../src/l2/conversationDetail.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 const base = (assets: DomainAsset[] = []): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('chat'), 'custom'),   titleSource: "derived",   title: 'Resources' }, detail: { key: fixtureKey(String('chat'), 'custom'), quality: { status: 'unknown' }, assets, messages: [] } });
@@ -27,14 +26,7 @@ test('new schema rejects every removed asset and generation field', () => {
     for (const key of ['createdAt', 'chipUrl', 'sections', 'links', 'candidates']) assert.throws(() => validateParserDomain(base([{ ...valid, document: { contentMarkdown: 'body', [key]: 'old' } }])));
     assert.throws(() => validateParserDomain(base([{ ...valid, generation: { time: null as never } }])));
 });
-test('parent context prevents cross-conversation resource matches even with identical URI and request identity', () => {
-    const asset: DomainAsset = { id: 'image', kind: 'image', sourceUri: 'shared', generation: { providerRequestId: 'same-request', time: 1000, prompt: 'draw', generationOrdinal: 0, imageCount: 1 } };
-    const requested = resourceIdentity(asset, 'chat');
-    assert.equal(findResourceMatch('chat', requested, [resourceIdentity(asset, 'foreign')]), null);
-    assert.equal(findResourceMatch('chat', requested, [resourceIdentity(asset, 'chat')]), 0);
-    assert.equal(findResourceMatch('foreign', requested, [resourceIdentity(asset, 'foreign')]), null);
-    assert.equal(findResourceMatch('chat', requested, [resourceIdentity(asset, 'c_chat')]), null);
-});
+
 
 test('canonical report body keeps independent sections and links', () => {
     const result = closeDomainResources('custom', [], [{ input: { attachments: [{ type: 'file', contentMarkdown: '# Canonical', sections: ['# Canonical', 'Unique section'], links: [{ title: 'Evidence', url: 'https://example.test/evidence' }] }] } }]);

@@ -7,7 +7,7 @@ import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentTypst, defaultPdfLayout } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst, defaultPdfLayout } from './helpers/renderTypstFixture.js';
 import { renderTypstFixture } from './helpers/renderTypstFixture.js';
 
 function fixture(): DomainConversationWithDetail {
@@ -66,7 +66,7 @@ test('AST: neutral tree has no output controls and renderers do not import sourc
     const importSources = (file: string): string[] =>
         [...readFileSync(file, 'utf8').matchAll(/^\s*(?:import|export)\s+(?:(?:type\s+)?[^;]*?\bfrom\s+)?(['"])([^'"]+)\1/gm)]
             .map(match => match[2]);
-    for (const name of ['html/renderHtml', 'markdown/renderMarkdown', 'typst/renderTypst', 'shared/backendPresentation', 'shared/renderOptions', 'shared/renderStrings']) {
+    for (const name of ['html/renderHtml', 'markdown/renderMarkdown', 'typst/renderTypstCore', 'shared/backendPresentation', 'shared/renderOptions', 'shared/renderStrings']) {
         for (const source of importSources(`src/l4/format/${name}.ts`)) {
             assert.doesNotMatch(source, /(^|\/)(?:canonical|domain|provider|content)\//,
                 `Renderer ${name} cannot import source-model module ${source}`);

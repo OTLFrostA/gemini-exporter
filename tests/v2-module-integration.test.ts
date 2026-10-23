@@ -15,7 +15,7 @@ import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
 import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';

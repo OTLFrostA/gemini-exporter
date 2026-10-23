@@ -11,7 +11,7 @@ import { assertDomainClosure } from '../src/l2/closure.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 test('each Domain fixture is closed and JSON round-trip preserves every backend output', () => {
     const dir = join(__dirname, 'fixtures', 'document-domain');
     const files = readdirSync(dir).filter(file => file.endsWith('.json'));

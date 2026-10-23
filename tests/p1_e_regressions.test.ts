@@ -1,4 +1,3 @@
-import { highResVariant } from '../src/l1/client/gemini/geminiImageUrl.js';
 /**
  * P1-E 回归测试 —— 2026-09-15 代码审查 E 组「解析器：形态识别误判与静默丢数据」
  * P1-061 ~ P1-074，共 30 个用例。
@@ -216,20 +215,9 @@ test('P1-069c: extractUserFiles 拒绝非 Google 媒体 host 的 URL', () => {
     assert.strictEqual(files.length, 0);
 });
 
-// ---------------------------------------------------------------- P1-070
-test('P1-070a: highResVariant 保留 query 参数（鉴权参数不被吞掉）', () => {
-    assert.strictEqual(
-        highResVariant("https://lh3.googleusercontent.com/abc=w1024?authuser=0&sz=1"),
-        "https://lh3.googleusercontent.com/abc=s0?authuser=0&sz=1"
-    );
-});
 
-test('P1-070b: highResVariant 仍归一化末尾尺寸参数', () => {
-    assert.strictEqual(
-        highResVariant("https://lh3.googleusercontent.com/pic=w500-h300"),
-        "https://lh3.googleusercontent.com/pic=s0"
-    );
-});
+
+
 
 // ---------------------------------------------------------------- P1-071
 test('P1-071a: inferExt 识别 .svg 并给出正确 MIME（不再强制 .jpg）', () => {

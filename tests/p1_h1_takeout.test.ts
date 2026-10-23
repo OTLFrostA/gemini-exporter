@@ -2,7 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const zipBombGuard = require('../src/l1/imports/takeout/zipBombGuard.js');
+const zipBombGuard = require('../src/l1/parsers/shared/archive/zipBombGuard.js');
 
 
 // The full media-index suite covers general matching/slot isolation. This is a

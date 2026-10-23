@@ -24,7 +24,8 @@ export async function parseFixture(raw: ConversationRecordInput) {
 import type { LegacyResourceHints } from './recordFixture/resourceHints.js';
 import type { DomainConversationWithDetail } from '../../src/l2/conversation.js';
 import { normalizeArchiveResourceName } from '../../src/shared/utils/archivePath.js';
-import { decodeDataUrlAsset, buildDataUrlStorageRef, sha256Hex } from '../../src/l4/format/resources/index.js';
+import { decodeDataUrlAsset, buildDataUrlStorageRef } from '../../src/l4/format/resources/dataUrl.js';
+import { sha256Hex } from '../../src/l4/format/resources/sha256.js';
 import type { ResourceBindings } from '../../src/l4/packaging/resourceBindings.js';
 
 /** Resource preparation is a side channel; never replace Domain identities with export identities. */

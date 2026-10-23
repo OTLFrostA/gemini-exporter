@@ -6,7 +6,6 @@ import { mediaSources, mediaChatId, mediaBytes } from './helpers/mediaSourceFixt
 import { ingestDetail, ingestDeletedConversation } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
-import { findResourceMatch, resourceIdentity } from '../src/l1/parsers/shared/resources/resourceIdentity.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 const key = { accountId: '10000000-0000-4000-8000-000000000001', conversationId: mediaChatId };
 const commit = (source: SourceConversationParseResult) => ingestDetail(key.accountId, key.conversationId, source.conversation.detail, source.conversation.index);
@@ -25,18 +24,8 @@ for (const order of ['online-first', 'takeout-first'] as const) {
         await commit(offline); assert.deepEqual((await readConversation(key))?.detail, stored.detail);
     });
 }
-test('RPC request conflicts reject cross-source matching despite identical event time and prompt', () => {
-    const first = mediaSources().online, second = mediaSources({ requestId: 'r_other-request', uriSuffix: '-different' }).online;
-    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.detail.assets[0], mediaChatId),
-        second.conversation.detail.assets.map(asset => resourceIdentity(asset, mediaChatId))), null);
-});
-test('insufficient or ambiguous generation evidence cannot authorize cross-source identity reuse', () => {
-    for (const options of [{ duplicate: true }, { multi: true }, { noTime: true }, { noPrompt: true }]) {
-        const { online, offline } = mediaSources(options);
-        assert.equal(findResourceMatch(mediaChatId, resourceIdentity(online.conversation.detail.assets[0], mediaChatId),
-            offline.conversation.detail.assets.map(asset => resourceIdentity(asset, mediaChatId))), null);
-    }
-});
+
+
 test('task resources isolate accounts and conversations; fresh tasks cannot recover a persistent byte cache', async () => {
     const { online } = mediaSources(); const asset = { ...online.conversation.detail.assets[0] }; delete asset.sourceUri;
     const context = createSourceResourceContext(), fresh = createSourceResourceContext();

@@ -14,7 +14,7 @@ import { assertDomainClosure } from '../src/l2/closure.js';
 import { composeFixture } from './helpers/documentFixture.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { mapContentAssetReferences } from '../src/l2/content/assetReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';

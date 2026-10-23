@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { v2Document } from './helpers/l4V2Fixtures.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import type { DocumentAst } from '../src/l3b/ast/ast.js';
 import type { ResourceBindings } from '../src/l4/packaging/resourceBindings.js';
 

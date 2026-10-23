@@ -4,7 +4,7 @@ import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import type { PdfCompileContext, TypstRenderPayload } from '../src/l4/format/pdf/pdfCompiler.js';
 
 function rendererBoundary(semantic: DomainConversationWithDetail): void {

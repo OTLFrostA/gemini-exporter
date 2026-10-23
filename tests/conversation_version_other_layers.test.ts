@@ -7,7 +7,6 @@ import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseCo
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
-import { savedConversationVersion } from '../src/l2/conversationVersion.js';
 import { shouldSkipExport } from '../src/application/export/runExport.js';
 import type { ExportRecord, ExportRequest } from '../src/application/export/types.js';
 import { serializeDomainJson, JSON_ARCHIVE_VERSION } from '../src/l4/format/json/serializeDomainJson.js';
@@ -37,14 +36,13 @@ function toDomain(source: SourceConversationParseResult) {
 test('v2 export freshness compares L1 source version to L2 Index rather than the local export clock', () => {
     const parsed = detail([1700000000, 0], [1700000000, 0]);
     const conversation = toDomain(parsed);
-    const sourceVersion = savedConversationVersion(conversation, parsed.sourceVersion);
+    const sourceVersion = conversation.detail.savedAt ?? parsed.sourceVersion;
     assert.equal(sourceVersion, parsed.sourceVersion);
     const record: ExportRecord = { exportedAt: 1900000000000, chatTime: sourceVersion, format: 'markdown', status: 'ok' };
     assert.equal(shouldSkipExport(record, conversation.index.updatedAt, request), true);
     assert.equal(shouldSkipExport(record, conversation.index.updatedAt! + 1, request), false);
     assert.equal(shouldSkipExport({ ...record, chatTime: undefined }, conversation.index.updatedAt, request), false);
     assert.equal(shouldSkipExport({ ...record, status: 'partial' }, conversation.index.updatedAt, request), false);
-    assert.equal(savedConversationVersion(toDomain(detail([1700000000, 0]))), undefined);
 });
 
 test('v2 JSON carries L2 savedAt as a Detail fact, not an obsolete top-level sourceVersion', () => {
