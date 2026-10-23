@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { chatGPTRequest, confirmedChatGPTDeletion, chatGPTStreamEvent } from '../src/l1/sniffer/chatgpt/observation.js';
 import { installChatGPTHook } from '../src/l1/sniffer/chatgpt/hook.js';
 import { streamGen } from './fixtures/providers/chatgptStream.js';
+import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 
 const cid = '6acffdc5-c4d0-83e8-8e1b-ba60979a618a';
-const session = { user: { id: 'subject' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds' };
 
 test('capture binds exact ChatGPT endpoints and rejects lookalikes, prepare and invalid IDs', () => {
     assert.deepEqual(chatGPTRequest('https://chatgpt.com/backend-api/f/conversation', 'POST'), { kind: 'stream' });
@@ -23,6 +23,7 @@ test('capture binds exact ChatGPT endpoints and rejects lookalikes, prepare and 
 });
 
 test('MAIN capture never consumes the page response or exposes tokens, and rejects switched sessions', async t => {
+    const session = chatgptSessionGen('C_CAPTURE_SESSION_01');
     const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
     const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
     t.after(() => {
@@ -35,7 +36,7 @@ test('MAIN capture never consumes the page response or exposes tokens, and rejec
         const windowMock = { fetch: async (input: RequestInfo | URL) => {
             if (String(input).endsWith('/api/auth/session')) {
                 sessions++;
-                return Response.json(switched && sessions > 1 ? { ...session, user: { id: 'other' } } : session);
+                return Response.json(switched && sessions > 1 ? chatgptSessionGen('C_CAPTURE_SESSION_02') : session);
             }
             return Response.json({ id: cid, mapping: {} });
         }, postMessage: (message: unknown) => events.push(message) };
@@ -48,7 +49,7 @@ test('MAIN capture never consumes the page response or exposes tokens, and rejec
         for (let i = 0; i < 30 && sessions < 2; i++) await new Promise(resolve => setTimeout(resolve, 5));
         await new Promise(resolve => setImmediate(resolve));
         assert.equal(events.length, switched ? 0 : 1);
-        assert.equal(JSON.stringify(events).includes(session.accessToken), false);
+        assert.equal(JSON.stringify(events).includes(String(session.accessToken)), false);
         if (!switched) assert.equal(Reflect.get(Reflect.get(events[0] as object, 'payload'), 'requestIdentity'), '["subject","workspace"]');
     }
 });
@@ -64,6 +65,7 @@ test('SSE recognizes explicit completion and delta envelopes without treating pr
 });
 
 test('MAIN emits on [DONE] even when the source stream remains open, without consuming the page branch', async t => {
+    const session = chatgptSessionGen('C_CAPTURE_SESSION_03');
     const priorWindow=Object.getOwnPropertyDescriptor(globalThis,'window'), priorLocation=Object.getOwnPropertyDescriptor(globalThis,'location');
     let controller: ReadableStreamDefaultController<Uint8Array>;
     const source=new ReadableStream<Uint8Array>({start(c){controller=c;}});
