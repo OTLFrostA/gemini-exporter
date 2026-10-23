@@ -13,7 +13,6 @@ const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtur
 const fallback = 'UNRELATED_MARKDOWN_SENTINEL';
 const text = (value: string, annotations: unknown[] = []): unknown[] => [null, [null, 0, value, annotations]];
 const field = (index: number, value: unknown): unknown[] => Object.assign(Array(index + 1).fill(null), { [index]: value });
-const sourceAnnotation = (start: number, end: number, ids = ['spp_fixture']): unknown[] => [start, end, [null, null, null, [null, ids]]];
 const sourceTable = (sources: unknown[] = [['https://example.com/source', 'Source title']]): unknown[] => [null, [[['cited span'], [1], sources, 'spp_fixture']]];
 function wire(raw: unknown, table?: unknown, alternatives: unknown[] = []): string {
     const payload: unknown[] = [[['rc_primary', [[fallback]], table], ...alternatives]];
