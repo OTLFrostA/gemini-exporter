@@ -174,103 +174,6 @@ test('4. Valid map load from storage', async () => {
     }
 });
 
-test('5. Partial legacy record normalization', async () => {
-    const origChrome = (globalThis as Record<string, unknown>).chrome;
-    // Legacy record with only sid and at (missing bl, accountSlot, lastUsed)
-    const mock = makeMockStorage({
-        gemini_credentials: {
-            sid: 'legacy_only_sid_at',
-            at: 'legacy_token'
-        }
-    });
-    (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
-    try {
-        const credManager = getFreshCredManager();
-        const migrated = await credManager.migrateCredentials();
-        assert.strictEqual(migrated, true, 'migration should report true');
-        const map = await credManager.loadCredMap();
-        assert.ok(map.legacy_only_sid_at, 'legacy credential should be added to map');
-        assert.strictEqual(map.legacy_only_sid_at.at, 'legacy_token');
-        assert.strictEqual(map.legacy_only_sid_at.accountSlot, 'default');
-        assert.ok(map.legacy_only_sid_at.bl, 'fallback bl should be assigned');
-        assert.ok(typeof map.legacy_only_sid_at.lastUsed === 'number');
-    } finally {
-        (globalThis as Record<string, unknown>).chrome = origChrome;
-    }
-});
-
-test('6. Legacy migration preserves order and removes legacy key', async () => {
-    const origChrome = (globalThis as Record<string, unknown>).chrome;
-    const mock = makeMockStorage({
-        gemini_credentials_map: {
-            existing_sid: { sid: 'existing_sid', at: 'at_exist', bl: 'bl_exist', accountSlot: 'default' }
-        },
-        gemini_credentials: {
-            sid: 'legacy_to_migrate',
-            at: 'at_migrated'
-        }
-    });
-    (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
-    try {
-        const credManager = getFreshCredManager();
-        const migrated = await credManager.migrateCredentials();
-        assert.strictEqual(migrated, true);
-
-        // check map has both
-        const map = await credManager.loadCredMap();
-        assert.strictEqual(Object.keys(map).length, 2);
-        assert.strictEqual(map.existing_sid.at, 'at_exist');
-        assert.strictEqual(map.legacy_to_migrate.at, 'at_migrated');
-
-        // check legacy key is removed from storage
-        assert.strictEqual(mock.data.gemini_credentials, undefined, 'legacy key must be removed');
-    } finally {
-        (globalThis as Record<string, unknown>).chrome = origChrome;
-    }
-});
-
-test('7. Alternate storage + chrome.storage.local merge', async () => {
-    const origChrome = (globalThis as Record<string, unknown>).chrome;
-    const sessionMock = makeMockStorage({
-        gemini_credentials_map: {
-            sess_sid: { sid: 'sess_sid', at: 'at_sess', bl: 'bl_sess', accountSlot: 'default' }
-        }
-    });
-    const localMock = makeMockStorage({
-        gemini_credentials_map: {
-            local_sid: { sid: 'local_sid', at: 'at_local', bl: 'bl_local', accountSlot: 'u1' }
-        },
-        gemini_credentials: {
-            sid: 'local_legacy_sid',
-            at: 'at_local_legacy'
-        }
-    });
-
-    (globalThis as Record<string, unknown>).chrome = {
-        storage: {
-            session: sessionMock,
-            local: localMock
-        }
-    };
-    try {
-        const credManager = getFreshCredManager();
-        const migrated = await credManager.migrateCredentials();
-        assert.strictEqual(migrated, true);
-
-        // session storage now has all merged credentials
-        const map = await credManager.loadCredMap();
-        assert.ok(map.sess_sid, 'session credential kept');
-        assert.ok(map.local_sid, 'local credential merged');
-        assert.ok(map.local_legacy_sid, 'local legacy credential migrated and merged');
-
-        // chrome.storage.local had its map and credentials cleaned
-        assert.strictEqual(localMock.data.gemini_credentials_map, undefined);
-        assert.strictEqual(localMock.data.gemini_credentials, undefined);
-    } finally {
-        (globalThis as Record<string, unknown>).chrome = origChrome;
-    }
-});
-
 test('8. Newest same-slot credential selected by lastUsed ordering', async () => {
     const origChrome = (globalThis as Record<string, unknown>).chrome;
     const mock = makeMockStorage({
@@ -435,7 +338,7 @@ test('13. Resolve queue survives prior failure without deadlock', async () => {
     }
 });
 
-test('14. Missing historical fields remaining missing: loadCredMap and migrateCredentials do not inject missing bl/accountSlot/lastUsed', async () => {
+test('14. Missing historical fields remain missing during load and credential resolution', async () => {
     const origChrome = (globalThis as Record<string, unknown>).chrome;
     const mock = makeMockStorage({
         gemini_credentials_map: {
@@ -453,9 +356,7 @@ test('14. Missing historical fields remaining missing: loadCredMap and migrateCr
         assert.strictEqual(map.hist_1.accountSlot, undefined, 'accountSlot must not be synthesized');
         assert.strictEqual(map.hist_1.lastUsed, undefined, 'lastUsed must not be synthesized');
 
-        // Migration without legacy entries should not mutate or inject missing fields
-        const migrated = await credManager.migrateCredentials();
-        assert.strictEqual(migrated, false);
+        // Reading a credential map must not write back invented metadata.
         const storedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
         assert.strictEqual(storedMap.hist_1.bl, undefined);
         assert.strictEqual(storedMap.hist_1.accountSlot, undefined);
@@ -470,81 +371,56 @@ test('14. Missing historical fields remaining missing: loadCredMap and migrateCr
     }
 });
 
-test('15. Extension fields retained on migration and page BL writeback', async () => {
+test('15. Extension metadata remains intact during page BL writeback', async () => {
     const origChrome = (globalThis as Record<string, unknown>).chrome;
     const mock = makeMockStorage({
         gemini_credentials_map: {
             ext_1: { sid: 'ext_1', at: 'tok_1', bl: 'ext_1_bl', customMeta: 'custom_123', flags: [1, 2, 3] },
             ext_2: { sid: 'ext_2', at: 'tok_2', accountSlot: 'default', customPluginData: { alpha: true } }
-        },
-        gemini_credentials: { sid: 'legacy_single', at: 'legacy_at' }
+        }
     });
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     try {
         const credManager = getFreshCredManager();
-
-        // 1. Migration retention: existing extension fields must survive legacy migration
-        const migrated = await credManager.migrateCredentials();
-        assert.strictEqual(migrated, true);
-        const storedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
-        assert.strictEqual(storedMap.ext_1.customMeta, 'custom_123', 'ext_1 customMeta preserved on migration');
-        assert.deepStrictEqual(storedMap.ext_1.flags, [1, 2, 3], 'ext_1 flags array preserved on migration');
-
-        // 2. Page BL writeback: backfilling page BL must retain extension metadata
         (globalThis as Record<string, unknown>).document = {
             documentElement: { innerHTML: '<div>"cfb2h":"bl_backfill_123"</div>' }
         };
         const resolved = await credManager.resolveCred('ext_2');
         assert.strictEqual(resolved.sid, 'ext_2');
         assert.strictEqual(resolved.bl, 'bl_backfill_123');
-
         const updatedStored = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
         assert.strictEqual(updatedStored.ext_2.bl, 'bl_backfill_123', 'bl backfilled in storage');
-        assert.deepStrictEqual(updatedStored.ext_2.customPluginData, { alpha: true }, 'customPluginData preserved on bl writeback');
+        assert.deepStrictEqual(updatedStored.ext_2.customPluginData, { alpha: true }, 'extension data survives bl writeback');
+        assert.strictEqual(updatedStored.ext_1.customMeta, 'custom_123', 'unrelated metadata remains unchanged');
+        assert.deepStrictEqual(updatedStored.ext_1.flags, [1, 2, 3], 'unrelated array metadata remains unchanged');
     } finally {
         delete (globalThis as Record<string, unknown>).document;
         (globalThis as Record<string, unknown>).chrome = origChrome;
     }
 });
 
-test('16. Numeric legacy SID behavior: preserved in storage and resolved cleanly', async () => {
+test('16. Numeric SID is preserved when resolving stored credentials', async () => {
     const origChrome = (globalThis as Record<string, unknown>).chrome;
     const mock = makeMockStorage({
-        gemini_credentials: {
-            sid: 987654321,
-            at: 'legacy_num_at',
-            bl: 'legacy_num_bl'
+        gemini_credentials_map: {
+            '987654321': { sid: 987654321, at: 'numeric_at', bl: 'numeric_bl', accountSlot: 'default' }
         }
     });
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     try {
         const credManager = getFreshCredManager();
-
-        // 1. Migration stores numeric sid as-is without coercing to string in storage
-        const migrated = await credManager.migrateCredentials();
-        assert.strictEqual(migrated, true, 'legacy single credential migrated');
-        const storedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
-        assert.ok(storedMap['987654321'], 'entry keyed by string representation');
-        assert.strictEqual(storedMap['987654321'].sid, 987654321, 'legacy numeric sid preserved as number in storage');
-        assert.strictEqual(storedMap['987654321'].accountSlot, 'default');
-        assert.strictEqual(storedMap['987654321'].at, 'legacy_num_at');
-        assert.strictEqual(storedMap['987654321'].bl, 'legacy_num_bl');
-
-        // 2. loadCredMap preserves numeric sid
         const loadedMap = await credManager.loadCredMap();
-        assert.strictEqual(loadedMap['987654321'].sid, 987654321, 'loadCredMap returns numeric sid');
-
-        // 3. resolveCred by targetSid resolves cleanly with numeric sid preserved
-        const resolvedBySid = await credManager.resolveCred('987654321');
-        assert.strictEqual(resolvedBySid.sid, 987654321, 'numeric legacy sid preserved as number');
-        assert.strictEqual(resolvedBySid.at, 'legacy_num_at');
-        assert.strictEqual(resolvedBySid.bl, 'legacy_num_bl');
-        assert.strictEqual(resolvedBySid.accountSlot, 'default');
-
-        // 4. resolveCred by slot selects the entry and resolves cleanly with numeric sid preserved
-        const resolvedBySlot = await credManager.resolveCred('default');
-        assert.strictEqual(resolvedBySlot.sid, 987654321, 'numeric legacy sid preserved as number when resolved by slot');
-        assert.strictEqual(resolvedBySlot.at, 'legacy_num_at');
+        assert.strictEqual(loadedMap['987654321'].sid, 987654321);
+        const bySid = await credManager.resolveCred('987654321');
+        assert.strictEqual(bySid.sid, 987654321);
+        assert.strictEqual(bySid.at, 'numeric_at');
+        assert.strictEqual(bySid.bl, 'numeric_bl');
+        const bySlot = await credManager.resolveCred('default');
+        assert.strictEqual(bySlot.sid, 987654321);
+        assert.strictEqual(bySlot.at, 'numeric_at');
+        assert.deepStrictEqual(mock.data.gemini_credentials_map, {
+            '987654321': { sid: 987654321, at: 'numeric_at', bl: 'numeric_bl', accountSlot: 'default' }
+        });
     } finally {
         (globalThis as Record<string, unknown>).chrome = origChrome;
     }
@@ -566,23 +442,6 @@ test('C3 review: existing entries without SID are not repaired on either selecti
             assert.deepStrictEqual(result.extension, entry.extension);
         }
         assert.deepStrictEqual(mock.data.gemini_credentials_map, { stored_key: entry });
-    } finally { glob.chrome = previous; }
-});
-
-test('C3 review: migration retains every raw entry, including malformed and null entries', async () => {
-    const glob = globalThis as Record<string, unknown>;
-    const previous = glob.chrome;
-    const raw = { primitive: 123, nullEntry: null, text: 'legacy', array: [1, 2], partial: { custom: true } };
-    const mock = makeMockStorage({ gemini_credentials_map: raw, gemini_credentials: { sid: 'new_legacy', at: 'legacy_at' } });
-    glob.chrome = { storage: { session: mock, local: mock } };
-    try {
-        const manager = getFreshCredManager();
-        assert.deepStrictEqual(await manager.loadCredMap(), raw);
-        assert.strictEqual(await manager.migrateCredentials(), true);
-        const persisted = mock.data.gemini_credentials_map;
-        if (!persisted || typeof persisted !== 'object') throw new Error('missing persisted map');
-        for (const [key, value] of Object.entries(raw)) assert.deepStrictEqual(Reflect.get(persisted, key), value);
-        assert.strictEqual(Reflect.get(persisted, 'new_legacy').sid, 'new_legacy');
     } finally { glob.chrome = previous; }
 });
 

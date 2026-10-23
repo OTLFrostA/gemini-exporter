@@ -39,7 +39,6 @@ export interface GeminiClientCredentialManagerModule {
     detectSlot: (urlOrPath?: string | null) => string | null;
     getCredStorage: () => chrome.storage.StorageArea | null;
     loadCredMap: () => Promise<RawCredentialMap>;
-    migrateCredentials: () => Promise<boolean>;
     resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null) => Promise<GeminiCredentials>;
     generateFallbackSid: () => string;
 }
@@ -213,27 +212,6 @@ function detectSlot(urlOrPath?: string | null): string | null {
     return "default";
 }
 
-function normalizeLegacySingleCred(s: unknown, map: RawCredentialMap): void {
-    if (!isRecord(s)) return;
-    const legacy = s[STORAGE_KEYS.CREDENTIALS];
-    if (!isRecord(legacy)) return;
-    const rawSid = legacy.sid;
-    if ((typeof rawSid === "string" || typeof rawSid === "number") && rawSid !== "" && rawSid !== 0) {
-        const key = String(rawSid);
-        if (!map[key]) {
-            const at = legacy.at || "";
-            const bl = legacy.bl || getProtocol().BL_FALLBACK;
-            map[key] = {
-                at,
-                bl,
-                sid: rawSid,
-                accountSlot: "default",
-                lastUsed: Date.now()
-            };
-        }
-    }
-}
-
 function toRawCredentialMap(raw: unknown): RawCredentialMap {
     return isRecord(raw) ? raw : {};
 }
@@ -383,55 +361,12 @@ async function resolveCredInner(
     return result;
 }
 
-async function migrateCredentials(): Promise<boolean> {
-    return withCredMapLock(async () => {
-        const storage = getCredStorage();
-        if (!storage) return false;
-        let migrated = false;
-        try {
-            const s: unknown = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-            const rawMap = isRecord(s) ? s[STORAGE_KEYS.CREDENTIALS_MAP] : null;
-            const map = toRawCredentialMap(rawMap);
-            const before = Object.keys(map).length;
-            normalizeLegacySingleCred(s, map);
-            if (Object.keys(map).length !== before) migrated = true;
-            if (typeof chrome !== "undefined" && chrome.storage?.local && storage !== chrome.storage.local) {
-                try {
-                    const localS: unknown = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                    const localRawMap = isRecord(localS) ? localS[STORAGE_KEYS.CREDENTIALS_MAP] : null;
-                    const localMap = toRawCredentialMap(localRawMap);
-                    normalizeLegacySingleCred(localS, localMap);
-                    let merged = false;
-                    for (const [k, v] of Object.entries(localMap)) {
-                        if (!map[k]) {
-                            map[k] = v;
-                            merged = true;
-                        }
-                    }
-                    if (merged) {
-                        migrated = true;
-                        await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                    }
-                } catch { /* intentional: migration fallback */ }
-            }
-            if (migrated) {
-                await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-            }
-            if (isRecord(s) && s[STORAGE_KEYS.CREDENTIALS] && typeof storage.remove === 'function') {
-                await storage.remove([STORAGE_KEYS.CREDENTIALS]);
-            }
-        } catch { /* migration best-effort */ }
-        return migrated;
-    });
-}
-
 export {
     getBlFromPage,
     getAtFromPage,
     detectSlot,
     getCredStorage,
     loadCredMap,
-    migrateCredentials,
     resolveCred,
     generateFallbackSid
 };
@@ -442,7 +377,6 @@ export const GeminiClientCredentialManager: GeminiClientCredentialManagerModule 
     detectSlot,
     getCredStorage,
     loadCredMap,
-    migrateCredentials,
     resolveCred,
     generateFallbackSid
 };
