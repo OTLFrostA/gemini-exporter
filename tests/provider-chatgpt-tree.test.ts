@@ -12,9 +12,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-    collectChatGPTImagePointers,
     extractChatGPTLinearNodes,
-    mergeChatGPTContinuations,
+    chatGPTNodeSegments,
     processChatGPTMapping,
     shouldSkipChatGPTMessage,
 } from '../src/l1/parsers/chatgpt/conversationTree.js';
@@ -24,10 +23,8 @@ import {
     parseFileDownloadPayload,
 } from '../src/l1/client/chatgpt/imageAssets.js';
 import {
-    applyChatGPTHead,
     citationsOfChatGPTNode,
     collectChatGPTThinking,
-    refreshChatGPTList,
     uploadedFilesOfChatGPTNode,
 } from '../src/l1/parsers/chatgpt/conversationDetail.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
@@ -39,7 +36,6 @@ import {
 } from '../src/l1/client/chatgpt/chatgptAccess.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
-import { listStateGen as chatgptListStateGen } from './fixtures/providers/chatgptListState.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 import { fileDownloadGen } from './fixtures/providers/chatgptFileDownload.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
@@ -106,30 +102,6 @@ test('missing ChatGPT ancestors and cyclic mappings never claim complete Detail 
         });
         assert.equal(parsed.conversation.detail.quality.status, 'partial');
     }
-});
-
-test('consecutive assistant turns merge into one node', () => {
-    const a1 = textNode('a1', 'u1', 'assistant', 'part1');
-    const a2 = textNode('a2', 'a1', 'assistant', 'part2');
-    if (a2.message) {
-        a2.message.metadata = {
-            model_slug: 'gpt-6-pro',
-            citations: [{ metadata: { title: 'Cite', url: 'https://ex.com' } }],
-        };
-    }
-    const nodes = [
-        textNode('u1', 'root', 'user', 'q'),
-        a1,
-        a2,
-    ];
-    const merged = mergeChatGPTContinuations(nodes);
-    assert.equal(merged.length, 2);
-    assert.equal(
-        (merged[1]?.message?.content as { parts: string[] }).parts.join(''),
-        'part1part2',
-    );
-    assert.equal(merged[1]?.message?.metadata?.model_slug, 'gpt-6-pro');
-    assert.equal(merged[1]?.message?.metadata?.citations?.length, 1);
 });
 
 test('a linked but streaming or interrupted ChatGPT reply never claims complete coverage', () => {
@@ -219,7 +191,7 @@ test('tool image nodes are kept and their sediment pointers collected', () => {
     };
     assert.equal(shouldSkipChatGPTMessage(toolImage.message), false);
     assert.equal(shouldSkipChatGPTMessage(toolChatter.message), true);
-    assert.deepEqual(collectChatGPTImagePointers([toolImage, toolChatter]), ['sediment://file_abc']);
+    assert.deepEqual(chatGPTNodeSegments(toolImage), [{ kind: 'image', pointer: 'sediment://file_abc' }]);
 });
 
 test('files/download helpers narrow payloads and encode bytes', () => {
@@ -518,14 +490,6 @@ test('uploaded non-image files recorded, images left to the image path', () => {
     assert.deepEqual(uploadedFilesOfChatGPTNode(node), [
         { id: 'file-1', name: 'notes.pdf', mediaType: 'application/pdf', byteLength: 42 },
     ]);
-});
-
-test('incremental refresh stops at first unchanged item and merges head', () => {
-    const { cached, pages } = chatgptListStateGen('C_PROVIDER_CHATGPT_TREE_01');
-    const { head, reachedKnown } = refreshChatGPTList(cached, pages);
-    assert.equal(reachedKnown, true);
-    assert.deepEqual(head.map((c) => c.id), ['c']);
-    assert.deepEqual(applyChatGPTHead(head, cached).map((c) => c.id), ['c', 'a', 'b']);
 });
 
 test('listConversations paginates until the reported total is reached', async () => {
