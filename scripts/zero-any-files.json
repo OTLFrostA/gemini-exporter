@@ -140,5 +140,8 @@
   "src/l1/sniffer/chatgpt/hook.ts",
   "src/runtime/content/chatgptContent.ts",
   "src/runtime/capabilities/chatgptInjection.ts",
-  "tests/chatgpt-capture.test.ts"
+  "tests/chatgpt-capture.test.ts",
+  "src/runtime/capabilities/assetFetcher.ts",
+  "src/shared/utils/moduleOverrides.ts",
+  "src/l1/client/rateLimiter.ts"
 ]
