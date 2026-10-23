@@ -12,7 +12,6 @@ import { prepareExportResources } from '../src/application/export/prepareExportR
 import { planExportPaths } from '../src/l4/packaging/index.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
 import { buildMinimalValidPdf } from './helpers/stubPdfCompiler.js';
-import { resourceDiagnostics } from '../src/shared/resources/resourceResult.js';
 const { collectDocumentResources } = require('../src/l3b/ast/resourceReferences.js');
 const { assertDomainClosure } = require('../src/l2/closure.js');
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -48,7 +47,7 @@ async function prepare(content: string, id = 'dataurl') {
         assert.equal(JSON.stringify({ domain, document }), semantic);
         assert.equal(JSON.stringify(input), before);
         return { domain, acquisitionHints: parsed.acquisitionHints, document, resources, pathMap, mounts,
-            diagnostics: [...resourceDiagnostics([...resources.values()]), ...compiled.diagnostics],
+            diagnostics: compiled.diagnostics,
             unresolved: [...resources.values()].filter(value => !value.ok) };
     } finally { context.release(); }
 }
@@ -80,14 +79,15 @@ test('percent-encoded SVG input decodes before image mounting', async () => {
     assert.ok(result.pathMap.get(id)?.endsWith('.svg'));
     assert.ok(!result.diagnostics.some((d: {code: string}) => d.code === 'FORMAT_CONTENT_OMITTED'));
 });
-test('malformed original data URL failures are sidecar diagnostics', async () => {
+test('malformed original data URL failures remain failed resource sidecars', async () => {
     for (const uri of ['data:image/png;base64', 'data:image/png;base64,!!!not-base64!!!', 'data:image/png,%zz']) {
         const result = await prepare(`![x](${uri})`);
         const id = result.domain.detail.assets[0].id;
         assert.equal(result.domain.detail.assets[0].sourceUri, undefined);
         assert.equal(result.acquisitionHints[id].url, uri);
         assert.equal(result.mounts.length, 0);
-        assert.ok(result.diagnostics.some((d: {code: string}) => d.code === 'RESOURCE_UNAVAILABLE' || d.code === 'FORMAT_CONTENT_OMITTED'));
+        assert.equal(result.resources.get(id)?.ok, false);
+        assert.ok(result.unresolved.some(item => item.resourceId === id), 'invalid asset must remain a failed sidecar');
     }
 });
 test('remote input remains a URI fact; offline preparation cannot invent bytes', async () => {
