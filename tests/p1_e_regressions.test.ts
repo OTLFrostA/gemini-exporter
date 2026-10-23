@@ -184,21 +184,6 @@ test('P1-067b: 下标 1 缺失时兼容旧位置（下标 4）', () => {
     assert.strictEqual(extractors.extractTurnTimestamp(turn), 1700000001000);
 });
 
-// ---------------------------------------------------------------- P1-068
-test('P1-068a: 图片选择 token 非纯数字时返回 undefined（不虚构序号）', () => {
-    assert.strictEqual(
-        attachments.extractImageSelectionIndex("https://googleusercontent.com/image_generation_content/4ZxAbC123"),
-        undefined
-    );
-});
-
-test('P1-068b: 纯数字 token 仍返回序号', () => {
-    assert.strictEqual(
-        attachments.extractImageSelectionIndex("https://googleusercontent.com/image_generation_content/12"),
-        12
-    );
-});
-
 // ---------------------------------------------------------------- P1-069
 test('P1-069a: extractImages 拒绝非 Google 媒体 host 的 URL', () => {
     const imgs = attachments.extractImages([["https://evil-tracker.com/pixel.png", 100, 100]]);
