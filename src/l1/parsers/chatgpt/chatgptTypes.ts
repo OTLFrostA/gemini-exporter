@@ -88,15 +88,6 @@ export interface ChatGPTApiConversationItem {
     gizmo_id?: string | null;
 }
 
-export interface ChatGPTApiConversations {
-    has_missing_conversations?: boolean;
-    items: ChatGPTApiConversationItem[];
-    limit: number;
-    offset: number;
-    total: number | null;
-    cursor?: string | null;
-}
-
 export interface ChatGPTApiSession {
     accessToken: string;
     expires: string;
