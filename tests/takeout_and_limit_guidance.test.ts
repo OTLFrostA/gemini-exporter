@@ -8,6 +8,7 @@ import { getDetail, listIndexes } from '../src/l3a/storageService.js';
 import { sourceList, sourceDetail, takeoutArchive, activityHtml } from './helpers/l1SourceFixture.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { mount, read } from './helpers/uiPortHarness.js';
 
 test('Takeout generic filenames cannot transfer bytes to another conversation',async()=>{
@@ -40,7 +41,7 @@ test('550 source rows ending naturally never imply a provider limit',async()=>{
 });
 test('only request-bound structured 1096 is a provider limit; ambiguous thrown text is an error',async()=>{
     const env=indexStorage();let page=0;
-    const terminal=parseList(JSON.stringify([['wrb.fr','MaZiqc',null,null,null,['BardErrorInfo',1096]]]));
+    const terminal=parseList(geminiListGen('G_TAKEOUT_LIMIT_01'));
     try{assert.equal(terminal.failure,'hit_google_limit');
         const provider=new GeminiProvider({getConversationList:async()=>++page<3?sourceList(['conv_'+page],'tC_'+page):terminal,getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
         assert.equal(await provider.listConversations({accountId:ACCOUNT_UUID,streamId:'recent'}),'provider_limit');assert.equal((await listIndexes(ACCOUNT_UUID)).length,2);
