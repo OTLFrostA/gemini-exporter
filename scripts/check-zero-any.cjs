@@ -49,6 +49,11 @@ try {
   console.log('DIAGNOSTICS_WITH_VENDOR', allDiagnostics.length);
   console.log('DIAGNOSTICS_EXCLUDING_VENDOR', diagnostics.length);
   console.log('DIAGNOSTIC_SAMPLE', JSON.stringify(diagnostics.slice(0, 2)).slice(0, 3000));
+  const target = diagnostics.filter(d => d.filename === 'src/l1/parsers/gemini/rpc/sourceAttachments.ts');
+  console.log('SOURCE_ATTACHMENTS_DIAGNOSTICS', JSON.stringify(target.map(d => ({
+    rule: d.code, message: d.message, labels: d.labels,
+  }))));
+
   const rules = {}, modules = {}, files = {}, severities = {};
   for (const d of diagnostics) {
     const code = d.ruleId || d.code || d.rule || 'unknown-rule';
