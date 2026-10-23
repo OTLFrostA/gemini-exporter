@@ -147,6 +147,10 @@ export interface DecodedGeminiTurn {
     timestamp: number | null;
     userMessageId: string;
     fallbackTurnId: string;
+    /** Only the confirmed request-ID slots yield provider identity. */
+    rawProviderRequestId: string | undefined;
+    /** Stable normalized request identity; raw token above retains its spelling. */
+    providerRequestId: string | undefined;
     rawAnswerDocument: unknown;
     candidate: DecodedGeminiCandidate | null;
     candidateIndex: number;
@@ -754,6 +758,23 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             : idMeta;
         const fallbackTurnId = typeof fallbackRawId === "string" ? fallbackRawId : "";
 
+        // Request identity is stricter than user-message/fallback identity:
+        // do not scan arbitrary metadata slots or the timestamp. Only the
+        // captured request slot, then slot 0, can prove an r_-prefixed token.
+        let rawProviderRequestId: string | undefined;
+        if (isUnknownArray(idMeta)) {
+            const request = idMeta[GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT];
+            const alternative = idMeta[0];
+            if (typeof request === "string" && request.startsWith("r_")) {
+                rawProviderRequestId = request;
+            } else if (typeof alternative === "string" && alternative.startsWith("r_")) {
+                rawProviderRequestId = alternative;
+            }
+        } else if (typeof idMeta === "string" && idMeta.startsWith("r_")) {
+            rawProviderRequestId = idMeta;
+        }
+        const providerRequestId = rawProviderRequestId?.slice(2).toLowerCase();
+
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         const selectedId = isUnknownArray(modelPayload)
             ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.SELECTED_CANDIDATE_ID]
@@ -781,6 +802,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             timestamp: extractTurnTimestamp(turn),
             userMessageId,
             fallbackTurnId,
+            rawProviderRequestId,
+            providerRequestId,
             rawAnswerDocument: isUnknownArray(modelPayload)
                 ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined,
             candidate,
