@@ -1,5 +1,9 @@
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence } from './detailEvidence.js';
 
+function isUnknownArray(value: unknown): value is unknown[] {
+    return Array.isArray(value);
+}
+
 export interface DecodedCandidateArtifacts {
     generatedFiles: GeminiAttachmentEvidence[];
     nativeDocuments: GeminiDocumentEvidence[];
@@ -10,15 +14,15 @@ export interface DecodedCandidateArtifacts {
 export function decodeCandidateArtifacts(candidate: unknown, conversationId?: string): DecodedCandidateArtifacts {
     const generatedFiles: GeminiAttachmentEvidence[] = [];
     const nativeDocuments: GeminiDocumentEvidence[] = [];
-    if (!Array.isArray(candidate)) return { generatedFiles, nativeDocuments };
+    if (!isUnknownArray(candidate)) return { generatedFiles, nativeDocuments };
 
     const rawPackets: unknown = candidate[30];
-    if (!Array.isArray(rawPackets)) return { generatedFiles, nativeDocuments };
+    if (!isUnknownArray(rawPackets)) return { generatedFiles, nativeDocuments };
     const nativeIdPrefix = conversationId ? `c_${conversationId.replace(/^c_/, '')}_` : null;
 
     for (const raw of rawPackets) {
-        if (!Array.isArray(raw)) continue;
-        const row: unknown[] = raw;
+        if (!isUnknownArray(raw)) continue;
+        const row = raw;
         const kind = row[10];
 
         if (kind === 26) {
@@ -27,7 +31,7 @@ export function decodeCandidateArtifacts(candidate: unknown, conversationId?: st
             const sourceMarker = row[2];
             const data = row[32];
             if (typeof id !== 'string' || !id || typeof sourceMarker !== 'string'
-                || typeof name !== 'string' || !name || !Array.isArray(data)
+                || typeof name !== 'string' || !name || !isUnknownArray(data)
                 || data[1] !== 2 || typeof data[2] !== 'string') continue;
             generatedFiles.push({
                 type: 'file', id, url: id, name, title: name, fileName: name,
