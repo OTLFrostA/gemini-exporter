@@ -145,6 +145,17 @@ const fixtureMap = {
     'G_E2E_PRODUCTION_V2_01': () => wire([
         sourceRow('passive', 'Captured title', 1700000000),
     ]),
+    'G_SNIFFER_LIST_01': () => wire([sourceRow('source_sniff_list', 'Title source_sniff_list', 1700000000)]),
+    'G_SNIFFER_LIST_02': () => wire([sourceRow('source_sniff_list', 'Title source_sniff_list', 1700000000)]),
+    'G_SNIFFER_LIST_03': () => wire([sourceRow('source_sniff_list', 'Title source_sniff_list', 1700000000)]),
+    'G_SNIFFER_LIST_04': () => wire([]),
+    'G_SNIFFER_LIST_05': () => wire([sourceRow('valid', 'Title valid', 1700000000)]),
+    'G_ACTIVE_TITLE_01': () => wire([
+        ['c_generic_title_01', 'Observed generic_title_01', null, null, null, [1700000000, 0]],
+        ['c_sniff_title_01', 'Observed sniff_title_01', null, null, null, [1700000000, 0]],
+        ['c_resolved_title_01', 'Observed resolved_title_01', null, null, null, [1700000000, 0]],
+        ['c_undated_rpc_01', 'Observed undated_rpc_01', null, null, null, null],
+    ]),
 };
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
