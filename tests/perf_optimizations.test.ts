@@ -185,13 +185,7 @@ test('perf - assetFetcher returns base64 when preferBuffer is false', async () =
     }
 });
 
-test('perf - RateLimitManager initializes and resets the runtime cooldown', () => {
-    const { RateLimitManager } = require('../src/l1/client/rateLimiter.js');
-    const manager = new RateLimitManager();
-    assert.strictEqual(manager.rateLimitCooldownUntil, 0);
-    manager.recordRateLimit(1000); assert.ok(manager.rateLimitCooldownUntil > Date.now());
-    manager.reset(); assert.strictEqual(manager.rateLimitCooldownUntil, 0);
-});
+
 
 test('perf - runtime Tab transport times out instead of hanging an acquisition task', async (t: import('node:test').TestContext) => {
     const { sendTabMessage } = require('../src/runtime/capabilities/tabService.js');

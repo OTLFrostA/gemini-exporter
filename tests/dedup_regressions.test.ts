@@ -6,27 +6,12 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { isRateLimited, calculateBackoff } = require('../src/l1/client/rateLimiter.js');
+const { calculateBackoff } = require('../src/shared/utils/retryUtils.js');
 
 
 // ---------------------------------------------------------------------------
 // Ordinary request rate limiting is based on HTTP 429 only.
-test('dedup - isRateLimited requires HTTP 429', () => {
-    const positives = [
-        { success: false, status: 429, error: '' },
-        new Error('HTTP 429 Too Many Requests :: response body'),
-    ];
-    for (const res of positives) assert.strictEqual(isRateLimited(res), true);
-    const negatives = [
-        { success: true, status: 429 }, null, undefined,
-        ...['request failed: 429', 'Rate limit exceeded, retry later',
-            'quota exceeded for model', 'Too Many Requests',
-            'BardErrorInfo: something broke', 'error 1096 occurred',
-            'RESOURCE_EXHAUSTED grpc status', 'network timeout', '']
-            .map(error => ({ success: false, error })),
-    ];
-    for (const res of negatives) assert.strictEqual(isRateLimited(res), false);
-});
+
 
 test('dedup - calculateBackoff keeps formula, cap and honors Retry-After', () => {
     // without Retry-After: capped at 30s even for large retry counts

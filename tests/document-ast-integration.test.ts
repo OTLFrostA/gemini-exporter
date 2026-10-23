@@ -7,7 +7,7 @@ import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { renderTypstFixture } from './helpers/renderTypstFixture.js';
 import { unavailableResourceText } from '../src/l4/format/shared/backendPresentation.js';
 

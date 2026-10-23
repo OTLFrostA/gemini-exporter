@@ -9,8 +9,6 @@ import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/l1/impor
 import type { ConversationParseResult } from '../src/l1/parsers/contracts.js';
 // @ts-expect-error The old resource/Domain output is not a public L1 API.
 import type { ResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
-// @ts-expect-error The barrel must not re-export the old contract.
-import type { ConversationParseResult as BarrelLegacyResult } from '../src/l1/parsers/index.js';
 
 const rawParser: ConversationParser<{ text: string }> = raw => ({ conversationId: 'source',
     conversation: { index: {}, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] } },

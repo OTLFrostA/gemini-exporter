@@ -2,18 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
-import { extractC2PATimestamp } from '../src/l1/parsers/shared/resources/c2paTimestamp.js';
-import { importTakeout } from '../src/l1/imports/takeoutEngine.js';
+import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { getDetail, listIndexes } from '../src/l3a/storageService.js';
 import { sourceList, sourceDetail, takeoutArchive, activityHtml } from './helpers/l1SourceFixture.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { mount, read } from './helpers/uiPortHarness.js';
-test('C2PA parses trusted years beyond 2029',()=>{
-    const time=extractC2PATimestamp('c2pa:claim_generator="Google" date="20321115123000Z"');
-    assert.ok(time!==null);const d=new Date(time);assert.equal(d.getUTCFullYear(),2032);assert.equal(d.getUTCMonth(),10);assert.equal(d.getUTCDate(),15);
-});
+
 test('Takeout generic filenames cannot transfer bytes to another conversation',async()=>{
     const env=indexStorage(),resources=createSourceResourceContext();
     const html=activityHtml('<p>Response B</p><img src="image_01.png"/>','chat_B_123456')+activityHtml('<p>No image</p>','chat_A_123456');

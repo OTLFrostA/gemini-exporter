@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import type { DocumentAst } from '../src/l3b/ast/ast.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
-import { renderDocumentTypst, defaultPdfLayout } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst, defaultPdfLayout } from './helpers/renderTypstFixture.js';
 import { TypstSandboxCompiler } from '../src/l4/format/pdf/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';

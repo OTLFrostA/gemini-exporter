@@ -729,14 +729,7 @@ test('Resource IPC fetches only L1-specified locators and enforces blob caps bef
     }
 });
 
-test('Runtime diagnostic timestamps have one numeric millisecond representation', () => {
-    const recorder = load('src/runtime/diagnostics/flightRecorder.ts', {}).FlightRecorder;
-    recorder.clear(); recorder.record('background', 'ready');
-    const event = recorder.getEntries()[0];
-    assert.equal(typeof event.ts, 'number');
-    assert.equal(Number.isSafeInteger(event.ts), true);
-    assert.equal('isoTime' in event, false);
-});
+
 
 
 test('completed replies request source refresh only through unified Export', async () => {

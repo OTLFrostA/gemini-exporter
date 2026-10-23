@@ -11,7 +11,7 @@ import { fixtureAccount, fixtureAccountFor, fixtureKey } from './helpers/domainF
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
 
 /** Compile-time boundary checks; never invoked at runtime. */

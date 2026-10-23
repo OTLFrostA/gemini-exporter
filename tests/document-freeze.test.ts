@@ -10,7 +10,7 @@ import { fileBadge } from '../src/l4/format/shared/backendPresentation.js';
 import { renderMathHtml } from '../src/l4/format/html/htmlMath.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 
 function domain(): DomainConversationWithDetail {

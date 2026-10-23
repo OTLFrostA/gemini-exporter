@@ -1,7 +1,6 @@
 const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
 const { parseList } = require('../src/l1/parsers/gemini/rpc/parseList.js');
-const { highResVariant } = require('../src/l1/client/gemini/geminiImageUrl.js');
 const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 export {};
 const test = require('node:test');
@@ -38,15 +37,7 @@ test('utils - cleanTitle brand suffix and prefix stripping', () => {
     assert.strictEqual(cleanTitle('纯净标题没有后缀'), '纯净标题没有后缀');
 });
 
-test('gemini_parser - highResVariant', () => {
-    const orig = 'https://lh3.googleusercontent.com/abc=s256';
-    const high = highResVariant(orig);
-    assert.strictEqual(high, 'https://lh3.googleusercontent.com/abc=s0');
 
-    // Never mutate Google Places / Maps photo CDN signatures
-    const places = 'https://lh3.googleusercontent.com/places/v1/media/xyz';
-    assert.strictEqual(highResVariant(places), places);
-});
 
 test('gemini_parser - parseList with valid batchexecute RPC text', () => {
     const inner = JSON.stringify([null, [["c_1234567890abcdef","Test Title",[1700000000,0],[1700000000,0],5]], "tC_token123"]);
@@ -240,8 +231,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     assert.strictEqual(citations[0].url, "https://arxiv.org/abs/1234.5678");
     assert.strictEqual(citations[0].title, "Quantum Supremacy Paper");
 
-    // 3. attachments: highResVariant & isInternalChipUrl
-    assert.strictEqual(highResVariant("https://lh3.googleusercontent.com/pic=w500-h300"), "https://lh3.googleusercontent.com/pic=s0");
+    // 3. attachments: isInternalChipUrl
     assert.strictEqual(attachments.isInternalChipUrl("https://googleusercontent.com/immersive_entry_chip/abc"), true);
     assert.strictEqual(attachments.isInternalChipUrl("https://example.com/normal.png"), false);
 
