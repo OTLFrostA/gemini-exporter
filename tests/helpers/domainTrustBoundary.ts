@@ -5,7 +5,7 @@ import { type Node, type SourceFile, isIdentifier, isPropertyAccessExpression, i
     isFunctionDeclaration, isReturnStatement, isObjectLiteralExpression, isPropertyAssignment, isArrowFunction, isFunctionExpression } from 'typescript/unstable/ast';
 
 const validator = 'l2/runtimeValidation.ts';
-const parserOwners = new Set(['l1/parsers/gemini/rpc/parseConversation.ts', 'l1/parsers/gemini/dom/parseConversation.ts',
+const parserOwners = new Set(['l1/parsers/gemini/rpc/parseConversation.ts',
     'l1/parsers/gemini/takeout/parseConversation.ts', 'l1/parsers/gemini/rpc/mergePages.ts', 'l1/parsers/chatgpt/parseConversation.ts']);
 // Source builders finalize new graphs; only the repository restores disk/write snapshots.
 const entries = new Map<string, Set<string>>([
@@ -17,7 +17,7 @@ const entries = new Map<string, Set<string>>([
     ['callDomainBroker', new Set()],
 ]);
 const trustedTypes = new Set(['TrustedDomain', 'ConversationParseResult', 'ResourceConversationParseResult',
-    'GeminiRpcParseResult', 'GeminiDomParseResult', 'GeminiTakeoutParseResult', 'TrustedDomainBody', 'NativeConversationInput', 'WorkerChatResolveInput', 'ChatExportInput', 'PopupExportInput']);
+    'GeminiRpcParseResult', 'GeminiTakeoutParseResult', 'TrustedDomainBody', 'NativeConversationInput', 'WorkerChatResolveInput', 'ChatExportInput', 'PopupExportInput']);
 // The brand is confined to the validator. Only current-version authenticated transport adapters
 // reattach the publisher's existing trust after Chrome serialization; neither is a raw/page reader.
 const castOwners = new Map<string, Set<string>>([
