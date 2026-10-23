@@ -23,7 +23,7 @@ export interface ExportRateLimiter {
 }
 
 export interface RetryOptions extends RateLimiterOptions {
-    onRetry?: (retryCount: number, delayMs: number, errorOrRes: any) => void;
+    onRetry?: (retryCount: number, delayMs: number, errorOrRes: unknown) => void;
     signal?: AbortSignal | null;
     isAborted?: () => boolean;
 }
