@@ -122,7 +122,42 @@ function visibleImageResponse(document?: unknown, includeSecondary = false): str
 const visibleImageDocument = (): unknown =>
     JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/wire-turn-3-12-b-stack.json', 'utf8'));
 
+
+/** Exact Detail turn layout used by the P1-E source-wire regression cases. */
+function p1RegressionTurn(userPayload: unknown = [['hello']], text = 'world', extraCand: unknown[] = []): unknown[] {
+    const candidate: unknown[] = ['rc_cand000001', [text], 'en', ...extraCand];
+    return [['c_abc123def456'], [1700000000, 0], userPayload, [[candidate]]];
+}
+
 const fixtureMap = {
+    'G_P1E_DETAIL_01': () => rpc([[p1RegressionTurn(undefined,
+        '第一行\nhttps://googleusercontent.com/immersive_entry_chip/abc123\n第三行')]]),
+    'G_P1E_DETAIL_02': () => rpc([[p1RegressionTurn(undefined,
+        '看这张图\nhttps://googleusercontent.com/image_generation_content/tok999\n结束',
+        [['https://lh3.googleusercontent.com/img=w100', 100, 100]])]]),
+    'G_P1E_DETAIL_03': () => rpc([null, null, [['c_meta1234567890', '元数据标题', 'x']]]),
+    'G_P1E_DETAIL_04': () => rpc([[p1RegressionTurn(['hello world from user'])]]),
+    'G_P1E_DETAIL_05': () => rpc([[p1RegressionTurn([['标准形态文本']])]]),
+    'G_GEMINI_PARSER_DETAIL_01': () => {
+        const model = [
+            [
+                ['rc_024c7ad5d90f4db8', [
+                    ['不能。如果你的CAS完全没有装备机枪，是无法夺取制空权的。'],
+                    'zh',
+                ]],
+            ],
+            [['hoi4 air wing equipment filtering tags']],
+            'google', 'c', 'S', 6, 6, '.',
+        ];
+        const turn = [
+            ['c_024c7ad5d90f4db8', 'r_turn_1'],
+            [1717058840, 264000000],
+            [['如果cas不带机枪的话能抢制空么']],
+            model,
+        ];
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, '钢铁雄心4制空测试'])]]);
+    },
+    'G_GEMINI_PARSER_DETAIL_02': () => rpc([['c_123', 'Title with [brackets] inside', 'data']]),
 
     'G_VISIBLE_IMAGE_01': () => visibleImageResponse(),
     'G_VISIBLE_IMAGE_02': () => visibleImageResponse(),

@@ -1,5 +1,6 @@
 const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
+const { listGen: geminiListGen } = require('./fixtures/providers/gemini.js') as typeof import('./fixtures/providers/gemini.js');
 const { parseList } = require('../src/l1/parsers/gemini/rpc/parseList.js');
 const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 export {};
@@ -40,9 +41,7 @@ test('utils - cleanTitle brand suffix and prefix stripping', () => {
 
 
 test('gemini_parser - parseList with valid batchexecute RPC text', () => {
-    const inner = JSON.stringify([null, [["c_1234567890abcdef","Test Title",[1700000000,0],[1700000000,0],5]], "tC_token123"]);
-    const outer = JSON.stringify([["wrb.fr","MaZiqc",inner]]);
-    const mockRpc = `)]}'\n\n${outer}`;
+    const mockRpc = geminiListGen('G_GEMINI_PARSER_LIST_01');
     const res = parseList(mockRpc);
     assert.strictEqual(res.conversations.length, 1);
     assert.strictEqual(res.conversations[0].id, '1234567890abcdef');
@@ -108,36 +107,7 @@ test('gemini_parser - JSPB schema and candidate extraction filters telemetry and
     assert.ok(GEMINI_JSPB_SCHEMA, 'GEMINI_JSPB_SCHEMA should be exported');
     assert.strictEqual(typeof detectTurnSchemaDrift, 'function', 'detectTurnSchemaDrift should be function');
 
-    // Simulate real Gemini response with Grounding search query, provider, and telemetry tokens
-    const mockModelTurn = [
-        [
-            [
-                "rc_024c7ad5d90f4db8",
-                [
-                    ["不能。如果你的CAS完全没有装备机枪，是无法夺取制空权的。"],
-                    "zh" // Language code tag - MUST NOT leak into message body
-                ]
-            ]
-        ],
-        [["hoi4 air wing equipment filtering tags"]], // Grounding search query - MUST NOT become a message
-        "google",                                    // Search provider - MUST NOT become a message
-        "c",                                         // Status code - MUST NOT become a message
-        "S",                                         // Status code - MUST NOT become a message
-        6,                                           // Telemetry - MUST NOT become a message
-        6,                                           // Telemetry - MUST NOT become a message
-        "."                                          // Telemetry - MUST NOT become a message
-    ];
-
-    const turn = [
-        ["c_024c7ad5d90f4db8", "r_turn_1"],
-        [1717058840, 264000000],
-        [["如果cas不带机枪的话能抢制空么"]],
-        mockModelTurn
-    ];
-
-    const mockDetailInner = [[turn], null, "钢铁雄心4制空测试"];
-    const topPayload = [["wrb.fr", "hNvQHb", JSON.stringify(mockDetailInner)]];
-    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+    const rawText = geminiDetailGen('G_GEMINI_PARSER_DETAIL_01');
 
     const parsed = decodeGeminiDetail(rawText, '024c7ad5d90f4db8');
 
@@ -264,10 +234,7 @@ test('gemini_parser - detectTurnSchemaDrift returns structured drift diagnosis',
 });
 
 test('gemini_parser - robustFirstPayload parses nested JSON strings with brackets inside quotes', () => {
-    const jsonWithBracketsInString = JSON.stringify([
-        ["wrb.fr", "hNvQHb", JSON.stringify([["c_123", "Title with [brackets] inside", "data"]])]
-    ]);
-    const rpcText = `)]}'\n\n${jsonWithBracketsInString}`;
+    const rpcText = geminiDetailGen('G_GEMINI_PARSER_DETAIL_02');
     const parsed = robustFirstPayload(rpcText) as any[][];
     assert.ok(Array.isArray(parsed));
     assert.strictEqual(parsed.length, 1);
