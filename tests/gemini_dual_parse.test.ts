@@ -6,31 +6,27 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { auditGeminiEvidence, canonicalMessage, differences, readGeminiAuditInput, semanticContent } from './helpers/geminiDualParse.js';
 import { runAudit } from '../scripts/check_gemini_dual_parse.js';
 import type { DomainMessage, DomainAsset } from '../src/l2/conversationDetail.js';
 
-function wire(markdown = 'Hello', document: unknown = { children: [{ nodeType: 18, text: 'Hello' }] }): string {
-    const candidate: unknown[] = [[['rc_dualaudit', [markdown]]]];
-    candidate[12] = document;
-    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_dualaudit', 'r_fixture'], [1700000000, 0], [['Question']], candidate]]])]]);
-}
 const body = (content: DomainMessage['content']): DomainMessage => ({ role: 'assistant', content });
 const paragraph = (text: string): DomainMessage => body([{ type: 'paragraph', children: [{ type: 'text', text }] }]);
 const compare = (a: DomainMessage, b: DomainMessage, assets: DomainAsset[] = []) => differences(canonicalMessage(a, assets), canonicalMessage(b, assets));
 
-function envelope(raw = wire()) {
+function envelope(raw = geminiDetailGen('G_DUAL_AUDIT_01')) {
     return { success: true, source: 'batchexecute', data: parseGeminiRpcConversation(raw, { account: fixtureAccount('gemini'), providerId: 'gemini' }) };
 }
 
 test('same native response takes independent raw Markdown and structured branches; input is not mutated', () => {
-    const evidence = decodeGeminiDetail(wire());
+    const evidence = decodeGeminiDetail(geminiDetailGen('G_DUAL_AUDIT_02'));
     const original = structuredClone(evidence);
     const result = auditGeminiEvidence(evidence);
     assert.equal(result.messages.length, 1);
     assert.equal(result.messages[0].status, 'match');
     assert.deepEqual(evidence, original);
-    const divergence = auditGeminiEvidence(decodeGeminiDetail(wire('Independent raw Markdown'))).messages[0];
+    const divergence = auditGeminiEvidence(decodeGeminiDetail(geminiDetailGen('G_DUAL_AUDIT_03'))).messages[0];
     assert.equal(divergence.status, 'different');
     assert.equal(divergence.classification, 'content_or_metadata');
     assert.equal(divergence.rawMarkdown, 'Independent raw Markdown');
@@ -39,7 +35,7 @@ test('same native response takes independent raw Markdown and structured branche
 });
 
 test('adapter rejection cannot pass by comparing fallback Markdown with itself', () => {
-    const evidence = decodeGeminiDetail(wire());
+    const evidence = decodeGeminiDetail(geminiDetailGen('G_DUAL_AUDIT_04'));
     evidence.messages[1].structuredContent = { children: [{ nodeType: 'future-node' }] } as unknown as NonNullable<typeof evidence.messages[1]['structuredContent']>;
     const reply = auditGeminiEvidence(evidence).messages[0];
     assert.equal(reply.status, 'structured_unavailable');
@@ -51,10 +47,7 @@ test('adapter rejection cannot pass by comparing fallback Markdown with itself',
 });
 
 test('forcing Markdown retains native file-chip provenance without leaking native body text', () => {
-    const evidence = decodeGeminiDetail(wire('Independent answer [cite: 1]', { children: [
-        { nodeType: 'paragraph', children: [{ nodeType: 18, text: 'Native answer' },
-            { nodeType: 'citation', number: 1, title: 'test_config.json' }] },
-    ] }));
+    const evidence = decodeGeminiDetail(geminiDetailGen('G_DUAL_AUDIT_05'));
     evidence.messages[1].groundingCitationMarkers = ['[cite: 1]'];
     const reply = auditGeminiEvidence(evidence).messages[0];
     assert.equal(reply.status, 'different');
@@ -65,16 +58,16 @@ test('forcing Markdown retains native file-chip provenance without leaking nativ
 });
 
 test('wire decode rejection and absent native document are unavailable, never match', () => {
-    for (const native of [null, { children: [{ nodeType: 999, text: 'Hello' }] }]) {
-        const result = auditGeminiEvidence(decodeGeminiDetail(wire('Hello', native))).messages[0];
+    for (const key of ['G_DUAL_AUDIT_06', 'G_DUAL_AUDIT_07'] as const) {
+        const result = auditGeminiEvidence(decodeGeminiDetail(geminiDetailGen(key))).messages[0];
         assert.equal(result.status, 'structured_unavailable');
         assert.equal(result.structured, null);
     }
 });
 
 test('empty native document with nonempty Markdown is rejected, truly empty image response is comparable', () => {
-    assert.equal(auditGeminiEvidence(decodeGeminiDetail(wire('Hello', { children: [] }))).messages[0].status, 'structured_unavailable');
-    const evidence = decodeGeminiDetail(wire());
+    assert.equal(auditGeminiEvidence(decodeGeminiDetail(geminiDetailGen('G_DUAL_AUDIT_08'))).messages[0].status, 'structured_unavailable');
+    const evidence = decodeGeminiDetail(geminiDetailGen('G_DUAL_AUDIT_09'));
     evidence.messages[1].structuredContent = { children: [] };
     evidence.messages[1].content = '';
     assert.equal(auditGeminiEvidence(evidence).messages[0].status, 'match');
@@ -130,7 +123,7 @@ test('link destinations, file citations and resource identities remain significa
 });
 
 test('raw RPC framing and captured inner payload provenance are distinguished; DOM/cache is rejected', () => {
-    const raw = readGeminiAuditInput(wire(), 'raw_rpc');
+    const raw = readGeminiAuditInput(geminiDetailGen('G_DUAL_AUDIT_10'), 'raw_rpc');
     const captured = readGeminiAuditInput(JSON.stringify(envelope()), 'native_envelope');
     assert.equal(raw.provenance, 'raw_rpc');
     assert.equal(captured.provenance, 'captured_decoded_payload');
@@ -154,14 +147,14 @@ test('offline reports retain source hash and every diff; incomplete pagination, 
         assert.equal(result.passed, false);
         assert.equal(result.counts.incomplete, 1);
         assert.equal(result.counts.expectedAssistant, 2);
-        writeFileSync(file, JSON.stringify(envelope(wire('DIFFERENT'))));
+        writeFileSync(file, JSON.stringify(envelope(geminiDetailGen('G_DUAL_AUDIT_11'))));
         result = runAudit(input, output);
         assert.equal(result.counts.different, 1);
         const report = JSON.parse(readFileSync(join(output, 'sample.json.audit.json'), 'utf8'));
         assert.match(report.sha256, /^[a-f0-9]{64}$/);
         assert.ok(report.messages[0].differences.length > 0);
         assert.equal(readFileSync(join(output, report.sourceFile), 'utf8'), readFileSync(file, 'utf8'));
-        const evidence = decodeGeminiDetail(wire());
+        const evidence = decodeGeminiDetail(geminiDetailGen('G_DUAL_AUDIT_12'));
         evidence.nextPageToken = 'tC_next';
         assert.equal(auditGeminiEvidence(evidence).complete, false);
         evidence.nextPageToken = null;
@@ -169,7 +162,7 @@ test('offline reports retain source hash and every diff; incomplete pagination, 
         assert.equal(auditGeminiEvidence(evidence).complete, false);
         writeFileSync(file, '{}');
         assert.equal(runAudit(input, output).counts.errors, 1);
-        writeFileSync(file, JSON.stringify(envelope(wire('Hello', null))));
+        writeFileSync(file, JSON.stringify(envelope(geminiDetailGen('G_DUAL_AUDIT_13'))));
         assert.equal(runAudit(input, output).counts.structuredUnavailable, 1);
         writeFileSync(file, JSON.stringify({ ...envelope(), data: {   ...envelope().data, transport: { decodedPayload: [] } } }));
         assert.equal(runAudit(input, output).passed, false);
@@ -179,7 +172,7 @@ test('offline reports retain source hash and every diff; incomplete pagination, 
 });
 
 test('v2 fetch capture keeps raw framing and validates identity/cursor closure before differential audit', () => {
-    const raw = wire();
+    const raw = geminiDetailGen('G_DUAL_AUDIT_14');
     const source = { schemaVersion: 1, source: 'raw_rpc_pages', conversationId: 'dualaudit',
         pages: [{ requestCursor: null, text: raw }] };
     const read = (value: unknown) => readGeminiAuditInput(JSON.stringify(value), 'native_envelope');
@@ -195,7 +188,7 @@ test('v2 fetch capture keeps raw framing and validates identity/cursor closure b
 
 test('v2 native page audit requires every requested cursor and merges oldest-to-newest without duplicate turns', () => {
     const page = (name: string, next: string | null) => {
-        const raw = JSON.parse(wire());
+        const raw = JSON.parse(geminiDetailGen('G_DUAL_AUDIT_15'));
         const inner = JSON.parse(raw[0][2]);
         inner[0][0][0][1] = `r_${name}`;
         inner[0][0][3][0][0][0] = `rc_${name}`;
