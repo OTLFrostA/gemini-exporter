@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TITLE_AUTHORITY_RANK, TITLE_SOURCE_PRIORITY, TITLE_TIER_RANK, titleAuthorityRank, resolveTitle } from '../src/l2/titleAuthority.js';
+import { TITLE_AUTHORITY_RANK, titleAuthorityRank, resolveTitle } from '../src/l2/titleAuthority.js';
 
 test('canonical title authority gives every declared source a numeric rank', () => {
     for (const [source, rank] of Object.entries(TITLE_AUTHORITY_RANK)) {
@@ -10,13 +10,8 @@ test('canonical title authority gives every declared source a numeric rank', () 
     assert.equal(titleAuthorityRank('unknown'), 0);
 });
 
-test('title priority is a unique, ranked subset of canonical authority', () => {
-    assert.equal(new Set(TITLE_SOURCE_PRIORITY).size, TITLE_SOURCE_PRIORITY.length);
-    for (const source of TITLE_SOURCE_PRIORITY) {
-        assert.equal(TITLE_TIER_RANK[source], TITLE_AUTHORITY_RANK[source]);
-    }
-    const ranks = TITLE_SOURCE_PRIORITY.map(source => TITLE_AUTHORITY_RANK[source]);
-    assert.deepEqual(ranks, [...ranks].sort((a, b) => b - a));
+test('canonical title authority ranks are distinct and ordered by source', () => {
+    assert.deepEqual(TITLE_AUTHORITY_RANK, { user: 3, provider: 2, derived: 1 });
 });
 
 test('detail title outranks passive sniff in canonical authority', () => {

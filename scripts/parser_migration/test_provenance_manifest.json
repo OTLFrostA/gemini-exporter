@@ -94,7 +94,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "title tiers mirror the repo TITLE_TIER_RANK ladder",
+          "name": "title tiers mirror the canonical TITLE_AUTHORITY_RANK ladder",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
