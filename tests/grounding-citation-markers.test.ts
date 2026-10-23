@@ -1,4 +1,5 @@
 export {};
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -328,53 +329,7 @@ test('source AST replaces metadata-confirmed cite tokens with citation reference
 });
 
 test('wire batchexecute decoding and source AST close citation references', async () => {
-    // Construct wire JSPB detail structure mimicking Google Gemini server
-    const mockDetailInner = [
-        [
-            // Turn 0: user turn
-            [
-                ['c_533ac8ca2ecb8bd7', 'r_turn_u0'],
-                [1700000000, 0],
-                ['Load configuration test_config.json', 0],
-                null,
-            ],
-            // Turn 1: model turn with candidate citing attachment
-            [
-                ['c_533ac8ca2ecb8bd7', 'r_turn_m1'],
-                [1700000005, 0],
-                null,
-                [
-                    // Candidates array
-                    [
-                        // Candidate 0
-                        [
-                            'rc_candidate_0',
-                            [['Loaded `test_config.json`[cite: 1]:\n\n* **status**: `"ok"`[cite: 1]']],
-                            null, null, null, null, null, null, null, null, null, null,
-                            // Field 12: grounding metadata with subfield 44
-                            [
-                                {
-                                    '8': [],
-                                    '44': [
-                                        [
-                                            ['[cite: 1]', 0],
-                                            [[null, [[null, 0, 'test_config.json', null, [3, null, 'File attachment']]]]],
-                                        ],
-                                    ],
-                                },
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ],
-        null,
-        'c_533ac8ca2ecb8bd7',
-    ];
-
-    const rawEnvelope = `)]}'\n\n${JSON.stringify([
-        ['wrb.fr', 'hNvQHb', JSON.stringify(mockDetailInner)],
-    ])}`;
+    const rawEnvelope = geminiDetailGen('G_GROUNDING_CITATION_MARKERS_01');
 
     // 1. Parser stage
     const parsed = decodeGeminiDetail(rawEnvelope, '533ac8ca2ecb8bd7');
