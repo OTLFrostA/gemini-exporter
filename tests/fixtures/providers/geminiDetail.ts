@@ -55,7 +55,68 @@ function coverageWire(raw: unknown, candidates: unknown[] = [['rc_answer', [[COV
     return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_coverage', 'r_coverage'], [1700000000, 0], [['Question']], payload]]])]]);
 }
 
+
+/** Source-attribution probes: each key resolves one native hNvQHb response. */
+const citationFallback = 'UNRELATED_MARKDOWN_SENTINEL';
+const citationFile = (name: string): unknown =>
+    JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/' + name + '.json', 'utf8'));
+const citationText = (value: string, annotations: unknown[] = []): unknown[] => [null, [null, 0, value, annotations]];
+const citationField = (index: number, value: unknown): unknown[] =>
+    Object.assign(Array(index + 1).fill(null), { [index]: value });
+const citationSourceAnnotation = (start: number, end: number, ids = ['spp_fixture']): unknown[] =>
+    [start, end, [null, null, null, [null, ids]]];
+const citationSourceTable = (sources: unknown[] = [['https://example.com/source', 'Source title']]): unknown[] =>
+    [null, [[['cited span'], [1], sources, 'spp_fixture']]];
+function citationWire(raw: unknown, table?: unknown, alternatives: unknown[] = []): string {
+    const payload: unknown[] = [[['rc_primary', [[citationFallback]], table], ...alternatives]];
+    payload[12] = raw;
+    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+        [[['c_citationfixture', 'r_fixture'], [1700000000, 0], [['Question']], payload]],
+    ])]]);
+}
+
 const fixtureMap = {
+    'G_STRUCTURED_CITATIONS_01': () => citationWire(citationFile('live-file-citations')),
+    'G_STRUCTURED_CITATIONS_02': () => citationWire(citationFile('live-optics-table-citations')),
+    'G_STRUCTURED_CITATIONS_03': () => citationWire(citationFile('live-blockquote')),
+    'G_STRUCTURED_CITATIONS_04': () => {
+        const quote = citationField(16, [[citationText('different quoted text')]]);
+        return citationWire({ children: [{ nodeType: 20, items: [{ children: [quote] }] }] });
+    },
+    'G_STRUCTURED_CITATIONS_05': () => citationWire([[[citationField(16, [])]]]),
+    'G_STRUCTURED_CITATIONS_06': () => citationWire([[[citationField(16, [[]])]]]),
+    'G_STRUCTURED_CITATIONS_07': () => citationWire([[[citationField(16, ['bad'])]]]),
+    'G_STRUCTURED_CITATIONS_08': () => citationWire([[[citationField(16, [[citationField(38, ['unknown'])]])]]]),
+    'G_STRUCTURED_CITATIONS_09': () => {
+        const quote = citationField(16, [[citationText('different quoted text')]]);
+        quote[17] = 'conflicting content';
+        return citationWire([[[quote]]]);
+    },
+    'G_STRUCTURED_CITATIONS_10': () => citationWire(citationFile('live-combined-file-citations')),
+    'G_STRUCTURED_CITATIONS_11': () => citationWire(
+        citationFile('live-source-attributions'), citationFile('live-source-table')),
+    'G_STRUCTURED_CITATIONS_12': () => {
+        const table = citationSourceTable([
+            ['https://example.com/a', 'A'], ['https://example.com/b', 'B'],
+            ['https://example.com/a', 'A'],
+        ]);
+        const raw = [[[citationText('😀 bold italic [1]', [
+            citationSourceAnnotation(0, 14),
+            [3, 14, [[null, null, null, null, 2]]],
+            [8, 14, [[null, null, null, null, 1]]],
+        ])]]];
+        return citationWire(raw, table);
+    },
+    'G_STRUCTURED_CITATIONS_13': () => {
+        const raw = [[[citationText('body', [citationSourceAnnotation(0, 4)])]]];
+        return citationWire(raw, undefined, [
+            ['rc_alternative', [['other body']], citationSourceTable()],
+        ]);
+    },
+    'G_STRUCTURED_CITATIONS_14': () => {
+        const raw = [[[citationText('body', [citationSourceAnnotation(0, 4)])]]];
+        return citationWire(raw, citationSourceTable(), [['rc_alternative', [['other body']]]]);
+    },
     'G_DUAL_AUDIT_01': () => dualAuditWire(),
     'G_DUAL_AUDIT_02': () => dualAuditWire(),
     'G_DUAL_AUDIT_03': () => dualAuditWire('Independent raw Markdown'),
