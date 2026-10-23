@@ -42,6 +42,12 @@ const fixtureMap = {
         user: { id: 'subject' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds',
     }),
     'C_FILE_DOWNLOAD_SESSION_01': () => ({ accessToken: 'tok' }),
+    'C_CAPTURE_SESSION_04': () => ({
+        user: { id: 'subject' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds',
+    }),
+    'C_CAPTURE_SESSION_05': () => ({
+        user: { id: 'other' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds',
+    }),
 };
 export function sessionGen(key: keyof typeof fixtureMap): Record<string, unknown> {
     return fixtureMap[key]();
