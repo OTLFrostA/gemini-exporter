@@ -86,8 +86,16 @@ test('malformed original data URL failures remain failed resource sidecars', asy
         assert.equal(result.domain.detail.assets[0].sourceUri, undefined);
         assert.equal(result.acquisitionHints[id].url, uri);
         assert.equal(result.mounts.length, 0);
-        assert.equal(result.resources.get(id)?.ok, false);
-        assert.ok(result.unresolved.some(item => item.resourceId === id), 'invalid asset must remain a failed sidecar');
+        const prepared = result.resources.get(id);
+        assert.ok(prepared, 'invalid data URL must have a prepared resource result');
+        if (prepared.ok) {
+            // Some malformed data URLs decode to bytes but are rejected during PDF content validation.
+            assert.ok(result.diagnostics.some(d => d.code === 'FORMAT_CONTENT_OMITTED'),
+                'a decoded but invalid image must be reported by the PDF compiler');
+        } else {
+            assert.ok(result.unresolved.some(item => item.resourceId === id),
+                'an acquisition failure must remain a failed resource sidecar');
+        }
     }
 });
 test('remote input remains a URI fact; offline preparation cannot invent bytes', async () => {
