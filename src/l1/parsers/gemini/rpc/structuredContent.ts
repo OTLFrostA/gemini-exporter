@@ -605,10 +605,11 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         if (!Array.isArray(event)) return null;
         const eventSlots: unknown[] = event;
         const eventIndex = eventSlots[2];
+        const allowedEventKinds: unknown[] = [0, 1];
         if (eventSlots.length !== 5 || typeof eventSlots[0] !== 'string'
             || typeof eventSlots[1] !== 'string' || !/^[\w+-]+$/.test(eventSlots[1])
             || !Number.isInteger(eventIndex) || typeof eventIndex !== 'number' || eventIndex < 1
-            || eventSlots[3] !== null || ![0, 1].includes(eventSlots[4] as number)) return null;
+            || eventSlots[3] !== null || !allowedEventKinds.includes(eventSlots[4])) return null;
         return { nodeType: 1, code: eventSlots[0],
             info: `${eventSlots[1]}?${eventSlots[4] === 0 ? 'code_reference' : 'code_stdout'}&code_event_index=${eventIndex}` };
     }
