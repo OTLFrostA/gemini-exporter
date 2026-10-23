@@ -236,7 +236,18 @@ function citationInlineCombinedWire(): string {
     ] }] });
 }
 
+
+function domainCapturedStructuredWire(): string {
+    const candidate = citationFile('wire-case-b-cand.json');
+    const structured = citationFile('wire-turn-3-12-b-stack.json');
+    const rawTurn = domainTurn('Explain Bell inequalities', null, [candidate]);
+    const model = rawTurn[3] as unknown[];
+    model[12] = structured;
+    return rpc([[rawTurn]]);
+}
+
 const fixtureMap = {
+    'G_RPC_DOMAIN_CAPTURED_STACK_01': () => domainCapturedStructuredWire(),
     'G_STRUCTURED_CITATION_COMPOSITE_PARAGRAPH_01': () => citationCompositeWire('paragraph'),
     'G_STRUCTURED_CITATION_COMPOSITE_LIST_01': () => citationCompositeWire('list'),
     'G_STRUCTURED_CITATION_COMPOSITE_TABLE_01': () => citationCompositeWire('table'),
