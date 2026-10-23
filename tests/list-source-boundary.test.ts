@@ -7,6 +7,8 @@ import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { domListGen } from './fixtures/providers/geminiDomList.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
@@ -64,7 +66,7 @@ test('provider commits indexes before progress and exposes control facts only', 
 });
 
 test('Gemini observations and pagination consume parsed evidence without reading decoded payloads', async () => {
-    const parsed = geminiListGen('G_LIST_SOURCE_BOUNDARY_07');
+    const parsed = parseList(geminiListGen('G_LIST_SOURCE_BOUNDARY_07'));
     Object.defineProperty(parsed, '_raw', { get() { throw new Error('downstream interpreted raw source'); } });
     const observation = geminiListObservation(parsed, { streamId: 'recent', requestCursor: null }, 'account');
     assert.equal(observation.valid, true);
@@ -76,21 +78,24 @@ test('Gemini observations and pagination consume parsed evidence without reading
 });
 
 test('Gemini parser rejects incomplete row coverage and unknown layouts as exhaustion evidence', () => {
-    for (const { source, page } of geminiListGen('G_LIST_SOURCE_BOUNDARY_08')) {
+    for (const key of ['G_LIST_SOURCE_BOUNDARY_08_0', 'G_LIST_SOURCE_BOUNDARY_08_1', 'G_LIST_SOURCE_BOUNDARY_08_2', 'G_LIST_SOURCE_BOUNDARY_08_3'] as const) {
+        const source = geminiListGen(key);
+        const page = parseList(source);
         assert.equal(page.pageEvidence.valid, false, source);
         assert.equal(page.pageEvidence.ordered, false);
     }
 });
 
 test('an empty Gemini continuation page preserves its cursor instead of claiming exhaustion', () => {
-    const parsed = geminiListGen('G_LIST_SOURCE_BOUNDARY_09');
+    const parsed = parseList(geminiListGen('G_LIST_SOURCE_BOUNDARY_09'));
     assert.equal(parsed.pageEvidence.valid, true);
     assert.equal(parsed.nextPageToken, 'tC_cursor');
     assert.deepEqual(parsed.conversations, []);
 });
 
 test('Gemini list requires an explicit natural-terminal cursor, not an unrecognized slot', () => {
-    const { explicit, ambiguous } = geminiListGen('G_LIST_SOURCE_BOUNDARY_10');
+    const explicit = parseList(geminiListGen('G_LIST_SOURCE_BOUNDARY_10_EXPLICIT'));
+    const ambiguous = parseList(geminiListGen('G_LIST_SOURCE_BOUNDARY_10_AMBIGUOUS'));
     assert.equal(explicit.pageEvidence.valid, true);
     assert.equal(ambiguous.nextPageToken, null);
     assert.equal(ambiguous.pageEvidence.valid, false);
@@ -98,7 +103,7 @@ test('Gemini list requires an explicit natural-terminal cursor, not an unrecogni
 });
 
 test('DOM metadata preserves title precedence and keeps UI labels and observation clocks out of Domain', () => {
-    const { header, doc } = geminiListGen('G_LIST_SOURCE_BOUNDARY_11');
+    const { header, doc } = domListGen('G_LIST_SOURCE_BOUNDARY_11');
     const [index] = parseGeminiDomList(doc);
     assert.equal(index.title, '');
     assert.equal(index.titleSource, 'dom');
