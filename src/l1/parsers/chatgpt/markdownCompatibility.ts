@@ -19,7 +19,8 @@ const CODE_SPAN = /(```[\s\S]*?(?:```|$)|`[^`\n]+`)/g;
 // `\(...\)` -> `$...$`. Code spans are shielded by the caller.
 const BRACKET_DISPLAY_OWN_LINES = /^[ \t]*\\\[(?<block>[\s\S]+?)\\\][ \t]*$/gm;
 const BRACKET_DISPLAY_INLINE = /\\\[(?<display>[\s\S]+?)\\\]/g;
-const BRACKET_INLINE = /\\\((?<inline>[\s\S]+?)\\\)/g;
+// An unclosed opener must not absorb a later formula or a different table row.
+const BRACKET_INLINE = /\\\((?<inline>(?:(?!\\\()[^\r\n])+?)\\\)/g;
 
 // Citation markers are framed by private-use delimiters. Two shapes observed
 // live (2026-10-14):

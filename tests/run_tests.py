@@ -828,6 +828,13 @@ def test_framework_environment_suite():
     assert res.returncode == 0, f"test_framework_environment.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 2 TestEnvironment & Unified Lifecycle test suite passed")
 
+def test_tier2_platforms_suite():
+    import subprocess
+    res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_tier2_platforms.py")],
+                         capture_output=True, text=True)
+    assert res.returncode == 0, f"test_tier2_platforms.py failed: {res.stderr or res.stdout}"
+    print("  ✓ Platform-independent Tier 2 plugin orchestration passed")
+
 def test_dag_subgraph_suite():
     import subprocess
     cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_dag_subgraph.py")]
@@ -946,6 +953,7 @@ def run_all():
                 if any("env" in f for f in affected):
                     test_framework_environment_suite()
                 if any(x in f for f in affected for x in ["framework", "dag", "cases"]):
+                    test_tier2_platforms_suite()
                     test_dag_subgraph_suite()
                     test_tier2_assertions_suite()
                 if any("impact_analyzer" in f for f in affected):
@@ -983,6 +991,7 @@ def run_all():
     test_pipeline_decoupling_suite()
     test_visual_sandbox_suite()
     test_framework_environment_suite()
+    test_tier2_platforms_suite()
     test_dag_subgraph_suite()
     test_tier2_assertions_suite()
     test_impact_analyzer_suite()

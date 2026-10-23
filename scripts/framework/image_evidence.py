@@ -68,7 +68,7 @@ def _validate_pixels(result):
     return result
 
 
-def capture_webpage_images(cdp, chat_id, timeout=30, provider_id='gemini'):
+def capture_webpage_images(cdp, chat_id, timeout=30, provider_id='gemini', message_ids=None):
     """Read browser-loaded resources, never extension storage or exported files."""
     cdp.call('Page.enable')
     deadline = time.monotonic() + timeout
@@ -78,13 +78,15 @@ def capture_webpage_images(cdp, chat_id, timeout=30, provider_id='gemini'):
             expression = """(() => ({chatId:location.pathname.split('/c/')[1]?.split('/')[0],
                 images:[...(document.querySelector('[role="region"][aria-label="对话"], [role="region"][aria-label="Conversation"]')?.querySelectorAll('img')||[])]
                     .filter(img=>!img.closest('.katex,[aria-hidden="true"],[data-user-message-bubble]') && img.naturalWidth>128)
-                    .map(img=>{img.scrollIntoView();const reply=img.closest('[data-chatgpt-search-message-ids],[data-chatgpt-selection-message-id]');
-                        return {turn:reply?.dataset.chatgptSelectionMessageId||reply?.dataset.chatgptSearchMessageIds,
+                    .map(img=>{img.scrollIntoView();const reply=img.closest('[data-chatgpt-selection-message-id]'),group=img.closest('[data-chatgpt-search-message-ids]');
+                        return {turn:[reply?.dataset.chatgptSelectionMessageId,group?.dataset.chatgptSearchMessageIds].filter(Boolean).join(' '),
                             src:img.currentSrc||img.src,loaded:img.complete&&img.naturalWidth>0};})}))()"""
         elif provider_id != 'gemini':
             raise ValueError('Unsupported image evidence provider')
         state = cdp.eval(expression) or {}
         images = state.get('images', [])
+        if message_ids:
+            images = [image for image in images if any(mid in str(image.get('turn', '')).split() for mid in message_ids)]
         if state.get('chatId') == chat_id.removeprefix('c_') and images and all(image.get('loaded') and image.get('src') for image in images):
             break
         time.sleep(.5)

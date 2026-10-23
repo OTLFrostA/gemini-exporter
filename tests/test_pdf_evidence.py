@@ -81,6 +81,43 @@ class PdfEvidenceTests(unittest.TestCase):
 
 
 class ChatGPTSourceEvidenceTests(unittest.TestCase):
+    def test_gallery_controls_are_metadata_but_code_and_invalid_payloads_survive(self):
+        from scripts.framework.chatgpt_evidence import markdown_fact
+        root = Path(__file__).resolve().parents[1]
+        marker = '\ue200image_group\ue202{"query":["alloy"],"layout":"carousel"}\ue201'
+        self.assertEqual(markdown_fact(root, 'Before '+marker+' After', chatgpt=True)['text'], 'Before  After')
+        self.assertIn(marker, markdown_fact(root, '`'+marker+'`', chatgpt=True)['text'])
+        for invalid in ['{"query":false}', '{broken', '{"query":["alloy"],"authored":"retain"}']:
+            raw = '\ue200image_group\ue202'+invalid+'\ue201'
+            self.assertIn(raw, markdown_fact(root, raw, chatgpt=True)['text'])
+
+    def test_unclosed_formula_does_not_cross_table_cells(self):
+        from scripts.framework.chatgpt_evidence import markdown_fact
+        root = Path(__file__).resolve().parents[1]
+        source = r"""| \(f_\alpha\) \(exact) | \(f_\beta\) \(exact) |
+| --- | --- |
+| \(1\) | \(0\) |"""
+        expected = r"""| $f_\alpha$ (exact) | $f_\beta$ (exact) |
+| --- | --- |
+| $1$ | $0$ |"""
+        self.assertEqual(markdown_fact(root, source, chatgpt=True)['text'], markdown_fact(root, expected)['text'])
+
+    def test_image_only_tool_message_is_visible_but_tool_chatter_is_not(self):
+        from scripts.framework.chatgpt_evidence import authored_messages
+        messages = [
+            {'id': 'u', 'author': {'role': 'user'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Draw it']}},
+            {'id': 'image', 'author': {'role': 'tool'}, 'recipient': 'all', 'content': {'content_type': 'multimodal_text', 'parts': [
+                {'content_type': 'image_asset_pointer', 'asset_pointer': 'sediment://file-image'}]}},
+            {'id': 'noise', 'author': {'role': 'tool'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Internal tool receipt']}},
+            {'id': 'a', 'author': {'role': 'assistant'}, 'recipient': 'all', 'content': {'content_type': 'text', 'parts': ['Here is the drawing']}},
+        ]
+        mapping = {m['id']: {'message': m, 'parent': messages[i-1]['id'] if i else None} for i, m in enumerate(messages)}
+        actual = authored_messages({'mapping': mapping, 'current_node': 'a'})
+        self.assertEqual([m['id'] for m in actual], ['u', 'image', 'a'])
+        self.assertEqual(actual[1]['role'], 'assistant')
+        self.assertEqual(actual[1]['text'], '')
+        self.assertEqual(actual[1]['imagePointers'], ['sediment://file-image'])
+
     def test_visible_thoughts_belong_only_to_the_following_answer(self):
         from scripts.framework.chatgpt_evidence import authored_messages
         messages = [

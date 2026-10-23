@@ -1,8 +1,7 @@
 """ChatGPT live staging. Browser interaction and disk evidence, never mocked replies.
 
-The existing Gemini DAG is unchanged. This runner shares its scenario pool,
-lock, CDP transport and physical export validators. Reports retain unfinished
-gates as failures; a supported export alone is never a full lifecycle pass.
+Platform-specific browser operations and evidence collection. Scheduling,
+dependencies and lifecycle are owned by the platform-neutral Tier 2 framework.
 """
 import base64
 import json
@@ -19,6 +18,7 @@ from scripts.framework.json_archive import validate_json_archive
 from scripts.framework.v2_probe import install_probe
 from scripts.framework.actions import CDPActions
 from scripts.framework.image_evidence import capture_webpage_images, assert_image_files
+from scripts.framework.chatgpt_acceptance import ChatGPTAcceptance
 
 
 def wait_for(operation, timeout=90, interval=.5):
@@ -46,15 +46,30 @@ def current_branch(raw):
     return list(reversed(result))
 
 
-class ChatGPTLiveRunner:
+def completed_branch(raw):
+    """One final source read must prove the completion of every submitted turn."""
+    messages = current_branch(raw)
+    users = [i for i, message in enumerate(messages) if message.get('author', {}).get('role') == 'user']
+    if not users:
+        raise ValueError('Final ChatGPT source has no user turns')
+    for boundary in users[1:] + [len(messages)]:
+        leaf = messages[boundary-1]
+        if leaf.get('author', {}).get('role') != 'assistant' or leaf.get('status') != 'finished_successfully' or not leaf.get('end_turn'):
+            raise ValueError('Final ChatGPT source contains an incomplete reply')
+    return messages
+
+
+class ChatGPTLiveRunner(ChatGPTAcceptance):
     def __init__(self, port=9222, output_dir=None, dataset=None, delay=6):
         self.port, self.delay = port, delay
         self.root = Path(__file__).resolve().parents[2]
+        self.extension_root = self.root
         self.output = Path(output_dir or self.root/'tests/output/chatgpt_live')
         self.output.mkdir(parents=True, exist_ok=True)
         self.dataset = dataset
         self.golden = json.loads((self.root/'tests/fixtures/chatgpt_tier2_golden.json').read_text())
         self.report = {'provider': 'chatgpt', 'gates': {}, 'records': []}
+        self.initial_exports = {}
         self.chat = self.options = self.browser = None
 
     def save_report(self):
@@ -74,14 +89,15 @@ class ChatGPTLiveRunner:
 
     def prepare(self):
         subprocess.run(['node', 'build.js'], cwd=self.root, check=True)
+        self.prepare_extension()
         tabs = get_tabs(self.port)
         target = next((t for t in tabs if t.get('url', '').startswith('https://chatgpt.com/')), None)
         if not target:
             raise ValueError('Open the logged-in ChatGPT test account on this CDP port')
         self.chat = CDPConnection(target['webSocketDebuggerUrl'])
         self.browser = CDPConnection(get_browser_ws_url(self.port))
-        # Resolve the plugin by its installed path, never by the first extension target.
-        result = self.browser.call('Extensions.loadUnpacked', {'path': str(self.root)})
+        self.clean_install()
+        result = self.browser.call('Extensions.loadUnpacked', {'path': str(self.extension_root)})
         if 'error' in result:
             raise ValueError(result['error'])
         self.ext_id = result['result']['id']
@@ -90,23 +106,27 @@ class ChatGPTLiveRunner:
         self.chat.call('Page.reload')
         wait_for(lambda: self.chat.eval("!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
         url = f'chrome-extension://{self.ext_id}/src/ui/options/options.html'
-        target = next((t for t in get_tabs(self.port) if t.get('url') == url), None)
-        if not target:
-            tid = self.browser.call('Target.createTarget', {'url': url})['result']['targetId']
-            target = wait_for(lambda: next((t for t in get_tabs(self.port) if t['id'] == tid), None))
+        # Installation itself opens ?startTour=1. Reuse that tab; creating an
+        # exact-URL duplicate races the native onboarding and hides failures.
+        target = wait_for(lambda: next((t for t in get_tabs(self.port)
+                                       if t.get('url', '').startswith(url)), None), 20)
         self.options = CDPConnection(target['webSocketDebuggerUrl'])
-        self.options.call('Page.reload')
         self.ready()
+        if not CDPActions.verify_onboarding_tour(self.port, self.ext_id):
+            raise ValueError('Fresh-install onboarding did not complete')
+        self.gate('onboarding', lambda: {'physicalTour': True})
         granted = self.options.eval("chrome.permissions.contains({origins:['https://chatgpt.com/*','https://chat.openai.com/*']})", await_promise=True)
         if not granted:
             print('Site permission required: use Connect ChatGPT in the open Workbench.', flush=True)
             wait_for(lambda: self.options.eval("chrome.permissions.contains({origins:['https://chatgpt.com/*','https://chat.openai.com/*']})", await_promise=True), 600, 2)
         self.options.eval("document.getElementById('btnConnectChatGPT').click()", user_gesture=True)
         self.ready()
+        self.chat.call('Page.reload')
+        wait_for(lambda: self.chat.eval("!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
         account = self.options.eval("document.querySelector('#accountIdSelect option:checked')?.textContent||document.getElementById('accountName').textContent")
         if 'ChatGPT' not in account:
             raise ValueError('Canonical ChatGPT account not selected: ' + account)
-        return {'extensionId': self.ext_id, 'accountVerified': True}
+        return {'extensionId': self.ext_id, 'accountVerified': True, 'cleanInstall': True}
 
     def ready(self, timeout=180):
         return wait_for(lambda: self.options.eval("document.body?.dataset.busy==='false'&&!document.getElementById('btnSyncAll')?.disabled"), timeout)
@@ -130,27 +150,39 @@ class ChatGPTLiveRunner:
         value = response.get('result', {}).get('result', {}).get('value')
         if isinstance(value, dict) and value.get('sourceError'):
             if value['sourceError'] == 429:
-                from email.utils import parsedate_to_datetime
-                retry_after = value.get('retryAfter')
-                delay = 30
-                if retry_after:
-                    try:
-                        delay = max(delay, float(retry_after))
-                    except ValueError:
-                        try:
-                            delay = max(delay, parsedate_to_datetime(retry_after).timestamp() - time.time())
-                        except (TypeError, ValueError, OverflowError):
-                            pass
-                print(f'  ChatGPT evidence API rate limited; Retry-After={retry_after!r}, backing off {delay:.0f}s', flush=True)
-                # Keep browser waits bounded, without overriding a longer server cooldown.
-                deadline = time.monotonic() + delay
-                while time.monotonic() < deadline:
-                    time.sleep(min(30, deadline-time.monotonic()))
-                return None
+                raise ValueError('ChatGPT evidence HTTP 429; stopping independent reads; Retry-After='
+                                 + str(value.get('retryAfter')))
             raise ValueError('ChatGPT source HTTP '+str(value['sourceError']))
         if value and conversation_id and value.get('conversation_id') != conversation_id:
             raise ValueError('Evidence response identity mismatch')
+        if not isinstance(value, dict) or not value.get('mapping') or not value.get('current_node'):
+            raise ValueError('Independent ChatGPT source is unavailable')
         return value
+
+    def freeze_source(self, cid, expected_prompts=None):
+        raw = self.source(cid)  # One request per completed scenario, never a polling loop.
+        messages = completed_branch(raw)
+        prompts = [''.join(p for p in m.get('content', {}).get('parts', []) if isinstance(p, str))
+                   for m in messages if m.get('author', {}).get('role') == 'user']
+        if expected_prompts is not None and prompts != expected_prompts:
+            raise ValueError('Final ChatGPT source does not preserve every expected prompt in order')
+        (self.output/f'{cid}.source.json').write_text(json.dumps(raw, ensure_ascii=False))
+        return raw
+
+    def freeze_visible_images(self, cid):
+        # Inspect actual loaded elements, not the source API. The browser's
+        # resource cache supplies bytes; this issues no provider HTTP request.
+        image_path = self.output/f'{cid}.image-webpage-evidence.json'
+        captured = json.loads(image_path.read_text()) if image_path.exists() else []
+        known = {mid for image in captured for mid in str(image.get('turn', '')).split()}
+        visible = self.chat.eval("""[...(document.querySelector('[role=\"region\"][aria-label=\"对话\"], [role=\"region\"][aria-label=\"Conversation\"]')?.querySelectorAll('img')||[])]
+            .filter(img=>!img.closest('.katex,[aria-hidden=\"true\"],[data-user-message-bubble]')&&(img.naturalWidth>128||!img.complete))
+            .map(img=>[img.closest('[data-chatgpt-selection-message-id]')?.dataset.chatgptSelectionMessageId,
+                       img.closest('[data-chatgpt-search-message-ids]')?.dataset.chatgptSearchMessageIds].filter(Boolean).join(' '))""") or []
+        missing = {mid for turn in visible for mid in turn.split() if mid not in known}
+        if missing:
+            captured += capture_webpage_images(self.chat, cid, timeout=90, provider_id='chatgpt', message_ids=sorted(missing))
+            image_path.write_text(json.dumps(captured))
 
     def webpage(self):
         return self.chat.eval("""(()=>{
@@ -184,9 +216,9 @@ class ChatGPTLiveRunner:
         button = "[...document.querySelectorAll('button')].find(e=>['发送','Send prompt','Send message'].includes(e.getAttribute('aria-label'))&&!e.disabled)"
         wait_for(lambda: self.chat.eval(f'!!({button})'))
         self.chat.eval(f'({button}).click()', user_gesture=True)
-        previous, stable = None, 0
+        previous, stable, settled = None, 0, None
         def finished():
-            nonlocal previous, stable
+            nonlocal previous, stable, settled
             messages = self.webpage() or []
             users = [m for m in messages if m['role'] == 'user']
             if not users or users[-1]['text'].strip() != prompt.strip():
@@ -199,22 +231,26 @@ class ChatGPTLiveRunner:
             state = json.dumps(leaf, sort_keys=True)
             stable = stable + 1 if state == previous else 0
             previous = state
-            return True if stable >= 3 else None
+            if stable >= 3:
+                settled = messages
+                return True
+            return None
         wait_for(finished, 420, 3)
-        raw = wait_for(self.source, 180, 3)
-        leaf = current_branch(raw)[-1]
-        if leaf.get('status') != 'finished_successfully' or not leaf.get('end_turn'):
-            raise ValueError('Webpage settled but source reply is not complete')
         cid = self.chat.eval("location.pathname.split('/c/')[1].split('/')[0]")
-        (self.output/f'{cid}.source.json').write_text(json.dumps(raw, ensure_ascii=False))
-        dom = self.webpage()
-        if not dom:
-            raise ValueError('No independently captured webpage messages')
-        (self.output/f'{cid}.webpage.json').write_text(json.dumps(dom, ensure_ascii=False, indent=2))
-        record = {'conversationId': cid, 'prompt': prompt, 'responseId': current_branch(raw)[-1]['id']}
+        if not cid or not settled:
+            raise ValueError('No independently settled ChatGPT conversation')
+        self.freeze_visible_images(cid)
+        (self.output/f'{cid}.webpage.json').write_text(json.dumps(settled, ensure_ascii=False, indent=2))
+        # Save local progress even before the final source read, so interruption
+        # does not require replaying already-sent prompts in another conversation.
+        progress_path = self.output/f'{cid}.progress.json'
+        progress = json.loads(progress_path.read_text()) if progress_path.exists() else {'prompts': []}
+        progress['prompts'].append(prompt)
+        progress_path.write_text(json.dumps(progress, ensure_ascii=False))
+        record = {'conversationId': cid, 'prompt': prompt, 'webpageResponseId': settled[-1]['id']}
         self.report['records'].append(record)
         self.save_report()
-        print(f"  completed {cid}: {sum(m.get('author',{}).get('role') == 'user' for m in current_branch(raw))} rounds", flush=True)
+        print(f"  completed webpage reply: {cid}", flush=True)
         time.sleep(self.delay)
         return cid
 
@@ -235,25 +271,25 @@ class ChatGPTLiveRunner:
             cid, completed = None, 0
             # A retry resumes only an exact prefix of this reserved scenario,
             # re-reading real source. It never consumes/replays another prompt.
-            for path in self.output.glob('*.source.json'):
+            for path in [*self.output.glob('*.source.json'), *self.output.glob('*.progress.json')]:
                 saved = json.loads(path.read_text())
-                source_prompts = [''.join(p for p in m.get('content',{}).get('parts',[]) if isinstance(p,str))
+                source_prompts = saved['prompts'] if path.name.endswith('.progress.json') else [
+                    ''.join(p for p in m.get('content',{}).get('parts',[]) if isinstance(p,str))
                     for m in current_branch(saved) if m.get('author',{}).get('role') == 'user']
                 base = source_prompts[:len(prompts)]
                 extras = source_prompts[len(prompts):]
                 own_revisits = all(p.startswith('Revisit this analysis: construct a concrete counterexample')
                     and re.search(r'Observation stamp: \d+\.$', p) for p in extras)
                 if base and base == prompts[:len(base)] and own_revisits:
-                    cid = path.name.removesuffix('.source.json')
-                    actual = wait_for(lambda: self.source(cid), 180, 3)
+                    cid = path.name.removesuffix('.source.json').removesuffix('.progress.json')
+                    actual = self.source(cid)
                     actual_prompts = [''.join(p for p in m.get('content',{}).get('parts',[]) if isinstance(p,str))
                         for m in current_branch(actual) if m.get('author',{}).get('role') == 'user']
                     if actual_prompts[:len(source_prompts)] != source_prompts or actual_prompts[:len(prompts)] != prompts[:min(len(actual_prompts), len(prompts))]:
                         raise ValueError(f'Resume source changed for {cid}: saved {len(source_prompts)}, actual {len(actual_prompts)} rounds; use a fresh output directory')
-                    leaf = current_branch(actual)[-1]
-                    if leaf.get('status') != 'finished_successfully' or leaf.get('author', {}).get('role') != 'assistant' or not leaf.get('end_turn'):
-                        raise ValueError('Resume source is still streaming; wait before retrying')
-                    path.write_text(json.dumps(actual, ensure_ascii=False))
+                    completed_branch(actual)
+                    (self.output/f'{cid}.source.json').write_text(json.dumps(actual, ensure_ascii=False))
+                    (self.output/f'{cid}.progress.json').write_text(json.dumps({'prompts': actual_prompts}, ensure_ascii=False))
                     completed = len(actual_prompts)
                     if completed < len(prompts):
                         self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
@@ -262,18 +298,28 @@ class ChatGPTLiveRunner:
                     break
             if not cid:
                 self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/'})
+            posted = False
             for turn in scenario['turns'][completed:]:
                 prompt = turn if isinstance(turn, str) else turn['prompt']
                 observed = self.send(prompt)
                 if cid and cid != observed:
                     raise ValueError('Conversation changed during multi-turn scenario')
                 cid = observed
+                posted = True
+            if posted:
+                self.freeze_source(cid, expected_prompts=prompts)
             ids.append(cid)
         self.chat_ids = ids
         return {'conversationIds': ids, 'rounds': [len(s['turns']) for s in scenarios]}
 
     def sync(self):
-        self.options.eval("document.getElementById('btnSyncAll').click()", user_gesture=True)
+        from scripts.framework.assertions import assert_full_scan_coverage
+        from scripts.framework.v2_probe import snapshot
+        evidence = CDPActions.trigger_deep_scan(self.options)
+        ok, message = assert_full_scan_coverage(evidence, snapshot(self.options, 'chatgpt')['coverage'])
+        if not ok:
+            raise ValueError(message)
+        self.report['scanEvidence'] = evidence
         self.ready()
         rows = self.options.eval("[...document.querySelectorAll('#list .item')].map(e=>({id:e.dataset.chatId,title:e.querySelector('.title').textContent,href:e.querySelector('a.open-link').href}))")
         if any(cid not in [r['id'] for r in rows] for cid in self.chat_ids):
@@ -283,14 +329,39 @@ class ChatGPTLiveRunner:
         self.report['scan'] = rows
         return rows
 
-    def capture_golden(self):
-        cid = self.golden['image']
+    def open_conversation(self, cid):
+        """Navigate once and fail on a native load error, without reload retries.
+
+        The page can render a composer/region even when its detail fetch failed.
+        That shell is not evidence of a loaded conversation.
+        """
         self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
+        def loaded():
+            state = self.chat.eval("""({path:location.pathname,
+                failed:/无法加载此.*对话|Unable to load conversation|Couldn't load conversation/i.test(document.body?.innerText||'')})""") or {}
+            if state.get('path') != '/c/'+cid:
+                return None
+            if state.get('failed'):
+                raise ValueError('Native ChatGPT conversation failed to load; automatic reload disabled: '+cid)
+            return bool(self.webpage())
+        wait_for(loaded, 90, 1)
+
+    def capture_golden(self):
+        # A scene may actually generate an image. Freeze native pixels before
+        # export rather than treating its image-only tool message as noise.
+        from scripts.framework.chatgpt_evidence import authored_messages
+        for scene_id in self.chat_ids:
+            raw = json.loads((self.output/f'{scene_id}.source.json').read_text())
+            if any(message.get('imagePointers') for message in authored_messages(raw)):
+                if not (self.output/f'{scene_id}.image-webpage-evidence.json').is_file():
+                    raise ValueError('Missing independent scene image evidence captured during live generation')
+        cid = self.golden['image']
+        self.open_conversation(cid)
         self.image_evidence = capture_webpage_images(self.chat, cid, timeout=90, provider_id='chatgpt')
         (self.output/'image-webpage-evidence.json').write_text(json.dumps(self.image_evidence))
         for questionnaire in self.golden['questionnaires']:
             cid = questionnaire['id']
-            self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
+            self.open_conversation(cid)
             def visible():
                 if self.chat.eval('location.pathname') != '/c/'+cid:
                     return None
@@ -377,7 +448,12 @@ class ChatGPTLiveRunner:
                 'of the final algorithm, explain the failed invariant in LaTeX, and give a runnable regression '
                 'test and a Markdown table comparing the valid and invalid cases. '
                 f'Observation stamp: {int(time.time())}.')
+            previous_source = json.loads((self.output/f'{older}.source.json').read_text())
+            expected = [''.join(p for p in m.get('content', {}).get('parts', []) if isinstance(p, str))
+                        for m in current_branch(previous_source) if m.get('author', {}).get('role') == 'user']
             self.send(append)
+            self.freeze_source(older, expected_prompts=expected+[append])
+            self.assert_export_advancement(older)
             def promoted():
                 ids = self.options.eval("[...document.querySelectorAll('#list .item')].map(e=>e.dataset.chatId)")
                 return ids if ids and ids[0] == older else None
@@ -405,8 +481,7 @@ class ChatGPTLiveRunner:
         retained_ids = self.options.eval("[...document.querySelectorAll('#list .item')].map(e=>e.dataset.chatId).filter(id=>id!=="+json.dumps(cid)+")")
         # Record other-account indexes too; the page operation must be scoped to this account.
         other_before = self.options.eval("(async()=>{const accounts=await __tier2V2.listAccounts();return Promise.all(accounts.filter(a=>a.id!==document.getElementById('accountIdSelect').value).map(async a=>({id:a.id,account:await __tier2V2.getAccount(a.id)})))})()", await_promise=True)
-        self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
-        wait_for(lambda: self.chat.eval("location.pathname==="+json.dumps('/c/'+cid)+"&&!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
+        self.open_conversation(cid)
         # The sidebar contains duplicate hidden mobile triggers. Use the current
         # conversation toolbar and activate its tab through the extension API.
         self.options.eval("(async()=>{const tabs=await chrome.tabs.query({});const t=tabs.find(t=>t.url==="+json.dumps('https://chatgpt.com/c/'+cid)+");if(!t)throw Error('No deletion source tab');await chrome.windows.update(t.windowId,{focused:true});await chrome.tabs.update(t.id,{active:true})})()", await_promise=True)
@@ -443,8 +518,7 @@ class ChatGPTLiveRunner:
 
     def popup_export(self):
         cid = self.chat_ids[0]
-        self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
-        wait_for(lambda: self.chat.eval("location.pathname==="+json.dumps('/c/'+cid)+"&&!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
+        self.open_conversation(cid)
         tab_id = self.options.eval("(async()=>{const tabs=await chrome.tabs.query({});const t=tabs.find(t=>t.url==="+json.dumps('https://chatgpt.com/c/'+cid)+");if(!t)throw Error('No source tab');await chrome.windows.update(t.windowId,{focused:true});await chrome.tabs.update(t.id,{active:true});return t.id})()", await_promise=True)
         folder = (self.output/'popup-downloads').resolve(); folder.mkdir(exist_ok=True)
         self.browser.call('Browser.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': str(folder)})
@@ -494,7 +568,7 @@ class ChatGPTLiveRunner:
                 self.options.eval("document.getElementById('btnSelectAll').click()", user_gesture=True)
                 before = set(folder.iterdir())
                 self.options.eval("document.getElementById('btnExport').click()", user_gesture=True)
-                self.ready(600)
+                self.ready(max(600, len(self.report['scan'])*120))
                 fresh = wait_for(lambda: [p for p in folder.iterdir() if p not in before and p.is_file() and p.suffix != '.crdownload'], 60)
                 if len(fresh) != 1:
                     raise ValueError('Ambiguous physical download')
@@ -514,28 +588,7 @@ class ChatGPTLiveRunner:
         return results
 
     def run(self):
-        try:
-            self.gate('connection', self.prepare)
-            self.gate('complex_multiturn', self.generate)
-            self.gate('independent_golden_capture', self.capture_golden)
-            self.gate('scan', self.sync)
-            self.gate('passive_lifecycle', self.lifecycle)
-            self.gate('confirmed_deletion', self.confirmed_deletion)
-            self.gate('physical_four_format_export', self.exports)
-            from scripts.framework.chatgpt_evidence import assert_full_exports
-            self.gate('full_reply_fidelity', lambda: assert_full_exports(self.root, self.output, self.chat_ids))
-            self.gate('golden_physical_exports', self.golden_exports)
-            self.gate('popup_export', self.popup_export)
-            # These gates are filled by lifecycle/physical evidence checks. Do not
-            # silently pass them because the currently supported scan worked.
-            for name in ['full_reply_fidelity', 'image_pixels', 'questionnaires', 'passive_promotion', 'confirmed_deletion', 'live_disk_save', 'popup_export']:
-                self.report['gates'].setdefault(name, {'status': 'failed', 'error': 'Not yet verified in this run'})
-        except Exception:
-            traceback.print_exc()
-        finally:
-            self.report['passed'] = bool(self.report['gates']) and all(g['status'] == 'passed' for g in self.report['gates'].values())
-            self.save_report()
-            for connection in [self.options, self.chat, self.browser]:
-                if connection:
-                    connection.close()
-        return self.report['passed']
+        """Compatibility entry point; use the shared platform DAG and lifecycle."""
+        from scripts.framework.platforms.core import run_session
+        from scripts.framework.platforms.chatgpt import ChatGPTPlugin
+        return run_session(ChatGPTPlugin.session(self), {})

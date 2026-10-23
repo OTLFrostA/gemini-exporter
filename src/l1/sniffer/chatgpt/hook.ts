@@ -1,4 +1,5 @@
 import { chatGPTRequest, CHATGPT_SOURCE_EVENT, chatGPTObservedIdentity, chatGPTConversationId, chatGPTStreamEvent } from './observation.js';
+import { installChatGPTSidebarCapture } from './sidebar.js';
 
 /** MAIN-world acquisition only. Tokens never cross the world/message boundary. */
 export function installChatGPTHook(): void {
@@ -10,6 +11,10 @@ export function installChatGPTHook(): void {
             return response.ok ? chatGPTObservedIdentity(await response.json()) : null;
         } catch { return null; }
     };
+    // The current site embeds the initial history in router loader data; no
+    // /conversations fetch occurs for that first sidebar page.
+    if (typeof document !== 'undefined') installChatGPTSidebarCapture(identity,
+        payload => window.postMessage({ type: CHATGPT_SOURCE_EVENT, payload }, location.origin));
     window.fetch = async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href).href;
         const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
@@ -67,7 +72,7 @@ export function installChatGPTHook(): void {
                     if (text.length > 8 * 1024 * 1024) return;
                     responseBody = JSON.parse(text);
                 }
-                if (!conversationId || await identity() !== requestIdentity) return;
+                if ((request.kind !== 'list' && !conversationId) || await identity() !== requestIdentity) return;
                 window.postMessage({ type: CHATGPT_SOURCE_EVENT, payload: { ...request, conversationId,
                     requestIdentity, url, requestBody: request.kind === 'delete' ? body : null, responseBody } }, location.origin);
             })().catch(error => console.debug('[ChatGPT source]', error));

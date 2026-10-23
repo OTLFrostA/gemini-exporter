@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chatGPTRequest, confirmedChatGPTDeletion, chatGPTStreamEvent } from '../src/l1/sniffer/chatgpt/observation.js';
 import { installChatGPTHook } from '../src/l1/sniffer/chatgpt/hook.js';
+import { chatGPTSidebarPage } from '../src/l1/sniffer/chatgpt/sidebar.js';
 
 const cid = '6acffdc5-c4d0-83e8-8e1b-ba60979a618a';
 const session = { user: { id: 'subject' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds' };
@@ -9,12 +10,14 @@ const session = { user: { id: 'subject' }, account: { id: 'workspace' }, accessT
 test('capture binds exact ChatGPT endpoints and rejects lookalikes, prepare and invalid IDs', () => {
     assert.deepEqual(chatGPTRequest('https://chatgpt.com/backend-api/f/conversation', 'POST'), { kind: 'stream' });
     assert.deepEqual(chatGPTRequest('https://chatgpt.com/backend-api/conversation/'+cid, 'GET'), { kind: 'detail', conversationId: cid });
+    assert.deepEqual(chatGPTRequest('https://chatgpt.com/backend-api/conversations?offset=0&limit=28', 'GET'), { kind: 'list' });
     for (const [url, method] of [
         ['https://chatgpt.com.evil.test/backend-api/conversation/'+cid, 'GET'],
         ['http://chatgpt.com/backend-api/conversation/'+cid, 'GET'],
         ['https://chatgpt.com/backend-api/conversation/invalid', 'PATCH'],
         ['https://chatgpt.com/backend-api/f/conversation/prepare', 'POST'],
-        ['https://chatgpt.com/backend-api/conversations', 'GET'],
+        ['https://chatgpt.com/backend-api/conversations', 'POST'],
+        ['https://chatgpt.com/backend-api/conversations/invalid', 'GET'],
     ]) assert.equal(chatGPTRequest(url, method), null);
     assert.equal(confirmedChatGPTDeletion({ is_visible: false }, { success: true }), true);
     for (const pair of [[{ is_visible: true }, { success: true }], [{ is_visible: false }, { success: false }], [{ is_visible: false }, {}], [{ is_visible: false }, { success: 'true' }]])
@@ -61,6 +64,49 @@ test('SSE recognizes explicit completion and delta envelopes without treating pr
         assert.deepEqual(chatGPTStreamEvent(line), {done:false});
 });
 
+test('sidebar list capture preserves pagination and all items without requiring a conversation id', async t => {
+    const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    t.after(() => {
+        for (const [key, descriptor] of [['window', previousWindow], ['location', previousLocation]] as const) {
+            if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+            else Reflect.deleteProperty(globalThis, key);
+        }
+    });
+    const page = { items: [{ id: cid, title: 'Questionnaire' },
+        { id: '6ad9b0a8-1b6c-83e8-af11-3071d09cd382', title: 'Compost' }], offset: 28, limit: 28, total: 30 };
+    for (const mode of ['accepted', 'switched', 'workspace-mismatch', 'failed']) {
+        const events: { payload: Record<string, unknown> }[] = [];
+        let sessions = 0;
+        const mock = {
+            fetch: async (input: RequestInfo | URL, _init?: RequestInit) => {
+                if (String(input).endsWith('/api/auth/session')) {
+                    sessions++;
+                    return Response.json(mode === 'switched' && sessions > 1
+                        ? { ...session, user: { id: 'other' } } : session);
+                }
+                return Response.json(page, { status: mode === 'failed' ? 500 : 200 });
+            },
+            postMessage: (event: { payload: Record<string, unknown> }) => events.push(event),
+        };
+        Object.defineProperty(globalThis, 'window', { configurable: true, value: mock });
+        Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'https://chatgpt.com/', origin: 'https://chatgpt.com' } });
+        installChatGPTHook();
+        const response = await mock.fetch('https://chatgpt.com/backend-api/conversations?offset=28&limit=28',
+            mode === 'workspace-mismatch' ? { headers: { 'ChatGPT-Account-ID': 'other' } } : undefined);
+        assert.equal(response.bodyUsed, false);
+        assert.deepEqual(await response.json(), page);
+        for (let i = 0; i < 30 && !events.length; i++) await new Promise(resolve => setTimeout(resolve, 5));
+        assert.equal(events.length, mode === 'accepted' ? 1 : 0, mode);
+        if (mode === 'accepted') {
+            assert.equal(events[0].payload.kind, 'list');
+            assert.deepEqual(events[0].payload.responseBody, page);
+            assert.equal(events[0].payload.conversationId, undefined);
+        }
+        assert.equal(JSON.stringify(events).includes(session.accessToken), false);
+    }
+});
+
 test('MAIN emits on [DONE] even when the source stream remains open, without consuming the page branch', async t => {
     const priorWindow=Object.getOwnPropertyDescriptor(globalThis,'window'), priorLocation=Object.getOwnPropertyDescriptor(globalThis,'location');
     let controller: ReadableStreamDefaultController<Uint8Array>;
@@ -90,4 +136,25 @@ test('native ChatGPT DELETE binds its exact id endpoint and requires explicit su
     assert.equal(chatGPTRequest('https://chatgpt.com/backend-api/conversation/'+cid,'DELETE'),null);
     assert.equal(confirmedChatGPTDeletion(null,{success:true},'DELETE'),true);
     for(const response of [null,{}, {success:false},{success:'true'}])assert.equal(confirmedChatGPTDeletion(null,response,'DELETE'),false);
+});
+
+test('SSR sidebar capture awaits native loader data, binds its workspace and strips unrelated fields', async () => {
+    const identity = async () => '["subject","workspace"]';
+    const page = { items: [{ id: cid, title: 'Questionnaire', create_time: '2026-10-22T20:00:00Z',
+        update_time: '2026-10-22T21:00:00Z', mapping: { private: 'not-list-data' }, accessToken: 'private-token' }],
+        offset: 0, limit: 20, total: 1 };
+    const history = { accountId: 'workspace', chats: Promise.resolve(page), session: { accessToken: 'private-token' } };
+    const captured = await chatGPTSidebarPage(history, identity);
+    assert.equal(captured?.responseBody.items.length, 1);
+    assert.equal(captured?.responseBody.total, 1);
+    assert.equal(captured?.requestIdentity, await identity());
+    assert.ok(!JSON.stringify(captured).includes('private-token'));
+    assert.ok(!JSON.stringify(captured).includes('not-list-data'));
+    assert.equal(await chatGPTSidebarPage({ ...history, accountId: 'other' }, identity), null);
+    let reads = 0;
+    assert.equal(await chatGPTSidebarPage(history, async () => ++reads === 1 ? await identity() : '["other","workspace"]'), null);
+    assert.equal(await chatGPTSidebarPage(history, async () => null), null);
+    assert.equal(await chatGPTSidebarPage({ accountId: 'workspace', chats: Promise.resolve({ ...page,
+        items: [{ id: 'invalid' }] }) }, identity), null);
+    assert.equal(await chatGPTSidebarPage({ chats: page }, identity), null);
 });

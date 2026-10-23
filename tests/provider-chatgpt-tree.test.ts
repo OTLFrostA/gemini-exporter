@@ -861,3 +861,77 @@ test('DIL fallback norm escapes preserve all table cells and math', () => {
     assert.ok(serialized.includes('Vert{}'));
     assert.ok(!serialized.includes('inlineCode'));
 });
+
+test('an unclosed inline opener cannot consume formulas in later table cells or rows', () => {
+    const source = String.raw`| Bulk \(C_0\) \(wt% B) | \(f_\alpha\) \(exact) | \(f_\beta\) \(exact) |
+| --- | --- | --- |
+| 20 | \(1\) | \(0\) |`;
+    const actual = preprocessChatGPTMarkdown(source);
+    assert.ok(actual.includes(String.raw`| Bulk $C_0$ \(wt% B) | $f_\alpha$ \(exact) | $f_\beta$ \(exact) |`));
+    assert.ok(actual.includes('| 20 | $1$ | $0$ |'));
+});
+
+test('ChatGPT 429 respects Retry-After, refreshes identity, and retries the same page', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
+    let calls = 0, sessions = 0;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) {
+            sessions++;
+            return new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'retry-user' }, account: { id: 'retry-space' } }));
+        }
+        calls++;
+        assert.ok(url.endsWith('/conversations?offset=0&limit=100'));
+        return calls === 1 ? new Response('', { status: 429, headers: { 'Retry-After': '90' } })
+            : new Response(JSON.stringify({ items: [], total: 0, limit: 100, offset: 0 }));
+    } });
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls, 1);
+    t.mock.timers.tick(89999);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls, 1);
+    t.mock.timers.tick(1);
+    assert.equal(await pending, 'source_end');
+    assert.equal(calls, 2); assert.equal(sessions, 2);
+});
+
+test('ChatGPT 429 cooldown aborts promptly without another request', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['abort-user', 'abort-space']));
+    let calls = 0;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'abort-user' }, account: { id: 'abort-space' } }));
+        calls++; return new Response('', { status: 429, headers: { 'Retry-After': '90' } });
+    } });
+    const controller = new AbortController();
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent', signal: controller.signal });
+    const rejected = assert.rejects(pending, { name: 'AbortError' });
+    await new Promise(resolve => setImmediate(resolve));
+    controller.abort(); await rejected;
+    t.mock.timers.tick(180000);
+    assert.equal(calls, 1);
+});
+
+test('ChatGPT 429 retries are bounded and recheck a changed account', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['bounded-user', 'space']));
+    let calls = 0, changed = false;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({ accessToken: 'tok', user: { id: changed ? 'another-user' : 'bounded-user' }, account: { id: 'space' } }));
+        calls++; return new Response('', { status: 429, headers: { 'Retry-After': '1' } });
+    } });
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+    const rejected = assert.rejects(pending, /HTTP 429/);
+    for (let i = 0; i < 4; i++) {
+        await new Promise(resolve => setImmediate(resolve));
+        t.mock.timers.tick(121000);
+    }
+    await rejected; assert.equal(calls, 4);
+    changed = true;
+    const again = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+    const mismatch = assert.rejects(again, /account mismatch/);
+    await new Promise(resolve => setImmediate(resolve));
+    t.mock.timers.tick(121000);
+    await mismatch; assert.equal(calls, 4);
+});

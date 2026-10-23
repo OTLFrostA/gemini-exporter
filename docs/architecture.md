@@ -653,9 +653,10 @@ flowchart TD
     subgraph Tier2 ["第二层：真实调试 Chrome 全流程实跑 (Tier 2: Live Debug Staging)"]
         T2_Chrome["启动调试端口 Chrome (9222 端口)"]
         T2_Pool["20 题多模态动态场景池 (--pool 消费与自动补仓)"]
-        T2_DAG["DAGRunner 拓扑依赖调度器 (19 大特性生命周期闭环)"]
+        T2_Plugins["平台插件多选 (Gemini / ChatGPT / 自定义)"]
+        T2_DAG["公共 DAG 调度器与生命周期 (平台注册验收用例)"]
         T2_Assert["ExportSpecificationAsserter (物理解压 ZIP 逐字与多模态黄金断言)"]
-        T2_Chrome --> T2_Pool --> T2_DAG --> T2_Assert
+        T2_Chrome --> T2_Plugins --> T2_Pool --> T2_DAG --> T2_Assert
     end
 
     subgraph Tier3 ["第三层：纯视觉 AI 盲测与自主质检 (Tier 3: Pure Visual Agent)"]
@@ -673,7 +674,10 @@ flowchart TD
 - **查看依赖变更影响拓扑**：`python3 scripts/test_impact_analyzer.py --summary`
 - **运行单点定向测试**：`python3 tests/run_tests.py --filter <keyword>`
 - **启动测试专用 Chrome**：`./scripts/open_test_chrome.sh`
-- **运行 Tier 2 场景池实跑测试**：`npm run test:tier2 -- --pool`
+- **运行 Tier 2 场景池实跑测试（默认 Gemini）**：`npm run test:tier2 -- --pool`
+- **多选平台串行实跑**：`npm run test:tier2 -- --platforms gemini chatgpt`
+- **离线查看平台与验收计划**：`npm run test:tier2 -- --platforms all --plan`
+- **平台插件契约、能力范围及报告**：[Tier 2 platform plugins](tier2-platform-plugins.md)
 - **运行 Tier 3 纯视觉自主审查**：`python3 scripts/test_visual_agent.py --api --ai-review`
 
 ---

@@ -172,7 +172,7 @@ class ExtensionActions:
         """)
         # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
         start = time.time()
-        total_items = len((snapshot(cdp_opt) or {}).get('rows', []))
+        total_items = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
 
         while time.time() - start < timeout:
             visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
@@ -188,7 +188,7 @@ class ExtensionActions:
         return cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
 
     @staticmethod
-    def clear_search_workbench(cdp_opt, timeout: float = 3.0) -> int:
+    def clear_search_workbench(cdp_opt, timeout: float = 3.0, provider_id: str = 'gemini') -> int:
         """清空 Options 工作台搜索框并等待完整列表恢复，返回恢复后的列表总数"""
         cdp_opt.eval(f"""
         (() => {{
@@ -202,7 +202,7 @@ class ExtensionActions:
         """)
         # 轮询等待搜索防抖及全量列表恢复
         start = time.time()
-        target_total = len((snapshot(cdp_opt) or {}).get('rows', []))
+        target_total = len((snapshot(cdp_opt, provider_id) or {}).get('rows', []))
 
         while time.time() - start < timeout:
             visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
