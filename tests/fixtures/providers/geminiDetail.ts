@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 /** Native batchexecute response bodies containing Gemini's hNvQHb Detail RPC. */
 const DOMAIN_ID = 'c_native12345678';
 const rpc = (inner: unknown): string => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
@@ -36,7 +37,54 @@ function selectedWire(candidates: unknown[], selected?: unknown): string {
     return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
 }
 
+/** Native hNvQHb payloads used by the independent dual-parser audit tests. */
+function dualAuditWire(markdown = 'Hello', document: unknown = { children: [{ nodeType: 18, text: 'Hello' }] }): string {
+    const candidate: unknown[] = [[['rc_dualaudit', [markdown]]]];
+    candidate[12] = document;
+    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_dualaudit', 'r_fixture'], [1700000000, 0], [['Question']], candidate]]])]]);
+}
+
+/** hNvQHb responses for structured-content coverage probes and captured evidence. */
+const COVERAGE_FALLBACK = 'MARKDOWN_FALLBACK_SENTINEL';
+function coverageTextNode(value: string, flag: number): unknown[] {
+    return [null, [null, 0, value, [[0, value.length, [[null, null, null, null, flag]]]]]];
+}
+function coverageWire(raw: unknown, candidates: unknown[] = [['rc_answer', [[COVERAGE_FALLBACK]]]]): string {
+    const payload: unknown[] = [candidates];
+    if (raw !== undefined) payload[12] = raw;
+    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_coverage', 'r_coverage'], [1700000000, 0], [['Question']], payload]]])]]);
+}
+
 const fixtureMap = {
+    'G_DUAL_AUDIT_01': () => dualAuditWire(),
+    'G_DUAL_AUDIT_02': () => dualAuditWire(),
+    'G_DUAL_AUDIT_03': () => dualAuditWire('Independent raw Markdown'),
+    'G_DUAL_AUDIT_04': () => dualAuditWire(),
+    'G_DUAL_AUDIT_05': () => dualAuditWire('Independent answer [cite: 1]', { children: [
+        { nodeType: 'paragraph', children: [{ nodeType: 18, text: 'Native answer' },
+            { nodeType: 'citation', number: 1, title: 'test_config.json' }] },
+    ] }),
+    'G_DUAL_AUDIT_06': () => dualAuditWire('Hello', null),
+    'G_DUAL_AUDIT_07': () => dualAuditWire('Hello', { children: [{ nodeType: 999, text: 'Hello' }] }),
+    'G_DUAL_AUDIT_08': () => dualAuditWire('Hello', { children: [] }),
+    'G_DUAL_AUDIT_09': () => dualAuditWire(),
+    'G_DUAL_AUDIT_10': () => dualAuditWire(),
+    'G_DUAL_AUDIT_11': () => dualAuditWire('DIFFERENT'),
+    'G_DUAL_AUDIT_12': () => dualAuditWire(),
+    'G_DUAL_AUDIT_13': () => dualAuditWire('Hello', null),
+    'G_DUAL_AUDIT_14': () => dualAuditWire(),
+    'G_DUAL_AUDIT_15': () => dualAuditWire(),
+    'G_STRUCTURED_COVERAGE_01': () => coverageWire(JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-range-coder.json', 'utf8'))),
+    'G_STRUCTURED_COVERAGE_02': () => {
+        const leaf = coverageTextNode('PRIVATE_SOURCE_TEXT', 999);
+        const list = Object.assign(Array(12).fill(null), { 11: [[[[leaf]]]] });
+        return coverageWire([[[coverageTextNode('known', 3), list]]]);
+    },
+    'G_STRUCTURED_COVERAGE_03': () => coverageWire(undefined),
+    'G_STRUCTURED_COVERAGE_04': () => coverageWire(
+        JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-imagen-panel.json', 'utf8')),
+        [['rc_image', [['\n']]]],
+    ),
     'G_TIMESTAMP_HONESTY_01': () => rpc([[
         [['c_noTsTurn_1', 'r_turn_1'], null, [['Question']], [[['rc_model_1', [['Answer']]]]]],
     ]]),
