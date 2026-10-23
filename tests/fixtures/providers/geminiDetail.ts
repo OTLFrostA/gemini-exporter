@@ -246,7 +246,72 @@ function domainCapturedStructuredWire(): string {
     return rpc([[rawTurn]]);
 }
 
+
+/** Previously inline parser-boundary, false-envelope and native-title responses. */
+function boundarySelectedDraftWire(): string {
+    const candidates = [
+        ['rc_old', [['Old answer']]],
+        ['rc_selected', [['Selected answer']]],
+    ];
+    const model = [candidates, null, 'google', 'rc_selected'];
+    const raw = [[BOUNDARY_ID, 'r_AB12'], [1700000000, 500000000], [['Prompt']], model];
+    return rpc([[raw]]);
+}
+function boundaryCitationThoughtWire(): string {
+    const body: unknown[] = [['Visible answer'], ['THOUGHT', 'First thought'],
+        [null, 'thought-details', 'Second thought'], ['THOUGHT', null],
+        ['https://example.com/source', 'First source title'],
+        ['https://example.com/source', 'Duplicate title'],
+        ['https://example.com/malformed', 42],
+        ['https://googleusercontent.com/immersive_entry_chip/a', 'Internal chip']];
+    return rpc([[boundaryTurn('Cited prompt', null, [['rc_cited', body]])]]);
+}
+function boundaryImageAttachmentWire(): string {
+    const url = 'https://lh3.googleusercontent.com/boundary-image';
+    const image = [url, 640, 480, 'boundary-token'];
+    return rpc([[boundaryTurn('Look at the image', null, [
+        ['rc_image', [['![Image](' + url + ')'], image, null, ['broken.png']]],
+    ])]]);
+}
+function boundaryCapturedDocumentWire(truncated = false): string {
+    const candidate = citationFile('wire-case-b-cand');
+    const document = citationFile('wire-turn-3-12-b-stack');
+    const rawTurn = boundaryTurn('Explain Bell inequalities', null, [candidate]);
+    const model = rawTurn[3] as unknown[];
+    model[12] = truncated ? [[[null]]] : document;
+    return rpc([[rawTurn]]);
+}
+function parserBundledTitleWire(): string {
+    const detailInner = [[
+        [['c_d3226d9a046c1116', 'r_turn_1'], null,
+            [['然后mod要怎么打呢，我下载了一个mod文件，但是https://www.nexusmods.com/slaythespire2/mods/91']],
+            [[['rc_model_1', ['这是Mod安装解答内容']]]]],
+    ], null, null];
+    const metaInner = [null, null,
+        [['c_d3226d9a046c1116', '杀戮尖塔存档删除Mod风险',
+            null, null, null, [1774139824, 809290000], null, null, null, 2]]];
+    return ")]}'\n\n" + JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify(detailInner)],
+        ['wrb.fr', 'MaZiqc', JSON.stringify(metaInner)],
+    ]);
+}
+function p1BadLeadingDetailWire(): string {
+    const junkStr = JSON.stringify({ data: [[['c_r_12345', [1, 2], 'music_tv talk', null]]] });
+    const goodInner = JSON.stringify([[p1RegressionTurn()]]);
+    return ")]}'\n\n" + JSON.stringify([
+        ['x.fr', 'junk', junkStr],
+        ['y.fr', 'data', goodInner],
+    ]);
+}
+
 const fixtureMap = {
+    'G_BOUNDARY_SELECTED_DRAFT_01': () => boundarySelectedDraftWire(),
+    'G_BOUNDARY_THOUGHT_CITATION_01': () => boundaryCitationThoughtWire(),
+    'G_BOUNDARY_IMAGE_ATTACHMENT_01': () => boundaryImageAttachmentWire(),
+    'G_BOUNDARY_CAPTURED_STACK_01': () => boundaryCapturedDocumentWire(),
+    'G_BOUNDARY_CAPTURED_TRUNCATED_01': () => boundaryCapturedDocumentWire(true),
+    'G_GEMINI_PARSER_MIXED_TITLE_01': () => parserBundledTitleWire(),
+    'G_P1E_LEADING_DECOY_DETAIL_01': () => p1BadLeadingDetailWire(),
     'G_RPC_DOMAIN_CAPTURED_STACK_01': () => domainCapturedStructuredWire(),
     'G_STRUCTURED_CITATION_COMPOSITE_PARAGRAPH_01': () => citationCompositeWire('paragraph'),
     'G_STRUCTURED_CITATION_COMPOSITE_LIST_01': () => citationCompositeWire('list'),
