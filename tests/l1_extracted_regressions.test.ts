@@ -9,9 +9,11 @@ import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.
 import { sourceConversation } from './helpers/l1SourceFixture.js';
 import CredManager from '../src/l1/client/gemini/api/credentialManager.js';
 import * as attachments from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
-const Proto = require('../src/l1/protocol/gemini/protocol.js');
 import * as Extractors from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
+import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 import { isRealTitle } from '../src/l1/parsers/gemini/rpc/extractors.js';
 
 const SRC = path.join(__dirname, '..', 'src');
@@ -262,14 +264,14 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
         return (await relayedTypesFor(responseText)).includes('GEMINI_NETWORK_BATCHEXECUTE');
     }
     assert.strictEqual(await wasRelayed(prefix + JSON.stringify([['wrb.fr', 'generic_rpc', '[]', null]])), false);
-    assert.strictEqual(await wasRelayed(prefix + JSON.stringify([['wrb.fr', 'GzXR5e', ['deleted'], null]])), false);
-    assert.strictEqual(await wasRelayed(prefix + JSON.stringify([['wrb.fr', Proto.RPCS.LIST, ['c_123'], null]])), true);
-    assert.strictEqual(await wasRelayed(prefix + JSON.stringify([['wrb.fr', Proto.RPCS.DETAIL, ['c_123'], null]])), true);
+    assert.strictEqual(await wasRelayed(geminiDeleteGen('G_EXTRACTED_REGRESSION_FILTER_DELETE_01')), false);
+    assert.strictEqual(await wasRelayed(geminiListGen('G_EXTRACTED_REGRESSION_FILTER_LIST_01')), true);
+    assert.strictEqual(await wasRelayed(geminiDetailGen('G_EXTRACTED_REGRESSION_FILTER_DETAIL_01')), true);
 });
 
 test('hookCredentials - arbitrary Request-like objects are not treated as browser Requests', async () => {
     const { posted, win } = createHookSandbox();
-    win.__nextResponseText = ")]}'\n\n[[\"wrb.fr\",\"MaZiqc\",\"[]\",null]]";
+    win.__nextResponseText = geminiListGen('G_EXTRACTED_REGRESSION_REQUEST_LIST_01');
     class MockRequest {
         url: string;
         body: any;
@@ -293,7 +295,7 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
 
 test('hookCredentials - real Request inputs preserve list cursor context', async () => {
     const { posted, win } = createHookSandbox();
-    win.__nextResponseText = JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]);
+    win.__nextResponseText = geminiListGen('G_EXTRACTED_REGRESSION_CURSOR_LIST_01');
     const body = new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([31, 'cursor', [0, null, 1]]), null, 'generic']]]) });
     await win.fetch(new Request('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body }));
     await new Promise(r => setTimeout(r, 50));
@@ -326,10 +328,7 @@ test('hookCredentials - fetch body preserves (init.body || requestBody) fallback
 
 test('audit fix: robustFirstPayload preserves , null , and control characters inside user content strings', () => {
     const testContent = 'Special test message with , null , in code and [brackets]';
-    const turns = [[ ['c_testid1234567890ab', 'r1'], null, [[testContent]], [[['rc1', [['answer1']]]]] ]];
-    const inner = [turns, null, 'Test Title'];
-    const top = [['wrb.fr', 'hNvQHb', JSON.stringify(inner)]];
-    const text = `)]}'\n\n${JSON.stringify(top)}`;
+    const text = geminiDetailGen('G_EXTRACTED_REGRESSION_PARSER_DETAIL_01');
     const parsed = decodeGeminiDetail(text, 'testid1234567890ab');
     assert.ok(parsed);
     assert.ok(parsed.messages && parsed.messages.length > 0);

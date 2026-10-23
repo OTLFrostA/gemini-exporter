@@ -703,8 +703,3 @@ export function inspectStructuredContent(input: GeminiStructuredEvidenceInput): 
     if (input.candidateIndex !== 0) return { status: 'candidate_unmatched' };
     return decode(input.turnDocument);
 }
-
-export function extractStructuredContent(input: GeminiStructuredEvidenceInput): GeminiStructuredDocument | undefined {
-    const result = inspectStructuredContent(input);
-    return result.status === 'decoded' ? result.document : undefined;
-}

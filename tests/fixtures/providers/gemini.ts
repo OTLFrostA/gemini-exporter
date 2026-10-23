@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 /** Raw network responses for the Gemini MaZiqc List RPC only. */
 function wire(rows: readonly unknown[] = [], nextCursor: string | null = null): string {
     return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, nextCursor, rows])]]);
@@ -32,7 +33,6 @@ function p1RegressionList(items: unknown[]): string {
 }
 
 
-/** Finite List wire variants formerly constructed in individual tests. */
 function scanFlowWire(rows: unknown[]): string {
     const inner = JSON.stringify([null, null, rows]);
     return ")]}'\n\n" + '[["wrb.fr","MaZiqc",' + JSON.stringify(inner) + ']]';
@@ -91,7 +91,7 @@ const fixtureMap = {
         return ")]}'\n123\n" + JSON.stringify([first]) + '\n[not-json]\n'
             + JSON.stringify([second]) + '\n[["unfinished';
     },
-    'G_P1E_LIST_01': () => p1RegressionList([['c_cnt1234567890', 'T', null, null, null, 1757839234]]),
+        'G_P1E_LIST_01': () => p1RegressionList([['c_cnt1234567890', 'T', null, null, null, 1757839234]]),
     'G_P1E_LIST_02': () => p1RegressionList([['c_cnt2234567890', 'T2', null, null, 7]]),
     'G_P1E_LIST_03': () => p1RegressionList([['c_nots1234567890', 'NoTime']]),
     'G_P1E_LIST_04': () => p1RegressionList([['c_hasts1234567890', 'HasTime', null, null, null, [1700000000, 0]]]),
@@ -253,7 +253,83 @@ const fixtureMap = {
     'G_VERIFIED_SCAN_OVERLAP_01': () => JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic'],
     ]),
+
+    // Static native List bodies used by E2E source acquisition probes.
+    'G_E2E_TIER3_LIST_01': () => `)]}'\n\n${JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_first_attach', 'First attachment conversation', null, null, null, [1700000200, 0]],
+        ]])],
+    ])}`,
+    'G_E2E_TIER2_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_probe', 'Probe title', null, null, null, [1700000000, 0]]]])]]),
+
+    'G_E2E_INCREMENTAL_ERROR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic']]),
+    'G_E2E_INCREMENTAL_PASSIVE_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_passive80', 'Passive 80', null, null, null, [1700000080, 0]]]])]]),
+    'G_E2E_UUID_PROFILE_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null,
+            [['c_profile_delay', 'Profile delay', null, null, null, [1700000000, 0]]], null])]]),
+
+    // Fixed single-RPC admission and hook-filter cases; preserve native framing.
+    'G_FROZEN_CONTRACT_LIST_01': () => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, []])]]),
+    'G_REGRESSION_LOCK_DECOY_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[["aabbccdd11223344",null]]', null]]),
+    'G_REGRESSION_LOCK_FILTER_LIST_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'MaZiqc', ['c_123'], null]]),
+    'G_EXTRACTED_REGRESSION_FILTER_LIST_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'MaZiqc', ['c_123'], null]]),
+    'G_REGRESSION_LOCK_REQUEST_LIST_01': () =>
+        `)]}'\n\n[["wrb.fr","MaZiqc","[]",null]]`,
+    'G_EXTRACTED_REGRESSION_REQUEST_LIST_01': () =>
+        `)]}'\n\n[["wrb.fr","MaZiqc","[]",null]]`,
+    'G_REGRESSION_LOCK_CURSOR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]),
+    'G_EXTRACTED_REGRESSION_CURSOR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]),
+
+    // L1 target-bound 1167 / provider-limit response proofs.
+    'G_L1_VERIFIED_LIST_1167_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1167]]]),
+    'G_L1_VERIFIED_LIST_FALSE_DELETE_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, 'c_deadbeef00112233'])]]),
+    'G_L1_VERIFIED_LIST_LIMIT_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_10961': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 10961]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_429': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 429]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_STRING': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', '1096']]]),
+    'G_VERSION_PAIR_LIST_01': () => versionPairList(0),
+    'G_VERSION_PAIR_LIST_02': () => versionPairList(1),
+    'G_VERSION_PAIR_LIST_03': () => versionPairList(2),
+    'G_VERSION_PAIR_LIST_04': () => versionPairList(3),
+    'G_VERSION_PAIR_LIST_05': () => versionPairList(4),
+    'G_VERSION_PAIR_LIST_06': () => versionPairList(5),
+    'G_VERSION_CREATION_SLOT_LIST_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_version_chat', 'Source title', [1700000005, 0], [1700000000, 0], null, null],
+        ]])],
+    ]),
+    'G_VERSION_METADATA_ONLY_LIST_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_metadata_chat', 'Metadata only', null, null, null, [1700000000, 0]],
+        ]])],
+    ]),
 };
+
+/** Six fixed anonymized source timestamp pairs, consumed through List keys. */
+function versionPairList(index: number): string {
+    const pairs: Array<{ listWire: number[] }> =
+        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
+    const pair = pairs[index];
+    if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
+    return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+        [['c_version_chat', 'Source title', null, null, null, pair.listWire]]])]]);
+}
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
 export function listGen(key: keyof typeof fixtureMap): string {

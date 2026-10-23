@@ -245,12 +245,12 @@ export async function goToStep(index: number): Promise<void> {
         connectionReady = false;
         nextButton.disabled = true;
         const selectAccount = onConnected;
-        cleanupStep = mountTourConnection(popover, navFooter, async accountId => {
+        cleanupStep = mountTourConnection(popover, navFooter, async (accountId, shouldAdvance) => {
             await selectAccount?.(accountId);
             if (mode !== 'tour' || STEPS[stepIndex] !== step || !popover.isConnected) return;
             connectionReady = true;
             nextButton.disabled = false;
-            advance();
+            if (shouldAdvance) advance();
         });
     }
 }

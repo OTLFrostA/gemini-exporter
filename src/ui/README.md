@@ -15,6 +15,8 @@ progress. Producers never wait for UI reads, and observer failures cannot fail a
 Installation Tour consumes `?startTour=1` immediately; it has no persistent flag.
 Its first step offers Gemini, ChatGPT and Claude. Next stays disabled until a live
 source resolves to a verified registered account, which becomes the workbench selection.
+Platform connection actions live in this step, accessible again through Tutorial.
+An existing connection enables Next without skipping the platform choices.
 Connection checks run once on entry and after explicit connection/sign-in actions;
 the Tour does not poll provider session endpoints.
 Version Spotlight is recorded on actual display (once per upgrade, never on fresh install); Takeout acknowledgment follows dismissal. The Content Badge owns its account-scoped count display and Pull: it refreshes

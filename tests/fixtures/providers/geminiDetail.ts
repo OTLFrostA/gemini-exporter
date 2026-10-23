@@ -129,8 +129,6 @@ function p1RegressionTurn(userPayload: unknown = [['hello']], text = 'world', ex
     return [['c_abc123def456'], [1700000000, 0], userPayload, [[candidate]]];
 }
 
-
-/** Existing parameterized native Detail+List data, selected exclusively by key. */
 function mixedNativePage(request: string, seconds: number, cursor: string | null = null): string {
     const turn = [['c_native', request], [seconds, 0], [['Question ' + request]],
         [[['rc_' + request, [['**Answer**']]]]]];
@@ -220,7 +218,7 @@ const fixtureMap = {
             ['wrb.fr', 'otherRpc', JSON.stringify([[turn]])],
         ]);
     },
-    'G_P1E_DETAIL_01': () => rpc([[p1RegressionTurn(undefined,
+        'G_P1E_DETAIL_01': () => rpc([[p1RegressionTurn(undefined,
         '第一行\nhttps://googleusercontent.com/immersive_entry_chip/abc123\n第三行')]]),
     'G_P1E_DETAIL_02': () => rpc([[p1RegressionTurn(undefined,
         '看这张图\nhttps://googleusercontent.com/image_generation_content/tok999\n结束',
@@ -621,7 +619,93 @@ const fixtureMap = {
     'G_OBSERVABILITY_02': () => rpc([[observabilityTurn(), observabilityTurn('c_abc123def457')]]),
     'G_OBSERVABILITY_03': () => rpc([[observabilityTurn(), [['x_123'], [1, 0], [['u']]]]]),
     'G_OBSERVABILITY_04': () => rpc([[observabilityTurn(), [['x_123'], [1, 0], [['u']]]]]),
+
+    // Static native Detail bodies used by E2E source acquisition probes.
+    'G_E2E_TIER2_DETAIL_01': () => {
+        const turn = [['c_probe', 'r_question'], [1700000000, 0], [['Question']],
+            [[['rc_question', [['Answer']]]]]];
+        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Probe title'])]]);
+    },
+    'G_E2E_DOMAIN_STORAGE_DETAIL_01': () =>
+        JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+            [[['c_cross_origin_native', 'r_1'], [1700000000, 0], [['Persist this question']],
+                [[['rc_1', [['**Persist this answer**']]]]]]], null,
+        ])]]),
+
+    // Static hNvQHb fragments used to verify selective sniffer broadcasts.
+    'G_REGRESSION_LOCK_FILTER_DETAIL_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'hNvQHb', ['c_123'], null]]),
+    'G_EXTRACTED_REGRESSION_FILTER_DETAIL_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'hNvQHb', ['c_123'], null]]),
+    'G_REGRESSION_LOCK_PARSER_DETAIL_01': () =>
+        rpc([[[['c_testid1234567890ab', 'r1'], null,
+            [['Special test message with , null , in code and [brackets]']],
+            [[['rc1', [['answer1']]]]]]], null, 'Test Title']),
+    'G_EXTRACTED_REGRESSION_PARSER_DETAIL_01': () =>
+        rpc([[[['c_testid1234567890ab', 'r1'], null,
+            [['Special test message with , null , in code and [brackets]']],
+            [[['rc1', [['answer1']]]]]]], null, 'Test Title']),
+
+    'G_L1_VERIFIED_DETAIL_1167_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1167]]]),
+    'G_L1_VERIFIED_DETAIL_1096_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]]),
+    'G_L1_VERIFIED_DETAIL_1096_02': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]]),
+    'G_VERSION_PAIR_DETAIL_01': () => versionPairDetail(0),
+    'G_VERSION_PAIR_DETAIL_02': () => versionPairDetail(1),
+    'G_VERSION_PAIR_DETAIL_03': () => versionPairDetail(2),
+    'G_VERSION_PAIR_DETAIL_04': () => versionPairDetail(3),
+    'G_VERSION_PAIR_DETAIL_05': () => versionPairDetail(4),
+    'G_VERSION_PAIR_DETAIL_06': () => versionPairDetail(5),
+    'G_VERSION_DETAIL_MATCHING_01': () => versionMixed([1700000000, 0], [1700000005, 123000000]),
+    'G_VERSION_DETAIL_NO_META_01': () => versionMixed([1700000000, 0]),
+    'G_VERSION_DETAIL_UNRELATED_01': () => versionUnrelated(),
+    'G_VERSION_DETAIL_SAVED_AT_01': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_DETAIL_SAVED_AT_02': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_DETAIL_NEWER_01': () => versionMixed([1700000005, 0], [1700000005, 0]),
+    'G_VERSION_DETAIL_PARTIAL_NEWER_01': () => versionMixed([1700000010, 0], [1700000010, 0], true),
+    'G_VERSION_DETAIL_OLDER_01': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_DETAIL_PARTIAL_ID_01': () => versionMixed([1700000000, 0], [1700000000, 0], true, 'partial_chat'),
+    'G_VERSION_DETAIL_UNKNOWN_ID_01': () => versionMixed([1700000000, 0], undefined, false, 'unknown_chat'),
+    'G_VERSION_DETAIL_CONFLICT_ID_01': () => versionMixed([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'),
+    'G_VERSION_DETAIL_PAGE_FIRST_01': () => versionMixed([1700000005, 0], [1700000005, 0], true),
+    'G_VERSION_DETAIL_PAGE_CHANGED_01': () => versionMixed([1700000000, 0], [1700000010, 0]),
+    'G_VERSION_DETAIL_PAGE_CONSISTENT_01': () => versionMixed([1700000000, 0], [1700000005, 0]),
+    'G_VERSION_DETAIL_HEALTHY_01': () => versionMixed([1700000000, 0], [1700000005, 0]),
+    'G_VERSION_DETAIL_MISMATCHED_01': () => versionMixed([1700000010, 0], [1700000005, 0]),
+    'G_VERSION_LAYERS_FRESHNESS_01': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_LAYERS_JSON_01': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_LAYERS_JSON_PARTIAL_01': () => versionMixed([1700000000, 0], [1700000000, 0], true),
+    'G_VERSION_LAYERS_HEALTHY_01': () => versionMixed([1700000000, 0], [1700000005, 0]),
+    'G_VERSION_LAYERS_MISMATCHED_01': () => versionMixed([1700000010, 0], [1700000005, 0]),
 };
+
+/** Original List+Detail source-version proof, now shared by keyed fixtures only. */
+function versionMixed(messageTime: number[], version?: number[], more = false, id = 'version_chat'): string {
+    const turn = [['c_' + id, 'r_request'], null, [['Question']],
+        [[['rc_answer', [['Answer']]]]], messageTime];
+    const rows: Array<[string, unknown]> = [['hNvQHb', [[turn], more ? 'tCnext' : null, null, []]]];
+    if (version) rows.push(['MaZiqc', [null, null, [['c_' + id, 'Source title', null, null, null, version]]]]);
+    return JSON.stringify(rows.map(([name, payload]) => ['wrb.fr', name, JSON.stringify(payload)]));
+}
+function versionPairDetail(index: number): string {
+    const pairs: Array<{ metadataWire: number[]; detailTurnWire: number[] }> =
+        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
+    const pair = pairs[index];
+    if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
+    return versionMixed(pair.detailTurnWire, pair.metadataWire);
+}
+function versionUnrelated(): string {
+    const rows: Array<[string, unknown]> = [
+        ['hNvQHb', [[[['c_actual_chat', 'r_req'], [1700000000, 0], [['Q']],
+            [[['rc_a', [['A']]]]]]]]],
+        ['MaZiqc', [null, null, [
+            ['c_other_chat', 'Unrelated', null, null, null, [1700000005, 0]],
+        ]]],
+    ];
+    return JSON.stringify(rows.map(([name, payload]) => ['wrb.fr', name, JSON.stringify(payload)]));
+}
 
 export function detailGen(key: keyof typeof fixtureMap): string {
     return fixtureMap[key]();

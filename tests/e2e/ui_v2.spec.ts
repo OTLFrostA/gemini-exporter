@@ -283,6 +283,8 @@ test('UI v2: Takeout file input directly imports into current account and report
 });
 test('UI v2: real Tour hit testing, stale delays, feedback close, and no persistent Tour fields', async ({ page }) => {
     await mount(page,'options',{},'?startTour=1'); await expect(page).toHaveURL('https://ui.test/');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
+    await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
     // Highlighted scan is a real business click and advances without awaiting completion.
     await page.locator('#btnSyncAll').click(); await expect(page.locator('.tour-popover h2')).toHaveText('Select conversations');
@@ -366,6 +368,8 @@ test('UI v2: final Tutorial button closes without opening feedback, actual feedb
     await mount(page,'options');
     const lastStep = async () => {
         await page.locator('#btnTourGuide').click();
+        await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
+        await page.locator('#tourNextBtn').click();
         await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
         for (let i=0;i<5;i++) await page.getByRole('button',{name:'Next',exact:true}).click();
         await expect(page.locator('.tour-popover h2')).toHaveText('Optional feedback');

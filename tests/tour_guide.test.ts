@@ -52,9 +52,12 @@ for (const [provider, name] of [['chatgpt', 'ChatGPT'], ['claude', 'Claude']]) {
         const account = { id: B, providerId: provider, providerAccountId: `${provider}-account` };
         await open({ accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'A' }, account],
             [`${provider}Access`]: true, [`${provider}Accounts`]: [account],
-            tabs: [{ id: 2, url: provider === 'chatgpt' ? 'https://chatgpt.com/' : 'https://claude.ai/' }],
-            contextReply: { ok: false } });
+            tabs: [{ id: 1, url: 'https://gemini.google.com/app' },
+                { id: 2, url: provider === 'chatgpt' ? 'https://chatgpt.com/' : 'https://claude.ai/' }],
+            contextReply: { ok: true, accountContext: { accountId: A, providerId: 'gemini' } } });
         await page.locator('#btnTourGuide').click();
+        await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
+        assert.equal(await page.locator('.tour-popover h2').textContent(), 'Connect an AI platform');
         await page.locator('.tour-popover').getByRole('button', { name: `Connect ${name}`, exact: true }).click();
         await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
         assert.deepEqual(await read(page, 'connectionRequests'), [[provider, true]], 'Permission starts in the click gesture');

@@ -11,8 +11,6 @@ import type { ScanResult } from '../../application/sync/scanController.js';
 import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
-import { discoverChatGPTAccounts, requestChatGPTConnection } from '../../runtime/capabilities/chatgptDiscovery.js';
-import { discoverClaudeAccounts, requestClaudeConnection } from '../../runtime/capabilities/claudeDiscovery.js';
 import { renderList } from './views/listView.js';
 import { readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
@@ -140,7 +138,7 @@ export async function initWorkbench(): Promise<void> {
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
             'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan',
             'chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
-            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide','btnConnectChatGPT','btnConnectClaude'];
+            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
             el<HTMLInputElement>(id).disabled = !settings || presentationSaving;
@@ -370,29 +368,6 @@ export async function initWorkbench(): Promise<void> {
         }
     }, true);
     el('btnSyncAll').addEventListener('click', () => { void scan(); });
-    el('btnConnectChatGPT').addEventListener('click', () => {
-        if (busy) return;
-        // Start the optional permission request inside the browser user gesture.
-        const access = requestChatGPTConnection();
-        void perform('scan', async () => {
-            if (!await access) throw new Error(text('ChatGPT access was not granted.', '未授予 ChatGPT 访问权限。'));
-            const accounts = await discoverChatGPTAccounts();
-            if (!accounts.length) throw new Error(text('Open ChatGPT and log in, then connect again.', '请打开 ChatGPT 并登录，然后重新连接。'));
-            await select(accounts[0].id);
-            status(text('ChatGPT connected. Sync conversations to load history.', 'ChatGPT 已连接，点击同步会话加载历史。'));
-        });
-    });
-    el('btnConnectClaude').addEventListener('click', () => {
-        if (busy) return;
-        const access = requestClaudeConnection();
-        void perform('scan', async () => {
-            if (!await access) throw new Error(text('Claude access was not granted.', '未授予 Claude 访问权限。'));
-            const accounts = await discoverClaudeAccounts();
-            if (!accounts.length) throw new Error(text('Open Claude and log in, then connect again.', '请打开 Claude 并登录，然后重新连接。'));
-            await select(accounts[0].id);
-            status(text('Claude connected. Sync conversations to load history.', 'Claude 已连接，点击同步会话加载历史。'));
-        });
-    });
     el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scan(true); });
     const cancel = () => { controller?.abort(); status(() => text('Cancelling…', '正在取消…'), 'warn'); };
     el('btnCancel').addEventListener('click', cancel);

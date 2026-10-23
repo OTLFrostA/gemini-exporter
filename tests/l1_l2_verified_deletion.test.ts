@@ -15,6 +15,10 @@ import { parseConfirmedGeminiDeletion, isConfirmedGeminiDetailNotFound } from '.
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
 import { GeminiProtocol } from '../src/l1/protocol/gemini/protocol.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
+import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
+import { deleteRequestGen as geminiDeleteRequestGen } from './fixtures/providers/geminiDeleteRequest.js';
 
 const account = fixtureAccount(), otherAccount = fixtureAccount('chatgpt'), conversationId = 'deadbeef00112233';
 const makeKey = (accountId = account.id) => ({ accountId, conversationId });
@@ -96,30 +100,24 @@ test('Detail not-found classifier refuses HTTP status alone and unrelated error 
 });
 
 test('Detail 1167 must belong to target hNvQHb RPC, not a simultaneous list or arbitrary HTTP response', () => {
-    const frame = (rpc: string, error: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', rpc, null, null, null, error]])}`;
-    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.DETAIL, ['BardErrorInfo', 1167])), true);
-    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 1167])), false);
-    assert.equal(isConfirmedGeminiDetailNotFound(frame(GeminiProtocol.RPCS.DETAIL, ['BardErrorInfo', 1096])), false);
+    assert.equal(isConfirmedGeminiDetailNotFound(geminiDetailGen('G_L1_VERIFIED_DETAIL_1167_01')), true);
+    assert.equal(isConfirmedGeminiDetailNotFound(geminiListGen('G_L1_VERIFIED_LIST_1167_01')), false);
+    assert.equal(isConfirmedGeminiDetailNotFound(geminiDetailGen('G_L1_VERIFIED_DETAIL_1096_01')), false);
     assert.equal(isConfirmedGeminiDetailNotFound('HTTP 404'), false);
 });
 
 test('L1 delete parsing needs a matching acknowledged DELETE RPC, not the outgoing request alone', () => {
-    const id = 'c_' + conversationId, other = 'c_beefcafe12341234';
-    const body = (requestId: string) => new URLSearchParams({ 'f.req':
-        JSON.stringify([[[GeminiProtocol.RPCS.DELETE, JSON.stringify([null, requestId]), null, 'generic']]]) }).toString();
-    const ack = (rpc: string, target: string) =>
-        `)]}'\n\n${JSON.stringify([['wrb.fr', rpc, JSON.stringify([null, target])]])}`;
-    assert.equal(parseConfirmedGeminiDeletion(body(id), ack(GeminiProtocol.RPCS.DELETE, id)), conversationId);
-    assert.equal(parseConfirmedGeminiDeletion(body(id), ''), null);
-    assert.equal(parseConfirmedGeminiDeletion(body(id), ack(GeminiProtocol.RPCS.LIST, id)), null);
-    assert.equal(parseConfirmedGeminiDeletion(body(id), ack(GeminiProtocol.RPCS.DELETE, other)), null);
-    assert.equal(parseConfirmedGeminiDeletion(body(id), '["BardErrorInfo",1167]'), null);
-    assert.equal(parseConfirmedGeminiDeletion(body(id), `)]}'\n\n${JSON.stringify([['wrb.fr', GeminiProtocol.RPCS.DELETE, JSON.stringify([null, id]), null, null, ['BardErrorInfo', 1096]]])}`), null);
+    const requestBody = geminiDeleteRequestGen('G_L1_VERIFIED_DELETE_REQUEST_01');
+    assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiDeleteGen('G_L1_VERIFIED_DELETE_ACK_01')), conversationId);
+    assert.equal(parseConfirmedGeminiDeletion(requestBody, ''), null);
+    assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiListGen('G_L1_VERIFIED_LIST_FALSE_DELETE_01')), null);
+    assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiDeleteGen('G_L1_VERIFIED_DELETE_OTHER_ACK_01')), null);
+    assert.equal(parseConfirmedGeminiDeletion(requestBody, '["BardErrorInfo",1167]'), null);
+    assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiDeleteGen('G_L1_VERIFIED_DELETE_LIMIT_01')), null);
 });
 
 test('Gemini list limit requires LIST-specific 1096 plus a bound Recent continuation', () => {
-    const raw = (rpc: string, value: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', rpc, null, null, null, value]])}`;
-    const valid = parseList(raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 1096]));
+    const valid = parseList(geminiListGen('G_L1_VERIFIED_LIST_LIMIT_01'));
     assert.equal(valid.failure, 'hit_google_limit');
     const observation = geminiListObservation(valid, { streamId: 'recent', requestCursor: 'page1' }, account.id);
     assert.equal(observation.terminal, 'provider_limit');
@@ -130,10 +128,10 @@ test('Gemini list limit requires LIST-specific 1096 plus a bound Recent continua
         assert.equal(geminiListObservation(valid, ctx, account.id).terminal, undefined);
     }
     for (const error of [
-        raw(GeminiProtocol.RPCS.DETAIL, ['BardErrorInfo', 1096]),
-        raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 10961]),
-        raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', 429]),
-        raw(GeminiProtocol.RPCS.LIST, ['BardErrorInfo', '1096'])
+        geminiDetailGen('G_L1_VERIFIED_DETAIL_1096_02'),
+        geminiListGen('G_L1_VERIFIED_LIST_LIMIT_10961'),
+        geminiListGen('G_L1_VERIFIED_LIST_LIMIT_429'),
+        geminiListGen('G_L1_VERIFIED_LIST_LIMIT_STRING'),
     ]) assert.equal(parseList(error).failure, 'invalid_response');
 });
 
