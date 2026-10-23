@@ -190,7 +190,34 @@ function l1ContractWire(prompt = 'Question', next: string | null = null): string
     ]);
 }
 
+
+/** The image-bearing hNvQHb source used by Takeout/media-identity integration tests. */
+function mediaOnlineDetail(missingTime = false, missingPrompt = false, multipleImages = false): string {
+    const time = 1788350400000, prompt = 'Draw a diagram of a green bridge';
+    const pngLength = 68;
+    const images = Array.from({ length: multipleImages ? 2 : 1 }, (_, i) => {
+        const image: unknown[] = Array(16).fill(null);
+        image[2] = 'online-' + i + '.png';
+        image[3] = 'https://lh3.googleusercontent.com/media-source-' + i;
+        image[11] = 'image/png';
+        image[15] = [1, 1, pngLength];
+        return image;
+    });
+    const turns = Array.from({ length: 10 }, (_, i) => [
+        ['c_source-media', 'r_request-' + i],
+        missingTime && i === 9 ? null : [time / 1000 + (i === 9 ? 0 : i - 20), 123000000],
+        missingPrompt && i === 9 ? null : [[i === 9 ? prompt : 'Online question ' + i]],
+        [['rc_answer-' + i, [['Complete online answer ' + i], ...(i === 9 ? images : [])]]],
+    ]);
+    return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb',
+        JSON.stringify([turns, null, 'Complete online body'])]]);
+}
+
 const fixtureMap = {
+    'G_MEDIA_SOURCE_DEFAULT_01': () => mediaOnlineDetail(),
+    'G_MEDIA_SOURCE_NO_TIME_01': () => mediaOnlineDetail(true),
+    'G_MEDIA_SOURCE_NO_PROMPT_01': () => mediaOnlineDetail(false, true),
+    'G_MEDIA_SOURCE_MULTI_01': () => mediaOnlineDetail(false, false, true),
     'G_E2E_PRODUCTION_PASSIVE_MIXED_01': () =>
         e2eProductionMixed('passive', 'Question from passive capture', 'Answer from passive capture', 'Passive detail'),
     'G_E2E_PRODUCTION_NATIVE_AUDIT_MIXED_01': () =>
