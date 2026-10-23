@@ -72,6 +72,19 @@ const fixtureMap = {
     'G_PARSER_PAYLOAD_ERROR_01': () => JSON.stringify([
         ['wrb.fr', 'error_rpc', null, null, null, ['generic', 'BardErrorInfo: quota exceeded']],
     ]),
+    'G_BOUNDARY_LIST_SLOTS_01': () => {
+        const row = ['c_boundary12345678', 'Boundary title - Gemini', [1690000000],
+            [1680000000], 2, [1700000000, 500000000], null, { extra: true }, null, 7];
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc',
+            JSON.stringify([null, [row], null, null, 'tC_fallback_cursor', { future: true }])]]);
+    },
+    'G_BOUNDARY_LIST_EMPTY_TEXT_01': () => '',
+    'G_BOUNDARY_LIST_INVALID_JSON_01': () => 'not-json',
+    'G_BOUNDARY_LIST_EMPTY_JSON_01': () => '[]',
+    'G_BOUNDARY_LIST_BAD_DETAIL_01': () => ")]}'\n\n" +
+        JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(null)]]),
+    'G_BOUNDARY_LIST_BAD_INNER_01': () => ")]}'\n\n" +
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[broken']]),
     'G_BOUNDARY_FRAMING_MIXED_01': () => {
         const first = ['wrb.fr', 'MaZiqc', '[["quoted [bracket] and \\"escape\\""]]'];
         const second = ['wrb.fr', 'hNvQHb', '[]'];
