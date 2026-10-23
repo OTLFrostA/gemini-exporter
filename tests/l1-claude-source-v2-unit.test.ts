@@ -186,3 +186,78 @@ test('Claude incomplete widgets, unsupported result blocks and missing binary co
         assert.ok(parsed.diagnostics.some(d => d.sourceRef?.providerMessageId === leaf));
     }
 });
+
+test('Claude modern Write → Artifact preserves exact source as escaped code and the published link', () => {
+    const code = '<h1>Backup checklist</h1>\n<script>window.example = "inert source";</script>';
+    const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Create a checklist'),
+        { ...message(leaf, root, 'assistant', ''), content: [
+            { type: 'tool_use', name: 'Skill', input: { skill: 'artifact-design' } },
+            { type: 'tool_result', name: 'Skill', content: [{ type: 'text', text: 'internal skill setup' }] },
+            { type: 'tool_use', name: 'Write', input: { file_path: '/home/claude/checklist.html', content: code } },
+            { type: 'tool_result', name: 'Write', content: [{ type: 'text', text: 'File created successfully' }] },
+            { type: 'tool_use', name: 'Artifact', input: { file_path: '/home/claude/checklist.html', description: 'Four backup steps' } },
+            { type: 'tool_result', name: 'Artifact', content: [{ type: 'text', text: 'Published at https://claude.ai/artifact/example-123 (Version 1). Internal publication instructions.' }] },
+        ] }]), c1);
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    const sourceCode = parsed.conversation.detail.messages[1].content.filter(b => b.type === 'code');
+    assert.deepEqual(sourceCode.map(b => b.code), [code]);
+    const compose = contentComposer(new Map(), id => ({ id, label: id }));
+    const doc = { title: 'Artifact', metadata: { id: c1, provider: 'claude' },
+        messages: parsed.conversation.detail.messages.map(m => ({ role: m.role, blocks: compose(m.content) })) };
+    const md = renderDocumentMarkdown(doc, {}), html = renderDocumentHtml(doc, {}).html;
+    assert.ok(md.includes(code));
+    assert.ok(html.includes('&lt;script&gt;'));
+    assert.ok(!html.includes('<script>window.example'));
+    for (const result of [md, html]) {
+        assert.ok(result.includes('Artifact: checklist.html'));
+        assert.ok(result.includes('https://claude.ai/artifact/example-123'));
+        assert.ok(result.includes('Four backup steps'));
+        assert.ok(!result.includes('internal skill setup'));
+        assert.ok(!result.includes('Internal publication instructions'));
+    }
+});
+
+test('Claude memory read and append do not leak stored profile bodies or internal versions', () => {
+    for (const operation of ['read', 'append']) {
+        const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Q'),
+            { ...message(leaf, root, 'assistant', 'A'), content: [
+                { type: 'tool_use', name: 'mcp__memory__memory_' + operation, input: { content: 'private memory input' } },
+                { type: 'tool_result', name: 'memory_' + operation, content: [{ type: 'text', text: 'private memory body and version token' }] },
+            ] }]), c1);
+        assert.equal(parsed.conversation.detail.quality.status, 'complete');
+        assert.ok(!JSON.stringify(parsed.conversation.detail).includes('private memory'));
+    }
+});
+
+test('Claude never invents published Artifact bytes from missing files or unparsed edits', () => {
+    for (const middle of [[], [{ type: 'tool_use', name: 'Edit', input: { file_path: '/tmp/app.html', old_string: 'before', new_string: 'after' } }]]) {
+        const content = middle.length ? [
+            { type: 'tool_use', name: 'Write', input: { file_path: '/tmp/app.html', content: 'old source must not be reused' } },
+            ...middle,
+        ] : [];
+        const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Q'),
+            { ...message(leaf, root, 'assistant', ''), content: [...content,
+                { type: 'tool_use', name: 'Artifact', input: { file_path: '/tmp/app.html' } }] }]), c1);
+        assert.equal(parsed.conversation.detail.quality.status, 'partial');
+        assert.ok(parsed.diagnostics.some(d => d.message.includes('artifact content is unavailable')));
+        assert.ok(!JSON.stringify(parsed.conversation.detail).includes('old source must not be reused'));
+    }
+});
+
+test('Claude generated Artifact file cards require unique captured path and matching UTF-8 bytes', () => {
+    const code = '<h1>中文清单</h1>', path = '/home/claude/checklist.html';
+    const file = { success: true, file_kind: 'blob', download_source: 'files-api', file_name: 'checklist.html',
+        size_bytes: new TextEncoder().encode(code).byteLength };
+    const publish = { type: 'tool_use', name: 'Artifact', input: { file_path: path } };
+    const write = { type: 'tool_use', name: 'Write', input: { file_path: path, content: code } };
+    for (const variant of ['matching', 'wrong-size', 'unrelated', 'uploaded', 'ambiguous'] as const) {
+        const metadata = variant === 'wrong-size' ? { ...file, size_bytes: code.length }
+            : variant === 'unrelated' ? { ...file, file_name: 'other.html' } : file;
+        const assistant = { ...message(leaf, root, 'assistant', ''), content: [write, publish,
+            ...(variant === 'ambiguous' ? [{ ...publish, input: { file_path: '/tmp/checklist.html' } }] : [])],
+            ...(variant === 'uploaded' ? { attachments: [metadata] } : { files: [metadata] }) };
+        const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Q'), assistant]), c1);
+        assert.equal(parsed.conversation.detail.quality.status, variant === 'matching' ? 'complete' : 'partial', variant);
+        assert.equal(parsed.diagnostics.some(d => d.code === 'claude.attachment.unavailable'), variant !== 'matching', variant);
+    }
+});

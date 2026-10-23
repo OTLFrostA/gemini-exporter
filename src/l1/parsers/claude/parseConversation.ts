@@ -5,7 +5,7 @@ import type { SourceConversationParseResult } from '../parsingResult.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../shared/markdown/index.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { claudeTimestamp } from './parseList.js';
-import { parseToolUse, parseToolResult } from './parseTools.js';
+import { createToolState, isCapturedArtifactFile, parseToolUse, parseToolResult, type ToolState } from './parseTools.js';
 
 function object(value: unknown): Record<string, unknown> | null {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -44,7 +44,7 @@ function currentBranch(data: Record<string, unknown>): Branch {
     }
     return { messages: result.reverse(), quality };
 }
-function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext):
+function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext, tools: ToolState):
     { content: BlockNode[]; reasoning: BlockNode[]; incomplete: boolean } {
     const id = String(message.uuid);
     const content: BlockNode[] = [], reasoning: BlockNode[] = [];
@@ -56,15 +56,17 @@ function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext):
     if (incomplete) missing('claude.message.truncated', 'Message was truncated or canceled');
     const attachments = Array.isArray(message.attachments) ? message.attachments : [];
     const files = Array.isArray(message.files) ? message.files : [];
-    for (const entry of [...attachments, ...files]) {
+    const unresolved: { file: Record<string, unknown>; name: string; generated: boolean }[] = [];
+    for (const { entry, generated } of [...attachments.map(entry => ({ entry, generated: false })),
+        ...files.map(entry => ({ entry, generated: true }))]) {
         const file = object(entry);
         if (!file) { missing('claude.attachment.invalid', 'Invalid attachment metadata'); continue; }
         const name = typeof file.file_name === 'string' ? file.file_name
             : typeof file.name === 'string' ? file.name : 'attachment';
-        content.push(paragraph('Attachment: ' + name));
-        if (typeof file.extracted_content === 'string' && file.extracted_content.trim())
+        if (typeof file.extracted_content === 'string' && file.extracted_content.trim()) {
+            content.push(paragraph('Attachment: ' + name));
             content.push(...markdown(file.extracted_content, id, ctx));
-        else missing('claude.attachment.unavailable', 'Attachment bytes or extracted text unavailable');
+        } else unresolved.push({ file, name, generated });
     }
     if (Array.isArray(message.content)) {
         for (const raw of message.content) {
@@ -75,7 +77,7 @@ function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext):
             } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
                 reasoning.push(...markdown(block.thinking, id, ctx));
             } else if (block.type === 'tool_use') {
-                const parsed = parseToolUse(block);
+                const parsed = parseToolUse(block, tools);
                 content.push(...parsed.blocks);
                 for (const issue of parsed.issues) missing('claude.tool_use.unsupported', issue);
             } else if (block.type === 'tool_result') {
@@ -89,6 +91,11 @@ function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext):
     } else if (typeof message.text === 'string') {
         content.push(...markdown(message.text, id, ctx));
     } else { missing('claude.content.missing', 'Message has no content'); }
+    for (const { file, name, generated } of unresolved) {
+        if (generated && isCapturedArtifactFile(message, file, tools)) continue;
+        content.push(paragraph('Attachment: ' + name));
+        missing('claude.attachment.unavailable', 'Attachment bytes or extracted text unavailable');
+    }
     return { content, reasoning, incomplete };
 }
 
@@ -109,10 +116,11 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
     let partial = false;
     const sourceModel = typeof data.model === 'string' && data.model.trim() ? data.model : undefined;
     const messages: DomainMessage[] = [];
+    const tools = createToolState(branch.messages);
     for (const message of branch.messages) {
         if (message.sender !== 'human' && message.sender !== 'assistant') continue;
         const rendered = contentOf(message, { ...ctx,
-            sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } });
+            sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } }, tools);
         if (rendered.incomplete) partial = true;
         const timestamp = claudeTimestamp(message.created_at);
         const model = typeof message.model === 'string' && message.model.trim() ? message.model : sourceModel;
