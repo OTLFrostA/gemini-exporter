@@ -61,23 +61,31 @@ function getSchema(): typeof GEMINI_JSPB_SCHEMA {
 
 const isTurnCache = new WeakMap<object, boolean>();
 
+function isUnknownArray(value: unknown): value is unknown[] {
+    return Array.isArray(value);
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function extractUserTextFromPayload(userPayload: unknown): string {
-    if (!Array.isArray(userPayload) || userPayload.length === 0) return "";
+    if (!isUnknownArray(userPayload) || userPayload.length === 0) return "";
     const first = userPayload[0];
     if (typeof first === "string") return first;
-    if (Array.isArray(first) && typeof first[0] === "string") return first[0];
+    if (isUnknownArray(first) && typeof first[0] === "string") return first[0];
     return "";
 }
 
 function isTurn(turn: unknown): boolean {
-    if (!Array.isArray(turn) || turn.length < 3) return false;
+    if (!isUnknownArray(turn) || turn.length < 3) return false;
     const cached = isTurnCache.get(turn);
     if (cached !== undefined) return cached;
     const head = turn[0];
     let idStr = "";
     if (typeof head === "string") idStr = head;
-    else if (Array.isArray(head) && head.length) {
-        idStr = typeof head[0] === "string" ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === "string" ? head[0][0] : "");
+    else if (isUnknownArray(head) && head.length) {
+        idStr = typeof head[0] === "string" ? head[0] : (isUnknownArray(head[0]) && typeof head[0][0] === "string" ? head[0][0] : "");
     }
     let result = false;
     if (idStr && (idStr.startsWith("c_") || idStr.startsWith("r_"))) {
@@ -87,8 +95,8 @@ function isTurn(turn: unknown): boolean {
     return result;
 }
 
-function isTurnsArray(arr: unknown): boolean {
-    if (!Array.isArray(arr) || arr.length === 0) return false;
+function isTurnsArray(arr: unknown): arr is unknown[] {
+    if (!isUnknownArray(arr) || arr.length === 0) return false;
     let cnt = 0;
     for (const t of arr) if (isTurn(t)) cnt++;
     return cnt >= 1 && cnt / arr.length >= 0.5;
@@ -96,15 +104,15 @@ function isTurnsArray(arr: unknown): boolean {
 
 function findTurnsDeep(root: unknown, depth: number = 0): unknown[] | null {
     if (!root || depth > 6) return null;
-    if (isTurnsArray(root)) return root as unknown[];
-    if (Array.isArray(root)) {
+    if (isTurnsArray(root)) return root;
+    if (isUnknownArray(root)) {
         for (const el of root) {
             const found = findTurnsDeep(el, depth + 1);
             if (found) return found;
         }
-    } else if (root && typeof root === "object") {
-        for (const k in (root as Record<string, unknown>)) {
-            const found = findTurnsDeep((root as Record<string, unknown>)[k], depth + 1);
+    } else if (isUnknownRecord(root)) {
+        for (const k in root) {
+            const found = findTurnsDeep(root[k], depth + 1);
             if (found) return found;
         }
     }
@@ -128,25 +136,25 @@ function extractTurnsFromInner(
     isDevMode: boolean
 ): TurnsExtractionResult {
     const schemaDriftWarnings: string[] = [];
-    if (Array.isArray(top) && top.length > 0 && !isStandardWrb && innerStr) {
+    if (isUnknownArray(top) && top.length > 0 && !isStandardWrb && innerStr) {
         schemaDriftWarnings.push(`Envelope drift: batchexecute response missing standard WRB detail RPC header [${wrb}, ${detailRpc}], fell back to heuristic payload discovery`);
     }
 
     let activeInner = inner;
     let turns: unknown[] | null = null;
     const innerSchema = GEMINI_JSPB_SCHEMA.INNER;
-    const initialSlots: unknown[] = Array.isArray(activeInner) ? activeInner : [];
+    const initialSlots = isUnknownArray(activeInner) ? activeInner : [];
     const primaryTurns = initialSlots[innerSchema.TURNS_OR_LIST_PRIMARY];
-    if (Array.isArray(primaryTurns) && isTurnsArray(primaryTurns)) {
+    if (isTurnsArray(primaryTurns)) {
         turns = primaryTurns;
     }
     if (!turns) turns = findTurnsDeep(activeInner);
-    if (!turns && Array.isArray(top)) {
+    if (!turns && isUnknownArray(top)) {
         for (const item of top) {
-            if (!Array.isArray(item) || typeof item[2] !== "string") continue;
+            if (!isUnknownArray(item) || typeof item[2] !== "string") continue;
             if (item[2] === innerStr) continue;
             try {
-                const altInner = JSON.parse(item[2]);
+                const altInner: unknown = JSON.parse(item[2]);
                 const altTurns = findTurnsDeep(altInner);
                 if (altTurns) {
                     turns = altTurns;
@@ -164,14 +172,15 @@ function extractTurnsFromInner(
 
     // 4. Detect "metadata-only" response: inner = [null, null, [[conv_id_str, title, ...]]]
     const metaListIdx = innerSchema.METADATA_ONLY_LIST;
-    const activeSlots: unknown[] = Array.isArray(activeInner) ? activeInner : [];
+    const activeSlots = isUnknownArray(activeInner) ? activeInner : [];
     const metaRows = activeSlots[metaListIdx];
-    const firstMeta = Array.isArray(metaRows) ? metaRows[0] : undefined;
+    const firstMeta = isUnknownArray(metaRows) ? metaRows[0] : undefined;
+    const firstMetaSlots = isUnknownArray(firstMeta) ? firstMeta : null;
     const isMetadataOnly = !turns.length
         && activeSlots[innerSchema.TURNS_OR_LIST_PRIMARY] === null
         && activeSlots[innerSchema.LIST_SECONDARY] === null
-        && Array.isArray(metaRows) && metaRows.length > 0
-        && Array.isArray(firstMeta) && typeof firstMeta[0] === "string" && firstMeta[0].startsWith("c_");
+        && isUnknownArray(metaRows) && metaRows.length > 0
+        && firstMetaSlots !== null && typeof firstMetaSlots[0] === "string" && firstMetaSlots[0].startsWith("c_");
 
     if (isMetadataOnly) {
         schemaDriftWarnings.push(`metadata-only payload: hNvQHb returned no turns (inner[${metaListIdx}][0] looks like a list-format row); exported messages will be empty`);
@@ -179,10 +188,10 @@ function extractTurnsFromInner(
     if (isMetadataOnly && isDevMode) {
         console.warn("[Parser] hNvQHb returned metadata-only payload (no turns). " +
             `inner[${metaListIdx}][0] looks like a list-format row, not a turns array. ` +
-            "conv:", firstMeta?.[0], "title:", firstMeta?.[1],
-            "rc_count:", firstMeta?.filter((x: unknown) => typeof x === "string" && x.startsWith("rc_")).length);
+            "conv:", firstMetaSlots?.[0], "title:", firstMetaSlots?.[1],
+            "rc_count:", firstMetaSlots?.filter((x: unknown) => typeof x === "string" && x.startsWith("rc_")).length);
     }
-    if (!turns.length && activeInner && Array.isArray(activeInner) && activeInner.length > 0 && !isMetadataOnly) {
+    if (!turns.length && activeInner && isUnknownArray(activeInner) && activeInner.length > 0 && !isMetadataOnly) {
         schemaDriftWarnings.push(`Payload drift: inner JSON array present (length ${activeInner.length}) but unable to locate turns array`);
     }
 
@@ -305,7 +314,7 @@ function parseCandidateResponse(
     if (!responseText) {
         const textArr: string[] = [];
         deepWalk(cand, (node: unknown) => {
-            if (Array.isArray(node)) {
+            if (isUnknownArray(node)) {
                 if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 0 && !node[0].startsWith("http") && !node[0].startsWith("rc_") && !node[0].startsWith("c_")) {
                     if (node[0].trim().length > 2 && !textArr.includes(node[0])) {
                         textArr.push(node[0]);
@@ -532,11 +541,11 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
             isDevMode
         );
 
-        const innerSlots: unknown[] = Array.isArray(inner) ? inner : [];
+        const innerSlots = isUnknownArray(inner) ? inner : [];
         const metadataRows = innerSlots[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST];
-        const metadataRow = !turns.length && innerSlots[0] === null && innerSlots[1] === null && Array.isArray(metadataRows)
+        const metadataRow = !turns.length && innerSlots[0] === null && innerSlots[1] === null && isUnknownArray(metadataRows)
             ? metadataRows[0] : undefined;
-        const metadataConversation = Array.isArray(metadataRow)
+        const metadataConversation = isUnknownArray(metadataRow)
             && typeof metadataRow[0] === 'string' && metadataRow[0].startsWith('c_')
             && typeof metadataRow[1] === 'string' && metadataRow[1].trim()
             ? { id: metadataRow[0], title: cleanTitle(metadataRow[1]) } : undefined;
