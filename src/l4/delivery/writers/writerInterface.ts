@@ -33,8 +33,7 @@ import { FsWriter } from './fsWriter.js';
 
 
 export function isWriter(obj: unknown): obj is IExportWriter {
-    return obj !== null && (typeof obj === 'object' || typeof obj === 'function')
-        && 'writeFile' in obj && typeof obj.writeFile === 'function';
+    return !!obj && typeof (obj as { writeFile?: unknown }).writeFile === 'function';
 }
 
 export function createWriter(type: 'zip' | 'fs' | string, options: WriterFactoryOptions = {}): IExportWriter {
