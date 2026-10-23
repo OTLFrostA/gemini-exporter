@@ -1,9 +1,9 @@
 /**
  * PR-3 回归测试（核心词表审计 D2，方案 a）：
- * getEffectiveTimestamp 删除 lastSeen fallback。
+ * indexActivityTime 不从客户端 lastSeen 推断服务端时间。
  *
  * 契约：
- *   1. 只有 lastSeen、无服务端时间戳的会话 → getEffectiveTimestamp 返回 0
+ *   1. 只有 lastSeen、无服务端时间戳的会话 → indexActivityTime 返回 undefined
  *      （lastSeen 是客户端观察到的时间，可能是 seed，不可当作服务端权威时间）。
  *   2. 未知来源版本不能根据客户端观察时间跳过导出。
  *
@@ -12,19 +12,19 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { getEffectiveTimestamp } = require('../src/shared/utils/titleUtils.js');
+const { indexActivityTime } = require('../src/l2/conversationIndex.js');
 
 // Case 1: lastSeen-only 会话返回 0，不再返回 lastSeen。
-test('getEffectiveTimestamp: lastSeen-only chat returns 0', () => {
+test('indexActivityTime: lastSeen-only chat has no authoritative time', () => {
     const chat = { id: 'c_lastseen_only', lastSeen: '2026-09-03T12:00:00.000Z' };
-    assert.strictEqual(getEffectiveTimestamp(chat), 0, 'lastSeen must not feed the authoritative timestamp');
+    assert.strictEqual(indexActivityTime(chat), undefined, 'lastSeen must not feed the authoritative timestamp');
 
     // 数字型 lastSeen 也一样
-    assert.strictEqual(getEffectiveTimestamp({ id: 'c2', lastSeen: 1788100000000 }), 0);
+    assert.strictEqual(indexActivityTime({ id: 'c2', lastSeen: 1788100000000 }), undefined);
 
     // A newer local observation must not override a known authoritative server timestamp.
     const serverUpdatedAt = 1788000000000;
-    assert.strictEqual(getEffectiveTimestamp({
+    assert.strictEqual(indexActivityTime({
         id: 'c3', updatedAt: serverUpdatedAt, lastSeen: 1788100000000
     }), serverUpdatedAt);
 });

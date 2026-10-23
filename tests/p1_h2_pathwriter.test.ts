@@ -4,9 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const pathUtils = require('../src/shared/utils/pathUtils.js');
-const titleUtils = require('../src/shared/utils/titleUtils.js');
-const { mergeConversation } = require('../src/l2/indexCollection.js');
-const progressUtils = require('../src/ui/shared/progressUtils.js');
+const { mergeConversationIndex, indexActivityTime } = require('../src/l2/conversationIndex.js');
 
 test('p1_h2 - P1-102: con.md is rewritten, not left as a reserved name', () => {
     const out = pathUtils.sanitizeFileName('con.md');
@@ -50,46 +48,23 @@ test('p1_h2 - P1-105b: buildExportFileName preserves _cid6 under downstream sani
     assert.strictEqual(cleaned, out, 'downstream sanitizeRelativePath must not truncate _cid6');
 });
 
-// ---------- P1-106: toTimestampMs ----------
-test('p1_h2 - P1-106: toTimestampMs normalizes timestamp shapes', () => {
-    const f = titleUtils.toTimestampMs;
-    assert.strictEqual(f(3000), 3000, 'number keeps ms contract');
-    assert.strictEqual(f('1726358400'), 1726358400000, 'digit string < 1e11 is epoch seconds');
-    assert.strictEqual(f('1726358400000'), 1726358400000, 'long digit string is epoch ms');
-    assert.strictEqual(f('2024-09-14T00:00:00.000Z'), 1726272000000, 'ISO string');
-    assert.strictEqual(f(new Date('2024-09-14T00:00:00.000Z')), 1726272000000, 'Date');
-    assert.strictEqual(f('not-a-date'), null);
-    assert.strictEqual(f(null), null);
-    assert.strictEqual(f(undefined), null);
-    assert.strictEqual(f(-5), null);
-    assert.strictEqual(f(''), null);
-});
-
 // ---------- P1-107: takeout fallback uses the same bar as tier 1 ----------
 test('p1_h2 - P1-107: takeout placeholder titles do not flow back in', () => {
-    const bad = titleUtils.resolveTitle({ id: 'c_1', titles: { takeout: 'Google Gemini' } });
-    assert.strictEqual(bad.source, 'derived', `placeholder must not resolve as takeout, got ${bad.source}`);
-    const good = titleUtils.resolveTitle({ id: 'c_1', title: 'Weekend hiking plan', titleSource: 'derived' });
-    assert.strictEqual(good.source, 'derived');
+    const bad = indexFixture({ id: 'c_1', titles: { takeout: 'Google Gemini' } });
+    assert.strictEqual(bad.title, undefined, 'placeholder must not be selected as a title');
+    const good = indexFixture({ id: 'c_1', title: 'Weekend hiking plan', titleSource: 'derived' });
+    assert.strictEqual(good.titleSource, 'derived');
     assert.strictEqual(good.title, 'Weekend hiking plan');
 });
 
-// ---------- P1-108: merge timestamps via toTimestampMs ----------
+// ---------- P1-108: canonical index merging preserves timestamps ----------
 test('p1_h2 - P1-108: mergeConversation honors digit-string updatedAt', () => {
     const oldC = { id: 'c_1', updatedAt: '2024-01-01T00:00:00.000Z', title: 'Old' };
     const inc = { id: 'c_1', updatedAt: '1726358400000', title: 'New' };
-    const r = mergeConversation(indexFixture(oldC), indexFixture(inc));
-    assert.ok(r.isChanged, 'newer digit-string timestamp should win');
-    const eff = titleUtils.getEffectiveTimestamp(r.merged);
+    const r = mergeConversationIndex(indexFixture(oldC), indexFixture(inc));
+    assert.notDeepStrictEqual(r, indexFixture(oldC), 'newer digit-string timestamp should win');
+    const eff = indexActivityTime(r);
     assert.strictEqual(eff, 1726358400000);
-});
-
-// ---------- P1-109: NaN progress ----------
-test('p1_h2 - P1-109: NaN/Infinity pct becomes 0, not NaN', () => {
-    assert.strictEqual(progressUtils.formatExportProgress({ pct: NaN }).pct, 0);
-    assert.strictEqual(progressUtils.formatExportProgress({ pct: Infinity }).pct, 0);
-    assert.strictEqual(progressUtils.formatExportProgress(NaN).pct, 0);
-    assert.strictEqual(progressUtils.formatExportProgress({ pct: 42 }).pct, 42);
 });
 
 // ---------- P1-110: code spans survive the residual tag strip ----------

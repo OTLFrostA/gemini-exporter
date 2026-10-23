@@ -16,7 +16,6 @@ export interface RpcRequestOptions {
 export interface GeminiClientRpcClientModule {
     GEMINI_API_URL: string;
     getProtocol: () => GeminiProtocolModule;
-    getUtils: () => typeof GeminiUtils;
     getApiUrl: (slot?: string | null) => string;
     nextReqid: () => string;
     generateFallbackSid: () => string;
@@ -25,7 +24,6 @@ export interface GeminiClientRpcClientModule {
 }
 
 import { GeminiProtocol } from "../../../protocol/gemini/protocol.js";
-import { GeminiUtils } from "../../../../shared/utils/utils.js";
 import { generateFallbackSid } from "./credentialManager.js";
 
 function getProtocol(): GeminiProtocolModule {
@@ -33,10 +31,6 @@ function getProtocol(): GeminiProtocolModule {
 }
 
 const nextReqid = GeminiProtocol.createReqidGenerator();
-
-function getUtils(): typeof GeminiUtils {
-    return GeminiUtils;
-}
 
     function getApiUrl(slot?: string | null): string {
         if (slot && slot !== "default") {
@@ -108,7 +102,6 @@ function getUtils(): typeof GeminiUtils {
 export {
     GEMINI_API_URL,
     getProtocol,
-    getUtils,
     getApiUrl,
     nextReqid,
     generateFallbackSid,

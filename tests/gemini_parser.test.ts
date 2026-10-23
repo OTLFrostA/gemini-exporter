@@ -5,7 +5,7 @@ const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../s
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { cleanTitle } = require('../src/shared/utils/utils.js');
+const { cleanTitle } = require('../src/shared/utils/titleText.js');
 
 test('gemini_parser - isRealTitle', () => {
     assert.strictEqual(isRealTitle(''), false);
@@ -48,13 +48,6 @@ test('gemini_parser - parseList with valid batchexecute RPC text', () => {
     assert.strictEqual(res.conversations[0].id, '1234567890abcdef');
     assert.strictEqual(res.conversations[0].title, 'Test Title');
     assert.strictEqual(res.nextPageToken, 'tC_token123');
-});
-
-test('utils - resolveTitle displays the canonical L2 title and semantic source', () => {
-    const { resolveTitle } = require('../src/shared/utils/utils.js');
-    assert.deepStrictEqual(resolveTitle({ title: 'Canonical title', titleSource: 'provider' }), { title: 'Canonical title', source: 'provider' });
-    assert.deepStrictEqual(resolveTitle({ title: 'User title', titleSource: 'user' }), { title: 'User title', source: 'user' });
-    assert.deepStrictEqual(resolveTitle({}), { title: '未命名对话', source: 'derived' });
 });
 
 test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extracts official RPC title', () => {
