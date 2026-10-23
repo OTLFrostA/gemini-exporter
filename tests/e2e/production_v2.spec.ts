@@ -5,6 +5,10 @@ import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
+import { requestGen as geminiListRequestGen } from '../fixtures/providers/geminiListRequest.js';
+import { requestGen as geminiDetailRequestGen } from '../fixtures/providers/geminiDetailRequest.js';
+import { streamGen as geminiStreamGen } from '../fixtures/providers/geminiStream.js';
+import { requestGen as geminiStreamRequestGen } from '../fixtures/providers/geminiStreamRequest.js';
 
 const accountId = '10000000-0000-4000-8000-000000000001';
 let bundle: string;
@@ -107,10 +111,10 @@ test('MAIN fetch → isolated L1 → Background L2 commits in extension IDB and 
     const source = await sourcePage(context);
     const wire = geminiListGen('G_E2E_PRODUCTION_V2_01');
     await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
-    await source.evaluate(async () => {
-        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]) }) });
+    await source.evaluate(async body => {
+        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams(body) });
         window.postMessage({ action: 'runLiveSave', key: { accountId: 'fake', conversationId: 'passive' } }, location.origin);
-    });
+    }, geminiListRequestGen('G_E2E_PRODUCTION_LIST_REQUEST_01'));
     await expect.poll(() => page.evaluate(async accountId => (await Reflect.get(globalThis, 'productionProbe').listIndexes(accountId)).length, accountId)).toBe(1);
     // Badge v2 deliberately pulls counts on visibility restoration (and every ~60s),
     // not on an Index-commit push. Exercise that existing refresh boundary.
@@ -179,9 +183,9 @@ test('passive Detail commit triggers Background Live Save and writes the real fi
     const source = await sourcePage(context);
     const wire = geminiDetailGen('G_E2E_PRODUCTION_PASSIVE_MIXED_01');
     await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
-    const capture = () => source.evaluate(async () => {
-        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams({ 'f.req': JSON.stringify([[['hNvQHb', JSON.stringify(['c_passive', null, null, 1, [1], [4], null, 1]), null, 'generic']]]) }).toString() });
-    });
+    const capture = () => source.evaluate(async body => {
+        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body });
+    }, geminiDetailRequestGen('G_E2E_PRODUCTION_PASSIVE_DETAIL_REQUEST_01'));
     await capture();
     await expect.poll(() => page.evaluate(async accountId => (await Reflect.get(globalThis, 'productionProbe').getExportRecord({ accountId, conversationId: 'passive' }))?.status, accountId)).toBe('ok');
     const read = () => page.evaluate(async () => {
@@ -265,12 +269,13 @@ test('completed reply with Live Save off refreshes current source and reorders t
     await context.route('https://gemini.google.com/**/batchexecute*', route => {
         acquisitions++; return route.fulfill({ contentType: 'application/json', body: wire });
     });
-    const fixture = JSON.parse(await readFile(path.resolve(__dirname, '../fixtures/gemini_answered_stream.json'), 'utf8'));
-    const frame = JSON.stringify(fixture.frames[0]);
-    await source.route('**/StreamGenerate*', route => route.fulfill({ contentType: 'application/json', body: ")]}'\n\n" + (frame.length + 2) + '\n' + frame + '\n' }));
-    await source.evaluate(async () => {
-        await fetch('/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate', { method: 'POST', body: 'f.req=test' });
-    });
+    await source.route('**/StreamGenerate*', route => route.fulfill({
+        contentType: 'application/json',
+        body: geminiStreamGen('G_STREAM_E2E_ANSWERED_01'),
+    }));
+    await source.evaluate(async body => {
+        await fetch('/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate', { method: 'POST', body });
+    }, geminiStreamRequestGen('G_STREAM_E2E_REQUEST_01'));
     await expect.poll(() => acquisitions).toBeGreaterThan(0);
     await expect(page.locator('#list .item').first()).toHaveAttribute('data-chat-id', id);
     const state = await page.evaluate(async ({ accountId, id }) => {
