@@ -7,7 +7,7 @@ const assert = require('node:assert');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
-const { convertMath } = require('../src/l4/format/typst/mathConverter.js');
+const { convertMathForTest: convertMath } = require('./helpers/mathConversion.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
     RealWasmSandboxHost,
