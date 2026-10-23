@@ -127,13 +127,7 @@ test('sanitized existing wire evidence retains structured content and closed ima
 });
 
 test('generated resources retain their authored request token independently of archive paths', () => {
-    const url = 'https://lh3.googleusercontent.com/native_generated_image';
-    const image: unknown[] = [];
-    image[2] = 'watermarked_img_native.png';
-    image[3] = url;
-    image[11] = 'image/png';
-    image[15] = [640, 480, 100];
-    const raw = rpc([[turn('Draw', null, [['rc_image', [['Image'], image]]], 'r_Ab12')]]);
+    const raw = geminiDetailGen('G_RPC_DOMAIN_12');
     const result = native(raw);
     const generated = result.conversation.detail.assets.find(asset => asset.generation);
     assert.ok(generated);
@@ -144,19 +138,16 @@ test('generated resources retain their authored request token independently of a
 });
 
 test('raw format validation rejects wrong providers and malformed envelopes', () => {
-    assert.throws(() => parseGeminiRpcConversation(rpc([]), { account: fixtureAccount('openai'), providerId: 'openai' }), /providerId gemini/);
+    assert.throws(() => parseGeminiRpcConversation(geminiDetailGen('G_RPC_DOMAIN_13'), { account: fixtureAccount('openai'), providerId: 'openai' }), /providerId gemini/);
     assert.throws(() => parseGeminiRpcConversation({} as never, { account: fixtureAccount('gemini'), providerId: 'gemini' }), /raw response text/);
-    for (const raw of ['', 'not JSON', rpc(null)]) assert.throws(() => native(raw), /detail parse fail/);
-    const empty = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-rpc', providerId: 'gemini', data: rpc([]), targetConvId: ID });
+    for (const key of ['G_RPC_DOMAIN_20', 'G_RPC_DOMAIN_21', 'G_RPC_DOMAIN_14'] as const) assert.throws(() => native(geminiDetailGen(key)), /detail parse fail/);
+    const empty = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-rpc', providerId: 'gemini', data: geminiDetailGen('G_RPC_DOMAIN_15'), targetConvId: ID });
     assert.equal(empty.conversationId, ID.replace(/^c_/, ''));
     assert.equal(empty.conversation.detail.messages.length, 0);
 });
 
 test('source extraction has no export paths and retains unsanitized source filenames', () => {
-    const image: unknown[] = [];
-    image[2] = 'source:photo?.png'; image[3] = 'https://lh3.googleusercontent.com/source-photo';
-    image[11] = 'image/png'; image[15] = [640, 480, 100];
-    const raw = rpc([[turn('Draw', null, [['rc_image', [['Image'], image]]])]]);
+    const raw = geminiDetailGen('G_RPC_DOMAIN_16');
     const evidence = decodeGeminiDetail(raw);
     const source = evidence.messages[1].images![0];
     assert.equal(source.fileName, 'source:photo?.png');
@@ -166,20 +157,19 @@ test('source extraction has no export paths and retains unsanitized source filen
             assert.equal('resolvedUrl' in resource, false);
         }
     }
-    const bare = decodeGeminiDetail(rpc([[turn('Draw', null, [['rc_inline', [['Image'], ['https://lh3.googleusercontent.com/inline', 1, 1]]]])]]));
+    const bare = decodeGeminiDetail(geminiDetailGen('G_RPC_DOMAIN_17'));
     assert.equal(bare.messages[1].images![0].fileName, undefined);
     assert.equal(native(raw).conversation.detail.assets.find(a => a.generation)?.name, 'source:photo?.png');
 });
 
 test('raw decoding never substitutes conversation or request IDs for absent message identities', () => {
-    const rawTurn = [[ID], null, [['Question']], [[['', [['Answer']]]]]];
-    const raw = rpc([[rawTurn, rawTurn]]);
+    const raw = geminiDetailGen('G_RPC_DOMAIN_18');
     const result = native(raw);
     assert.equal(result.conversation.detail.messages.length, 4);
     for (const message of result.conversation.detail.messages) assert.equal(message.id, undefined);
     assertDomainClosure(result.conversation.detail);
     assert.deepEqual(JSON.parse(JSON.stringify(result.conversation)), result.conversation);
     assert.equal(decodeGeminiDetail(raw).messages[0].id, '');
-    const request = rpc([[turn('Question', null, undefined, 'r_Ab12')]]);
+    const request = geminiDetailGen('G_RPC_DOMAIN_19');
     assert.equal(decodeGeminiDetail(request).messages[0].providerRequestId, 'r_Ab12');
 });
