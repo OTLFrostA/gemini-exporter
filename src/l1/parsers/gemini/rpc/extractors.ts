@@ -308,7 +308,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         if (turn.length < 3) {
             warnings.push(`Turn array length (${turn.length}) is less than expected minimum 3`);
         }
-        const head = turn[GEMINI_JSPB_SCHEMA.TURN.ID_META];
+        const turnSlots: unknown[] = turn;
+        const head = turnSlots[GEMINI_JSPB_SCHEMA.TURN.ID_META];
         let idStr = "";
         if (typeof head === "string") idStr = head;
         else if (Array.isArray(head) && head.length) {
@@ -320,23 +321,26 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             warnings.push(`Turn head '${idStr.slice(0, 32)}' matches turn-id pattern but no rc_/c_d content markers found; isTurn() rejects this element (treated as non-turn)`);
         }
 
-        const userPayload = turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
+        const userPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
         if (userPayload !== undefined && !Array.isArray(userPayload)) {
             warnings.push(`UserPayload at index 2 is not an array (type: ${typeof userPayload})`);
         }
 
-        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        const modelPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (modelPayload !== undefined) {
             if (!Array.isArray(modelPayload)) {
                 warnings.push(`ModelPayload at index 3 is not an array (type: ${typeof modelPayload})`);
             } else if (modelPayload.length > 0) {
-                const candBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+                const modelSlots: unknown[] = modelPayload;
+                const candBlock = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
                 if (!Array.isArray(candBlock)) {
                     warnings.push(`Candidates at index 3[0] is not an array (type: ${typeof candBlock})`);
                 } else if (candBlock.length > 0) {
-                    const firstCand = candBlock[0];
+                    const candSlots: unknown[] = candBlock;
+                    const firstCand = candSlots[0];
                     if (Array.isArray(firstCand)) {
-                        const candId = firstCand[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+                        const firstCandSlots: unknown[] = firstCand;
+                        const candId = firstCandSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
                         if (typeof candId !== "string" || (!candId.startsWith("rc_") && !candId.startsWith("c_"))) {
                             warnings.push(`First candidate ID at 3[0][0][0] does not match 'rc_' prefix: ${JSON.stringify(candId)}`);
                         }
@@ -361,20 +365,25 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
     function extractModelCandidates(turn: unknown): unknown[] {
         if (!turn || !Array.isArray(turn)) return [];
-        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        const turnSlots: unknown[] = turn;
+        const modelPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (!modelPayload || !Array.isArray(modelPayload) || modelPayload.length === 0) return [];
+        const modelSlots: unknown[] = modelPayload;
 
-        const candidateBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+        const candidateBlock = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
         if (Array.isArray(candidateBlock)) {
-            if (candidateBlock.length > 0 && Array.isArray(candidateBlock[0])) {
-                return candidateBlock;
+            const candidates: unknown[] = candidateBlock;
+            if (candidateBlock.length > 0 && Array.isArray(candidates[0])) {
+                return candidates;
             }
-            if (typeof candidateBlock[0] === "string") {
-                return [candidateBlock];
+            if (typeof candidates[0] === "string") {
+                return [candidates];
             }
         }
-        if (Array.isArray(modelPayload[0]) && typeof modelPayload[0][0] === "string" && modelPayload[0][0].startsWith("rc_")) {
-            return modelPayload;
+        const first = modelSlots[0];
+        if (Array.isArray(first)) {
+            const firstSlots: unknown[] = first;
+            if (typeof firstSlots[0] === "string" && firstSlots[0].startsWith("rc_")) return modelSlots;
         }
         return [];
     }
@@ -386,7 +395,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
         (body) => {
             if (!Array.isArray(body)) return null;
-            const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
+            const bodySlots: unknown[] = body;
+            const parts = bodySlots[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
             if (typeof parts === "string") return parts;
             if (Array.isArray(parts)) {
                 const textChunks: string[] = [];
@@ -412,10 +422,11 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
     function extractCandidateText(cand: unknown): string {
         if (!cand) return "";
-        const body = Array.isArray(cand)
-            ? (cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
-                ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
-                : (cand.length === 1 ? cand[0] : cand))
+        const candidateSlots: unknown[] | null = Array.isArray(cand) ? cand : null;
+        const body: unknown = candidateSlots !== null
+            ? (candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
+                ? candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
+                : (candidateSlots.length === 1 ? candidateSlots[0] : candidateSlots))
             : cand;
 
         for (const extractor of CANDIDATE_BODY_EXTRACTORS) {
