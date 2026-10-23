@@ -17,10 +17,10 @@ export type ChatGPTMessageContent =
     | { content_type: string; parts?: string[]; text?: string; content?: string };
 
 export interface ChatGPTNodeMessage {
-    author: { role: ChatGPTAuthorRole; name?: string; metadata: unknown };
+    author: { role: ChatGPTAuthorRole; name?: string };
     content: ChatGPTMessageContent;
-    create_time?: number;
-    update_time?: number;
+    create_time?: number | string;
+    update_time?: number | string;
     id: string;
     metadata?: {
         model_slug?: string;
@@ -35,7 +35,7 @@ export interface ChatGPTNodeMessage {
         model_dil_v2?: {
             fallbackMarkdown?: string;
             code?: string;
-            constants?: Record<string, unknown>;
+            constants?: Record<string, string>;
             appData?: { opGenui?: { componentResults?: Record<string, {
                 componentName?: string; status?: string;
                 state?: { images?: Array<{ content_url?: string; thumbnail_url?: string; title?: string }> };
@@ -55,7 +55,7 @@ export interface ChatGPTNodeMessage {
     };
     recipient: string;
     channel?: string | null;
-    status: string;
+    status?: string;
     end_turn?: boolean;
     weight: number;
 }
@@ -68,8 +68,8 @@ export interface ChatGPTConversationNode {
 }
 
 export interface ChatGPTApiConversation {
-    create_time: number;
-    update_time: number;
+    create_time?: number | string;
+    update_time?: number | string;
     conversation_id?: string;
     current_node: string;
     mapping: Record<string, ChatGPTConversationNode>;
