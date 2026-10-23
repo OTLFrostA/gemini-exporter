@@ -14,6 +14,5 @@ export {
 
 export {
     convertMathWithMitex,
-    convertMathMitex,
     type MathConversionResult,
 } from './mitexConverter.js';
