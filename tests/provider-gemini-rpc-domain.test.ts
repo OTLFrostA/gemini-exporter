@@ -8,6 +8,7 @@ import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseCo
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
 import { extractBlockText } from '../src/l2/content/unknownFallback.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 const ID = 'c_native12345678';
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
@@ -19,8 +20,7 @@ const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(bl
 
 test('raw RPC code keeps consecutive blank lines in source Content AST', () => {
     const code = 'import math\n\n\nclass Encoder:\n    def encode(self):\n        return 1\n\n\n\nprint(Encoder().encode())';
-    const answer = `Explanation\n\n\`\`\`python\n${code}\n\`\`\`\n\nConclusion`;
-    const { conversation } = native(rpc([[turn('Show the program', 1700000000, [['rc_answer', [[answer]]]])]]));
+    const { conversation } = native(geminiDetailGen('G_RPC_DOMAIN_01'));
     const block = conversation.detail.messages[1].content.find(node => node.type === 'code');
     assert.ok(block?.type === 'code');
     assert.equal(block.code, code + '\n', 'preserve the source newline immediately before the closing fence');
@@ -28,8 +28,7 @@ test('raw RPC code keeps consecutive blank lines in source Content AST', () => {
 });
 
 test('raw RPC input constructs Domain content, reasoning and citations directly', () => {
-    const body = [['**Answer** [1]'], ['THOUGHT', 'Check **facts**'], ['https://example.test/source', 'Source']];
-    const result = native(rpc([[turn('Question', 1700000000, [['rc_answer', body]])], null, 'Authored title']));
+    const result = native(geminiDetailGen('G_RPC_DOMAIN_02'));
     assert.equal(result.conversation.index.title, 'Authored title');
     assert.deepEqual(result.conversation.detail.messages.map(m => m.role), ['user', 'assistant']);
     const answer = result.conversation.detail.messages[1];
@@ -42,22 +41,20 @@ test('raw RPC input constructs Domain content, reasoning and citations directly'
 });
 
 test('native parsing imports no historical persisted detail parser', () => {
-    assert.equal(native(rpc([[turn()]])).conversation.detail.messages.length, 2);
+    assert.equal(native(geminiDetailGen('G_RPC_DOMAIN_03')).conversation.detail.messages.length, 2);
     const source = readFileSync(join(__dirname, '../src/l1/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
     assert.doesNotMatch(source, /parseConversationRecord|parseConversation|parseLegacyConversation|types\/conversation|l3a/);
 });
 
 test('source request tokens survive intact in source evidence and Domain', () => {
-    const raw = rpc([[turn('Question', null, undefined, 'r_AbCd12')]]);
+    const raw = geminiDetailGen('G_RPC_DOMAIN_04');
     assert.equal(decodeGeminiDetail(raw).messages[0].rawProviderRequestId, 'r_AbCd12');
     assert.equal(Reflect.get(native(raw).conversation.detail.messages[0], 'provenance'), undefined);
 
 });
 
 test('wire chronology, primary answers and source dates remain explicit', () => {
-    const older = turn('Older', 1700000000, [['rc_old', [['Old answer']]]], 'r_old');
-    const newer = turn('Newer', 1700000010, [['rc_new1', [['First']]], ['rc_new2', [['Second']]]], 'r_new');
-    const { conversation } = native(rpc([[newer, older]]));
+    const { conversation } = native(geminiDetailGen('G_RPC_DOMAIN_05'));
     assert.deepEqual(conversation.detail.messages.map(m => text(m.content)), ['Older', 'Old answer', 'Newer', 'First']);
     assert.equal(conversation.index.createdAt, undefined);
     assert.equal(Reflect.get(conversation, 'updatedAt'), undefined, 'message dates do not establish the metadata version');
@@ -66,8 +63,7 @@ test('wire chronology, primary answers and source dates remain explicit', () => 
 });
 
 test('missing timestamps and request evidence are never fabricated', () => {
-    const rawTurn = [[ID], null, [['Question']], [[['rc_answer', [['Answer']]]]]];
-    const { conversation } = native(rpc([[rawTurn]]));
+    const { conversation } = native(geminiDetailGen('G_RPC_DOMAIN_06'));
     assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
     assert.equal(conversation.index.createdAt, undefined);
     assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
@@ -78,8 +74,7 @@ test('missing timestamps and request evidence are never fabricated', () => {
 });
 
 test('pagination and rejected turns yield partial coverage and side-channel diagnostics', () => {
-    const rejected = [['x_not_a_turn'], null, [['Unrecognized source prompt']]];
-    const result = native(rpc([[turn(), rejected], 'tC_native_cursor']));
+    const result = native(geminiDetailGen('G_RPC_DOMAIN_07'));
     assert.equal(result.conversation.detail.quality.status, 'partial');
     assert.equal(result.transport.nextPageToken, 'tC_native_cursor');
     assert.equal(result.evidence?.rejectedTurns, 1);
@@ -88,22 +83,22 @@ test('pagination and rejected turns yield partial coverage and side-channel diag
     const json = JSON.stringify(result.conversation);
     for (const field of ['transport', 'nextPageToken', '_raw', '_debug', 'schemaDrift', 'turnsRejected', 'diagnostics']) assert.ok(!json.includes(`"${field}":`));
     assert.ok(!json.includes('tC_native_cursor'));
-    assert.equal(native(rpc([[turn()]])).conversation.detail.quality.status, 'unknown');
+    assert.equal(native(geminiDetailGen('G_RPC_DOMAIN_08')).conversation.detail.quality.status, 'unknown');
 });
 
 test('metadata-only pages preserve title evidence without claiming a complete conversation', () => {
-    const result = native(rpc([null, null, [[ID, 'Metadata title']]]));
+    const result = native(geminiDetailGen('G_RPC_DOMAIN_09'));
     assert.equal(result.conversation.index.title, 'Metadata title');
     assert.equal(result.conversationId, ID.replace(/^c_/, ''));
     assert.equal(result.conversation.index.titleSource, 'provider');
-    assert.equal(decodeGeminiDetail(rpc([null, null, [[ID, 'Metadata title']]])).metadataConversation?.title, 'Metadata title');
+    assert.equal(decodeGeminiDetail(geminiDetailGen('G_RPC_DOMAIN_10')).metadataConversation?.title, 'Metadata title');
     assert.equal(result.conversation.detail.messages.length, 0);
     assert.equal(result.conversation.detail.quality.status, 'unknown');
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_SCHEMA_DRIFT'));
 });
 
 test('source candidates round-trip as keyless JSON without transport or credentials in the graph', () => {
-    const result = native(rpc([[turn()]]));
+    const result = native(geminiDetailGen('G_RPC_DOMAIN_11'));
     const restored = JSON.parse(JSON.stringify(result.conversation));
     assert.deepEqual(restored, result.conversation);
     assertDomainClosure(restored.detail);
