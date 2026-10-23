@@ -13,7 +13,6 @@ const assert = require('node:assert');
 
 const {
     parseMarkdownToBlocks: parseGenericMarkdownToBlocks,
-    parseMarkdownToInlines,
     mdastRootToBlocks,
     adaptInlines,
     mergeAdjacentTextNodes,
@@ -379,10 +378,12 @@ test('Layer M2: Smoke test - Asset index link matching for inline images', () =>
     assert.strictEqual(img.title, 'Mountain peak');
 });
 
-test('Layer M2: Smoke test - parseMarkdownToInlines returns inline list', () => {
+test('Layer M2: parsed Markdown paragraph retains inline nodes', () => {
     const { ctx } = createTestContext();
     const text = 'Simple **bold** and *italic* text';
-    const inlines = parseMarkdownToInlines(text, 'smoke', ctx);
+    const [paragraph] = parseMarkdownToBlocks(text, 'smoke', ctx);
+    assert.strictEqual(paragraph.type, 'paragraph');
+    const inlines = paragraph.children;
     assert.strictEqual(inlines.length, 5);
     assert.strictEqual(inlines[0].text, 'Simple ');
     assert.strictEqual(inlines[1].type, 'strong');
@@ -471,13 +472,13 @@ test('Reference Nodes: Definition lifetime is isolated per parse run (no leakage
     assert.ok(link2, 'Second link must be resolved');
     assert.strictEqual(link2.href, 'https://example.com/B');
 
-    // Also test inline parse with the same ctx
-    const inlines1 = parseMarkdownToInlines('[x]\n\n[x]: https://example.com/A', 'inline1', ctx);
+    // Also test additional short parses with the same ctx
+    const inlines1 = parseMarkdownToBlocks('[x]\n\n[x]: https://example.com/A', 'inline1', ctx)[0].children;
     const inlineLink1 = inlines1.find((c: any) => c.type === 'link');
     assert.ok(inlineLink1);
     assert.strictEqual((inlineLink1 as any).href, 'https://example.com/A');
 
-    const inlines2 = parseMarkdownToInlines('[x]\n\n[x]: https://example.com/B', 'inline2', ctx);
+    const inlines2 = parseMarkdownToBlocks('[x]\n\n[x]: https://example.com/B', 'inline2', ctx)[0].children;
     const inlineLink2 = inlines2.find((c: any) => c.type === 'link');
     assert.ok(inlineLink2);
     assert.strictEqual((inlineLink2 as any).href, 'https://example.com/B');
