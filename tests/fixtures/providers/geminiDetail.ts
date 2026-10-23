@@ -22,7 +22,7 @@ const fixtureMap = {
             null,
             'Rust WebAssembly 开发实战',
         ];
-        return ")]}'\\n\\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
     },
     'G_DETAIL_PARSER_META_ONLY_01': () => {
         const inner = [
@@ -30,7 +30,7 @@ const fixtureMap = {
             null,
             [['c_meta_only_456', '仅元数据标题', null, null, null, [1774139824, 809290000], null, null, null, 2]],
         ];
-        return ")]}'\\n\\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
     },
 };
 
