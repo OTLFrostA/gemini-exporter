@@ -46,6 +46,19 @@ def current_branch(raw):
     return list(reversed(result))
 
 
+def completed_branch(raw):
+    """One final source read must prove the completion of every submitted turn."""
+    messages = current_branch(raw)
+    users = [i for i, message in enumerate(messages) if message.get('author', {}).get('role') == 'user']
+    if not users:
+        raise ValueError('Final ChatGPT source has no user turns')
+    for boundary in users[1:] + [len(messages)]:
+        leaf = messages[boundary-1]
+        if leaf.get('author', {}).get('role') != 'assistant' or leaf.get('status') != 'finished_successfully' or not leaf.get('end_turn'):
+            raise ValueError('Final ChatGPT source contains an incomplete reply')
+    return messages
+
+
 class ChatGPTLiveRunner(ChatGPTAcceptance):
     def __init__(self, port=9222, output_dir=None, dataset=None, delay=6):
         self.port, self.delay = port, delay
@@ -137,27 +150,39 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         value = response.get('result', {}).get('result', {}).get('value')
         if isinstance(value, dict) and value.get('sourceError'):
             if value['sourceError'] == 429:
-                from email.utils import parsedate_to_datetime
-                retry_after = value.get('retryAfter')
-                delay = 30
-                if retry_after:
-                    try:
-                        delay = max(delay, float(retry_after))
-                    except ValueError:
-                        try:
-                            delay = max(delay, parsedate_to_datetime(retry_after).timestamp() - time.time())
-                        except (TypeError, ValueError, OverflowError):
-                            pass
-                print(f'  ChatGPT evidence API rate limited; Retry-After={retry_after!r}, backing off {delay:.0f}s', flush=True)
-                # Keep browser waits bounded, without overriding a longer server cooldown.
-                deadline = time.monotonic() + delay
-                while time.monotonic() < deadline:
-                    time.sleep(min(30, deadline-time.monotonic()))
-                return None
+                raise ValueError('ChatGPT evidence HTTP 429; stopping independent reads; Retry-After='
+                                 + str(value.get('retryAfter')))
             raise ValueError('ChatGPT source HTTP '+str(value['sourceError']))
         if value and conversation_id and value.get('conversation_id') != conversation_id:
             raise ValueError('Evidence response identity mismatch')
+        if not isinstance(value, dict) or not value.get('mapping') or not value.get('current_node'):
+            raise ValueError('Independent ChatGPT source is unavailable')
         return value
+
+    def freeze_source(self, cid, expected_prompts=None):
+        raw = self.source(cid)  # One request per completed scenario, never a polling loop.
+        messages = completed_branch(raw)
+        prompts = [''.join(p for p in m.get('content', {}).get('parts', []) if isinstance(p, str))
+                   for m in messages if m.get('author', {}).get('role') == 'user']
+        if expected_prompts is not None and prompts != expected_prompts:
+            raise ValueError('Final ChatGPT source does not preserve every expected prompt in order')
+        (self.output/f'{cid}.source.json').write_text(json.dumps(raw, ensure_ascii=False))
+        return raw
+
+    def freeze_visible_images(self, cid):
+        # Inspect actual loaded elements, not the source API. The browser's
+        # resource cache supplies bytes; this issues no provider HTTP request.
+        image_path = self.output/f'{cid}.image-webpage-evidence.json'
+        captured = json.loads(image_path.read_text()) if image_path.exists() else []
+        known = {mid for image in captured for mid in str(image.get('turn', '')).split()}
+        visible = self.chat.eval("""[...(document.querySelector('[role=\"region\"][aria-label=\"对话\"], [role=\"region\"][aria-label=\"Conversation\"]')?.querySelectorAll('img')||[])]
+            .filter(img=>!img.closest('.katex,[aria-hidden=\"true\"],[data-user-message-bubble]')&&(img.naturalWidth>128||!img.complete))
+            .map(img=>[img.closest('[data-chatgpt-selection-message-id]')?.dataset.chatgptSelectionMessageId,
+                       img.closest('[data-chatgpt-search-message-ids]')?.dataset.chatgptSearchMessageIds].filter(Boolean).join(' '))""") or []
+        missing = {mid for turn in visible for mid in turn.split() if mid not in known}
+        if missing:
+            captured += capture_webpage_images(self.chat, cid, timeout=90, provider_id='chatgpt', message_ids=sorted(missing))
+            image_path.write_text(json.dumps(captured))
 
     def webpage(self):
         return self.chat.eval("""(()=>{
@@ -191,9 +216,9 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         button = "[...document.querySelectorAll('button')].find(e=>['发送','Send prompt','Send message'].includes(e.getAttribute('aria-label'))&&!e.disabled)"
         wait_for(lambda: self.chat.eval(f'!!({button})'))
         self.chat.eval(f'({button}).click()', user_gesture=True)
-        previous, stable = None, 0
+        previous, stable, settled = None, 0, None
         def finished():
-            nonlocal previous, stable
+            nonlocal previous, stable, settled
             messages = self.webpage() or []
             users = [m for m in messages if m['role'] == 'user']
             if not users or users[-1]['text'].strip() != prompt.strip():
@@ -206,33 +231,26 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
             state = json.dumps(leaf, sort_keys=True)
             stable = stable + 1 if state == previous else 0
             previous = state
-            return True if stable >= 3 else None
+            if stable >= 3:
+                settled = messages
+                return True
+            return None
         wait_for(finished, 420, 3)
-        raw = wait_for(self.source, 180, 3)
-        leaf = current_branch(raw)[-1]
-        if leaf.get('status') != 'finished_successfully' or not leaf.get('end_turn'):
-            raise ValueError('Webpage settled but source reply is not complete')
         cid = self.chat.eval("location.pathname.split('/c/')[1].split('/')[0]")
-        (self.output/f'{cid}.source.json').write_text(json.dumps(raw, ensure_ascii=False))
-        # Freeze generated-image evidence while its actual turn is still
-        # rendered. ChatGPT paginates older messages after later turns arrive.
-        from scripts.framework.chatgpt_evidence import authored_messages
-        image_path = self.output/f'{cid}.image-webpage-evidence.json'
-        captured = json.loads(image_path.read_text()) if image_path.exists() else []
-        known_ids = {mid for image in captured for mid in str(image.get('turn', '')).split()}
-        missing_images = [message['id'] for message in authored_messages(raw)
-                          if message.get('imagePointers') and message['id'] not in known_ids]
-        if missing_images:
-            captured += capture_webpage_images(self.chat, cid, timeout=90, provider_id='chatgpt', message_ids=missing_images)
-            image_path.write_text(json.dumps(captured))
-        dom = self.webpage()
-        if not dom:
-            raise ValueError('No independently captured webpage messages')
-        (self.output/f'{cid}.webpage.json').write_text(json.dumps(dom, ensure_ascii=False, indent=2))
-        record = {'conversationId': cid, 'prompt': prompt, 'responseId': current_branch(raw)[-1]['id']}
+        if not cid or not settled:
+            raise ValueError('No independently settled ChatGPT conversation')
+        self.freeze_visible_images(cid)
+        (self.output/f'{cid}.webpage.json').write_text(json.dumps(settled, ensure_ascii=False, indent=2))
+        # Save local progress even before the final source read, so interruption
+        # does not require replaying already-sent prompts in another conversation.
+        progress_path = self.output/f'{cid}.progress.json'
+        progress = json.loads(progress_path.read_text()) if progress_path.exists() else {'prompts': []}
+        progress['prompts'].append(prompt)
+        progress_path.write_text(json.dumps(progress, ensure_ascii=False))
+        record = {'conversationId': cid, 'prompt': prompt, 'webpageResponseId': settled[-1]['id']}
         self.report['records'].append(record)
         self.save_report()
-        print(f"  completed {cid}: {sum(m.get('author',{}).get('role') == 'user' for m in current_branch(raw))} rounds", flush=True)
+        print(f"  completed webpage reply: {cid}", flush=True)
         time.sleep(self.delay)
         return cid
 
@@ -253,25 +271,25 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
             cid, completed = None, 0
             # A retry resumes only an exact prefix of this reserved scenario,
             # re-reading real source. It never consumes/replays another prompt.
-            for path in self.output.glob('*.source.json'):
+            for path in [*self.output.glob('*.source.json'), *self.output.glob('*.progress.json')]:
                 saved = json.loads(path.read_text())
-                source_prompts = [''.join(p for p in m.get('content',{}).get('parts',[]) if isinstance(p,str))
+                source_prompts = saved['prompts'] if path.name.endswith('.progress.json') else [
+                    ''.join(p for p in m.get('content',{}).get('parts',[]) if isinstance(p,str))
                     for m in current_branch(saved) if m.get('author',{}).get('role') == 'user']
                 base = source_prompts[:len(prompts)]
                 extras = source_prompts[len(prompts):]
                 own_revisits = all(p.startswith('Revisit this analysis: construct a concrete counterexample')
                     and re.search(r'Observation stamp: \d+\.$', p) for p in extras)
                 if base and base == prompts[:len(base)] and own_revisits:
-                    cid = path.name.removesuffix('.source.json')
-                    actual = wait_for(lambda: self.source(cid), 180, 3)
+                    cid = path.name.removesuffix('.source.json').removesuffix('.progress.json')
+                    actual = self.source(cid)
                     actual_prompts = [''.join(p for p in m.get('content',{}).get('parts',[]) if isinstance(p,str))
                         for m in current_branch(actual) if m.get('author',{}).get('role') == 'user']
                     if actual_prompts[:len(source_prompts)] != source_prompts or actual_prompts[:len(prompts)] != prompts[:min(len(actual_prompts), len(prompts))]:
                         raise ValueError(f'Resume source changed for {cid}: saved {len(source_prompts)}, actual {len(actual_prompts)} rounds; use a fresh output directory')
-                    leaf = current_branch(actual)[-1]
-                    if leaf.get('status') != 'finished_successfully' or leaf.get('author', {}).get('role') != 'assistant' or not leaf.get('end_turn'):
-                        raise ValueError('Resume source is still streaming; wait before retrying')
-                    path.write_text(json.dumps(actual, ensure_ascii=False))
+                    completed_branch(actual)
+                    (self.output/f'{cid}.source.json').write_text(json.dumps(actual, ensure_ascii=False))
+                    (self.output/f'{cid}.progress.json').write_text(json.dumps({'prompts': actual_prompts}, ensure_ascii=False))
                     completed = len(actual_prompts)
                     if completed < len(prompts):
                         self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
@@ -280,12 +298,16 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
                     break
             if not cid:
                 self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/'})
+            posted = False
             for turn in scenario['turns'][completed:]:
                 prompt = turn if isinstance(turn, str) else turn['prompt']
                 observed = self.send(prompt)
                 if cid and cid != observed:
                     raise ValueError('Conversation changed during multi-turn scenario')
                 cid = observed
+                posted = True
+            if posted:
+                self.freeze_source(cid, expected_prompts=prompts)
             ids.append(cid)
         self.chat_ids = ids
         return {'conversationIds': ids, 'rounds': [len(s['turns']) for s in scenarios]}
@@ -308,28 +330,21 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         return rows
 
     def open_conversation(self, cid):
-        """Wait for native content and retry explicit load errors with a cooldown.
+        """Navigate once and fail on a native load error, without reload retries.
 
         The page can render a composer/region even when its detail fetch failed.
         That shell is not evidence of a loaded conversation.
         """
-        for attempt in range(4):
-            self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
-            def loaded():
-                state = self.chat.eval("""({path:location.pathname,
-                    failed:/无法加载此.*对话|Unable to load conversation|Couldn't load conversation/i.test(document.body?.innerText||'')})""") or {}
-                if state.get('path') != '/c/'+cid:
-                    return None
-                if state.get('failed'):
-                    return 'failed'
-                return 'loaded' if self.webpage() else None
-            status = wait_for(loaded, 90, 1)
-            if status == 'loaded':
-                return
-            if attempt == 3:
-                raise ValueError('Native ChatGPT conversation failed to load after four attempts: '+cid)
-            print(f'  Native conversation load failed; cooling down 60s before retry {attempt+1}/3', flush=True)
-            time.sleep(60)
+        self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/c/'+cid})
+        def loaded():
+            state = self.chat.eval("""({path:location.pathname,
+                failed:/无法加载此.*对话|Unable to load conversation|Couldn't load conversation/i.test(document.body?.innerText||'')})""") or {}
+            if state.get('path') != '/c/'+cid:
+                return None
+            if state.get('failed'):
+                raise ValueError('Native ChatGPT conversation failed to load; automatic reload disabled: '+cid)
+            return bool(self.webpage())
+        wait_for(loaded, 90, 1)
 
     def capture_golden(self):
         # A scene may actually generate an image. Freeze native pixels before
@@ -433,7 +448,11 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
                 'of the final algorithm, explain the failed invariant in LaTeX, and give a runnable regression '
                 'test and a Markdown table comparing the valid and invalid cases. '
                 f'Observation stamp: {int(time.time())}.')
+            previous_source = json.loads((self.output/f'{older}.source.json').read_text())
+            expected = [''.join(p for p in m.get('content', {}).get('parts', []) if isinstance(p, str))
+                        for m in current_branch(previous_source) if m.get('author', {}).get('role') == 'user']
             self.send(append)
+            self.freeze_source(older, expected_prompts=expected+[append])
             self.assert_export_advancement(older)
             def promoted():
                 ids = self.options.eval("[...document.querySelectorAll('#list .item')].map(e=>e.dataset.chatId)")

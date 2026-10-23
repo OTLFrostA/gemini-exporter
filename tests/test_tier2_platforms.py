@@ -73,24 +73,17 @@ class PlatformsTest(unittest.TestCase):
         self.assertLess(order.index('initial_export_baseline'), order.index('account_boundary'))
 
 
-    def test_native_conversation_load_errors_retry_with_a_bounded_cooldown(self):
+    def test_native_conversation_load_error_does_not_reload(self):
         from scripts.framework.chatgpt_live import ChatGPTLiveRunner
         chat = Mock()
-        chat.eval.side_effect = [{'path': '/c/one', 'failed': True}, {'path': '/c/one', 'failed': False}]
-        runtime = SimpleNamespace(chat=chat, webpage=lambda: [{'id': 'actual'}])
-        with patch('scripts.framework.chatgpt_live.time.sleep') as sleep:
-            ChatGPTLiveRunner.open_conversation(runtime, 'one')
-        sleep.assert_called_once_with(60)
-        self.assertEqual(chat.call.call_count, 2)
-        chat.reset_mock()
-        chat.eval.side_effect = None
         chat.eval.return_value = {'path': '/c/one', 'failed': True}
+        runtime = SimpleNamespace(chat=chat, webpage=Mock())
         with patch('scripts.framework.chatgpt_live.time.sleep') as sleep:
-            with self.assertRaisesRegex(ValueError, 'four attempts'):
+            with self.assertRaisesRegex(ValueError, 'automatic reload disabled'):
                 ChatGPTLiveRunner.open_conversation(runtime, 'one')
-        self.assertEqual(sleep.call_count, 3)
-        self.assertEqual(chat.call.call_count, 4)
-
+        sleep.assert_not_called()
+        chat.call.assert_called_once_with('Page.navigate', {'url': 'https://chatgpt.com/c/one'})
+        runtime.webpage.assert_not_called()
 
     def test_local_required_hosts_never_change_release_manifest_or_reuse_stale_assets(self):
         from scripts.framework.chatgpt_acceptance import ChatGPTAcceptance
@@ -316,6 +309,126 @@ class PlatformsTest(unittest.TestCase):
                            evidence=('live_disk_save', 'passive_promotion'))
         with self.assertRaisesRegex(ValueError, 'Missing mandatory evidence'):
             case.execute(SimpleNamespace(runtime=runtime))
+
+
+class ChatGPTRequestBudgetTests(unittest.TestCase):
+    @staticmethod
+    def raw(cid, prompts):
+        messages = []
+        for i, prompt in enumerate(prompts):
+            messages.extend([
+                {'id': f'u{i}', 'author': {'role': 'user'}, 'content': {'parts': [prompt]}},
+                {'id': f'a{i}', 'author': {'role': 'assistant'}, 'content': {'parts': [f'Answer {i}']},
+                 'status': 'finished_successfully', 'end_turn': True},
+            ])
+        return {'conversation_id': cid, 'current_node': messages[-1]['id'],
+                'mapping': {m['id']: {'message': m, 'parent': messages[i-1]['id'] if i else None}
+                            for i, m in enumerate(messages)}}
+
+    def runner(self, folder):
+        from scripts.framework.chatgpt_live import ChatGPTLiveRunner
+        runner = ChatGPTLiveRunner(output_dir=folder, delay=0)
+        runner.chat = Mock()
+        return runner
+
+    def test_send_saves_settled_dom_and_local_progress_without_source_reads(self):
+        from scripts.framework.chatgpt_live import ChatGPTLiveRunner
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            messages = [{'id': 'u', 'role': 'user', 'text': 'Question'},
+                        {'id': 'a', 'role': 'assistant', 'text': 'Final answer'}]
+            runner.webpage = Mock(side_effect=[[], messages, messages, messages, messages])
+            runner.source = Mock(side_effect=AssertionError('Per-turn source HTTP is forbidden'))
+            runner.freeze_visible_images = Mock()
+            runner.chat.eval.side_effect = lambda expression, **kw: 'one' if 'location.pathname.split' in expression else False if '.some(e=>' in expression else True
+            def wait(operation, *args):
+                for _ in range(8):
+                    result = operation()
+                    if result:
+                        return result
+                raise AssertionError('Did not settle')
+            with patch('scripts.framework.chatgpt_live.wait_for', side_effect=wait):
+                self.assertEqual(runner.send('Question'), 'one')
+            runner.source.assert_not_called()
+            runner.freeze_visible_images.assert_called_once_with('one')
+            self.assertEqual(json.loads((Path(folder)/'one.progress.json').read_text())['prompts'], ['Question'])
+            self.assertEqual(json.loads((Path(folder)/'one.webpage.json').read_text()), messages)
+            self.assertFalse((Path(folder)/'one.source.json').exists())
+
+    def test_thirteen_turns_need_two_final_source_reads_and_resume_does_not_repost(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            prompts = {cid: [f'{cid} prompt {i}' for i in range(count)] for cid, count in [('one', 5), ('two', 8)]}
+            runner.dataset = [{'turns': values} for values in prompts.values()]
+            runner.send = Mock(side_effect=lambda prompt: prompt.split()[0])
+            runner.source = Mock(side_effect=lambda cid: self.raw(cid, prompts[cid]))
+            result = runner.generate()
+            self.assertEqual(result['rounds'], [5, 8])
+            self.assertEqual(runner.send.call_count, 13)
+            self.assertEqual([call.args[0] for call in runner.source.call_args_list], ['one', 'two'])
+            runner.send.reset_mock(); runner.source.reset_mock()
+            runner.generate()
+            runner.send.assert_not_called()
+            self.assertEqual(runner.source.call_count, 2)  # One freshness read each; no second final read.
+
+    def test_final_source_rejects_lost_reordered_or_unfinished_turns_without_overwriting_evidence(self):
+        import copy
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            path = Path(folder)/'one.source.json'; path.write_text('previous evidence')
+            expected = ['First', 'Second']
+            incomplete = self.raw('one', expected)
+            incomplete['mapping']['a1']['message']['end_turn'] = False
+            middle_incomplete = self.raw('one', expected)
+            middle_incomplete['mapping']['a0']['message']['end_turn'] = False
+            for raw in [self.raw('one', ['First']), self.raw('one', ['Second', 'First']), incomplete, middle_incomplete]:
+                runner.source = Mock(return_value=copy.deepcopy(raw))
+                with self.assertRaises(ValueError):
+                    runner.freeze_source('one', expected_prompts=expected)
+                self.assertEqual(path.read_text(), 'previous evidence')
+                runner.source.assert_called_once_with('one')
+
+    def test_interrupted_generation_uses_local_progress_but_requires_remote_prefix_verification(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            one = [f'one {i}' for i in range(5)]; two = [f'two {i}' for i in range(8)]
+            (Path(folder)/'one.progress.json').write_text(json.dumps({'prompts': one[:2]}))
+            runner.dataset = [{'turns': one}, {'turns': two}]
+            runner.send = Mock(side_effect=lambda prompt: prompt.split()[0])
+            runner.source = Mock(side_effect=[self.raw('one', one[:2]), self.raw('one', one), self.raw('two', two)])
+            runner.generate()
+            self.assertEqual(runner.send.call_count, 11)
+            self.assertEqual(runner.source.call_count, 3)  # Resume validation plus final reads after new turns.
+            self.assertNotIn('one 0', [call.args[0] for call in runner.send.call_args_list])
+
+    def test_429_stops_after_one_request_without_sleep_or_retry(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.chat.call.side_effect = [
+                {'result': {'frameTree': {'frame': {'id': 'frame'}}}},
+                {'result': {'executionContextId': 7}},
+                {'result': {'result': {'value': {'sourceError': 429, 'retryAfter': '60'}}}},
+            ]
+            with patch('scripts.framework.chatgpt_live.time.sleep') as sleep:
+                with self.assertRaisesRegex(ValueError, 'HTTP 429.*Retry-After=60'):
+                    runner.source('one')
+                sleep.assert_not_called()
+            self.assertEqual([call.args[0] for call in runner.chat.call.call_args_list].count('Runtime.evaluate'), 1)
+
+    def test_loaded_image_evidence_is_frozen_once_per_visible_message_without_source(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.source = Mock(side_effect=AssertionError('No API reads for image detection'))
+            runner.chat.eval.side_effect = [['image-one group-one'], ['image-one group-one'], ['image-one group-one', 'image-two group-two']]
+            with patch('scripts.framework.chatgpt_live.capture_webpage_images', side_effect=[
+                    [{'turn': 'image-one group-one', 'pixels': [1]}],
+                    [{'turn': 'image-two group-two', 'pixels': [2]}]]) as capture:
+                for _ in range(3):
+                    runner.freeze_visible_images('one')
+            self.assertEqual(capture.call_count, 2)
+            self.assertEqual(capture.call_args.kwargs['message_ids'], ['group-two', 'image-two'])
+            self.assertEqual(len(json.loads((Path(folder)/'one.image-webpage-evidence.json').read_text())), 2)
+            runner.source.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -78,6 +78,22 @@ page through its router's workspace-bound `sidebarHistory.chats` loader; later
 `GET /backend-api/conversations` pages are observed separately. The first page
 does not create full-history Coverage. Active scan remains a separate gate.
 
+ChatGPT evidence collection does not fetch the full source after every turn.
+Each turn waits on the native rendered reply and freezes new loaded-image pixels
+from browser resources before older turns are paginated away. Local progress
+checkpoints allow an interrupted conversation to resume after one remote prefix
+verification. A fresh 5/8-turn scenario pair needs two independent final source
+reads instead of thirteen; a partial resume adds one prefix read for that
+conversation, and the lifecycle append adds one updated final read. Final reads
+still require every expected prompt in order and a completed assistant reply for
+every turn.
+Markdown/HTML/PDF/JSON physical fidelity and image comparisons remain mandatory.
+Source HTTP 429 fails the gate immediately with Retry-After recorded; the test
+does not retry that request. Native golden-page load errors also fail without
+automatic reloads. Declared coverage and failed runs never become passes by
+reusing local evidence alone. These rules govern the test harness; the shipping
+provider's bounded, cancellable rate-limit recovery remains separate.
+
 The default output root is `tests/output/tier2/` (override with `--output-dir`).
 `tier2-report.json` records every selected platform, declared plan, scheduled
 features, actual results, errors and cleanup failures. Pending and blocked cases
