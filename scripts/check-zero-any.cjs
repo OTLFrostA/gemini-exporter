@@ -43,9 +43,11 @@ if (audit.error) console.log('LINT_PROCESS_ERROR', String(audit.error));
 try {
   const value = JSON.parse(audit.stdout);
   console.log('JSON_ROOT', Array.isArray(value) ? 'array' : Object.keys(value));
-  const diagnostics = Array.isArray(value) ? value.flatMap(x => x.messages || [x]) :
+  const allDiagnostics = Array.isArray(value) ? value.flatMap(x => x.messages || [x]) :
     (value.diagnostics || value.results?.flatMap(x => x.messages || []) || []);
-  console.log('DIAGNOSTICS_LENGTH', diagnostics.length);
+  const diagnostics = allDiagnostics.filter(d => !String(d.filename || d.filePath || d.file || '').includes('/vendor/'));
+  console.log('DIAGNOSTICS_WITH_VENDOR', allDiagnostics.length);
+  console.log('DIAGNOSTICS_EXCLUDING_VENDOR', diagnostics.length);
   console.log('DIAGNOSTIC_SAMPLE', JSON.stringify(diagnostics.slice(0, 2)).slice(0, 3000));
   const rules = {}, modules = {}, files = {}, severities = {};
   for (const d of diagnostics) {
