@@ -354,7 +354,10 @@ function parseCandidateResponse(
         responseText = textArr.join("\n\n");
     }
 
-    const structuredExtraction = inspectStructuredContent(rawTurn, cand, candidateIndex);
+    // decodeTurn already owns the Turn-level document slot and selection.
+    const structuredExtraction = inspectStructuredContent({
+        candidate: cand, turnDocument: turn.rawAnswerDocument, candidateIndex
+    });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const rawAnswerDocument = candidateIndex === 0 ? turn.rawAnswerDocument : undefined;
     const answerBody = candidate.body;

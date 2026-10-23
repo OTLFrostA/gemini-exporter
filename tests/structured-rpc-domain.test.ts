@@ -34,6 +34,7 @@ const {
     extractStructuredContent,
 } = require('../src/l1/parsers/gemini/rpc/structuredContent.js');
 const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const { decodeTurn } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 const { extractImageEvidence: extractImages } = require('../src/l1/parsers/gemini/rpc/sourceAttachments.js');
 
 import type { BlockNode } from '../src/l2/content/blocks.js';
@@ -489,13 +490,24 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
         ],
     ];
 
+    const decodedTurn = decodeTurn(multiCandTurn);
+    assert.ok(decodedTurn);
+
     // Primary candidate (candidateIndex = 0)
-    const struct0 = extractStructuredContent(multiCandTurn, multiCandTurn[3][0][0], 0);
+    const struct0 = extractStructuredContent({
+        candidate: multiCandTurn[3][0][0],
+        turnDocument: decodedTurn.rawAnswerDocument,
+        candidateIndex: 0
+    });
     assert.ok(struct0, 'Candidate 0 receives structured content from turn[3][12]');
     assert.strictEqual(struct0.children.length, 3);
 
     // Alternative candidate (candidateIndex = 1)
-    const struct1 = extractStructuredContent(multiCandTurn, multiCandTurn[3][0][1], 1);
+    const struct1 = extractStructuredContent({
+        candidate: multiCandTurn[3][0][1],
+        turnDocument: decodedTurn.rawAnswerDocument,
+        candidateIndex: 1
+    });
     assert.strictEqual(struct1, undefined, 'Candidate 1+ must NOT receive turn[3][12] without proven evidence');
 
     // Verify end-to-end normalization of multi-candidate messages
@@ -563,16 +575,21 @@ test('Wire JSPB decoding in Gemini parser layer', () => {
     assert.strictEqual((decoded.children[2] as any).code, 'console.log(42);');
     assert.strictEqual((decoded.children[2] as any).info, 'typescript');
 
-    // Test extractStructuredContent from turn
+    // The Turn decoder locates the source field before structured decoding.
     const mockTurn = [
         'r_123',
         [1700000000, 0],
         [['User question']],
         [[['rc_ans', [null, ['Answer text']]]], null, null, null, null, null, null, null, null, null, null, null, wirePayload],
     ];
-
-    const extracted = extractStructuredContent(mockTurn);
-    assert.ok(extracted, 'Extracted structured document from turn');
+    const decodedTurn = decodeTurn(mockTurn);
+    assert.ok(decodedTurn);
+    const extracted = extractStructuredContent({
+        candidate: decodedTurn.candidate?.raw,
+        turnDocument: decodedTurn.rawAnswerDocument,
+        candidateIndex: decodedTurn.candidateIndex
+    });
+    assert.ok(extracted, 'Extracted structured document from the decoded Turn evidence');
     assert.strictEqual(extracted.children.length, 3);
 });
 

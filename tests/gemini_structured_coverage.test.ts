@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { decodeGeminiAnnotation, decodeGeminiStructuredPayload, inspectStructuredContent } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { decodeTurn } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
@@ -60,16 +61,34 @@ test('unknown nested annotation rejects whole document and reports only shape ev
 
 test('unknown wire fields, absent payload, and uncorrelated candidate have distinct outcomes', () => {
     const unknown = Object.assign(Array(14).fill(null), { 13: ['PRIVATE_FILE_REFERENCE'] });
-    assert.deepEqual(inspectStructuredContent(null, { structuredContent: [[[unknown]]] }), {
+    assert.deepEqual(inspectStructuredContent({
+        candidate: { structuredContent: [[[unknown]]] }, turnDocument: undefined, candidateIndex: 0
+    }), {
         status: 'decode_rejected', issue: { kind: 'node', fields: [13] },
     });
     const missing = parse('G_STRUCTURED_COVERAGE_03').diagnostics.find(d => d.code === 'GEMINI_STRUCTURED_FALLBACK');
     assert.deepEqual(missing?.details, { reason: 'missing' });
     assert.equal(missing?.severity, 'info');
-    const turn: unknown[] = [null, null, null, Object.assign(Array(13).fill(null), { 12: report })];
-    assert.equal(inspectStructuredContent(turn, undefined, 1).status, 'candidate_unmatched');
-    assert.equal(inspectStructuredContent(turn, undefined, 0).status, 'decoded');
-    assert.equal(inspectStructuredContent(turn, { structuredContent: { children: [] } }, 1).status, 'decoded');
+    const rawTurn: unknown[] = [null, null, null, Object.assign(Array(13).fill(null), { 12: report })];
+    const turn = decodeTurn(rawTurn);
+    assert.ok(turn);
+    assert.equal(inspectStructuredContent({
+        candidate: undefined, turnDocument: turn.rawAnswerDocument, candidateIndex: 1
+    }).status, 'candidate_unmatched');
+    assert.equal(inspectStructuredContent({
+        candidate: undefined, turnDocument: turn.rawAnswerDocument, candidateIndex: 0
+    }).status, 'decoded');
+    assert.equal(inspectStructuredContent({
+        candidate: { structuredContent: { children: [] } }, turnDocument: turn.rawAnswerDocument, candidateIndex: 1
+    }).status, 'decoded');
+    assert.equal(inspectStructuredContent({
+        candidate: undefined, turnDocument: null, candidateIndex: 1
+    }).status, 'missing');
+    // An invalid candidate-local document must not silently fall back to a
+    // valid Turn-level document from a different ownership slot.
+    assert.deepEqual(inspectStructuredContent({
+        candidate: { structuredContent: { unsupported: true } }, turnDocument: turn.rawAnswerDocument, candidateIndex: 0
+    }), { status: 'decode_rejected', issue: { kind: 'payload' } });
 });
 
 test('adapter rejection remains visible and preserves complete Markdown body', () => {
