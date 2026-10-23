@@ -1067,7 +1067,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "T1.4: convertMathMitex helper respects notation and display flags",
+          "name": "T1.4: convertMathWithMitex respects notation and display flags",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
