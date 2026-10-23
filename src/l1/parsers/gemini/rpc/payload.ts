@@ -147,17 +147,3 @@ export function extractNextPageToken(
         val => (typeof val === "string" && val.startsWith("tC") ? val : null)
     );
 }
-
-const PayloadParser = {
-    payloadToMs,
-    extractInnerPayload,
-    extractNextPageToken,
-    extractCandidateValue,
-    extractWithScan
-};
-
-if (typeof module === "object" && module.exports) {
-    module.exports = PayloadParser;
-}
-
-export default PayloadParser;
