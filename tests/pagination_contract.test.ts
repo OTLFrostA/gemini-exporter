@@ -11,6 +11,7 @@ import type { GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseCon
 import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { getCoverage } from '../src/l2/coverageAdmission.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 useIndexStorage();
 function listProvider(pages: (ListParseResult | Error)[]) {
     return new GeminiProvider({ async getConversationList() { const p = pages.shift(); if (p instanceof Error) throw p; assert.ok(p); return p; },
@@ -112,8 +113,7 @@ test('Detail: verified blank native turns have a distinct empty-source outcome; 
     const candidate = ['rc_empty', [''], null, []];
     const model: unknown[] = [[candidate], null, null, 'rc_empty'];
     model[8] = 'US'; model[12] = [[]]; model[24] = 1;
-    const raw = [[[['c_source_chat_123', 'r_empty'], null, [['']], model, [1757132274, 411870000]]], null, null, []];
-    const page = parseGeminiRpcConversation(JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(raw)]]),
+    const page = parseGeminiRpcConversation(geminiDetailGen('G_PAGINATION_EMPTY_01'),
         { providerId: 'gemini', targetConvId: 'source_chat_123' });
     await assert.rejects(getConversationDetail(detailClient([page]), 'source_chat_123'), ConfirmedSourceEmptyError);
     for (const change of [
