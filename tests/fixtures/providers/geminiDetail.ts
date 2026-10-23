@@ -543,6 +543,20 @@ const fixtureMap = {
             [[['c_cross_origin_native', 'r_1'], [1700000000, 0], [['Persist this question']],
                 [[['rc_1', [['**Persist this answer**']]]]]]], null,
         ])]]),
+
+    // Static hNvQHb fragments used to verify selective sniffer broadcasts.
+    'G_REGRESSION_LOCK_FILTER_DETAIL_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'hNvQHb', ['c_123'], null]]),
+    'G_EXTRACTED_REGRESSION_FILTER_DETAIL_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'hNvQHb', ['c_123'], null]]),
+    'G_REGRESSION_LOCK_PARSER_DETAIL_01': () =>
+        rpc([[[['c_testid1234567890ab', 'r1'], null,
+            [['Special test message with , null , in code and [brackets]']],
+            [[['rc1', [['answer1']]]]]]], null, 'Test Title']),
+    'G_EXTRACTED_REGRESSION_PARSER_DETAIL_01': () =>
+        rpc([[[['c_testid1234567890ab', 'r1'], null,
+            [['Special test message with , null , in code and [brackets]']],
+            [[['rc1', [['answer1']]]]]]], null, 'Test Title']),
 };
 
 export function detailGen(key: keyof typeof fixtureMap): string {
