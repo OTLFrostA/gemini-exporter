@@ -26,6 +26,10 @@ const nativeAnyError = (rpc: string, code: unknown,
 
 // One unique key per consuming List test call site. Values preserve the old data.
 const fixtureMap = {
+    'G_CONVERSATION_ORDER_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null,
+            [['c_server123', 'Server title', null, null, 12, [1700000000, 0]]]])],
+    ]),
 
     'G_BOUNDARY_LIST_01': () => {
         const ids = ['c_missingtitle123', 'c_nulltitle123456', 'c_objecttitle1234', 'c_blanktitle12345'];
