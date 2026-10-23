@@ -64,7 +64,7 @@ const fixtureMap = {
     'G_E2E_INCREMENTAL_WINDOW_MIDDLE_01': () => e2eIncrementalList('chat', [80, 70], 'tC_limit'),
     'G_E2E_INCREMENTAL_WINDOW_LIMIT_01': () => JSON.stringify([[
         'wrb.fr', 'MaZiqc', null, null, null,
-        [5, null, [['type.googleapis.com/assistant.boq.bard.application.BardErrorInfo', [1096]]], 'generic'],
+        [5, null, [['type.googleapis.com/assistant.boq.bard.application.BardErrorInfo', [1096]]]], 'generic',
     ]]),
     'G_E2E_INCREMENTAL_WINDOW_HEAD_02': () => e2eIncrementalList('chat', [120, 110, 95, 85], 'tC_unread'),
     'G_E2E_INCREMENTAL_WINDOW_HEAD_03': () => e2eIncrementalList('chat', [130, 120, 110, 95], 'tC_unread'),
