@@ -2,6 +2,7 @@ import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
 import { takeoutArchive } from './helpers/l1SourceFixture.js';
 import { getDetail } from '../src/l3a/storageService.js';
 import Proto from '../src/l1/protocol/gemini/protocol.js';
+import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 // L1 regression locks. Other-layer scenarios remain in regression_lock_other_layers.test.ts
 // and stay in ordinary repository discovery; see docs/l1-l2-freeze-repair.md.
@@ -56,7 +57,7 @@ test('p0-lock: deletion sniffing requires the exact request-bound acknowledgemen
     const id = 'deadbeef00112233';
     const body = new URLSearchParams({ 'f.req': JSON.stringify([[['otherRpc', JSON.stringify(['c_aabbccdd11223344'])],
         ['GzXR5e', JSON.stringify(['c_' + id]), null, 'generic']]]) }).toString();
-    win.__nextResponseText = JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([null, 'c_' + id])]]);
+    win.__nextResponseText = geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_01');
     await win.fetch('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body });
     await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve));
     const deleted = posted.filter(p => p.msg.type === 'GEMINI_CONVERSATION_DELETED');
@@ -66,7 +67,7 @@ test('p0-lock: deletion sniffing requires the exact request-bound acknowledgemen
 });
 test('p0-lock: response-only ids, unacknowledged requests and unrelated hex values cannot authorize deletion', async () => {
     for (const [body, response] of [
-        ['f.req=[[[' + JSON.stringify('GzXR5e') + ',null]]]', JSON.stringify([['wrb.fr','GzXR5e','c_feedface12345678',null]])],
+        ['f.req=[[[' + JSON.stringify('GzXR5e') + ',null]]]', geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_02')],
         ['f.req=[["aabbccdd11223344"],["GzXR5e","c_deadbeef00112233"]]', ''],
         ['f.req=[["MaZiqc",null]]', JSON.stringify([['wrb.fr','MaZiqc','[["aabbccdd11223344",null]]',null]])],
     ]) {
@@ -105,7 +106,7 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
     const genericBatchexecute = prefix + JSON.stringify([['wrb.fr', 'generic_rpc', '[]', null]]);
     assert.strictEqual(await wasRelayed(genericBatchexecute), false, 'Generic wrb.fr response must be filtered out');
 
-    const deleteBatchexecute = prefix + JSON.stringify([['wrb.fr', 'GzXR5e', ['deleted'], null]]);
+    const deleteBatchexecute = geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_03');
     assert.strictEqual(await wasRelayed(deleteBatchexecute), false, 'Delete RPC response must not pass batchexecute broadcast');
 
     const listBatchexecute = prefix + JSON.stringify([['wrb.fr', Proto.RPCS.LIST, ['c_123'], null]]);
