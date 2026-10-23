@@ -63,7 +63,7 @@ test('list UI prevents attribute breakout from source titles and URLs',async()=>
 test('D7: Tour connection errors and absent Tabs API never advance to a connected state',async()=>{
     for(const missing of [false,true]){
         await open();await page.evaluate(missing=>{if(missing)Reflect.deleteProperty(chrome,'tabs');else Reflect.set(chrome.tabs,'query',()=>Promise.reject(new Error('Tabs unavailable')));return Reflect.get(window,'testUi').tour.startTour();},missing);
-        await page.waitForFunction(()=>document.querySelector('.tour-popover')?.textContent?.includes('Connection unavailable'));assert.equal(await page.locator('.tour-popover h2').textContent(),'Connect Gemini');await page.close();
+        await page.waitForFunction(()=>document.querySelector('.tour-popover')?.textContent?.includes('Connection unavailable'));assert.equal(await page.locator('.tour-popover h2').textContent(),'Connect an AI platform');await page.close();
     }
 });
 test('Takeout guidance is neutral and independent of source-vs-local scan limit',async()=>{

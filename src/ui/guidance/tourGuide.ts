@@ -1,5 +1,6 @@
 import { STEPS } from './tourSteps.js';
 import { text } from '../shared/settings.js';
+import { mountTourConnection } from './tourConnection.js';
 export { STEPS } from './tourSteps.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
@@ -8,6 +9,8 @@ let cleanupStep: (() => void) | undefined;
 let cleanupOverlay: (() => void) | undefined;
 let onDismiss: (() => void) | undefined;
 let relayout: (() => void) | undefined;
+let connectionReady = false;
+let onConnected: ((accountId: string) => Promise<void>) | undefined;
 
 export function consumeTourIntent(): boolean {
     const url = new URL(location.href);
@@ -19,6 +22,7 @@ export function destroy(): void {
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove(); root = null; mode = null; onDismiss = undefined; relayout = undefined;
+    connectionReady = false; onConnected = undefined;
 }
 function close(): void { const callback = onDismiss; destroy(); callback?.(); }
 export const finishTour = async (): Promise<void> => { destroy(); };
@@ -226,7 +230,7 @@ export async function goToStep(index: number): Promise<void> {
     navFooter.append(nav);
     if (stepIndex) button(nav, text('Back', '上一步'), () => { void prevStep(); },
         'tourPrevBtn', 'tour-nav-btn');
-    button(nav, stepIndex === STEPS.length - 1 ? text('Start using', '开始使用') : text('Next', '下一步'),
+    const nextButton = button(nav, stepIndex === STEPS.length - 1 ? text('Start using', '开始使用') : text('Next', '下一步'),
         () => { void nextStep(); }, 'tourNextBtn', 'tour-nav-btn primary');
     relayout?.();
 
@@ -238,66 +242,26 @@ export async function goToStep(index: number): Promise<void> {
     };
     cleanupStep = step.setupAction?.(advance);
     if (step.id === 'connect') {
-        let active = true;
-        let tabId: number | undefined;
-        const box = document.createElement('div');
-        box.className = 'tour-action-box';
-        const status = document.createElement('div');
-        status.className = 'tour-status-indicator tour-status-warn warn';
-        const action = button(box, '', () => {
-            const operation = tabId === undefined
-                ? chrome.tabs.create({ url: 'https://gemini.google.com/app' })
-                : chrome.tabs.reload(tabId);
-            void Promise.resolve(operation).catch(() => {
-                show(text('Unable to open or refresh Gemini', '无法打开或刷新 Gemini'));
-            });
-        }, 'tourBtnOpenGemini', 'tour-action-btn');
-        box.prepend(status);
-        popover.insertBefore(box, navFooter);
-        const show = (message: string, actionLabel?: string, isRefresh = false) => {
-            if (!active) return;
-            status.textContent = '⚠️ ' + message;
-            status.className = 'tour-status-indicator tour-status-warn warn';
-            action.textContent = actionLabel ?? '';
-            action.id = isRefresh ? 'tourBtnReloadGemini' : 'tourBtnOpenGemini';
-            action.className = isRefresh ? 'tour-action-btn secondary' : 'tour-action-btn';
-            action.hidden = !actionLabel;
-            relayout?.();
-        };
-        show(text('Checking Gemini connection', '正在检查 Gemini 连接'));
-        const check = async () => {
-            try {
-                const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-                if (!active) return;
-                const tab = tabs.find(tab => tab.active) ?? tabs[0];
-                tabId = tab?.id;
-                if (tabId === undefined) {
-                    show(text('Open Gemini to connect', '打开 Gemini 以连接'),
-                        text('Open Gemini', '打开 Gemini')); return;
-                }
-                try {
-                    const response = await chrome.tabs.sendMessage(tabId, { action: 'getAccountContext' });
-                    if (!active) return;
-                    if (response?.ok && response.accountContext) { advance(); return; }
-                    show(text('Sign in to Gemini and retry', '请登录 Gemini 后重试'));
-                } catch {
-                    show(text('Refresh Gemini to connect', '刷新 Gemini 以连接'),
-                        text('Refresh Gemini', '刷新 Gemini'), true);
-                }
-            } catch {
-                show(text('Connection unavailable', '无法检查连接'));
-            }
-        };
-        void check();
-        const timer = setInterval(() => { void check(); }, 1500);
-        cleanupStep = () => { active = false; clearInterval(timer); };
+        connectionReady = false;
+        nextButton.disabled = true;
+        const selectAccount = onConnected;
+        cleanupStep = mountTourConnection(popover, navFooter, async accountId => {
+            await selectAccount?.(accountId);
+            if (mode !== 'tour' || STEPS[stepIndex] !== step || !popover.isConnected) return;
+            connectionReady = true;
+            nextButton.disabled = false;
+            advance();
+        });
     }
 }
-export async function nextStep(): Promise<void> { await goToStep(stepIndex + 1); }
+export async function nextStep(): Promise<void> {
+    if (STEPS[stepIndex]?.id === 'connect' && !connectionReady) return;
+    await goToStep(stepIndex + 1);
+}
 export async function prevStep(): Promise<void> { await goToStep(stepIndex - 1); }
-export async function startTour(): Promise<void> {
+export async function startTour(connected?: (accountId: string) => Promise<void>): Promise<void> {
     if (modalOpen()) return;
-    destroy(); mode = 'tour'; await goToStep(0);
+    destroy(); mode = 'tour'; onConnected = connected; await goToStep(0);
 }
 
 export function startFeatureSpotlight(version: string, stepId: string, dismissed: () => void): boolean {

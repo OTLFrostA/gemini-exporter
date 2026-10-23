@@ -39,10 +39,10 @@ export const runExport = async (request,options={}) => {h.exports.push(request);
  const exported = aborted ? 0 : request.keys.length - failed.length;
  return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;
-export const requestChatGPTConnection = async () => false;
-export const discoverChatGPTAccounts = async () => [];
-export const requestClaudeConnection = async () => false;
-export const discoverClaudeAccounts = async () => [];
+export const requestChatGPTConnection = async () => {h.connectionRequests.push(['chatgpt',navigator.userActivation.isActive]);return h.chatgptAccess??false;};
+export const discoverChatGPTAccounts = async () => {h.discoveryCalls.push('chatgpt');if(h.discoveryError)throw Error(h.discoveryError);return h.chatgptAccounts??[];};
+export const requestClaudeConnection = async () => {h.connectionRequests.push(['claude',navigator.userActivation.isActive]);return h.claudeAccess??false;};
+export const discoverClaudeAccounts = async () => {h.discoveryCalls.push('claude');if(h.discoveryError)throw Error(h.discoveryError);return h.claudeAccounts??[];};
 export const sendTabMessage = (tabId,message,timeoutMs) => {
  h.tabRequests.push({tabId,message,timeoutMs});
  return chrome.tabs.sendMessage(tabId,message);
@@ -130,7 +130,7 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
         w.harness = { settings: {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1'},
             accounts:[{id:A,providerId:'gemini',providerAccountId:'A'},{id:B,providerId:'gemini',providerAccountId:'B'}],
             indexes:[{key:{accountId:A,conversationId:'a'},title:'<img src=x onerror=alert(1)>',updatedAt:5},{key:{accountId:B,conversationId:'b'},title:'B chat',updatedAt:5}],records:{},source:A,scanCount:150,
-            patches:[],events:[],messages:[],tabRequests:[],cleanups:[],exports:[],scans:[],clears:[],imports:[],directory:null,...patch };
+            patches:[],events:[],messages:[],tabRequests:[],connectionRequests:[],discoveryCalls:[],cleanups:[],exports:[],scans:[],clears:[],imports:[],directory:null,...patch };
         w.harness.settings = {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1',...(patch.settings as object ?? {})};
         // Most isolated UI cases model a new Options view, whose default is browser download.
         // Tests for existing Live Save installations explicitly request folderWriter.
@@ -144,7 +144,12 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
         const messageListeners = new Set<(...args: unknown[]) => void>();
         w.harness.fireRuntimeMessage = (message: unknown, sender = { id: 'ui-test-extension' }) => { for (const listener of messageListeners) listener(message, sender); };
         w.chrome = { runtime:{id:'ui-test-extension',getURL:(path: string)=>'chrome-extension://ui-test-extension/'+path,onMessage:{addListener:(listener: (...args: unknown[]) => void)=>messageListeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>messageListeners.delete(listener)},getManifest:()=>({version:w.harness.manifestVersion||'1.8.1'}),openOptionsPage:async()=>w.harness.events.push('options'),sendMessage:async(message:any)=>{w.harness.messages.push(message);if(message.action==='getLocalIndexCount'){w.harness.countRequests=(w.harness.countRequests||0)+1;if(w.harness.holdCount)return new Promise(resolve=>w.harness.finishCount=resolve);return {ok:true,count:message.accountId===A?9:0};}w.harness.events.push(message.action);return {ok:true};}},
-            tabs:{query:async()=>w.harness.tabs??[{id:1,active:true,url:'https://gemini.google.com/app/a'}],sendMessage:async()=>{w.harness.events.push('context');if ('contextReply' in w.harness) return w.harness.contextReply;return w.harness.noContext?{ok:false}:{ok:true,accountContext:{accountId:A,providerId:'gemini'},conversationId:'a'};},create:async(options: { url?: string })=>{w.harness.events.push('open');(w.harness.openedUrls??=[]).push(options?.url);},reload:async()=>{w.harness.events.push('reload');}},
+            tabs:{query:async(options: {url?: string|string[]})=>{
+                const tabs=w.harness.tabs??[{id:1,active:true,url:'https://gemini.google.com/app/a'}];
+                if(!options?.url)return tabs;
+                const patterns=Array.isArray(options.url)?options.url:[options.url];
+                return tabs.filter((tab:{url?:string})=>!tab.url||patterns.some(pattern=>tab.url?.startsWith(pattern.replace('*',''))));
+            },sendMessage:async()=>{w.harness.events.push('context');if ('contextReply' in w.harness) return w.harness.contextReply;return w.harness.noContext?{ok:false}:{ok:true,accountContext:{accountId:A,providerId:'gemini'},conversationId:'a'};},create:async(options: { url?: string })=>{w.harness.events.push('open');(w.harness.openedUrls??=[]).push(options?.url);},update:async()=>{w.harness.events.push('activate');},reload:async()=>{w.harness.events.push('reload');}},
             storage:{onChanged:{addListener:(listener: (...args: unknown[]) => void)=>listeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>listeners.delete(listener)}}};
     }, { A, B, patch });
     await page.goto('https://ui.test/' + query);

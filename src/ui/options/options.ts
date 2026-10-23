@@ -576,7 +576,7 @@ export async function initWorkbench(): Promise<void> {
         const link = document.createElement('a'); link.href = url; link.download = 'gemini-exporter-ui-diagnostics.json';
         link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
-    el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(); });
+    el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(select); });
     const stopSettings = observeSettings(() => {
         void readSettings().then(next => { settings = next; render(); }).catch(e => statusError(e));
     });
@@ -609,7 +609,7 @@ export async function initWorkbench(): Promise<void> {
             'warn', 'Folder permission could not be restored: ' + (error instanceof Error ? error.message : String(error)));
     }
     render();
-    if (installationTour) await TourGuide.startTour();
+    if (installationTour) await TourGuide.startTour(select);
     else {
         const current = chrome.runtime.getManifest().version;
         const feature = getLatestEligibleFeature(settings.lastSeenFeatureVersion ?? current, current);

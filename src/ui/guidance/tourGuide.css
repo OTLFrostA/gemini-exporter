@@ -286,3 +286,13 @@
 .tour-upgrade-copy p { margin: 0 0 11px; }
 .tour-upgrade-copy p:last-child { margin-bottom: 0; }
 .tour-upgrade-footer { justify-content: flex-end; gap: 8px; }
+
+.tour-action-btn:disabled,
+.tour-action-btn:disabled:hover,
+.tour-nav-btn:disabled,
+.tour-nav-btn:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
