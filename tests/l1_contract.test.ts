@@ -24,6 +24,7 @@ import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConvers
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
+import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 
 let storage: ReturnType<typeof indexStorage>;
@@ -238,7 +239,7 @@ test('L1 ChatGPT body quality is independent of missing image bytes', () => {
     assert.equal(parsed.conversation.detail.assets.length, 1);
 });
 test('L1 ChatGPT rejects conflicting session identity before list submission', async () => {
-    const p = new ChatGPTProvider({ fetchFn: async () => ({ ok: true, json: async () => chatgptListGen('C_L1_CONTRACT_20') } as Response) });
+    const p = new ChatGPTProvider({ fetchFn: async () => ({ ok: true, json: async () => chatgptSessionGen('C_L1_CONTRACT_20') } as Response) });
     await assert.rejects(p.listConversations({ accountId: fixtureAccount('chatgpt').id, streamId: 'recent' }), /account mismatch/);
 });
 
