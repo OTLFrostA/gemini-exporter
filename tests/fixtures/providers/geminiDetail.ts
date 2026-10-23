@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { decodeGeminiStructuredPayload } from '../../../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { listGen as geminiListGen } from './gemini.js';
 /** Native batchexecute response bodies containing Gemini's hNvQHb Detail RPC. */
 const DOMAIN_ID = 'c_native12345678';
@@ -213,7 +214,38 @@ function mediaOnlineDetail(missingTime = false, missingPrompt = false, multipleI
         JSON.stringify([turns, null, 'Complete online body'])]]);
 }
 
+
+/** Four finite composite-layout variants with the original captured citation node. */
+function citationCompositeWire(kind: 'paragraph' | 'list' | 'table' | 'quote'): string {
+    const fileCitation = { nodeType: 'citation', number: 1, title: 'test_config.json' };
+    const second = { ...fileCitation, number: 2, title: 'other.png' };
+    const composite = { nodeType: 'paragraph', children: [
+        { nodeType: 18, text: '😀 x_1', annotations: [{ start: 3, end: 6, type: 4 }] },
+        fileCitation, { nodeType: 18, text: ' / ' }, second, { nodeType: 18, text: '. [1]' },
+    ] };
+    const node = kind === 'list' ? { nodeType: 20, items: [{ children: [composite] }] }
+        : kind === 'table' ? { nodeType: 17, rows: [{ cells: [{ children: [composite] }] }] }
+        : kind === 'quote' ? { nodeType: 15, children: [composite] } : composite;
+    return citationWire({ children: [node] });
+}
+function citationInlineCombinedWire(): string {
+    const decoded = decodeGeminiStructuredPayload(citationFile('live-combined-file-citations'));
+    if (!decoded) throw new Error('Invalid captured citation source fixture');
+    return citationWire({ children: [{ nodeType: 'paragraph', children: [
+        { nodeType: 18, text: 'Before ' }, ...decoded.children, { nodeType: 18, text: ' after.' },
+    ] }] });
+}
+
 const fixtureMap = {
+    'G_STRUCTURED_CITATION_COMPOSITE_PARAGRAPH_01': () => citationCompositeWire('paragraph'),
+    'G_STRUCTURED_CITATION_COMPOSITE_LIST_01': () => citationCompositeWire('list'),
+    'G_STRUCTURED_CITATION_COMPOSITE_TABLE_01': () => citationCompositeWire('table'),
+    'G_STRUCTURED_CITATION_COMPOSITE_QUOTE_01': () => citationCompositeWire('quote'),
+    'G_STRUCTURED_CITATION_INLINE_COMBINED_01': () => citationInlineCombinedWire(),
+    'G_STRUCTURED_CITATION_MATH_FILE_CHIP_01': () => citationWire({ children: [
+        { nodeType: 12, FTa: 'a=b' },
+        { nodeType: 'citation', number: 1, title: 'test_config.json' },
+    ] }),
     'G_MEDIA_SOURCE_DEFAULT_01': () => mediaOnlineDetail(),
     'G_MEDIA_SOURCE_NO_TIME_01': () => mediaOnlineDetail(true),
     'G_MEDIA_SOURCE_NO_PROMPT_01': () => mediaOnlineDetail(false, true),
