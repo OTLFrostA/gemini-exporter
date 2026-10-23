@@ -11,24 +11,17 @@ import { assertDomainClosure } from '../src/l2/closure.js';
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/provider/structured_rpc/${name}.json`, 'utf8'));
 const fallback = 'UNRELATED_MARKDOWN_SENTINEL';
-const text = (value: string, annotations: unknown[] = []): unknown[] => [null, [null, 0, value, annotations]];
 const field = (index: number, value: unknown): unknown[] => Object.assign(Array(index + 1).fill(null), { [index]: value });
 const sourceTable = (sources: unknown[] = [['https://example.com/source', 'Source title']]): unknown[] => [null, [[['cited span'], [1], sources, 'spp_fixture']]];
-function wire(raw: unknown, table?: unknown, alternatives: unknown[] = []): string {
-    const payload: unknown[] = [[['rc_primary', [[fallback]], table], ...alternatives]];
-    payload[12] = raw;
-    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_citationfixture', 'r_fixture'], [1700000000, 0], [['Question']], payload]]])]]);
-}
-const parse = (raw: unknown, table?: unknown, alternatives?: unknown[]) => parseGeminiRpcConversation(wire(raw, table, alternatives), { account: fixtureAccount('gemini'), providerId: 'gemini' });
 const parseKey = (key: Parameters<typeof geminiDetailGen>[0]) =>
     parseGeminiRpcConversation(geminiDetailGen(key), { account: fixtureAccount('gemini'), providerId: 'gemini' });
-function successful(result: ReturnType<typeof parse>) {
+function successful(result: ReturnType<typeof parseKey>) {
     assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'), JSON.stringify(result.diagnostics));
     assert.ok(!JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
     assertDomainClosure(result.conversation.detail);
     return result.conversation.detail.messages[1];
 }
-function rejected(result: ReturnType<typeof parse>, reason: string) {
+function rejected(result: ReturnType<typeof parseKey>, reason: string) {
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK' && d.details && typeof d.details === 'object' && !Array.isArray(d.details) && d.details.reason === reason));
     assert.ok(JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
 }
@@ -64,18 +57,13 @@ test('captured file references use structured content, preserving inline code, l
 });
 
 test('composite paragraphs preserve math, Unicode, punctuation and multiple citations in tables and lists', () => {
-    const second = { ...fileCitation, number: 2, title: 'other.png' };
-    const composite = { nodeType: 'paragraph', children: [
-        { nodeType: 18, text: '😀 x_1', annotations: [{ start: 3, end: 6, type: 4 }] },
-        fileCitation, { nodeType: 18, text: ' / ' }, second, { nodeType: 18, text: '. [1]' },
-    ] };
-    const containers = [composite,
-        { nodeType: 20, items: [{ children: [composite] }] },
-        { nodeType: 17, rows: [{ cells: [{ children: [composite] }] }] },
-        { nodeType: 15, children: [composite] },
-    ];
-    for (const node of containers) {
-        const result = parse({ children: [node] });
+    for (const key of [
+        'G_STRUCTURED_CITATION_COMPOSITE_PARAGRAPH_01',
+        'G_STRUCTURED_CITATION_COMPOSITE_LIST_01',
+        'G_STRUCTURED_CITATION_COMPOSITE_TABLE_01',
+        'G_STRUCTURED_CITATION_COMPOSITE_QUOTE_01',
+    ] as const) {
+        const result = parseKey(key);
         const message = successful(result);
         assert.ok(JSON.stringify(message.content).includes('"source":"x_1"'));
         assert.equal((JSON.stringify(message.content).match(/"type":"citationRef"/g) ?? []).length, 0);
@@ -122,9 +110,7 @@ test('combined native file markers bind each number to its ordered source record
         { id: 'grounding-2', title: 'second-diagram.jpg' },
     ]);
     assert.deepEqual(message.content, [{ type: 'paragraph', children: [] }]);
-    const inline = successful(parse({ children: [{ nodeType: 'paragraph', children: [
-        { nodeType: 18, text: 'Before ' }, ...decoded.children, { nodeType: 18, text: ' after.' },
-    ] }] }));
+    const inline = successful(parseKey('G_STRUCTURED_CITATION_INLINE_COMBINED_01'));
     assert.equal(inline.content.length, 1);
     assert.ok(!JSON.stringify(inline.content).includes('propagation of light'), 'quoted metadata must not become prose');
     for (const key of ['G_STRUCTURED_CITATIONS_15', 'G_STRUCTURED_CITATIONS_16',
@@ -134,7 +120,7 @@ test('combined native file markers bind each number to its ordered source record
 });
 
 test('standalone hidden file chip after display math adds no visible marker', () => {
-    const message = successful(parse({ children: [{ nodeType: 12, FTa: 'a=b' }, fileCitation] }));
+    const message = successful(parseKey('G_STRUCTURED_CITATION_MATH_FILE_CHIP_01'));
     assert.equal(message.content[0].type, 'math');
     assert.equal(message.content[1].type, 'paragraph');
     assert.deepEqual(message.content[1], { type: 'paragraph', children: [] });
