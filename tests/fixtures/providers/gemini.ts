@@ -33,16 +33,6 @@ function p1RegressionList(items: unknown[]): string {
 }
 
 
-/** Six fixed anonymized source timestamp pairs, consumed through List keys. */
-function versionPairList(index: number): string {
-    const pairs: Array<{ listWire: number[] }> =
-        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
-    const pair = pairs[index];
-    if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
-    return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
-        [['c_version_chat', 'Source title', null, null, null, pair.listWire]]])]]);
-}
-
 const fixtureMap = {
     'G_P1E_LIST_01': () => p1RegressionList([['c_cnt1234567890', 'T', null, null, null, 1757839234]]),
     'G_P1E_LIST_02': () => p1RegressionList([['c_cnt2234567890', 'T2', null, null, 7]]),
@@ -273,6 +263,16 @@ const fixtureMap = {
         ]])],
     ]),
 };
+
+/** Six fixed anonymized source timestamp pairs, consumed through List keys. */
+function versionPairList(index: number): string {
+    const pairs: Array<{ listWire: number[] }> =
+        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
+    const pair = pairs[index];
+    if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
+    return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+        [['c_version_chat', 'Source title', null, null, null, pair.listWire]]])]]);
+}
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
 export function listGen(key: keyof typeof fixtureMap): string {
