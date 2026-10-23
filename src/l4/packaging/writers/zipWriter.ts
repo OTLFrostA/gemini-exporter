@@ -22,18 +22,28 @@ export function isPrecompressedAsset(path: string): boolean {
 /** Size probes are optional on the shared string/binary content contract. */
 type ZipContent = WriteFileContent & { byteLength?: number; length?: number };
 
+/** Only the JSZip operations used by this writer. */
+interface ZipInstance {
+    file(path: string, content: ZipContent | null | undefined, options?: WriteFileOptions): unknown;
+    generateInternalStream?(options: { type: 'blob' }): {
+        accumulate(onUpdate: (meta: { percent: number }) => void): Promise<Blob>;
+    };
+    generateAsync(options: { type: 'blob' }, onUpdate?: (meta: { percent: number }) => void): Promise<Blob>;
+}
+type ZipConstructor = new () => ZipInstance;
+
 class ZipWriter implements IExportWriter {
-    zip: any;
-    folder: any;
+    zip: ZipInstance;
+    folder: ZipInstance;
     totalBytes: number;
     MAX_SAFE_ZIP_BYTES: number;
 
     static ZipWriter = ZipWriter;
 
     constructor() {
-        const JSZipLib = __resolveModule('JSZip', null)
-            || (typeof self !== 'undefined' ? (self as any).JSZip : null)
-            || (typeof require !== 'undefined' ? (function() { try { return require('jszip'); } catch { return null; } })() : null);
+        const JSZipLib = (__resolveModule('JSZip', null)
+            || (typeof self !== 'undefined' ? (self as typeof self & { JSZip?: unknown }).JSZip : null)
+            || (typeof require !== 'undefined' ? (function() { try { return require('jszip'); } catch { return null; } })() : null)) as ZipConstructor | null;
         if (!JSZipLib) {
             throw new Error('JSZip library is not available');
         }
