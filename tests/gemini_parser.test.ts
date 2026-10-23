@@ -1,4 +1,5 @@
 const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
 const { parseList } = require('../src/l1/parsers/gemini/rpc/parseList.js');
 const { highResVariant } = require('../src/l1/client/gemini/geminiImageUrl.js');
 const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/l1/parsers/gemini/rpc/extractors.js');
@@ -99,23 +100,7 @@ test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extrac
 });
 
 test('gemini_parser - decodeGeminiDetail with hNvQHb only falls back gracefully', () => {
-    const mockDetailInner = [
-        [
-            [
-                ["c_fallback_123", "r_turn_1"],
-                null,
-                [["如何用Rust写WebAssembly插件"]],
-                [[["rc_model_1", ["这是Rust WebAssembly回答"]]]]
-            ]
-        ],
-        null,
-        "Rust WebAssembly 开发实战"
-    ];
-
-    const topPayload = [
-        ["wrb.fr", "hNvQHb", JSON.stringify(mockDetailInner)]
-    ];
-    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+    const rawText = geminiDetailGen('G_DETAIL_PARSER_FALLBACK_01');
 
     const parsed = decodeGeminiDetail(rawText, 'fallback_123');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'fallback_123');
@@ -125,15 +110,7 @@ test('gemini_parser - decodeGeminiDetail with hNvQHb only falls back gracefully'
 });
 
 test('gemini_parser - decodeGeminiDetail with metadata-only payload returns empty messages and retains raw', () => {
-    const mockMetaOnlyInner = [
-        null,
-        null,
-        [["c_meta_only_456", "仅元数据标题", null, null, null, [1774139824, 809290000], null, null, null, 2]]
-    ];
-    const topPayload = [
-        ["wrb.fr", "hNvQHb", JSON.stringify(mockMetaOnlyInner)]
-    ];
-    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+    const rawText = geminiDetailGen('G_DETAIL_PARSER_META_ONLY_01');
 
     const parsed = decodeGeminiDetail(rawText, 'meta_only_456');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'meta_only_456');
