@@ -9,7 +9,7 @@ import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers
 import { GeminiProvider, defaultGeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import type { GeminiProviderClient } from '../src/l1/client/gemini/geminiContracts.js';
 import type { CommittedListPage } from '../src/l1/client/aiProvider.js';
-import { parseList, type ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { readGeminiDetailRequest } from '../src/l1/parsers/gemini/rpc/detailRequest.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { getConversationDetail } from '../src/l1/client/gemini/api/pagination.js';
@@ -22,6 +22,8 @@ import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
 import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 
 let storage: ReturnType<typeof indexStorage>;
@@ -31,9 +33,6 @@ beforeEach(() => {
     init();
 });
 afterEach(() => storage.restore());
-const row = (id = 'source_chat_123', seconds = 1700000050) => [`c_${id}`, 'Source title', null, null, null, [seconds, 0]];
-const listWire = (rows: unknown[] = [], next: string | null = null) => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, next, rows])]]);
-const list = (rows: unknown[] = [], next: string | null = null) => parseList(listWire(rows, next));
 function client(pages: (ListParseResult | Error)[], requests: unknown[] = []): GeminiProviderClient {
     return { async getConversationList(cursor, slot, filter, options) {
         requests.push({ cursor, slot, filter, signal: options?.signal });
@@ -47,7 +46,7 @@ const provider = (pages: (ListParseResult | Error)[], requests: unknown[] = []) 
 const options = () => ({ accountId: ACCOUNT_UUID, streamId: 'recent' });
 const detailWire = (prompt = 'Question', next: string | null = null, version = true) => JSON.stringify([
     ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_source_chat_123', `r_${prompt}`], [1700000000, 0], [[prompt]], [[['rc_' + prompt, [['Answer']]]]]]], next])],
-    ...(version ? [['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [row()]])]] : []),
+    ...(version ? [geminiListGen('G_L1_CONTRACT_01')] : []),
 ]);
 const sourceEvent = (text: string, extra: Record<string, unknown> = {}) => ({ source: window, origin: typeof location !== 'undefined' ? location.origin : 'https://gemini.google.com', data: {
     type: CrossWorldEvents.NETWORK_BATCHEXECUTE, payload: { text, slot: 'u0', requestedAt: Date.now(), truncated: false,
@@ -56,7 +55,7 @@ const sourceEvent = (text: string, extra: Record<string, unknown> = {}) => ({ so
 
 test('L1 list commits each page before callback and emits only first trusted head', async () => {
     const requests: unknown[] = [], progress: CommittedListPage[] = [];
-    const end = await provider([list([row()], 'tC_NEXT_PAGE_123456789'), list()], requests).listConversations({ ...options(),
+    const end = await provider([geminiListGen('G_L1_CONTRACT_02'), geminiListGen('G_L1_CONTRACT_03')], requests).listConversations({ ...options(),
         async onPageCommitted(info) {
             assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
             progress.push(info); return false;
@@ -69,12 +68,12 @@ test('L1 list commits each page before callback and emits only first trusted hea
     assert.deepEqual(requests.map(request => (request as { cursor: unknown }).cursor), [null, 'tC_NEXT_PAGE_123456789']);
 });
 test('L1 callback stop never overrides a real source terminal', async () => {
-    assert.equal(await provider([list([row()])]).listConversations({ ...options(), onPageCommitted: async () => true }), 'source_end');
-    assert.equal(await provider([list([row()], 'tC_NEXT_PAGE_123456789')]).listConversations({ ...options(), onPageCommitted: async () => true }), 'stopped');
+    assert.equal(await provider([geminiListGen('G_L1_CONTRACT_04')]).listConversations({ ...options(), onPageCommitted: async () => true }), 'source_end');
+    assert.equal(await provider([geminiListGen('G_L1_CONTRACT_05')]).listConversations({ ...options(), onPageCommitted: async () => true }), 'stopped');
 });
 test('L1 counts committed source rows but refuses to trust duplicate IDs across pages', async () => {
     const counts: number[] = [];
-    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row()])]).listConversations({
+    await assert.rejects(provider([geminiListGen('G_L1_CONTRACT_06'), geminiListGen('G_L1_CONTRACT_07')]).listConversations({
         ...options(), onPageCommitted: async info => { counts.push(info.totalObserved); return false; },
     }), /Unverified Gemini list page/);
     assert.deepEqual(counts, [1, 2], 'progress describes committed rows, not unique local Index records');
@@ -84,16 +83,16 @@ test('L1 counts committed source rows but refuses to trust duplicate IDs across 
 test('L1 propagates commit failure without callback or another request', async () => {
     storage.fail(`conversations_${ACCOUNT_UUID}`);
     let called = false;
-    await assert.rejects(provider([list([row()])]).listConversations({ ...options(), onPageCommitted: async () => { called = true; return false; } }), /write failed/);
+    await assert.rejects(provider([geminiListGen('G_L1_CONTRACT_08')]).listConversations({ ...options(), onPageCommitted: async () => { called = true; return false; } }), /write failed/);
     assert.equal(called, false);
 });
 test('L1 propagates network errors even after a committed page', async () => {
-    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), new Error('offline')]).listConversations(options()), /offline/);
+    await assert.rejects(provider([geminiListGen('G_L1_CONTRACT_09'), new Error('offline')]).listConversations(options()), /offline/);
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
 });
 test('L1 rejects malformed pages and cursor loops', async () => {
-    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), list([row('different_chat_456', 1700000040)], 'tC_NEXT_PAGE_123456789')]).listConversations(options()), /cursor loop/);
-    await assert.rejects(provider([parseList('garbage')]).listConversations(options()), /list failed/);
+    await assert.rejects(provider([geminiListGen('G_L1_CONTRACT_10'), geminiListGen('G_L1_CONTRACT_11')]).listConversations(options()), /cursor loop/);
+    await assert.rejects(provider([geminiListGen('G_L1_CONTRACT_12')]).listConversations(options()), /list failed/);
 });
 test('L1 abort never reports exhaustion or starts another page', async () => {
     const controller = new AbortController(); controller.abort();
@@ -101,7 +100,7 @@ test('L1 abort never reports exhaustion or starts another page', async () => {
 });
 test('L1 routes exactly the requested stream', async () => {
     const requests: unknown[] = [];
-    assert.equal(await provider([list()], requests).listConversations({ ...options(), streamId: 'pinned' }), 'source_end');
+    assert.equal(await provider([geminiListGen('G_L1_CONTRACT_13')], requests).listConversations({ ...options(), streamId: 'pinned' }), 'source_end');
     assert.deepEqual((requests[0] as { filter: unknown }).filter, [1, null, 1]); assert.equal(requests.length, 1);
 });
 test('L1 rejects account mismatch and route changes before acquisition', async () => {
@@ -113,7 +112,7 @@ test('L1 rejects account mismatch and route changes before acquisition', async (
 test('L1 unknown identity can retain rows but emits no trusted scanHead', async () => {
     const defaultId = '10000000-0000-4000-8000-000000000003';
     let head: unknown;
-    await assert.rejects(provider([list([row()])]).listConversations({ ...options(), accountId: defaultId,
+    await assert.rejects(provider([geminiListGen('G_L1_CONTRACT_14')]).listConversations({ ...options(), accountId: defaultId,
         onPageCommitted: async info => { head = info.scanHead; return false; },
     }), /Unverified Gemini list endpoint/);
     assert.equal(head, undefined);
@@ -121,8 +120,7 @@ test('L1 unknown identity can retain rows but emits no trusted scanHead', async 
     assert.equal(await getCoverage(defaultId, 'recent'), null);
 });
 test('L1 unknown Bard errors cannot become a history-window terminal', () => {
-    for (const error of ['BardErrorInfo: cursor expired', '["BardErrorInfo",9999]']) {
-        const parsed = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['generic', error]]]));
+    for (const parsed of geminiListGen('G_L1_CONTRACT_15')) {
         assert.equal(parsed.failure, 'invalid_response');
     }
 });
@@ -133,19 +131,19 @@ test('L1 detail request decoding accepts only the actual RPC layout', () => {
     assert.equal(readGeminiDetailRequest('garbage'), null);
 });
 test('L1 passive list commits directly, including the empty terminal', async () => {
-    await handleWindowMessage(sourceEvent(listWire([row()], 'tC_NEXT_PAGE_123456789'), { listRequest: { streamId: 'recent', requestCursor: null } }));
-    await handleWindowMessage(sourceEvent(listWire(), { listRequest: { streamId: 'recent', requestCursor: 'tC_NEXT_PAGE_123456789' } }));
+    await handleWindowMessage(sourceEvent(geminiListGen('G_L1_CONTRACT_16'), { listRequest: { streamId: 'recent', requestCursor: null } }));
+    await handleWindowMessage(sourceEvent(geminiListGen('G_L1_CONTRACT_17'), { listRequest: { streamId: 'recent', requestCursor: 'tC_NEXT_PAGE_123456789' } }));
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
     assert.ok((await getCoverage(ACCOUNT_UUID, 'recent'))?.range);
 });
 test('L1 passive list uses captured identity and never borrows current account', async () => {
-    await handleWindowMessage(sourceEvent(listWire([row()]), { requestAccountObservation: { providerId: 'gemini', providerAccountId: '10000000002' } }));
+    await handleWindowMessage(sourceEvent(geminiListGen('G_L1_CONTRACT_18'), { requestAccountObservation: { providerId: 'gemini', providerAccountId: '10000000002' } }));
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 0);
     assert.equal((await getConversations(OTHER_ACCOUNT_UUID)).length, 1);
 });
 test('L1 passive input validates URL, required fields and capture limits', async () => {
     for (const extra of [{ url: 'https://evil.test/batchexecute' }, { requestedAt: undefined }, { truncated: undefined }, { text: 'a'.repeat(3000001) }]) {
-        await handleWindowMessage(sourceEvent(listWire([row()]), extra));
+        await handleWindowMessage(sourceEvent(geminiListGen('G_L1_CONTRACT_19'), extra));
     }
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 0);
 });
@@ -240,15 +238,15 @@ test('L1 ChatGPT body quality is independent of missing image bytes', () => {
     assert.equal(parsed.conversation.detail.assets.length, 1);
 });
 test('L1 ChatGPT rejects conflicting session identity before list submission', async () => {
-    const p = new ChatGPTProvider({ fetchFn: async () => ({ ok: true, json: async () => ({ accessToken: 'token', user: { id: 'other-user' }, account: { id: 'workspace' } }) } as Response) });
+    const p = new ChatGPTProvider({ fetchFn: async () => ({ ok: true, json: async () => chatgptListGen('C_L1_CONTRACT_20') } as Response) });
     await assert.rejects(p.listConversations({ accountId: fixtureAccount('chatgpt').id, streamId: 'recent' }), /account mismatch/);
 });
 
 test('L1 known window heuristic commits empty terminal after real continuation, never on first page', async () => {
-    const limited = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]]));
+    const limited = geminiListGen('G_L1_CONTRACT_21');
     assert.equal(limited.failure, 'hit_google_limit');
     const progress: CommittedListPage[] = [];
-    assert.equal(await provider([list([row()], 'tC_NEXT_PAGE_123456789'), limited]).listConversations({ ...options(),
+    assert.equal(await provider([geminiListGen('G_L1_CONTRACT_22'), limited]).listConversations({ ...options(),
         onPageCommitted: async info => { progress.push(info); return false; } }), 'provider_limit');
     assert.equal(progress.length, 2);
     assert.ok((await getCoverage(ACCOUNT_UUID, 'recent'))?.range);
@@ -256,7 +254,7 @@ test('L1 known window heuristic commits empty terminal after real continuation, 
 });
 
 test('L1 HTTP 429 stays a network failure after committed rows', async () => {
-    await assert.rejects(provider([list([row()], 'tC_NEXT_PAGE_123456789'), new Error('HTTP 429 :: BardErrorInfo 1096')]).listConversations(options()), /HTTP 429/);
+    await assert.rejects(provider([geminiListGen('G_L1_CONTRACT_23'), new Error('HTTP 429 :: BardErrorInfo 1096')]).listConversations(options()), /HTTP 429/);
     assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range, null);
 });
 test('L1 source resource operation returns bytes and respects pre-abort', async () => {

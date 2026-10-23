@@ -7,7 +7,8 @@ import { listIndexes, getIndex } from '../src/l3a/storageService.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
-const text = JSON.stringify([['wrb.fr','MaZiqc',JSON.stringify([null,null,[['c_abcdef123456','Server title',null,null,null,[1700000000,0]]]])]]);
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+const text = geminiListGen('G_RPC_LIST_INGEST_01');
 const items = () => parseList(text).conversations.map(item => parseGeminiIndexObservation(item,'rpc-list'));
 const capture = (): MessageEvent => ({origin:location.origin,source:window,data:{type:'GEMINI_NETWORK_BATCHEXECUTE',payload:{
     text,slot:'u2',requestAccountObservation:ACCOUNT_OBSERVATION,truncated:false,requestedAt:1,

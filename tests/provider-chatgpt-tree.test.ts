@@ -38,6 +38,7 @@ import {
     requestChatGPTAccess,
 } from '../src/l1/client/chatgpt/chatgptAccess.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type {
     ChatGPTApiConversationWithId,
@@ -519,15 +520,7 @@ test('uploaded non-image files recorded, images left to the image path', () => {
 });
 
 test('incremental refresh stops at first unchanged item and merges head', () => {
-    const cached = [
-        { id: 'a', title: 'A', create_time: 1, update_time: 3 },
-        { id: 'b', title: 'B', create_time: 1, update_time: 2 },
-    ];
-    const pages = [[
-        { id: 'c', title: 'C', create_time: 2, update_time: 4 },
-        { id: 'a', title: 'A', create_time: 1, update_time: 3 },
-        { id: 'z', title: 'Z', create_time: 1, update_time: 9 },
-    ]];
+    const { cached, pages } = chatgptListGen('C_PROVIDER_CHATGPT_TREE_01');
     const { head, reachedKnown } = refreshChatGPTList(cached, pages);
     assert.equal(reachedKnown, true);
     assert.deepEqual(head.map((c) => c.id), ['c']);
@@ -540,17 +533,10 @@ test('listConversations paginates until the reported total is reached', async ()
         fetchFn: (url) => {
             const u = String(url);
             if (u.endsWith('/api/auth/session')) {
-                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } }), { status: 200 }));
+                return Promise.resolve(new Response(JSON.stringify(chatgptListGen('C_PROVIDER_CHATGPT_TREE_02')), { status: 200 }));
             }
             calls.push(u);
-            const items = [
-                { id: 'a', title: 'A', create_time: 1, update_time: 2 },
-                { id: 'b', title: 'B', create_time: 1, update_time: 1 },
-                { id: 'c', title: 'C', create_time: 1, update_time: 0.5 },
-            ];
-            return Promise.resolve(new Response(JSON.stringify({
-                items, total: 3, limit: 100, offset: 0, has_missing_conversations: false,
-            }), { status: 200 }));
+            return Promise.resolve(new Response(JSON.stringify(chatgptListGen('C_PROVIDER_CHATGPT_TREE_03')), { status: 200 }));
         },
     });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
@@ -567,18 +553,10 @@ test('ChatGPT current list schema without the legacy missing flag traverses all 
     const offsets: number[] = [];
     const committed: Array<{ page: number; total: number; trustedHead: boolean }> = [];
     const provider = new ChatGPTProvider({ fetchFn: async url => {
-        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({
-            accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' },
-        }));
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(chatgptListGen('C_PROVIDER_CHATGPT_TREE_04')));
         const offset = Number(new URL(url).searchParams.get('offset'));
         offsets.push(offset);
-        return new Response(JSON.stringify({
-            items: Array.from({ length: offset === 0 ? 100 : 2 }, (_, i) => ({
-                id: `conversation-${offset + i}`, title: `Conversation ${offset + i}`,
-                create_time: 1, update_time: 1000 - offset - i,
-            })),
-            total: 102, limit: 100, offset,
-        }));
+        return new Response(JSON.stringify(chatgptListGen(offset === 0 ? 'C_PROVIDER_CHATGPT_TREE_05_0' : 'C_PROVIDER_CHATGPT_TREE_05_100')));
     } });
     assert.equal(await provider.listConversations({
         accountId: account.id, streamId: 'recent',
@@ -599,8 +577,8 @@ test('ChatGPT empty current list schema proves source exhaustion', async () => {
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
         url.endsWith('/api/auth/session')
-            ? { accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } }
-            : { items: [], total: 0, limit: 100, offset: 0 },
+            ? chatgptListGen('C_PROVIDER_CHATGPT_TREE_06')
+            : chatgptListGen('C_PROVIDER_CHATGPT_TREE_07'),
     )) });
     assert.equal(await provider.listConversations({ accountId: account.id, streamId: 'recent' }), 'source_end');
     assert.equal((await getConversations(account.id)).length, 0);
@@ -618,21 +596,11 @@ test('ChatGPT Detail never relabels a foreign source conversation ID', async () 
 
 test('ChatGPT list refuses source_end when pagination, ordering or completeness is unverified', async () => {
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
-    const session = { accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } };
-    const cases = [
-        { items: [{ id: 'missing-time', title: 'Missing time' }], total: 1, limit: 100, offset: 0, has_missing_conversations: false },
-        { items: [{ id: 'missing-row', title: 'Incomplete', update_time: 2 }], total: 1, limit: 100, offset: 0, has_missing_conversations: true },
-        { items: [{ id: 'wrong-offset', title: 'Wrong offset', update_time: 2 }], total: 1, limit: 100, offset: 100, has_missing_conversations: false },
-        { items: [{ id: 'missing-total', title: 'Missing total', update_time: 2 }], limit: 100, offset: 0, has_missing_conversations: false },
-        // Omitting the legacy flag cannot compensate for incomplete page evidence.
-        { items: [{ id: 'short-page', title: 'Short page', update_time: 2 }], total: 2, limit: 100, offset: 0 },
-        { items: [{ id: 'no-total', title: 'No total', update_time: 2 }], limit: 100, offset: 0 },
-        { items: [{ id: 'bad-offset', title: 'Bad offset', update_time: 2 }], total: 1, limit: 100, offset: 100 },
-        { items: [{ id: 'no-limit', title: 'No limit', update_time: 2 }], total: 1, offset: 0 },
-    ];
-    for (const page of cases) {
+    // Includes missing-time, legacy missing flag, wrong offset, missing total/limit,
+    // and incomplete pages without the legacy flag.
+    for (const page of chatgptListGen('C_PROVIDER_CHATGPT_TREE_08')) {
         const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
-            String(url).endsWith('/api/auth/session') ? session : page,
+            String(url).endsWith('/api/auth/session') ? chatgptListGen('C_PROVIDER_CHATGPT_TREE_09') : page,
         ), { status: 200 })) });
         await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent' }),
             /Unverified ChatGPT list page/);

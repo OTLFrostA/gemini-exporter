@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
 import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
+import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import type { ChatGPTApiConversationWithId, ChatGPTConversationNode } from '../src/l1/parsers/chatgpt/chatgptTypes.js';
 
 const textNode = (id: string, parent: string, role: 'assistant' | 'user', content: string): ChatGPTConversationNode => ({
@@ -68,10 +69,7 @@ test('ChatGPT missing image bytes does not become missing body evidence', () => 
 });
 
 test('ChatGPT source-native paging fields remain evidence, not Domain Index fields', () => {
-    const parsed = parseChatGPTList({
-        items: [{ id: 'chat-1', title: 'Title', create_time: 1700000000, update_time: 1700000010 }],
-        total: 1, offset: 0, limit: 100, has_missing_conversations: false,
-    });
+    const parsed = parseChatGPTList(chatgptListGen('C_L1_CHATGPT_SOURCE_V2_UNIT_01'));
     assert.equal(parsed.total, 1);
     assert.equal(parsed.offset, 0);
     assert.equal(parsed.limit, 100);
@@ -79,14 +77,14 @@ test('ChatGPT source-native paging fields remain evidence, not Domain Index fiel
     assert.deepEqual(parsed.conversations, [{ id: 'chat-1', title: 'Title', titleSource: 'provider',
         createdAt: 1700000000000, updatedAt: 1700000010000 }]);
     assert.equal('total' in parsed.conversations[0], false);
-    assert.throws(() => parseChatGPTList({ items: [], total: 0, offset: -1, limit: 100 }), TypeError);
+    assert.throws(() => parseChatGPTList(chatgptListGen('C_L1_CHATGPT_SOURCE_V2_UNIT_02')), TypeError);
 });
 
 test('ChatGPT optional legacy missing flag preserves absence and rejects malformed values', () => {
-    const page = { items: [], total: 0, offset: 0, limit: 100 };
+    const page = chatgptListGen('C_L1_CHATGPT_SOURCE_V2_UNIT_03');
     assert.equal(parseChatGPTList(page).hasMissingConversations, undefined);
-    assert.equal(parseChatGPTList({ ...page, has_missing_conversations: true }).hasMissingConversations, true);
-    for (const value of [null, 'false', 0, {}]) {
-        assert.throws(() => parseChatGPTList({ ...page, has_missing_conversations: value }), TypeError);
+    assert.equal(parseChatGPTList(chatgptListGen('C_L1_CHATGPT_SOURCE_V2_UNIT_04')).hasMissingConversations, true);
+    for (const malformed of chatgptListGen('C_L1_CHATGPT_SOURCE_V2_UNIT_05')) {
+        assert.throws(() => parseChatGPTList(malformed), TypeError);
     }
 });
