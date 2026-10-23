@@ -67,8 +67,3 @@ export function abortableSleep(ms: number, signal?: AbortSignal | null): Promise
         signal.addEventListener('abort', onAbort, { once: true });
     });
 }
-
-export default {
-    calculateBackoff,
-    abortableSleep
-};
