@@ -266,9 +266,11 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
                 }
                 return { nodeType, children };
             }
-            case 'citation':
-                return Number.isSafeInteger(node.number) && (node.number as number) > 0 && typeof node.title === 'string' && node.title
-                    ? { nodeType, number: node.number as number, title: node.title } : null;
+            case 'citation': {
+                const number = node.number;
+                return Number.isSafeInteger(number) && typeof number === 'number' && number > 0 && typeof node.title === 'string' && node.title
+                    ? { nodeType, number, title: node.title } : null;
+            }
             case 18: {
                 if (typeof node.text !== "string") return null;
                 let annotations: GeminiAnnotation[] | undefined;
@@ -422,7 +424,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 
     // Field 34: Display Math
     if (w.length > 34 && w[34] !== null && w[34] !== undefined) {
-        const mathPayload = w[34];
+        const mathPayload: unknown = w[34];
         const fta = Array.isArray(mathPayload) && mathPayload.length > 0 && typeof mathPayload[0] === "string"
             ? mathPayload[0]
             : "";
@@ -464,7 +466,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 
     // Field 15: Blockquote
     if (w.length > 15 && w[15] !== null && w[15] !== undefined) {
-        const bqPayload = w[15];
+        const bqPayload: unknown = w[15];
         const rawChildren = Array.isArray(bqPayload) && bqPayload.length > 0 && Array.isArray(bqPayload[0])
             ? bqPayload[0]
             : [];
@@ -479,7 +481,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 
     // Field 12: Ordered list
     if (w.length > 12 && w[12] !== null && w[12] !== undefined) {
-        const olPayload = w[12];
+        const olPayload: unknown = w[12];
         const rawItems = Array.isArray(olPayload) && olPayload.length > 0 && Array.isArray(olPayload[0])
             ? olPayload[0]
             : [];
@@ -502,7 +504,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 
     // Field 11: Unordered list
     if (w.length > 11 && w[11] !== null && w[11] !== undefined) {
-        const ulPayload = w[11];
+        const ulPayload: unknown = w[11];
         const rawItems = Array.isArray(ulPayload) && ulPayload.length > 0 && Array.isArray(ulPayload[0])
             ? ulPayload[0]
             : [];
@@ -522,7 +524,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 
     // Field 10: Table
     if (w.length > 10 && w[10] !== null && w[10] !== undefined) {
-        const tblPayload = w[10];
+        const tblPayload: unknown = w[10];
         const rawRows = Array.isArray(tblPayload) && tblPayload.length > 0 && Array.isArray(tblPayload[0])
             ? tblPayload[0]
             : [];
@@ -566,7 +568,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 
     // Field 3: Code block
     if (w.length > 3 && w[3] !== null && w[3] !== undefined) {
-        const codePayload = w[3];
+        const codePayload: unknown = w[3];
         const code = Array.isArray(codePayload) && typeof codePayload[0] === "string" ? codePayload[0] : "";
         const info = Array.isArray(codePayload) && typeof codePayload[1] === "string" ? codePayload[1] : undefined;
         return { nodeType: 1, code, ...(info ? { info } : {}) };
@@ -574,7 +576,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 
     // Field 1: Text / Heading / Paragraph
     if (w.length > 1 && w[1] !== null && w[1] !== undefined) {
-        const textPayload = w[1];
+        const textPayload: unknown = w[1];
         if (Array.isArray(textPayload)) {
             const text = typeof textPayload[2] === "string" ? textPayload[2] : "";
             const jJ = typeof textPayload[1] === "number" && textPayload[1] > 0 ? textPayload[1] : undefined;
@@ -597,14 +599,18 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
     // Captured live execution panels use extension 39 in the field-0 envelope.
     // Preserve their original code/stdout fence identity instead of treating
     // every extension object as an attachment and silently dropping its body.
-    const extension = w[0];
+    const extension: unknown = w[0];
     if (extension && typeof extension === 'object' && !Array.isArray(extension) && '39' in extension) {
-        const event: unknown = (extension as Record<string, unknown>)['39'];
-        if (!Array.isArray(event) || event.length !== 5 || typeof event[0] !== 'string'
-            || typeof event[1] !== 'string' || !/^[\w+-]+$/.test(event[1])
-            || !Number.isInteger(event[2]) || event[2] < 1 || event[3] !== null || ![0, 1].includes(event[4])) return null;
-        return { nodeType: 1, code: event[0],
-            info: `${event[1]}?${event[4] === 0 ? 'code_reference' : 'code_stdout'}&code_event_index=${event[2]}` };
+        const event: unknown = extension['39'];
+        if (!Array.isArray(event)) return null;
+        const eventSlots: unknown[] = event;
+        const eventIndex = eventSlots[2];
+        if (eventSlots.length !== 5 || typeof eventSlots[0] !== 'string'
+            || typeof eventSlots[1] !== 'string' || !/^[\w+-]+$/.test(eventSlots[1])
+            || !Number.isInteger(eventIndex) || typeof eventIndex !== 'number' || eventIndex < 1
+            || eventSlots[3] !== null || ![0, 1].includes(eventSlots[4] as number)) return null;
+        return { nodeType: 1, code: eventSlots[0],
+            info: `${eventSlots[1]}?${eventSlots[4] === 0 ? 'code_reference' : 'code_stdout'}&code_event_index=${eventIndex}` };
     }
 
     // Field 0 or 2: Attachments / follow-up chips
@@ -688,7 +694,7 @@ export function inspectStructuredContent(turn: unknown, cand?: unknown, candidat
 
     const turnContent = getStructuredContent(turn);
     const modelPayload: unknown = Array.isArray(turn) ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
-    const raw = turnContent ?? (Array.isArray(modelPayload)
+    const raw: unknown = turnContent ?? (Array.isArray(modelPayload)
         ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined);
     if (raw == null) return { status: 'missing' };
     // turn[3][12] is proven to belong only to the primary candidate (PR #705).
