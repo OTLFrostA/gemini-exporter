@@ -156,6 +156,12 @@ const fixtureMap = {
         ['c_resolved_title_01', 'Observed resolved_title_01', null, null, null, [1700000000, 0]],
         ['c_undated_rpc_01', 'Observed undated_rpc_01', null, null, null, null],
     ]),
+    'G_GEMINI_CLIENT_RETRY_01': () => ")]}'\n\n" + wire([
+        ['c_chat_rec_400', '400 Recovery Chat', null, null, null, [1700000000, 0]],
+    ]),
+    'G_VERIFIED_SCAN_OVERLAP_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic'],
+    ]),
 };
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */

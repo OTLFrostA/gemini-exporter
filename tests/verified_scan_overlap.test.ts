@@ -8,6 +8,7 @@ import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import { scanAll } from '../src/application/sync/scanController.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { getCoverage } from '../src/l3a/storageService.js';
 import { sourceDetail } from './helpers/l1SourceFixture.js';
 
@@ -46,7 +47,7 @@ test('production scan entry admits one pagination call per account and releases 
 test('failed scan retains the bound parser diagnostics without establishing coverage', async () => {
     const store = indexStorage();
     const original = ProviderRegistry.get('gemini');
-    const wire = JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic']]);
+    const wire = geminiListGen('G_VERIFIED_SCAN_OVERLAP_01');
     const provider = new GeminiProvider({ getConversationList: async () => parseList(wire),
         getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     ProviderRegistry.unregister('gemini');

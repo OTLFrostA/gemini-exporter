@@ -6,6 +6,11 @@ function domainTurn(prompt = 'Question', seconds: number | null = 1700000000,
     return [[DOMAIN_ID, request], seconds === null ? null : [seconds, 0], [[prompt]], [candidates]];
 }
 
+/** Raw observability probes previously in parse_observability.test.ts. */
+function observabilityTurn(id = 'c_abc123def456', userPayload: unknown = [['hello']]): unknown[] {
+    return [[id], [1700000000, 0], userPayload, [[['rc_cand000001', ['world'], 'en']]]];
+}
+
 const fixtureMap = {
     'G_RPC_DOMAIN_01': () => {
         const code = "import math\n\n\nclass Encoder:\n    def encode(self):\n        return 1\n\n\n\nprint(Encoder().encode())";
@@ -117,6 +122,13 @@ const fixtureMap = {
     'G_NATIVE_CALLERS_02': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([null, null, [['c_native']]])]]),
     'G_NATIVE_CALLERS_03': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([null, null, [['c_native']]])]]),
 
+    'G_PROVIDER_CONTRACT_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_source123', 'r_1'], null, [['Question']], [[['rc_1', [['Answer']]]]]]]])]]),
+    'G_OBSERVABILITY_01': () => rpc([[observabilityTurn(),
+        observabilityTurn('c_odd000000000001', '非数组形态的 user payload'),
+        [['x_123'], [1, 0], [['u']]]]]),
+    'G_OBSERVABILITY_02': () => rpc([[observabilityTurn(), observabilityTurn('c_abc123def457')]]),
+    'G_OBSERVABILITY_03': () => rpc([[observabilityTurn(), [['x_123'], [1, 0], [['u']]]]]),
+    'G_OBSERVABILITY_04': () => rpc([[observabilityTurn(), [['x_123'], [1, 0], [['u']]]]]),
 };
 
 export function detailGen(key: keyof typeof fixtureMap): string {

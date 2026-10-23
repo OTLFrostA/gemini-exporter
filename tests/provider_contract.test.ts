@@ -6,6 +6,7 @@ import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { ProviderRegistryClass } from '../src/l1/client/providerRegistry.js';
 import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { parseGeminiTakeoutArchive } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
 
 type Assert<T extends true> = T;
@@ -36,7 +37,7 @@ test('Index normalization needs no Registry UUID and uses semantic title sources
     assert.deepEqual(parseGeminiIndexObservation({ id: 'source123' }, 'dom'), { conversationId: 'source123', fields: {} });
 });
 test('RPC source parsing creates no local Key or Account', () => {
-    const wire = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_source123', 'r_1'], null, [['Question']], [[['rc_1', [['Answer']]]]]]]])]]);
+    const wire = geminiDetailGen('G_PROVIDER_CONTRACT_01');
     const parsed = parseGeminiRpcConversation(wire, { providerId: 'gemini' });
     assert.equal(parsed.conversationId, 'source123');
     assert.equal('account' in parsed, false);
