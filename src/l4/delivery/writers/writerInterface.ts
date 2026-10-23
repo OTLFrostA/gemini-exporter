@@ -1,5 +1,3 @@
-import type { DirectoryHandle } from '../../../runtime/capabilities/directoryHandle.js';
-
 export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
 
 /** Fields consumed by writers; additional JSZip file options pass through unchanged. */
@@ -17,8 +15,7 @@ export interface IExportWriter {
     generateAsync?(options: { type: 'blob' }, onUpdate?: (metadata: { percent: number }) => void): Promise<Blob>;
     close?(): Promise<void>;
     getTotalBytes?(): number;
-    init?(): Promise<DirectoryHandle>;
-    [key: string]: any;
+    init?(): Promise<FileSystemDirectoryHandle>;
 }
 
 export interface WriterFactoryOptions {
@@ -26,7 +23,7 @@ export interface WriterFactoryOptions {
 }
 
 export interface WriterInterfaceModule {
-    isWriter: (obj: any) => boolean;
+    isWriter: (obj: unknown) => obj is IExportWriter;
     createWriter: (type: 'zip' | 'fs' | string, options?: WriterFactoryOptions) => IExportWriter;
 }
 
@@ -35,8 +32,9 @@ import { FsWriter } from './fsWriter.js';
 
 
 
-export function isWriter(obj: any): boolean {
-    return Boolean(obj && typeof obj.writeFile === 'function');
+export function isWriter(obj: unknown): obj is IExportWriter {
+    return obj !== null && (typeof obj === 'object' || typeof obj === 'function')
+        && 'writeFile' in obj && typeof obj.writeFile === 'function';
 }
 
 export function createWriter(type: 'zip' | 'fs' | string, options: WriterFactoryOptions = {}): IExportWriter {
