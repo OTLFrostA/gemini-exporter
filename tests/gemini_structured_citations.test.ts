@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { decodeGeminiAnnotation, decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { extractSourceAttributions } from '../src/l1/parsers/gemini/rpc/sourceAttributions.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
 
@@ -20,6 +21,8 @@ function wire(raw: unknown, table?: unknown, alternatives: unknown[] = []): stri
     return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_citationfixture', 'r_fixture'], [1700000000, 0], [['Question']], payload]]])]]);
 }
 const parse = (raw: unknown, table?: unknown, alternatives?: unknown[]) => parseGeminiRpcConversation(wire(raw, table, alternatives), { account: fixtureAccount('gemini'), providerId: 'gemini' });
+const parseKey = (key: Parameters<typeof geminiDetailGen>[0]) =>
+    parseGeminiRpcConversation(geminiDetailGen(key), { account: fixtureAccount('gemini'), providerId: 'gemini' });
 function successful(result: ReturnType<typeof parse>) {
     assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'), JSON.stringify(result.diagnostics));
     assert.ok(!JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
@@ -41,7 +44,7 @@ const fileCitation = first.children.find(node => node.nodeType === 'citation');
 assert.ok(fileCitation);
 
 test('captured file references use structured content, preserving inline code, list order, and hidden file-source metadata', () => {
-    const result = parse(capturedFiles);
+    const result = parseKey('G_STRUCTURED_CITATIONS_01');
     const message = successful(result);
     assert.deepEqual(message.citations, [{ id: 'grounding-1', title: 'test_config.json' }]);
     assert.deepEqual(message.content[0], { type: 'paragraph', children: [
@@ -83,7 +86,7 @@ test('composite paragraphs preserve math, Unicode, punctuation and multiple cita
 });
 
 test('captured optics table preserves cited cells on the native wire path', () => {
-    const message = successful(parse(fixture('live-optics-table-citations')));
+    const message = successful(parseKey('G_STRUCTURED_CITATIONS_02'));
     assert.equal(message.content.length, 1);
     assert.equal(message.content[0].type, 'table');
     assert.ok(!JSON.stringify(message.content).includes('citationRef'));
@@ -91,20 +94,19 @@ test('captured optics table preserves cited cells on the native wire path', () =
 });
 
 test('captured native blockquote retains paragraph formatting without Markdown fallback', () => {
-    const result = parse(fixture('live-blockquote'));
+    const result = parseKey('G_STRUCTURED_CITATIONS_03');
     const message = successful(result);
     assert.deepEqual(message.content, [{ type: 'quote', blocks: [{ type: 'paragraph', children: [
         { type: 'strong', children: [{ type: 'text', text: '切忌拿单调流量做线性外推，严防影子标识丢失穿透真实下游。' }] },
     ] }] }]);
-    const quote = field(16, [[text('different quoted text')]]);
-    const nested = successful(parse({ children: [{ nodeType: 20, items: [{ children: [quote] }] }] }));
+    const nested = successful(parseKey('G_STRUCTURED_CITATIONS_04'));
     assert.equal(nested.content[0].type, 'list');
     assert.ok(JSON.stringify(nested.content).includes('different quoted text'));
-    for (const raw of [field(16, []), field(16, [[]]), field(16, ['bad']), field(16, [[field(38, ['unknown'])]])]) {
-        rejected(parse([[[raw]]]), 'decode_rejected');
+    for (const key of ['G_STRUCTURED_CITATIONS_05', 'G_STRUCTURED_CITATIONS_06',
+        'G_STRUCTURED_CITATIONS_07', 'G_STRUCTURED_CITATIONS_08'] as const) {
+        rejected(parseKey(key), 'decode_rejected');
     }
-    quote[17] = 'conflicting content';
-    rejected(parse([[[quote]]]), 'decode_rejected');
+    rejected(parseKey('G_STRUCTURED_CITATIONS_09'), 'decode_rejected');
 });
 
 test('unbound file citations fail closed for callers without a native citation registry', () => {
@@ -115,7 +117,7 @@ test('combined native file markers bind each number to its ordered source record
     const raw = fixture('live-combined-file-citations');
     const decoded = decodeGeminiStructuredPayload(raw);
     assert.ok(decoded);
-    const message = successful(parse(raw));
+    const message = successful(parseKey('G_STRUCTURED_CITATIONS_10'));
     assert.deepEqual(message.citations, [
         { id: 'grounding-1', title: 'first-diagram.jpg' },
         { id: 'grounding-2', title: 'second-diagram.jpg' },
@@ -143,8 +145,7 @@ test('standalone hidden file chip after display math adds no visible marker', ()
 });
 
 test('captured source attributions retain all six URLs and nested bold formatting in source content', () => {
-    const table = fixture('live-source-table');
-    const result = parse(fixture('live-source-attributions'), table);
+    const result = parseKey('G_STRUCTURED_CITATIONS_11');
     const message = successful(result);
     assert.equal(message.citations?.length, 6);
     assert.ok(!JSON.stringify(result.conversation).includes('spp_'), 'provider source IDs end at the parser boundary');
@@ -154,9 +155,7 @@ test('captured source attributions retain all six URLs and nested bold formattin
 });
 
 test('one attributed span may resolve multiple sources, including duplicate URL aliases', () => {
-    const table = sourceTable([['https://example.com/a', 'A'], ['https://example.com/b', 'B'], ['https://example.com/a', 'A']]);
-    const raw = [[[text('😀 bold italic [1]', [sourceAnnotation(0, 14), [3, 14, [[null, null, null, null, 2]]], [8, 14, [[null, null, null, null, 1]]]])]]];
-    const message = successful(parse(raw, table));
+    const message = successful(parseKey('G_STRUCTURED_CITATIONS_12'));
     assert.equal(message.citations?.length, 2);
     assert.deepEqual(message.content[0], { type: 'paragraph', children: [
         { type: 'text', text: '😀 ' }, { type: 'strong', children: [{ type: 'text', text: 'bold ' }, { type: 'emphasis', children: [{ type: 'text', text: 'italic' }] }] },
@@ -165,9 +164,8 @@ test('one attributed span may resolve multiple sources, including duplicate URL 
 });
 
 test('source resolution never borrows another candidate source table', () => {
-    const raw = [[[text('body', [sourceAnnotation(0, 4)])]]];
-    rejected(parse(raw, undefined, [['rc_alternative', [['other body']], sourceTable()]]), 'adapter_rejected');
-    const own = parse(raw, sourceTable(), [['rc_alternative', [['other body']]]]);
+    rejected(parseKey('G_STRUCTURED_CITATIONS_13'), 'adapter_rejected');
+    const own = parseKey('G_STRUCTURED_CITATIONS_14');
     const primary = own.conversation.detail.messages[1];
     assert.ok(JSON.stringify(primary.content).includes('citationRef'));
     assert.equal(own.conversation.detail.messages.length, 2, 'only the selected draft is exported');
