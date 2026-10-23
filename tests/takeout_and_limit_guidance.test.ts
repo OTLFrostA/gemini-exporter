@@ -35,7 +35,7 @@ test('releasing task resources drops readers while leaving admitted Domain intac
 });
 test('550 source rows ending naturally never imply a provider limit',async()=>{
     const env=indexStorage();let page=0;
-    try{const provider=new GeminiProvider({getConversationList:async()=>{page++;return sourceList(Array.from({length:50},(_,i)=>`conv_${page}_${i}`),page<11?'tC_'+page:null);},getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
+    try{const provider=new GeminiProvider({getConversationList:async()=>{page++;return sourceList(`G_SOURCE_550_PAGE_${page}`);},getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
         assert.equal(await provider.listConversations({accountId:ACCOUNT_UUID,streamId:'recent'}),'source_end');assert.equal((await listIndexes(ACCOUNT_UUID)).length,550);
     }finally{env.restore();}
 });
@@ -43,7 +43,7 @@ test('only request-bound structured 1096 is a provider limit; ambiguous thrown t
     const env=indexStorage();let page=0;
     const terminal=parseList(geminiListGen('G_TAKEOUT_LIMIT_01'));
     try{assert.equal(terminal.failure,'hit_google_limit');
-        const provider=new GeminiProvider({getConversationList:async()=>++page<3?sourceList(['conv_'+page],'tC_'+page):terminal,getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
+        const provider=new GeminiProvider({getConversationList:async()=>++page<3?sourceList(`G_SOURCE_LIMIT_BOUND_PAGE_${page}`):terminal,getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
         assert.equal(await provider.listConversations({accountId:ACCOUNT_UUID,streamId:'recent'}),'provider_limit');assert.equal((await listIndexes(ACCOUNT_UUID)).length,2);
         const ambiguous=new GeminiProvider({getConversationList:async()=>{throw Error('1096 BardErrorInfo');},getConversationDetail:async()=>sourceDetail()},async()=> 'u0');
         await assert.rejects(ambiguous.listConversations({accountId:ACCOUNT_UUID,streamId:'recent'}),/1096/);
