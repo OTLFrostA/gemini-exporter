@@ -1,4 +1,5 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 useIndexStorage();
 export {};
 
@@ -36,13 +37,11 @@ test('perf - geminiClient 429 backoff retries and recovers on transient rate lim
                 };
             }
             // 3rd call succeeds with minimal valid batchexecute list
-            const mockListInner = JSON.stringify([null, [["c_conv123", "Conversation 1", [1700000000, 0], [1700000000, 0], 1]], null]);
-            const mockTop = JSON.stringify([["wrb.fr", "MaZiqc", mockListInner]]);
             return {
                 ok: true,
                 status: 200,
                 headers: new Map(),
-                text: async () => `)]}'\n\n${mockTop}`
+                text: async () => geminiListGen('G_PERF_RETRY_429_01')
             };
         };
 
