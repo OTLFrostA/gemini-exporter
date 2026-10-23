@@ -13,8 +13,6 @@ export interface GeminiCredentials {
     [key: string]: unknown;
 }
 
-export type GeminiCredentialsMap = Record<string, GeminiCredentials>;
-
 // Persisted entries may be partial or malformed. Keep them intact on writeback.
 type RawCredentialMap = Record<string, unknown>;
 interface StoredCredential {
