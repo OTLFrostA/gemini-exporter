@@ -5,6 +5,7 @@ import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/acc
 import { ingestIndexes } from '../src/l2/ingestion.js';
 import { listIndexes } from '../src/l3a/storageService.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 
 // V2 retires title-driven active detail fetching. The passive source observation
 // upgrades titles through L2 without starting network acquisition or inventing time.
@@ -19,9 +20,7 @@ test('passive RPC titles upgrade unresolved, derived and undated titles without 
             { conversationId: ids[2], fields: { title: 'Resolved title', titleSource: 'provider', updatedAt: 1700000000000 } },
             { conversationId: ids[3], fields: { title: 'Undated title', titleSource: 'provider' } },
         ]);
-        const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
-            ids.map(id => ['c_' + id, 'Observed ' + id, null, null, null,
-                id === ids[3] ? null : [1700000000, 0]])])]]);
+        const text = geminiListGen('G_ACTIVE_TITLE_01');
         const capture = () => ({ origin: location.origin, source: window, data: {
             type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2',
                 requestAccountObservation: ACCOUNT_OBSERVATION, truncated: false, requestedAt: 1,
