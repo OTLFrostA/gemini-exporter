@@ -90,3 +90,5 @@ console.log('SOURCE_LINT_AUDIT_END');
 
 // This audit-only draft PR intentionally stops CI after collecting the diagnostic summary.
 process.exitCode = 1;
+
+// extractor baseline audit, temporary
