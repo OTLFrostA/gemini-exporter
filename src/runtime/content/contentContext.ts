@@ -11,10 +11,10 @@ export interface GeminiCredentials {
 export interface ActiveClientContract {
     abort?: () => void;
     getConversationDetail?: (...args: Parameters<GeminiProviderClient['getConversationDetail']>) => Promise<unknown>;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
-export type TimerHandle = any;
+export type TimerHandle = number | ReturnType<typeof setTimeout> | MutationObserver | AbortController;
 
 export type ContentEvent = 'credentials' | 'abort' | 'reset' | 'scanStart' | 'scanEnd' | 'langChange' | 'devModeChange';
 
@@ -34,13 +34,13 @@ export class ContentContext {
     private _aborted = false;
     private _cancelledAt = 0;
     private _activeClient: ActiveClientContract | null = null;
-    private _deepScanPromise: Promise<any> | null = null;
+    private _deepScanPromise: Promise<unknown> | null = null;
     private _credentials: GeminiCredentials | null = null;
     private _timers = new Map<string, TimerHandle>();
     private _devMode = false;
     private _currentLang = 'zh';
     private _injected = false;
-    private _listeners = new Map<string, Set<(...args: any[]) => void>>();
+    private _listeners = new Map<ContentEvent, Set<(...args: unknown[]) => void>>();
 
     constructor() {
         this._syncWindowMirrors();
@@ -98,11 +98,11 @@ export class ContentContext {
         }
     }
 
-    public getDeepScanPromise(): Promise<any> | null {
+    public getDeepScanPromise(): Promise<unknown> | null {
         return this._deepScanPromise;
     }
 
-    public setDeepScanPromise(p: Promise<any> | null): void {
+    public setDeepScanPromise(p: Promise<unknown> | null): void {
         this._deepScanPromise = p;
         if (this._devMode && typeof window !== 'undefined') {
             window.__gemExporterDeepScanPromise = p;
@@ -145,13 +145,14 @@ export class ContentContext {
         const existing = this._timers.get(key);
         if (existing != null) {
             if (typeof existing === 'number' || typeof existing === 'object') {
-                if (typeof existing.disconnect === 'function') {
+                if (typeof existing === 'object' && 'disconnect' in existing && typeof existing.disconnect === 'function') {
                     try { existing.disconnect(); } catch { /* best-effort */ }
-                } else if (typeof existing.abort === 'function') {
+                } else if (typeof existing === 'object' && 'abort' in existing && typeof existing.abort === 'function') {
                     try { existing.abort(); } catch { /* best-effort */ }
                 } else {
-                    clearInterval(existing);
-                    clearTimeout(existing);
+                    const timer = existing as ReturnType<typeof setTimeout>;
+                    clearInterval(timer);
+                    clearTimeout(timer);
                 }
             }
             this._timers.delete(key);
@@ -207,21 +208,20 @@ export class ContentContext {
         }
     }
 
-    public on<K extends ContentEvent>(event: K, listener: (...args: ContentEventArgs[K]) => void): () => void;
-    public on(event: string, listener: (...args: any[]) => void): () => void {
+    public on<K extends ContentEvent>(event: K, listener: (...args: ContentEventArgs[K]) => void): () => void {
         let set = this._listeners.get(event);
         if (!set) {
             set = new Set();
             this._listeners.set(event, set);
         }
-        set.add(listener);
+        const callback = listener as (...args: unknown[]) => void;
+        set.add(callback);
         return () => {
-            set?.delete(listener);
+            set?.delete(callback);
         };
     }
 
-    public emit<K extends ContentEvent>(event: K, ...args: ContentEventArgs[K]): void;
-    public emit(event: string, ...args: any[]): void {
+    public emit<K extends ContentEvent>(event: K, ...args: ContentEventArgs[K]): void {
         const set = this._listeners.get(event);
         if (set) {
             for (const listener of Array.from(set)) {
