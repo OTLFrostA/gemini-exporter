@@ -1,5 +1,8 @@
 /** Native request bodies for the Gemini MaZiqc List RPC. */
 const fixtureMap = {
+    'G_E2E_UUID_LIST_REQUEST_01': () => new URLSearchParams({
+        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]),
+    }).toString(),
     'G_PAGE_OBSERVATION_02_RECENT': () => ((streamId: 'recent' | 'pinned', cursor: string | null = null) => {
         const filter = [streamId === 'recent' ? 0 : 1, null, 1];
         return new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc',
