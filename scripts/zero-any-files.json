@@ -141,5 +141,6 @@
   "src/runtime/content/chatgptContent.ts",
   "src/runtime/capabilities/chatgptInjection.ts",
   "tests/chatgpt-capture.test.ts",
-  "src/l1/client/gemini/api/rpcClient.ts"
+  "src/l1/client/gemini/api/rpcClient.ts",
+  "src/l1/client/gemini/api/retryPolicy.ts"
 ]
