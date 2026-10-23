@@ -238,8 +238,8 @@ function citationInlineCombinedWire(): string {
 
 
 function domainCapturedStructuredWire(): string {
-    const candidate = citationFile('wire-case-b-cand.json');
-    const structured = citationFile('wire-turn-3-12-b-stack.json');
+    const candidate = citationFile('wire-case-b-cand');
+    const structured = citationFile('wire-turn-3-12-b-stack');
     const rawTurn = domainTurn('Explain Bell inequalities', null, [candidate]);
     const model = rawTurn[3] as unknown[];
     model[12] = structured;
