@@ -1,5 +1,12 @@
+import nativeDelete from '../gemini_native_delete.json';
 /** Raw Gemini GzXR5e conversation deletion RPC request bodies. */
 const fixtureMap = {
+    'G_NATIVE_CAPTURE_DELETE_REQUEST_01': () => nativeDelete.requestBody,
+    'G_NATIVE_CAPTURE_DELETE_DUPLICATE_REQUEST_01': () => {
+        const requests = JSON.parse(new URLSearchParams(nativeDelete.requestBody).get('f.req')!);
+        requests[0].push(requests[0][0]);
+        return new URLSearchParams({ 'f.req': JSON.stringify(requests) }).toString();
+    },
     'G_E2E_REALTIME_DELETE_REQUEST_01': () => new URLSearchParams({
         'f.req': JSON.stringify([[['GzXR5e', JSON.stringify(['c_8888abcd1234ef01']), null, 'generic']]]),
     }).toString(),
