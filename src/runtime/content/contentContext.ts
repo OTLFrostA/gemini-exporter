@@ -40,7 +40,7 @@ export class ContentContext {
     private _devMode = false;
     private _currentLang = 'zh';
     private _injected = false;
-    private _listeners = new Map<ContentEvent, Set<(...args: never[]) => void>>();
+    private _listeners = new Map<ContentEvent, Set<(...args: unknown[]) => void>>();
 
     constructor() {
         this._syncWindowMirrors();
@@ -214,9 +214,10 @@ export class ContentContext {
             set = new Set();
             this._listeners.set(event, set);
         }
-        set.add(listener);
+        const callback = listener as (...args: unknown[]) => void;
+        set.add(callback);
         return () => {
-            set?.delete(listener);
+            set?.delete(callback);
         };
     }
 
@@ -225,7 +226,7 @@ export class ContentContext {
         if (set) {
             for (const listener of Array.from(set)) {
                 try {
-                    (listener as (...args: unknown[]) => void)(...args);
+                    listener(...args);
                 } catch (err) {
                     if (this._devMode) {
                         console.debug(`[ContentContext] error in listener for ${event}:`, err);
