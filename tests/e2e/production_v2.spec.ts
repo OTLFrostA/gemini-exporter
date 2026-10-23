@@ -4,6 +4,7 @@ import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
 
 const accountId = '10000000-0000-4000-8000-000000000001';
 let bundle: string;
@@ -176,10 +177,7 @@ test('passive Detail commit triggers Background Live Save and writes the real fi
         await api.patchStoredSettings({ enabledDisk: true, defaultFormat: 'markdown' });
     });
     const source = await sourcePage(context);
-    const wire = JSON.stringify([
-        ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_passive', 'r_question'], [1700000000, 0], [['Question from passive capture']], [[['rc_question', [['Answer from passive capture']]]]]]], null])],
-        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_passive', 'Passive detail', null, null, null, [1700000000, 0]]]])],
-    ]);
+    const wire = geminiDetailGen('G_E2E_PRODUCTION_PASSIVE_MIXED_01');
     await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
     const capture = () => source.evaluate(async () => {
         await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams({ 'f.req': JSON.stringify([[['hNvQHb', JSON.stringify(['c_passive', null, null, 1, [1], [4], null, 1]), null, 'generic']]]) }).toString() });
@@ -230,10 +228,7 @@ test('Tier 2 native audit acquires raw Detail even when manual export would use 
     const source = await sourcePage(context);
     await page.evaluate(tier2Scripts.probe);
     let requests = 0;
-    const wire = JSON.stringify([
-        ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_production', 'r_question'], [1700000000, 0], [['Question production']], [[['rc_question', [['Current native answer']]]]]]], null])],
-        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_production', 'Current title', null, null, null, [1700000000, 0]]]])],
-    ]);
+    const wire = geminiDetailGen('G_E2E_PRODUCTION_NATIVE_AUDIT_MIXED_01');
     await page.route('https://gemini.google.com/**/batchexecute*', route => {
         requests++; return route.fulfill({ contentType: 'application/json', body: wire });
     });
@@ -265,10 +260,7 @@ test('completed reply with Live Save off refreshes current source and reorders t
     await page.reload(); await page.evaluate(bundle);
     expect(await page.locator('#list .item').first().getAttribute('data-chat-id')).toBe('newer');
     const source = await sourcePage(context);
-    const wire = JSON.stringify([
-        ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_' + id, 'r_question'], [1700000000, 0], [['Final prompt']], [[['rc_question', [['Final appended answer']]]]]]], null])],
-        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_' + id, 'Current continued title', null, null, null, [1700000000, 0]]]])],
-    ]);
+    const wire = geminiDetailGen('G_E2E_PRODUCTION_CONTINUED_MIXED_01');
     let acquisitions = 0;
     await context.route('https://gemini.google.com/**/batchexecute*', route => {
         acquisitions++; return route.fulfill({ contentType: 'application/json', body: wire });

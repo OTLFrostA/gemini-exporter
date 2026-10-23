@@ -61,14 +61,12 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
         const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
         const cursor = args[1];
         requests[round].push(cursor || 'head');
-        const values = round === 0 ? cursor === null ? [100, 90] : [80, 70] : round === 1 ? [120, 110, 95, 85] : [130, 120, 110, 95];
-        const next = round === 0 ? cursor === null ? 'tC_middle' : 'tC_limit' : 'tC_unread';
-        const packet = cursor === 'tC_limit'
-            ? ['wrb.fr', 'MaZiqc', null, null, null, [5, null,
-                [['type.googleapis.com/assistant.boq.bard.application.BardErrorInfo', [1096]]]], 'generic']
-            : ['wrb.fr', 'MaZiqc', JSON.stringify([null, next,
-                values.map(t => ['c_chat' + t, 'Chat ' + t, null, null, null, [1700000000 + t, 0]])])];
-        await route.fulfill({ contentType: 'application/json', body: JSON.stringify([packet]) });
+        const responseKey: Parameters<typeof geminiListGen>[0] =
+            cursor === 'tC_limit' ? 'G_E2E_INCREMENTAL_WINDOW_LIMIT_01'
+                : round === 0 ? cursor === null
+                    ? 'G_E2E_INCREMENTAL_WINDOW_HEAD_01' : 'G_E2E_INCREMENTAL_WINDOW_MIDDLE_01'
+                    : round === 1 ? 'G_E2E_INCREMENTAL_WINDOW_HEAD_02' : 'G_E2E_INCREMENTAL_WINDOW_HEAD_03';
+        await route.fulfill({ contentType: 'application/json', body: geminiListGen(responseKey) });
     });
     const options = await openOptions(context, extensionId);
     await seedConversations(options, [{ id: 'retained', title: 'Retained', titleSource: 'user' }], {
@@ -129,11 +127,11 @@ test('a new complete disjoint recent scan replaces old v2 coverage and never req
         expect(args[2][0]).toBe(0);
         const cursor = args[1];
         requests[round].push(cursor || 'head');
-        const values = round === 0 ? [100, 70] : cursor === null ? [150, 140] : [130, 120];
-        const next = round === 1 && cursor === null ? 'tC_fresh' : null;
-        await route.fulfill({ contentType: 'application/json',
-            body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, next,
-                values.map(t => ['c_rebuild' + t, 'Rebuild ' + t, null, null, null, [1700000000 + t, 0]])])]]) });
+        const responseKey: Parameters<typeof geminiListGen>[0] =
+            round === 0 ? 'G_E2E_INCREMENTAL_DISJOINT_HEAD_01'
+                : cursor === null ? 'G_E2E_INCREMENTAL_DISJOINT_HEAD_02'
+                    : 'G_E2E_INCREMENTAL_DISJOINT_TAIL_02';
+        await route.fulfill({ contentType: 'application/json', body: geminiListGen(responseKey) });
     });
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');

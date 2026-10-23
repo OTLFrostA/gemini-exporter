@@ -47,7 +47,32 @@ const fixedPage = (id: string, title: string, seconds: number): string =>
     JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
         [['c_' + id, title, null, null, null, [seconds, 0]]]])]]);
 
+
+/** Immutable native List pages used by the real E2E cursor/coverage assertions. */
+function e2eIncrementalList(prefix: string, values: readonly number[], cursor: string | null): string {
+    return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, cursor,
+        values.map(time => ['c_' + prefix + time, (prefix === 'chat' ? 'Chat ' : 'Rebuild ') + time,
+            null, null, null, [1700000000 + time, 0]])])]]);
+}
+function e2eUuidList(id: string): string {
+    return JSON.stringify([['wrb.fr', 'MaZiqc',
+        JSON.stringify([null, [['c_' + id, 'Source title', null, null, null, [1700000000, 0]]], null])]]);
+}
+
 const fixtureMap = {
+    'G_E2E_INCREMENTAL_WINDOW_HEAD_01': () => e2eIncrementalList('chat', [100, 90], 'tC_middle'),
+    'G_E2E_INCREMENTAL_WINDOW_MIDDLE_01': () => e2eIncrementalList('chat', [80, 70], 'tC_limit'),
+    'G_E2E_INCREMENTAL_WINDOW_LIMIT_01': () => JSON.stringify([[
+        'wrb.fr', 'MaZiqc', null, null, null,
+        [5, null, [['type.googleapis.com/assistant.boq.bard.application.BardErrorInfo', [1096]]]], 'generic',
+    ]]),
+    'G_E2E_INCREMENTAL_WINDOW_HEAD_02': () => e2eIncrementalList('chat', [120, 110, 95, 85], 'tC_unread'),
+    'G_E2E_INCREMENTAL_WINDOW_HEAD_03': () => e2eIncrementalList('chat', [130, 120, 110, 95], 'tC_unread'),
+    'G_E2E_INCREMENTAL_DISJOINT_HEAD_01': () => e2eIncrementalList('rebuild', [100, 70], null),
+    'G_E2E_INCREMENTAL_DISJOINT_HEAD_02': () => e2eIncrementalList('rebuild', [150, 140], 'tC_fresh'),
+    'G_E2E_INCREMENTAL_DISJOINT_TAIL_02': () => e2eIncrementalList('rebuild', [130, 120], null),
+    'G_E2E_UUID_LIST_STALE_01': () => e2eUuidList('staleuuid123'),
+    'G_E2E_UUID_LIST_CURRENT_01': () => e2eUuidList('currentuuid123'),
     'G_DYNAMIC_PAGE_SYNC_01': () => fixedPage('39d5b41870e49a67', '量子纠缠物理原理深度解析', 1700000000),
     'G_DYNAMIC_PAGE_SYNC_02': () => fixedPage('takeout_chat_888', 'Renamed by Gemini', 1700000200),
     'G_DYNAMIC_TITLE_ARBITRATION_01': () => fixedPage('arbitration_chat_999', '官方服务端RPC最终权威标题', 1700000000),
