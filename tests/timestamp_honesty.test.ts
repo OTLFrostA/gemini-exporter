@@ -3,12 +3,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { parseGeminiTakeoutConversation } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
-
-const turn = [['c_noTsTurn_1', 'r_turn_1'], null, [['Question']], [[['rc_model_1', [['Answer']]]]]];
-const data = `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]])}`;
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 test('timestamp_honesty - RPC Domain messages omit timestamps when source dates are absent', () => {
-    const { conversation } = parseGeminiRpcConversation(data, { account: fixtureAccount('gemini'), providerId: 'gemini' });
+    const { conversation } = parseGeminiRpcConversation(geminiDetailGen('G_TIMESTAMP_HONESTY_01'), { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(conversation.detail.messages.length, 2);
     assert.equal(Object.hasOwn(conversation, 'updatedAt'), false, 'unknown updatedAt must be omitted');
     assert.equal(Object.hasOwn(conversation, 'createdAt'), false, 'unknown createdAt must be omitted');

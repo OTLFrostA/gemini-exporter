@@ -4,14 +4,13 @@ import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { parseMarkdownToBlocks } from '../src/l1/parsers/shared/markdown/index.js';
 import { extractBlockText } from '../src/l2/content/unknownFallback.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 test('native Gemini prompts preserve literal syntax while assistant Markdown remains structured', () => {
     const prompt = String.raw`Use f(\$)=1, **literal**, $x$, <input> and C:\temp\file.
 
 Keep [link](https://example.com) and \* intact.`;
-    const turn = [['c_literalprompt', 'r_prompt'], [1700000000, 0], [[prompt]],
-        [[['rc_answer', [['**Rendered answer**']]]]]];
-    const wire = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
+    const wire = geminiDetailGen('G_PROMPT_LITERAL_01');
     const { conversation } = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     const user = conversation.detail.messages[0];
     assert.equal(user.role, 'user');
