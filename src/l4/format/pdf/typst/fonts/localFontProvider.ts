@@ -162,13 +162,6 @@ export function rankLocalFontCandidates(
     return out;
 }
 
-export function bestCandidateForFamily(
-    candidates: readonly LocalFontCandidate[],
-    requestedFamily: string,
-): LocalFontCandidate | undefined {
-    return candidates.find((c) => c.requestedFamily === requestedFamily);
-}
-
 export type LocalFontQueryReason = 'api-unavailable' | 'permission-denied' | 'query-failed';
 
 export type LocalFontQueryResult =
