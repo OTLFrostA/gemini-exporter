@@ -31,42 +31,87 @@ const nativeAnyError = (rpc: string, code: unknown,
     type = 'type.googleapis.com/assistant.boq.bard.application.BardErrorInfo') =>
     ['wrb.fr', rpc, null, null, null, [5, null, [[type, [code]]]], 'generic'];
 
-const fixtureValues = {
-    invalidSourcePage: () => {
+
+
+// One unique key per consuming List test call site. Values preserve the old data.
+const fixtureMap = {
+    'G_L1_CLIENT_V2_MOCKED_01': () => {
         const page = geminiList(['source_alpha']);
         page.pageEvidence.valid = false;
         return page;
     },
-    providerLimit: () => parseList(JSON.stringify([
+    'G_L1_CLIENT_V2_MOCKED_02': () => parseList(JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]],
     ])),
-    invalidBardErrors: () => ['BardErrorInfo: cursor expired', '["BardErrorInfo",9999]'].map(error =>
-        parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['generic', error]]]))),
-    malformedWire: () => parseList('garbage'),
-    rpcIsolationUnrelatedError: () => parseRpcBatch(
+    'G_L1_CLIENT_V2_MOCKED_SRC_01': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
+    'G_L1_CLIENT_V2_MOCKED_SRC_02': () => geminiList(['source_beta']),
+    'G_L1_CLIENT_V2_MOCKED_SRC_03': () => geminiList(['source_alpha']),
+    'G_L1_CLIENT_V2_MOCKED_SRC_04': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
+    'G_L1_CLIENT_V2_MOCKED_SRC_05': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
+    'G_L1_CLIENT_V2_MOCKED_SRC_06': () => geminiList(),
+    'G_L1_CLIENT_V2_MOCKED_SRC_07': () => geminiList(),
+    'G_L1_CLIENT_V2_MOCKED_SRC_08': () => geminiList(),
+    'G_L1_CLIENT_V2_MOCKED_SRC_09': () => geminiList(),
+    'G_L1_CLIENT_V2_MOCKED_SRC_10': () => geminiList(),
+    'G_L1_LIST_RPC_ISOLATION_01': () => parseRpcBatch(
         rpcEnvelope('hNvQHb', []), ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 429]]),
-    rpcIsolationMissingEnvelope: () => [[], [null, null, [rpcRow()]],
+    'G_L1_LIST_RPC_ISOLATION_02': () => [[], [null, null, [rpcRow()]],
         [null, 'tC_next', [rpcRow()]]].map(inner => parseRpcBatch(rpcEnvelope('hNvQHb', inner))),
-    rpcIsolationTargetWins: () => [
+    'G_L1_LIST_RPC_ISOLATION_03': () => [
         parseRpcBatch(rpcEnvelope('hNvQHb', []), rpcEnvelope('MaZiqc', [null, null, [rpcRow()]])),
         parseRpcBatch(rpcEnvelope('MaZiqc', [null, 'tC_next', [rpcRow()]]), rpcEnvelope('hNvQHb', [])),
     ],
-    rpcIsolationProviderLimit: () => ({
+    'G_L1_LIST_RPC_ISOLATION_04': () => ({
         limited: parseRpcBatch(rpcEnvelope('hNvQHb', []),
             ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]),
         unrelated: parseRpcBatch(['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]),
     }),
-    rpcIsolationNativeLimit: () => parseRpcBatch(nativeAnyError('MaZiqc', 1096)),
-    rpcIsolationInvalidNativeErrors: () => [
+    'G_L1_LIST_RPC_ISOLATION_05': () => parseRpcBatch(nativeAnyError('MaZiqc', 1096)),
+    'G_L1_LIST_RPC_ISOLATION_06': () => [
         nativeAnyError('hNvQHb', 1096), nativeAnyError('MaZiqc', 1167),
         nativeAnyError('MaZiqc', 10961), nativeAnyError('MaZiqc', '1096'),
         nativeAnyError('MaZiqc', 1096, 'type.googleapis.com/other.BardErrorInfo'),
         ['wrb.fr', 'MaZiqc', null, null, null, [1096]],
     ].map(packet => parseRpcBatch(packet)),
-
-    boundaryObservation: () => parsed([boundaryRow()]),
-    boundaryContinuation: () => parsed([], 'tC_cursor'),
-    boundaryInvalidLayouts: () => [
+    'G_L1_CONTRACT_01': () => ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [contractRow()]])],
+    'G_L1_CONTRACT_02': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_03': () => parsed(),
+    'G_L1_CONTRACT_04': (nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor),
+    'G_L1_CONTRACT_05': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_06': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_07': (nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor),
+    'G_L1_CONTRACT_08': (nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor),
+    'G_L1_CONTRACT_09': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_10': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_11': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789', 'different_chat_456', 1700000040),
+    'G_L1_CONTRACT_12': () => parseList('garbage'),
+    'G_L1_CONTRACT_13': () => parsed(),
+    'G_L1_CONTRACT_14': (nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor),
+    'G_L1_CONTRACT_15': () => ['BardErrorInfo: cursor expired', '["BardErrorInfo",9999]'].map(error =>
+        parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['generic', error]]]))),
+    'G_L1_CONTRACT_16': () => ((nextCursor: string | null = null) => wire([contractRow()], nextCursor))('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_17': () => wire(),
+    'G_L1_CONTRACT_18': (nextCursor: string | null = null) => wire([contractRow()], nextCursor),
+    'G_L1_CONTRACT_19': (nextCursor: string | null = null) => wire([contractRow()], nextCursor),
+    'G_L1_CONTRACT_21': () => parseList(JSON.stringify([
+        ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]],
+    ])),
+    'G_L1_CONTRACT_22': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_23': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
+        parsed([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
+    'G_LIST_SOURCE_BOUNDARY_07': () => parsed([boundaryRow()]),
+    'G_LIST_SOURCE_BOUNDARY_08': () => [
         [null, null, [null]],
         [null, { unexpected: true }],
         [null, null, [['c_unknown', 'Invalid identity']]],
@@ -75,7 +120,8 @@ const fixtureValues = {
         source: JSON.stringify(inner),
         page: parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(inner)]])),
     })),
-    boundaryTerminalCursor: () => {
+    'G_LIST_SOURCE_BOUNDARY_09': () => parsed([], 'tC_cursor'),
+    'G_LIST_SOURCE_BOUNDARY_10': () => {
         const row = sourceRow('boundary123', 'Title', 1700000060);
         return {
             explicit: parsed([row]),
@@ -84,80 +130,7 @@ const fixtureValues = {
             ])),
         };
     },
-
-    contractPage: (nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
-        parsed([contractRow(id, seconds)], nextCursor),
-    contractEmptyPage: () => parsed(),
-    contractWire: (nextCursor: string | null = null) => wire([contractRow()], nextCursor),
-    contractEmptyWire: () => wire(),
-    contractDetailSidecar: () => ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [contractRow()]])],
-
-    browserPassiveCaptureWire: () => wire([
-        sourceRow('passive', 'Captured title', 1700000000),
-    ]),
-    rpcIngestWire: () => wire([sourceRow('abcdef123456', 'Server title', 1700000000)]),
-    observedPageWire: () => wire([
-        sourceRow('abcdef123', 'Newest', 1700000020),
-        sourceRow('abcdef456', 'Older', 1700000010),
-    ], 'tC_tail'),
-    mixedInvalidParsedPage: () => parsed([
-        ['c_unknown', 'Invalid'],
-        sourceRow('valid_123', 'Valid Chat', 1700000000),
-    ]),
-
-    observationOrderedPage: () => parsed([
-        sourceRow('abcdef123', 'abcdef123', 1700000020),
-        sourceRow('abcdef456', 'abcdef456', 1700000010),
-    ]),
-    observationSinglePage: () => parsed([sourceRow('abcdef123', 'abcdef123', 1700000020)]),
-    observationFallbackTimePage: () => {
-        const fallback = sourceRow('abcdef123', 'abcdef123', 1700000020);
-        fallback[2] = fallback[5];
-        fallback[5] = null;
-        return parsed([fallback]);
-    },
-    observationRisingTimePage: () => parsed([
-        sourceRow('abcdef123', 'abcdef123', 1700000010),
-        sourceRow('abcdef456', 'abcdef456', 1700000020),
-    ]),
-    observationCapturedEmpty: () => parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']])),
-    observationUnknownNonempty: () =>
-        parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, { unexpected: true }])]])),
-    observationEqualTimes: () => parsed([
-        sourceRow('abcdef123', 'abcdef123', 1700000020),
-        sourceRow('abcdef456', 'abcdef456', 1700000020),
-        sourceRow('abcdef789', 'abcdef789', 1700000010),
-    ]),
-    observationSubsecondTie: () => {
-        const row = sourceRow('abcdef456', 'abcdef456', 1700000020);
-        row[5] = [1700000020, 100];
-        return parsed([row, sourceRow('abcdef123', 'abcdef123', 1700000020)]);
-    },
-    observationDuplicate: () => parsed([
-        sourceRow('abcdef123', 'abcdef123', 1700000020),
-        sourceRow('abcdef123', 'abcdef123', 1700000020),
-    ]),
-    observationRequest: (streamId: 'recent' | 'pinned', cursor: string | null = null) => {
-        const filter = [streamId === 'recent' ? 0 : 1, null, 1];
-        return new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc',
-            JSON.stringify([50, cursor, filter]), null, 'generic']]]) }).toString();
-    },
-    observationUnknownRequest: () => new URLSearchParams({
-        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([50, null, [2, null, 1]]), null, 'generic']]]),
-    }).toString(),
-    observationExpandedRequests: () => {
-        const filter = [null, null, 1, null, null, null, null, null, null, 1];
-        const body = (value: unknown) => new URLSearchParams({ 'f.req': JSON.stringify([
-            [['MaZiqc', JSON.stringify([31, null, value]), null, 'generic']],
-        ]) }).toString();
-        return {
-            valid: body(filter),
-            invalid: [filter.slice(0, 9), [...filter, null],
-                filter.map((value, index) => index === 8 ? 1 : value)].map(body),
-        };
-    },
-
-    domMetadata: () => {
+    'G_LIST_SOURCE_BOUNDARY_11': () => {
         const header = { textContent: 'Header title' };
         const sidebar = { textContent: 'Google Gemini', href: 'https://gemini.google.com/app/boundary123',
             querySelector: () => null };
@@ -169,72 +142,74 @@ const fixtureValues = {
         } as unknown as Document;
         return { header, doc };
     },
-};
-
-// One unique key per consuming List test call site. Values preserve the old data.
-const fixtureMap = {
-    'G_L1_CLIENT_V2_MOCKED_01': fixtureValues.invalidSourcePage,
-    'G_L1_CLIENT_V2_MOCKED_02': fixtureValues.providerLimit,
-    'G_L1_CLIENT_V2_MOCKED_SRC_01': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
-    'G_L1_CLIENT_V2_MOCKED_SRC_02': () => geminiList(['source_beta']),
-    'G_L1_CLIENT_V2_MOCKED_SRC_03': () => geminiList(['source_alpha']),
-    'G_L1_CLIENT_V2_MOCKED_SRC_04': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
-    'G_L1_CLIENT_V2_MOCKED_SRC_05': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
-    'G_L1_CLIENT_V2_MOCKED_SRC_06': () => geminiList(),
-    'G_L1_CLIENT_V2_MOCKED_SRC_07': () => geminiList(),
-    'G_L1_CLIENT_V2_MOCKED_SRC_08': () => geminiList(),
-    'G_L1_CLIENT_V2_MOCKED_SRC_09': () => geminiList(),
-    'G_L1_CLIENT_V2_MOCKED_SRC_10': () => geminiList(),
-    'G_L1_LIST_RPC_ISOLATION_01': fixtureValues.rpcIsolationUnrelatedError,
-    'G_L1_LIST_RPC_ISOLATION_02': fixtureValues.rpcIsolationMissingEnvelope,
-    'G_L1_LIST_RPC_ISOLATION_03': fixtureValues.rpcIsolationTargetWins,
-    'G_L1_LIST_RPC_ISOLATION_04': fixtureValues.rpcIsolationProviderLimit,
-    'G_L1_LIST_RPC_ISOLATION_05': fixtureValues.rpcIsolationNativeLimit,
-    'G_L1_LIST_RPC_ISOLATION_06': fixtureValues.rpcIsolationInvalidNativeErrors,
-    'G_L1_CONTRACT_01': fixtureValues.contractDetailSidecar,
-    'G_L1_CONTRACT_02': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
-    'G_L1_CONTRACT_03': fixtureValues.contractEmptyPage,
-    'G_L1_CONTRACT_04': fixtureValues.contractPage,
-    'G_L1_CONTRACT_05': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
-    'G_L1_CONTRACT_06': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
-    'G_L1_CONTRACT_07': fixtureValues.contractPage,
-    'G_L1_CONTRACT_08': fixtureValues.contractPage,
-    'G_L1_CONTRACT_09': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
-    'G_L1_CONTRACT_10': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
-    'G_L1_CONTRACT_11': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789', 'different_chat_456', 1700000040),
-    'G_L1_CONTRACT_12': fixtureValues.malformedWire,
-    'G_L1_CONTRACT_13': fixtureValues.contractEmptyPage,
-    'G_L1_CONTRACT_14': fixtureValues.contractPage,
-    'G_L1_CONTRACT_15': fixtureValues.invalidBardErrors,
-    'G_L1_CONTRACT_16': () => fixtureValues.contractWire('tC_NEXT_PAGE_123456789'),
-    'G_L1_CONTRACT_17': fixtureValues.contractEmptyWire,
-    'G_L1_CONTRACT_18': fixtureValues.contractWire,
-    'G_L1_CONTRACT_19': fixtureValues.contractWire,
-    'G_L1_CONTRACT_21': fixtureValues.providerLimit,
-    'G_L1_CONTRACT_22': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
-    'G_L1_CONTRACT_23': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
-    'G_LIST_SOURCE_BOUNDARY_07': fixtureValues.boundaryObservation,
-    'G_LIST_SOURCE_BOUNDARY_08': fixtureValues.boundaryInvalidLayouts,
-    'G_LIST_SOURCE_BOUNDARY_09': fixtureValues.boundaryContinuation,
-    'G_LIST_SOURCE_BOUNDARY_10': fixtureValues.boundaryTerminalCursor,
-    'G_LIST_SOURCE_BOUNDARY_11': fixtureValues.domMetadata,
-    'G_OBSERVED_PAGE_INGEST_01': fixtureValues.observedPageWire,
-    'G_PAGE_OBSERVATION_01': fixtureValues.observationOrderedPage,
-    'G_PAGE_OBSERVATION_02_RECENT': () => fixtureValues.observationRequest('recent', 'incoming'),
-    'G_PAGE_OBSERVATION_02_PINNED': () => fixtureValues.observationRequest('pinned', 'incoming'),
-    'G_PAGE_OBSERVATION_03': fixtureValues.observationFallbackTimePage,
-    'G_PAGE_OBSERVATION_04': fixtureValues.observationRisingTimePage,
-    'G_PAGE_OBSERVATION_05': fixtureValues.observationUnknownRequest,
-    'G_PAGE_OBSERVATION_06': fixtureValues.observationCapturedEmpty,
-    'G_PAGE_OBSERVATION_07': fixtureValues.observationUnknownNonempty,
-    'G_PAGE_OBSERVATION_08': fixtureValues.observationEqualTimes,
-    'G_PAGE_OBSERVATION_09': fixtureValues.observationSubsecondTie,
-    'G_PAGE_OBSERVATION_10': fixtureValues.observationDuplicate,
-    'G_PAGE_OBSERVATION_11': fixtureValues.observationExpandedRequests,
-    'G_PAGE_OBSERVATION_12': fixtureValues.observationSinglePage,
-    'G_RPC_LIST_INGEST_01': fixtureValues.rpcIngestWire,
-    'G_UNIFIED_INGEST_INTEGRITY_01': fixtureValues.mixedInvalidParsedPage,
-    'G_E2E_PRODUCTION_V2_01': fixtureValues.browserPassiveCaptureWire,
+    'G_OBSERVED_PAGE_INGEST_01': () => wire([
+        sourceRow('abcdef123', 'Newest', 1700000020),
+        sourceRow('abcdef456', 'Older', 1700000010),
+    ], 'tC_tail'),
+    'G_PAGE_OBSERVATION_01': () => parsed([
+        sourceRow('abcdef123', 'abcdef123', 1700000020),
+        sourceRow('abcdef456', 'abcdef456', 1700000010),
+    ]),
+    'G_PAGE_OBSERVATION_02_RECENT': () => ((streamId: 'recent' | 'pinned', cursor: string | null = null) => {
+        const filter = [streamId === 'recent' ? 0 : 1, null, 1];
+        return new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc',
+            JSON.stringify([50, cursor, filter]), null, 'generic']]]) }).toString();
+    })('recent', 'incoming'),
+    'G_PAGE_OBSERVATION_02_PINNED': () => ((streamId: 'recent' | 'pinned', cursor: string | null = null) => {
+        const filter = [streamId === 'recent' ? 0 : 1, null, 1];
+        return new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc',
+            JSON.stringify([50, cursor, filter]), null, 'generic']]]) }).toString();
+    })('pinned', 'incoming'),
+    'G_PAGE_OBSERVATION_03': () => {
+        const fallback = sourceRow('abcdef123', 'abcdef123', 1700000020);
+        fallback[2] = fallback[5];
+        fallback[5] = null;
+        return parsed([fallback]);
+    },
+    'G_PAGE_OBSERVATION_04': () => parsed([
+        sourceRow('abcdef123', 'abcdef123', 1700000010),
+        sourceRow('abcdef456', 'abcdef456', 1700000020),
+    ]),
+    'G_PAGE_OBSERVATION_05': () => new URLSearchParams({
+        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([50, null, [2, null, 1]]), null, 'generic']]]),
+    }).toString(),
+    'G_PAGE_OBSERVATION_06': () => parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']])),
+    'G_PAGE_OBSERVATION_07': () =>
+        parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, { unexpected: true }])]])),
+    'G_PAGE_OBSERVATION_08': () => parsed([
+        sourceRow('abcdef123', 'abcdef123', 1700000020),
+        sourceRow('abcdef456', 'abcdef456', 1700000020),
+        sourceRow('abcdef789', 'abcdef789', 1700000010),
+    ]),
+    'G_PAGE_OBSERVATION_09': () => {
+        const row = sourceRow('abcdef456', 'abcdef456', 1700000020);
+        row[5] = [1700000020, 100];
+        return parsed([row, sourceRow('abcdef123', 'abcdef123', 1700000020)]);
+    },
+    'G_PAGE_OBSERVATION_10': () => parsed([
+        sourceRow('abcdef123', 'abcdef123', 1700000020),
+        sourceRow('abcdef123', 'abcdef123', 1700000020),
+    ]),
+    'G_PAGE_OBSERVATION_11': () => {
+        const filter = [null, null, 1, null, null, null, null, null, null, 1];
+        const body = (value: unknown) => new URLSearchParams({ 'f.req': JSON.stringify([
+            [['MaZiqc', JSON.stringify([31, null, value]), null, 'generic']],
+        ]) }).toString();
+        return {
+            valid: body(filter),
+            invalid: [filter.slice(0, 9), [...filter, null],
+                filter.map((value, index) => index === 8 ? 1 : value)].map(body),
+        };
+    },
+    'G_PAGE_OBSERVATION_12': () => parsed([sourceRow('abcdef123', 'abcdef123', 1700000020)]),
+    'G_RPC_LIST_INGEST_01': () => wire([sourceRow('abcdef123456', 'Server title', 1700000000)]),
+    'G_UNIFIED_INGEST_INTEGRITY_01': () => parsed([
+        ['c_unknown', 'Invalid'],
+        sourceRow('valid_123', 'Valid Chat', 1700000000),
+    ]),
+    'G_E2E_PRODUCTION_V2_01': () => wire([
+        sourceRow('passive', 'Captured title', 1700000000),
+    ]),
 };
 
 /** Single public List data entrypoint for gemini; no cross-provider protocol abstraction. */
