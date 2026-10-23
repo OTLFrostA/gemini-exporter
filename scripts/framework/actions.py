@@ -126,8 +126,11 @@ class ExtensionActions:
             cdp.close()
 
     @staticmethod
-    def verify_onboarding_tour(port: int = 9222, ext_id: Optional[str] = None, timeout: int = 15) -> bool:
+    def verify_onboarding_tour(port: int = 9222, ext_id: Optional[str] = None, timeout: int = 15,
+                               provider_id: str = 'gemini') -> bool:
         """Drive the real installation Tour and verify URL consumption, without stored flags."""
+        connect_id = {'gemini': 'tourBtnOpenGemini', 'chatgpt': 'tourBtnConnectChatGPT',
+                      'claude': 'tourBtnConnectClaude'}[provider_id]
         base = f"chrome-extension://{ext_id}/src/ui/options/options.html"
         deadline = time.monotonic() + timeout
         options_tab = None
@@ -140,14 +143,25 @@ class ExtensionActions:
         cdp = CDPConnection(options_tab['webSocketDebuggerUrl'])
         try:
             shown = False
+            connection_attempted = False
             for _ in range(60):
                 state = cdp.eval("""(() => {
                     const popover = document.querySelector('.tour-popover');
                     if (!popover) return {active:false, url:location.href};
                     const button = [...popover.querySelectorAll('button')].find(btn => /^(Next|下一步|Start using|开始使用)$/.test(btn.textContent));
-                    if (button) button.click();
+                    const connect = popover.querySelector('#' + """ + json.dumps(connect_id) + """);
+                    if (connect && button?.disabled) return {active:true, needsConnection:true, ready:!connect.disabled};
+                    if (button && !button.disabled) button.click();
                     return {active:true};
                 })()""") or {}
+                if state.get('needsConnection') and state.get('ready') and not connection_attempted:
+                    # Use the actual connection action once, preserving Chrome's permission gesture.
+                    # A failed/denied connection must fail the Tour, not bypass its first-step gate.
+                    connection_attempted = bool(cdp.eval("""(() => {
+                        const button = document.getElementById(""" + json.dumps(connect_id) + """);
+                        if (!button || button.disabled) return false;
+                        button.click(); return true;
+                    })()""", user_gesture=True))
                 if state.get('active'): shown = True
                 elif shown:
                     return 'startTour' not in state.get('url', '')

@@ -11,7 +11,7 @@ import * as path from 'node:path';
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 const outputDir = path.resolve(__dirname, '../../tests/output/visual_audit');
 const steps = [
-    ['Connect Gemini', 'header h1'],
+    ['Connect an AI platform', 'header h1'],
     ['Scan conversations', '#btnSyncAll'],
     ['Select conversations', '#btnSelectAll'],
     ['Choose a format', '#format'],
@@ -46,6 +46,20 @@ async function screenshot(page: import('@playwright/test').Page, name: string) {
     await page.screenshot({ path: dest });
     expect(fs.existsSync(dest)).toBe(true);
 }
+async function connectTourGemini(page: import('@playwright/test').Page) {
+    // A verified fixture Content binding is required; stored history alone is not a connection.
+    await page.evaluate(({ accountId }) => {
+        Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () =>
+            [{ id: 999, active: true, url: 'https://gemini.google.com/app/fixture' }] });
+        Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true,
+            value: (_id: number, _message: unknown, respond: (value: unknown) => void) => {
+                const response = { ok: true, accountContext: { accountId, providerId: 'gemini' } };
+                respond(response);
+            } });
+    }, { accountId });
+    await page.getByRole('button', { name: 'Connect Gemini', exact: true }).click();
+    await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
+}
 async function verifyPopoverGeometry(page: import('@playwright/test').Page, target: string, action: string) {
     // Restored Tour cards animate after footer/status relayout. Assert the
     // eventual geometry rather than sampling a button mid-transition offscreen.
@@ -62,15 +76,18 @@ async function verifyPopoverGeometry(page: import('@playwright/test').Page, targ
     }, { target, action })).toEqual({ present: true, clear: true, hittable: true });
 }
 
-test('the real seven-step v2 Tour has no target collisions and Next can be physically clicked throughout', async ({ context, extensionId }) => {
+test('the real seven-step v2 Tour requires connection and has no target collisions', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.locator('#btnTourGuide').click();
     for (const [i, [title, target]] of steps.entries()) {
         await expect(page.locator('.tour-popover h2')).toHaveText(title);
-        const action = i === steps.length - 1 ? 'Start using' : 'Next';
+        const action = i === 0 ? 'Connect Gemini' : i === steps.length - 1 ? 'Start using' : 'Next';
         await verifyPopoverGeometry(page, target, action);
         await screenshot(page, 'v2_tour_step_' + (i + 1) + '.png');
-        await page.getByRole('button', { name: action, exact: true }).click();
+        if (i === 0) {
+            await expect(page.locator('#tourNextBtn')).toBeDisabled();
+            await connectTourGemini(page);
+        } else await page.getByRole('button', { name: action, exact: true }).click();
     }
     await expect(page.locator('.tour-overlay-container')).toHaveCount(0);
 });
@@ -85,7 +102,8 @@ test('choosing PDF in the v2 Tour advances without querying local fonts', async 
         };
     });
     await page.locator('#btnTourGuide').click();
-    for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await connectTourGemini(page);
+    for (let i = 0; i < 2; i++) await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Choose a format');
     await page.locator('#format').selectOption('pdf');
     await expect(page.locator('.tour-popover h2')).toHaveText('Export selected conversations');
@@ -98,7 +116,7 @@ test('manual Tour opens and closes without obsolete v1 tour-state persistence', 
     const page = await workbench(context, extensionId);
     const original = await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').getSettings());
     await page.locator('#btnTourGuide').click();
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect Gemini');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
     await page.getByRole('button', { name: 'Skip', exact: true }).click();
     await expect(page.locator('.tour-overlay-container')).toHaveCount(0);
     expect(await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').getSettings())).toEqual(original);
@@ -120,7 +138,7 @@ test('approved 2.0 upgrade notice shows once without resurrecting retired v1 fea
     await page.reload(); await exposeUIStorage(page);
     await expect(page.locator('.tour-popover')).toHaveCount(0);
     await page.locator('#btnTourGuide').click();
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect Gemini');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
     await page.getByRole('button', { name: 'Skip', exact: true }).click();
 });
 

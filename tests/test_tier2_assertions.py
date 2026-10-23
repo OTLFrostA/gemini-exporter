@@ -41,6 +41,39 @@ REPLY = 'The measured pressure is bounded by the conservation law and the calibr
 EVIDENCE = [{'prompt': 'Explain **pressure** and mass_balance.', 'response': REPLY, 'has_images': False}]
 
 
+class OnboardingConnectionContracts(unittest.TestCase):
+    def test_tour_uses_the_selected_platform_connection_once_then_completes(self):
+        for provider, button_id in [('gemini', 'tourBtnOpenGemini'), ('chatgpt', 'tourBtnConnectChatGPT'),
+                                    ('claude', 'tourBtnConnectClaude')]:
+            with self.subTest(provider=provider):
+                cdp = MagicMock()
+                cdp.eval.side_effect = [
+                    {'active': True, 'needsConnection': True, 'ready': False},
+                    {'active': True, 'needsConnection': True, 'ready': True}, True,
+                    {'active': True}, {'active': False, 'url': 'chrome-extension://test/src/ui/options/options.html'},
+                ]
+                with patch('scripts.framework.actions.get_tabs', return_value=[{
+                    'url': 'chrome-extension://test/src/ui/options/options.html', 'webSocketDebuggerUrl': 'ws://options'}]), \
+                     patch('scripts.framework.actions.CDPConnection', return_value=cdp), \
+                     patch('scripts.framework.actions.time.sleep'):
+                    self.assertTrue(CDPActions.verify_onboarding_tour(ext_id='test', provider_id=provider))
+                attempts = [call for call in cdp.eval.call_args_list if call.kwargs.get('user_gesture')]
+                self.assertEqual(len(attempts), 1)
+                self.assertIn(button_id, attempts[0].args[0])
+                cdp.close.assert_called_once()
+
+    def test_unconnected_tour_fails_without_repeated_connection_attempts(self):
+        cdp = MagicMock()
+        cdp.eval.side_effect = lambda _expression, **kwargs: True if kwargs.get('user_gesture') else {
+            'active': True, 'needsConnection': True, 'ready': True}
+        with patch('scripts.framework.actions.get_tabs', return_value=[{
+            'url': 'chrome-extension://test/src/ui/options/options.html', 'webSocketDebuggerUrl': 'ws://options'}]), \
+             patch('scripts.framework.actions.CDPConnection', return_value=cdp), \
+             patch('scripts.framework.actions.time.sleep'):
+            self.assertFalse(CDPActions.verify_onboarding_tour(ext_id='test', provider_id='claude'))
+        self.assertEqual(sum(bool(call.kwargs.get('user_gesture')) for call in cdp.eval.call_args_list), 1)
+
+
 def document(evidence=EVIDENCE, cid=CID):
     body = f'---\nid: "{cid}"\n---\n# Conversation\n'
     for t in evidence:

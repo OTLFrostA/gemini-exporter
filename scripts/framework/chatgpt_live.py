@@ -105,7 +105,7 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
                                        if t.get('url', '').startswith(url)), None), 20)
         self.options = CDPConnection(target['webSocketDebuggerUrl'])
         self.ready()
-        if not CDPActions.verify_onboarding_tour(self.port, self.ext_id):
+        if not CDPActions.verify_onboarding_tour(self.port, self.ext_id, provider_id='chatgpt'):
             raise ValueError('Fresh-install onboarding did not complete')
         self.gate('onboarding', lambda: {'physicalTour': True})
         granted = self.options.eval("chrome.permissions.contains({origins:['https://chatgpt.com/*','https://chat.openai.com/*']})", await_promise=True)

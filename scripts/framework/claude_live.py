@@ -113,7 +113,7 @@ class ClaudeLiveRunner(BrowserAcceptance):
         target = wait_for(lambda: next((t for t in get_tabs(self.port) if t.get('url', '').startswith(url)), None), 20)
         self.options = CDPConnection(target['webSocketDebuggerUrl'])
         self.ready()
-        if not CDPActions.verify_onboarding_tour(self.port, self.ext_id):
+        if not CDPActions.verify_onboarding_tour(self.port, self.ext_id, provider_id=self.platform_id):
             raise ValueError('Fresh-install onboarding did not complete')
         self.gate('onboarding', lambda: {'physicalTour': True})
         permission = "chrome.permissions.contains({origins:['https://claude.ai/*']})"

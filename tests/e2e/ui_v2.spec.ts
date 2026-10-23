@@ -344,12 +344,21 @@ test('UI v2: Badge drag sends position to Runtime on pointerup, ignores ordinary
     await badge.click(); expect(await read(page,'events')).toContain('openOptions');
     expect(await page.evaluate(()=>Object.keys(localStorage))).toEqual([]);
 });
-test('UI v2: Connect opens Gemini only on explicit action, manual Next and closing never persist Tour state', async ({ page }) => {
+test('UI v2: connection is required before Next, and closing never persists Tour state', async ({ page }) => {
     await mount(page,'options',{tabs:[]},'?startTour=1');
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect Gemini');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
     expect(await read(page,'events')).not.toContain('open');
-    await page.getByRole('button',{name:'Open Gemini',exact:true}).click(); expect(await read(page,'events')).toContain('open');
-    await page.getByRole('button',{name:'Next',exact:true}).click(); await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
+    await expect(page.locator('#tourNextBtn')).toBeDisabled();
+    for (const platform of ['Gemini','ChatGPT','Claude'])
+        await expect(page.locator('.tour-popover').getByRole('button',{name:`Connect ${platform}`,exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'Connect Gemini',exact:true}).click(); expect(await read(page,'events')).toContain('open');
+    await expect(page.locator('#tourNextBtn')).toBeDisabled();
+    await page.evaluate(({A})=>{
+        const h=Reflect.get(window,'harness');h.tabs=[{id:1,url:'https://gemini.google.com/app'}];
+        h.contextReply={ok:true,accountContext:{accountId:A,providerId:'gemini'}};
+        window.dispatchEvent(new Event('focus'));
+    },{A});
+    await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
     await page.getByRole('button',{name:'Skip',exact:true}).click(); await expect(page.locator('.tour-popover')).toHaveCount(0);
     expect(await read(page,'patches')).toEqual([]);
 });

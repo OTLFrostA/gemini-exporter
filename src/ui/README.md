@@ -13,6 +13,10 @@ contexts. List reads and rendering run asynchronously; scan progress callbacks o
 progress. Producers never wait for UI reads, and observer failures cannot fail a commit.
 
 Installation Tour consumes `?startTour=1` immediately; it has no persistent flag.
+Its first step offers Gemini, ChatGPT and Claude. Next stays disabled until a live
+source resolves to a verified registered account, which becomes the workbench selection.
+Connection checks run once on entry and after explicit connection/sign-in actions;
+the Tour does not poll provider session endpoints.
 Version Spotlight is recorded on actual display (once per upgrade, never on fresh install); Takeout acknowledgment follows dismissal. The Content Badge owns its account-scoped count display and Pull: it refreshes
 after account recognition or change, when a hidden page becomes visible, and
 approximately every 60 seconds while visible. Background only serves the existing
