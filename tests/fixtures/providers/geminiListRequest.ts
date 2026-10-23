@@ -1,5 +1,11 @@
 /** Native request bodies for the Gemini MaZiqc List RPC. */
 const fixtureMap = {
+    'G_E2E_PRODUCTION_LIST_REQUEST_01': () => new URLSearchParams({
+        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]),
+    }).toString(),
+    'G_E2E_INCREMENTAL_PASSIVE_LIST_REQUEST_01': () => new URLSearchParams({
+        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, 'tC_segment', [0, null, 1]]), null, 'generic']]]),
+    }).toString(),
     'G_E2E_UUID_LIST_REQUEST_01': () => new URLSearchParams({
         'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]),
     }).toString(),

@@ -1,4 +1,16 @@
-import { readFileSync } from 'node:fs';
+import timestampPairs from '../gemini_timestamp_pairs.json';
+import generatedFile from '../provider/gemini_generated_file.json';
+import sourceJson0 from '../provider/structured_rpc/live-combined-file-citations.json';
+import sourceJson1 from '../provider/structured_rpc/wire-case-b-cand.json';
+import sourceJson2 from '../provider/structured_rpc/wire-turn-3-12-b-stack.json';
+import sourceJson3 from '../provider/structured_rpc/live-file-citations.json';
+import sourceJson4 from '../provider/structured_rpc/live-optics-table-citations.json';
+import sourceJson5 from '../provider/structured_rpc/live-blockquote.json';
+import sourceJson6 from '../provider/structured_rpc/live-source-attributions.json';
+import sourceJson7 from '../provider/structured_rpc/live-source-table.json';
+import sourceJson8 from '../provider/structured_rpc/live-range-coder.json';
+import sourceJson9 from '../provider/structured_rpc/live-imagen-panel.json';
+import { decodeGeminiStructuredPayload } from '../../../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { listGen as geminiListGen } from './gemini.js';
 /** Native batchexecute response bodies containing Gemini's hNvQHb Detail RPC. */
 const DOMAIN_ID = 'c_native12345678';
@@ -59,8 +71,23 @@ function coverageWire(raw: unknown, candidates: unknown[] = [['rc_answer', [[COV
 
 /** Source-attribution probes: each key resolves one native hNvQHb response. */
 const citationFallback = 'UNRELATED_MARKDOWN_SENTINEL';
-const citationFile = (name: string): unknown =>
-    JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/' + name + '.json', 'utf8'));
+const citationFiles: Record<string, unknown> = {
+    'live-combined-file-citations': sourceJson0,
+    'wire-case-b-cand': sourceJson1,
+    'wire-turn-3-12-b-stack': sourceJson2,
+    'live-file-citations': sourceJson3,
+    'live-optics-table-citations': sourceJson4,
+    'live-blockquote': sourceJson5,
+    'live-source-attributions': sourceJson6,
+    'live-source-table': sourceJson7,
+    'live-range-coder': sourceJson8,
+    'live-imagen-panel': sourceJson9,
+};
+const citationFile = (name: string): unknown => {
+    const data = citationFiles[name];
+    if (data === undefined) throw new Error('Missing captured Gemini citation fixture ' + name);
+    return structuredClone(data);
+};
 const citationText = (value: string, annotations: unknown[] = []): unknown[] => [null, [null, 0, value, annotations]];
 const citationField = (index: number, value: unknown): unknown[] =>
     Object.assign(Array(index + 1).fill(null), { [index]: value });
@@ -121,7 +148,7 @@ function visibleImageResponse(document?: unknown, includeSecondary = false): str
     return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
 }
 const visibleImageDocument = (): unknown =>
-    JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/wire-turn-3-12-b-stack.json', 'utf8'));
+    citationFile('wire-turn-3-12-b-stack');
 
 
 /** Exact Detail turn layout used by the P1-E source-wire regression cases. */
@@ -190,7 +217,76 @@ function l1ContractWire(prompt = 'Question', next: string | null = null): string
     ]);
 }
 
+
+/** The image-bearing hNvQHb source used by Takeout/media-identity integration tests. */
+function mediaOnlineDetail(missingTime = false, missingPrompt = false, multipleImages = false): string {
+    const time = 1788350400000, prompt = 'Draw a diagram of a green bridge';
+    const pngLength = 68;
+    const images = Array.from({ length: multipleImages ? 2 : 1 }, (_, i) => {
+        const image: unknown[] = Array(16).fill(null);
+        image[2] = 'online-' + i + '.png';
+        image[3] = 'https://lh3.googleusercontent.com/media-source-' + i;
+        image[11] = 'image/png';
+        image[15] = [1, 1, pngLength];
+        return image;
+    });
+    const turns = Array.from({ length: 10 }, (_, i) => [
+        ['c_source-media', 'r_request-' + i],
+        missingTime && i === 9 ? null : [time / 1000 + (i === 9 ? 0 : i - 20), 123000000],
+        missingPrompt && i === 9 ? null : [[i === 9 ? prompt : 'Online question ' + i]],
+        [['rc_answer-' + i, [['Complete online answer ' + i], ...(i === 9 ? images : [])]]],
+    ]);
+    return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb',
+        JSON.stringify([turns, null, 'Complete online body'])]]);
+}
+
+
+/** Four finite composite-layout variants with the original captured citation node. */
+function citationCompositeWire(kind: 'paragraph' | 'list' | 'table' | 'quote'): string {
+    const fileCitation = { nodeType: 'citation', number: 1, title: 'test_config.json' };
+    const second = { ...fileCitation, number: 2, title: 'other.png' };
+    const composite = { nodeType: 'paragraph', children: [
+        { nodeType: 18, text: '😀 x_1', annotations: [{ start: 3, end: 6, type: 4 }] },
+        fileCitation, { nodeType: 18, text: ' / ' }, second, { nodeType: 18, text: '. [1]' },
+    ] };
+    const node = kind === 'list' ? { nodeType: 20, items: [{ children: [composite] }] }
+        : kind === 'table' ? { nodeType: 17, rows: [{ cells: [{ children: [composite] }] }] }
+        : kind === 'quote' ? { nodeType: 15, children: [composite] } : composite;
+    return citationWire({ children: [node] });
+}
+function citationInlineCombinedWire(): string {
+    const decoded = decodeGeminiStructuredPayload(citationFile('live-combined-file-citations'));
+    if (!decoded) throw new Error('Invalid captured citation source fixture');
+    return citationWire({ children: [{ nodeType: 'paragraph', children: [
+        { nodeType: 18, text: 'Before ' }, ...decoded.children, { nodeType: 18, text: ' after.' },
+    ] }] });
+}
+
+
+function domainCapturedStructuredWire(): string {
+    const candidate = citationFile('wire-case-b-cand');
+    const structured = citationFile('wire-turn-3-12-b-stack');
+    const rawTurn = domainTurn('Explain Bell inequalities', null, [candidate]);
+    const model = rawTurn[3] as unknown[];
+    model[12] = structured;
+    return rpc([[rawTurn]]);
+}
+
 const fixtureMap = {
+    'G_RPC_DOMAIN_CAPTURED_STACK_01': () => domainCapturedStructuredWire(),
+    'G_STRUCTURED_CITATION_COMPOSITE_PARAGRAPH_01': () => citationCompositeWire('paragraph'),
+    'G_STRUCTURED_CITATION_COMPOSITE_LIST_01': () => citationCompositeWire('list'),
+    'G_STRUCTURED_CITATION_COMPOSITE_TABLE_01': () => citationCompositeWire('table'),
+    'G_STRUCTURED_CITATION_COMPOSITE_QUOTE_01': () => citationCompositeWire('quote'),
+    'G_STRUCTURED_CITATION_INLINE_COMBINED_01': () => citationInlineCombinedWire(),
+    'G_STRUCTURED_CITATION_MATH_FILE_CHIP_01': () => citationWire({ children: [
+        { nodeType: 12, FTa: 'a=b' },
+        { nodeType: 'citation', number: 1, title: 'test_config.json' },
+    ] }),
+    'G_MEDIA_SOURCE_DEFAULT_01': () => mediaOnlineDetail(),
+    'G_MEDIA_SOURCE_NO_TIME_01': () => mediaOnlineDetail(true),
+    'G_MEDIA_SOURCE_NO_PROMPT_01': () => mediaOnlineDetail(false, true),
+    'G_MEDIA_SOURCE_MULTI_01': () => mediaOnlineDetail(false, false, true),
     'G_E2E_PRODUCTION_PASSIVE_MIXED_01': () =>
         e2eProductionMixed('passive', 'Question from passive capture', 'Answer from passive capture', 'Passive detail'),
     'G_E2E_PRODUCTION_NATIVE_AUDIT_MIXED_01': () =>
@@ -324,7 +420,7 @@ const fixtureMap = {
         return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
     },
     'G_GENERATED_FILES_01': () => {
-        const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_generated_file.json', 'utf8')) as { packet: unknown[]; chip: unknown[] };
+        const fixture = structuredClone(generatedFile) as { packet: unknown[]; chip: unknown[] };
         return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[
             generatedFileTurn(fixture.packet, fixture.chip, 'Before\n\nAfter', 'later', true),
             generatedFileTurn(fixture.packet, fixture.chip, 'Earlier caption', 'earlier', false),
@@ -464,7 +560,7 @@ const fixtureMap = {
     'G_DUAL_AUDIT_13': () => dualAuditWire('Hello', null),
     'G_DUAL_AUDIT_14': () => dualAuditWire(),
     'G_DUAL_AUDIT_15': () => dualAuditWire(),
-    'G_STRUCTURED_COVERAGE_01': () => coverageWire(JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-range-coder.json', 'utf8'))),
+    'G_STRUCTURED_COVERAGE_01': () => coverageWire(citationFile('live-range-coder')),
     'G_STRUCTURED_COVERAGE_02': () => {
         const leaf = coverageTextNode('PRIVATE_SOURCE_TEXT', 999);
         const list = Object.assign(Array(12).fill(null), { 11: [[[[leaf]]]] });
@@ -472,7 +568,7 @@ const fixtureMap = {
     },
     'G_STRUCTURED_COVERAGE_03': () => coverageWire(undefined),
     'G_STRUCTURED_COVERAGE_04': () => coverageWire(
-        JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-imagen-panel.json', 'utf8')),
+        citationFile('live-imagen-panel'),
         [['rc_image', [['\n']]]],
     ),
     'G_TIMESTAMP_HONESTY_01': () => rpc([[
@@ -733,7 +829,7 @@ function versionMixed(messageTime: number[], version?: number[], more = false, i
 }
 function versionPairDetail(index: number): string {
     const pairs: Array<{ metadataWire: number[]; detailTurnWire: number[] }> =
-        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
+        timestampPairs;
     const pair = pairs[index];
     if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
     return versionMixed(pair.detailTurnWire, pair.metadataWire);

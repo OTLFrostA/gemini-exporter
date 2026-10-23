@@ -2,6 +2,7 @@ import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
 import { readFile } from 'node:fs/promises';
 import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
+import { requestGen as geminiListRequestGen } from '../fixtures/providers/geminiListRequest.js';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
@@ -102,11 +103,9 @@ test('passive non-head Gemini page adds v2 indexes but cannot fabricate trusted 
         body: geminiListGen('G_E2E_INCREMENTAL_PASSIVE_LIST_01'),
     }));
     const options = await openOptions(context, extensionId);
-    await gemini.evaluate(async () => fetch('/_/BardChatUi/data/batchexecute', {
-        method: 'POST',
-        body: new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc',
-            JSON.stringify([20, 'tC_segment', [0, null, 1]]), null, 'generic']]]) }),
-    }));
+    await gemini.evaluate(async body => fetch('/_/BardChatUi/data/batchexecute', {
+        method: 'POST', body: new URLSearchParams(body),
+    }), geminiListRequestGen('G_E2E_INCREMENTAL_PASSIVE_LIST_REQUEST_01'));
     await expect.poll(async () => (await v2(options)).indexes.length).toBe(1);
     // Passive Sniffer commits Index in the background; the Options read mirror
     // intentionally refreshes on focus, rather than subscribing to L2 writes.
