@@ -4,6 +4,7 @@ const assert = require('node:assert');
 
 const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
 const { handleHttp400 } = require('../src/l1/client/gemini/api/retryPolicy.js');
+const { listGen: geminiListGen } = require('./fixtures/providers/gemini.js') as typeof import('./fixtures/providers/gemini.js');
 const { useIndexStorage } = require('./helpers/indexStorage.js');
 useIndexStorage();
 
@@ -69,12 +70,10 @@ test('geminiClient - getConversationList recovers on HTTP 400 with fresh credent
             };
         }
         // Second call succeeds with valid batchexecute list
-        const mockListInner = JSON.stringify([null, null, [["c_chat_rec_400", "400 Recovery Chat", null, null, null, [1700000000, 0]]]]);
-        const mockTop = JSON.stringify([["wrb.fr", "MaZiqc", mockListInner]]);
         return {
             ok: true,
             status: 200,
-            text: async () => `)]}'\n\n${mockTop}`
+            text: async () => geminiListGen('G_GEMINI_CLIENT_RETRY_01')
         };
     };
 
