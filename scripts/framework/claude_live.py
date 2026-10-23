@@ -374,10 +374,9 @@ class ClaudeLiveRunner(BrowserAcceptance):
             self.options.eval('globalThis.__tier2V2.updateSettings('+json.dumps(prior)+')', await_promise=True)
 
     def click_native(self, expression):
-        point = wait_for(lambda: self.chat.eval("(()=>{const e=("+expression+");if(!e)return null;e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();return r.width&&r.height?{x:r.x+r.width/2,y:r.y+r.height/2}:null})()"))
-        for kind in ['mouseMoved', 'mousePressed', 'mouseReleased']:
-            self.chat.call('Input.dispatchMouseEvent', {'type': kind, **point,
-                **({'button': 'left', 'clickCount': 1} if kind != 'mouseMoved' else {})})
+        # CDP pointer events can be silently dropped by an occluded Chrome on
+        # macOS. Activate the actual native DOM control, as other Tier 2 cases do.
+        wait_for(lambda: self.chat.eval("(()=>{const e=("+expression+");if(!e||e.disabled||!e.getBoundingClientRect().width)return false;e.click();return true})()", user_gesture=True))
 
     def popup_export(self):
         cid = self.chat_ids[0]
@@ -427,11 +426,13 @@ class ClaudeLiveRunner(BrowserAcceptance):
             self.browser.call('Browser.setDownloadBehavior', {'behavior': 'default'})
 
     def open_conversation(self, cid):
+        previous_origin = self.chat.eval('performance.timeOrigin')
         self.chat.call('Page.navigate', {'url': 'https://claude.ai/chat/'+cid})
         checkpoint = self.output/f'{cid}.progress.json'
         expected = json.loads(checkpoint.read_text())['prompts'][0] if checkpoint.exists() else None
         def loaded():
-            if self.chat.eval('location.pathname') != '/chat/'+cid:
+            if not self.chat.eval("performance.timeOrigin!=="+json.dumps(previous_origin)
+                    +"&&document.readyState==='complete'&&location.pathname==="+json.dumps('/chat/'+cid)):
                 return None
             messages = self.webpage()
             if expected and not any(m['role'] == 'user' and m['text'].strip() == expected.strip() for m in messages):
@@ -471,10 +472,17 @@ class ClaudeLiveRunner(BrowserAcceptance):
         before = snapshot(self.options, self.platform_id)
         other_before = self.options.eval("(async()=>{const a=await __tier2V2.listAccounts();return Promise.all(a.filter(a=>a.id!==document.getElementById('accountIdSelect').value).map(async a=>({id:a.id,account:await __tier2V2.getAccount(a.id)})))})()", await_promise=True)
         self.open_conversation(cid)
+        # Native quota upsells can cover read-only UI even without a send.
+        # Dismiss only the non-purchase action in that specific quota dialog.
+        dismiss = """(()=>{const d=[...document.querySelectorAll('[role=dialog]')].find(e=>/消息限额|message limit|usage limit/i.test(e.innerText));
+            const b=[...(d?.querySelectorAll('button')||[])].find(e=>/^(以后再说|暂时不用|Not now|Maybe later)$/i.test(e.innerText.trim()));
+            if(!b)return false;b.click();return true})()"""
+        if self.chat.eval(dismiss, user_gesture=True):
+            wait_for(lambda: self.chat.eval("![...document.querySelectorAll('[role=dialog]')].some(e=>/消息限额|message limit|usage limit/i.test(e.innerText))"), 10)
         # Only the current-conversation header menu is safe. A global button
         # search can open another sidebar conversation's destructive menu.
-        self.click_native("(()=>{const heading=[...document.querySelectorAll('h2')].find(e=>e.querySelector('button'));return [...(heading?.parentElement?.querySelectorAll('button')||[])].find(e=>/更多选项|More options/i.test(e.getAttribute('aria-label')||'')&&e.getBoundingClientRect().width>0)})()")
-        self.click_native("[...document.querySelectorAll('[role=menuitem]')].find(e=>/^(删除|Delete)$/.test(e.innerText.trim()))")
+        self.click_native("(()=>{const heading=[...document.querySelectorAll('h2')].find(e=>e.querySelector('button'));return [...(heading?.parentElement?.querySelectorAll('button[aria-haspopup=menu]')||[])].find(e=>/更多选项|More options/i.test(e.getAttribute('aria-label')||'')&&e.getBoundingClientRect().width>0)})()")
+        self.click_native("[...document.querySelectorAll('[role=menuitem]')].find(e=>e.innerText.split(/\\n/).some(t=>/^(删除|Delete)$/.test(t.trim())))")
         self.click_native("[...document.querySelectorAll('[role=dialog] button,[role=alertdialog] button')].find(e=>/^(删除|删除对话|Delete|Delete chat)$/.test(e.innerText.trim()))")
         def removed():
             state = self.stored(cid)

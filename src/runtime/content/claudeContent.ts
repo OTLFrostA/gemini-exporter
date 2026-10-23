@@ -9,6 +9,8 @@ import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { registerCleanup, runCleanups } from './cleanupRegistry.js';
 import { hookHistoryEvents } from './pageObserver.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../api/domainIngestion.js';
+import { getSettings } from '../../application/settings/index.js';
+import { createClaudeVisitSave } from './claudeVisitSave.js';
 runCleanups();
 invalidateAccountContext();
 let active = true;
@@ -16,10 +18,20 @@ registerCleanup(() => { active = false; invalidateAccountContext(); });
 LiveSaveCoordinator.init({ badge: BadgeView });
 registerCleanup(LiveSaveCoordinator.cleanup);
 const refreshAccount = () => { void BadgeView.refreshAccount().catch(error => console.warn('[Claude badge]', error)); };
-setAccountChangedHandler(refreshAccount);
-hookHistoryEvents(refreshAccount);
+const visitSave = createClaudeVisitSave({ path: () => location.pathname, settings: getSettings,
+    account: currentAccount, save: LiveSaveCoordinator.executeLiveSave });
+let visitTimer: ReturnType<typeof setTimeout> | undefined;
+function routeChanged() {
+    refreshAccount();
+    visitSave.observe(location.pathname);
+    clearTimeout(visitTimer);
+    visitTimer = setTimeout(() => { if (active) void visitSave.save().catch(error => console.warn('[Claude visit save]', error)); }, 750);
+}
+setAccountChangedHandler(routeChanged);
+hookHistoryEvents(routeChanged);
+registerCleanup(() => clearTimeout(visitTimer));
 void ensureV2Ready().then(() => {
-    const mount = () => { if (active) BadgeView.ensureBadge(); };
+    const mount = () => { if (active) { BadgeView.ensureBadge(); routeChanged(); } };
     if (document.readyState !== 'loading') mount();
     else {
         document.addEventListener('DOMContentLoaded', mount, { once: true });
@@ -69,7 +81,8 @@ const receive = (event: MessageEvent) => {
         if (request.kind === 'detail') {
             const parsed = parseClaudeConversation(raw.responseBody, cid);
             const admission = await ingestDetail(account.id, cid, parsed.conversation.detail, parsed.conversation.index);
-            if (!admission.accepted || !admission.changed) return;
+            if (!admission.accepted) return;
+            visitSave.nativeDetail(cid);
         }
         await LiveSaveCoordinator.executeLiveSave({ accountId: account.id, conversationId: cid }, request.kind === 'stream');
     }).catch(error => console.warn('[Claude capture]', error));

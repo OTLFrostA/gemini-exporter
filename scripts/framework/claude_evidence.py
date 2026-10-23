@@ -5,7 +5,7 @@ import re
 import subprocess
 import unicodedata
 
-from scripts.framework.claude_live import completed_branch
+from scripts.framework.claude_live import completed_branch, current_branch, ROOT_MESSAGE
 from scripts.framework.html_evidence import TreeParser, read_message
 from scripts.framework.cases.export import PdfExportDownloadCase
 from scripts.framework.pdf_evidence import assert_pdf_turn_content
@@ -68,10 +68,35 @@ def source_fragments(message):
 
 
 def assert_full_exports(root, output, conversation_ids):
+    return _assert_exports(root, output, conversation_ids, existing=False)
+
+
+def assert_existing_exports(root, output, conversation_ids):
+    """Audit existing interrupted/empty conversations without certifying generation."""
+    return _assert_exports(root, output, conversation_ids, existing=True)
+
+
+def _assert_exports(root, output, conversation_ids, *, existing):
     results = []
     for cid in conversation_ids:
         raw = json.loads((output/f'{cid}.source.json').read_text())
-        expected = completed_branch(raw)
+        quality = 'complete'
+        if not existing:
+            expected = completed_branch(raw)
+        elif raw.get('current_leaf_message_uuid'):
+            expected = current_branch(raw)
+            try:
+                completed_branch(raw)
+            except ValueError:
+                quality = 'partial'
+        else:
+            # A failed first send may leave one root human message without a
+            # selected leaf. Do not guess among multiple possible branches.
+            expected = raw['chat_messages']
+            if expected and not (len(expected) == 1 and expected[0].get('sender') == 'human'
+                    and expected[0].get('parent_message_uuid') == ROOT_MESSAGE):
+                raise ValueError(f'{cid}: source has no independently identifiable branch')
+            quality = 'unknown'
         documents = [p for p in (output/'downloads/json').rglob('*.json')
                      if json.loads(p.read_text()).get('conversation', {}).get('index', {}).get('key', {}).get('conversationId') == cid]
         if len(documents) != 1:
@@ -79,8 +104,8 @@ def assert_full_exports(root, output, conversation_ids):
         document = documents[0]
         archive = json.loads(document.read_text())
         detail = archive['conversation']['detail']
-        if detail['quality']['status'] != 'complete':
-            raise ValueError(f'{cid}: parser quality is not complete: {detail["quality"]}')
+        if detail['quality']['status'] != quality:
+            raise ValueError(f'{cid}: parser quality differs from source ({quality}): {detail["quality"]}')
         if [m['id'] for m in detail['messages']] != [m['uuid'] for m in expected]:
             raise ValueError(f'{cid}: source branch/message identity mismatch')
         # File cards must resolve to physical originals in every format. For
@@ -154,9 +179,15 @@ def assert_full_exports(root, output, conversation_ids):
                 evidence[-1].update(response=''.join(s['text'] for s in segments), pdf_segments=segments)
             total_fragments += len(fragments)
             total_codes += sum(wanted_codes.values())
-        ok, summary = assert_pdf_turn_content(pdf, evidence)
-        if not ok:
-            raise ValueError(f'{cid}: {summary}')
+        if evidence and 'response' not in evidence[-1]:
+            pending = evidence.pop()
+            pdf_text = compact(''.join(run.get('text', '') for run in pdf['contentRuns']))
+            if compact(pending['prompt']) not in pdf_text:
+                raise ValueError(f'{cid}: PDF lost the pending user prompt')
+        if evidence:
+            ok, summary = assert_pdf_turn_content(pdf, evidence)
+            if not ok:
+                raise ValueError(f'{cid}: {summary}')
         results.append({'conversationId': cid, 'messages': len(expected), 'authoredFragments': total_fragments,
-                        'codeBlocks': total_codes, 'pdfPages': pdf['pageCount']})
+                        'codeBlocks': total_codes, 'pdfPages': pdf['pageCount'], 'quality': quality})
     return results

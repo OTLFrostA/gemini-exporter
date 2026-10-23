@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from scripts.framework.claude_live import ClaudeLiveRunner, completed_branch, ROOT_MESSAGE
-from scripts.framework.claude_evidence import source_fragments, assert_full_exports
+from scripts.framework.claude_evidence import source_fragments, assert_full_exports, assert_existing_exports, markdown_fact
 from scripts.framework.platforms.claude import ClaudePlugin, build_dag
 from scripts.framework.platforms.core import resolve_plan
 
@@ -168,6 +168,50 @@ class ClaudeTier2Tests(unittest.TestCase):
                 md.write_text(md.read_text().replace('answer.', 'Full answer.').replace('  print(1)', 'print(1)'))
                 with self.assertRaisesRegex(ValueError, 'indentation changed'):
                     assert_full_exports(root, output, ['one'])
+
+    def test_currency_dollars_remain_prose_in_independent_evidence(self):
+        fact = markdown_fact(Path(__file__).resolve().parents[1], 'Prices: $5 input / $30 output. Formula: $x^2$.')
+        self.assertIn('$5 input / $30 output', fact['text'])
+        self.assertEqual([s['text'] for s in fact['segments'] if s['kind'] == 'math'], ['x^2'])
+
+    def test_existing_oracle_checks_interrupted_pending_and_empty_without_weakening_full_gate(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            for fmt in ('json', 'markdown', 'html', 'pdf'):
+                (output/'downloads'/fmt).mkdir(parents=True)
+            raw = source('one', ['Prompt'])
+            raw['chat_messages'][1]['stop_reason'] = 'error'
+            def write(quality, roles):
+                (output/'one.source.json').write_text(json.dumps(raw))
+                document = {'conversation': {'index': {'key': {'conversationId': 'one'}}, 'detail': {
+                    'quality': {'status': quality}, 'assets': [], 'messages': [
+                        {'id': f'0-{sender}', 'role': role} for sender,role in roles]}}}
+                (output/'downloads/json/one.json').write_text(json.dumps(document))
+                (output/'downloads/markdown/one.md').write_text(''.join(
+                    f'## {"👤 User" if role == "user" else "🤖 Assistant"}\n{("Prompt" if role == "user" else "Answer Prompt")}\n'
+                    for _,role in roles))
+                (output/'downloads/html/one.html').write_text(''.join(
+                    f'<div class="gem-{"prompt" if role == "user" else "model"}-content">{("Prompt" if role == "user" else "Answer Prompt")}</div>'
+                    for _,role in roles))
+            with patch('scripts.framework.claude_evidence.PdfExportDownloadCase._extract_pdf_info',
+                       return_value={'contentRuns': [{'kind':'text','text':'Prompt Answer Prompt'}], 'pageCount':1}), \
+                    patch('scripts.framework.claude_evidence.assert_pdf_turn_content', return_value=(True, 'ok')):
+                roles = [('human','user'),('assistant','assistant')]
+                write('partial', roles)
+                self.assertEqual(assert_existing_exports(root, output, ['one'])[0]['quality'], 'partial')
+                with self.assertRaisesRegex(ValueError, 'incomplete'):
+                    assert_full_exports(root, output, ['one'])
+                write('complete', roles)
+                with self.assertRaisesRegex(ValueError, 'quality differs'):
+                    assert_existing_exports(root, output, ['one'])
+                raw['current_leaf_message_uuid'] = None
+                raw['chat_messages'] = raw['chat_messages'][:1]
+                write('unknown', roles[:1])
+                self.assertEqual(assert_existing_exports(root, output, ['one'])[0]['messages'], 1)
+                raw['chat_messages'] = []
+                write('unknown', [])
+                self.assertEqual(assert_existing_exports(root, output, ['one'])[0]['messages'], 0)
 
     def test_send_saves_dom_progress_without_source_polling_and_rejects_pending_question(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -19,6 +19,11 @@ const compact = text => text.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '')
 // Keep them only when that exact physical source span is also visible in the
 // independent DOM evidence. Missing delimiters still fail full-text equality.
 const visibleLiteral = text => visibleReference.includes(compact(text));
+// Spaced dollar spans such as "$5 input / $30 output" are visible prose,
+// not a formula. Keep their delimiters in the independent text/PDF evidence.
+const spacedDollarText = node => node.type === 'inlineMath'
+    && (node.value.startsWith(' ') || node.value.endsWith(' '));
+const dollarSource = node => evidence.text.slice(node.position.start.offset, node.position.end.offset);
 function authored(node) {
     const chunks = [];
     function add(text, verbatim = false, boundary = false) {
@@ -31,6 +36,7 @@ function authored(node) {
         if (current.type === 'text') add(current.value);
         // Code/math form immutable boundaries, preserving literal operators.
         else if (['code', 'inlineCode'].includes(current.type)) add(current.value, true);
+        else if (spacedDollarText(current)) add(dollarSource(current));
         else if (['math', 'inlineMath'].includes(current.type)) add(current.value.replace(/\\\\\s*\[[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:ex|em|pt|pc|px|cm|mm|in)\]/g, '\\\\').replace(/\\Vert\{\}/g, '\\|').replace(/\\vert\{\}/g, '|'), true);
         else if (current.type === 'html') add(/^<br\s*\/?>$/i.test(current.value) ? '' : current.value, true);
         else current.children?.forEach(visit);
@@ -122,7 +128,11 @@ if (tail?.type === 'blockquote') {
 const segments = [];
 function collectSegments(node) {
     if (executionNodes.has(node)) return;
-    if (['math', 'inlineMath', 'code'].includes(node.type)) {
+    if (spacedDollarText(node)) {
+        const previous = segments.at(-1);
+        if (previous?.kind === 'text') previous.text += dollarSource(node);
+        else segments.push({ kind: 'text', text: dollarSource(node) });
+    } else if (['math', 'inlineMath', 'code'].includes(node.type)) {
         segments.push({ kind: node.type === 'code' ? 'code' : 'math', text: node.value });
     } else if (['text', 'inlineCode'].includes(node.type)) {
         const previous = segments.at(-1);

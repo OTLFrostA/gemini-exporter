@@ -48,3 +48,33 @@ across Markdown, HTML, JSON and PDF, including both generated Python originals.
 Every PDF page and both complete HTML exports were rendered for visual review.
 Optional local font permission in the `prompt` state had stalled PDF export;
 the fallback now uses bundled fonts without asking for that optional access.
+
+## Existing-conversation acceptance (2026-10-23)
+
+The requested non-posting acceptance scanned and physically exported all eight
+existing conversations in Markdown, HTML, JSON and PDF. Independent source-to-disk
+checks covered 51 messages and three original Python attachments. Five conversations
+were complete, the interrupted fourth reply retained partial quality, and the
+empty conversation plus failed first-send conversation retained unknown quality.
+All 53 PDF pages and eight HTML documents were rendered and visually reviewed.
+
+This run found that SSR conversation visits do not issue native detail fetches,
+so an enabled Live Save could silently miss an opened historical conversation.
+Claude now performs one opt-in refresh for that visit when no native detail was
+observed. Native detail capture suppresses the fallback; disabled Live Save and
+browser-download mode never trigger it. Navigation cancels stale work and failed
+acquisitions do not retry within the same visit. Real OPFS Markdown and both
+acoustic attachment originals were verified after this fix.
+
+Native UI deletion was verified using only the previous agent-created failed
+quota-diagnostic conversation, after backing up its source and matching its
+single prompt to the reserved test scenario. The successful native receipt
+removed same-key Index, Detail and ExportRecord without refreshing Options;
+unrelated conversation facts remained unchanged. The harness now waits for the
+new document and hydrated menu, recognizes icon/shortcut-decorated menu labels,
+and activates native DOM controls through CDP even when macOS occlusion drops
+pointer events. Only the quota dialog's non-purchase dismissal is used.
+
+Existing-conversation checks do not certify new generation, completed-stream
+capture, reply-triggered promotion or ExportRecord advancement. Live multi-account
+isolation also remains unverified because this account has only one organization.

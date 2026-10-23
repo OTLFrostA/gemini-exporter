@@ -291,3 +291,31 @@ conversations (no download and no receipt rewrite). Popup had omitted the ZIP
 library used for attached files; it now loads the same library as Options,
 with a browser regression covering actual ZIP contents. These additional gates
 still do not substitute for quota-blocked generation and lifecycle acceptance.
+
+### Claude non-posting acceptance (2026-10-23)
+
+At the user's request, independent source snapshots and physical four-format
+exports were checked for all eight existing conversations, including interrupted
+and empty history. `assert_existing_exports` validates those states explicitly;
+the full-generation oracle still rejects unfinished replies. The Markdown
+evidence grammar now preserves spaced dollar price spans as prose, fixing a
+false formula mismatch without changing product output. The L3 probe's optional
+provider argument also permits the same storage/document contract checks on Claude.
+
+Search by title/ID, selection, language, initial export receipts, Popup downloads,
+unchanged skipping, clear/cancel/rescan, historical-visit Live Save and same-key
+native deletion were checked independently of message generation. Deletion used
+only a source-backed prior test conversation. Local artifacts, source snapshots,
+all 53 PDF page renders and eight HTML screenshots are under
+`tests/output/claude-existing-20261023/`. This is scoped acceptance, never a full
+Tier 2 pass: new multi-turn generation, completed-stream capture, reply-triggered
+promotion and export advancement were not exercised.
+
+Uninstall/reinstall and the fresh seven-step tour also passed. The restored
+install was reconnected and scanned the seven remaining conversations (the
+eighth was the disposable deletion target). With Live Save disabled, the SSR
+visit did not acquire local Detail; enabling it and revisiting produced the
+Markdown plus both unchanged original attachment files. Exactly one local
+required-Claude-host install remains enabled. Final Tier 1 passed, including
+164 Playwright tests with one existing skip; Python platform contracts passed
+41 tests. The local report records scoped acceptance separately from full Tier 2.

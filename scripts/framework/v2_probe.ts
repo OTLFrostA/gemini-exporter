@@ -47,8 +47,8 @@ export async function refreshForNativeAudit(ids: string[], providerId = 'gemini'
     const state = await snapshot(providerId);
     for (const conversationId of ids) await refreshConversation({ accountId: state.accountId, conversationId });
 }
-export async function conversations(ids: string[]) {
-    const state = await snapshot();
+export async function conversations(ids: string[], providerId = 'gemini') {
+    const state = await snapshot(providerId);
     return Promise.all(ids.map(async id => {
         const domain = await readConversation({ accountId: state.accountId, conversationId: id });
         return { id, ok: domain !== null, account: state.account, domain,
@@ -56,8 +56,8 @@ export async function conversations(ids: string[]) {
     }));
 }
 /** Inspect physical L3a schema and the actual L2 -> L3b boundary after export acquisition. */
-export async function l3Contracts(ids: string[]) {
-    const state = await snapshot();
+export async function l3Contracts(ids: string[], providerId = 'gemini') {
+    const state = await snapshot(providerId);
     const db = await openStorageDB();
     let layout;
     try {
