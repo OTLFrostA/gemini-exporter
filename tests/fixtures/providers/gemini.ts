@@ -25,7 +25,19 @@ const nativeAnyError = (rpc: string, code: unknown,
 
 
 // One unique key per consuming List test call site. Values preserve the old data.
+
+/** Preserve the historic P1-E List envelope, whose items occupy inner slot 1. */
+function p1RegressionList(items: unknown[]): string {
+    return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, items, null])]]);
+}
+
 const fixtureMap = {
+    'G_P1E_LIST_01': () => p1RegressionList([['c_cnt1234567890', 'T', null, null, null, 1757839234]]),
+    'G_P1E_LIST_02': () => p1RegressionList([['c_cnt2234567890', 'T2', null, null, 7]]),
+    'G_P1E_LIST_03': () => p1RegressionList([['c_nots1234567890', 'NoTime']]),
+    'G_P1E_LIST_04': () => p1RegressionList([['c_hasts1234567890', 'HasTime', null, null, null, [1700000000, 0]]]),
+    'G_GEMINI_PARSER_LIST_01': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc',
+        JSON.stringify([null, [['c_1234567890abcdef', 'Test Title', [1700000000, 0], [1700000000, 0], 5]], 'tC_token123'])]]),
     'G_PERF_RETRY_429_01': () => {
         const inner = JSON.stringify([null, [['c_conv123', 'Conversation 1', [1700000000, 0], [1700000000, 0], 1]], null]);
         return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc', inner]]);
