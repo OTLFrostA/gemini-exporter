@@ -39,9 +39,9 @@ export async function resolveAccountTab(accountId: string): Promise<chrome.tabs.
     if (!isAccountId(accountId)) throw new TypeError('Tab routing requires an Account UUID');
     await ensureV2Ready();
     const account = await getAccount(accountId);
-    if (!account || !['gemini', 'chatgpt'].includes(account.providerId)) throw new Error('Account has no supported Content Script');
+    if (!account || !['gemini', 'chatgpt', 'claude'].includes(account.providerId)) throw new Error('Account has no supported Content Script');
     const tabs = await chrome.tabs.query({ url: account.providerId === 'chatgpt'
-        ? ['https://chatgpt.com/*', 'https://chat.openai.com/*'] : 'https://gemini.google.com/*' });
+        ? ['https://chatgpt.com/*', 'https://chat.openai.com/*'] : account.providerId === 'claude' ? 'https://claude.ai/*' : 'https://gemini.google.com/*' });
     tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active));
     for (const tab of tabs) {
         if (tab.id === undefined) continue;

@@ -12,7 +12,10 @@ from scripts.framework.actions import CDPActions
 from scripts.framework.v2_probe import install_probe, snapshot
 
 
-class ChatGPTAcceptance:
+from scripts.framework.browser_acceptance import BrowserAcceptance
+
+
+class ChatGPTAcceptance(BrowserAcceptance):
     def prepare_extension(self):
         """Explicit local-only install flavor; never edit the shipping manifest."""
         self.extension_root = self.root
@@ -32,40 +35,6 @@ class ChatGPTAcceptance:
         self.extension_root = target
         self.report['testInstallMode'] = 'required-chatgpt-hosts'
 
-    def clean_install(self):
-        """Replace only this product's unpacked install, keeping one enabled copy."""
-        entries = self.browser.call('Extensions.getExtensions').get('result', {}).get('extensions')
-        if not isinstance(entries, list):
-            raise ValueError('Cannot establish the installed extension inventory')
-        own = []
-        manifest = json.loads((self.root/'manifest.json').read_text())
-        for entry in entries:
-            path = Path(entry['path'])/'manifest.json'
-            if path.is_file():
-                candidate = json.loads(path.read_text())
-                if (candidate.get('name') == manifest['name'] and
-                    candidate.get('background') == manifest['background']):
-                    own.append(entry)
-        for entry in own:
-            for tab in get_tabs(self.port):
-                if tab.get('url', '').startswith(f"chrome-extension://{entry['id']}/") and tab.get('type') == 'page':
-                    self.browser.call('Target.closeTarget', {'targetId': tab['id']})
-            result = self.browser.call('Extensions.uninstall', {'id': entry['id']})
-            if result.get('error'):
-                raise ValueError(result['error'])
-        after = self.browser.call('Extensions.getExtensions')['result']['extensions']
-        if any(entry['id'] in {e['id'] for e in own} for entry in after):
-            raise ValueError('Prior product extension still installed')
-        self.report['installation'] = {'removedCopies': len(own), 'clean': True}
-
-    def fresh_options(self):
-        from scripts.framework.chatgpt_live import wait_for
-        url = f'chrome-extension://{self.ext_id}/src/ui/options/options.html'
-        target = next((t for t in get_tabs(self.port) if t.get('url') == url), None)
-        if not target:
-            self.browser.call('Target.createTarget', {'url': url})
-            target = wait_for(lambda: next((t for t in get_tabs(self.port) if t.get('url') == url), None))
-        return CDPConnection(target['webSocketDebuggerUrl'])
 
     def passive_sidebar(self):
         """Native first page, without Sync or an injected list request."""
@@ -89,35 +58,6 @@ class ChatGPTAcceptance:
         result = wait_for(lambda: self.chat.eval("(()=>{const e=document.getElementById('geminiExportBadge');if(!e)return null;const r=e.getBoundingClientRect();return r.width>0&&r.height>0?{width:r.width,height:r.height}:null})()"), 45)
         return result
 
-    def select_ids(self, ids):
-        self.options.eval('''(()=>{document.getElementById('btnSelectNone').click();
-            const wanted=new Set('''+json.dumps(ids)+''');
-            for(const item of document.querySelectorAll('#list .item')) {
-                const c=item.querySelector('input[type=checkbox]');
-                if(wanted.has(item.dataset.chatId)&&c){c.checked=true;c.dispatchEvent(new Event('change',{bubbles:true}));}
-            }})()''', user_gesture=True)
-        selected = self.options.eval("[...document.querySelectorAll('#list .item')].filter(e=>e.querySelector('input:checked')).map(e=>e.dataset.chatId)")
-        if set(selected) != set(ids):
-            raise ValueError('Selection differs from requested identities')
-
-    def export_selected(self, ids, folder, fmt='markdown'):
-        folder = Path(folder)
-        folder.mkdir(parents=True, exist_ok=True)
-        self.select_ids(ids)
-        path = CDPActions.trigger_export_zip(self.options, str(folder), max_wait=max(600, len(ids)*120),
-                                            skip_exported=False, format_type=fmt, allow_standalone=True)
-        if not path:
-            raise ValueError('Physical export did not arrive')
-        return Path(path)
-
-    def initial_export(self):
-        cid = self.chat_ids[0]
-        path = self.export_selected([cid], self.output/'initial-export')
-        state = self.stored(cid)
-        if not state.get('exportRecord'):
-            raise ValueError('Physical download did not commit ExportRecord')
-        self.initial_exports[cid] = state['exportRecord']
-        return {'file': str(path), 'exportRecord': state['exportRecord']}
 
     def assert_export_advancement(self, cid):
         # Live export may have already advanced; either the live record or the
@@ -253,16 +193,3 @@ class ChatGPTAcceptance:
         if not set(self.chat_ids).issubset({r['id'] for r in self.report['scan']}):
             raise ValueError('Real rescan failed to recover retained remote conversations')
         return {'cleared': len(before['rows']), 'cancelPreservedData': True, 'rescanRecovered': True}
-
-    def uninstall_lifecycle(self):
-        from scripts.framework.chatgpt_live import wait_for
-        old = self.ext_id
-        removed = self.browser.call('Extensions.uninstall', {'id': old})
-        if removed.get('error'):
-            raise ValueError(removed['error'])
-        wait_for(lambda: all(e['id'] != old for e in self.browser.call('Extensions.getExtensions')['result']['extensions']), 10)
-        loaded = self.browser.call('Extensions.loadUnpacked', {'path': str(self.extension_root)})
-        if loaded.get('error') or not loaded.get('result', {}).get('id'):
-            raise ValueError('Clean restoration failed')
-        self.ext_id = loaded['result']['id']
-        return {'uninstalled': old, 'restored': self.ext_id, 'physicalInventoryVerified': True}

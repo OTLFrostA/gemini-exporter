@@ -57,3 +57,24 @@ test('Batch 4 - listView constructs fixed-origin links and renders untrusted tit
         assert.ok((await page.locator('#list').textContent())?.includes(title));
     } finally { await browser.close(); }
 });
+
+
+test('Conversation links use each selected provider with encoded identity', async () => {
+    const { chromium } = await import('playwright');
+    const { mount, A } = require('./helpers/uiPortHarness.js') as typeof import('./helpers/uiPortHarness.js');
+    const browser = await chromium.launch({ headless: true });
+    try {
+        for (const [providerId, origin] of [['claude', 'https://claude.ai/chat/'], ['chatgpt', 'https://chatgpt.com/c/']]) {
+            const page = await browser.newPage();
+            await mount(page, 'options', {
+                accounts: [{ id: A, providerId, providerAccountId: 'test' }],
+                indexes: [{ key: { accountId: A, conversationId: 'id/with?query' }, title: 'Provider link' }],
+            });
+            const link = page.locator('#list .open-link');
+            await link.waitFor();
+            assert.strictEqual(await link.getAttribute('href'), origin + 'id%2Fwith%3Fquery');
+            assert.ok((await link.getAttribute('aria-label'))?.includes(providerId === 'claude' ? 'Claude' : 'ChatGPT'));
+            await page.close();
+        }
+    } finally { await browser.close(); }
+});

@@ -21,7 +21,7 @@ const allowedPath = /^\/api\/organizations(?:\/[\da-f-]{36}\/chat_conversations(
  * An expected organization is rechecked in the same injected execution.
  */
 export async function readClaudeSource(path: string, expectedOrganization?: string): Promise<unknown> {
-    if (!allowedPath.test(path) || expectedOrganization !== undefined
+    if (!(allowedPath.test(path) || /^\/api\/organizations\/[\da-f-]{36}\/chat_conversations_v2\?limit=100&offset=\d+&consistency=strong$/i.test(path)) || expectedOrganization !== undefined
         && !/^[\da-f-]{36}$/i.test(expectedOrganization)) throw new TypeError('Invalid Claude API request');
     if (!await hasClaudeAccess()) throw new Error('Claude host permission unavailable');
     const tabs = await chrome.tabs.query({ url: [CLAUDE_ORIGIN] });
@@ -51,12 +51,15 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
                     }
                     return getJson(requestedPath);
                 },
-                args: [path, expectedOrganization],
+                args: expectedOrganization === undefined ? [path] : [path, expectedOrganization],
             });
             if (results.length !== 1 || results[0]?.result === undefined)
                 throw new Error('Claude source returned no data');
             return results[0].result;
-        } catch (error) { lastError = error; }
+        } catch (error) {
+            if (error instanceof Error && /HTTP 429/.test(error.message)) throw error;
+            lastError = error;
+        }
     }
     throw lastError instanceof Error ? lastError : new Error('Claude tab source unavailable');
 }

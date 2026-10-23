@@ -38,6 +38,7 @@ test('account, status and log pickers paint inside the viewport in both themes a
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#list .item')).toContainText('exported');
     await filter.press('Space');
+    await expect.poll(() => filter.evaluate(node => node.matches(':open'))).toBe(true);
     await page.keyboard.press('Home');
     await page.keyboard.press('Enter');
     await expect(filter).toHaveValue('all');
@@ -58,6 +59,7 @@ test('account, status and log pickers paint inside the viewport in both themes a
     await expect(page.locator('#list .item')).toHaveCount(0);
     await expect(account).toHaveValue('10000000-0000-4000-8000-000000000002');
     await account.press('Space');
+    await expect.poll(() => account.evaluate(node => node.matches(':open'))).toBe(true);
     await page.keyboard.press('Home');
     await page.keyboard.press('Enter');
     await expect(account).toHaveValue(accountId);

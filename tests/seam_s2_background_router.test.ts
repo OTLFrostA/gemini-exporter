@@ -14,6 +14,8 @@ const key = { accountId: A, conversationId: 'abcdef123456' };
 function load(file: string, stubs: Record<string, unknown> = {}) {
     const original = Module._load;
     const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([A, B]),
+        'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => true },
+        'src/runtime/capabilities/claudeInjection.js': { syncClaudeContentScripts: async () => {} },
         'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
         'src/l2/conversationKey.js': mockConversationKey([A, B]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {

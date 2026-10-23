@@ -431,5 +431,8 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
             runner.source.assert_not_called()
 
 
+from test_tier2_claude import ClaudeTier2Tests
+
+
 if __name__ == '__main__':
     unittest.main()

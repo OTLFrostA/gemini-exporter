@@ -1,10 +1,11 @@
 import type { BlockNode } from '../../../l2/content/blocks.js';
-import type { DomainMessage } from '../../../l2/conversationDetail.js';
+import type { DomainAsset, DomainMessage } from '../../../l2/conversationDetail.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { SourceConversationParseResult } from '../parsingResult.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../shared/markdown/index.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { claudeTimestamp } from './parseList.js';
+import { createToolState, isCapturedArtifactFile, parseToolUse, parseToolResult, type ToolState } from './parseTools.js';
 
 function object(value: unknown): Record<string, unknown> | null {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -23,6 +24,7 @@ function currentBranch(data: Record<string, unknown>): Branch {
     const nodes = data.chat_messages.map(object);
     if (nodes.some(node => !node || !uuid(node.uuid))) throw new TypeError('Invalid Claude message tree');
     const byId = new Map(nodes.map(node => [node!.uuid as string, node!]));
+    if (byId.size !== nodes.length) throw new TypeError('Duplicate Claude message UUID');
     if (!uuid(data.current_leaf_message_uuid) || !byId.has(data.current_leaf_message_uuid)) {
         // Never silently call a guessed branch complete.
         return { messages: nodes.filter((n): n is Record<string, unknown> => !!n)
@@ -37,61 +39,72 @@ function currentBranch(data: Record<string, unknown>): Branch {
         const node = byId.get(id)!;
         result.push(node);
         const parent: unknown = node.parent_message_uuid;
-        if (parent == null) break;
+        if (parent == null || parent === '00000000-0000-4000-8000-000000000000') break;
         if (!uuid(parent)) { quality = 'partial'; break; }
         id = parent;
     }
     return { messages: result.reverse(), quality };
 }
-function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext):
+function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext, tools: ToolState, assets: DomainAsset[]):
     { content: BlockNode[]; reasoning: BlockNode[]; incomplete: boolean } {
     const id = String(message.uuid);
     const content: BlockNode[] = [], reasoning: BlockNode[] = [];
-    let incomplete = message.truncated === true || message.stop_reason === 'user_canceled';
+    let incomplete = message.truncated === true || ['user_canceled', 'error', 'max_tokens', 'tool_use', 'pause_turn', 'model_context_window_exceeded'].includes(String(message.stop_reason));
+    const missing = (code: string, message: string) => {
+        incomplete = true;
+        ctx.diagnostics.push({ severity: 'warning', code, message, sourceRef: ctx.sourceRef });
+    };
+    if (incomplete) missing('claude.message.truncated', 'Message was truncated or canceled');
     const attachments = Array.isArray(message.attachments) ? message.attachments : [];
     const files = Array.isArray(message.files) ? message.files : [];
-    for (const entry of [...attachments, ...files]) {
+    const unresolved: { file: Record<string, unknown>; name: string; generated: boolean }[] = [];
+    for (const { entry, generated } of [...attachments.map(entry => ({ entry, generated: false })),
+        ...files.map(entry => ({ entry, generated: true }))]) {
         const file = object(entry);
-        if (!file) continue;
+        if (!file) { missing('claude.attachment.invalid', 'Invalid attachment metadata'); continue; }
         const name = typeof file.file_name === 'string' ? file.file_name
             : typeof file.name === 'string' ? file.name : 'attachment';
-        content.push(paragraph('Attachment: ' + name));
-        if (typeof file.extracted_content === 'string' && file.extracted_content.trim())
+        if (typeof file.extracted_content === 'string' && file.extracted_content.trim()) {
+            content.push(paragraph('Attachment: ' + name));
             content.push(...markdown(file.extracted_content, id, ctx));
-        else incomplete = true; // Binary bytes are not implied by a metadata card.
+        } else unresolved.push({ file, name, generated });
     }
     if (Array.isArray(message.content)) {
         for (const raw of message.content) {
             const block = object(raw);
-            if (!block) { incomplete = true; continue; }
+            if (!block) { missing('claude.content.invalid', 'Invalid content block'); continue; }
             if (block.type === 'text' && typeof block.text === 'string') {
                 content.push(...markdown(block.text, id, ctx));
             } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
                 reasoning.push(...markdown(block.thinking, id, ctx));
             } else if (block.type === 'tool_use') {
-                const input = object(block.input);
-                const value = input?.content;
-                if (typeof value === 'string' && (input?.command === undefined || input.command === 'create')) {
-                    const name = typeof input?.title === 'string' ? input.title
-                        : typeof block.name === 'string' ? block.name : 'Artifact';
-                    content.push(paragraph('Artifact: ' + name));
-                    content.push({ type: 'code', code: value,
-                        ...(typeof input?.language === 'string' ? { language: input.language } : {}) });
-                } else {
-                    // Preserve the fact that an unsupported tool existed; do not fake its output.
-                    content.push(paragraph('Tool: ' + (typeof block.name === 'string' ? block.name : 'unknown')));
-                    incomplete = true;
-                }
+                const parsed = parseToolUse(block, tools, text => markdown(text, id, ctx));
+                content.push(...parsed.blocks);
+                for (const issue of parsed.issues) missing('claude.tool_use.unsupported', issue);
             } else if (block.type === 'tool_result') {
-                // The tool result may be a display widget, not part of the authored message.
-                incomplete = true;
+                const parsed = parseToolResult(block, text => markdown(text, id, ctx));
+                content.push(...parsed.blocks);
+                for (const issue of parsed.issues) missing('claude.tool_result.unsupported', issue);
             } else if (block.type !== 'redacted_thinking') {
-                incomplete = true;
+                missing('claude.content.unsupported', 'Unsupported content block: ' + String(block.type));
             }
         }
     } else if (typeof message.text === 'string') {
         content.push(...markdown(message.text, id, ctx));
-    } else { incomplete = true; }
+    } else { missing('claude.content.missing', 'Message has no content'); }
+    for (const { file, name, generated } of unresolved) {
+        if (generated && isCapturedArtifactFile(message, file, tools)) continue;
+        const fileId = file.file_uuid ?? file.uuid;
+        if (generated && file.success === true && file.file_kind === 'blob' && file.download_source === 'files-api' && uuid(fileId)) {
+            const assetId = 'claude-file:' + fileId;
+            if (!assets.some(asset => asset.id === assetId)) assets.push({ id: assetId, kind: 'file', name,
+                sourceUri: assetId, ...(typeof file.size_bytes === 'number' && Number.isSafeInteger(file.size_bytes) && file.size_bytes >= 0 ? { byteLength: file.size_bytes } : {}) });
+            content.push({ type: 'file', assetId, label: name });
+            continue;
+        }
+        content.push(paragraph('Attachment: ' + name));
+        missing('claude.attachment.unavailable', 'Attachment bytes or extracted text unavailable');
+    }
     return { content, reasoning, incomplete };
 }
 
@@ -105,13 +118,19 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
     const ctx: MarkdownParseContext = {
         diagnostics, sourceRef: { providerId: 'claude', locator: 'conversation:' + requestedId },
     };
+    if (branch.quality !== 'complete') diagnostics.push({ severity: 'warning',
+        code: 'claude.branch.' + branch.quality,
+        message: branch.quality === 'partial' ? 'Current branch has a missing or cyclic parent'
+            : 'Current branch leaf is unavailable', sourceRef: ctx.sourceRef });
     let partial = false;
     const sourceModel = typeof data.model === 'string' && data.model.trim() ? data.model : undefined;
     const messages: DomainMessage[] = [];
+    const assets: DomainAsset[] = [];
+    const tools = createToolState(branch.messages);
     for (const message of branch.messages) {
         if (message.sender !== 'human' && message.sender !== 'assistant') continue;
         const rendered = contentOf(message, { ...ctx,
-            sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } });
+            sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } }, tools, assets);
         if (rendered.incomplete) partial = true;
         const timestamp = claudeTimestamp(message.created_at);
         const model = typeof message.model === 'string' && message.model.trim() ? message.model : sourceModel;
@@ -135,7 +154,7 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
                 titleSource: 'provider', createdAt, updatedAt: sourceVersion,
                 url: 'https://claude.ai/chat/' + requestedId }),
             detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}),
-                quality: { status: messages.length ? quality : 'unknown' }, assets: [], messages },
+                quality: { status: messages.length ? quality : 'unknown' }, assets, messages },
         },
         diagnostics, acquisitionHints: {},
     };

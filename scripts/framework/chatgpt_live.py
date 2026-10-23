@@ -21,14 +21,7 @@ from scripts.framework.image_evidence import capture_webpage_images, assert_imag
 from scripts.framework.chatgpt_acceptance import ChatGPTAcceptance
 
 
-def wait_for(operation, timeout=90, interval=.5):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        result = operation()
-        if result:
-            return result
-        time.sleep(interval)
-    raise TimeoutError('Live ChatGPT observation did not settle')
+from scripts.framework.live_utils import wait_for
 
 
 def current_branch(raw):

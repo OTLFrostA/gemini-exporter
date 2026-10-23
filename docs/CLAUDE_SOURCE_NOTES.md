@@ -12,10 +12,69 @@ We do **not** bundle any of their scripts, UI, ZIP/export logic or third-party l
 
 - Claude is opt-in via an optional origin permission; existing Gemini users receive no new mandatory host permissions.
 - Organization IDs are used as source-account identities. Team/shared-organization identity isolation requires further live verification.
-- Claude currently exposes an array-returning conversation list and an undocumented detail endpoint. Those contracts may change or truncate silently; the scan indexes observed rows but intentionally returns a partial-coverage result rather than claiming source exhaustion. Pagination/coverage verification is required before marking the provider production-ready.
+- Scans use the current `chat_conversations_v2` endpoint with 100-row offset pages and strong consistency. Only an explicit `has_more: false`, complete results and a nonrepeating ordered source chain admit exhausted Coverage; older passive array responses only add observed indexes. The seven-row live account was verified against the native sidebar. Large and team accounts still require live validation.
 - Only the selected branch is rendered into Domain Detail. Alternate branches are not represented by the current v2 Domain schema.
-- Text content, available thinking blocks, uploaded text extracts and simple content-bearing artifacts are mapped. Other tool content is represented conservatively; binary attachments are not claimed to be downloaded.
-- No Claude live-save/sniffer is installed in this first integration; only manual scan and export are connected.
+- Text, exposed reasoning, uploaded text extracts and native tool content are mapped. Generated files with explicit UUID/files-api metadata are downloaded from the authenticated organization-specific contents endpoint, with a size cap and declared byte-length checks. Unknown uploaded binary formats remain partial.
+- Permission-gated MAIN/ISOLATED content scripts capture native lists, details, completed streams and successful DELETE receipts, plus initial visible sidebar links. They use the common Badge, Popup, L2 admission and Live Save owners. The hook itself makes no extra source or identity requests.
 - No authorization headers, tokens, cookies or conversation bytes leave the local browser other than same-origin requests to claude.ai.
 
 Before releasing, run the TypeScript, unit and browser suites; validate list size/pagination, team account identity, detail fidelity and attachments against a live logged-in Claude test account.
+
+## Native tool content
+
+- The reserved parent UUID `00000000-0000-4000-8000-000000000000` closes the selected branch. Missing real parents, cycles and unavailable leaves still prevent complete quality.
+- `AskUserQuestion` becomes ordinary Domain paragraphs and lists: headers, questions, single/multiple selection mode, option labels and descriptions. Its returned answers remain text. Export is a static record, not an interactive form.
+- Web searches preserve query text and result titles/HTTP(S) links. Missing results and unsupported result blocks produce partial quality with message-scoped diagnostics.
+- Connector list, registry search and suggestions become named cards with descriptions and HTTP(S) links. Tool discovery preserves returned tool references. Registry IDs, execution parameters and icon metadata do not represent authored conversation content.
+- Artifact code blocks require an explicit `artifacts` tool or a modern `Artifact` publish bound to captured `Write` content for the same path. Missing file bytes and unparsed edits remain partial. Memory read/write/append and skill setup are operational events, represented by a status label; internal profile bodies and version tokens are excluded. A tool input containing a `content` field is not sufficient to classify it as an Artifact.
+- Unsupported tools, malformed questionnaires, unavailable attachments and truncated content retain conservative quality and emit diagnostics. Empty conversations without a selected leaf remain unknown.
+
+Initial live validation of the captured four-conversation account yields three complete non-empty conversations (26 messages) and one unknown empty conversation. Actual extension downloads were checked as Markdown and HTML, including both questionnaire questions and all eight options. This does not certify binary attachments, list exhaustion, team account isolation, PDF output or full Claude Tier 2 support.
+
+A fresh three-round live conversation additionally exercises tables, LaTeX, Python, a two-question native questionnaire with submitted single/multiple choices, memory read/append, and the modern `Skill → Write → Artifact` tool chain. Modern Artifact export preserves the exact captured file source as inert code and the published link; it never executes the source or fetches missing file bytes. Unsupported file mutations invalidate retained bytes so a later publish cannot silently reuse an older version.
+
+
+## Follow-up validation (2026-10-22)
+
+The five-round acoustic test introduced native `visualize` widgets, task state, shell execution, file delivery and Claude Docs operations. Widgets preserve exact inert SVG/HTML source; static exports do not execute interactive code. Shell commands and results retain exact code/indentation. Docs creation, inline Markdown edits and comments are labelled chronological operations rather than a guessed final remote document; tool setup and abbreviated internal receipts are excluded. Unrecognized edits remain partial.
+
+Only three replies in the account's next scenario completed; the fourth was submitted but ended with `stop_reason: error` during the fourth reply when the Free five-hour message quota was exhausted. Such interrupted output remains partial even when visible text and code are present. The live waiter now detects native quota notices outside authored message bodies and reports them separately from HTTP 429. It does not retry messages or upgrade the account.
+
+Full-run attempts and targeted existing-conversation exports have separate reports. Badge and all seven visible sidebar rows passed in real 9222 Chrome. Full 5/8-round generation, promotion and confirmed deletion remain blocked by native message quota; targeted scan/export results do not substitute for those full-run gates.
+
+
+Targeted follow-up disk acceptance covered 16 messages and 27 exact code bodies
+across Markdown, HTML, JSON and PDF, including both generated Python originals.
+Every PDF page and both complete HTML exports were rendered for visual review.
+Optional local font permission in the `prompt` state had stalled PDF export;
+the fallback now uses bundled fonts without asking for that optional access.
+
+## Existing-conversation acceptance (2026-10-23)
+
+The requested non-posting acceptance scanned and physically exported all eight
+existing conversations in Markdown, HTML, JSON and PDF. Independent source-to-disk
+checks covered 51 messages and three original Python attachments. Five conversations
+were complete, the interrupted fourth reply retained partial quality, and the
+empty conversation plus failed first-send conversation retained unknown quality.
+All 53 PDF pages and eight HTML documents were rendered and visually reviewed.
+
+This run found that SSR conversation visits do not issue native detail fetches,
+so an enabled Live Save could silently miss an opened historical conversation.
+Claude now performs one opt-in refresh for that visit when no native detail was
+observed. Native detail capture suppresses the fallback; disabled Live Save and
+browser-download mode never trigger it. Navigation cancels stale work and failed
+acquisitions do not retry within the same visit. Real OPFS Markdown and both
+acoustic attachment originals were verified after this fix.
+
+Native UI deletion was verified using only the previous agent-created failed
+quota-diagnostic conversation, after backing up its source and matching its
+single prompt to the reserved test scenario. The successful native receipt
+removed same-key Index, Detail and ExportRecord without refreshing Options;
+unrelated conversation facts remained unchanged. The harness now waits for the
+new document and hydrated menu, recognizes icon/shortcut-decorated menu labels,
+and activates native DOM controls through CDP even when macOS occlusion drops
+pointer events. Only the quota dialog's non-purchase dismissal is used.
+
+Existing-conversation checks do not certify new generation, completed-stream
+capture, reply-triggered promotion or ExportRecord advancement. Live multi-account
+isolation also remains unverified because this account has only one organization.

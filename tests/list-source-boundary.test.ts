@@ -1,3 +1,4 @@
+import { ClaudeProvider } from '../src/l1/client/claude/claudeProvider.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import test from 'node:test';
@@ -115,4 +116,25 @@ test('DOM metadata preserves title precedence and keeps UI labels and observatio
     assert.equal(fallback.titleSource, 'sniff');
     assert.equal(Object.hasOwn(fallback, 'updatedAt'), false);
     assert.equal(Object.hasOwn(fallback, 'createdAt'), false);
+});
+
+test('Claude paginated source proves exhaustion and rejects unordered or truncated pages', async () => {
+    const account = await getOrCreateAccount('claude', '11111111-1111-4111-8111-111111111111');
+    const rows = [
+        { uuid: '22222222-2222-4222-8222-222222222222', name: 'New', updated_at: '2026-10-22T01:00:00Z' },
+        { uuid: '33333333-3333-4333-8333-333333333333', name: 'Old', updated_at: '2026-10-21T01:00:00Z' },
+    ];
+    const paths: string[] = [];
+    const provider = new ClaudeProvider({ apiGet: async path => { paths.push(path); return { data: rows, has_more: false, search_incomplete: false }; } });
+    let head: unknown;
+    assert.equal(await provider.listConversations({ accountId: account.id, streamId: 'recent',
+        onPageCommitted: async info => { head = info.scanHead; return false; } }), 'source_end');
+    assert.equal(paths.length, 1);
+    assert.ok(paths[0].endsWith('chat_conversations_v2?limit=100&offset=0&consistency=strong'));
+    assert.equal((head as { nextCursor: unknown }).nextCursor, null);
+    for (const response of [{ data: rows.slice().reverse(), has_more: false },
+        { data: rows, has_more: true }, { data: rows, has_more: false, search_incomplete: true }, { data: rows }]) {
+        await assert.rejects(new ClaudeProvider({ apiGet: async () => response }).listConversations({
+            accountId: account.id, streamId: 'recent' }), /Claude/);
+    }
 });
