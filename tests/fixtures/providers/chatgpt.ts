@@ -15,6 +15,9 @@ function list(items: unknown[], metadata: Omit<NativeListPage, 'items'> = {}): N
 
 // One unique key per consuming List test call site. Values preserve the old data.
 const fixtureMap = {
+    'C_DISCOVERY_LIST_01': () => list([
+        { id: 'live-shaped-chat', title: 'ChatGPT conversation', create_time: 1000, update_time: 2000 },
+    ], { total: 1, offset: 0, limit: 100 }),
     'C_L1_CLIENT_V2_MOCKED_04': () => list([
         { id: 'chatgpt-source', title: 'Owned title', create_time: 1700000000, update_time: 1700000010 },
     ], { total: 1, offset: 0, limit: 100, has_missing_conversations: false }),
