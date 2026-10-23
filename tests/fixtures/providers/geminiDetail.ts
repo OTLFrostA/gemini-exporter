@@ -11,7 +11,58 @@ function observabilityTurn(id = 'c_abc123def456', userPayload: unknown = [['hell
     return [[id], [1700000000, 0], userPayload, [[['rc_cand000001', ['world'], 'en']]]];
 }
 
+
+/** Native Detail payloads for source-document and parser boundary tests. */
+function observabilityDocumentTurn(extraCand: unknown[]): unknown[] {
+    const candidate: unknown[] = ['rc_cand000001', ['world'], 'en', ...extraCand];
+    return [['c_abc123def456'], [1700000000, 0], [['hello']], [[candidate]]];
+}
+const BOUNDARY_ID = 'c_boundary12345678';
+function boundaryTurn(prompt = 'Boundary user prompt', seconds: number | null = 1700000000,
+    candidates: unknown[] = [['rc_boundary', [['Boundary model answer'], 'en']]]): unknown[] {
+    return [[BOUNDARY_ID, 'r_AB12'], seconds === null ? null : [seconds, 500000000], [[prompt]], [candidates]];
+}
+
 const fixtureMap = {
+
+    'G_OBSERVABILITY_DOC_01': () => {
+        const item = ['https://y/immersive_entry_chip/e2e', '123e4567-e89b-12d3-a456-426614174099', 'End To End Heuristic Title'];
+        const clue = '## End To End Heuristic Title\n\n' + '正文'.repeat(100);
+        return rpc([[observabilityDocumentTurn([[item], clue])]]);
+    },
+    'G_OBSERVABILITY_DOC_02': () => {
+        const id = '123e4567-e89b-12d3-a456-426614174099';
+        const item = ['https://y/immersive_entry_chip/0', id, 'Document'];
+        const content = [id, [['http://googleusercontent.com/immersive_entry_chip/0\n# 虚构城市水力建模分析\n\n' + '正文详细内容'.repeat(20)]]];
+        return rpc([[observabilityDocumentTurn([[item], content])]]);
+    },
+    'G_OBSERVABILITY_DOC_03': () => {
+        const id = '123e4567-e89b-12d3-a456-426614174099';
+        const item = ['https://y/immersive_entry_chip/0', id, 'Document'];
+        const content = [id, [['http://googleusercontent.com/immersive_entry_chip/0\n']]];
+        return rpc([[observabilityDocumentTurn([[item], content])]]);
+    },
+    'G_OBSERVABILITY_DOC_04': () => {
+        const item = ['https://y/immersive_entry_chip/no-match', '123e4567-e89b-12d3-a456-426614174099', 'Target Research Report'];
+        const unrelated = '# Different Document\n\n' + 'Unrelated content '.repeat(35);
+        return rpc([[observabilityDocumentTurn([[item], unrelated])]]);
+    },
+    'G_BOUNDARY_DETAIL_01': () => {
+        const newest = boundaryTurn('Newest prompt', 1700000010, [['rc_new_a', [['First variant']]], ['rc_new_b', 'Second variant']]);
+        const oldest = boundaryTurn('Oldest prompt', 1700000000, [['rc_old', [['Old answer']]]]);
+        return rpc([[newest, oldest], 'tC_detail_cursor', 'Official detail title', { extra: true }]);
+    },
+    'G_BOUNDARY_DETAIL_02': () => rpc([[[[BOUNDARY_ID], null, [['User only prompt']]]]]),
+    'G_BOUNDARY_DETAIL_03': () => rpc([[[[BOUNDARY_ID], null, null, [[['rc_model_only', [['Model only answer']]]]]]]]),
+    'G_BOUNDARY_DETAIL_04': () => {
+        const user = boundaryTurn();
+        user[2] = ['Flat user prompt title'];
+        return rpc([[user]]);
+    },
+    'G_BOUNDARY_DETAIL_05': () => rpc([null, null, [[BOUNDARY_ID, 'Metadata title']]]),
+    'G_BOUNDARY_DETAIL_06': () => rpc([null, { extra: true }]),
+    'G_BOUNDARY_DETAIL_07': () => rpc([[boundaryTurn(), [['x_not_a_turn'], null, [['Rejected recognizer prompt']]]]]),
+    'G_BOUNDARY_DETAIL_08': () => rpc([[boundaryTurn('Missing body prompt', null, [['rc_missing']])]]),
     'G_RPC_DOMAIN_01': () => {
         const code = "import math\n\n\nclass Encoder:\n    def encode(self):\n        return 1\n\n\n\nprint(Encoder().encode())";
         const answer = "Explanation\n\n```python\n" + code + "\n```\n\nConclusion";
