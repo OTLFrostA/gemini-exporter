@@ -2,7 +2,7 @@ import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObserv
 import { CHATGPT_SOURCE_EVENT, chatGPTConversationId, chatGPTRequest, confirmedChatGPTDeletion } from '../../l1/sniffer/chatgpt/observation.js';
 import { parseChatGPTConversation } from '../../l1/parsers/chatgpt/parseConversation.js';
 import { parseChatGPTList } from '../../l1/parsers/chatgpt/parseList.js';
-import type { ChatGPTApiConversationWithId } from '../../l1/parsers/chatgpt/chatgptTypes.js';
+import { decodeChatGPTDetail } from '../../l1/parsers/chatgpt/decodeDetail.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
 import { resolveCurrentAccount, invalidateAccountContext, setAccountChangedHandler } from './accountContext.js';
 import { BadgeView } from '../../ui/badge/badgeView.js';
@@ -82,10 +82,13 @@ window.addEventListener('message', event => {
             return;
         }
         if (request.kind === 'detail') {
-            if (!raw.responseBody || typeof raw.responseBody !== 'object' || Array.isArray(raw.responseBody)) return;
-            const body = raw.responseBody;
-            if ('id' in body && body.id !== key.conversationId || 'conversation_id' in body && body.conversation_id !== key.conversationId) return;
-            const parsed = parseChatGPTConversation({ account, conversation: { ...body, id: key.conversationId } as ChatGPTApiConversationWithId, assetsByNode: new Map() });
+            let conversation;
+            try { conversation = decodeChatGPTDetail(raw.responseBody, key.conversationId); }
+            catch (error) {
+                if (error instanceof TypeError) return; // Malformed or foreign source evidence.
+                throw error;
+            }
+            const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
             const admission = await ingestDetail(account.id, key.conversationId, parsed.conversation.detail, parsed.conversation.index);
             if (!admission.accepted || !admission.changed) return;
         }
