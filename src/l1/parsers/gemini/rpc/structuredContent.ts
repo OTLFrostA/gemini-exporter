@@ -135,10 +135,15 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
         const start = d.start;
         const end = d.end;
         const type = d.type;
-        if (typeof start === 'number' && typeof end === 'number' && type === 'source'
-            && Array.isArray(d.sourceIds) && d.sourceIds.length > 0
-            && d.sourceIds.every(id => typeof id === 'string' && /^spp_[\w-]+$/.test(id))) {
-            return { start, end, type, sourceIds: [...d.sourceIds] };
+        if (typeof start === 'number' && typeof end === 'number' && type === 'source') {
+            const rawSourceIds = d.sourceIds;
+            if (Array.isArray(rawSourceIds)) {
+                const sourceIds: unknown[] = rawSourceIds;
+                if (sourceIds.length > 0
+                    && sourceIds.every((id): id is string => typeof id === 'string' && /^spp_[\w-]+$/.test(id))) {
+                    return { start, end, type, sourceIds: [...sourceIds] };
+                }
+            }
         }
         if (typeof start === "number" && typeof end === "number" && typeof type === "number") {
             // Supported inline annotation types:
@@ -161,17 +166,27 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
         return null;
     }
     if (!Array.isArray(wa) || wa.length < 2) return null;
-    const start = wa[0];
-    const end = wa[1];
+    const slots: unknown[] = wa;
+    const start = slots[0];
+    const end = slots[1];
     if (typeof start !== "number" || typeof end !== "number") return null;
 
-    const style = Array.isArray(wa[2]) ? wa[2] : [];
-    const attribution: unknown = style[3];
-    if (Array.isArray(attribution) && attribution.length === 2 && attribution[0] === null
-        && Array.isArray(attribution[1]) && attribution[1].length > 0
-        && attribution[1].every(id => typeof id === 'string' && /^spp_[\w-]+$/.test(id))
-        && style.every((value, index) => value == null || index === 3)) {
-        return { start, end, type: 'source', sourceIds: [...attribution[1]] };
+    const rawStyle = slots[2];
+    const style: unknown[] = Array.isArray(rawStyle) ? rawStyle : [];
+    const attribution = style[3];
+    if (Array.isArray(attribution)) {
+        const attributionSlots: unknown[] = attribution;
+        if (attributionSlots.length === 2 && attributionSlots[0] === null) {
+            const rawSourceIds = attributionSlots[1];
+            if (Array.isArray(rawSourceIds)) {
+                const sourceIds: unknown[] = rawSourceIds;
+                if (sourceIds.length > 0
+                    && sourceIds.every((id): id is string => typeof id === 'string' && /^spp_[\w-]+$/.test(id))
+                    && style.every((value, index) => value == null || index === 3)) {
+                    return { start, end, type: 'source', sourceIds: [...sourceIds] };
+                }
+            }
+        }
     }
     if (attribution != null) return null;
     let t: number | null = null;
@@ -182,7 +197,7 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
     if (style.length > 2 && style[2] !== null && style[2] !== undefined) {
         t = 4;
     } else if (style.length > 0 && Array.isArray(style[0])) {
-        const s0 = style[0];
+        const s0: unknown[] = style[0];
         const flag = s0.length > 4 ? s0[4] : null;
         if (flag === 2) {
             t = 0; // strong (bold)
@@ -193,7 +208,7 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
         }
     } else if (style.length > 1 && Array.isArray(style[1])) {
         // link url or other formatting
-        const s1 = style[1];
+        const s1: unknown[] = style[1];
         if (s1.length > 0 && typeof s1[0] === "string") {
             t = 6;
             url = s1[0];
