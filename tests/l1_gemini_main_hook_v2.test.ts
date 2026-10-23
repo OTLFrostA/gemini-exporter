@@ -101,7 +101,7 @@ test('Fetch: capped response cannot complete even when its prefix contains compl
 });
 for (const key of ['G_STREAM_UNANSWERED_01', 'G_STREAM_INVALID_EMPTY_01',
     'G_STREAM_EXTRA_LENGTH_01', 'G_STREAM_ERROR_TRAILER_01'] as const) {
-    const wire = geminiStreamGen(key); {
+    const wire = geminiStreamGen(key);
     test('Fetch: HTTP 200 without unambiguous successful protocol termination is ignored: ' + wire.slice(-22), async () => {
         const harness = hookHarness(async () => new Response(wire));
         await (await harness.win.fetch(harness.url)).text(); await settleHook();
