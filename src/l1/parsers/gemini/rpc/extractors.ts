@@ -244,19 +244,24 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         return GeminiProtocol;
     }
 
+    function isObjectRecord(value: unknown): value is Record<string, unknown> {
+        return value !== null && typeof value === "object";
+    }
+
     function deepWalk(root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth: number = 50): void {
         function walk(node: unknown, depth: number) {
-            if (!node || typeof node !== "object" || depth > maxDepth) return;
+            if (!node || !isObjectRecord(node) || depth > maxDepth) return;
             const shouldDescend = visitor(node, depth);
             if (shouldDescend === false) return;
             if (Array.isArray(node)) {
+                const array: unknown[] = node;
                 for (let i = 0; i < node.length; i++) {
-                    walk(node[i], depth + 1);
+                    walk(array[i], depth + 1);
                 }
             } else {
-                for (const k in (node as Record<string, unknown>)) {
+                for (const k in node) {
                     if (Object.prototype.hasOwnProperty.call(node, k)) {
-                        walk((node as Record<string, unknown>)[k], depth + 1);
+                        walk(node[k], depth + 1);
                     }
                 }
             }
@@ -268,14 +273,15 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         if (Array.isArray(turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD])) return true;
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (Array.isArray(modelPayload)) {
-            const cands = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+            const modelSlots: unknown[] = modelPayload;
+            const cands = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
             if (Array.isArray(cands)) {
-                for (const c of cands) {
-                    if (
-                        Array.isArray(c) &&
-                        typeof c[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] === "string" &&
-                        (c[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] as string).startsWith("rc_")
-                    ) return true;
+                const candidates: unknown[] = cands;
+                for (const c of candidates) {
+                    if (!Array.isArray(c)) continue;
+                    const candidateSlots: unknown[] = c;
+                    const id = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+                    if (typeof id === "string" && id.startsWith("rc_")) return true;
                 }
             }
         }
