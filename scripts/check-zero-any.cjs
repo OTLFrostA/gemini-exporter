@@ -22,3 +22,26 @@ const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
 require('./check-domain-trust-lint.cjs');
+
+
+// TEMPORARY audit only; must never be merged.
+const auditRules = [
+  'typescript/no-explicit-any','typescript/no-unsafe-assignment',
+  'typescript/no-unsafe-argument','typescript/no-unsafe-call',
+  'typescript/no-unsafe-member-access','typescript/no-unsafe-return',
+  'typescript/no-unsafe-type-assertion'
+];
+const auditArgs = ['-A','all',...auditRules.flatMap(rule => ['-W',rule]),
+  '-D','typescript/no-floating-promises','--type-aware','--format','json',
+  'src/l1/parsers/gemini/rpc/detailDecoder.ts'];
+const audit = spawnSync(process.execPath,[cli,...auditArgs],{cwd:root,encoding:'utf8',maxBuffer:16*1024*1024});
+console.log('DETAIL_DECODER_AUDIT_PROCESS',audit.status,String(audit.error||''),String(audit.stderr||'').slice(0,800));
+try {
+  const parsed = JSON.parse(audit.stdout);
+  const diagnostics = parsed.diagnostics || [];
+  console.log('DETAIL_DECODER_AUDIT_COUNT',diagnostics.length);
+  console.log('DETAIL_DECODER_AUDIT_DIAGNOSTICS',JSON.stringify(diagnostics.map(d => ({file:d.filename,rule:d.code,message:d.message}))));
+} catch (error) {
+  console.log('DETAIL_DECODER_AUDIT_PARSE_ERROR',String(error),String(audit.stdout||'').slice(0,3000));
+}
+process.exitCode=1;
