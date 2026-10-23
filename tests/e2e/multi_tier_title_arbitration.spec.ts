@@ -1,5 +1,7 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
 
 /** Cross-module v2 title authority: L1 source -> L2 Index -> L3a -> real Options UI. */
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
@@ -21,12 +23,10 @@ async function index(options: import('@playwright/test').Page, id: string) {
 async function refresh(options: import('@playwright/test').Page) {
     await options.evaluate(() => window.dispatchEvent(new Event('focus')));
 }
-async function providerList(source: import('@playwright/test').Page, id: string, title: string, timestamp: number) {
+async function providerList(source: import('@playwright/test').Page, key: Parameters<typeof geminiListGen>[0]) {
     await source.route('**/batchexecute*', route => route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([
-            null, null, [['c_' + id, title, null, null, null, [timestamp, 0]]],
-        ])]]),
+        body: geminiListGen(key),
     }));
     await source.evaluate(async () => fetch('/_/BardChatUi/data/batchexecute', {
         method: 'POST',
@@ -47,7 +47,7 @@ test('v2 title precedence is user > provider > derived across actual passive RPC
 
     // Loading tab/title is not an Index admission; a verified source response is.
     expect((await index(options, id))?.titleSource).toBe('derived');
-    await providerList(source, id, '官方服务端RPC最终权威标题', 1700000000);
+    await providerList(source, 'G_DYNAMIC_TITLE_ARBITRATION_01');
     await expect.poll(async () => (await index(options, id))?.title).toBe('官方服务端RPC最终权威标题');
     expect((await index(options, id))?.titleSource).toBe('provider');
     await refresh(options);
@@ -64,7 +64,7 @@ test('v2 title precedence is user > provider > derived across actual passive RPC
     await options.evaluate(async ({ accountId, id }) => Reflect.get(globalThis, 'uiFixture').ingestIndexes(accountId, [{
         conversationId: id, fields: { title: '用户手动标题', titleSource: 'user' },
     }]), { accountId, id });
-    await providerList(source, id, 'RPC 更晚的标题', 1700000200);
+    await providerList(source, 'G_DYNAMIC_TITLE_ARBITRATION_02');
     // The MAIN fetch has returned, but the isolated Sniffer -> Background L2
     // admission is asynchronous. The user title cannot signal the commit: it
     // intentionally remains unchanged by this lower-priority provider fact.
@@ -87,15 +87,10 @@ test('a native Gemini detail with no titled metadata derives a v2 Index title fr
     const options = await openOptions(context, extensionId);
     const source = await sourcePage(context);
     const id = 'sniff_test_chat_888';
-    const question = '如何构建高性能分布式缓存系统？';
     const answer = '构建高性能分布式缓存需要注意这些要点';
-    const turn = [
-        ['c_' + id, 'r_question'], [1700000000, 0],
-        [[question]], [[['rc_question', [[answer]]]]],
-    ];
     await source.route('**/batchexecute*', route => route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, ''])]]),
+        body: geminiDetailGen('G_DYNAMIC_TITLE_ARBITRATION_DETAIL_01'),
     }));
     // Native request parameters are the v2 characterized hNvQHb request contract.
     // The shipped MAIN hook and isolated MessageBridge parse/commit the real body.
