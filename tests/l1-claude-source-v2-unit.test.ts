@@ -1,3 +1,6 @@
+import { installClaudeHook } from '../src/l1/sniffer/claude/hook.js';
+import { claudeRequest, activeClaudeOrganization } from '../src/l1/sniffer/claude/observation.js';
+import { claudeFileId } from '../src/l1/client/claude/fileAssets.js';
 import { contentComposer } from '../src/l3b/compose/composeContent.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
@@ -260,4 +263,138 @@ test('Claude generated Artifact file cards require unique captured path and matc
         assert.equal(parsed.conversation.detail.quality.status, variant === 'matching' ? 'complete' : 'partial', variant);
         assert.equal(parsed.diagnostics.some(d => d.code === 'claude.attachment.unavailable'), variant !== 'matching', variant);
     }
+});
+
+test('Claude native widgets, execution output and Docs edits preserve authored source', () => {
+    const blocks = [
+        { type: 'tool_use', name: 'visualize:read_me', input: { modules: ['diagram'] } },
+        { type: 'tool_result', name: 'visualize:read_me', content: [{ type: 'text', text: 'PRIVATE SETUP' }] },
+        { type: 'tool_use', name: 'visualize:show_widget', input: { title: 'Cutaway', widget_code: '<svg><title>Resonator</title></svg>' } },
+        { type: 'tool_use', name: 'TaskCreate', input: { subject: 'Compute', description: 'Validate units' } },
+        { type: 'tool_use', name: 'TaskUpdate', input: { taskId: '1', status: 'completed' } },
+        { type: 'tool_use', name: 'Bash', input: { command: 'python3 demo.py' } },
+        { type: 'tool_result', name: 'Bash', content: [{ type: 'text', text: '  f = 149.44\n' }] },
+        { type: 'tool_use', name: 'mcp__Claude_Docs__update', input: { engine: 'prose', payload: { ops: [
+            { op: 'replace', with: { as: 'markdown', from: { kind: 'inline', content: '## Derivation\n\n**Full** derivation.' } } },
+        ] } } },
+        { type: 'tool_result', name: 'mcp__Claude_Docs__update', content: [{ type: 'text', text: '{"verdict":"allow","xml":"<doc>…</doc>"}\nInternal setup instructions.' }] },
+        { type: 'tool_use', name: 'mcp__Claude_Docs__create', input: { object: 'utterance', payload: { value: { body: 'Confirm the chosen units?' } } } },
+        { type: 'tool_use', name: 'Artifact', input: { action: 'open', url: 'https://claude.ai/artifact/example' } },
+        { type: 'tool_use', name: 'SendUserFile', input: { files: ['/home/claude/result.py'], caption: 'Runnable result' } },
+        { type: 'tool_result', name: 'SendUserFile', content: [{ type: 'text', text: 'file_uuid: PRIVATE-FILE-ID. INTERNAL FILE CARD INSTRUCTIONS' }] },
+    ];
+    const parsed = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', ''), content: blocks }]), c1);
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    const output = JSON.stringify(parsed.conversation.detail.messages);
+    for (const text of ['<svg>', 'Validate units', 'completed', 'python3 demo.py', '  f = 149.44', 'derivation.', 'Confirm the chosen units?']) assert.ok(output.includes(text), text);
+    assert.ok(!output.includes('PRIVATE-FILE-ID'));
+    assert.ok(!output.includes('INTERNAL FILE CARD INSTRUCTIONS'));
+    assert.ok(!output.includes('PRIVATE SETUP'));
+    assert.ok(!output.includes('Internal setup instructions'));
+    const bad: Record<string, unknown>[] = structuredClone(blocks);
+    bad.push({ type: 'tool_use', name: 'mcp__Claude_Docs__update', input: { engine: 'unsupported' } });
+    assert.equal(parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', ''), content: bad }]), c1).conversation.detail.quality.status, 'partial');
+});
+
+test('Claude delivers generated files by stable file identity, never inventing bytes from Write', () => {
+    const file = { success: true, file_kind: 'blob', download_source: 'files-api', file_uuid: c2,
+        file_name: 'result.py', size_bytes: 8 };
+    const parsed = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', 'Done'), files: [file] }]), c1);
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    assert.deepEqual(parsed.conversation.detail.assets, [{ id: 'claude-file:' + c2, kind: 'file',
+        sourceUri: 'claude-file:' + c2, name: 'result.py', byteLength: 8 }]);
+    assert.equal(parsed.conversation.detail.messages[0].content.at(-1)?.type, 'file');
+    assert.deepEqual(parsed.acquisitionHints, {});
+    const invalid = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', 'Done'),
+        files: [{ ...file, file_uuid: 'https://evil.example/file' }] }]), c1);
+    assert.equal(invalid.conversation.detail.quality.status, 'partial');
+    assert.deepEqual(invalid.conversation.detail.assets, []);
+});
+
+
+test('Claude passive request routing binds exact origin, organization and native endpoint', () => {
+    const base = `https://claude.ai/api/organizations/${c1}/chat_conversations`;
+    for (const endpoint of ['completion', 'completion2', 'retry_completion', 'retry_completion2'])
+        assert.equal(claudeRequest(`${base}/${c2}/${endpoint}`, 'POST')?.kind, 'stream');
+    assert.equal(claudeRequest(`${base}/${c2}`, 'DELETE')?.conversationId, c2);
+    assert.equal(claudeRequest(`${base}_v2?offset=0`, 'GET')?.kind, 'list');
+    for (const url of [`${base}/${c2}/unknown`, base.replace('claude.ai', 'evil.example'), `${base}/not-a-uuid`])
+        assert.equal(claudeRequest(url, 'GET'), null);
+    assert.equal(activeClaudeOrganization(`other=x; lastActiveOrg=${c1}`), c1);
+    assert.equal(activeClaudeOrganization('lastActiveOrg=%XX'), null);
+    assert.equal(claudeFileId('claude-file:' + c2), c2);
+    assert.equal(claudeFileId('https://evil.example/file'), null);
+});
+
+
+test('Claude preserves quota-interrupted output but never labels it complete', () => {
+    for (const reason of ['error', 'max_tokens', 'tool_use', 'user_canceled']) {
+        const parsed = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', 'Partial code explanation'), stop_reason: reason }]), c1);
+        assert.equal(parsed.conversation.detail.quality.status, 'partial', reason);
+        assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('Partial code explanation'));
+    }
+});
+
+
+test('Claude passive hook uses only native traffic and suppresses cross-organization or failed responses', async () => {
+    const saved = new Map(['window', 'document', 'location'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+    let cookie = 'lastActiveOrg=' + c1, status = 200, calls = 0;
+    const events: { payload: { kind: string; conversationId?: string } }[] = [];
+    const host = { fetch: async (_input: unknown, _init?: unknown): Promise<Response> => {
+        calls++;
+        return new Response(status === 204 ? null : 'data: {"type":"message_stop"}\n\n', { status });
+    }, postMessage: (event: typeof events[number]) => events.push(event) };
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: host });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: { get cookie() { return cookie; } } });
+    Object.defineProperty(globalThis, 'location', { configurable: true, value: { origin: 'https://claude.ai', href: 'https://claude.ai/new' } });
+    const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve)); };
+    try {
+        installClaudeHook();
+        const base = `https://claude.ai/api/organizations/${c1}/chat_conversations/${c2}`;
+        await host.fetch(base + '/completion2', { method: 'POST' });
+        await flush();
+        assert.equal(events[0]?.payload.kind, 'stream');
+        assert.equal(events[0]?.payload.conversationId, c2);
+        status = 204;
+        await host.fetch(base, { method: 'DELETE' });
+        await flush();
+        assert.equal(events[1]?.payload.kind, 'delete');
+        status = 403;
+        await host.fetch(base, { method: 'DELETE' });
+        cookie = 'lastActiveOrg=' + c2;
+        await host.fetch(base, { method: 'GET' });
+        await flush();
+        assert.equal(events.length, 2);
+        assert.equal(calls, 4, 'capture must never issue extra identity or source API requests');
+    } finally {
+        for (const [key, descriptor] of saved) {
+            if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+            else Reflect.deleteProperty(globalThis, key);
+        }
+    }
+});
+
+
+test('Claude Docs template references render in document order without internal markers', () => {
+    const batch = { type: 'tool_use', name: 'mcp__Claude_Docs__batch', input: { batch: [], container: { create: { doc: {
+        markdown: '# Report\n\n<?claude block date?>\n\n<?claude block section?>',
+        blocks: { date: { type: 'date', value: '2026-10-22' }, section: { type: 'pending', intent: 'Explain uncertainty' } },
+    } } } } };
+    const parsed = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', ''), content: [batch] }]), c1);
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    const output = JSON.stringify(parsed.conversation.detail.messages);
+    assert.ok(output.includes('2026-10-22'));
+    assert.ok(output.includes('Planned section: Explain uncertainty'));
+    assert.ok(!output.includes('<?claude'));
+});
+
+
+test('Claude shell operations invalidate retained Artifact bytes and duplicate message IDs are rejected', () => {
+    const content = [
+        { type: 'tool_use', name: 'Write', input: { file_path: '/home/claude/test.txt', content: 'old' } },
+        { type: 'tool_use', name: 'Bash', input: { command: "printf new > /home/claude/test.txt" } },
+        { type: 'tool_use', name: 'Artifact', input: { file_path: '/home/claude/test.txt' } },
+    ];
+    assert.equal(parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', ''), content }]), c1).conversation.detail.quality.status, 'partial');
+    assert.throws(() => parseClaudeConversation(detail([message(leaf, null, 'assistant', 'One'), message(leaf, null, 'assistant', 'Two')]), c1), /Duplicate/);
 });

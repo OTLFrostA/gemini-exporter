@@ -8,6 +8,7 @@ import time
 import zipfile
 from pathlib import Path
 
+from scripts.framework.claude_quota import QUOTA_EXPRESSION
 from scripts.cdp_client import CDPConnection, get_tabs, get_browser_ws_url
 from scripts.framework.actions import CDPActions
 from scripts.framework.browser_acceptance import BrowserAcceptance
@@ -51,7 +52,7 @@ def completed_branch(raw):
             raise ValueError('Claude source message is truncated')
         if message.get('sender') == 'assistant':
             if message.get('stop_reason') != 'end_turn':
-                raise ValueError('Claude source contains an incomplete reply')
+                raise ValueError(f"Claude source contains an incomplete reply: {message.get('uuid')} (stop_reason={message.get('stop_reason')})")
             if any(not b.get('stop_timestamp') for b in message.get('content', [])):
                 raise ValueError('Claude source contains an unfinished content block')
     if len(messages) % 2:
@@ -124,8 +125,10 @@ class ClaudeLiveRunner(BrowserAcceptance):
         if state['account']['providerId'] != self.platform_id:
             raise ValueError('Canonical Claude account not selected')
         self.org = state['account']['providerAccountId']
+        previous_origin = self.chat.eval('performance.timeOrigin')
         self.chat.call('Page.reload')  # Replace invalidated extension document contexts once.
-        wait_for(lambda: self.chat.eval("!!document.querySelector('[data-testid=chat-input]')"))
+        wait_for(lambda: self.chat.eval('performance.timeOrigin') != previous_origin)
+        wait_for(lambda: self.chat.eval("document.readyState==='complete'&&!!document.querySelector('[data-testid=chat-input]')"))
         return {'extensionId': self.ext_id, 'organization': self.org, 'cleanInstall': True}
 
     def source(self, cid):
@@ -166,17 +169,36 @@ class ClaudeLiveRunner(BrowserAcceptance):
             clone.querySelectorAll('button,svg,style,script,[aria-hidden=true]').forEach(e=>e.remove());
             return {id:e.dataset.turnKey,role:e.dataset.testid==='user-message'?'user':'assistant',text:clone.textContent,html:e.outerHTML};})""") or []
 
+    def assert_message_quota(self):
+        notice = self.chat.eval(QUOTA_EXPRESSION)
+        if isinstance(notice, str) and notice:
+            self.report['messageQuota'] = {'notice': notice, 'http429Observed': False}
+            self.save_report()
+            raise ValueError('Claude native message quota exhausted (not HTTP 429): '+notice)
+
     def send(self, prompt):
+        self.assert_message_quota()
         previous_ids = {m.get('id') for m in self.webpage() if m['role'] == 'assistant'}
         selector = '[data-testid=chat-input]'
         wait_for(lambda: self.chat.eval('!!document.querySelector('+json.dumps(selector)+')'))
         self.chat.eval("(()=>{const e=document.querySelector('[data-testid=chat-input]');e.focus();const r=document.createRange();r.selectNodeContents(e);const s=getSelection();s.removeAllRanges();s.addRange(r)})()", user_gesture=True)
         self.chat.call('Input.insertText', {'text': prompt})
-        wait_for(lambda: self.chat.eval("!!document.querySelector('[data-testid=chat-input-send]:not(:disabled)')"))
-        self.chat.eval("document.querySelector('[data-testid=chat-input-send]').click()", user_gesture=True)
+        def can_send():
+            self.assert_message_quota()
+            return self.chat.eval("!!document.querySelector('[data-testid=chat-input-send]:not(:disabled)')")
+        wait_for(can_send)
+        attempt = {'prompt': prompt, 'dispatched': False}
+        self.report.setdefault('sendAttempts', []).append(attempt)
+        self.save_report()  # A failed/partial reply must not hide the attempted send.
+        dispatched = self.chat.eval("(()=>{const e=document.querySelector('[data-testid=chat-input-send]:not(:disabled)');if(!e)return false;e.click();return true})()", user_gesture=True)
+        attempt['dispatched'] = dispatched is True
+        self.save_report()
+        if dispatched is not True:
+            raise ValueError('Claude send was not dispatched; refusing to record a reply')
         previous, stable, settled = None, 0, None
         def finished():
             nonlocal previous, stable, settled
+            self.assert_message_quota()
             state = self.chat.eval("""({stop:!!document.querySelector('[data-testid=chat-input-stop]'),
                 error:document.querySelector('[data-testid=failed-send-status-region]')?.innerText,
                 question:!!document.querySelector('[role=checkbox],button[aria-label="提交"],button[aria-label="Submit"]')||/正在提问|Asking a question/.test([...document.querySelectorAll('[data-testid=assistant-message]')].at(-1)?.innerText||'')})""") or {}
@@ -214,6 +236,7 @@ class ClaudeLiveRunner(BrowserAcceptance):
         return cid
 
     def generate(self):
+        self.assert_message_quota()
         reservation = self.output/'scenarios.json'
         if reservation.exists():
             scenarios = json.loads(reservation.read_text())
@@ -238,6 +261,11 @@ class ClaudeLiveRunner(BrowserAcceptance):
                 if saved and saved == prompts[:len(saved)]:
                     cid = path.name.removesuffix('.progress.json')
                     raw = self.source(cid)  # Exactly one independent read when resuming.
+                    try:
+                        completed_branch(raw)
+                    except ValueError:
+                        (self.output/f'{cid}.incomplete.source.json').write_text(json.dumps(raw, ensure_ascii=False), encoding='utf-8')
+                        raise
                     actual = [message_text(m) for m in completed_branch(raw) if m['sender'] == 'human']
                     if actual[:len(saved)] != saved or actual != prompts[:len(actual)]:
                         raise ValueError('Resume source changed; refusing to replay prompts')
@@ -356,6 +384,7 @@ class ClaudeLiveRunner(BrowserAcceptance):
         self.open_conversation(cid)
         tab_id = self.options.eval("(async()=>{const tabs=await chrome.tabs.query({});const t=tabs.find(t=>t.url==="+json.dumps('https://claude.ai/chat/'+cid)+");if(!t)throw Error('No source tab');await chrome.windows.update(t.windowId,{focused:true});await chrome.tabs.update(t.id,{active:true});return t.id})()", await_promise=True)
         folder = (self.output/'popup-downloads').resolve(); folder.mkdir(exist_ok=True)
+        before_files = set(folder.iterdir())
         self.browser.call('Browser.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': str(folder)})
         popup = None
         target_id = None
@@ -367,7 +396,15 @@ class ClaudeLiveRunner(BrowserAcceptance):
             popup.eval("document.querySelector('[data-format=markdown]').click()", user_gesture=True)
             wait_for(lambda: popup.eval("!document.getElementById('btnCurrent').disabled&&document.querySelector('[data-format=markdown]').getAttribute('aria-pressed')==='true'"))
             popup.eval("document.getElementById('btnCurrent').click()", user_gesture=True)
-            fresh = wait_for(lambda: [p for p in folder.iterdir() if p.is_file() and p.suffix != '.crdownload'], 120)
+            def downloaded():
+                files = [p for p in folder.iterdir() if p not in before_files and p.is_file() and p.suffix != '.crdownload']
+                if files:
+                    return files
+                state = popup.eval("({idle:!document.getElementById('btnCurrent').disabled,status:document.getElementById('status').textContent})")
+                if state and state['idle'] and ('Export failed' in state['status'] or '导出失败' in state['status']):
+                    raise ValueError('Popup export failed before delivery: '+state['status'])
+                return None
+            fresh = wait_for(downloaded, 120)
             wait_for(lambda: popup.eval("!document.getElementById('btnCurrent').disabled"))
             status = popup.eval("document.getElementById('status').textContent")
             if 'Download initiated' not in status and '已发起下载' not in status:

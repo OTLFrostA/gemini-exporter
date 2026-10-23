@@ -42,6 +42,26 @@ def source_fragments(message):
                 codes.append(arguments['content'].removesuffix('\n'))
             elif name == 'artifacts' and isinstance(arguments.get('content'), str):
                 codes.append(arguments['content'].removesuffix('\n'))
+            elif name == 'visualize:show_widget' and isinstance(arguments.get('widget_code'), str):
+                codes.append(arguments['widget_code'].removesuffix('\n'))
+            elif name == 'bash' and isinstance(arguments.get('command'), str):
+                codes.append(arguments['command'].removesuffix('\n'))
+            elif name == 'taskcreate':
+                fragments.extend(arguments.get(k, '') for k in ('subject', 'description'))
+            elif name == 'taskupdate':
+                fragments.append(arguments.get('status', ''))
+            elif name == 'senduserfile':
+                fragments.append(arguments.get('caption', ''))
+            elif name == 'mcp__claude_docs__update':
+                for op in arguments.get('payload', {}).get('ops', []):
+                    value = op.get('with', {}).get('from', {})
+                    if value.get('kind') == 'inline':
+                        fragments.append(value.get('content', ''))
+            elif name == 'mcp__claude_docs__create' and arguments.get('object') == 'utterance':
+                fragments.append(arguments.get('payload', {}).get('value', {}).get('body', ''))
+
+        elif kind == 'tool_result' and block.get('name', '').lower() == 'bash':
+            codes.extend(b['text'].removesuffix('\n') for b in block.get('content', []) if b.get('type') == 'text' and b.get('text'))
         elif kind == 'tool_result' and block.get('name', '').lower() == 'askuserquestion':
             fragments.extend(b['text'] for b in block.get('content', []) if b.get('type') == 'text' and b.get('text'))
     return [f for f in fragments if f], codes
@@ -57,11 +77,35 @@ def assert_full_exports(root, output, conversation_ids):
         if len(documents) != 1:
             raise ValueError(f'{cid}: missing or duplicate physical JSON conversation')
         document = documents[0]
-        detail = json.loads(document.read_text())['conversation']['detail']
+        archive = json.loads(document.read_text())
+        detail = archive['conversation']['detail']
         if detail['quality']['status'] != 'complete':
             raise ValueError(f'{cid}: parser quality is not complete: {detail["quality"]}')
         if [m['id'] for m in detail['messages']] != [m['uuid'] for m in expected]:
             raise ValueError(f'{cid}: source branch/message identity mismatch')
+        # File cards must resolve to physical originals in every format. For
+        # generated text files with a unique captured Write, compare full bytes.
+        written = {}
+        for message in expected:
+            for block in message.get('content', []):
+                args = block.get('input') or {}
+                if block.get('type') == 'tool_use' and block.get('name', '').lower() == 'write' and isinstance(args.get('content'), str):
+                    written.setdefault(args.get('file_path', '').split('/')[-1], []).append(args['content'].encode())
+        for asset in detail.get('assets', []):
+            relative = archive.get('resources', {}).get(asset['id'])
+            if not relative:
+                raise ValueError(f'{cid}: attachment has no physical resource mapping')
+            for fmt in ('markdown', 'html', 'json', 'pdf'):
+                folder = (output/'downloads'/fmt).resolve()
+                path = (folder/relative).resolve()
+                if not path.is_relative_to(folder) or not path.is_file():
+                    raise ValueError(f'{cid}: missing or unsafe physical {fmt} attachment')
+                data = path.read_bytes()
+                if not data or asset.get('byteLength') is not None and len(data) != asset['byteLength']:
+                    raise ValueError(f'{cid}: attachment byte length mismatch')
+                candidates = written.get(asset.get('name'), [])
+                if len(candidates) == 1 and len(candidates[0]) == asset.get('byteLength') and data != candidates[0]:
+                    raise ValueError(f'{cid}: generated attachment differs from full authored bytes')
         markdown = (output/'downloads/markdown'/(document.stem+'.md')).read_text()
         bodies = re.split(r'^## (?:👤|🤖)[^\n]*\n', markdown, flags=re.M)[1:]
         html = TreeParser((output/'downloads/html'/(document.stem+'.html')).read_text()).root

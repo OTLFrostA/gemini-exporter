@@ -1,3 +1,4 @@
+import { syncClaudeContentScripts } from './claudeInjection.js';
 import { getOrCreateAccount } from '../api/accountRegistry.js';
 import { hasClaudeAccess, readClaudeSource, requestClaudeAccess, ensureClaudeRegistered } from '../../l1/client/claude/claudeAccess.js';
 import type { Account } from '../../l2/accountRegistry.js';
@@ -20,6 +21,7 @@ export async function discoverClaudeAccounts(): Promise<Account[]> {
         : verified.length === 1 ? verified : [];
     if (!organizations.length) return [];
     await ensureClaudeRegistered();
+    await syncClaudeContentScripts();
     const accounts: Account[] = [];
     for (const organization of organizations) {
         const name = typeof organization.name === 'string' ? organization.name.trim() : '';

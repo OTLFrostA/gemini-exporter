@@ -418,3 +418,25 @@ test('mono selection: a one-font explicit budget still favors prose, or Mono if 
         restore();
     }
 });
+
+test('optional font permission prompt never blocks export or requests native fonts', async () => {
+    const saved = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    let queries = 0;
+    const restore = stubQueryLocalFonts(async () => { queries++; return new Promise(() => {}); });
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
+        permissions: { query: async () => ({ state: 'prompt' }) },
+    } });
+    try {
+        await warmLocalFontCache();
+        const result = await queryLocalFontsProvider();
+        assert.strictEqual(result.ok, false);
+        assert.strictEqual(result.reason, 'permission-denied');
+        const resolution = await resolveLocalFonts();
+        assert.strictEqual(resolution.localFontsAvailable, false);
+        assert.strictEqual(queries, 0);
+    } finally {
+        restore();
+        if (saved) Object.defineProperty(globalThis, 'navigator', saved);
+        else Reflect.deleteProperty(globalThis, 'navigator');
+    }
+});

@@ -1,5 +1,5 @@
 import type { BlockNode } from '../../../l2/content/blocks.js';
-import type { DomainMessage } from '../../../l2/conversationDetail.js';
+import type { DomainAsset, DomainMessage } from '../../../l2/conversationDetail.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { SourceConversationParseResult } from '../parsingResult.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../shared/markdown/index.js';
@@ -24,6 +24,7 @@ function currentBranch(data: Record<string, unknown>): Branch {
     const nodes = data.chat_messages.map(object);
     if (nodes.some(node => !node || !uuid(node.uuid))) throw new TypeError('Invalid Claude message tree');
     const byId = new Map(nodes.map(node => [node!.uuid as string, node!]));
+    if (byId.size !== nodes.length) throw new TypeError('Duplicate Claude message UUID');
     if (!uuid(data.current_leaf_message_uuid) || !byId.has(data.current_leaf_message_uuid)) {
         // Never silently call a guessed branch complete.
         return { messages: nodes.filter((n): n is Record<string, unknown> => !!n)
@@ -44,11 +45,11 @@ function currentBranch(data: Record<string, unknown>): Branch {
     }
     return { messages: result.reverse(), quality };
 }
-function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext, tools: ToolState):
+function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext, tools: ToolState, assets: DomainAsset[]):
     { content: BlockNode[]; reasoning: BlockNode[]; incomplete: boolean } {
     const id = String(message.uuid);
     const content: BlockNode[] = [], reasoning: BlockNode[] = [];
-    let incomplete = message.truncated === true || message.stop_reason === 'user_canceled';
+    let incomplete = message.truncated === true || ['user_canceled', 'error', 'max_tokens', 'tool_use', 'pause_turn', 'model_context_window_exceeded'].includes(String(message.stop_reason));
     const missing = (code: string, message: string) => {
         incomplete = true;
         ctx.diagnostics.push({ severity: 'warning', code, message, sourceRef: ctx.sourceRef });
@@ -77,7 +78,7 @@ function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext, 
             } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
                 reasoning.push(...markdown(block.thinking, id, ctx));
             } else if (block.type === 'tool_use') {
-                const parsed = parseToolUse(block, tools);
+                const parsed = parseToolUse(block, tools, text => markdown(text, id, ctx));
                 content.push(...parsed.blocks);
                 for (const issue of parsed.issues) missing('claude.tool_use.unsupported', issue);
             } else if (block.type === 'tool_result') {
@@ -93,6 +94,14 @@ function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext, 
     } else { missing('claude.content.missing', 'Message has no content'); }
     for (const { file, name, generated } of unresolved) {
         if (generated && isCapturedArtifactFile(message, file, tools)) continue;
+        const fileId = file.file_uuid ?? file.uuid;
+        if (generated && file.success === true && file.file_kind === 'blob' && file.download_source === 'files-api' && uuid(fileId)) {
+            const assetId = 'claude-file:' + fileId;
+            if (!assets.some(asset => asset.id === assetId)) assets.push({ id: assetId, kind: 'file', name,
+                sourceUri: assetId, ...(typeof file.size_bytes === 'number' && Number.isSafeInteger(file.size_bytes) && file.size_bytes >= 0 ? { byteLength: file.size_bytes } : {}) });
+            content.push({ type: 'file', assetId, label: name });
+            continue;
+        }
         content.push(paragraph('Attachment: ' + name));
         missing('claude.attachment.unavailable', 'Attachment bytes or extracted text unavailable');
     }
@@ -116,11 +125,12 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
     let partial = false;
     const sourceModel = typeof data.model === 'string' && data.model.trim() ? data.model : undefined;
     const messages: DomainMessage[] = [];
+    const assets: DomainAsset[] = [];
     const tools = createToolState(branch.messages);
     for (const message of branch.messages) {
         if (message.sender !== 'human' && message.sender !== 'assistant') continue;
         const rendered = contentOf(message, { ...ctx,
-            sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } }, tools);
+            sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } }, tools, assets);
         if (rendered.incomplete) partial = true;
         const timestamp = claudeTimestamp(message.created_at);
         const model = typeof message.model === 'string' && message.model.trim() ? message.model : sourceModel;
@@ -144,7 +154,7 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
                 titleSource: 'provider', createdAt, updatedAt: sourceVersion,
                 url: 'https://claude.ai/chat/' + requestedId }),
             detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}),
-                quality: { status: messages.length ? quality : 'unknown' }, assets: [], messages },
+                quality: { status: messages.length ? quality : 'unknown' }, assets, messages },
         },
         diagnostics, acquisitionHints: {},
     };

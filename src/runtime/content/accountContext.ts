@@ -1,3 +1,4 @@
+import { observeClaudeAccount } from '../../l1/client/claude/accountObservation.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import { getOrCreateAccount } from '../api/accountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
@@ -16,7 +17,7 @@ export function setAccountChangedHandler(handler: () => void): void {
 }
 let latestSignature: string | null = null;
 let pending: { signature: string; result: Promise<AccountContext | null> } | null = null;
-const providerNow = () => typeof location !== 'undefined' && ['chatgpt.com', 'chat.openai.com'].includes(location.hostname) ? 'chatgpt' : 'gemini';
+const providerNow = () => typeof location !== 'undefined' && ['chatgpt.com', 'chat.openai.com'].includes(location.hostname) ? 'chatgpt' : typeof location !== 'undefined' && location.hostname === 'claude.ai' ? 'claude' : 'gemini';
 const slotNow = () => detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
 
 export function invalidateAccountContext(): void {
@@ -40,6 +41,7 @@ export function matchesCurrentAccount(observation: Omit<Account, 'id'>): boolean
 /** The isolated world cannot infer the current Gaia from arbitrary DOM emails. */
 function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
     if (typeof window === 'undefined') return Promise.resolve(null);
+    if (providerNow() === 'claude') return observeClaudeAccount();
     if (providerNow() === 'chatgpt') return fetch('/api/auth/session', { credentials: 'include' })
         .then(async response => response.ok ? chatgptAccountObservation(await response.json()) : null);
     return new Promise((resolve, reject) => {

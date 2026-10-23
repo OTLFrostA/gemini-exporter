@@ -187,6 +187,7 @@ class ClaudeTier2Tests(unittest.TestCase):
             with patch('scripts.framework.claude_live.wait_for', side_effect=wait):
                 self.assertEqual(runner.send('Question'), 'one')
             runner.source.assert_not_called()
+            self.assertEqual(runner.report['sendAttempts'], [{'prompt': 'Question', 'dispatched': True}])
             self.assertEqual(json.loads((Path(folder)/'one.progress.json').read_text())['prompts'], ['Question'])
             runner.webpage = Mock(return_value=messages)
             runner.chat.eval.side_effect = lambda expression, **kw: {'question': True} if expression.startswith('({stop:') else True
@@ -194,6 +195,17 @@ class ClaudeTier2Tests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'requires input'):
                     runner.send('Another question')
             self.assertEqual(json.loads((Path(folder)/'one.progress.json').read_text())['prompts'], ['Question'])
+
+    def test_native_quota_fails_before_mutating_composer_without_source_requests(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.chat = Mock()
+            runner.chat.eval.return_value = '您的免费消息额度已用完，将于 02:00 恢复'
+            with self.assertRaisesRegex(ValueError, 'quota exhausted \(not HTTP 429\)'):
+                runner.send('Do not send')
+            runner.chat.call.assert_not_called()
+            self.assertEqual(runner.report['sourceRequests'], 0)
+            self.assertFalse(runner.report['messageQuota']['http429Observed'])
 
     def test_missing_nested_lifecycle_evidence_fails_even_when_operation_returns(self):
         from scripts.framework.platforms.claude import ClaudeCase

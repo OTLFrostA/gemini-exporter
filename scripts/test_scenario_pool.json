@@ -1,47 +1,5 @@
 [
   {
-    "id": "photogrammetry_rectified_stereo_depth",
-    "title": "Photogrammetry: rectified stereo depth and uncertainty",
-    "domain": "photogrammetry_stereo_geometry",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original schematic of a rectified stereo camera pair viewing synthetic objects at two depths. Label baseline, focal length, image planes and disparity. Clearly distinguish the schematic from a calibrated measurement.",
-      "Derive Z=fB/d in LaTeX with consistent pixel and metre units. Explain the assumptions, sign conventions and why zero disparity does not imply a finite measured depth.",
-      "Write runnable standard-library Python converting disparities into depths with input validation and first-order uncertainty propagation. Test invalid baselines, zero disparity and sensitivity at long range.",
-      "Create a Markdown table of synthetic disparities, depths and uncertainties. Cross-check an example independently and explain the linear approximation near small disparities.",
-      "Write a bilingual reproducibility report connecting the image, geometry and implementation. Discuss occlusions, calibration errors, nonrectified images and why schematic pixels cannot calibrate real cameras."
-    ]
-  },
-  {
-    "id": "mechanism_design_second_price_auction",
-    "title": "Mechanism design: second-price auctions and exact utility checks",
-    "domain": "mechanism_design_auctions",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic sealed-bid single-item second-price auction with private values and deterministic tie breaking. Provide a Markdown table of bidders, values and bids, and state all utility assumptions.",
-      "Derive winner payment and utility in LaTeX. Give a case-by-case weak-dominance argument for truthful bidding while distinguishing weak dominance from a unique equilibrium.",
-      "Write complete runnable standard-library Python implementing allocation, payment and utility with deterministic tie handling and validation of finite nonnegative bids.",
-      "Enumerate a small integer bid grid for one bidder against fixed opponents. Provide a Markdown table checking that truthful bidding weakly dominates every alternative on this finite domain.",
-      "Test one bidder, all-zero bids, tied highest bids, and bids above value. Explain how the empty-opponent payment is defined and verify the payment never exceeds the winning bid.",
-      "Compare first-price and second-price outcomes on identical synthetic values. Explain why a truthful-bidding argument for the second-price rule does not transfer to the first-price rule.",
-      "Analyze a reserve-price extension with an explicit unsold outcome. Give code and boundary tests for bids equal to the reserve and distinguish bidder utility from seller revenue.",
-      "Write a detailed Chinese-English reproducibility report with formulas, tables, test results and limitations covering correlated values, budgets, collusion and repeated auctions."
-    ]
-  },
-  {
     "id": "electrochemistry_nernst_concentration_cell",
     "title": "Electrochemistry: concentration cells and unit-safe Nernst calculations",
     "domain": "electrochemistry_concentration_cells",
@@ -410,6 +368,48 @@
       "Add executable tests for event ordering, nonnegative waiting times, reproducibility and conservation of arrivals minus departures. Explain why finite simulation estimates must not be asserted exactly equal to stationary formulas.",
       "Provide a Markdown table comparing synthetic utilization levels of 0.2, 0.5, 0.8, 0.95 and 1.05 at fixed service rate. Report stationary metrics only where they exist; include a transient finite-horizon interpretation for overload.",
       "Write a final audit report joining equations, code and assumptions. Construct a bursty non-Poisson counterexample where equal mean arrival rate does not justify M/M/1 percentile claims, and give a Chinese-English glossary."
+    ]
+  },
+  {
+    "id": "optics_polarization_malus_stack",
+    "title": "Polarization: ideal polarizer stacks and angular sensitivity",
+    "domain": "optics_polarization_malus",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of unpolarized light passing through three ideal linear polarizers with synthetic orientations. Label light propagation, each transmission axis and normalized intensity. State that this is a teaching diagram, not an optical measurement.",
+      "Derive Malus law and the intensity for a stack in LaTeX, including the first unpolarized transmission factor. Explain why inserting a 45 degree polarizer between crossed polarizers increases ideal transmission.",
+      "Write complete standard-library Python for normalized transmission through arbitrary polarizer orientations. Validate finite angles, support degrees and radians, and test periodicity, crossed axes, and parallel axes.",
+      "Provide a Markdown table comparing synthetic angle stacks, normalized output and angular sensitivity. Independently calculate the 0/45/90 degree example and distinguish relative transmission from absolute optical power.",
+      "Write a bilingual reproducibility report connecting the schematic, equations, code and tests. Discuss finite extinction ratio, wavelength, depolarization and what calibration would be needed for real measurements."
+    ]
+  },
+  {
+    "id": "numerics_bracketed_bisection_audit",
+    "title": "Numerics: bracketed root finding with certified intervals",
+    "domain": "numerics_bisection_certified_intervals",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic scalar root-finding problem on a closed interval with a continuous monotone function. Choose nontrivial numerical values and explicitly separate the mathematical model from empirical data.",
+      "Derive the bisection invariant and interval-width convergence bound in LaTeX. Explain the roles of continuity, endpoint roots and sign changes, and why a small residual alone is not a position certificate.",
+      "Write complete runnable standard-library Python implementing bisection with input validation, endpoint handling, finite evaluation checks and both iteration and interval-width stopping criteria.",
+      "Add deterministic tests for an endpoint root, reversed bounds, no sign change, nonfinite values and iteration exhaustion. Check that every recorded interval contains a known synthetic root.",
+      "Derive the number of iterations needed for a chosen absolute root error. Distinguish midpoint rounding, residual tolerance and interval tolerance with consistent units.",
+      "Create a Markdown table of iteration number, bracket endpoints, midpoint, residual and certified error bound for the synthetic example. Independently cross-check two rows.",
+      "Compare bisection with Newton iteration on a poorly conditioned synthetic function. Give runnable code and explain the difference between speed, bracketing guarantees and sensitivity without claiming universal superiority.",
+      "Write a detailed bilingual reproducibility report linking assumptions, invariants, implementation, tests and the table. Discuss discontinuities, multiple roots, finite precision and limitations of the certificate."
     ]
   }
 ]

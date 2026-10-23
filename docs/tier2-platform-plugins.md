@@ -243,3 +243,51 @@ no source-API polling loops; the resumed run used one independent prefix read.
 The scenario pool was replenished from 18 to 20 with new optics and queueing
 scenes. Reports, interruption history and quota observations remain local under
 `tests/output/tier2-claude-full-required-20261022/`.
+
+
+### Claude follow-up fixes and evidence
+
+The passive bridge now has optional-permission dynamic MAIN/ISOLATED scripts,
+request-bound organization routing, native list/detail/stream capture, confirmed
+DELETE receipts and a server-rendered sidebar fallback. Badge, Popup and current
+account routing include Claude. A real clean-install attempt passed Badge and
+all seven then-visible sidebar rows. Its final matrix was 3 PASS / 1 FAIL /
+18 dependency SKIP; quota remained the blocking full-flow gate.
+
+The original second scene's fourth reply was *submitted*, but its final source
+`stop_reason` was `error`; only three replies finished. The former DOM waiter
+incorrectly recorded its visible partial code as complete. Native quota notices
+now fail before further sends, and explicit source interruption always stays
+partial. Incomplete resume evidence is saved separately without overwriting a
+previous completed snapshot. Account quota is not labelled HTTP 429.
+
+Scans now use the observed `chat_conversations_v2` strong-consistency offset
+endpoint, admitting Coverage only for ordered/nonrepeating complete pages with
+an explicit `has_more` terminal fact. A targeted eight-row scan verified source
+exhaustion. Two complete existing conversations (five-round acoustic example
+and three-round questionnaire/Artifact golden) passed separate four-format disk
+checks: 16 messages, 27 exact code bodies, two generated file originals, and
+full source fragments. Generated file bytes are compared across every format.
+This targeted run does not replace full generation, live-save/promotion or
+confirmed-deletion acceptance.
+
+PDF inspection also exposed an optional Local Font Access prompt blocking
+export. Exports now use already-granted device fonts or bundled offline fonts,
+without waiting for a permission prompt. Native interactive widgets are retained
+as inert SVG/HTML source; Docs edits are chronological authored content rather
+than a guessed final remote document. Local reports and page/contact-sheet
+renders are under `tests/output/claude-fixes-physical-20261022/`.
+
+The quota-detection diagnostic attempt consumed a separate reserved pair and
+submitted one new first prompt before the site's quota notice appeared; no
+completed reply was recorded and no independent source request was made.
+Send attempts are now recorded before dispatch separately from completed
+`records`, so interrupted replies cannot hide actual attempted traffic. No
+further live prompts were sent during the targeted export checks.
+
+The final targeted follow-up also passed current-conversation Popup download
+with original attachments and unchanged-content skipping for both exported
+conversations (no download and no receipt rewrite). Popup had omitted the ZIP
+library used for attached files; it now loads the same library as Options,
+with a browser regression covering actual ZIP contents. These additional gates
+still do not substitute for quota-blocked generation and lifecycle acceptance.

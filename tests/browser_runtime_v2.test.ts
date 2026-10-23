@@ -13,6 +13,9 @@ const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.goo
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
     const ports = { 'src/application/conversations/refreshConversation.js': { refreshConversation: () => assert.fail('Unexpected source refresh') }, 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
+        'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => true },
+        'src/l1/client/claude/accountObservation.js': { observeClaudeAccount: async () => null },
+        'src/runtime/capabilities/claudeInjection.js': { syncClaudeContentScripts: async () => {} },
         'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
         'src/runtime/capabilities/chatgptInjection.js': { syncChatGPTContentScripts: async () => {} },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
@@ -164,6 +167,24 @@ test('ChatGPT Content is isolated from Gemini, requires a current site grant and
     await assert.rejects(guard.requireContentAccount(from, uuid), /revoked/);
     granted = true;
     Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, _options: unknown, reply: Function) => reply({ ok: true, accountContext: { accountId: otherUuid, providerId: 'chatgpt' } }));
+    await assert.rejects(guard.requireCurrentContentAccount(from, uuid), /sending Tab/);
+});
+
+test('Claude Content is isolated from Gemini, requires a current site grant and matches its document Account', async () => {
+    global.chrome = chromeBase() as any;
+    let granted = true;
+    const gpt = { ...account, providerId: 'claude', providerAccountId: otherUuid };
+    const guard = load('src/runtime/background/contentSender.ts', {
+        'src/l3a/storageService.js': { getAccount: async () => gpt },
+        'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => granted },
+    });
+    const from = { ...sender, url: 'https://claude.ai/chat/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' };
+    assert.deepEqual(await guard.requireContentAccount(from, uuid), gpt);
+    await assert.rejects(guard.requireContentAccount(sender, uuid), /mismatch/);
+    granted = false;
+    await assert.rejects(guard.requireContentAccount(from, uuid), /revoked/);
+    granted = true;
+    Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, _options: unknown, reply: Function) => reply({ ok: true, accountContext: { accountId: otherUuid, providerId: 'claude' } }));
     await assert.rejects(guard.requireCurrentContentAccount(from, uuid), /sending Tab/);
 });
 

@@ -233,8 +233,18 @@ function setCachedLocalFonts(fonts: LocalFontEntry[]): void {
  * Warm the local font cache within a user gesture (e.g. click in Options UI),
  * so subsequent export pipeline operations can reuse the cached fonts.
  */
+/** Export must not wait on an optional permission prompt. Bundled fonts are
+ * sufficient; use device fonts only when access has already been granted. */
+async function localFontsGranted(): Promise<boolean> {
+    if (typeof navigator === 'undefined' || !navigator.permissions?.query) return true;
+    try {
+        const permission = await navigator.permissions.query({ name: 'local-fonts' as PermissionName });
+        return permission.state === 'granted';
+    } catch { return false; }
+}
+
 export async function warmLocalFontCache(): Promise<void> {
-    if (getCachedLocalFonts()) return;
+    if (getCachedLocalFonts() || !await localFontsGranted()) return;
     const fn = getQueryLocalFontsFn();
     if (!fn) return;
     try {
@@ -260,6 +270,7 @@ export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
         };
     }
     try {
+        if (!await localFontsGranted()) return { ok: false, reason: 'permission-denied', detail: 'Optional local font permission is not granted; using bundled fonts.' };
         const fonts = await fn();
         const arr = Array.isArray(fonts) ? fonts : [];
         if (arr.length > 0) {

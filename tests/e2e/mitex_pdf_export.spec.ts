@@ -83,6 +83,9 @@ for (const denied of [false, true]) {
         if (denied) {
             await page.evaluate(() => {
                 (window as any).__deniedFontQueries = 0;
+                const originalQuery = navigator.permissions.query.bind(navigator.permissions);
+                navigator.permissions.query = (async descriptor => descriptor.name === ('local-fonts' as PermissionName)
+                    ? { state: 'denied' } : originalQuery(descriptor)) as typeof navigator.permissions.query;
                 (window as any).queryLocalFonts = async () => {
                     (window as any).__deniedFontQueries++;
                     throw new DOMException('User denied Local Font Access', 'NotAllowedError');
@@ -104,7 +107,7 @@ for (const denied of [false, true]) {
         { accountId, conversationId })).toMatchObject({ format: 'pdf', status: 'ok' });
 
         if (denied) {
-            expect(await page.evaluate(() => (window as any).__deniedFontQueries)).toBeGreaterThan(0);
+            expect(await page.evaluate(() => (window as any).__deniedFontQueries)).toBe(0); // Denied fonts must never be queried or block export.
             await readFile((await download.path())!); // Final artifact remains readable without permission.
         }
         expect(remoteRequests).toEqual([]);

@@ -1,12 +1,7 @@
+import { parseNativeTool, isNativeSetupResult, nativeReceipt } from './parseNativeTools.js';
 import type { BlockNode } from '../../../l2/content/blocks.js';
 
-export function record(value: unknown): Record<string, unknown> | null {
-    return value !== null && typeof value === 'object' && !Array.isArray(value)
-        ? value as Record<string, unknown> : null;
-}
-export function plain(text: string): BlockNode {
-    return { type: 'paragraph', children: [{ type: 'text', text }] };
-}
+import { record, plain } from './toolValues.js';
 interface ToolContent { blocks: BlockNode[]; issues: string[] }
 const toolName = (value: unknown) => typeof value === 'string' ? value.replace(/_/g, '').toLowerCase() : '';
 export interface ToolState { files: Map<string, string>; artifactPaths: Set<string> }
@@ -55,10 +50,16 @@ function link(label: string, url: unknown): BlockNode {
 }
 
 /** Native widgets are projected into shared semantic blocks, without exporting internal tool inputs. */
-export function parseToolUse(block: Record<string, unknown>, state: ToolState): ToolContent {
+export function parseToolUse(block: Record<string, unknown>, state: ToolState,
+    markdown: (text: string) => BlockNode[] = text => [plain(text)]): ToolContent {
     const input = record(block.input);
     const name = toolName(block.name);
     const blocks: BlockNode[] = [], issues: string[] = [];
+    // Shell execution may mutate any retained file; only a subsequent explicit
+    // Write can establish fresh bytes for an inline Artifact projection.
+    if (name === 'bash') state.files.clear();
+    const native = parseNativeTool(name, input, markdown);
+    if (native) return native;
     if (name === 'artifacts') {
         if (typeof input?.content === 'string' && (input.command === undefined || input.command === 'create')) {
             blocks.push(plain('Artifact: ' + (typeof input.title === 'string' ? input.title : 'Artifact')),
@@ -71,6 +72,8 @@ export function parseToolUse(block: Record<string, unknown>, state: ToolState): 
             if (!state.artifactPaths.has(input.file_path))
                 blocks.push(...fileBlocks('File', input.file_path, input.content));
         } else issues.push('Missing written file path or content');
+    } else if (name === 'artifact' && input?.action === 'open' && typeof input.url === 'string') {
+        blocks.push(link('Artifact', input.url));
     } else if (name === 'artifact') {
         const path = input?.file_path;
         const content = typeof path === 'string' ? state.files.get(path) : undefined;
@@ -152,10 +155,11 @@ export function parseToolResult(block: Record<string, unknown>,
         blocks.push(plain('Memory ' + operation + ' completed'));
         return { blocks, issues };
     }
-    if (['skill', 'write'].includes(name) && block.is_error !== true) {
+    if ((['skill', 'write'].includes(name) || isNativeSetupResult(name)) && block.is_error !== true) {
         // Skill setup text is orchestration metadata, not authored output.
         return { blocks, issues };
     }
+    if (name === 'senduserfile' && block.is_error !== true) return { blocks: [plain('Files delivered')], issues };
     const references = record(block.meta)?.tool_references;
     if (name === 'toolsearch' && Array.isArray(references)) {
         for (const ref of references) if (typeof ref === 'string') blocks.push(plain('Available tool: ' + ref));
@@ -170,6 +174,14 @@ export function parseToolResult(block: Record<string, unknown>,
                 const url = part.text.match(/https:\/\/claude\.ai\/artifact\/[A-Za-z0-9_-]+/)?.[0];
                 if (url) blocks.push(link('Published artifact', url));
                 else issues.push('Missing published artifact link');
+            } else if (name === 'bash') {
+                blocks.push({ type: 'code', code: part.text, language: 'text' });
+            } else if (name.startsWith('mcpclaudedocs') && block.is_error !== true) {
+                try {
+                    const result = nativeReceipt(part.text);
+                    if (result?.verdict !== 'allow') issues.push('Docs operation did not succeed');
+                    else blocks.push(plain('Document operation completed'));
+                } catch { issues.push('Invalid Docs operation receipt'); }
             } else if (['listconnectors', 'searchmcpregistry', 'suggestconnectors'].includes(name)) {
                 const parsed = connectorCards(part.text);
                 blocks.push(...parsed.blocks); issues.push(...parsed.issues);
