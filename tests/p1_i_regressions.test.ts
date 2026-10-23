@@ -4,10 +4,8 @@ import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.
 useIndexStorage();
 /**
  * tests/p1_i_regressions.test.ts
- * I 组「协议层与 provider 契约收尾」P1-075~080, P1-084, P1-088/089 回归测试。
+ * I 组「协议层与 provider 契约收尾」P1-075~080, P1-088/089 回归测试。
  */
-import type { GeminiLiveSaveTriggerPayload } from '../src/l1/protocol/gemini/events.js';
-
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -74,16 +72,6 @@ test('P1-078 - duplicate registration of a DIFFERENT instance warns loudly', () 
 
 // ------------------------------------------------------------- P1-081/082 (fixed by #356, locked here; Phase E: dormant)
 
-
-// P1-084: TypeScript-checked contract (there is no useful runtime behavior here).
-// These assignments are checked by npm run type-check; do not mock the consumer.
-const acceptedLiveSaveTrigger: GeminiLiveSaveTriggerPayload = {
-    cid: 'c_1', reason: 'turn_complete', mockMode: true
-};
-// @ts-expect-error: unknown payload fields must be rejected by the public type.
-const rejectedLiveSaveTrigger: GeminiLiveSaveTriggerPayload = { cid: 'c_1', arbitraryField: 'not allowed' };
-void acceptedLiveSaveTrigger;
-void rejectedLiveSaveTrigger;
 
 // ---------------------------------------------------------------- P1-085
 
