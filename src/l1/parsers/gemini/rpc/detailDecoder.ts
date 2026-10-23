@@ -153,14 +153,14 @@ function findTurnsDeep(root: unknown, depth: number = 0): unknown[] | null {
 }
 
 interface TurnsExtractionResult {
-    turns: any[];
-    inner: any;
+    turns: unknown[];
+    inner: unknown;
     schemaDriftWarnings: string[];
     turnsRejected: number;
 }
 
 function extractTurnsFromInner(
-    inner: any,
+    inner: unknown,
     top: unknown[] | null,
     innerStr: string | null,
     isStandardWrb: boolean,
@@ -174,11 +174,12 @@ function extractTurnsFromInner(
     }
 
     let activeInner = inner;
-    let turns: any[] | null = null;
+    let turns: unknown[] | null = null;
     const innerSchema = GEMINI_JSPB_SCHEMA.INNER;
-
-    if (isTurnsArray(activeInner?.[innerSchema.TURNS_OR_LIST_PRIMARY])) {
-        turns = activeInner[innerSchema.TURNS_OR_LIST_PRIMARY];
+    const initialSlots: unknown[] = Array.isArray(activeInner) ? activeInner : [];
+    const primaryTurns = initialSlots[innerSchema.TURNS_OR_LIST_PRIMARY];
+    if (Array.isArray(primaryTurns) && isTurnsArray(primaryTurns)) {
+        turns = primaryTurns;
     }
     if (!turns) turns = findTurnsDeep(activeInner);
     if (!turns && Array.isArray(top)) {
@@ -204,11 +205,14 @@ function extractTurnsFromInner(
 
     // 4. Detect "metadata-only" response: inner = [null, null, [[conv_id_str, title, ...]]]
     const metaListIdx = innerSchema.METADATA_ONLY_LIST;
+    const activeSlots: unknown[] = Array.isArray(activeInner) ? activeInner : [];
+    const metaRows = activeSlots[metaListIdx];
+    const firstMeta = Array.isArray(metaRows) ? metaRows[0] : undefined;
     const isMetadataOnly = !turns.length
-        && activeInner[innerSchema.TURNS_OR_LIST_PRIMARY] === null
-        && activeInner[innerSchema.LIST_SECONDARY] === null
-        && Array.isArray(activeInner[metaListIdx]) && activeInner[metaListIdx].length > 0
-        && typeof activeInner[metaListIdx][0]?.[0] === "string" && activeInner[metaListIdx][0][0].startsWith("c_");
+        && activeSlots[innerSchema.TURNS_OR_LIST_PRIMARY] === null
+        && activeSlots[innerSchema.LIST_SECONDARY] === null
+        && Array.isArray(metaRows) && metaRows.length > 0
+        && Array.isArray(firstMeta) && typeof firstMeta[0] === "string" && firstMeta[0].startsWith("c_");
 
     if (isMetadataOnly) {
         schemaDriftWarnings.push(`metadata-only payload: hNvQHb returned no turns (inner[${metaListIdx}][0] looks like a list-format row); exported messages will be empty`);
@@ -216,8 +220,8 @@ function extractTurnsFromInner(
     if (isMetadataOnly && isDevMode) {
         console.warn("[Parser] hNvQHb returned metadata-only payload (no turns). " +
             `inner[${metaListIdx}][0] looks like a list-format row, not a turns array. ` +
-            "conv:", activeInner[metaListIdx][0]?.[0], "title:", activeInner[metaListIdx][0]?.[1],
-            "rc_count:", activeInner[metaListIdx][0]?.filter((x: any) => typeof x === "string" && x.startsWith("rc_")).length);
+            "conv:", firstMeta?.[0], "title:", firstMeta?.[1],
+            "rc_count:", firstMeta?.filter((x: unknown) => typeof x === "string" && x.startsWith("rc_")).length);
     }
     if (!turns.length && activeInner && Array.isArray(activeInner) && activeInner.length > 0 && !isMetadataOnly) {
         schemaDriftWarnings.push(`Payload drift: inner JSON array present (length ${activeInner.length}) but unable to locate turns array`);
@@ -235,14 +239,15 @@ function extractTurnsFromInner(
 }
 
 function buildUserMessage(
-    turn: any,
+    turn: unknown,
     ts: number | null,
     media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     imageSeq: { value: number }
 ): GeminiMessageEvidence | null {
-    const userPayload = turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
+    const turnSlots: unknown[] = Array.isArray(turn) ? turn : [];
+    const userPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
     const uText = extractUserTextFromPayload(userPayload);
     const uImgs = filterNewImages(media.images(userPayload, imageSeq), dedupSet);
     const uFiles = extractUserFiles(userPayload).filter((f: UserFileAttachment) => {
@@ -255,12 +260,13 @@ function buildUserMessage(
     if (!uText && !uImgs.length && !uFiles.length) return null;
 
     let userMsgId = "";
-    if (Array.isArray(turn?.[0])) {
-        userMsgId = turn[0].find((x: any) => typeof x === "string" && x.startsWith("r_"))
-            || (typeof turn[0][1] === "string" ? turn[0][1] : "")
-            || (typeof turn[0][0] === "string" ? turn[0][0] : "");
-    } else if (typeof turn?.[0] === "string") {
-        userMsgId = turn[0];
+    const idMeta = turnSlots[0];
+    if (Array.isArray(idMeta)) {
+        userMsgId = idMeta.find((x: unknown): x is string => typeof x === "string" && x.startsWith("r_"))
+            || (typeof idMeta[1] === "string" ? idMeta[1] : "")
+            || (typeof idMeta[0] === "string" ? idMeta[0] : "");
+    } else if (typeof idMeta === "string") {
+        userMsgId = idMeta;
     }
 
     const formattedImages = uImgs.length ? uImgs.map((i: ImageAttachment) => ({
@@ -328,10 +334,10 @@ function buildUserMessage(
 }
 
 function parseCandidateResponse(
-    cand: any,
-    turn: any,
+    cand: unknown,
+    turn: unknown,
     ts: number | null,
-    inner: any,
+    inner: unknown,
     media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
@@ -339,8 +345,11 @@ function parseCandidateResponse(
     candidateIndex = 0,
     convId?: string
 ): GeminiMessageEvidence | null {
-    const candidateId = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] || "";
-    const candidateBlock = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] || cand;
+    const candidateSlots: unknown[] = Array.isArray(cand) ? cand : [];
+    const turnSlots: unknown[] = Array.isArray(turn) ? turn : [];
+    const rawCandidateId = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+    const candidateId = typeof rawCandidateId === 'string' ? rawCandidateId : "";
+    const candidateBlock = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] || cand;
     let responseText = extractCandidateText(cand);
 
     if (!responseText) {
@@ -359,10 +368,11 @@ function parseCandidateResponse(
 
     const structuredExtraction = inspectStructuredContent(turn, cand, candidateIndex);
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
-    const rawAnswerDocument = candidateIndex === 0 && Array.isArray(turn?.[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD])
-        ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD][GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12]
+    const modelPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+    const rawAnswerDocument = candidateIndex === 0 && Array.isArray(modelPayload)
+        ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12]
         : undefined;
-    const answerBody = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
+    const answerBody = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
     const candImages = media.responseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
     const filteredImages = filterNewImages(candImages, dedupSet);
 
@@ -451,7 +461,7 @@ function parseCandidateResponse(
 
     const providerRequestId = media.sourceOnly ? extractRawTurnRequestId(turn) : extractTurnRequestId(turn);
     const generatedCount = candImages.filter(img => img.isGenerated).length;
-    const generationPrompt = extractUserTextFromPayload(turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD]);
+    const generationPrompt = extractUserTextFromPayload(turnSlots[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD]);
     const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
         const isGen = !!img.isGenerated;
         const ordinal = isGen ? (img.imageOrdinal ?? (generatedCount === 1 ? 0 : undefined)) : undefined;
@@ -509,9 +519,11 @@ function parseCandidateResponse(
 
     if (!responseText && !thoughts && !attachments.length && !docDetails.length && !structuredContent) return null;
 
-    const fallbackTurnId = Array.isArray(turn?.[0])
-        ? (turn[0].find((x: any) => typeof x === "string" && (x.startsWith("rc_") || x.startsWith("r_"))) || turn[0][1] || turn[0][0])
-        : turn?.[0];
+    const idMeta = turnSlots[0];
+    const fallbackRawId = Array.isArray(idMeta)
+        ? (idMeta.find((x: unknown) => typeof x === "string" && (x.startsWith("rc_") || x.startsWith("r_"))) || idMeta[1] || idMeta[0])
+        : idMeta;
+    const fallbackTurnId = typeof fallbackRawId === 'string' ? fallbackRawId : "";
 
     return {
         id: media.sourceOnly ? (typeof candidateId === "string" ? candidateId : "") : (candidateId || fallbackTurnId || ""),
@@ -574,8 +586,10 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
             isDevMode
         );
 
-        const metadataRow = !turns.length && inner[0] === null && inner[1] === null
-            ? inner[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST]?.[0] : undefined;
+        const innerSlots: unknown[] = Array.isArray(inner) ? inner : [];
+        const metadataRows = innerSlots[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST];
+        const metadataRow = !turns.length && innerSlots[0] === null && innerSlots[1] === null && Array.isArray(metadataRows)
+            ? metadataRows[0] : undefined;
         const metadataConversation = Array.isArray(metadataRow)
             && typeof metadataRow[0] === 'string' && metadataRow[0].startsWith('c_')
             && typeof metadataRow[1] === 'string' && metadataRow[1].trim()
@@ -607,7 +621,8 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
                 // hNvQHb retains alternative drafts for a single user request.
                 // The live wire's turn[3][3] identifies the displayed answer;
                 // exporting every draft creates consecutive Assistant turns.
-                const selectedId = turn?.[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD]?.[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.SELECTED_CANDIDATE_ID];
+                const modelPayload = Array.isArray(turn) ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
+                const selectedId = Array.isArray(modelPayload) ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.SELECTED_CANDIDATE_ID] : undefined;
                 const selectedIndex = typeof selectedId === 'string' && selectedId.startsWith('rc_')
                     ? candList.findIndex(cand => Array.isArray(cand) && cand[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] === selectedId)
                     : -1;
