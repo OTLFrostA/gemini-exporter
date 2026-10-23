@@ -230,6 +230,20 @@ const fixtureMap = {
         JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]),
     'G_EXTRACTED_REGRESSION_CURSOR_LIST_01': () =>
         JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]),
+
+    // L1 target-bound 1167 / provider-limit response proofs.
+    'G_L1_VERIFIED_LIST_1167_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1167]]]),
+    'G_L1_VERIFIED_LIST_FALSE_DELETE_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, 'c_deadbeef00112233'])]]),
+    'G_L1_VERIFIED_LIST_LIMIT_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_10961': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 10961]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_429': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 429]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_STRING': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', '1096']]]),
 };
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
