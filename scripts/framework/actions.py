@@ -150,7 +150,7 @@ class ExtensionActions:
                     if (!popover) return {active:false, url:location.href};
                     const button = [...popover.querySelectorAll('button')].find(btn => /^(Next|下一步|Start using|开始使用)$/.test(btn.textContent));
                     const connect = popover.querySelector('#' + """ + json.dumps(connect_id) + """);
-                    if (connect && button?.disabled) return {active:true, needsConnection:true, ready:!connect.disabled};
+                    if (connect) return {active:true, needsConnection:true, ready:!connect.disabled};
                     if (button && !button.disabled) button.click();
                     return {active:true};
                 })()""") or {}

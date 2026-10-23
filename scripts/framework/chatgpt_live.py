@@ -110,9 +110,7 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         self.gate('onboarding', lambda: {'physicalTour': True})
         granted = self.options.eval("chrome.permissions.contains({origins:['https://chatgpt.com/*','https://chat.openai.com/*']})", await_promise=True)
         if not granted:
-            print('Site permission required: use Connect ChatGPT in the open Workbench.', flush=True)
-            wait_for(lambda: self.options.eval("chrome.permissions.contains({origins:['https://chatgpt.com/*','https://chat.openai.com/*']})", await_promise=True), 600, 2)
-        self.options.eval("document.getElementById('btnConnectChatGPT').click()", user_gesture=True)
+            raise ValueError('ChatGPT site permission missing after onboarding')
         self.ready()
         self.chat.call('Page.reload')
         wait_for(lambda: self.chat.eval("!!document.querySelector('#prompt-textarea,[role=textbox][contenteditable=true]')"))
