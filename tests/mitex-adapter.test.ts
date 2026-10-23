@@ -18,7 +18,6 @@ const crypto = require('node:crypto');
 
 const {
     convertMathWithMitex,
-    convertMathMitex,
     initMitexWasm,
     isMitexReady,
     mitexConvertMath,
@@ -57,9 +56,9 @@ test('T1.3: Unknown command fails closed with TYPST_MATH_CONVERT_FAILED and pres
     assert.ok(res.diagnostic.message.includes(raw), 'Diagnostic message should contain preserved raw LaTeX');
 });
 
-test('T1.4: convertMathMitex helper respects notation and display flags', async () => {
-    assert.strictEqual(convertMathMitex('x^2', 'asciimath', false), undefined, 'Non-latex notation should return undefined');
-    const typst = convertMathMitex('\\frac{1}{2}', 'latex', true);
+test('T1.4: convertMathWithMitex respects notation and display flags', async () => {
+    assert.strictEqual(convertMathWithMitex('x^2', 'asciimath', false).typst, undefined, 'Non-latex notation should return undefined');
+    const typst = convertMathWithMitex('\\frac{1}{2}', 'latex', true).typst;
     assert.ok(typeof typst === 'string' && typst.length > 0);
 });
 
@@ -147,7 +146,7 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
 
     const { payload } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)), {}, {
         convertMath: (source: string, display: boolean) => {
-            return convertMathMitex(source, 'latex', display);
+            return convertMathWithMitex(source, 'latex', display).typst;
         },
     });
 
@@ -275,7 +274,7 @@ test('T5.3: Unsupported math notations emit TYPST_MATH_UNSUPPORTED_NOTATION warn
         assert.strictEqual(res.diagnostic.severity, 'warning');
         assert.ok(res.diagnostic.message.includes(notation), 'Diagnostic message must mention the unsupported notation');
 
-        const helperOutput = convertMathMitex(formula, notation);
-        assert.strictEqual(helperOutput, undefined, `convertMathMitex helper must return undefined for '${notation}'`);
+        const helperOutput = convertMathWithMitex(formula, notation).typst;
+        assert.strictEqual(helperOutput, undefined, `converter must return undefined for '${notation}'`);
     }
 });
