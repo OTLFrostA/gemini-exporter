@@ -129,11 +129,12 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             typeof width === "number" &&
             typeof height === "number"
         ) {
+            const rawToken = slots[inl.TOKEN];
             return {
                 sourceUrl: url,
                 width,
                 height,
-                token: typeof slots[inl.TOKEN] === "string" ? slots[inl.TOKEN] : void 0,
+                token: typeof rawToken === "string" ? rawToken : void 0,
                 detectorKind: "extractImages [url,w,h]"
             };
         }
@@ -170,7 +171,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             const height = rawDims !== null && typeof rawDims[1] === "number" ? rawDims[1] : void 0;
             const size = rawDims !== null && typeof rawDims[2] === "number" ? rawDims[2] : void 0;
             const mimeType = typeof mimeTypeVal === "string" ? mimeTypeVal : void 0;
-            const token = typeof slots[gen.TOKEN] === "string" ? slots[gen.TOKEN] : void 0;
+            const rawToken = slots[gen.TOKEN];
+            const token = typeof rawToken === "string" ? rawToken : void 0;
             return {
                 sourceUrl: url,
                 width,
