@@ -204,6 +204,15 @@ const fixtureMap = {
     'G_E2E_TIER2_LIST_01': () =>
         JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
             [['c_probe', 'Probe title', null, null, null, [1700000000, 0]]]])]]),
+
+    'G_E2E_INCREMENTAL_ERROR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic']]),
+    'G_E2E_INCREMENTAL_PASSIVE_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_passive80', 'Passive 80', null, null, null, [1700000080, 0]]]])]]),
+    'G_E2E_UUID_PROFILE_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null,
+            [['c_profile_delay', 'Profile delay', null, null, null, [1700000000, 0]]], null])]]),
 };
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
