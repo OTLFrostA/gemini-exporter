@@ -11,12 +11,10 @@ import { gfmFromMarkdown } from 'mdast-util-gfm';
 import { math } from 'micromark-extension-math';
 import { mathFromMarkdown } from 'mdast-util-math';
 import type { BlockNode } from '../../../../l2/content/blocks.js';
-import type { InlineNode } from '../../../../l2/content/inline.js';
 import type { Root } from 'mdast';
 import {
     type MarkdownParseContext,
     mdastRootToBlocks,
-    adaptInlines,
     collectDefinitions,
 } from './mdastToContent.js';
 
@@ -56,41 +54,4 @@ export function parseMarkdownToBlocks(
     };
 
     return mdastRootToBlocks(tree, parseCtx, preprocessed);
-}
-
-/**
- * Parse an inline markdown snippet into Content AST InlineNode[].
- */
-export function parseMarkdownToInlines(
-    text: string,
-    idPrefix: string,
-    ctx: MarkdownParseContext,
-): InlineNode[] {
-    if (!text) {
-        return [];
-    }
-
-    const tree = parseMarkdownAst(text);
-
-    const definitions = new Map<string, { url: string; title?: string }>();
-    collectDefinitions(tree, definitions);
-    const parseCtx: MarkdownParseContext = {
-        ...ctx,
-        definitions,
-    };
-
-    // Inlines are inside the first paragraph if fromMarkdown wraps them in a paragraph
-    if (tree.children.length === 1 && tree.children[0].type === 'paragraph') {
-        return adaptInlines(tree.children[0].children, parseCtx);
-    }
-
-    // Otherwise, adapt blocks and extract inlines from paragraphs
-    const blocks = mdastRootToBlocks(tree, parseCtx, text);
-    const inlines: InlineNode[] = [];
-    for (const b of blocks) {
-        if ('children' in b && Array.isArray(b.children)) {
-            inlines.push(...b.children);
-        }
-    }
-    return inlines;
 }
