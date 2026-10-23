@@ -1,0 +1,37 @@
+name: One-off Knip audit (do not merge)
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/knip-audit-once.yml"
+      - "knip.audit.json"
+      - "src/**"
+jobs:
+  static-audit:
+    name: Knip source and repository audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install project dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Knip production source only (8 build entries)
+        run: |
+          npx --yes knip@6 --version
+          npx --yes knip@6 --config knip.audit.json --production --no-exit-code --no-progress --reporter compact > knip-production.log 2>&1
+          cat knip-production.log
+      - name: Knip complete repository (including tests and scripts)
+        run: |
+          npx --yes knip@6 --config knip.audit.json --no-exit-code --no-progress --reporter compact > knip-full.log 2>&1
+          cat knip-full.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: knip-one-off-audit-reports
+          path: |
+            knip-production.log
+            knip-full.log

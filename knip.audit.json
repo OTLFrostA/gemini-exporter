@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/runtime/content/content.ts!",
+    "src/l1/sniffer/gemini/hookCredentials.ts!",
+    "src/l1/sniffer/chatgpt/hook.ts!",
+    "src/runtime/content/chatgptContent.ts!",
+    "src/runtime/background/background.ts!",
+    "src/ui/popup/popup.ts!",
+    "src/ui/options/options.ts!",
+    "src/l4/format/pdf/sandbox/typstCompileEntry.ts!",
+    "build.js",
+    "scripts/**/*.{js,cjs,mjs,ts}",
+    "tests/**/*.{ts,js,cjs,mjs}"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}!",
+    "build.js",
+    "scripts/**/*.{js,cjs,mjs,ts}",
+    "tests/**/*.{ts,js,cjs,mjs}",
+    "playwright.config.ts"
+  ]
+}
