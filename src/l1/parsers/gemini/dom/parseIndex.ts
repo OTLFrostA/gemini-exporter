@@ -1,27 +1,5 @@
 import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
-import { normId, isReservedRoute } from '../../../../shared/utils/pathUtils.js';
 import { cleanTitle, isRealTitle } from '../../../../shared/utils/titleText.js';
-
-export function parseGeminiDomList(document: Document): GeminiIndexObservationInput[] {
-    const items: GeminiIndexObservationInput[] = [];
-    const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="/app/"]');
-    for (const a of Array.from(links)) {
-        const href = a.href || a.getAttribute('href') || '';
-        const m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
-        if (m) {
-            const id = normId(m[2]);
-            if (isReservedRoute(id)) continue;
-            const rawTitle = (a.querySelector('.title, [class*="title"]')?.textContent || a.textContent || '').trim();
-            items.push({
-                id,
-                title: cleanTitle(rawTitle),
-                titleSource: 'dom',
-                url: `https://gemini.google.com/app/${id}`
-            });
-        }
-    }
-    return items;
-}
 
 function activeTitle(document: Document, activeId: string): { title: string; source: string } | null {
     const titleEls = document.querySelectorAll('[data-test-id="conversation-title"], .conversation-title, h1, [class*="conversation-title"]');
