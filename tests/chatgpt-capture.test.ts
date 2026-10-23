@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { chatGPTRequest, confirmedChatGPTDeletion, chatGPTStreamEvent } from '../src/l1/sniffer/chatgpt/observation.js';
 import { installChatGPTHook } from '../src/l1/sniffer/chatgpt/hook.js';
 import { streamGen } from './fixtures/providers/chatgptStream.js';
+import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 import { chatGPTSidebarPage } from '../src/l1/sniffer/chatgpt/sidebar.js';
 
 const cid = '6acffdc5-c4d0-83e8-8e1b-ba60979a618a';
-const session = { user: { id: 'subject' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds' };
+const session = chatgptSessionGen('C_CAPTURE_SESSION_04');
 
 test('capture binds exact ChatGPT endpoints and rejects lookalikes, prepare and invalid IDs', () => {
     assert.deepEqual(chatGPTRequest('https://chatgpt.com/backend-api/f/conversation', 'POST'), { kind: 'stream' });
@@ -77,8 +78,7 @@ test('sidebar list capture preserves pagination and all items without requiring 
             else Reflect.deleteProperty(globalThis, key);
         }
     });
-    const page = { items: [{ id: cid, title: 'Questionnaire' },
-        { id: '6ad9b0a8-1b6c-83e8-af11-3071d09cd382', title: 'Compost' }], offset: 28, limit: 28, total: 30 };
+    const page = chatgptListGen('C_CAPTURE_LIST_01');
     for (const mode of ['accepted', 'switched', 'workspace-mismatch', 'failed']) {
         const events: { payload: Record<string, unknown> }[] = [];
         let sessions = 0;
@@ -87,7 +87,7 @@ test('sidebar list capture preserves pagination and all items without requiring 
                 if (String(input).endsWith('/api/auth/session')) {
                     sessions++;
                     return Response.json(mode === 'switched' && sessions > 1
-                        ? { ...session, user: { id: 'other' } } : session);
+                        ? chatgptSessionGen('C_CAPTURE_SESSION_05') : session);
                 }
                 return Response.json(page, { status: mode === 'failed' ? 500 : 200 });
             },
@@ -107,7 +107,7 @@ test('sidebar list capture preserves pagination and all items without requiring 
             assert.deepEqual(events[0].payload.responseBody, page);
             assert.equal(events[0].payload.conversationId, undefined);
         }
-        assert.equal(JSON.stringify(events).includes(session.accessToken), false);
+        assert.equal(JSON.stringify(events).includes(String(session.accessToken)), false);
     }
 });
 
@@ -145,9 +145,7 @@ test('native ChatGPT DELETE binds its exact id endpoint and requires explicit su
 
 test('SSR sidebar capture awaits native loader data, binds its workspace and strips unrelated fields', async () => {
     const identity = async () => '["subject","workspace"]';
-    const page = { items: [{ id: cid, title: 'Questionnaire', create_time: '2026-10-22T20:00:00Z',
-        update_time: '2026-10-22T21:00:00Z', mapping: { private: 'not-list-data' }, accessToken: 'private-token' }],
-        offset: 0, limit: 20, total: 1 };
+    const page = chatgptListGen('C_CAPTURE_SIDEBAR_LIST_01');
     const history = { accountId: 'workspace', chats: Promise.resolve(page), session: { accessToken: 'private-token' } };
     const captured = await chatGPTSidebarPage(history, identity);
     assert.equal(captured?.responseBody.items.length, 1);

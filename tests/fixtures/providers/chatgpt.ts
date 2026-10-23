@@ -89,6 +89,15 @@ const fixtureMap = {
         { id: 'gpt-chat', title: 'ChatGPT history from source',
             create_time: 1700000000, update_time: 1700000010 },
     ], { total: 1, offset: 0, limit: 100 }),
+    'C_CAPTURE_LIST_01': () => list([
+        { id: '6acffdc5-c4d0-83e8-8e1b-ba60979a618a', title: 'Questionnaire' },
+        { id: '6ad9b0a8-1b6c-83e8-af11-3071d09cd382', title: 'Compost' },
+    ], { offset: 28, limit: 28, total: 30 }),
+    'C_CAPTURE_SIDEBAR_LIST_01': () => list([
+        { id: '6acffdc5-c4d0-83e8-8e1b-ba60979a618a', title: 'Questionnaire',
+            create_time: '2026-10-22T20:00:00Z', update_time: '2026-10-22T21:00:00Z',
+            mapping: { private: 'not-list-data' }, accessToken: 'private-token' },
+    ], { offset: 0, limit: 20, total: 1 }),
 };
 
 /** The native /backend-api/conversations JSON payload, including malformed test values. */
