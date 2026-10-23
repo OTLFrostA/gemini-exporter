@@ -23,6 +23,8 @@ import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
+import { requestGen as geminiDetailRequestGen } from './fixtures/providers/geminiDetailRequest.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
@@ -45,10 +47,8 @@ function client(pages: (ListParseResult | Error)[], requests: unknown[] = []): G
 }
 const provider = (pages: (ListParseResult | Error)[], requests: unknown[] = []) => new GeminiProvider(client(pages, requests), async () => 'u0');
 const options = () => ({ accountId: ACCOUNT_UUID, streamId: 'recent' });
-const detailWire = (prompt = 'Question', next: string | null = null, version = true) => JSON.stringify([
-    ['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_source_chat_123', `r_${prompt}`], [1700000000, 0], [[prompt]], [[['rc_' + prompt, [['Answer']]]]]]], next])],
-    ...(version ? (JSON.parse(geminiListGen('G_L1_CONTRACT_01')) as unknown[][]) : []),
-]);
+const detailWire = (key: Parameters<typeof geminiDetailGen>[0] = 'G_L1_CONTRACT_DETAIL_DEFAULT_01') =>
+    geminiDetailGen(key);
 const sourceEvent = (text: string, extra: Record<string, unknown> = {}) => ({ source: window, origin: typeof location !== 'undefined' ? location.origin : 'https://gemini.google.com', data: {
     type: CrossWorldEvents.NETWORK_BATCHEXECUTE, payload: { text, slot: 'u0', requestedAt: Date.now(), truncated: false,
         url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute', requestAccountObservation: ACCOUNT_OBSERVATION, ...extra },
@@ -127,10 +127,11 @@ test('L1 unknown Bard errors cannot become a history-window terminal', () => {
     }
 });
 test('L1 detail request decoding accepts only the actual RPC layout', () => {
-    const body = (args: unknown) => new URLSearchParams({ 'f.req': JSON.stringify([[['hNvQHb', JSON.stringify(args), null, 'generic']]]) }).toString();
-    assert.deepEqual(readGeminiDetailRequest(body(['c_source_chat_123', 10, 'tC_NEXT_PAGE_123456789', 1, [1], [4], null, 1])), { conversationId: 'source_chat_123', requestCursor: 'tC_NEXT_PAGE_123456789' });
-    assert.equal(readGeminiDetailRequest(body(['c_source_chat_123', 10, 'tC_NEXT_PAGE_123456789'])), null);
-    assert.equal(readGeminiDetailRequest('garbage'), null);
+    assert.deepEqual(readGeminiDetailRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_VALID_01')), {
+        conversationId: 'source_chat_123', requestCursor: 'tC_NEXT_PAGE_123456789',
+    });
+    assert.equal(readGeminiDetailRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_TRUNCATED_01')), null);
+    assert.equal(readGeminiDetailRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_GARBAGE_01')), null);
 });
 test('L1 passive list commits directly, including the empty terminal', async () => {
     await handleWindowMessage(sourceEvent(geminiListGen('G_L1_CONTRACT_16'), { listRequest: { streamId: 'recent', requestCursor: null } }));
@@ -156,8 +157,8 @@ test('L1 passive uncorrelated detail cannot become complete or issue a request',
 });
 test('L1 passive observed detail chain shares active source assembly', async () => {
     const next = 'tC_NEXT_PAGE_123456789';
-    await handleWindowMessage(sourceEvent(detailWire('Newer', next), { detailRequest: { conversationId: 'source_chat_123', requestCursor: null } }));
-    await handleWindowMessage(sourceEvent(detailWire('Older'), { detailRequest: { conversationId: 'source_chat_123', requestCursor: next } }));
+    await handleWindowMessage(sourceEvent(detailWire('G_L1_CONTRACT_DETAIL_NEWER_01'), { detailRequest: { conversationId: 'source_chat_123', requestCursor: null } }));
+    await handleWindowMessage(sourceEvent(detailWire('G_L1_CONTRACT_DETAIL_OLDER_01'), { detailRequest: { conversationId: 'source_chat_123', requestCursor: next } }));
     const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
     assert.ok(stored); assert.equal(stored.quality.status, 'complete');
     assert.equal(stored.messages.length, 4);
