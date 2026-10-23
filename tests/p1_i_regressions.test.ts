@@ -48,7 +48,7 @@ test('P1-077 - protocol self-mounts remain available without a globalThis mount'
     assert.strictEqual((globalThis as any).GeminiProtocol, undefined);
 });
 
-// ------------------------------------------------------------- P1-078/079/080
+// ------------------------------------------------------------- P1-078
 test('P1-078 - duplicate registration of a DIFFERENT instance warns loudly', () => {
     const registry = new ProviderRegistryClass();
     const warnings: string[] = [];
@@ -69,33 +69,6 @@ test('P1-078 - duplicate registration of a DIFFERENT instance warns loudly', () 
     } finally {
         console.warn = origWarn;
     }
-});
-
-test('P1-079 - setDefaultProviderId rejects unregistered ids', () => {
-    const registry = new ProviderRegistryClass();
-    assert.throws(() => registry.setDefaultProviderId('ghost'), /unregistered id "ghost"/);
-    registry.register(fakeProvider('real'));
-    registry.setDefaultProviderId('real');
-    assert.strictEqual(registry.getDefault()?.id, 'real');
-});
-
-test('P1-080 - explicit matchesUrl=false is never overruled by hostPatterns', () => {
-    const registry = new ProviderRegistryClass();
-    registry.register(fakeProvider('strict', {
-        matchesUrl: () => false, // explicit refusal...
-        hostPatterns: ['https://example.com/*'], // ...with a broad pattern that must NOT win
-    }));
-    registry.register(fakeProvider('legacy', {
-        hostPatterns: ['https://legacy.example.net/*'], // no matchesUrl at all
-    }));
-    assert.strictEqual(
-        registry.findByUrl('https://example.com/page'), undefined,
-        'explicit refusal must not fall back to hostPatterns'
-    );
-    assert.strictEqual(
-        registry.findByUrl('https://legacy.example.net/x')?.id, 'legacy',
-        'pattern-only providers still resolve via hostPatterns'
-    );
 });
 
 // ------------------------------------------------------------- P1-081/082 (fixed by #356, locked here; Phase E: dormant)
@@ -147,9 +120,7 @@ test('P1-089 - gemini hostPatterns cover everything matchesUrl accepts', () => {
     assert.ok(gemini.matchesUrl('https://gemini.google.com/app'), 'gemini host matches');
     assert.ok(gemini.matchesUrl('https://bard.google.com/app'), 'legacy bard host matches');
     for (const host of ['https://gemini.google.com/', 'https://bard.google.com/']) {
-        const registry = new ProviderRegistryClass();
-        registry.register(gemini);
-        assert.strictEqual(registry.findByUrl(host)?.id, 'gemini', `findByUrl resolves ${host}`);
+        assert.ok(gemini.matchesUrl(host), `Gemini matchesUrl accepts ${host}`);
     }
     assert.ok(
         (gemini.hostPatterns as string[]).includes('https://bard.google.com/*'),

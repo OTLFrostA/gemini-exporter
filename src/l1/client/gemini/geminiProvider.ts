@@ -175,5 +175,4 @@ export class GeminiProvider implements GeminiProviderContract {
 }
 export const defaultGeminiProvider = new GeminiProvider();
 ProviderRegistry.register(defaultGeminiProvider);
-ProviderRegistry.setDefaultProviderId('gemini');
 export default GeminiProvider;
