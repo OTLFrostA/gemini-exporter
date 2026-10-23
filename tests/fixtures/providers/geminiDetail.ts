@@ -564,7 +564,60 @@ const fixtureMap = {
         String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]]),
     'G_L1_VERIFIED_DETAIL_1096_02': () =>
         String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]]),
+    'G_VERSION_PAIR_DETAIL_01': () => versionPairDetail(0),
+    'G_VERSION_PAIR_DETAIL_02': () => versionPairDetail(1),
+    'G_VERSION_PAIR_DETAIL_03': () => versionPairDetail(2),
+    'G_VERSION_PAIR_DETAIL_04': () => versionPairDetail(3),
+    'G_VERSION_PAIR_DETAIL_05': () => versionPairDetail(4),
+    'G_VERSION_PAIR_DETAIL_06': () => versionPairDetail(5),
+    'G_VERSION_DETAIL_MATCHING_01': () => versionMixed([1700000000, 0], [1700000005, 123000000]),
+    'G_VERSION_DETAIL_NO_META_01': () => versionMixed([1700000000, 0]),
+    'G_VERSION_DETAIL_UNRELATED_01': () => versionUnrelated(),
+    'G_VERSION_DETAIL_SAVED_AT_01': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_DETAIL_SAVED_AT_02': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_DETAIL_NEWER_01': () => versionMixed([1700000005, 0], [1700000005, 0]),
+    'G_VERSION_DETAIL_PARTIAL_NEWER_01': () => versionMixed([1700000010, 0], [1700000010, 0], true),
+    'G_VERSION_DETAIL_OLDER_01': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_DETAIL_PARTIAL_ID_01': () => versionMixed([1700000000, 0], [1700000000, 0], true, 'partial_chat'),
+    'G_VERSION_DETAIL_UNKNOWN_ID_01': () => versionMixed([1700000000, 0], undefined, false, 'unknown_chat'),
+    'G_VERSION_DETAIL_CONFLICT_ID_01': () => versionMixed([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'),
+    'G_VERSION_DETAIL_PAGE_FIRST_01': () => versionMixed([1700000005, 0], [1700000005, 0], true),
+    'G_VERSION_DETAIL_PAGE_CHANGED_01': () => versionMixed([1700000000, 0], [1700000010, 0]),
+    'G_VERSION_DETAIL_PAGE_CONSISTENT_01': () => versionMixed([1700000000, 0], [1700000005, 0]),
+    'G_VERSION_DETAIL_HEALTHY_01': () => versionMixed([1700000000, 0], [1700000005, 0]),
+    'G_VERSION_DETAIL_MISMATCHED_01': () => versionMixed([1700000010, 0], [1700000005, 0]),
+    'G_VERSION_LAYERS_FRESHNESS_01': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_LAYERS_JSON_01': () => versionMixed([1700000000, 0], [1700000000, 0]),
+    'G_VERSION_LAYERS_JSON_PARTIAL_01': () => versionMixed([1700000000, 0], [1700000000, 0], true),
+    'G_VERSION_LAYERS_HEALTHY_01': () => versionMixed([1700000000, 0], [1700000005, 0]),
+    'G_VERSION_LAYERS_MISMATCHED_01': () => versionMixed([1700000010, 0], [1700000005, 0]),
 };
+
+/** Original List+Detail source-version proof, now shared by keyed fixtures only. */
+function versionMixed(messageTime: number[], version?: number[], more = false, id = 'version_chat'): string {
+    const turn = [['c_' + id, 'r_request'], null, [['Question']],
+        [[['rc_answer', [['Answer']]]]], messageTime];
+    const rows: Array<[string, unknown]> = [['hNvQHb', [[turn], more ? 'tCnext' : null, null, []]]];
+    if (version) rows.push(['MaZiqc', [null, null, [['c_' + id, 'Source title', null, null, null, version]]]]);
+    return JSON.stringify(rows.map(([name, payload]) => ['wrb.fr', name, JSON.stringify(payload)]));
+}
+function versionPairDetail(index: number): string {
+    const pairs: Array<{ metadataWire: number[]; detailTurnWire: number[] }> =
+        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
+    const pair = pairs[index];
+    if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
+    return versionMixed(pair.detailTurnWire, pair.metadataWire);
+}
+function versionUnrelated(): string {
+    const rows: Array<[string, unknown]> = [
+        ['hNvQHb', [[[['c_actual_chat', 'r_req'], [1700000000, 0], [['Q']],
+            [[['rc_a', [['A']]]]]]]]],
+        ['MaZiqc', [null, null, [
+            ['c_other_chat', 'Unrelated', null, null, null, [1700000005, 0]],
+        ]]],
+    ];
+    return JSON.stringify(rows.map(([name, payload]) => ['wrb.fr', name, JSON.stringify(payload)]));
+}
 
 export function detailGen(key: keyof typeof fixtureMap): string {
     return fixtureMap[key]();
