@@ -21,40 +21,62 @@ const cli = path.join(path.dirname(require.resolve('oxlint/package.json')), 'bin
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any', '--no-ignore', '--disable-nested-config', ...files], { cwd: root, stdio: 'inherit' });
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
-// TEMPORARY audit only: enumerate owned TypeScript unknown keyword nodes using the TS parser.
-// This branch is never merged.
-const ts = require('typescript');
+// TEMPORARY source scan: ignore comments and quoted strings when counting unknown tokens.
+// Audit branch only. This is a lexical count rather than a TypeScript typechecker AST count.
+function codeOnly(src) {
+  let out='';
+  for(let i=0;i<src.length;) {
+    const c=src[i], n=src[i+1];
+    if(c==='/'&&n==='/') {
+      while(i<src.length&&src[i]!=='\n') {out+=' ';i++;}
+      continue;
+    }
+    if(c==='/'&&n==='*') {
+      out+='  ';i+=2;
+      while(i<src.length) {
+        if(src[i]==='*'&&src[i+1]==='/'){out+='  ';i+=2;break;}
+        out+=src[i]==='\n'?'\n':' ';i++;
+      }
+      continue;
+    }
+    if(c==='"'||c==="'"||c.charCodeAt(0)===96) {
+      const quote=c;out+=' ';i++;
+      while(i<src.length) {
+        const q=src[i];
+        if(q==='\\') {out+='  ';i+=2;continue;}
+        out+=q==='\n'?'\n':' ';i++;
+        if(q===quote) break;
+      }
+      continue;
+    }
+    out+=c;i++;
+  }
+  return out;
+}
 function scanFiles(dir) {
   return fs.readdirSync(path.join(root,dir),{withFileTypes:true}).flatMap(entry=>{
     const rel=path.posix.join(dir,entry.name);
-    if(entry.isDirectory()) return entry.name==='vendor'?[]:scanFiles(rel);
-    return entry.isFile() && /\.tsx?$/.test(rel) && !/\.d\.ts$/.test(rel)?[rel]:[];
+    if(entry.isDirectory())return entry.name==='vendor'?[]:scanFiles(rel);
+    return entry.isFile()&&/\.tsx?$/.test(rel)&&!/\.d\.ts$/.test(rel)?[rel]:[];
   });
 }
-const sourceFiles=scanFiles('src');
-const report=sourceFiles.map(rel=>{
-  const src=fs.readFileSync(path.join(root,rel),'utf8');
-  const source=ts.createSourceFile(rel,src,ts.ScriptTarget.Latest,true,rel.endsWith('.tsx')?ts.ScriptKind.TSX:ts.ScriptKind.TS);
-  const lines=src.split(/\r?\n/);
+const report=scanFiles('src').map(rel=>{
+  const text=fs.readFileSync(path.join(root,rel),'utf8');
+  const srcLines=text.split(/\r?\n/),codeLines=codeOnly(text).split(/\r?\n/);
   const occurrences=[];
-  function visit(node){
-    if(node.kind===ts.SyntaxKind.UnknownKeyword){
-      const lc=source.getLineAndCharacterOfPosition(node.getStart(source));
-      occurrences.push({line:lc.line+1,code:(lines[lc.line]||'').trim().slice(0,150),parent:node.parent?ts.SyntaxKind[node.parent.kind]:''});
-    }
-    ts.forEachChild(node,visit);
+  for(let i=0;i<codeLines.length;i++) {
+    const found=codeLines[i].match(/\bunknown\b/g);
+    if(found)for(let j=0;j<found.length;j++)occurrences.push({line:i+1,code:(srcLines[i]||'').trim().slice(0,170)});
   }
-  visit(source);
   return {path:rel,count:occurrences.length,occurrences};
 });
 report.sort((a,b)=>b.count-a.count||a.path.localeCompare(b.path));
 const modules={};
-for(const rec of report){const k=rec.path.split('/')[1];modules[k]=(modules[k]||0)+rec.count;}
-console.log('UNKNOWN_AST_BEGIN');
-console.log('UNKNOWN_AST_TOTAL',report.reduce((s,x)=>s+x.count,0),'SOURCE_FILES',report.length);
-console.log('UNKNOWN_AST_MODULES',JSON.stringify(Object.entries(modules).sort((a,b)=>b[1]-a[1])));
-console.log('UNKNOWN_AST_TOP_FILES',JSON.stringify(report.slice(0,35).map(({path,count})=>({path,count}))));
-console.log('UNKNOWN_AST_TOP_FILE_DETAILS',JSON.stringify(report[0]));
-console.log('UNKNOWN_AST_END');
-// Stop CI after outputting the diagnostics; this is intentionally a failing temporary audit.
+for(const r of report){const k=r.path.split('/')[1];modules[k]=(modules[k]||0)+r.count;}
+console.log('UNKNOWN_SCAN_BEGIN');
+console.log('UNKNOWN_SCAN_TOTAL',report.reduce((s,x)=>s+x.count,0),'SOURCE_FILES',report.length);
+console.log('UNKNOWN_SCAN_MODULES',JSON.stringify(Object.entries(modules).sort((a,b)=>b[1]-a[1])));
+console.log('UNKNOWN_SCAN_TOP_FILES',JSON.stringify(report.slice(0,40).map(({path,count})=>({path,count}))));
+console.log('UNKNOWN_SCAN_TOP_FILE_DETAILS',JSON.stringify(report[0]));
+console.log('UNKNOWN_SCAN_END');
 process.exitCode=1;
