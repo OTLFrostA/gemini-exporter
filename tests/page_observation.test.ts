@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { geminiListFixtures } from './fixtures/providers/gemini.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
 import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
 test('active and passive normalization retain identical independent cursor and ordering evidence', () => {
     for (const streamId of ['recent', 'pinned'] as const) {
-        const result = geminiListFixtures.observationOrderedPage();
-        const request = readGeminiListRequest(geminiListFixtures.observationRequest(streamId, 'incoming'));
+        const result = geminiListGen('G_PAGE_OBSERVATION_01');
+        const request = readGeminiListRequest(geminiListGen(streamId === 'recent' ? 'G_PAGE_OBSERVATION_02_RECENT' : 'G_PAGE_OBSERVATION_02_PINNED'));
         assert.deepEqual(request, { streamId, requestCursor: 'incoming' });
         const observation = geminiListObservation(result, request, 'account');
         assert.equal(observation.providerId, 'gemini');
@@ -25,36 +25,36 @@ test('active and passive normalization retain identical independent cursor and o
 });
 test('fallback timestamps, rising times, malformed or truncated responses cannot certify ordering', () => {
     const request = { streamId: 'recent' as const, requestCursor: null };
-    assert.equal(geminiListObservation(geminiListFixtures.observationFallbackTimePage(), request, 'account').ordered, false);
-    const parsed = geminiListFixtures.observationRisingTimePage();
+    assert.equal(geminiListObservation(geminiListGen('G_PAGE_OBSERVATION_03'), request, 'account').ordered, false);
+    const parsed = geminiListGen('G_PAGE_OBSERVATION_04');
     assert.equal(geminiListObservation(parsed, request, 'account').ordered, false);
     assert.equal(geminiListObservation(parsed, request, 'account', true).valid, false);
     assert.equal(geminiListObservation(parsed, null, 'account').requestKnown, false);
-    assert.equal(readGeminiListRequest(geminiListFixtures.observationUnknownRequest()), null);
+    assert.equal(readGeminiListRequest(geminiListGen('G_PAGE_OBSERVATION_05')), null);
 });
 
 test('captured empty Gemini list payload [] is valid exhaustion, while unknown nonempty shapes are not', () => {
-    const empty = geminiListFixtures.observationCapturedEmpty();
+    const empty = geminiListGen('G_PAGE_OBSERVATION_06');
     assert.equal(geminiListObservation(empty, { streamId: 'pinned', requestCursor: null }, 'account').valid, true);
     assert.equal(geminiListObservation(empty, { streamId: 'recent', requestCursor: null }, 'account').ordered, true);
-    assert.equal(geminiListObservation(geminiListFixtures.observationUnknownNonempty(), { streamId: 'recent', requestCursor: null }, 'account').valid, false);
+    assert.equal(geminiListObservation(geminiListGen('G_PAGE_OBSERVATION_07'), { streamId: 'recent', requestCursor: null }, 'account').valid, false);
 });
 
 test('different conversations with equal official timestamps retain ordering evidence', () => {
     const request = { streamId: 'recent' as const, requestCursor: null };
-    const parsed = geminiListFixtures.observationEqualTimes();
+    const parsed = geminiListGen('G_PAGE_OBSERVATION_08');
     const observation = geminiListObservation(parsed, request, 'account');
     assert.equal(observation.valid, true);
     assert.equal(observation.ordered, true);
     assert.equal(observation.keys[0].time, observation.keys[1].time);
-    assert.equal(geminiListObservation(geminiListFixtures.observationSubsecondTie(), request, 'account').ordered, true);
-    const duplicate = geminiListObservation(geminiListFixtures.observationDuplicate(), request, 'account');
+    assert.equal(geminiListObservation(geminiListGen('G_PAGE_OBSERVATION_09'), request, 'account').ordered, true);
+    const duplicate = geminiListObservation(geminiListGen('G_PAGE_OBSERVATION_10'), request, 'account');
     assert.equal(duplicate.valid, false);
     assert.equal(duplicate.ordered, false);
 });
 
 test('captured expanded webpage recent filter establishes request identity without accepting arbitrary layouts', () => {
-    const { valid, invalid } = geminiListFixtures.observationExpandedRequests();
+    const { valid, invalid } = geminiListGen('G_PAGE_OBSERVATION_11');
     assert.deepEqual(readGeminiListRequest(valid), { streamId: 'recent', requestCursor: null });
     for (const request of invalid) {
         assert.equal(readGeminiListRequest(request), null);
@@ -62,7 +62,7 @@ test('captured expanded webpage recent filter establishes request identity witho
 });
 
 test('list coverage uses the parser failure outcome, never the diagnostic payload', () => {
-    const result = geminiListFixtures.observationSinglePage();
+    const result = geminiListGen('G_PAGE_OBSERVATION_12');
     const request = { streamId: 'recent' as const, requestCursor: null };
     const debug = { error: 'NO_INNER_STR' as const, bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null };
     assert.deepEqual(geminiListObservation({ ...result, _debug: debug }, request, 'account'),
