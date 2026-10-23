@@ -94,7 +94,7 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
     const nativeEnvelope = (pages: { requestCursor: null; text: string }[]) => JSON.stringify({
         schemaVersion: 1, source: 'raw_rpc_pages', conversationId: 'probe', pages,
     });
-    const audit = readGeminiAuditInput(nativeEnvelope([{requestCursor:null,text:wire()}]), 'native_envelope');
+    const audit = readGeminiAuditInput(nativeEnvelope([{requestCursor:null,text:geminiDetailGen('G_E2E_TIER2_DETAIL_01')}]), 'native_envelope');
     expect(auditGeminiEvidence(audit.evidence).sourceMessages).toHaveLength(2);
 
     const page = await workbench(context,extensionId);
@@ -149,7 +149,7 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
         const state = Reflect.get(window,'__geminiDualCapture'); await Promise.all(state.pending);
         return state.replies.probe;
     });
-    expect(pages).toEqual([{requestCursor:null,text:wire()}]);
+    expect(pages).toEqual([{requestCursor:null,text:geminiDetailGen('G_E2E_TIER2_DETAIL_01')}]);
     const read = readGeminiAuditInput(nativeEnvelope(pages), 'native_envelope');
     expect(auditGeminiEvidence(read.evidence).sourceMessages).toHaveLength(2);
     await expect.poll(async () => page.evaluate(async accountId =>
