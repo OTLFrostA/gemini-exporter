@@ -1,5 +1,6 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, accountId } from './uiFixture';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
@@ -98,8 +99,7 @@ test('delayed response keeps original v2 Account UUID without rolling back a new
     await source.route('**/batchexecute*', async route => {
         arrived(); await held;
         await route.fulfill({ contentType: 'application/json',
-            body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null,
-                [['c_profile_delay', 'Profile delay', null, null, null, [1700000000, 0]]], null])]]) });
+            body: geminiListGen('G_E2E_UUID_PROFILE_LIST_01') });
     });
     const pending = send(source, 'fetch', 'MaZiqc', 'profile_delay');
     await requestArrived;
