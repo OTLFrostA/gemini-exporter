@@ -4,8 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { restoreConversationIndex } from '../src/l2/conversationIndex.js';
 import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
-import { chatgptListFixtures } from './fixtures/providers/chatgpt.js';
-import { geminiListFixtures } from './fixtures/providers/gemini.js';
+import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { geminiListObservation } from '../src/l1/client/gemini/listObservation.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
@@ -16,7 +16,7 @@ import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { parseGeminiDomList, parseGeminiDomIndex } from '../src/l1/parsers/gemini/dom/parseIndex.js';
 
 test('ChatGPT lists emit exact Domain indexes with source times and no invented fallback facts', () => {
-    const page = parseChatGPTList(chatgptListFixtures.boundaryIndexFacts());
+    const page = parseChatGPTList(chatgptListGen('C_LIST_SOURCE_BOUNDARY_01'));
     assert.deepEqual(page.conversations[0], { id: 'api-chat', title: 'Source title',
         titleSource: 'provider', createdAt: 1700000000125, updatedAt: 1700000060000 });
     const empty = page.conversations[1];
@@ -32,13 +32,13 @@ test('ChatGPT lists emit exact Domain indexes with source times and no invented 
 });
 
 test('malformed ChatGPT pages cannot masquerade as empty exhausted history', async () => {
-    for (const value of chatgptListFixtures.boundaryMalformedPages()) {
+    for (const value of chatgptListGen('C_LIST_SOURCE_BOUNDARY_02')) {
         assert.throws(() => parseChatGPTList(value), TypeError);
     }
     const account = await getOrCreateAccount('chatgpt', 'default');
     let progress = 0;
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
-        url.includes('/api/auth/session') ? chatgptListFixtures.boundarySessionToken() : chatgptListFixtures.boundarySchemaDrift()
+        url.includes('/api/auth/session') ? chatgptListGen('C_LIST_SOURCE_BOUNDARY_03') : chatgptListGen('C_LIST_SOURCE_BOUNDARY_04')
     )) });
     await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent', onPageCommitted: async () => { progress++; return false; } }), TypeError);
     assert.equal(progress, 0);
@@ -46,8 +46,8 @@ test('malformed ChatGPT pages cannot masquerade as empty exhausted history', asy
 
 test('provider commits indexes before progress and exposes control facts only', async () => {
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
-        url.includes('/api/auth/session') ? chatgptListFixtures.boundarySessionIndex()
-            : chatgptListFixtures.boundaryCommitted()
+        url.includes('/api/auth/session') ? chatgptListGen('C_LIST_SOURCE_BOUNDARY_05')
+            : chatgptListGen('C_LIST_SOURCE_BOUNDARY_06')
     )) });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-index', 'w-index']));
     let observed: unknown;
@@ -62,7 +62,7 @@ test('provider commits indexes before progress and exposes control facts only', 
 });
 
 test('Gemini observations and pagination consume parsed evidence without reading decoded payloads', async () => {
-    const parsed = geminiListFixtures.boundaryObservation();
+    const parsed = geminiListGen('G_LIST_SOURCE_BOUNDARY_07');
     Object.defineProperty(parsed, '_raw', { get() { throw new Error('downstream interpreted raw source'); } });
     const observation = geminiListObservation(parsed, { streamId: 'recent', requestCursor: null }, 'account');
     assert.equal(observation.valid, true);
@@ -74,21 +74,21 @@ test('Gemini observations and pagination consume parsed evidence without reading
 });
 
 test('Gemini parser rejects incomplete row coverage and unknown layouts as exhaustion evidence', () => {
-    for (const { source, page } of geminiListFixtures.boundaryInvalidLayouts()) {
+    for (const { source, page } of geminiListGen('G_LIST_SOURCE_BOUNDARY_08')) {
         assert.equal(page.pageEvidence.valid, false, source);
         assert.equal(page.pageEvidence.ordered, false);
     }
 });
 
 test('an empty Gemini continuation page preserves its cursor instead of claiming exhaustion', () => {
-    const parsed = geminiListFixtures.boundaryContinuation();
+    const parsed = geminiListGen('G_LIST_SOURCE_BOUNDARY_09');
     assert.equal(parsed.pageEvidence.valid, true);
     assert.equal(parsed.nextPageToken, 'tC_cursor');
     assert.deepEqual(parsed.conversations, []);
 });
 
 test('Gemini list requires an explicit natural-terminal cursor, not an unrecognized slot', () => {
-    const { explicit, ambiguous } = geminiListFixtures.boundaryTerminalCursor();
+    const { explicit, ambiguous } = geminiListGen('G_LIST_SOURCE_BOUNDARY_10');
     assert.equal(explicit.pageEvidence.valid, true);
     assert.equal(ambiguous.nextPageToken, null);
     assert.equal(ambiguous.pageEvidence.valid, false);
@@ -96,7 +96,7 @@ test('Gemini list requires an explicit natural-terminal cursor, not an unrecogni
 });
 
 test('DOM metadata preserves title precedence and keeps UI labels and observation clocks out of Domain', () => {
-    const { header, doc } = geminiListFixtures.domMetadata();
+    const { header, doc } = geminiListGen('G_LIST_SOURCE_BOUNDARY_11');
     const [index] = parseGeminiDomList(doc);
     assert.equal(index.title, '');
     assert.equal(index.titleSource, 'dom');
