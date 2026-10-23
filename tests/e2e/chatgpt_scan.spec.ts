@@ -1,12 +1,13 @@
 import { test, expect } from './fixtures';
 import { openOptions } from './uiFixture';
 import { listGen as chatgptListGen } from '../fixtures/providers/chatgpt.js';
+import { sessionGen as chatgptSessionGen } from '../fixtures/providers/chatgptSession.js';
 
 // Optional permission UI and remote HTTP are browser boundaries. The real
 // Workbench, discovery, account registry, provider, L2 and IDB run unchanged.
 async function source(page: import('@playwright/test').Page, allow: boolean) {
     const list = chatgptListGen('C_E2E_CHATGPT_SCAN_01');
-    const session = chatgptListGen('C_E2E_CHATGPT_SCAN_02');
+    const session = chatgptSessionGen('C_E2E_CHATGPT_SCAN_02');
     await page.evaluate(({ allow, list, session }) => {
         let granted = false;
         const query = chrome.tabs.query.bind(chrome.tabs);
