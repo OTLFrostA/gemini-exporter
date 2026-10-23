@@ -1,4 +1,6 @@
 [
+  "src/l1/client/gemini/bootstrap.ts",
+  "src/l1/parsers/gemini/rpc/detailDecoder.ts",
   "src/runtime/content/contentContext.ts",
   "src/shared/utils/titleUtils.ts",
   "src/l2/indexCollection.ts",
