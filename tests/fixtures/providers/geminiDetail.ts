@@ -140,12 +140,12 @@ const fixtureMap = {
     'G_P1E_DETAIL_05': () => rpc([[p1RegressionTurn([['标准形态文本']])]]),
     'G_GEMINI_PARSER_DETAIL_01': () => {
         const model = [
-            [[
+            [
                 ['rc_024c7ad5d90f4db8', [
                     ['不能。如果你的CAS完全没有装备机枪，是无法夺取制空权的。'],
                     'zh',
                 ]],
-            ]],
+            ],
             [['hoi4 air wing equipment filtering tags']],
             'google', 'c', 'S', 6, 6, '.',
         ];
