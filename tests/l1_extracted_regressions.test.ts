@@ -9,7 +9,6 @@ import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.
 import { sourceConversation } from './helpers/l1SourceFixture.js';
 import CredManager from '../src/l1/client/gemini/api/credentialManager.js';
 import * as attachments from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
-const Proto = require('../src/l1/protocol/gemini/protocol.js');
 import * as Extractors from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
