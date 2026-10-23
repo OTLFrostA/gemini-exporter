@@ -100,7 +100,7 @@ const fixtureMap = {
     'G_GENERATED_FILES_01': () => {
         const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_generated_file.json', 'utf8')) as { packet: unknown[]; chip: unknown[] };
         return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[
-            generatedFileTurn(fixture.packet, fixture.chip, 'Before\\n\\nAfter', 'later', true),
+            generatedFileTurn(fixture.packet, fixture.chip, 'Before\n\nAfter', 'later', true),
             generatedFileTurn(fixture.packet, fixture.chip, 'Earlier caption', 'earlier', false),
         ]])]]);
     },
