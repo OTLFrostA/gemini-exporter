@@ -21,11 +21,6 @@ export interface ListParseResult {
     _debug?: ListParseDiagnostics;
 }
 
-export interface GeminiParserParseListModule {
-    extractListItemTimestamp: (item: unknown) => number | null;
-    parseList: (text: string) => ListParseResult;
-}
-
 import { GEMINI_JSPB_SCHEMA, robustFirstPayload } from "./extractors.js";
 import { GeminiProtocol } from "../../../protocol/gemini/protocol.js";
 import { payloadToMs, extractInnerPayload, extractNextPageToken } from "./payload.js";
@@ -171,13 +166,3 @@ export {
     extractListItemTimestamp,
     parseList
 };
-
-export const GeminiParserParseList: GeminiParserParseListModule = {
-    extractListItemTimestamp,
-    parseList
-};
-
-if (typeof module === 'object' && module.exports) module.exports = GeminiParserParseList;
-
-export default GeminiParserParseList;
-

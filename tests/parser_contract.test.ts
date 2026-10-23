@@ -6,14 +6,7 @@ import type { DetailParseResult } from '../src/l1/client/gemini/api/detailTypes.
 import type { GeminiDetailEvidence } from '../src/l1/parsers/gemini/rpc/detailEvidence.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import type { DomainMessage } from '../src/l2/conversationDetail.js';
-import type { GeminiParserExtractorsModule } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import type { ListParseDiagnostics } from '../src/l1/parsers/gemini/rpc/parseList.js';
-import type { Citation } from '../src/l1/parsers/gemini/rpc/extractors.js';
-import type { GeminiProtocolModule } from '../src/l1/protocol/gemini/protocol.js';
-import { normId } from '../src/shared/utils/pathUtils.js';
-import { cleanTitle, isRealTitle } from '../src/shared/utils/titleText.js';
-import { isDevMode } from '../src/runtime/devMode.js';
-type ParserUtils = { normId: typeof normId; cleanTitle: typeof cleanTitle; isRealTitle: typeof isRealTitle; isDevMode: typeof isDevMode };
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 
@@ -26,13 +19,11 @@ type OutputContracts = [
     Assert<Equal<DetailParseResult['transport']['decodedPayload'], unknown>>,
     Assert<Equal<ListParseResult['_debug'], ListParseDiagnostics | undefined>>,
     Assert<Equal<DetailParseResult['conversation']['detail']['messages'][number], DomainMessage>>,
-    Assert<Equal<ReturnType<GeminiParserExtractorsModule['getProtocol']>, GeminiProtocolModule>>,
-    Assert<Equal<ReturnType<GeminiParserExtractorsModule['getUtils']>, ParserUtils>>,
     Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,
     Assert<Equal<ReturnType<typeof parseGeminiRpcConversation>, DetailParseResult>>,
     Assert<Equal<ReturnType<typeof decodeGeminiDetail>, GeminiDetailEvidence>>,
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true];
+const contracts: OutputContracts = [true, true, true, true, true, true, true];
 // The tuple already enforces these contracts at TypeScript compile time.
 // A runtime .every(Boolean) assertion on literal true values cannot detect a parser bug.
 void contracts;

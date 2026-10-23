@@ -1,4 +1,3 @@
-import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
 export interface JspbTurnSchema {
     ID_META: number;
     TIMESTAMP: number;
@@ -130,37 +129,9 @@ export interface TitleResult {
     source: "rpc" | "sniff" | "default";
 }
 
-export interface GeminiParserExtractorsModule {
-    GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
-    RESEARCH_PROMPT_PREFIX_RE: RegExp;
-    detectTurnSchemaDrift: (turn: unknown, convId?: string) => TurnDriftReport;
-    hasTurnContentMarkers: (turn: unknown[]) => boolean;
-    extractModelCandidates: (turn: unknown) => unknown[];
-    extractCandidateText: (cand: unknown) => string;
-    safeStructureClean: (str?: string | null) => string;
-    robustFirstPayload: (text?: string | null) => unknown[] | null;
-    deepWalk: (root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth?: number) => void;
-    extractThoughts: (candidateBlock: unknown) => string | null;
-    extractCitations: (candidateBlock: unknown) => Citation[];
-    extractGroundingCitationMarkers?: (candidate: unknown) => string[];
-    extractConversationId: (inner: unknown, turns?: unknown[]) => string;
-    smartSummarizePrompt: (rawText?: string | null) => string;
-    extractConversationTitle: (inner: unknown, turns?: unknown[]) => TitleResult;
-    extractTurnTimestamp: (turnData: unknown) => number | null;
-    normId: (id?: string | number | null) => string;
-    cleanTitle: (rawTitle?: string | null) => string;
-    isRealTitle: (t?: string | null, fallbackId?: string | number) => boolean;
-    getUtils: () => GeminiUtilsModule;
-    getProtocol: () => GeminiProtocolModule;
-}
-
 import { normId } from "../../../../shared/utils/pathUtils.js";
 import { isRealTitle, cleanTitle } from "../../../../shared/utils/titleText.js";
-import { isDevMode } from "../../../../runtime/devMode.js";
-const GeminiUtils = { normId, isRealTitle, cleanTitle, isDevMode };
-type GeminiUtilsModule = typeof GeminiUtils;
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../../../shared/utils/titleText.js";
-import { GeminiProtocol } from "../../../protocol/gemini/protocol.js";
 import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.js";
 
 /**
@@ -234,15 +205,6 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             ERROR_SLOT: 5      // item[5] → JSON.stringify checks for "BardErrorInfo"
         }
     });
-
-    function getUtils(): GeminiUtilsModule {
-        return GeminiUtils;
-    }
-
-    // Protocol anti-corruption layer (see core/protocol/protocol.ts).
-    function getProtocol(): GeminiProtocolModule {
-        return GeminiProtocol;
-    }
 
     function isObjectRecord(value: unknown): value is Record<string, unknown> {
         return value !== null && typeof value === "object";
@@ -758,34 +720,5 @@ export {
     extractTurnTimestamp,
     normId,
     cleanTitle,
-    isRealTitle,
-    getUtils,
-    getProtocol
+    isRealTitle
 };
-
-export const GeminiParserExtractors: GeminiParserExtractorsModule = {
-    GEMINI_JSPB_SCHEMA,
-    RESEARCH_PROMPT_PREFIX_RE,
-    detectTurnSchemaDrift,
-    hasTurnContentMarkers,
-    extractModelCandidates,
-    extractCandidateText,
-    safeStructureClean,
-    robustFirstPayload,
-    deepWalk,
-    extractThoughts,
-    extractCitations,
-    extractGroundingCitationMarkers,
-    extractConversationId,
-    smartSummarizePrompt,
-    extractConversationTitle,
-    extractTurnTimestamp,
-    normId,
-    cleanTitle,
-    isRealTitle,
-    getUtils,
-    getProtocol
-};
-if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
-
-export default GeminiParserExtractors;
