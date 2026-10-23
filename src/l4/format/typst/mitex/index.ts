@@ -8,7 +8,6 @@ export {
     initMitexWasm,
     isMitexReady,
     mitexConvertMath,
-    mitexConvertText,
     resetMitexForTesting,
     simulateMitexInitFailureForTesting,
 } from './mitexLoader.js';

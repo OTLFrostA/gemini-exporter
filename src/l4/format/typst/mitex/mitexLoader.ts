@@ -136,18 +136,6 @@ export function mitexConvertMath(latex: string): string {
     return bg.convert_math(latex, EMPTY_SPEC);
 }
 
-export function mitexConvertText(latex: string): string {
-    if (!isReady) {
-        if (typeof process !== 'undefined' && process.versions?.node) {
-            initNodeSync();
-        } else {
-            throw new Error('MiTeX WASM has not been initialized. Call await initMitexWasm() before converting.');
-        }
-    }
-
-    return bg.convert_text(latex, EMPTY_SPEC);
-}
-
 export function resetMitexForTesting(): void {
     isReady = false;
     initPromise = null;
