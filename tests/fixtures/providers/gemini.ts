@@ -60,6 +60,30 @@ function e2eUuidList(id: string): string {
 }
 
 const fixtureMap = {
+    'G_SOURCE_EMPTY_01': () => geminiList([]),
+    'G_SOURCE_ONE_01': () => geminiList(["one"]),
+    'G_SOURCE_TWO_01': () => geminiList(["two"]),
+    'G_SOURCE_ONE_MORE_01': () => geminiList(["one"], "tC_more"),
+    'G_SOURCE_ONE_NEXT_01': () => geminiList(["one"], "tC_next"),
+    'G_SOURCE_ONE_LOOP_01': () => geminiList(["one"], "tC_loop"),
+    'G_SOURCE_TWO_LOOP_01': () => geminiList(["two"], "tC_loop"),
+    'G_SOURCE_SHARED_CURSOR_01': () => geminiList(["shared"], "tC_same_token_123456789"),
+    'G_SOURCE_RECENT_01': () => geminiList(["recent"]),
+    'G_SOURCE_VISIBLE_01': () => geminiList(["visible"]),
+    'G_SOURCE_VISIBLE_LIMIT_01': () => geminiList(["visible"], "tC_limit"),
+    'G_SOURCE_FIRST_NEXT_01': () => geminiList(["first"], "tC_next"),
+    'G_SOURCE_FIRST_LOOP_01': () => geminiList(["first"], "tC_loop"),
+    'G_SOURCE_SECOND_01': () => geminiList(["second"]),
+    'G_SOURCE_SECOND_LOOP_01': () => geminiList(["second"], "tC_loop"),
+    'G_SOURCE_NEVER_01': () => geminiList(["never"]),
+    'G_SOURCE_UNTRUSTED_01': () => geminiList(["untrusted"]),
+    'G_SOURCE_REPEATED_CURSOR_01': () => geminiList(["repeated"], "tC_repeat"),
+    'G_SOURCE_REPEATED_01': () => geminiList(["repeated"]),
+    'G_SOURCE_HEAD_NEXT_01': () => geminiList(["head"], "tC_next"),
+    'G_SOURCE_LATER_01': () => geminiList(["later"]),
+    'G_SOURCE_OLD_01': () => geminiList(["old"]),
+    'G_SOURCE_NEW_NEXT_01': () => geminiList(["new"], "tC_next"),
+    'G_SOURCE_CHAT_01': () => geminiList(["source_chat_123"]),
     'G_E2E_INCREMENTAL_WINDOW_HEAD_01': () => e2eIncrementalList('chat', [100, 90], 'tC_middle'),
     'G_E2E_INCREMENTAL_WINDOW_MIDDLE_01': () => e2eIncrementalList('chat', [80, 70], 'tC_limit'),
     'G_E2E_INCREMENTAL_WINDOW_LIMIT_01': () => JSON.stringify([[
@@ -356,7 +380,45 @@ function versionPairList(index: number): string {
         [['c_version_chat', 'Source title', null, null, null, pair.listWire]]])]]);
 }
 
-/** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
-export function listGen(key: keyof typeof fixtureMap): string {
+/** Bounded pagination stress probes use page-number keys rather than 2,000 duplicated fixtures. */
+type SourceDynamicListKey =
+    | `G_SOURCE_PAGINATION_BUDGET_PAGE_${number}`
+    | `G_SOURCE_PHASE_BUDGET_PAGE_${number}`
+    | `G_SOURCE_550_PAGE_${number}`
+    | `G_SOURCE_150_PAGE_${number}`
+    | `G_SOURCE_AUDIT_LOOP_PAGE_${number}`
+    | `G_SOURCE_LIMIT_BOUND_PAGE_${number}`;
+
+function isSourceDynamicKey(key: string): key is SourceDynamicListKey {
+    return /^G_SOURCE_(?:PAGINATION_BUDGET_PAGE|PHASE_BUDGET_PAGE|550_PAGE|150_PAGE|AUDIT_LOOP_PAGE|LIMIT_BOUND_PAGE)_[0-9]+$/.test(key);
+}
+function sourceDynamicPage(key: SourceDynamicListKey): string {
+    const matched = /^G_SOURCE_(.+)_([0-9]+)$/.exec(key);
+    if (!matched) throw new Error('Invalid Gemini source List key: ' + key);
+    const family = matched[1], page = Number(matched[2]);
+    const max = family === '550_PAGE' ? 11
+        : family === '150_PAGE' ? 3
+        : family === 'AUDIT_LOOP_PAGE' || family === 'LIMIT_BOUND_PAGE' ? 2 : 2000;
+    if (!Number.isSafeInteger(page) || page < 1 || page > max) {
+        throw new Error('Gemini source List page outside fixture range: ' + key);
+    }
+    if (family === 'PAGINATION_BUDGET_PAGE') return geminiList(['page_' + page], 'tC_' + page);
+    if (family === 'PHASE_BUDGET_PAGE') return geminiList(['page' + page], 'tC_' + page);
+    if (family === 'AUDIT_LOOP_PAGE') return geminiList(['chat_' + page], 'tC_loop');
+    if (family === 'LIMIT_BOUND_PAGE') return geminiList(['conv_' + page], 'tC_' + page);
+    if (family === '550_PAGE') return geminiList(
+        Array.from({ length: 50 }, (_, i) => 'conv_' + page + '_' + i),
+        page < 11 ? 'tC_' + page : null,
+    );
+    if (family === '150_PAGE') return geminiList(
+        Array.from({ length: 50 }, (_, i) => 'chat' + ((page - 1) * 50 + i)),
+        page < 3 ? 'tC_' + (page - 1) : null,
+    );
+    throw new Error('Unknown Gemini source List family: ' + key);
+}
+
+/** One generator entrypoint for all finite and bounded native MaZiqc wire samples. */
+export function listGen(key: keyof typeof fixtureMap | SourceDynamicListKey): string {
+    if (isSourceDynamicKey(key)) return sourceDynamicPage(key);
     return fixtureMap[key]();
 }
