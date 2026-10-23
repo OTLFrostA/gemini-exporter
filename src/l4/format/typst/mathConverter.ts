@@ -7,9 +7,6 @@
 
 export {
     convertMathWithMitex,
-    convertMathWithMitex as convertMathWithDiagnostic,
-    convertMathMitex,
-    convertMathMitex as convertMath,
     initMitexWasm,
     isMitexReady,
     mitexConvertMath,

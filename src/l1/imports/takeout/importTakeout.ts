@@ -4,12 +4,10 @@ import type { SourceResourceContext } from '../../resources/sourceResources.js';
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
 import { ingestDetail } from '../../../l2/ingestion.js';
 import * as ZipBombGuard from '../../parsers/shared/archive/zipBombGuard.js';
-import { stripHtmlTags } from '../../parsers/gemini/takeout/decodeHtml.js';
 import { parseGeminiTakeoutZipArchive, readTakeoutBytes, type GeminiTakeoutZipRaw } from './readArchive.js';
 import { TakeoutParseError } from '../../../shared/types/errors.js';
 
 export interface TakeoutParseResult { imported: number; status: 'ok' | 'partial' }
-export { stripHtmlTags };
 
 /** UI/acquisition adapter: native parsing precedes the one-way storage projection. */
 export async function importTakeout(file: File, accountId: Account['id'], onProgress?: (percent: number) => void, resources?: SourceResourceContext): Promise<TakeoutParseResult> {

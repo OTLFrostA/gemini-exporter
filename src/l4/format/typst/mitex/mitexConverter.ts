@@ -87,11 +87,3 @@ export function convertMathWithMitex(
         };
     }
 }
-
-export function convertMathMitex(
-    source: string,
-    notation: string = 'latex',
-    display: boolean = false,
-): string | undefined {
-    return convertMathWithMitex(source, notation, display).typst;
-}

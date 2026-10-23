@@ -1,25 +1,4 @@
-import { safeExternalHref } from '../shared/safeLinks.js';
 import { visual } from '../shared/visualContract.js';
-
-function escapeHtml(text?: string | null): string {
-    if (!text || typeof text !== 'string') return '';
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function escapeAttr(text?: string | null): string {
-    return escapeHtml(text);
-}
-
-/** Source URLs are untrusted. Resource paths are validated separately by Packaging. */
-export function sanitizeUrl(rawUrl?: string | null): string {
-    const safe = safeExternalHref(rawUrl ?? undefined);
-    return safe ? escapeAttr(safe) : '#';
-}
 
 export const GEM_HTML_CSS = `
 :root {
