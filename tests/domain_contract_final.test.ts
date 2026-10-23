@@ -11,7 +11,7 @@ import { parseLegacyStorageConversation } from './helpers/recordFixture/parseCon
 import { storageIdentity } from './helpers/admitFixture.js';
 import { readFixture } from './helpers/admitFixture.js';
 import { acquireSourceResource } from '../src/l1/resources/sourceResources.js';
-import { attemptResource, resourceDiagnostics } from '../src/shared/resources/resourceResult.js';
+import { attemptResource } from '../src/shared/resources/resourceResult.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 const base = (): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('final-contract'), 'custom'),   titleSource: "derived",   title: 'Final' }, detail: { key: fixtureKey(String('final-contract'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [] } });
@@ -75,10 +75,10 @@ test('restored Domain detects heuristic reports and unavailable images without p
         assert.equal('generation' in (restored.conversation.detail.messages[0] ?? {}), false);
         const image = restored.conversation.detail.assets.find(asset => asset.id === 'image')!;
         const result = await attemptResource(image.id, () => acquireSourceResource(image));
-        const prepared = { resources: new Map([[image.id, result]]), diagnostics: resourceDiagnostics([result]) };
-        assert.equal(prepared.resources.get('image')?.ok, false);
-        assert.ok(prepared.resources.get('image'));
-        assert.ok(prepared.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE' && d.path === 'asset:image'));
+        assert.equal(result.ok, false);
+        if (result.ok) throw new Error('expected a resource failure');
+        assert.equal(result.resourceId, 'image');
+        assert.equal(result.code, 'RESOURCE_UNAVAILABLE');
         assert.equal(Object.hasOwn(restored.conversation.detail.assets[1], 'failureReason'), false);
     } finally { /* useIndexStorage owns the IndexedDB lifetime. */ }
 });
