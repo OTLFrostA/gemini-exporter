@@ -223,16 +223,17 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
     });
     const interactiveIncomplete = interactiveSnapshots.some(({ snapshot }) => snapshot.incomplete);
     for (const { messageId, snapshot } of interactiveSnapshots) {
-        if (!snapshot.interactive) continue;
+        if (!snapshot.interactive && !snapshot.modules.length && !snapshot.unsupported.length) continue;
         contentDiagnostics.push({
             id: `chatgpt-interactive-snapshot:${messageId}`, severity: snapshot.incomplete ? 'warning' : 'info',
             code: snapshot.incomplete ? 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE' : 'CHATGPT_INTERACTIVE_STATIC_SNAPSHOT',
             message: snapshot.incomplete
-                ? 'No usable Markdown fallback; only recoverable static content could be exported.'
-                : 'Provider Markdown fallback preserved. Interactive controls are represented as static text.',
+                ? 'Some source components could not be parsed and have no usable Markdown fallback.'
+                : 'Source components are represented as ordered static content; unsupported content uses provider Markdown when available.',
             sourceRef: { ...ctx.sourceRef, providerMessageId: messageId },
-            details: { representation: snapshot.representation, recoveredStrings: snapshot.recoveredStrings,
-                interactiveBehaviorPreserved: false },
+            details: { representation: snapshot.representation,
+                interactiveBehaviorPreserved: false, modules: snapshot.modules,
+                fallbackBlocks: snapshot.fallbackBlocks, unsupported: snapshot.unsupported },
         });
     }
     const branchSlug = extractChatGPTModelSlug(conversation.mapping, nodes);
