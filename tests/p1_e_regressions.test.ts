@@ -19,14 +19,10 @@ const detailDecoder = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const parseListMod = require('../src/l1/parsers/gemini/rpc/parseList.js');
 const extractors = require('../src/l1/parsers/gemini/rpc/extractors.js');
 const attachments = require('./helpers/recordFixture/attachments.js');
+const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
+const { listGen: geminiListGen } = require('./fixtures/providers/gemini.js') as typeof import('./fixtures/providers/gemini.js');
 
 // ---------------------------------------------------------------- helpers
-function makeDetailRpc(inner: unknown): string {
-    const innerStr = JSON.stringify(inner);
-    const outer = JSON.stringify([["wrb.fr", "hNvQHb", innerStr]]);
-    return `)]}'\n\n${outer}`;
-}
-
 function makeTurn(opts: {
     userPayload?: unknown; candText?: string; convId?: string; tsSec?: number; extraCand?: unknown[];
 } = {}): unknown[] {
@@ -46,12 +42,6 @@ function makeTurn(opts: {
     ];
 }
 
-function makeListRpc(items: unknown[]): string {
-    const innerStr = JSON.stringify([null, items, null]);
-    const outer = JSON.stringify([["wrb.fr", "MaZiqc", innerStr]]);
-    return `)]}'\n\n${outer}`;
-}
-
 function modelMessageOf(res: any): any {
     return res.messages.find((m: any) => m.role === "model");
 }
@@ -67,19 +57,14 @@ test('P1-061a: rc_ 清洗正则使用真正的 \\s（源码级锁定，旧正则
 });
 
 test('P1-061b: chip URL 整行被清理（保留段落换行）', () => {
-    const turn = makeTurn({ candText: "第一行\nhttps://googleusercontent.com/immersive_entry_chip/abc123\n第三行" });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_DETAIL_01'));
     const model = modelMessageOf(res);
     assert.ok(model, '应产出 model 消息');
     assert.strictEqual(model.content, "第一行\n\n第三行");
 });
 
 test('P1-061c: 生成图片 URL 整行被清理（保留段落换行，有图片时）', () => {
-    const turn = makeTurn({
-        candText: "看这张图\nhttps://googleusercontent.com/image_generation_content/tok999\n结束",
-        extraCand: [["https://lh3.googleusercontent.com/img=w100", 100, 100]]
-    });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_DETAIL_02'));
     const model = modelMessageOf(res);
     assert.ok(model, '应产出 model 消息');
     assert.strictEqual(model.content, "看这张图\n\n结束");
@@ -111,8 +96,7 @@ test('P1-062c/d: 非 turn（坏 id 前缀；仅靠 "r_" 子串的假 turn）返�
 
 // ---------------------------------------------------------------- P1-063
 test('P1-063: metadata-only 载荷产出可见的 schemaDrift 警告（非 dev 也不静默）', () => {
-    const inner = [null, null, [["c_meta1234567890", "元数据标题", "x"]]];
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc(inner));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_DETAIL_03'));
     assert.strictEqual(res.messages.length, 0, '无 turns 时消息为空');
     assert.ok(Array.isArray(res.schemaDrift), 'schemaDrift 不应缺席');
     assert.ok(res.schemaDrift.some((w: string) => /metadata-only/i.test(w)), '应包含 metadata-only 警告');
@@ -120,16 +104,14 @@ test('P1-063: metadata-only 载荷产出可见的 schemaDrift 警告（非 dev �
 
 // ---------------------------------------------------------------- P1-064
 test('P1-064a: user payload[0] 为字符串时提取全文而非首字符', () => {
-    const turn = makeTurn({ userPayload: ["hello world from user"] });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_DETAIL_04'));
     const user = userMessageOf(res);
     assert.ok(user, '应产出 user 消息');
     assert.strictEqual(user.content, "hello world from user");
 });
 
 test('P1-064b: 标准 [[text]] 形态的用户文本提取不变', () => {
-    const turn = makeTurn({ userPayload: [["标准形态文本"]] });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_DETAIL_05'));
     assert.strictEqual(userMessageOf(res).content, "标准形态文本");
 });
 
@@ -163,13 +145,13 @@ test('P1-065b: bogus chunks preceding a genuine LIST envelope cannot take preced
 
 // ---------------------------------------------------------------- P1-066
 test('P1-066a: messageCount 不把 item[5] 的 epoch 秒误判成消息数', () => {
-    const res = parseListMod.parseList(makeListRpc([["c_cnt1234567890", "T", null, null, null, 1757839234]]));
+    const res = parseListMod.parseList(geminiListGen('G_P1E_LIST_01'));
     assert.strictEqual(res.conversations[0].messageCount, undefined, '无有效 count 位时应为 0 而非十亿级数字');
     assert.strictEqual(res.conversations[0].updatedAt, 1757839234000, '时间戳本身仍应正确解析');
 });
 
 test('P1-066b: COUNT_ALT1 的正常 count 位仍生效', () => {
-    const res = parseListMod.parseList(makeListRpc([["c_cnt2234567890", "T2", null, null, 7]]));
+    const res = parseListMod.parseList(geminiListGen('G_P1E_LIST_02'));
     assert.strictEqual(res.conversations[0].messageCount, undefined);
 });
 
@@ -251,7 +233,7 @@ test('P1-073b: 找不到 ID 时返回 c_unknown', () => {
 
 // ---------------------------------------------------------------- P1-074
 test('P1-074a: 无时间戳的会话返回 null 而非伪造 Date.now()', () => {
-    const res = parseListMod.parseList(makeListRpc([["c_nots1234567890", "NoTime"]]));
+    const res = parseListMod.parseList(geminiListGen('G_P1E_LIST_03'));
     const c = res.conversations[0];
     assert.strictEqual(c.createdAt, undefined);
     assert.strictEqual(c.updatedAt, undefined);
@@ -260,7 +242,7 @@ test('P1-074a: 无时间戳的会话返回 null 而非伪造 Date.now()', () => 
 });
 
 test('P1-074b: 有真实时间戳的会话仍正确解析', () => {
-    const res = parseListMod.parseList(makeListRpc([["c_hasts1234567890", "HasTime", null, null, null, [1700000000, 0]]]));
+    const res = parseListMod.parseList(geminiListGen('G_P1E_LIST_04'));
     const c = res.conversations[0];
     assert.strictEqual(c.createdAt, undefined);
     assert.strictEqual(c.updatedAt, 1700000000000);
