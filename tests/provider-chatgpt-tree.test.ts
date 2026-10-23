@@ -41,6 +41,7 @@ import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { listStateGen as chatgptListStateGen } from './fixtures/providers/chatgptListState.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
+import { fileDownloadGen } from './fixtures/providers/chatgptFileDownload.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type {
     ChatGPTApiConversationWithId,
@@ -225,10 +226,10 @@ test('files/download helpers narrow payloads and encode bytes', () => {
     assert.equal(fileIdFromPointer('sediment://file_abc'), 'file_abc');
     assert.equal(fileIdFromPointer('https://x/y.png'), null);
     assert.deepEqual(
-        parseFileDownloadPayload({ status: 'success', download_url: 'https://x/dl', file_name: 'a.png', file_size_bytes: 10 }),
+        parseFileDownloadPayload(fileDownloadGen('C_FILE_DOWNLOAD_HELPERS_01')),
         { downloadUrl: 'https://x/dl', fileName: 'a.png', byteLength: 10 },
     );
-    assert.equal(parseFileDownloadPayload({ status: 'error' }), null);
+    assert.equal(parseFileDownloadPayload(fileDownloadGen('C_FILE_DOWNLOAD_HELPERS_02')), null);
     assert.equal(parseFileDownloadPayload(null), null);
     assert.equal(arrayBufferToBase64(new Uint8Array([104, 105]).buffer), 'aGk=');
 });
@@ -276,15 +277,13 @@ test('Detail submits image identities; bytes are acquired on demand without chan
         fetchFn: (url) => {
             const u = String(url);
             if (u.endsWith('/api/auth/session')) {
-                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok' }), { status: 200 }));
+                return Promise.resolve(new Response(JSON.stringify(chatgptSessionGen('C_FILE_DOWNLOAD_SESSION_01')), { status: 200 }));
             }
             if (u.includes('/files/download/file_cat')) {
-                return Promise.resolve(new Response(JSON.stringify({
-                    status: 'success', download_url: 'https://dl/img.png', file_name: 'cat.png',
-                }), { status: 200 }));
+                return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_FILE_DOWNLOAD_ACQUIRE_01')), { status: 200 }));
             }
             if (u.includes('/files/download/file_missing')) {
-                return Promise.resolve(new Response(JSON.stringify({ status: 'error' }), { status: 404 }));
+                return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_FILE_DOWNLOAD_ACQUIRE_02')), { status: 404 }));
             }
             if (u === 'https://dl/img.png') {
                 return Promise.resolve(new Response(pngBytes, {

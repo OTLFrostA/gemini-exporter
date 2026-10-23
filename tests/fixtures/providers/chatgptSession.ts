@@ -32,6 +32,16 @@ const fixtureMap = {
         accessToken: 'test-token', user: { id: 'chatgpt-user', name: 'GPT test account' },
         account: { id: 'workspace' },
     }),
+    'C_CAPTURE_SESSION_01': () => ({
+        user: { id: 'subject' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds',
+    }),
+    'C_CAPTURE_SESSION_02': () => ({
+        user: { id: 'other' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds',
+    }),
+    'C_CAPTURE_SESSION_03': () => ({
+        user: { id: 'subject' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds',
+    }),
+    'C_FILE_DOWNLOAD_SESSION_01': () => ({ accessToken: 'tok' }),
 };
 export function sessionGen(key: keyof typeof fixtureMap): Record<string, unknown> {
     return fixtureMap[key]();
