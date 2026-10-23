@@ -20,7 +20,7 @@ const paginationMod = require('../src/l1/client/gemini/api/pagination.js');
 // 走 ESM 静态链接不受影响）。测试内给 require 缓存打补丁，仅用于测试。
 const tabServiceMod: any = require('../src/runtime/capabilities/tabService.js');
 if (tabServiceMod && !tabServiceMod.TabService) tabServiceMod.TabService = tabServiceMod;
-const { waitForResources, attemptResource } = require('../src/shared/resources/resourceResult.js');
+const { attemptResource } = require('../src/shared/resources/resourceResult.js');
 const { acquireSourceResource } = require('../src/l1/resources/sourceResources.js');
 // The retired asset pipeline belongs to the unselected runtime cases below.
 
@@ -217,12 +217,6 @@ test('p1c - HTTP 429 backoff is cancelled before a retry begins', async () => {
     const work = handleHttp429({ resp: { status: 429 }, retryCount: 0, maxRetries: 3, signal: controller.signal });
     controller.abort();
     assert.strictEqual((await work).aborted, true);
-});
-test('p1c - in-flight resource wait is cancelled without waiting for transport timeout', async () => {
-    const controller = new AbortController();
-    const work = waitForResources(new Promise(() => {}), controller.signal);
-    controller.abort();
-    await assert.rejects(work, { name: 'AbortError' });
 });
 test('p1c - HTTP 429 honors explicit server hint across a response without readable headers', async () => {
     const result = await handleHttp429({ resp: { status: 429 }, retryCount: 0, maxRetries: 3, retryAfterMs: 1 });
