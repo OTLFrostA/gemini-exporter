@@ -1,3 +1,4 @@
+import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
 export interface JspbTurnSchema {
     ID_META: number;
     TIMESTAMP: number;
@@ -129,9 +130,60 @@ export interface TitleResult {
     source: "rpc" | "sniff" | "default";
 }
 
+/** Selected candidate fields verified by the Turn decoder. The raw fields are
+ * intentionally left for specialized image, file, and structured decoders. */
+export interface DecodedGeminiCandidate {
+    id: string;
+    text: string;
+    body: unknown;
+    raw: unknown;
+}
+
+/** Known fields read once from a Turn; malformed optional fields remain raw
+ * evidence instead of causing the whole conversation to be rejected. */
+export interface DecodedGeminiTurn {
+    raw: unknown[];
+    userPayload: unknown;
+    timestamp: number | null;
+    userMessageId: string;
+    fallbackTurnId: string;
+    rawAnswerDocument: unknown;
+    candidate: DecodedGeminiCandidate | null;
+    candidateIndex: number;
+}
+
+export interface GeminiParserExtractorsModule {
+    GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
+    RESEARCH_PROMPT_PREFIX_RE: RegExp;
+    detectTurnSchemaDrift: (turn: unknown, convId?: string) => TurnDriftReport;
+    hasTurnContentMarkers: (turn: unknown[]) => boolean;
+    extractModelCandidates: (turn: unknown) => unknown[];
+    decodeTurn: (turn: unknown) => DecodedGeminiTurn | null;
+    extractCandidateText: (cand: unknown) => string;
+    safeStructureClean: (str?: string | null) => string;
+    robustFirstPayload: (text?: string | null) => unknown[] | null;
+    deepWalk: (root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth?: number) => void;
+    extractThoughts: (candidateBlock: unknown) => string | null;
+    extractCitations: (candidateBlock: unknown) => Citation[];
+    extractGroundingCitationMarkers?: (candidate: unknown) => string[];
+    extractConversationId: (inner: unknown, turns?: unknown[]) => string;
+    smartSummarizePrompt: (rawText?: string | null) => string;
+    extractConversationTitle: (inner: unknown, turns?: unknown[]) => TitleResult;
+    extractTurnTimestamp: (turnData: unknown) => number | null;
+    normId: (id?: string | number | null) => string;
+    cleanTitle: (rawTitle?: string | null) => string;
+    isRealTitle: (t?: string | null, fallbackId?: string | number) => boolean;
+    getUtils: () => GeminiUtilsModule;
+    getProtocol: () => GeminiProtocolModule;
+}
+
 import { normId } from "../../../../shared/utils/pathUtils.js";
 import { isRealTitle, cleanTitle } from "../../../../shared/utils/titleText.js";
+import { isDevMode } from "../../../../runtime/devMode.js";
+const GeminiUtils = { normId, isRealTitle, cleanTitle, isDevMode };
+type GeminiUtilsModule = typeof GeminiUtils;
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../../../shared/utils/titleText.js";
+import { GeminiProtocol } from "../../../protocol/gemini/protocol.js";
 import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.js";
 
 /**
@@ -205,6 +257,15 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             ERROR_SLOT: 5      // item[5] → JSON.stringify checks for "BardErrorInfo"
         }
     });
+
+    function getUtils(): GeminiUtilsModule {
+        return GeminiUtils;
+    }
+
+    // Protocol anti-corruption layer (see core/protocol/protocol.ts).
+    function getProtocol(): GeminiProtocolModule {
+        return GeminiProtocol;
+    }
 
     function isObjectRecord(value: unknown): value is Record<string, unknown> {
         return value !== null && typeof value === "object";
@@ -671,12 +732,69 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         return extractCandidateValue(turnData, candidateIndices, val => payloadToMs(val));
     }
 
+
+    /** Decode the fields used by the message builder once, with existing
+     * fallback/selection rules. Specialized parsers receive raw evidence. */
+    function decodeTurn(turn: unknown): DecodedGeminiTurn | null {
+        if (!isUnknownArray(turn)) return null;
+
+        const idMeta = turn[GEMINI_JSPB_SCHEMA.TURN.ID_META];
+        let userMessageId = "";
+        if (isUnknownArray(idMeta)) {
+            userMessageId = idMeta.find((id): id is string => typeof id === "string" && id.startsWith("r_"))
+                || (typeof idMeta[1] === "string" ? idMeta[1] : "")
+                || (typeof idMeta[0] === "string" ? idMeta[0] : "");
+        } else if (typeof idMeta === "string") {
+            userMessageId = idMeta;
+        }
+
+        const fallbackRawId = isUnknownArray(idMeta)
+            ? (idMeta.find((id) => typeof id === "string" && (id.startsWith("rc_") || id.startsWith("r_")))
+                || idMeta[1] || idMeta[0])
+            : idMeta;
+        const fallbackTurnId = typeof fallbackRawId === "string" ? fallbackRawId : "";
+
+        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        const selectedId = isUnknownArray(modelPayload)
+            ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.SELECTED_CANDIDATE_ID]
+            : undefined;
+        const candidates = extractModelCandidates(turn);
+        const selectedIndex = typeof selectedId === "string" && selectedId.startsWith("rc_")
+            ? candidates.findIndex(raw => isUnknownArray(raw) && raw[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] === selectedId)
+            : -1;
+        const candidateIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        const selected = candidates[candidateIndex];
+        const slots = isUnknownArray(selected) ? selected : null;
+        const rawId = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+        const candidate: DecodedGeminiCandidate | null = candidateIndex < candidates.length
+            ? {
+                id: typeof rawId === "string" ? rawId : "",
+                text: extractCandidateText(selected),
+                body: slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY],
+                raw: selected
+            }
+            : null;
+
+        return {
+            raw: turn,
+            userPayload: turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD],
+            timestamp: extractTurnTimestamp(turn),
+            userMessageId,
+            fallbackTurnId,
+            rawAnswerDocument: isUnknownArray(modelPayload)
+                ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined,
+            candidate,
+            candidateIndex
+        };
+    }
+
 export {
     GEMINI_JSPB_SCHEMA,
     RESEARCH_PROMPT_PREFIX_RE,
     detectTurnSchemaDrift,
     hasTurnContentMarkers,
     extractModelCandidates,
+    decodeTurn,
     extractCandidateText,
     safeStructureClean,
     robustFirstPayload,
@@ -690,5 +808,35 @@ export {
     extractTurnTimestamp,
     normId,
     cleanTitle,
-    isRealTitle
+    isRealTitle,
+    getUtils,
+    getProtocol
 };
+
+export const GeminiParserExtractors: GeminiParserExtractorsModule = {
+    GEMINI_JSPB_SCHEMA,
+    RESEARCH_PROMPT_PREFIX_RE,
+    detectTurnSchemaDrift,
+    hasTurnContentMarkers,
+    extractModelCandidates,
+    decodeTurn,
+    extractCandidateText,
+    safeStructureClean,
+    robustFirstPayload,
+    deepWalk,
+    extractThoughts,
+    extractCitations,
+    extractGroundingCitationMarkers,
+    extractConversationId,
+    smartSummarizePrompt,
+    extractConversationTitle,
+    extractTurnTimestamp,
+    normId,
+    cleanTitle,
+    isRealTitle,
+    getUtils,
+    getProtocol
+};
+if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
+
+export default GeminiParserExtractors;
