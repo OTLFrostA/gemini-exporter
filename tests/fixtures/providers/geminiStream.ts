@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import streamFrames from '../gemini_answered_stream.json';
 
 /** Native StreamGenerate response bodies, one immutable key per test wire variant. */
 function streamWire(answered = 2, responseId = 'r_abc123'): string {
@@ -13,16 +13,14 @@ function inclusiveWire(): string {
     return streamWire().replace(/\n(\d+)\n/, (_match, count) => '\n' + (Number(count) + 2) + '\n');
 }
 function capturedStream(): string {
-    const fixture: { frames: unknown[] } =
-        JSON.parse(readFileSync('tests/fixtures/gemini_answered_stream.json', 'utf8'));
+    const fixture: { frames: unknown[] } = streamFrames;
     return ")]}'\n\n" + fixture.frames.map(frame => {
         const json = JSON.stringify(frame);
         return (Buffer.byteLength(json) + 2) + '\n\n' + json + '\n';
     }).join('');
 }
 function capturedE2eStream(): string {
-    const fixture: { frames: unknown[] } =
-        JSON.parse(readFileSync('tests/fixtures/gemini_answered_stream.json', 'utf8'));
+    const fixture: { frames: unknown[] } = streamFrames;
     const json = JSON.stringify(fixture.frames[0]);
     return ")]}'\n\n" + (json.length + 2) + '\n' + json + '\n';
 }
