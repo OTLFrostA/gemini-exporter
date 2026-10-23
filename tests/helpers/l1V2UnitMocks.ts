@@ -219,13 +219,6 @@ const accountIdentityPort: Pick<typeof import('../../src/l2/accountRegistry.js')
 };
 
 /** These cross-layer mocks isolate the L1 dependency boundary. */
-const titleSources = ['user', 'provider', 'derived'] as const;
-const rank = { user: 3, provider: 2, derived: 1 };
-const titleAuthorityPort: Pick<typeof import('../../src/l2/titleAuthority.js'),
-    'TITLE_SOURCE_PRIORITY' | 'TITLE_TIER_RANK'> = {
-    TITLE_SOURCE_PRIORITY: [...titleSources],
-    TITLE_TIER_RANK: { ...rank },
-};
 const indexComparisonPort: Pick<typeof import('../../src/l2/conversationIndex.js'),
     'indexActivityTime' | 'compareConversationIndexes'> = {
     indexActivityTime: index => index.updatedAt,
@@ -283,7 +276,7 @@ export function installL1V2Mocks(): void {
             if (request.endsWith('/l2/accountRegistry.js')) return accountIdentityPort;
             if (request.endsWith('/runtime/devMode.js')) return { isDevMode: () => false };
             if (request.endsWith('/runtime/ipc/messaging.js')) return messagingPort;
-            if (request.endsWith('/l2/titleAuthority.js')) return titleAuthorityPort;
+            if (request.endsWith('/l2/titleAuthority.js')) return {};
             if (request.endsWith('/l2/conversationIndex.js')) return indexComparisonPort;
             if (/\/(?:l2|l3a|l3b|l4|runtime|application|ui)\//.test(request) && !request.endsWith('.d.ts'))
                 throw new Error('Unmocked external dependency in L1 unit test: ' + request + ' from ' + parentPath);
