@@ -3,15 +3,6 @@ export interface CoverageKey { id: string; time: number }
 export interface CoverageRange { head: CoverageKey; tail: CoverageKey }
 export interface StreamCoverage { range: CoverageRange | null }
 export const emptyStream = (): StreamCoverage => ({ range: null });
-export function readStreamCoverage(value: unknown): StreamCoverage | null {
-    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => k !== 'range') || !('range' in value)) return null;
-    const range = value.range;
-    if (range === null) return emptyStream();
-    if (!range || typeof range !== 'object' || Array.isArray(range) || Object.keys(range).some(k => k !== 'head' && k !== 'tail') || !('head' in range) || !('tail' in range)) return null;
-    const key = (v: unknown): v is CoverageKey => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).every(k => k === 'id' || k === 'time') && 'id' in v && typeof v.id === 'string'
-        && !!v.id && 'time' in v && typeof v.time === 'number' && Number.isSafeInteger(v.time);
-    return key(range.head) && key(range.tail) ? { range: { head: { ...range.head }, tail: { ...range.tail } } } : null;
-}
 const overlaps = (a: CoverageRange, b: CoverageRange) => a.tail.time <= b.head.time && b.tail.time <= a.head.time;
 const samePage = (a: PageObservation<unknown>, b: PageObservation<unknown>) =>
     a.providerId === b.providerId && a.accountId === b.accountId && a.streamId === b.streamId
