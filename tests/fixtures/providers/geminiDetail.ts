@@ -1,6 +1,6 @@
 /** Native batchexecute response bodies containing Gemini's hNvQHb Detail RPC. */
 const DOMAIN_ID = 'c_native12345678';
-const rpc = (inner: unknown): string => ")]}'\\n\\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
+const rpc = (inner: unknown): string => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
 function domainTurn(prompt = 'Question', seconds: number | null = 1700000000,
     candidates: unknown[] = [['rc_answer', [['Answer']]]], request = 'r_AB12'): unknown[] {
     return [[DOMAIN_ID, request], seconds === null ? null : [seconds, 0], [[prompt]], [candidates]];
