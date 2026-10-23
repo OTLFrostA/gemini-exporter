@@ -47,6 +47,11 @@ function getProtocol(): GeminiProtocolModule {
     return GeminiProtocol;
 }
 
+// Keep raw LIST array elements untrusted until decodeGeminiListRow validates them.
+function isUnknownArray(value: unknown): value is unknown[] {
+    return Array.isArray(value);
+}
+
 /** Only the characterized conversation update slot is an activity/version fact. */
 function extractListItemTimestamp(item: unknown): number | null {
     return Array.isArray(item) ? payloadToMs(item[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP]) : null;
@@ -137,7 +142,7 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
                     }
                 };
             }
-            if (!Array.isArray(inner)) {
+            if (!isUnknownArray(inner)) {
                 return {
                     ...listResult([], null, null),
                     failure: 'invalid_response',
@@ -145,7 +150,11 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
                 };
             }
             const innerSchema = GEMINI_JSPB_SCHEMA.INNER;
-            const rows: unknown[] | null = inner.length === 0 ? [] : Array.isArray(inner[innerSchema.LIST_SECONDARY]) ? inner[innerSchema.LIST_SECONDARY] : (Array.isArray(inner[innerSchema.METADATA_ONLY_LIST]) ? inner[innerSchema.METADATA_ONLY_LIST] : null);
+            const secondary = inner[innerSchema.LIST_SECONDARY];
+            const metadata = inner[innerSchema.METADATA_ONLY_LIST];
+            const rows: unknown[] | null = inner.length === 0 ? []
+                : isUnknownArray(secondary) ? secondary
+                : isUnknownArray(metadata) ? metadata : null;
             const decoded: DecodedGeminiListRow[] = [];
             for (const rawRow of rows ?? []) {
                 const row = decodeGeminiListRow(rawRow);
