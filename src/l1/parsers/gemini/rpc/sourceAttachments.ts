@@ -160,7 +160,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         ) {
             // Derivative upscale renditions (e.g. 2x with UPSCALE_FACTOR > 1) are secondary variants,
             // not the authoritative source generation.
-            if (typeof slots[gen.UPSCALE_FACTOR] === "number" && (slots[gen.UPSCALE_FACTOR] as number) > 1) {
+            const upscaleFactor = slots[gen.UPSCALE_FACTOR];
+            if (typeof upscaleFactor === "number" && upscaleFactor > 1) {
                 return null;
             }
             const rawFileName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "";
@@ -529,21 +530,21 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                     const entry = entries[i];
                     if (!Array.isArray(entry) || entry.length < 4) continue;
                     const fields: unknown[] = entry;
-                const chip: unknown = fields[doc.CHIP_URL];
-                const chipParts: unknown[] | null = Array.isArray(chip) ? chip : null;
-                const chipUrl = chipParts?.[0];
-                const id = fields[doc.ID];
-                const rawTitle = fields[doc.TITLE];
-                if (typeof chipUrl !== "string" || !chipUrl.includes("immersive_entry_chip")
-                    || typeof id !== "string" || typeof rawTitle !== "string") continue;
+                    const chip: unknown = fields[doc.CHIP_URL];
+                    const chipParts: unknown[] | null = Array.isArray(chip) ? chip : null;
+                    const chipUrl = chipParts?.[0];
+                    const id = fields[doc.ID];
+                    const rawTitle = fields[doc.TITLE];
+                    if (typeof chipUrl !== "string" || !chipUrl.includes("immersive_entry_chip")
+                        || typeof id !== "string" || typeof rawTitle !== "string") continue;
 
-                const title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
-                const rawTimestamp = fields[doc.TIMESTAMP];
-                const timestamp: unknown = Array.isArray(rawTimestamp) ? rawTimestamp[0] : undefined;
-                const createdAt = typeof timestamp === "number" ? 1000 * timestamp : undefined;
-                const rawContentId = fields[doc.CONTENT_ID];
-                const contentId = typeof rawContentId === "string" && rawContentId.length > 10
-                    ? rawContentId : undefined;
+                    const title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
+                    const rawTimestamp = fields[doc.TIMESTAMP];
+                    const timestamp: unknown = Array.isArray(rawTimestamp) ? rawTimestamp[0] : undefined;
+                    const createdAt = typeof timestamp === "number" ? 1000 * timestamp : undefined;
+                    const rawContentId = fields[doc.CONTENT_ID];
+                    const contentId = typeof rawContentId === "string" && rawContentId.length > 10
+                        ? rawContentId : undefined;
                     pushMeta({ id, title, chipUrl, createdAt, contentId });
                 }
             }
@@ -559,21 +560,21 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                     const entry = entries[i];
                     if (!Array.isArray(entry)) continue;
                     const item: unknown[] = entry;
-                try {
-                    const flat = item.flat(Infinity).filter((x): x is string => typeof x === "string");
-                    if (flat.length > 500) continue;
-                    const chip = flat.find(x => x.includes("immersive_entry_chip"));
-                    if (chip) {
-                        const uuid = flat.find(x => uuidRe.test(x));
-                        const title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length >= 8 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
-                        pushMeta({
-                            id: uuid || flat.find(x => x.includes("rc_")) || chip,
-                            title: title || "",
-                            chipUrl: chip,
-                            source: "heuristic-flat"
-                        });
-                    }
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
+                    try {
+                        const flat = item.flat(Infinity).filter((x): x is string => typeof x === "string");
+                        if (flat.length > 500) continue;
+                        const chip = flat.find(x => x.includes("immersive_entry_chip"));
+                        if (chip) {
+                            const uuid = flat.find(x => uuidRe.test(x));
+                            const title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length >= 8 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
+                            pushMeta({
+                                id: uuid || flat.find(x => x.includes("rc_")) || chip,
+                                title: title || "",
+                                chipUrl: chip,
+                                source: "heuristic-flat"
+                            });
+                        }
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
                 }
             }
         });
