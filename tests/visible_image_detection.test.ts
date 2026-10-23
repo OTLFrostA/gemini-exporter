@@ -54,7 +54,7 @@ test('uploaded image tuples remain supported outside search-result metadata', ()
 });
 
 test('unselected candidates are omitted without losing the primary answer image', () => {
-    const answers = decodeGeminiDetail(geminiDetailGen('G_VISIBLE_IMAGE_04'), 'c_visible_images_test').messages.filter((m: any) => m.role === 'model');
+    const answers = decodeGeminiDetail(geminiDetailGen('G_VISIBLE_IMAGE_04'), 'c_visible_images_test').messages.filter(m => m.role === 'model');
     assert.equal(answers.length, 1);
     assert.equal(answers[0].images.length, 1);
     assert.equal(answers[0].id, 'rc_visible_images_test');
