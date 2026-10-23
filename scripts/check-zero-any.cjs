@@ -21,4 +21,27 @@ const cli = path.join(path.dirname(require.resolve('oxlint/package.json')), 'bin
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any', '--no-ignore', '--disable-nested-config', ...files], { cwd: root, stdio: 'inherit' });
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
-require('./check-domain-trust-lint.cjs');
+// TEMPORARY type-aware lint audit; never merge this branch.
+const unsafeRules=['typescript/no-explicit-any','typescript/no-unsafe-assignment',
+    'typescript/no-unsafe-argument','typescript/no-unsafe-call',
+    'typescript/no-unsafe-member-access','typescript/no-unsafe-return',
+    'typescript/no-unsafe-type-assertion'];
+const scoped=['src/l1/parsers/gemini/rpc/parseList.ts',
+    'src/l1/parsers/gemini/rpc/listMetadata.ts'];
+const args=['-A','all',...unsafeRules.flatMap(rule=>['-W',rule]),
+    '-D','typescript/no-floating-promises','--type-aware','--format','json',...scoped];
+const run=spawnSync(process.execPath,[cli,...args],{cwd:root,encoding:'utf8',maxBuffer:16*1024*1024});
+console.log('LIST_BOUNDARY_AUDIT_BEGIN');
+console.log('LIST_BOUNDARY_LINT_EXIT',run.status,'STDERR',String(run.stderr||'').slice(0,1500));
+try {
+    const result=JSON.parse(run.stdout);
+    const diagnostics=result.diagnostics||[];
+    console.log('LIST_BOUNDARY_LINT_COUNT',diagnostics.length);
+    console.log('LIST_BOUNDARY_LINT_DETAILS',JSON.stringify(diagnostics.map(x=>({
+        filename:x.filename,rule:x.code,message:x.message,labels:x.labels
+    }))));
+} catch(e) {
+    console.log('LIST_BOUNDARY_LINT_PARSE_ERROR',String(e),String(run.stdout||'').slice(0,3000));
+}
+console.log('LIST_BOUNDARY_AUDIT_END');
+process.exitCode=1;
