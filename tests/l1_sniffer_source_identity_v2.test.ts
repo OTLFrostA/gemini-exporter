@@ -62,7 +62,7 @@ test('an early source completion survives readiness wait and keeps its captured 
         'src/l1/parsers/gemini/rpc/mergePages.js': {},
         'src/l1/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
         'src/l1/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
-        'src/shared/utils/utils.js': { isDevMode: () => false },
+        'src/runtime/devMode.js': { isDevMode: () => false },
         'src/l1/parsers/gemini/rpc/parseList.js': {},
     });
     bridge.init({ onStreamComplete: (key: unknown) => keys.push(key) });

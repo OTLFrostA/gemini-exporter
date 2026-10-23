@@ -10,7 +10,7 @@ import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { GeminiRpcParseResult } from '../../parsers/gemini/rpc/parseConversation.js';
 import { parseGeminiIndexObservation, type GeminiIndexObservationInput } from '../../parsers/gemini/parseIndexObservation.js';
 import { parseGeminiDomIndex } from '../../parsers/gemini/dom/parseIndex.js';
-import { isDevMode } from '../../../shared/utils/utils.js';
+import { isDevMode } from '../../../runtime/devMode.js';
 import { parseList } from '../../parsers/gemini/rpc/parseList.js';
 import { GeminiProtocol, CrossWorldEvents } from '../../protocol/gemini/protocol.js';
 import { extractConversationIdFromUrl, normId } from '../../../shared/utils/pathUtils.js';

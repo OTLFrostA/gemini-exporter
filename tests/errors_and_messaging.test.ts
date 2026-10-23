@@ -39,7 +39,6 @@ test('errors - GeminiError and error hierarchy inheritance', () => {
 
 test('messaging - getErrorMessage safely normalizes all error types', () => {
     const { getErrorMessage } = require('../src/runtime/ipc/messaging.js');
-    const utils = require('../src/shared/utils/utils.js');
 
     assert.strictEqual(getErrorMessage('Simple error string'), 'Simple error string');
     assert.strictEqual(getErrorMessage(new Error('Standard Error object')), 'Standard Error object');
@@ -48,9 +47,6 @@ test('messaging - getErrorMessage safely normalizes all error types', () => {
     assert.strictEqual(getErrorMessage(undefined), 'Unknown error');
     assert.strictEqual(getErrorMessage(404), '404');
 
-    // Verify GeminiUtils facade re-export
-    assert.strictEqual(typeof utils.getErrorMessage, 'function');
-    assert.strictEqual(utils.getErrorMessage(new Error('Facade test')), 'Facade test');
 });
 
 test('messaging - isMessageAction type guard filters actions correctly', () => {
@@ -104,29 +100,4 @@ test('messaging - sendTypedMessage resolves response or handles chrome runtime e
             delete (global as any).chrome;
         }
     }
-});
-
-test('utils facade - modular sub-utilities re-exported with full compatibility', () => {
-    const utils = require('../src/shared/utils/utils.js');
-
-    // Title utils
-    assert.strictEqual(typeof utils.cleanTitle, 'function');
-    assert.strictEqual(typeof utils.isRealTitle, 'function');
-    assert.strictEqual(typeof utils.resolveTitle, 'function');
-    assert.strictEqual(utils.setTitleBySource, undefined);
-
-    // Path utils
-    assert.strictEqual(typeof utils.sanitizeFileName, 'function');
-    assert.strictEqual(typeof utils.sanitizeRelativePath, 'function');
-    assert.strictEqual(typeof utils.normId, 'function');
-    assert.strictEqual(utils.sanitizeFileName('foo/bar:*?"<>|'), 'foo_bar');
-
-    // Progress utils
-    assert.strictEqual(typeof utils.formatExportProgress, 'function');
-    const formatted = utils.formatExportProgress({ pct: 50, current: 5, total: 10 });
-    assert.strictEqual(formatted.pct, 50);
-
-    // Merge utils
-    assert.strictEqual(typeof utils.mergeConversation, 'function');
-    assert.strictEqual(typeof utils.deduplicateConversations, 'function');
 });

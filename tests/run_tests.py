@@ -284,10 +284,6 @@ def test_javascript_unit_tests(target_tests=None):
 
             preload_js = []
             for mod_path, mod_id in [
-                ("src/shared/utils/utils.js", "../src/shared/utils/utils.js"),
-                ("src/shared/utils/utils.js", "./src/shared/utils/utils.js"),
-                ("src/shared/utils/utils.js", "./utils.js"),
-                ("src/shared/utils/utils.js", "../utils.js"),
                 ("src/l1/parsers/gemini/rpc/extractors.js", "./parser/extractors.js"),
                 ("src/l1/parsers/gemini/rpc/extractors.js", "./extractors.js"),
                 ("src/l1/parsers/gemini/rpc/extractors.js", "../src/l1/parsers/gemini/rpc/extractors.js"),
@@ -312,8 +308,6 @@ def test_javascript_unit_tests(target_tests=None):
                 ("src/l1/client/gemini/geminiClient.js", "../src/l1/client/gemini/geminiClient.js"),
                 ("src/l1/client/gemini/geminiClient.js", "./src/l1/client/gemini/geminiClient.js"),
                 ("src/l1/client/gemini/geminiClient.js", "./geminiClient.js"),
-                ("utils.js", "../utils.js"),
-                ("utils.js", "./utils.js"),
                 ("src/core/constants.js", "../src/core/constants.js"),
                 ("src/core/constants.js", "./constants.js"),
                 ("src/core/tabService.js", "../src/core/tabService.js"),

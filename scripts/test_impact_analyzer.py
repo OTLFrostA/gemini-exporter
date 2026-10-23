@@ -80,7 +80,7 @@ _CORE_PREFIXES = ("src/l1/", "src/l2/", "src/l3a/", "src/l3b/", "src/l4/",
                   "src/application/", "src/migration/", "src/shared/", "src/runtime/api/",
                   "src/runtime/ipc/", "src/runtime/diagnostics/", "src/runtime/devMode.ts",
                   "src/runtime/environment.ts", "src/runtime/capabilities/directoryHandle.ts",
-                  "src/runtime/capabilities/tabService.ts", "src/ui/shared/progressUtils.ts")
+                  "src/runtime/capabilities/tabService.ts")
 
 
 def normalize_repo_path(path: str, base_dir: str = REPO_DIR) -> str:
