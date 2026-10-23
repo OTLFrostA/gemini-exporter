@@ -194,6 +194,16 @@ const fixtureMap = {
     'G_VERIFIED_SCAN_OVERLAP_01': () => JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic'],
     ]),
+
+    // Static native List bodies used by E2E source acquisition probes.
+    'G_E2E_TIER3_LIST_01': () => `)]}'\n\n${JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_first_attach', 'First attachment conversation', null, null, null, [1700000200, 0]],
+        ]])],
+    ])}`,
+    'G_E2E_TIER2_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_probe', 'Probe title', null, null, null, [1700000000, 0]]]])]]),
 };
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
