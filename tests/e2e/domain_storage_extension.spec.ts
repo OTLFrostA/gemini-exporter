@@ -1,4 +1,5 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
+import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
 
 test.beforeEach(async ({context, extensionId}) => {
     void extensionId;
@@ -14,9 +15,7 @@ test('content-script native detail is committed in extension IndexedDB and remai
         <user-query><div class="query-text"><p>Persist this question</p></div></user-query>
         <model-response data-model-name="Cross origin model"><div class="markdown"><p><strong>Persist this answer</strong></p></div></model-response>
     ` }));
-    const wire = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
-        [[['c_cross_origin_native', 'r_1'], [1700000000, 0], [['Persist this question']],
-            [[['rc_1', [['**Persist this answer**']]]]]]], null])]]);
+    const wire = geminiDetailGen('G_E2E_DOMAIN_STORAGE_DETAIL_01');
     await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
     await source.goto('https://gemini.google.com/app/cross_origin_native');
     await source.waitForFunction(() => window.__gemExporterHookInstalled === true);

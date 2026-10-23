@@ -1,9 +1,10 @@
 import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
 import { takeoutArchive } from './helpers/l1SourceFixture.js';
 import { getDetail } from '../src/l3a/storageService.js';
-import Proto from '../src/l1/protocol/gemini/protocol.js';
-import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
+import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 // L1 regression locks. Other-layer scenarios remain in regression_lock_other_layers.test.ts
 // and stay in ordinary repository discovery; see docs/l1-l2-freeze-repair.md.
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -69,7 +70,7 @@ test('p0-lock: response-only ids, unacknowledged requests and unrelated hex valu
     for (const [body, response] of [
         ['f.req=[[[' + JSON.stringify('GzXR5e') + ',null]]]', geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_02')],
         ['f.req=[["aabbccdd11223344"],["GzXR5e","c_deadbeef00112233"]]', ''],
-        ['f.req=[["MaZiqc",null]]', JSON.stringify([['wrb.fr','MaZiqc','[["aabbccdd11223344",null]]',null]])],
+        ['f.req=[["MaZiqc",null]]', geminiListGen('G_REGRESSION_LOCK_DECOY_LIST_01')],
     ]) {
         const { posted, win } = createHookSandbox(); win.__nextResponseText = response;
         await win.fetch('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body });
@@ -109,17 +110,17 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
     const deleteBatchexecute = geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_03');
     assert.strictEqual(await wasRelayed(deleteBatchexecute), false, 'Delete RPC response must not pass batchexecute broadcast');
 
-    const listBatchexecute = prefix + JSON.stringify([['wrb.fr', Proto.RPCS.LIST, ['c_123'], null]]);
+    const listBatchexecute = geminiListGen('G_REGRESSION_LOCK_FILTER_LIST_01');
     assert.strictEqual(await wasRelayed(listBatchexecute), true, 'List RPC must pass filter');
 
-    const detailBatchexecute = prefix + JSON.stringify([['wrb.fr', Proto.RPCS.DETAIL, ['c_123'], null]]);
+    const detailBatchexecute = geminiDetailGen('G_REGRESSION_LOCK_FILTER_DETAIL_01');
     assert.strictEqual(await wasRelayed(detailBatchexecute), true, 'Detail RPC must pass filter');
 });
 
 
 test('hookCredentials - arbitrary Request-like objects are not treated as browser Requests', async () => {
     const { posted, win } = createHookSandbox();
-    win.__nextResponseText = ')]}\'\n\n[["wrb.fr","MaZiqc","[]",null]]';
+    win.__nextResponseText = geminiListGen('G_REGRESSION_LOCK_REQUEST_LIST_01');
 
     // A standard browser Request object produces "[object Request]" from .toString().
     // The pre-refactor hook relied on (url || '').toString() and thus never recognized
@@ -160,7 +161,7 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
 
 test('hookCredentials - real Request inputs preserve list cursor context', async () => {
     const { posted, win } = createHookSandbox();
-    win.__nextResponseText = JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]);
+    win.__nextResponseText = geminiListGen('G_REGRESSION_LOCK_CURSOR_LIST_01');
     const body = new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([31, 'cursor', [0, null, 1]]), null, 'generic']]]) });
     await win.fetch(new Request('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body }));
     await new Promise(r => setTimeout(r, 50));
@@ -207,12 +208,7 @@ test('hookCredentials - fetch body preserves (init.body || requestBody) fallback
 
 test('audit fix: robustFirstPayload preserves , null , and control characters inside user content strings', () => {
     const testContent = 'Special test message with , null , in code and [brackets]';
-    const turns = [
-        [ ['c_testid1234567890ab', 'r1'], null, [[testContent]], [[['rc1', [['answer1']]]]] ]
-    ];
-    const inner = [turns, null, 'Test Title'];
-    const top = [['wrb.fr', 'hNvQHb', JSON.stringify(inner)]];
-    const text = `)]}'\n\n${JSON.stringify(top)}`;
+    const text = geminiDetailGen('G_REGRESSION_LOCK_PARSER_DETAIL_01');
     const parsed = decodeGeminiDetail(text, 'testid1234567890ab');
     assert.ok(parsed, 'Detail should be parsed successfully');
     assert.ok(parsed.messages && parsed.messages.length > 0, 'Messages should be extracted');

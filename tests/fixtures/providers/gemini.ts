@@ -194,6 +194,56 @@ const fixtureMap = {
     'G_VERIFIED_SCAN_OVERLAP_01': () => JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic'],
     ]),
+
+    // Static native List bodies used by E2E source acquisition probes.
+    'G_E2E_TIER3_LIST_01': () => `)]}'\n\n${JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_first_attach', 'First attachment conversation', null, null, null, [1700000200, 0]],
+        ]])],
+    ])}`,
+    'G_E2E_TIER2_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_probe', 'Probe title', null, null, null, [1700000000, 0]]]])]]),
+
+    'G_E2E_INCREMENTAL_ERROR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic']]),
+    'G_E2E_INCREMENTAL_PASSIVE_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_passive80', 'Passive 80', null, null, null, [1700000080, 0]]]])]]),
+    'G_E2E_UUID_PROFILE_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null,
+            [['c_profile_delay', 'Profile delay', null, null, null, [1700000000, 0]]], null])]]),
+
+    // Fixed single-RPC admission and hook-filter cases; preserve native framing.
+    'G_FROZEN_CONTRACT_LIST_01': () => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, []])]]),
+    'G_REGRESSION_LOCK_DECOY_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[["aabbccdd11223344",null]]', null]]),
+    'G_REGRESSION_LOCK_FILTER_LIST_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'MaZiqc', ['c_123'], null]]),
+    'G_EXTRACTED_REGRESSION_FILTER_LIST_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'MaZiqc', ['c_123'], null]]),
+    'G_REGRESSION_LOCK_REQUEST_LIST_01': () =>
+        `)]}'\n\n[["wrb.fr","MaZiqc","[]",null]]`,
+    'G_EXTRACTED_REGRESSION_REQUEST_LIST_01': () =>
+        `)]}'\n\n[["wrb.fr","MaZiqc","[]",null]]`,
+    'G_REGRESSION_LOCK_CURSOR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]),
+    'G_EXTRACTED_REGRESSION_CURSOR_LIST_01': () =>
+        JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]),
+
+    // L1 target-bound 1167 / provider-limit response proofs.
+    'G_L1_VERIFIED_LIST_1167_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1167]]]),
+    'G_L1_VERIFIED_LIST_FALSE_DELETE_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, 'c_deadbeef00112233'])]]),
+    'G_L1_VERIFIED_LIST_LIMIT_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_10961': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 10961]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_429': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 429]]]),
+    'G_L1_VERIFIED_LIST_LIMIT_STRING': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', '1096']]]),
 };
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */

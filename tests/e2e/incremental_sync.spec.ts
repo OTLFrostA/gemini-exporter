@@ -1,6 +1,7 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
 import { readFile } from 'node:fs/promises';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
@@ -25,9 +26,9 @@ const v2 = (page: import('@playwright/test').Page) => page.evaluate(async id => 
 
 test('diagnostic download includes the failed scan page and its native error envelope', async ({ context, extensionId }) => {
     await sourcePage(context);
-    const packet = ['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic'];
+    const responseText = geminiListGen('G_E2E_INCREMENTAL_ERROR_LIST_01');
     await context.route('**/batchexecute*', route => route.fulfill({
-        contentType: 'application/json', body: JSON.stringify([packet]),
+        contentType: 'application/json', body: responseText,
     }));
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');
@@ -45,7 +46,7 @@ test('diagnostic download includes the failed scan page and its native error env
     expect(report.scanRuns[0]).toMatchObject({ accountId, forceFull: false,
         result: { status: 'error', pagesFetched: 0, diagnostics: {
             providerId: 'gemini', streamId: 'recent', page: 1, requestCursor: null,
-            failure: 'invalid_response', details: { topParsed: JSON.stringify([packet]) },
+            failure: 'invalid_response', details: { topParsed: responseText },
         } } });
     expect((await v2(options)).coverage?.range ?? null).toBeNull();
 });
@@ -100,8 +101,7 @@ test('passive non-head Gemini page adds v2 indexes but cannot fabricate trusted 
     const gemini = await sourcePage(context);
     await gemini.route('**/batchexecute*', route => route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify([['wrb.fr', 'MaZiqc',
-            JSON.stringify([null, null, [['c_passive80', 'Passive 80', null, null, null, [1700000080, 0]]]])]]),
+        body: geminiListGen('G_E2E_INCREMENTAL_PASSIVE_LIST_01'),
     }));
     const options = await openOptions(context, extensionId);
     await gemini.evaluate(async () => fetch('/_/BardChatUi/data/batchexecute', {

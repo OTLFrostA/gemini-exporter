@@ -3,6 +3,7 @@
  */
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import { extractPdfText } from '../helpers/pdfTextExtract';
 import { readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -16,11 +17,7 @@ async function attachLoggedInGemini(context: BrowserContext) {
             </script><button aria-label="Google Account: Fixture (fixture@example.test)">Fixture</button>`,
     }));
     await context.route('**/batchexecute*', route => route.fulfill({
-        contentType: 'application/json', body: `)]}'\n\n${JSON.stringify([
-            ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
-                ['c_first_attach', 'First attachment conversation', null, null, null, [1700000200, 0]],
-            ]])],
-        ])}`,
+        contentType: 'application/json', body: geminiListGen('G_E2E_TIER3_LIST_01'),
     }));
     const gemini = await context.newPage();
     await gemini.goto('https://gemini.google.com/app');

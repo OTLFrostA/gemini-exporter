@@ -10,6 +10,7 @@ import { clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { handleDomainIngestionMessage } from '../src/runtime/background/domainStorageHandler.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 import { deleteRequestGen as geminiDeleteRequestGen } from './fixtures/providers/geminiDeleteRequest.js';
 import { closeDomainResources } from '../src/l1/parsers/shared/resources/domainResourceAdapter.js';
@@ -91,7 +92,7 @@ test('confirmed deletion waits for an earlier capture to settle even when that a
             type: CrossWorldEvents.NETWORK_BATCHEXECUTE,
             payload: { slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION,
                 url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute',
-                text: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, []])]]),
+                text: geminiListGen('G_FROZEN_CONTRACT_LIST_01'),
                 requestedAt: 100, truncated: false }
         } } as unknown as MessageEvent);
         const failedCapture = assert.rejects(earlier, /earlier capture failed/);

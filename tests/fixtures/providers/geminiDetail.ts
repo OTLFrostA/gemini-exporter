@@ -531,6 +531,39 @@ const fixtureMap = {
     'G_OBSERVABILITY_02': () => rpc([[observabilityTurn(), observabilityTurn('c_abc123def457')]]),
     'G_OBSERVABILITY_03': () => rpc([[observabilityTurn(), [['x_123'], [1, 0], [['u']]]]]),
     'G_OBSERVABILITY_04': () => rpc([[observabilityTurn(), [['x_123'], [1, 0], [['u']]]]]),
+
+    // Static native Detail bodies used by E2E source acquisition probes.
+    'G_E2E_TIER2_DETAIL_01': () => {
+        const turn = [['c_probe', 'r_question'], [1700000000, 0], [['Question']],
+            [[['rc_question', [['Answer']]]]]];
+        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Probe title'])]]);
+    },
+    'G_E2E_DOMAIN_STORAGE_DETAIL_01': () =>
+        JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+            [[['c_cross_origin_native', 'r_1'], [1700000000, 0], [['Persist this question']],
+                [[['rc_1', [['**Persist this answer**']]]]]]], null,
+        ])]]),
+
+    // Static hNvQHb fragments used to verify selective sniffer broadcasts.
+    'G_REGRESSION_LOCK_FILTER_DETAIL_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'hNvQHb', ['c_123'], null]]),
+    'G_EXTRACTED_REGRESSION_FILTER_DETAIL_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n' + JSON.stringify([['wrb.fr', 'hNvQHb', ['c_123'], null]]),
+    'G_REGRESSION_LOCK_PARSER_DETAIL_01': () =>
+        rpc([[[['c_testid1234567890ab', 'r1'], null,
+            [['Special test message with , null , in code and [brackets]']],
+            [[['rc1', [['answer1']]]]]]], null, 'Test Title']),
+    'G_EXTRACTED_REGRESSION_PARSER_DETAIL_01': () =>
+        rpc([[[['c_testid1234567890ab', 'r1'], null,
+            [['Special test message with , null , in code and [brackets]']],
+            [[['rc1', [['answer1']]]]]]], null, 'Test Title']),
+
+    'G_L1_VERIFIED_DETAIL_1167_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1167]]]),
+    'G_L1_VERIFIED_DETAIL_1096_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]]),
+    'G_L1_VERIFIED_DETAIL_1096_02': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]]),
 };
 
 export function detailGen(key: keyof typeof fixtureMap): string {
