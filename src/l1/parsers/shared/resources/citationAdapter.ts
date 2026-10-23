@@ -2,42 +2,6 @@ import type { BlockNode } from '../../../../l2/content/blocks.js';
 type Citation = { id: string };
 import type { InlineNode } from '../../../../l2/content/inline.js';
 
-export interface RawCitation {
-    url?: string;
-    title?: string;
-}
-
-function isStr(v: unknown): v is string {
-    return typeof v === 'string';
-}
-
-export function extractRawCitations(m: { citations?: unknown[]; sources?: unknown[] }): { list: RawCitation[]; skipped: number } {
-    const list: RawCitation[] = [];
-    let skipped = 0;
-    const push = (c: RawCitation): void => {
-        if (c.url && !list.some((x) => x.url === c.url)) list.push(c);
-        else if (!c.url) skipped++;
-    };
-    const fromCitations = m.citations;
-    if (Array.isArray(fromCitations)) {
-        for (const c of fromCitations) {
-            if (c && typeof c === 'object' && 'url' in c && isStr(c.url)) {
-                push('title' in c && isStr(c.title) ? { url: c.url, title: c.title } : { url: c.url });
-            } else skipped++;
-        }
-    }
-    const fromSources = m.sources;
-    if (Array.isArray(fromSources)) {
-        for (const s of fromSources) {
-            if (isStr(s)) push({ url: s });
-            else if (s && typeof s === 'object' && 'url' in s && isStr(s.url)) {
-                push('title' in s && isStr(s.title) ? { url: s.url, title: s.title } : { url: s.url });
-            } else skipped++;
-        }
-    }
-    return { list, skipped };
-}
-
 export function linkCitationMarkers(
     blocks: BlockNode[],
     citations: Citation[],
