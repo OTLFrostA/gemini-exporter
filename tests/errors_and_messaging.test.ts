@@ -2,12 +2,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-test('errors - GeminiError and error hierarchy inheritance', () => {
+test('errors - active TakeoutParseError extends GeminiError', () => {
     const {
         GeminiError,
-        ExportPipelineError,
-        TakeoutParseError,
-        StorageError
+        TakeoutParseError
     } = require('../src/shared/types/errors.js');
 
     // 1. Root GeminiError
@@ -17,24 +15,12 @@ test('errors - GeminiError and error hierarchy inheritance', () => {
     assert.strictEqual(rootErr.name, 'GeminiError');
     assert.strictEqual(rootErr.message, 'Root error');
 
-    // 2. ExportPipelineError
-    const pipeErr = new ExportPipelineError('Permission denied', 'chat_123', 'write', true);
-    assert.ok(pipeErr instanceof GeminiError);
-    assert.strictEqual(pipeErr.chatId, 'chat_123');
-    assert.strictEqual(pipeErr.step, 'write');
-    assert.strictEqual(pipeErr.isPermissionRevoked, true);
-
     // 3. TakeoutParseError
     const takeoutErr = new TakeoutParseError('Structure changed', true, 'MyActivity.html');
     assert.ok(takeoutErr instanceof GeminiError);
     assert.strictEqual(takeoutErr.formatDrift, true);
     assert.strictEqual(takeoutErr.entryName, 'MyActivity.html');
 
-    // 4. StorageError
-    const storageErr = new StorageError('Quota exceeded', 'set', 'conversations_10000000-0000-4000-8000-000000000001');
-    assert.ok(storageErr instanceof GeminiError);
-    assert.strictEqual(storageErr.operation, 'set');
-    assert.strictEqual(storageErr.key, 'conversations_10000000-0000-4000-8000-000000000001');
 });
 
 test('messaging - getErrorMessage safely normalizes all error types', () => {
