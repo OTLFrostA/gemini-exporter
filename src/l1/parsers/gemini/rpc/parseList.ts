@@ -43,7 +43,7 @@ export interface ListParseDiagnostics {
     topParsed: string | null;
 }
 
- function getProtocol(): GeminiProtocolModule {
+function getProtocol(): GeminiProtocolModule {
     return GeminiProtocol;
 }
 
