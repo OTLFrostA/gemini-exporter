@@ -7,9 +7,11 @@ import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { getDetail } from '../src/l3a/storageService.js';
 import { getCoverage } from '../src/l2/coverageAdmission.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 useIndexStorage(); useAccountRuntime(); beforeEach(() => { init(); });
-const list = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_bridge_chat_123', 'Title', null, null, null, [1700000000, 0]]]])]]);
-const detail = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_bridge_chat_123', 'r_1'], [1700000000, 0], [['Question']], [[['rc_1', [['Answer']]]]]]]])]]);
+const list = geminiListGen('G_MESSAGE_BRIDGE_LIST_01');
+const detail = geminiDetailGen('G_MESSAGE_BRIDGE_DETAIL_01');
 function event(type: string, extra: Record<string, unknown> = {}): MessageEvent {
     return { origin: location.origin, source: window, data: { type, payload: { slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION, ...extra } } } as unknown as MessageEvent;
 }
