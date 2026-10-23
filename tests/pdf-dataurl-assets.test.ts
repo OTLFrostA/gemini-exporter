@@ -87,7 +87,7 @@ test('malformed original data URL failures remain failed resource sidecars', asy
         assert.equal(result.acquisitionHints[id].url, uri);
         assert.equal(result.mounts.length, 0);
         const prepared = result.resources.get(id);
-        assert.ok(prepared, 'invalid data URL must have a prepared resource result');
+        if (!prepared) throw new Error('invalid data URL must have a prepared resource result');
         if (prepared.ok) {
             // Some malformed data URLs decode to bytes but are rejected during PDF content validation.
             assert.ok(result.diagnostics.some(d => d.code === 'FORMAT_CONTENT_OMITTED'),
