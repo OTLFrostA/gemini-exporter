@@ -32,6 +32,18 @@ const fixtureMap = {
         ];
         return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
     },
+    'G_SNIFFER_DETAIL_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+        [[[ 'c_source_sniff_123', 'r_question'], [1700000000, 0], [['Question']],
+            [[['rc_answer', [['Answer']]]]]]], null,
+    ])]]),
+    'G_SNIFFER_DETAIL_02': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+        [[[ 'c_source_sniff_123', 'r_question'], [1700000000, 0], [['Question']],
+            [[['rc_answer', [['Answer']]]]]]], null,
+    ])]]),
+    'G_SNIFFER_DETAIL_03': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+        [[[ 'c_source_sniff_123', 'r_question'], [1700000000, 0], [['Question']],
+            [[['rc_answer', [['Answer']]]]]]], null,
+    ])]]),
 };
 
 export function detailGen(key: keyof typeof fixtureMap): string {
