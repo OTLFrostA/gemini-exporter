@@ -1,5 +1,6 @@
 /** Raw Gemini GzXR5e conversation deletion RPC response bodies. */
 const fixtureMap = {
+    'G_REGRESSION_EMPTY_DELETE_RESPONSE_01': () => '',
     'G_DYNAMIC_DELETE_ECHO_01': () =>
         JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([null, 'c_8888abcd1234ef01'])]]),
     'G_DYNAMIC_DELETE_VOID_01': () =>
