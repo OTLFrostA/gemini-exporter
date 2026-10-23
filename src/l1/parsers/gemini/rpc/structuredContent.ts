@@ -1,4 +1,3 @@
-import { GEMINI_JSPB_SCHEMA } from "./extractors.js";
 import { extractImageEvidence } from "./sourceAttachments.js";
 
 export interface GeminiAnnotation {
@@ -680,31 +679,32 @@ export type GeminiStructuredExtraction =
     | { status: 'missing' | 'candidate_unmatched' }
     | { status: 'decode_rejected'; issue: GeminiStructuredDecodeIssue };
 
-export function inspectStructuredContent(turn: unknown, cand?: unknown, candidateIndex = 0): GeminiStructuredExtraction {
-    const getStructuredContent = (value: unknown): unknown => {
-        if (!isRecord(value)) return undefined;
-        return value.structuredContent;
-    };
+/** Source ownership comes from decodeTurn; never re-interpret the raw Turn. */
+export interface GeminiStructuredEvidenceInput {
+    candidate: unknown;
+    turnDocument: unknown;
+    candidateIndex: number;
+}
+
+export function inspectStructuredContent(input: GeminiStructuredEvidenceInput): GeminiStructuredExtraction {
     const decode = (raw: unknown): GeminiStructuredExtraction => {
         const issues: DecodeIssues = [];
         const document = decodeGeminiStructuredPayload(raw, issues);
         return document ? { status: 'decoded', document }
             : { status: 'decode_rejected', issue: issues[0] ?? { kind: 'payload' } };
     };
-    const candidateContent = getStructuredContent(cand);
+
+    // Candidate-local content is authoritative, including selected alternatives.
+    const candidateContent = isRecord(input.candidate) ? input.candidate.structuredContent : undefined;
     if (candidateContent != null) return decode(candidateContent);
 
-    const turnContent = getStructuredContent(turn);
-    const modelPayload: unknown = Array.isArray(turn) ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
-    const raw: unknown = turnContent ?? (Array.isArray(modelPayload)
-        ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined);
-    if (raw == null) return { status: 'missing' };
-    // turn[3][12] is proven to belong only to the primary candidate (PR #705).
-    if (candidateIndex !== 0) return { status: 'candidate_unmatched' };
-    return decode(raw);
+    // Turn-level document field 12 belongs only to primary Candidate 0 (PR #705).
+    if (input.turnDocument == null) return { status: 'missing' };
+    if (input.candidateIndex !== 0) return { status: 'candidate_unmatched' };
+    return decode(input.turnDocument);
 }
 
-export function extractStructuredContent(turn: unknown, cand?: unknown, candidateIndex = 0): GeminiStructuredDocument | undefined {
-    const result = inspectStructuredContent(turn, cand, candidateIndex);
+export function extractStructuredContent(input: GeminiStructuredEvidenceInput): GeminiStructuredDocument | undefined {
+    const result = inspectStructuredContent(input);
     return result.status === 'decoded' ? result.document : undefined;
 }
