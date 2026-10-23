@@ -10,7 +10,7 @@ export interface Http400Params {
     isRetried?: boolean;
     getAtFromPage?: () => string;
     getBlFromPage?: () => string | null;
-    loadCredMap?: () => Promise<any>;
+    loadCredMap?: GeminiClientCredentialManagerModule['loadCredMap'];
     getCredStorage?: GeminiClientCredentialManagerModule['getCredStorage'];
 }
 
@@ -22,7 +22,7 @@ export interface Http400Result {
 
 export interface Http401Params {
     cred?: Partial<GeminiCredentials> | null;
-    loadCredMap?: () => Promise<any>;
+    loadCredMap?: GeminiClientCredentialManagerModule['loadCredMap'];
     getCredStorage?: GeminiClientCredentialManagerModule['getCredStorage'];
     refreshAtFromPage?: () => string | null;
 }
@@ -74,9 +74,11 @@ export interface GeminiClientRetryPolicyModule {
 
                     if (loadMapFn && getStorageFn) {
                         let map = await loadMapFn();
-                        if (cred?.sid && map[cred.sid]) {
-                            if (freshAt) map[cred.sid].at = freshAt;
-                            if (freshBl) map[cred.sid].bl = freshBl;
+                        const entry = cred?.sid && map[cred.sid];
+                        if (entry && typeof entry === 'object') {
+                            const saved = entry as Record<string, unknown>;
+                            if (freshAt) saved.at = freshAt;
+                            if (freshBl) saved.bl = freshBl;
                             const storage = getStorageFn();
                             if (storage) {
                                 await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
@@ -118,8 +120,9 @@ export interface GeminiClientRetryPolicyModule {
                     if (freshAt && freshAt !== cred.at) {
                         console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面 at 已轮换，刷新凭证后保留（不删除）`);
                         const map = await loadMapFn();
-                        if (map[cred.sid]) {
-                            map[cred.sid].at = freshAt;
+                        const entry = map[cred.sid];
+                        if (entry && typeof entry === 'object') {
+                            (entry as Record<string, unknown>).at = freshAt;
                             const storage = getStorageFn();
                             if (storage) {
                                 await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
