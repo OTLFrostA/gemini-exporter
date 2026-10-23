@@ -32,8 +32,11 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
 test('Connect ChatGPT selects its verified account and Sync All commits only its history', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await source(page, true);
-    await page.locator('#btnConnectChatGPT').click();
-    await expect(page.locator('#status')).toContainText('ChatGPT connected');
+    await expect(page.locator('header #btnConnectChatGPT, header #btnConnectClaude')).toHaveCount(0);
+    await page.locator('#btnTourGuide').click();
+    await page.locator('#tourBtnConnectChatGPT').click();
+    await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
+    await page.locator('#tourSkipBtn').click();
     await page.locator('#btnSyncAll').click();
     await expect(page.locator('#status')).toContainText('Reached the end');
     await expect(page.locator('#list .item')).toHaveCount(1);
@@ -57,8 +60,11 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
 test('Declining ChatGPT site access leaves the registry and history untouched', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await source(page, false);
-    await page.locator('#btnConnectChatGPT').click();
-    await expect(page.locator('#status')).toContainText('ChatGPT access was not granted');
+    await page.locator('#btnTourGuide').click();
+    await page.locator('#tourBtnConnectChatGPT').click();
+    await expect(page.locator('.tour-popover [role=status]')).toContainText('Allow access to ChatGPT');
+    await expect(page.locator('#tourNextBtn')).toBeDisabled();
+    await page.locator('#tourSkipBtn').click();
     expect(await page.evaluate(async () => (await Reflect.get(window, 'uiFixture').listAccounts())
         .filter((a: { providerId: string }) => a.providerId === 'chatgpt'))).toEqual([]);
     expect(await page.evaluate(() => Reflect.get(window, 'chatgptHttpCalls'))).toEqual([]);

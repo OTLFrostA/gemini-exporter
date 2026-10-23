@@ -118,9 +118,7 @@ class ClaudeLiveRunner(BrowserAcceptance):
         self.gate('onboarding', lambda: {'physicalTour': True})
         permission = "chrome.permissions.contains({origins:['https://claude.ai/*']})"
         if not self.options.eval(permission, await_promise=True):
-            print('Site permission required: use Connect Claude in the open Workbench.', flush=True)
-            wait_for(lambda: self.options.eval(permission, await_promise=True), 600, 2)
-        self.options.eval("document.getElementById('btnConnectClaude').click()", user_gesture=True)
+            raise ValueError('Claude site permission missing after onboarding')
         self.ready()
         state = snapshot(self.options, self.platform_id)
         if state['account']['providerId'] != self.platform_id:

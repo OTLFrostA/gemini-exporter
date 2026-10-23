@@ -22,7 +22,7 @@ const platforms: Platform[] = [
 
 /** One initial check; subsequent source checks require a click or a return from sign-in. */
 export function mountTourConnection(popover: HTMLElement, footer: HTMLElement,
-    connected: (accountId: string) => Promise<void>): () => void {
+    connected: (accountId: string, advance: boolean) => Promise<void>): () => void {
     let active = true;
     let busy = false;
     let awaitingReturn: Platform | undefined;
@@ -57,7 +57,7 @@ export function mountTourConnection(popover: HTMLElement, footer: HTMLElement,
             && 'accountId' in context && typeof context.accountId === 'string'
             ? verify(platform, context.accountId) : null;
     };
-    const accept = async (id: string) => { if (active) await connected(id); };
+    const accept = async (id: string, advance = true) => { if (active) await connected(id, advance); };
     const run = (work: () => Promise<void>) => {
         if (!active || busy) return;
         busy = true;
@@ -129,7 +129,11 @@ export function mountTourConnection(popover: HTMLElement, footer: HTMLElement,
             catch { return null; }
         }));
         const id = results.find(result => result !== null);
-        if (id) await accept(id);
+        if (id) {
+            await accept(id, false);
+            show(text('Connected. Choose another platform or click Next to continue.',
+                '已连接。可选择其他平台，或点击“下一步”继续。'));
+        }
         else show(text('Connect at least one AI platform to continue.', '请至少连接一个 AI 平台后继续。'));
     });
     return () => {

@@ -53,9 +53,13 @@ test('D7: connection errors and missing Tabs API cannot advance the tour; verifi
             if(state==='missing')Reflect.deleteProperty(Reflect.get(window,'chrome'),'tabs');
             return Reflect.get(window,'testUi').tour.startTour();
         },state);
-        await page.waitForFunction(state=>state==='connected'?document.querySelector('.tour-popover h2')?.textContent==='Scan conversations':document.querySelector('.tour-popover')?.textContent?.includes('Connection unavailable'),state);
+        await page.waitForFunction(state=>state==='connected'?document.querySelector('#tourNextBtn')?.matches(':enabled'):document.querySelector('.tour-popover')?.textContent?.includes('Connection unavailable'),state);
         if(state!=='connected')assert.match(await page.locator('.tour-popover').textContent()??'',/Connection unavailable/);
-        else assert.doesNotMatch(await page.locator('.tour-popover').textContent()??'',/Connection unavailable|Sign in to Gemini/);
+        else {
+            assert.doesNotMatch(await page.locator('.tour-popover').textContent()??'',/Connection unavailable|Sign in to Gemini/);
+            await page.locator('#tourNextBtn').click();
+            assert.equal(await page.locator('.tour-popover h2').textContent(),'Scan conversations');
+        }
         await page.close();
     }}finally{await browser.close();}
 });
