@@ -17,7 +17,7 @@ export type ChatGPTMessageContent =
     | { content_type: string; parts?: string[]; text?: string; content?: string };
 
 export interface ChatGPTNodeMessage {
-    author: { role: ChatGPTAuthorRole; name?: string; metadata: unknown };
+    author: { role: ChatGPTAuthorRole; name?: string; metadata: object };
     content: ChatGPTMessageContent;
     create_time?: number | string;
     update_time?: number | string;
@@ -55,7 +55,7 @@ export interface ChatGPTNodeMessage {
     };
     recipient: string;
     channel?: string | null;
-    status: string;
+    status?: string;
     end_turn?: boolean;
     weight: number;
 }

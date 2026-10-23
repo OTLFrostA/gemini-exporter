@@ -111,6 +111,20 @@ test('ChatGPT Detail boundary retains unknown content kinds as non-renderable, n
     assert.deepEqual(decoded.mapping.answer.message?.content, { content_type: 'new_provider_kind' });
 });
 
+test('ChatGPT Detail missing optional status does not invent incomplete branch coverage', () => {
+    const original = detailGen('C_DETAIL_L1_SOURCE_01');
+    const answer = original.mapping.answer;
+    const withoutStatus = { ...original, mapping: {
+        ...original.mapping, answer: {
+            ...answer, message: { ...answer.message, status: undefined },
+        },
+    } };
+    const conversation = decodeChatGPTDetail(withoutStatus, id);
+    assert.equal(conversation.mapping.answer.message?.status, undefined);
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+});
+
 test('ChatGPT manual and live Detail entrypoints both invoke the shared boundary', () => {
     const provider = readFileSync(join(__dirname, '../src/l1/client/chatgpt/chatgptProvider.ts'), 'utf8');
     const capture = readFileSync(join(__dirname, '../src/runtime/content/chatgptContent.ts'), 'utf8');

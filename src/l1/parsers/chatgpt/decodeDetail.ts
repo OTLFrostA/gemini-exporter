@@ -18,9 +18,12 @@ type GalleryResult = {
     safe_urls?: string[];
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function record(value: unknown): Record<string, unknown> | null {
-    return value !== null && typeof value === 'object' && !Array.isArray(value)
-        ? value as Record<string, unknown> : null;
+    return isRecord(value) ? value : null;
 }
 
 function unknownArray(value: unknown): value is unknown[] {
@@ -216,7 +219,7 @@ function decodeMessage(value: unknown): ChatGPTNodeMessage {
         author: { role, metadata: {}, ...(text(author.name) !== undefined ? { name: text(author.name) } : {}) },
         content: decodeContent(source.content),
         recipient: text(source.recipient) ?? '',
-        status: text(source.status) ?? '',
+        ...(text(source.status) !== undefined ? { status: text(source.status) } : {}),
         weight: typeof source.weight === 'number' && Number.isFinite(source.weight) ? source.weight : 0,
         ...(typeof source.end_turn === 'boolean' ? { end_turn: source.end_turn } : {}),
         ...(text(source.channel) !== undefined || source.channel === null
