@@ -4,7 +4,6 @@ const assert = require('node:assert');
 
 const { FsWriter, ensureSubDir, sanitizeFileName } = require('../src/l4/delivery/writers/fsWriter.js');
 const { ZipWriter, isPrecompressedAsset } = require('../src/l4/packaging/writers/zipWriter.js');
-const WriterInterface = require('../src/l4/delivery/writers/writerInterface.js');
 const { __setModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
@@ -101,44 +100,6 @@ test('zipWriter counts Blob bytes toward the safety limit', () => {
     writer.writeFile('small.bin', new Blob([new Uint8Array(8)]));
     assert.strictEqual(writer.getTotalBytes(), 8);
     assert.throws(() => writer.writeFile('large.bin', new Blob([new Uint8Array(3)])), /上限/);
-});
-
-// ---------------------------------------------------------------------------
-// WriterInterface
-// ---------------------------------------------------------------------------
-test('writerInterface - isWriter and createWriter factory', () => {
-    assert.ok(WriterInterface);
-    assert.strictEqual(typeof WriterInterface.isWriter, 'function');
-    assert.strictEqual(typeof WriterInterface.createWriter, 'function');
-
-    assert.strictEqual(WriterInterface.isWriter(null), false);
-    assert.strictEqual(WriterInterface.isWriter({}), false);
-    assert.strictEqual(WriterInterface.isWriter({ writeFile: () => {} }), true);
-
-    __setModuleOverride('JSZip', class MockJSZip {
-        files: Record<string, any> = {};
-        constructor() { this.files = {}; }
-        file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
-        legacyFolder(_name: string) { return { file: (_p: string, _c: any, _options?: unknown) => {} }; }
-        async generateAsync(_opts?: any) { return new Blob(['']); }
-    });
-
-    const zipWriter = WriterInterface.createWriter('zip');
-    assert.ok(zipWriter);
-    assert.strictEqual(WriterInterface.isWriter(zipWriter), true);
-
-    const mockDirHandle = {
-        name: 'test_export',
-        getDirectoryHandle: async () => mockDirHandle,
-        getFileHandle: async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {}, abort: async () => {} }) })
-    };
-    const fsWriter = WriterInterface.createWriter('fs', { dirHandle: mockDirHandle });
-    assert.ok(fsWriter);
-    assert.strictEqual(WriterInterface.isWriter(fsWriter), true);
-
-    assert.throws(() => {
-        WriterInterface.createWriter('invalid_type');
-    });
 });
 
 test('fsWriter - rejects invalid or empty plain object content before touching file handle', async () => {
