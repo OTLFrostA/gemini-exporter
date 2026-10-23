@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import Proto from '../src/l1/protocol/gemini/protocol.js';
+import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 
 
 test('protocol - RPC endpoint names are centralized and match known values', () => {
@@ -54,7 +55,7 @@ test('protocol - deletion anchors match the GzXR5e-anchored id and reject decoys
     assert.strictEqual(m1![1], REAL, 'anchor 1 must extract the id following the delete-RPC name');
 
     // Quoted-payload shape (response body form).
-    const quoted = `)]}'\n\n[["wrb.fr","GzXR5e","c_feedface12345678",null]]`;
+    const quoted = geminiDeleteGen('G_PROTOCOL_DELETE_RESPONSE_01');
     const m2 = quoted.match(Proto.DELETION_ANCHORS[0]) || quoted.match(Proto.DELETION_ANCHORS[1]);
     assert.strictEqual(m2![1], 'feedface12345678', 'anchored extraction must work on the response shape');
 
