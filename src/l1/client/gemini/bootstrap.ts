@@ -9,7 +9,7 @@ import {
 import { resolveCurrentAccount, matchesCurrentAccount } from '../../../runtime/content/accountContext.js';
 import { readAccountParameters } from '../../../l2/accountRegistry.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
-import { getErrorMessage } from '../../../runtime/ipc/messaging.js';
+import { getErrorMessage } from '../../../shared/utils/errorText.js';
 
 export function getCredStorage(): chrome.storage.StorageArea | null {
     return sharedGetCredStorage();

@@ -48,9 +48,3 @@ export interface GeminiStreamCompletePayload {
     url?: string;
 }
 
-export interface GeminiLiveSaveTriggerPayload {
-    cid: string;
-    reason?: string;
-    mockMode?: boolean;
-}
-

@@ -1,45 +1,49 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { sendTypedMessage, isMessageAction, getErrorMessage } from '../src/runtime/ipc/messaging.js';
-import { sendToGeminiTab, sendToAITab, checkGeminiStatus, openGeminiPage, reloadGeminiTab } from '../src/runtime/capabilities/tabService.js';
+import { sendTabMessage, sendToGeminiTab, sendToAITab, checkGeminiStatus, openGeminiPage, reloadGeminiTab } from '../src/runtime/capabilities/tabService.js';
 import { startSync } from '../src/ui/options/controllers/syncController.js';
 import type { ScanResult } from '../src/application/sync/scanController.js';
-import type { BaseMessage } from '../src/runtime/types/messages.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { putAccount } from '../src/l3a/storageService.js';
 import { mount, read } from './helpers/uiPortHarness.js';
 type Equal<A,B> = (<T>()=>T extends A?1:2) extends (<T>()=>T extends B?1:2)?true:false;
 type Assert<T extends true> = T;
 export type Contracts = [
-    Assert<Equal<Awaited<ReturnType<typeof sendTypedMessage>>,unknown>>,
+    Assert<Equal<Awaited<ReturnType<typeof sendTabMessage>>,unknown>>,
     Assert<Equal<Awaited<ReturnType<typeof sendToGeminiTab>>,unknown>>,
     Assert<Equal<Awaited<ReturnType<typeof sendToAITab>>,unknown>>,
     Assert<Equal<Parameters<typeof sendToGeminiTab>[0],unknown>>,
-    Assert<Equal<typeof sendTypedMessage extends <T extends BaseMessage,R>(message:T,timeout?:number)=>Promise<R>?true:false,false>>,
     Assert<Equal<Awaited<ReturnType<typeof startSync>>,ScanResult>>,
     Assert<Equal<Awaited<ReturnType<typeof openGeminiPage>>,unknown>>,
     Assert<Equal<Awaited<ReturnType<typeof reloadGeminiTab>>,unknown>>
 ];
-function actionOnly(input: unknown) {
-    if (isMessageAction(input,'runLiveSave')) {
-        const narrow: Assert<Equal<typeof input,{action:'runLiveSave'}>> = true;
-        const notPayload: Assert<Equal<typeof input extends {action:'runLiveSave';key:{accountId:string;conversationId:string}}?true:false,false>> = true;
-        void narrow; void notPayload;
-    }
-}
-void actionOnly;
 function replaceGlobal(key:string,value:unknown) {
     const previous=Object.getOwnPropertyDescriptor(globalThis,key);
     Object.defineProperty(globalThis,key,{configurable:true,value});
     return ()=>{if(previous)Object.defineProperty(globalThis,key,previous);else Reflect.deleteProperty(globalThis,key);};
 }
-test('transport replies stay opaque; action guards never prove payload shape',async()=>{
-    const reply={arbitrary:['not a known response']};
-    const restore=replaceGlobal('chrome',{runtime:{sendMessage(_m:unknown,cb:(v:unknown)=>void){cb(reply);}}});
-    try{assert.equal(await sendTypedMessage({action:'ping'},100),reply);}finally{restore();}
-    assert.equal(isMessageAction({action:'runLiveSave'},'runLiveSave'),true);
-    assert.equal(isMessageAction({},'runLiveSave'),false); assert.equal(getErrorMessage({message:123}),'[object Object]');
+test('live tab transport returns opaque replies and handles missing or failed responses', async () => {
+    const reply = { arbitrary: ['not a known response'] };
+    const stub = {
+        runtime: { lastError: undefined as { message?: string } | undefined },
+        tabs: {
+            sendMessage(_tabId: number, _message: unknown, cb: (value: unknown) => void) { cb(reply); },
+        },
+    };
+    const restore = replaceGlobal('chrome', stub);
+    try {
+        assert.strictEqual(await sendTabMessage(7, { action: 'ping' }, 100), reply);
+        stub.tabs.sendMessage = (_tabId: number, _message: unknown, cb: (value: unknown) => void) => cb(undefined);
+        await assert.rejects(sendTabMessage(7, { action: 'ping' }, 100), /no response/);
+        stub.runtime.lastError = { message: 'Receiving end does not exist' };
+        await assert.rejects(sendTabMessage(7, { action: 'ping' }, 100), /Receiving end does not exist/);
+        stub.runtime.lastError = undefined;
+        stub.tabs.sendMessage = () => { throw new Error('Port closed synchronously'); };
+        await assert.rejects(sendTabMessage(7, { action: 'ping' }, 100), /Port closed synchronously/);
+    } finally {
+        restore();
+    }
 });
 test('current Popup consumer rejects malformed context and legacy rich fetch envelopes before exporting',async()=>{
     const browser=await chromium.launch({headless:true});try{
