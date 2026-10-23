@@ -547,6 +547,23 @@ test('ChatGPT empty current list schema proves source exhaustion', async () => {
     assert.equal((await getConversations(account.id)).length, 0);
 });
 
+
+test('ChatGPT Provider rejects foreign conversation_id and malformed Detail mapping', async () => {
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    for (const detail of [
+        { conversation_id: 'foreign', mapping: {} },
+        { id: 'requested-conversation', mapping: null },
+        { id: 'requested-conversation', mapping: { one: { id: 'one', children: [], message: { bad: true } } } },
+    ]) {
+        const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
+            String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : detail,
+        ), { status: 200 })) });
+        await assert.rejects(provider.fetchConversationDetail(account.id, 'requested-conversation'),
+            /Detail identity mismatch|Invalid ChatGPT Detail/);
+        assert.equal(await getDetail(storageIdentity('chatgpt', account.id, 'requested-conversation')), null);
+    }
+});
+
 test('ChatGPT Detail never relabels a foreign source conversation ID', async () => {
     const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
         String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : { id: 'other-conversation' },
