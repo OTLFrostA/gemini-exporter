@@ -8,7 +8,7 @@ import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.
 test('active and passive normalization retain identical independent cursor and ordering evidence', () => {
     for (const streamId of ['recent', 'pinned'] as const) {
         const result = parseList(geminiListGen('G_PAGE_OBSERVATION_01'));
-        const request = readGeminiListRequest(geminiListGen(streamId === 'recent' ? 'G_PAGE_OBSERVATION_02_RECENT' : 'G_PAGE_OBSERVATION_02_PINNED'));
+        const request = readGeminiListRequest(geminiListRequestGen(streamId === 'recent' ? 'G_PAGE_OBSERVATION_02_RECENT' : 'G_PAGE_OBSERVATION_02_PINNED'));
         assert.deepEqual(request, { streamId, requestCursor: 'incoming' });
         const observation = geminiListObservation(result, request, 'account');
         assert.equal(observation.providerId, 'gemini');
