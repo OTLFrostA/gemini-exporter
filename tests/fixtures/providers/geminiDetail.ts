@@ -23,7 +23,50 @@ function boundaryTurn(prompt = 'Boundary user prompt', seconds: number | null = 
     return [[BOUNDARY_ID, 'r_AB12'], seconds === null ? null : [seconds, 500000000], [[prompt]], [candidates]];
 }
 
+/** Wire format local to the selected-candidate Detail response fixtures. */
+function selectedCandidates(): unknown[] {
+    return [
+        ['rc_displayed', [['## System Definition and Mass Balances\n\nDisplayed balance.']]],
+        ['rc_alternative', [['## System Boundaries and Assumptions\n\nUnselected balance.']]],
+    ];
+}
+function selectedWire(candidates: unknown[], selected?: unknown): string {
+    const model = [candidates, null, null, selected];
+    const turn = [['c_selected12345678', 'r_request'], [1700000000, 0], [['Derive the mass balance.']], model];
+    return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
+}
+
 const fixtureMap = {
+    'G_TIMESTAMP_HONESTY_01': () => rpc([[
+        [['c_noTsTurn_1', 'r_turn_1'], null, [['Question']], [[['rc_model_1', [['Answer']]]]]],
+    ]]),
+    'G_PROMPT_LITERAL_01': () => {
+        const prompt = "Use f(\\$)=1, **literal**, $x$, <input> and C:\\temp\\file.\n\nKeep [link](https://example.com) and \\* intact.";
+        const turn = [['c_literalprompt', 'r_prompt'], [1700000000, 0], [[prompt]],
+            [[['rc_answer', [['**Rendered answer**']]]]]];
+        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
+    },
+    'G_SELECTED_CANDIDATE_01': () => selectedWire(selectedCandidates(), 'rc_displayed'),
+    'G_SELECTED_CANDIDATE_02': () => selectedWire(selectedCandidates(), 'rc_alternative'),
+    'G_SELECTED_CANDIDATE_03': () => selectedWire(selectedCandidates(), null),
+    'G_SELECTED_CANDIDATE_04': () => selectedWire(selectedCandidates(), 'c'),
+    'G_SELECTED_CANDIDATE_05': () => selectedWire(selectedCandidates(), 6),
+    'G_SELECTED_CANDIDATE_06': () => selectedWire(selectedCandidates(), 'rc_missing'),
+    'G_SELECTED_CANDIDATE_07': () => selectedWire([
+        ['rc_unselected', [['Unselected image ![image](https://lh3.googleusercontent.com/unselected-image.png)'],
+            ['https://lh3.googleusercontent.com/unselected-image.png', 640, 480]]],
+        ['rc_selected', [['Displayed image ![image](https://lh3.googleusercontent.com/selected-image.png)'],
+            ['https://lh3.googleusercontent.com/selected-image.png', 640, 480]]],
+    ], 'rc_selected'),
+    'G_PAGINATION_EMPTY_01': () => {
+        const candidate = ['rc_empty', [''], null, []];
+        const model: unknown[] = [[candidate], null, null, 'rc_empty'];
+        model[8] = 'US';
+        model[12] = [[]];
+        model[24] = 1;
+        const raw = [[[['c_source_chat_123', 'r_empty'], null, [['']], model, [1757132274, 411870000]]], null, null, []];
+        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(raw)]]);
+    },
 
     'G_OBSERVABILITY_DOC_01': () => {
         const item = ['https://y/immersive_entry_chip/e2e', '123e4567-e89b-12d3-a456-426614174099', 'End To End Heuristic Title'];
