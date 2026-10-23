@@ -128,12 +128,9 @@ test('combined native file markers bind each number to its ordered source record
     ] }] }));
     assert.equal(inline.content.length, 1);
     assert.ok(!JSON.stringify(inline.content).includes('propagation of light'), 'quoted metadata must not become prose');
-    for (const marker of ['[cite: 1]', '[cite: 1, 1]', '[cite: 1, 0]', '[cite: 1, 2, 3]', '[cite: 1, unknown]']) {
-        const invalid = JSON.parse(JSON.stringify(raw)) as unknown[][][][];
-        const node = invalid[0][0][0] as unknown[];
-        const payload = node[31] as unknown[][][];
-        payload[0][0][0] = marker;
-        rejected(parse(invalid), 'decode_rejected');
+    for (const key of ['G_STRUCTURED_CITATIONS_15', 'G_STRUCTURED_CITATIONS_16',
+        'G_STRUCTURED_CITATIONS_17', 'G_STRUCTURED_CITATIONS_18', 'G_STRUCTURED_CITATIONS_19'] as const) {
+        rejected(parseKey(key), 'decode_rejected');
     }
 });
 
@@ -173,21 +170,17 @@ test('source resolution never borrows another candidate source table', () => {
 });
 
 test('unknown composite children, malformed citations and ambiguous wire fields reject the complete document', () => {
-    const composites = [
-        field(13, [[]]), field(13, ['invalid']),
-        field(13, [[text('valid'), field(38, ['unknown'])]]),
-        { nodeType: 'paragraph', children: [{ nodeType: 1, code: 'not inline' }] },
-        { nodeType: 'paragraph', children: [{ nodeType: 18, text: 'heading', jJ: 2 }] },
-    ];
-    for (const raw of composites) {
-        const result = parse({ children: [raw] });
+    for (const key of ['G_STRUCTURED_CITATIONS_20', 'G_STRUCTURED_CITATIONS_21',
+        'G_STRUCTURED_CITATIONS_22', 'G_STRUCTURED_CITATIONS_23', 'G_STRUCTURED_CITATIONS_24'] as const) {
+        const result = parseKey(key);
         assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'));
         assert.ok(JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
     }
     const good: unknown[] = field(31, [[['[cite: 1]', 0], [[null, [[null, 0, 'file.json', null, null, null, null, null, 1, null, null, 'application/json'], null, null, null, null, null, 'file.json']]], ['quote', 0]]]);
     assert.ok(decodeGeminiStructuredPayload([[[good]]]));
-    for (const payload of [[], [['[cite: 1]', 0]], [[['[cite: 0]', 0], [], ['quote', 0]]], [[['[cite: 1]', 0], [], ['quote', 0]]]]) {
-        rejected(parse([[[field(31, payload)]]]), 'decode_rejected');
+    for (const key of ['G_STRUCTURED_CITATIONS_25', 'G_STRUCTURED_CITATIONS_26',
+        'G_STRUCTURED_CITATIONS_27', 'G_STRUCTURED_CITATIONS_28'] as const) {
+        rejected(parseKey(key), 'decode_rejected');
     }
     good[32] = 'unknown visible payload';
     rejected(parse([[[good]]]), 'decode_rejected');
