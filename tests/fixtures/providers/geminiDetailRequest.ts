@@ -6,6 +6,10 @@ function requestBody(args: unknown[]): string {
 }
 
 const fixtureMap = {
+    'G_E2E_UUID_DETAIL_REQUEST_STALE_01': () =>
+        requestBody(['c_staleuuid123', 10, null, 1, [1], [4], null, 1]),
+    'G_E2E_UUID_DETAIL_REQUEST_CURRENT_01': () =>
+        requestBody(['c_currentuuid123', 10, null, 1, [1], [4], null, 1]),
     'G_L1_DETAIL_REQUEST_VALID_01': () =>
         requestBody(['c_source_chat_123', 10, 'tC_NEXT_PAGE_123456789', 1, [1], [4], null, 1]),
     'G_L1_DETAIL_REQUEST_TRUNCATED_01': () =>
