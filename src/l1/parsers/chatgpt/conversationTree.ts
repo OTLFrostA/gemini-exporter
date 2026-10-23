@@ -167,58 +167,6 @@ export function extractChatGPTLinearNodes(
     return result;
 }
 
-/** Merge consecutive assistant text turns produced by official continuation. */
-export function mergeChatGPTContinuations(
-    nodes: ChatGPTConversationNode[],
-): ChatGPTConversationNode[] {
-    const result: ChatGPTConversationNode[] = [];
-    for (const node of nodes) {
-        const prev = result[result.length - 1];
-        const prevMsg = prev?.message;
-        const curMsg = node.message;
-        if (
-            prevMsg?.author.role === 'assistant'
-            && curMsg?.author.role === 'assistant'
-            && prevMsg.recipient === 'all'
-            && curMsg.recipient === 'all'
-            && isTextContent(prevMsg)
-            && isTextContent(curMsg)
-        ) {
-            const sep = prevMsg.channel !== curMsg.channel ? '\n\n' : '';
-            const lastIdx = prevMsg.content.parts.length - 1;
-            prevMsg.content.parts[lastIdx] += sep + curMsg.content.parts[0];
-            prevMsg.content.parts.push(...curMsg.content.parts.slice(1));
-            if (curMsg.metadata) {
-                const prevMeta = (prevMsg.metadata ??= {});
-                if (curMsg.metadata.citations?.length) {
-                    prevMeta.citations = [
-                        ...(prevMeta.citations ?? []),
-                        ...curMsg.metadata.citations,
-                    ];
-                }
-                if (curMsg.metadata.content_references?.length) {
-                    prevMeta.content_references = [
-                        ...(prevMeta.content_references ?? []),
-                        ...curMsg.metadata.content_references,
-                    ];
-                }
-                if (curMsg.metadata.attachments?.length) {
-                    prevMeta.attachments = [
-                        ...(prevMeta.attachments ?? []),
-                        ...curMsg.metadata.attachments,
-                    ];
-                }
-                if (curMsg.metadata.model_slug) {
-                    prevMeta.model_slug = curMsg.metadata.model_slug;
-                }
-            }
-        } else {
-            result.push(node);
-        }
-    }
-    return result;
-}
-
 /** Latest model_slug on the current branch wins (model can change mid-chat). */
 export function extractChatGPTModelSlug(
     mapping: Record<string, ChatGPTConversationNode>,
@@ -333,39 +281,4 @@ export function chatGPTNodeSegments(node: ChatGPTConversationNode): ChatGPTNodeS
 /** Role mapping into our neutral Domain vocabulary. */
 export function chatGPTNodeRole(node: ChatGPTConversationNode): 'user' | 'assistant' {
     return node.message?.author.role === 'user' ? 'user' : 'assistant';
-}
-
-/**
- * All image sources a linear history carries: `sediment://` asset pointers in
- * multimodal parts plus code-execution image URLs. Next step resolves each via
- * `GET /backend-api/files/download/:id` into a signed download URL (pionxzh
- * `fetchImageFromPointer`), then stores bytes as Domain assets.
- */
-export function collectChatGPTImagePointers(
-    nodes: ChatGPTConversationNode[],
-): string[] {
-    return nodes.flatMap((node) => imagePointersOfNode(node));
-}
-
-/** Image sources owned by a single node, in source order. */
-export function imagePointersOfNode(node: ChatGPTConversationNode): string[] {
-    const out: string[] = [];
-    const content = node.message?.content;
-    if (!content) return out;
-    if (content.content_type === 'multimodal_text' && Array.isArray(content.parts)) {
-        for (const p of content.parts) {
-            if (typeof p !== 'string' && p.content_type === 'image_asset_pointer' && p.asset_pointer) {
-                out.push(p.asset_pointer);
-            }
-        }
-    }
-    if (content.content_type === 'execution_output') {
-        const messages = node.message?.metadata?.aggregate_result?.messages;
-        if (Array.isArray(messages)) {
-            for (const m of messages) {
-                if (m.message_type === 'image' && m.image_url) out.push(m.image_url);
-            }
-        }
-    }
-    return out;
 }
