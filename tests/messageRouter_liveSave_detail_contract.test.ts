@@ -15,6 +15,7 @@ import { init as initRouter } from '../src/runtime/content/messageRouter.js';
 import { resolveCurrentAccount } from '../src/runtime/content/accountContext.js';
 import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
 import { AssetFetcher } from '../src/runtime/capabilities/assetFetcher.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 // The v1 getConversationDetail router, DOM fallback and Live Save detail resolver
 // are gone. Detail belongs to L1 -> L2; only committed passive changes request
@@ -154,10 +155,7 @@ test('v2 Live Save: only a committed, changed passive Detail requests a single k
 
         const id = 'source_sniff_123';
         const key = { accountId: ACCOUNT_UUID, conversationId: id };
-        const wire = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
-            [[['c_' + id, 'r_question'], [1700000000, 0], [['Question']],
-                [[['rc_answer', [['Answer']]]]]]], null,
-        ])]]);
+        const wire = geminiDetailGen('G_MESSAGE_ROUTER_LIVE_SAVE_01');
         const captured = (extra: Record<string, unknown> = {}): MessageEvent => ({
             source: window, origin: location.origin, data: {
                 type: CrossWorldEvents.NETWORK_BATCHEXECUTE,
