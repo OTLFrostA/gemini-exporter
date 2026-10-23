@@ -197,10 +197,11 @@ function classifyQueryError(err: unknown): { reason: LocalFontQueryReason; detai
 
 let localFontsCache: LocalFontEntry[] | null = null;
 const CACHE_KEY = '__geminiLocalFontsCache';
+const fontCacheHost = globalThis as typeof globalThis & { __geminiLocalFontsCache?: LocalFontEntry[] };
 
 export function getCachedLocalFonts(): LocalFontEntry[] | null {
     if (localFontsCache && localFontsCache.length > 0) return localFontsCache;
-    const globalCache = (globalThis as any)?.[CACHE_KEY];
+    const globalCache = fontCacheHost[CACHE_KEY];
     if (Array.isArray(globalCache) && globalCache.length > 0) {
         localFontsCache = globalCache;
         return globalCache;
@@ -211,10 +212,10 @@ export function getCachedLocalFonts(): LocalFontEntry[] | null {
 export function clearLocalFontCache(): void {
     localFontsCache = null;
     try {
-        delete (globalThis as any)?.[CACHE_KEY];
+        delete fontCacheHost[CACHE_KEY];
     } catch {
         try {
-            (globalThis as any)[CACHE_KEY] = undefined;
+            fontCacheHost[CACHE_KEY] = undefined;
         } catch {}
     }
 }
@@ -222,7 +223,7 @@ export function clearLocalFontCache(): void {
 function setCachedLocalFonts(fonts: LocalFontEntry[]): void {
     localFontsCache = fonts;
     try {
-        (globalThis as any)[CACHE_KEY] = fonts;
+        fontCacheHost[CACHE_KEY] = fonts;
     } catch {
         // Ignore cross-context write restriction
     }

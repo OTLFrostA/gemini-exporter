@@ -24,7 +24,7 @@ function sanitizeRelativePath(p?: string | null, defaultName: string = 'file'): 
 }
 
 
-async function ensureSubDir(root: any, subPath: string): Promise<any> {
+async function ensureSubDir(root: FileSystemDirectoryHandle, subPath: string): Promise<FileSystemDirectoryHandle> {
     let cur = root;
     assertExportPath(subPath);
     const cleanSubPath = subPath;
@@ -38,7 +38,7 @@ async function ensureSubDir(root: any, subPath: string): Promise<any> {
 
 class FsWriter implements IExportWriter {
     rootDirHandle: FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>;
-    batchDirHandle: any;
+    batchDirHandle: FileSystemDirectoryHandle | null;
     // Serialize concurrent writes targeting the same target path
     __writeChains: Map<string, Promise<void>>;
 
@@ -54,7 +54,7 @@ class FsWriter implements IExportWriter {
         this.__writeChains = new Map();
     }
 
-    async init(): Promise<any> {
+    async init(): Promise<FileSystemDirectoryHandle> {
         if (this.rootDirHandle.queryPermission) {
             const perm = await this.rootDirHandle.queryPermission({ mode: 'readwrite' });
             if (perm !== 'granted') {
@@ -86,8 +86,8 @@ class FsWriter implements IExportWriter {
             actualContent = b;
         }
 
-        if (!this.batchDirHandle) await this.init();
-        const targetDir = actualSubDir ? await ensureSubDir(this.batchDirHandle, actualSubDir) : this.batchDirHandle;
+        const batchDir = this.batchDirHandle ?? await this.init();
+        const targetDir = actualSubDir ? await ensureSubDir(batchDir, actualSubDir) : batchDir;
         const cleanName = actualFileName;
 
         if (actualContent === null || actualContent === undefined) {
@@ -111,11 +111,11 @@ class FsWriter implements IExportWriter {
             const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
             const writable = await fileHandle.createWritable();
             try {
-                await writable.write(actualContent);
+                await writable.write(actualContent as FileSystemWriteChunkType);
                 await writable.close();
             } catch (writeErr) {
-                if (typeof (writable as any)?.abort === 'function') {
-                    try { await (writable as any).abort(); } catch (_) {}
+                if (typeof writable.abort === 'function') {
+                    try { await writable.abort(); } catch (_) {}
                 }
                 throw writeErr;
             }

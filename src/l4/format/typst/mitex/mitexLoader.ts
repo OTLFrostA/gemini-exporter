@@ -21,14 +21,14 @@ export function simulateMitexInitFailureForTesting(fn: (() => Error | null) | nu
     initFailureSimulator = fn;
 }
 
-function getNodeModule(name: string): any {
+function getNodeModule<T>(name: string): T | null {
     if (typeof process !== 'undefined' && process.versions?.node) {
         try {
             if (typeof module !== 'undefined' && typeof module.require === 'function') {
-                return module.require(name);
+                return module.require(name) as T;
             }
             if (typeof require !== 'undefined') {
-                return require(name);
+                return require(name) as T;
             }
         } catch {
             return null;
@@ -38,8 +38,8 @@ function getNodeModule(name: string): any {
 }
 
 function getWasmPathInNode(): string {
-    const path = getNodeModule('node:path');
-    const fs = getNodeModule('node:fs');
+    const path = getNodeModule<typeof import('node:path')>('node:path');
+    const fs = getNodeModule<typeof import('node:fs')>('node:fs');
     if (!path || !fs) {
         throw new Error('Node.js modules node:path and node:fs are not available in current environment.');
     }
@@ -60,7 +60,7 @@ function getWasmPathInNode(): string {
 
 function initNodeSync(): void {
     if (isReady) return;
-    const fs = getNodeModule('node:fs');
+    const fs = getNodeModule<typeof import('node:fs')>('node:fs');
     if (!fs) return;
     const wasmPath = getWasmPathInNode();
     const wasmBytes = fs.readFileSync(wasmPath);
@@ -94,9 +94,9 @@ export async function initMitexWasm(wasmSource?: string | Uint8Array | ArrayBuff
             }
             bytes = await resp.arrayBuffer();
         } else if (typeof process !== 'undefined' && process.versions?.node) {
-            const fs = getNodeModule('node:fs');
+            const fs = getNodeModule<typeof import('node:fs')>('node:fs');
             const wasmPath = getWasmPathInNode();
-            bytes = fs.readFileSync(wasmPath);
+            bytes = fs!.readFileSync(wasmPath);
         } else if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
             const url = chrome.runtime.getURL('src/l4/format/typst/mitex/vendor/mitex_wasm_bg.wasm');
             const resp = await fetch(url);
@@ -108,8 +108,8 @@ export async function initMitexWasm(wasmSource?: string | Uint8Array | ArrayBuff
             throw new Error('Unsupported runtime for automatic MiTeX WASM loading; pass wasmSource explicitly.');
         }
 
-        const wasmRes: any = await WebAssembly.instantiate(bytes, { './mitex_wasm_bg.js': bg });
-        const wasmInstance = wasmRes.instance ?? wasmRes;
+        const wasmRes = await WebAssembly.instantiate(bytes as BufferSource, { './mitex_wasm_bg.js': bg });
+        const wasmInstance = wasmRes.instance;
         bg.__wbg_set_wasm(wasmInstance.exports);
         isReady = true;
     })();
