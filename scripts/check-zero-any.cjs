@@ -11,7 +11,7 @@ function ownedTypeScriptFiles(relativeDir) {
     return fs.readdirSync(path.join(root, relativeDir), { withFileTypes: true }).flatMap(entry => {
         const relative = path.posix.join(relativeDir, entry.name);
         if (entry.isDirectory()) return entry.name === 'vendor' ? [] : ownedTypeScriptFiles(relative);
-        return entry.isFile() && /\.tsx?$/.test(entry.name) && !/\.d\.ts$/.test(entry.name) ? [relative] : [];
+        return entry.isFile() && /\.tsx?$/.test(entry.name) ? [relative] : [];
     });
 }
 const downstream = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
