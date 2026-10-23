@@ -526,26 +526,27 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
         // Pass 1: strict path only — typed indices, never marked heuristic.
         deepWalk([root], (node) => {
-            if (Array.isArray(node)) {
-                for (let i = 0; i < node.length; i++) {
-                    let item = node[i];
-                    if (Array.isArray(item) && item.length >= 4 && Array.isArray(item[doc.CHIP_URL]) && item[doc.CHIP_URL].length > 0 && typeof item[doc.CHIP_URL][0] === "string" && item[doc.CHIP_URL][0].includes("immersive_entry_chip") && typeof item[doc.ID] === "string" && typeof item[doc.TITLE] === "string") {
-                        let chipUrl = item[doc.CHIP_URL][0],
-                            id = item[doc.ID],
-                            rawTitle = item[doc.TITLE];
-                        let title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
-                        let createdAt: number | undefined;
-                        if (Array.isArray(item[doc.TIMESTAMP]) && typeof item[doc.TIMESTAMP][0] === "number") createdAt = 1000 * item[doc.TIMESTAMP][0];
-                        let contentId = typeof item[doc.CONTENT_ID] === "string" && item[doc.CONTENT_ID].length > 10 ? item[doc.CONTENT_ID] : void 0;
-                        pushMeta({
-                            id,
-                            title,
-                            chipUrl,
-                            createdAt,
-                            contentId
-                        });
-                    }
-                }
+            if (!Array.isArray(node)) return;
+            const entries: unknown[] = node;
+            for (const entry of entries) {
+                if (!Array.isArray(entry) || entry.length < 4) continue;
+                const fields: unknown[] = entry;
+                const chip: unknown = fields[doc.CHIP_URL];
+                const chipParts: unknown[] | null = Array.isArray(chip) ? chip : null;
+                const chipUrl = chipParts?.[0];
+                const id = fields[doc.ID];
+                const rawTitle = fields[doc.TITLE];
+                if (typeof chipUrl !== "string" || !chipUrl.includes("immersive_entry_chip")
+                    || typeof id !== "string" || typeof rawTitle !== "string") continue;
+
+                const title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
+                const rawTimestamp = fields[doc.TIMESTAMP];
+                const timestamp: unknown = Array.isArray(rawTimestamp) ? rawTimestamp[0] : undefined;
+                const createdAt = typeof timestamp === "number" ? 1000 * timestamp : undefined;
+                const rawContentId = fields[doc.CONTENT_ID];
+                const contentId = typeof rawContentId === "string" && rawContentId.length > 10
+                    ? rawContentId : undefined;
+                pushMeta({ id, title, chipUrl, createdAt, contentId });
             }
         });
         if (out.length > 0) return out;
@@ -553,26 +554,26 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         // Pass 2: flat fallback, only when the strict path produced nothing.
         // Heuristic by construction — results are marked source: 'heuristic-flat'.
         deepWalk([root], (node) => {
-            if (Array.isArray(node)) {
-                for (let i = 0; i < node.length; i++) {
-                    let item = node[i];
-                    if (!Array.isArray(item)) continue;
-                    try {
-                        let flat = item.flat(Infinity).filter(x => typeof x === "string");
-                        if (flat.length > 500) continue;
-                        let chip = flat.find(x => x.includes("immersive_entry_chip"));
-                        if (chip) {
-                            let uuid = flat.find(x => uuidRe.test(x));
-                            let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length >= 8 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
-                            pushMeta({
-                                id: uuid || flat.find(x => x.includes("rc_")) || chip,
-                                title: title || "",
-                                chipUrl: chip,
-                                source: "heuristic-flat"
-                            });
-                        }
-                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
-                }
+            if (!Array.isArray(node)) return;
+            const entries: unknown[] = node;
+            for (const entry of entries) {
+                if (!Array.isArray(entry)) continue;
+                const item: unknown[] = entry;
+                try {
+                    const flat = item.flat(Infinity).filter((x): x is string => typeof x === "string");
+                    if (flat.length > 500) continue;
+                    const chip = flat.find(x => x.includes("immersive_entry_chip"));
+                    if (chip) {
+                        const uuid = flat.find(x => uuidRe.test(x));
+                        const title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length >= 8 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
+                        pushMeta({
+                            id: uuid || flat.find(x => x.includes("rc_")) || chip,
+                            title: title || "",
+                            chipUrl: chip,
+                            source: "heuristic-flat"
+                        });
+                    }
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
             }
         });
         return out;
