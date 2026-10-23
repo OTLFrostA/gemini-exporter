@@ -492,7 +492,8 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     // Primary candidate (candidateIndex = 0)
     const struct0 = inspectStructuredContent(multiCandTurn, multiCandTurn[3][0][0], 0);
     assert.strictEqual(struct0.status, 'decoded', 'Candidate 0 receives structured content from turn[3][12]');
-    assert.strictEqual(struct0.status === 'decoded' ? struct0.document.children.length : 0, 3);
+    if (struct0.status !== 'decoded') throw new Error('Expected primary candidate structured content');
+    assert.strictEqual(struct0.document.children.length, 3);
 
     // Alternative candidate (candidateIndex = 1)
     const struct1 = inspectStructuredContent(multiCandTurn, multiCandTurn[3][0][1], 1);
@@ -507,13 +508,12 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
                 id: 'm_cand0',
                 role: 'model',
                 content: 'Draft 0 raw text',
-                structuredContent: struct0,
+                structuredContent: struct0.document,
             },
             {
                 id: 'm_cand1',
                 role: 'model',
                 content: 'Draft 1 raw text: **bold from markdown**',
-                structuredContent: struct1, // undefined
             },
         ],
     };
@@ -573,7 +573,8 @@ test('Wire JSPB decoding in Gemini parser layer', () => {
 
     const extracted = inspectStructuredContent(mockTurn);
     assert.strictEqual(extracted.status, 'decoded', 'Extracted structured document from turn');
-    assert.strictEqual(extracted.status === 'decoded' ? extracted.document.children.length : 0, 3);
+    if (extracted.status !== 'decoded') throw new Error('Expected structured turn content');
+    assert.strictEqual(extracted.document.children.length, 3);
 });
 
 test('Fallback: missing structuredContent falls back to existing Markdown parser', async () => {
