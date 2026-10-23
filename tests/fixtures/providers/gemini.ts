@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 /** Raw network responses for the Gemini MaZiqc List RPC only. */
 function wire(rows: readonly unknown[] = [], nextCursor: string | null = null): string {
     return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, nextCursor, rows])]]);
@@ -29,6 +30,17 @@ const nativeAnyError = (rpc: string, code: unknown,
 /** Preserve the historic P1-E List envelope, whose items occupy inner slot 1. */
 function p1RegressionList(items: unknown[]): string {
     return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, items, null])]]);
+}
+
+
+/** Six fixed anonymized source timestamp pairs, consumed through List keys. */
+function versionPairList(index: number): string {
+    const pairs: Array<{ listWire: number[] }> =
+        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
+    const pair = pairs[index];
+    if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
+    return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+        [['c_version_chat', 'Source title', null, null, null, pair.listWire]]])]]);
 }
 
 const fixtureMap = {
@@ -244,6 +256,22 @@ const fixtureMap = {
         String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 429]]]),
     'G_L1_VERIFIED_LIST_LIMIT_STRING': () =>
         String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', '1096']]]),
+    'G_VERSION_PAIR_LIST_01': () => versionPairList(0),
+    'G_VERSION_PAIR_LIST_02': () => versionPairList(1),
+    'G_VERSION_PAIR_LIST_03': () => versionPairList(2),
+    'G_VERSION_PAIR_LIST_04': () => versionPairList(3),
+    'G_VERSION_PAIR_LIST_05': () => versionPairList(4),
+    'G_VERSION_PAIR_LIST_06': () => versionPairList(5),
+    'G_VERSION_CREATION_SLOT_LIST_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_version_chat', 'Source title', [1700000005, 0], [1700000000, 0], null, null],
+        ]])],
+    ]),
+    'G_VERSION_METADATA_ONLY_LIST_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_metadata_chat', 'Metadata only', null, null, null, [1700000000, 0]],
+        ]])],
+    ]),
 };
 
 /** Each ID resolves to exactly one raw MaZiqc/batchexecute response body. */
