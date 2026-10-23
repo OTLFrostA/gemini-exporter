@@ -10,7 +10,6 @@ import { ingestIndexes, ingestDetail } from '../src/l2/ingestion.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { getDetail } from '../src/l3a/storageService.js';
 import { getAccount } from '../src/runtime/api/accountRegistry.js';
-import { withConversationMetadata } from '../src/l2/runtimeValidation.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
@@ -45,7 +44,7 @@ test('L1 → L2 → Composer → Format → Packaging keeps account, resource id
         const index = (await getConversations(account.id)).find(row => row.key.conversationId === id)!;
         const detail = await getDetail(key), committedAccount = await getAccount(account.id);
         assert.ok(detail && committedAccount);
-        const domain = withConversationMetadata(restoreDomainDetail(detail), index), before = structuredClone(domain);
+        const domain = { index, detail: restoreDomainDetail(detail) }, before = structuredClone(domain);
         const document = composeDomainDocument(domain, committedAccount), astBefore = structuredClone(document);
         assert.deepEqual([...collectDocumentResources(document).referencedIds], ['diagram']);
         const acquired = await provider.acquireResource(key, detail.assets[0]);
