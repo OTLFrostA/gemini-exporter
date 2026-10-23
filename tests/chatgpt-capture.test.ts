@@ -85,7 +85,7 @@ test('MAIN emits on [DONE] even when the source stream remains open, without con
     assert.equal(events.length,1,'completion does not wait for HTTP EOF or tee cancellation');
     assert.equal(response.bodyUsed,false);
     const reader=response.body!.getReader();const first=await reader.read();assert.ok(first.value!.length>0);reader.releaseLock();
-    assert.ok(!JSON.stringify(events).includes(session.accessToken));
+    assert.ok(!JSON.stringify(events).includes(String(session.accessToken)));
 });
 
 
