@@ -93,7 +93,7 @@ test('real Content discovery resolves scan targets, deduplicates tabs and reject
     const a = await sourcePage(context), second = await sourcePage(context);
     expect(await page.evaluate(() => Reflect.get(globalThis, 'productionProbe').resolveScanTarget())).toBe(accountId);
     const b = await sourcePage(context, '10000000002');
-    await expect(page.evaluate(() => Reflect.get(globalThis, 'productionProbe').resolveScanTarget())).rejects.toThrow(/Multiple Gemini/);
+    await expect(page.evaluate(() => Reflect.get(globalThis, 'productionProbe').resolveScanTarget())).rejects.toThrow(/Multiple provider accounts/);
     expect(await page.evaluate(id => Reflect.get(globalThis, 'productionProbe').resolveScanTarget(id), accountId)).toBe(accountId);
     await a.close(); await second.close(); await b.close();
     const unknown = await sourcePage(context, '');

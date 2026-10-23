@@ -31,6 +31,7 @@ function router(stubs: Record<string, unknown> = {}) {
     return load({
         'src/l3a/storageService.js': { getAccount: async (id: string) => accounts[id] ?? null },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
+        'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
         'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} },
         ...stubs,
     });
@@ -83,7 +84,7 @@ test('Ambiguous Scan target fails without guessing; explicit preference and a un
             callback({ ok: true, accountContext: accepted[id] ? { accountId: accepted[id], providerId: 'gemini' } : null }),
     } });
     const route = router();
-    await assert.rejects(route.resolveScanTarget(), /Multiple Gemini accounts/);
+    await assert.rejects(route.resolveScanTarget(), /Multiple provider accounts/);
     assert.equal(await route.resolveScanTarget(A), A);
     assert.equal(await route.resolveScanTarget(B), B);
     accepted = { 1: A, 2: null, 3: A };
@@ -118,7 +119,7 @@ test('ChatGPT discovery resolves the selected provider and never falls back to G
     } });
     assert.equal(await route.resolveScanTarget(A), A);
     assert.equal(discoveryCalls, 0, 'Gemini preference does not contact ChatGPT');
-    await assert.rejects(route.resolveScanTarget(), /Multiple Gemini accounts or ChatGPT/);
+    await assert.rejects(route.resolveScanTarget(), /Multiple provider accounts/);
     assert.equal(await route.resolveScanTarget(B), B);
     available = false;
     await assert.rejects(route.resolveScanTarget(B), /Open ChatGPT/);

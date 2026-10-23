@@ -16,6 +16,7 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
         'src/runtime/capabilities/chatgptInjection.js': { syncChatGPTContentScripts: async () => {} },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
+        'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;

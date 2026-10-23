@@ -34,7 +34,7 @@ export async function scanAll(request: ScanRequest, options: {
         const account = await getAccount(accountId);
         // Runtime resolves a verified online source; a local/offline default account
         // is not an online identity and must never launch a successful Scan All.
-        if (!account || !['gemini', 'chatgpt'].includes(account.providerId) || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
+        if (!account || !['gemini', 'chatgpt', 'claude'].includes(account.providerId) || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
             return result('error', 'Verified provider account unavailable');
         }
         const provider = ProviderRegistry.get(account.providerId)
