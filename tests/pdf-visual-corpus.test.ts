@@ -39,7 +39,7 @@ const path = require('node:path');
 const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandboxCompiler.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { assertDocumentAsts } = require('./helpers/assertDocumentAst.js');
-const { convertMath } = require('../src/l4/format/typst/mathConverter.js');
+const { convertMathForTest: convertMath } = require('./helpers/mathConversion.js');
 const {
     RealWasmSandboxHost,
     repoRoot,
