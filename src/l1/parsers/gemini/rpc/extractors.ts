@@ -469,18 +469,12 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
             try {
                 const parsed: unknown = JSON.parse(trimmed);
-                if (Array.isArray(parsed)) {
-                    const rows: unknown[] = parsed;
-                    return rows;
-                }
+                if (isUnknownArray(parsed)) return parsed;
             } catch {
                 try {
                     const cleaned = safeStructureClean(trimmed).trim();
                     const parsed: unknown = JSON.parse(cleaned);
-                    if (Array.isArray(parsed)) {
-                        const rows: unknown[] = parsed;
-                        return rows;
-                    }
+                    if (isUnknownArray(parsed)) return parsed;
                 } catch { /* proceed to chunk scanner */ }
             }
         }
@@ -523,18 +517,12 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
                         const chunk = text.slice(startIdx, i + 1);
                         try {
                             const parsed: unknown = JSON.parse(chunk);
-                            if (Array.isArray(parsed)) {
-                                const rows: unknown[] = parsed;
-                                allTop.push(...rows);
-                            }
+                            if (isUnknownArray(parsed)) allTop.push(...parsed);
                         } catch {
                             try {
                                 const cleaned = safeStructureClean(chunk).trim();
                                 const parsed: unknown = JSON.parse(cleaned);
-                                if (Array.isArray(parsed)) {
-                                    const rows: unknown[] = parsed;
-                                    allTop.push(...rows);
-                                }
+                                if (isUnknownArray(parsed)) allTop.push(...parsed);
                             } catch { /* intentional: skip malformed chunk */ }
                         }
                         startIdx = -1;
@@ -551,10 +539,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
                 const tail = text.slice(startIdx) + "]".repeat(depth);
                 const cleaned = safeStructureClean(tail).trim();
                 const parsed: unknown = JSON.parse(cleaned);
-                if (Array.isArray(parsed)) {
-                    const rows: unknown[] = parsed;
-                    return rows;
-                }
+                if (isUnknownArray(parsed)) return parsed;
             } catch { /* intentional fallback failure */ }
         }
 
@@ -604,15 +589,12 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             if (!node || !isObjectRecord(node)) return;
             const record = node;
             const f44 = record["44"] ?? record[44];
-            if (Array.isArray(f44)) {
-                const list: unknown[] = f44;
-                for (const item of list) {
-                    if (!Array.isArray(item)) continue;
-                    const itemSlots: unknown[] = item;
-                    const first = itemSlots[0];
-                    if (Array.isArray(first)) {
-                        const nestedSlots: unknown[] = first;
-                        const raw = nestedSlots[0];
+            if (isUnknownArray(f44)) {
+                for (const item of f44) {
+                    if (!isUnknownArray(item)) continue;
+                    const first = item[0];
+                    if (isUnknownArray(first)) {
+                        const raw = first[0];
                         if (typeof raw === "string") {
                             const trimmed = raw.trim();
                             if (/^\[cite:\s*\d+(?:\s*,\s*\d+)*\]$/i.test(trimmed)) {
@@ -674,8 +656,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
     }
 
     function extractConversationTitle(inner: unknown, turns?: unknown[]): TitleResult {
-        if (Array.isArray(inner)) {
-            const innerSlots: unknown[] = inner;
+        if (isUnknownArray(inner)) {
             const sanitizeIfTitle = (val: unknown): string | null => {
                 if (typeof val === "string" && val.length > 0 && !val.startsWith("c_") && !val.startsWith("tC") && !val.startsWith("rc_")) {
                     const clean = cleanTitle(val);
@@ -687,7 +668,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             const candidateTitle = extractCandidateValue(inner, GEMINI_JSPB_SCHEMA.INNER.TITLE_CANDIDATES, sanitizeIfTitle);
             if (candidateTitle) return { title: candidateTitle, source: "rpc" };
 
-            const primary = innerSlots[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
+            const primary = inner[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
             if (Array.isArray(primary) && typeof primary[1] === "string") {
                 const clean = cleanTitle(primary[1]);
                 if (isRealTitle(clean)) return { title: clean, source: "rpc" };
@@ -703,12 +684,9 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
-                const turnSlots: unknown[] | null = Array.isArray(t) ? t : null;
-                const t2 = turnSlots?.[2];
-                const payloadSlots: unknown[] | null = Array.isArray(t2) ? t2 : null;
-                const t20 = payloadSlots?.[0];
-                const textSlots: unknown[] | null = Array.isArray(t20) ? t20 : null;
-                const uText = textSlots?.[0];
+                const t2 = isUnknownArray(t) ? t[2] : undefined;
+                const t20 = isUnknownArray(t2) ? t2[0] : undefined;
+                const uText = isUnknownArray(t20) ? t20[0] : undefined;
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
                     const concise = smartSummarizePrompt(uText);
                     if (isRealTitle(concise)) return { title: concise, source: "sniff" };
