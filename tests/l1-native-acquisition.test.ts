@@ -5,7 +5,7 @@ import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseCo
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { getConversationDetail } from '../src/l1/client/gemini/api/pagination.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
-import { extractBlockText } from '../src/l2/content/unknownFallback.js';
+import { textOfBlock } from './helpers/contentText.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 function page(request: string, seconds: number, cursor: string | null = null) {
@@ -28,7 +28,7 @@ test('production pagination merges native pages chronologically and closes renam
     const detail = await getConversationDetail({ async fetchConversationPage() { return pages[index++]; } }, 'native');
     const native = detail;
     assert.equal(index, 2);
-    assert.deepEqual(native.conversation.detail.messages.filter(m => m.role === 'user').map(m => extractBlockText(m.content[0])), ['Question r_old', 'Question r_new']);
+    assert.deepEqual(native.conversation.detail.messages.filter(m => m.role === 'user').map(m => textOfBlock(m.content[0])), ['Question r_old', 'Question r_new']);
     assert.equal(native.conversation.index.createdAt, undefined);
     assert.equal(detail.conversation.index.createdAt, native.conversation.index.createdAt);
     assert.equal(detail.sourceVersion, 1700000010000);

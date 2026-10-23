@@ -1,10 +1,3 @@
-import type { BlockNode } from './blocks.js';
-import type { InlineNode } from './inline.js';
-
-export interface TextExtractOptions {
-    citationLabel?: (citationId: string) => string | undefined;
-}
-
 const UNKNOWN_PAYLOAD_MAX_DEPTH = 4;
 const UNKNOWN_PAYLOAD_MAX_LENGTH = 2000;
 
@@ -32,67 +25,4 @@ export function formatUnknownPayload(payload: unknown): { text: string; truncate
         return { text: text.slice(0, UNKNOWN_PAYLOAD_MAX_LENGTH) + '…', truncated: true };
     }
     return { text, truncated: false };
-}
-
-export function extractBlockText(block: BlockNode, options?: TextExtractOptions): string {
-    try {
-        switch (block.type) {
-            case 'paragraph':
-            case 'heading':
-                return (block.children ?? []).map((i) => extractInlineText(i, options)).join('');
-            case 'list':
-                return (block.items ?? []).map((i) => (i.blocks ?? []).map((b) => extractBlockText(b, options)).join('\n')).join('\n');
-            case 'quote':
-                return (block.blocks ?? []).map((b) => extractBlockText(b, options)).join('\n');
-            case 'code':
-                return block.code ?? '';
-            case 'math':
-                return block.source ?? '';
-            case 'table': {
-                const rows = [...(block.headerRows ?? []), ...(block.rows ?? [])];
-                return rows.map((r) => (r.cells ?? []).map((c) => (c.children ?? []).map((i) => extractInlineText(i, options)).join('')).join(' | ')).join('\n');
-            }
-            case 'image':
-                return block.alt ?? '';
-            case 'file':
-                return block.label ?? '';
-            case 'thematicBreak':
-                return '';
-            case 'unknown':
-                return block.text;
-            default:
-                return '';
-        }
-    } catch {
-        return '';
-    }
-}
-
-export function extractInlineText(inline: InlineNode, options?: TextExtractOptions): string {
-    try {
-        switch (inline.type) {
-            case 'text':
-                return inline.text ?? '';
-            case 'strong':
-            case 'emphasis':
-            case 'strikethrough':
-                return (inline.children ?? []).map((i) => extractInlineText(i, options)).join('');
-            case 'inlineCode':
-                return inline.code ?? '';
-            case 'image':
-                return inline.alt ?? '';
-            case 'link':
-                return (inline.children ?? []).map((i) => extractInlineText(i, options)).join('');
-            case 'inlineMath':
-                return inline.source ?? '';
-            case 'citationRef':
-                return inline.label ?? options?.citationLabel?.(inline.citationId) ?? '';
-            case 'lineBreak':
-                return '\n';
-            default:
-                return '';
-        }
-    } catch {
-        return '';
-    }
 }

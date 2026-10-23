@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
-import { extractBlockText } from '../src/l2/content/unknownFallback.js';
+import { textOfBlocks } from './helpers/contentText.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 const ID = 'c_native12345678';
@@ -15,7 +15,7 @@ function turn(prompt = 'Question', seconds: number | null = 1700000000, candidat
     return [[ID, request], seconds === null ? null : [seconds, 0], [[prompt]], [candidates]];
 }
 const native = (data: string) => parseGeminiRpcConversation(data, { account: fixtureAccount('gemini'), providerId: 'gemini' });
-const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(block => extractBlockText(block)).join('\n');
+const text = textOfBlocks;
 
 test('raw RPC code keeps consecutive blank lines in source Content AST', () => {
     const code = 'import math\n\n\nclass Encoder:\n    def encode(self):\n        return 1\n\n\n\nprint(Encoder().encode())';

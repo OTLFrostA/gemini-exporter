@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
-import { extractBlockText } from '../src/l2/content/unknownFallback.js';
+import { textOfBlocks } from './helpers/contentText.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 // Sanitized shape observed in the failing 2026-10-09 Tier 2 spray-dryer RPC:
@@ -14,7 +14,7 @@ const candidates = [
     ['rc_alternative', [['## System Boundaries and Assumptions\n\nUnselected balance.']]],
 ];
 const parse = (wire: string) => parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
-const answerText = (wire: string) => parse(wire).conversation.detail.messages[1].content.map(block => extractBlockText(block)).join('\n');
+const answerText = (wire: string) => textOfBlocks(parse(wire).conversation.detail.messages[1].content);
 
 test('selected wire answer exports one Assistant section and retains raw alternative evidence', () => {
     const wire = geminiDetailGen('G_SELECTED_CANDIDATE_01');

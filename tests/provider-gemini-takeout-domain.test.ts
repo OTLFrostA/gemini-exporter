@@ -7,14 +7,14 @@ import { join } from 'node:path';
 import { parseGeminiTakeoutArchive, parseGeminiTakeoutConversation, type GeminiTakeoutRaw } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
 import { decodeTakeoutHtml } from '../src/l1/parsers/gemini/takeout/decodeHtml.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
-import { extractBlockText } from '../src/l2/content/unknownFallback.js';
+import { textOfBlocks } from './helpers/contentText.js';
 
 const ID = 'CaseSensitive_99';
 function activity(prompt = 'Question', answer = '<p><strong>Answer</strong></p>', date = '2026-09-02T12:00:00Z', id = ID, extra = ''): string {
     return `<div class="outer-cell"><a href="https://gemini.google.com/app/c_${id}">Conversation</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted ${prompt}<br>${date}<br>${answer}</div>${extra}</div>`;
 }
 const native = (data: GeminiTakeoutRaw, targetConvId?: string) => parseGeminiTakeoutConversation(data, { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId });
-const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(block => extractBlockText(block)).join('\n');
+const text = textOfBlocks;
 
 test('Takeout raw HTML constructs Domain without persisted records or fabricated message dates', () => {
     const { conversation } = native({ htmlText: activity() });

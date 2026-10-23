@@ -276,14 +276,7 @@ export function installL1V2Mocks(): void {
                 sameConversationKey: (a: ConversationKey, b: ConversationKey) =>
                     a.accountId === b.accountId && a.conversationId === b.conversationId,
             };
-            if (request.endsWith('/l2/time.js')) return {
-                normalizeTimestamp,
-                normalizeConversationTimes: (source: { createdAt?: unknown; updatedAt?: unknown }) => {
-                    const createdAt = normalizeTimestamp(source.createdAt), updatedAt = normalizeTimestamp(source.updatedAt);
-                    return { ...(createdAt !== undefined ? { createdAt } : {}),
-                        ...(updatedAt !== undefined ? { updatedAt } : {}) };
-                },
-            };
+            if (request.endsWith('/l2/time.js')) return { normalizeTimestamp };
             if (request.endsWith('/l2/content/unknownFallback.js')) return unknownPayloadPort;
             if (request.endsWith('/l2/content/assetReferences.js')) return assetReferencePort;
             if (request.endsWith('/l2/sourceUri.js')) return sourceUriPort;
