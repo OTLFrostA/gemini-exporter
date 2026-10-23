@@ -111,7 +111,7 @@ class FsWriter implements IExportWriter {
             const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
             const writable = await fileHandle.createWritable();
             try {
-                await writable.write(actualContent);
+                await writable.write(actualContent as FileSystemWriteChunkType);
                 await writable.close();
             } catch (writeErr) {
                 if (typeof writable.abort === 'function') {
