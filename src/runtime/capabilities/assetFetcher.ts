@@ -458,7 +458,7 @@ export async function fetchImageBuffer(url: string, timeoutMs = 12000): Promise<
             }, timeoutMs);
         }
 
-        void handleGetImageBlob({ url, preferBuffer: true }, (res: any) => {
+        void handleGetImageBlob({ url, preferBuffer: true }, (res) => {
             cleanup();
             if (settled) return;
             settled = true;
