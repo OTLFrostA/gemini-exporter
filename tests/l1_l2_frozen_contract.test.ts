@@ -10,14 +10,16 @@ import { clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { handleDomainIngestionMessage } from '../src/runtime/background/domainStorageHandler.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
+import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
+import { deleteRequestGen as geminiDeleteRequestGen } from './fixtures/providers/geminiDeleteRequest.js';
 import { closeDomainResources } from '../src/l1/parsers/shared/resources/domainResourceAdapter.js';
 import type { DomainConversationDetail } from '../src/l2/conversationDetail.js';
 
 const cid = 'deadbeef00112233';
 const body = (): Omit<DomainConversationDetail, 'key'> => ({ messages: [], assets: [], quality: { status: 'complete' } });
 const key = (accountId = ACCOUNT_UUID) => ({ accountId, conversationId: cid });
-const requestBody = new URLSearchParams({ 'f.req': JSON.stringify([[['GzXR5e', JSON.stringify(['c_' + cid]), null, 'generic']]]) }).toString();
-const responseText = JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([null, 'c_' + cid])]]);
+const requestBody = geminiDeleteRequestGen('G_FROZEN_CONTRACT_DELETE_REQUEST_01');
+const responseText = geminiDeleteGen('G_FROZEN_CONTRACT_DELETE_RESPONSE_01');
 const deletion = (extra = {}): MessageEvent => ({ origin: location.origin, source: window,
     data: { type: CrossWorldEvents.CONVERSATION_DELETED, payload: { id: cid, slot: 'u0',
         requestAccountObservation: ACCOUNT_OBSERVATION, requestBody, responseText,
@@ -49,7 +51,7 @@ test('passive deletion commits Bridge → Runtime IPC → Background → L2 befo
         let notified = false;
         init({ onConversationDeleted: () => { notified = true; } });
         await handleWindowMessage(deletion({ responseText: '' }));
-        await handleWindowMessage(deletion({ responseText: responseText.replace(cid, 'abcdef1234567890') }));
+        await handleWindowMessage(deletion({ responseText: geminiDeleteGen('G_FROZEN_CONTRACT_DELETE_RESPONSE_02') }));
         await handleWindowMessage(deletion({ requestAccountObservation: null }));
         assert.ok(await getDetail(key()));
         assert.equal(notified, false);
