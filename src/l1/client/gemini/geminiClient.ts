@@ -4,7 +4,6 @@ import { isConfirmedGeminiDetailNotFound } from '../../parsers/gemini/rpc/parseD
 import GeminiProtocol, { GeminiProtocolModule } from "../../protocol/gemini/protocol.js";
 import { isDevMode } from "../../../runtime/devMode.js";
 import { getErrorMessage } from "../../../shared/utils/errorText.js";
-import { extractConversationIdFromUrl } from "../../../shared/utils/pathUtils.js";
 import { parseList } from "../../parsers/gemini/rpc/parseList.js";
 import { __resolveModule } from "../../../shared/utils/moduleOverrides.js";
 import GeminiClientCredentialManager, {
@@ -291,11 +290,6 @@ const pagination = GeminiClientPagination;
             throw new Error("pagination module not found");
         }
 
-        getCurrentConversationId(url?: string): string | null {
-            const targetUrl = url || (typeof window !== "undefined" && window.location ? window.location.href : null);
-            if (!targetUrl) return null;
-            return extractConversationIdFromUrl(targetUrl);
-        }
     }
 
 export {
