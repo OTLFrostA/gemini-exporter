@@ -1,5 +1,8 @@
 /** Raw Gemini GzXR5e conversation deletion RPC request bodies. */
 const fixtureMap = {
+    'G_E2E_REALTIME_DELETE_REQUEST_01': () => new URLSearchParams({
+        'f.req': JSON.stringify([[['GzXR5e', JSON.stringify(['c_8888abcd1234ef01']), null, 'generic']]]),
+    }).toString(),
     'G_REGRESSION_MIXED_DELETE_REQUEST_01': () => new URLSearchParams({
         'f.req': JSON.stringify([[['otherRpc', JSON.stringify(['c_aabbccdd11223344'])],
             ['GzXR5e', JSON.stringify(['c_deadbeef00112233']), null, 'generic']]]),
