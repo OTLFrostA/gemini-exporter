@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chatGPTRequest, confirmedChatGPTDeletion, chatGPTStreamEvent } from '../src/l1/sniffer/chatgpt/observation.js';
 import { installChatGPTHook } from '../src/l1/sniffer/chatgpt/hook.js';
+import { streamGen } from './fixtures/providers/chatgptStream.js';
 
 const cid = '6acffdc5-c4d0-83e8-8e1b-ba60979a618a';
 const session = { user: { id: 'subject' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds' };
@@ -54,11 +55,12 @@ test('MAIN capture never consumes the page response or exposes tokens, and rejec
 
 
 test('SSE recognizes explicit completion and delta envelopes without treating prose as identity', () => {
-    assert.deepEqual(chatGPTStreamEvent('data: [DONE]'), {done:true});
-    assert.deepEqual(chatGPTStreamEvent('data: '+JSON.stringify({v:{conversation_id:cid}})), {done:false,conversationId:cid});
-    assert.deepEqual(chatGPTStreamEvent('data: '+JSON.stringify({conversation_id:cid})), {done:false,conversationId:cid});
-    for (const line of ['data: {"v":{"conversation_id":"invalid"}}','data: ["v1"]','event: done','data: not json'])
-        assert.deepEqual(chatGPTStreamEvent(line), {done:false});
+    assert.deepEqual(chatGPTStreamEvent(streamGen('C_STREAM_EVENT_01')), {done:true});
+    assert.deepEqual(chatGPTStreamEvent(streamGen('C_STREAM_EVENT_02')), {done:false,conversationId:cid});
+    assert.deepEqual(chatGPTStreamEvent(streamGen('C_STREAM_EVENT_03')), {done:false,conversationId:cid});
+    for (const key of ['C_STREAM_EVENT_INVALID_01', 'C_STREAM_EVENT_INVALID_02',
+        'C_STREAM_EVENT_INVALID_03', 'C_STREAM_EVENT_INVALID_04'] as const)
+        assert.deepEqual(chatGPTStreamEvent(streamGen(key)), {done:false});
 });
 
 test('MAIN emits on [DONE] even when the source stream remains open, without consuming the page branch', async t => {
@@ -74,7 +76,7 @@ test('MAIN emits on [DONE] even when the source stream remains open, without con
         if(priorLocation)Object.defineProperty(globalThis,'location',priorLocation);else Reflect.deleteProperty(globalThis,'location');});
     installChatGPTHook();
     const response=await mock.fetch('https://chatgpt.com/backend-api/f/conversation',{method:'POST'});
-    const data='data: '+JSON.stringify({v:{conversation_id:cid}})+'\n\ndata: [DONE]\n\n';
+    const data=streamGen('C_STREAM_CAPTURE_CHUNK_01');
     controller!.enqueue(new TextEncoder().encode(data.slice(0,20)));
     controller!.enqueue(new TextEncoder().encode(data.slice(20)));
     for(let i=0;i<50&&!events.length;i++)await new Promise(resolve=>setTimeout(resolve,5));
