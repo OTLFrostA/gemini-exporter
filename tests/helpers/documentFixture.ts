@@ -25,7 +25,6 @@ import type { LegacyResourceHints } from './recordFixture/resourceHints.js';
 import type { DomainConversationWithDetail } from '../../src/l2/conversation.js';
 import { normalizeArchiveResourceName } from '../../src/shared/utils/archivePath.js';
 import { extractAttachmentInlineBytes } from '../../src/l1/resources/attachmentBytes.js';
-import { buildVirtualAssetPath } from '../../src/l4/format/resources/imageContent.js';
 import { createHash } from 'node:crypto';
 import type { ResourceBindings } from '../../src/l4/packaging/resourceBindings.js';
 
@@ -61,7 +60,7 @@ async function fixtureBindings(conversation: DomainConversationWithDetail, hints
                 'application/pdf': 'pdf', 'application/json': 'json', 'application/zip': 'zip',
             };
             const digest = createHash('sha256').update(bytes).digest('hex');
-            bindings[asset.id] = buildVirtualAssetPath(digest, extensions[mimeType] ?? 'bin');
+            bindings[asset.id] = `assets/sha256/${digest.slice(0, 2)}/${digest.slice(2, 4)}/${digest}.${extensions[mimeType] ?? 'bin'}`;
         }
     }
     return bindings;
