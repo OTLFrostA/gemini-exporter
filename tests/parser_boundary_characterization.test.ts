@@ -6,7 +6,7 @@ import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { decodeGeminiDetail, findTurnsDeep } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
-import { robustFirstPayload, extractModelCandidates, extractCandidateText, extractThoughts, extractCitations } from '../src/l1/parsers/gemini/rpc/extractors.js';
+import { robustFirstPayload, extractModelCandidates, decodeTurn, extractCandidateText, extractThoughts, extractCitations } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { extractInnerPayload, extractNextPageToken } from '../src/l1/parsers/gemini/rpc/payload.js';
 import { extractImages, extractUserFiles, extractDocumentsMeta } from './helpers/recordFixture/attachments.js';
 import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
@@ -178,6 +178,62 @@ test('candidate extraction accepts the compact layout without scanning telemetry
     assert.deepEqual(extractModelCandidates(compact), [['rc_compact', 'Compact answer']]);
     assert.equal(extractCandidateText(['rc_parts', [['Part one', [' + part two'], null, 42], 'en']]), 'Part one + part two');
     for (const candidate of [null, [], ['rc_wrong', { wrong: true }]]) assert.equal(extractCandidateText(candidate), '');
+});
+
+test('Turn decoding validates known fields once and honors the selected draft', () => {
+    const candidates = [
+        ['rc_old', [['Old answer']]],
+        ['rc_selected', [['Selected answer']]]
+    ];
+    const model = [candidates, null, 'google', 'rc_selected'];
+    const raw = [[ID, 'r_AB12'], [1700000000, 500000000], [['Prompt']], model];
+    const decoded = decodeTurn(raw);
+    assert.ok(decoded);
+    assert.equal(decoded.raw, raw);
+    assert.equal(decoded.timestamp, 1700000000500);
+    assert.equal(decoded.userMessageId, 'r_AB12');
+    assert.equal(decoded.fallbackTurnId, 'r_AB12');
+    assert.equal(decoded.userPayload, raw[2]);
+    assert.equal(decoded.candidateIndex, 1);
+    assert.deepEqual(decoded.candidate, {
+        id: 'rc_selected',
+        text: 'Selected answer',
+        body: [['Selected answer']],
+        raw: candidates[1]
+    });
+
+    const parsed = decodeGeminiDetail(rpc([[raw]]));
+    const modelMessages = parsed.messages.filter(m => m.role === 'model');
+    assert.equal(modelMessages.length, 1);
+    assert.equal(modelMessages[0].content, 'Selected answer');
+    assert.equal(modelMessages[0].id, 'rc_selected');
+});
+
+test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw media evidence', () => {
+    assert.equal(decodeTurn(null), null);
+    const compact = [[ID], null, [], [['rc_compact', 'Compact answer'], 'google', 'S', 6]];
+    const single = decodeTurn(compact);
+    assert.ok(single);
+    assert.equal(single.candidateIndex, 0);
+    assert.equal(single.candidate?.id, 'rc_compact');
+    assert.equal(single.candidate?.text, 'Compact answer');
+
+    const partialCandidate = [null, [['Text without an ID']]];
+    const partial = [[ID], null, [['Prompt']], [[partialCandidate, ['rc_other', [['Other answer']]]]]];
+    const decodedPartial = decodeTurn(partial);
+    assert.ok(decodedPartial);
+    assert.equal(decodedPartial.timestamp, null);
+    assert.equal(decodedPartial.candidateIndex, 0);
+    assert.equal(decodedPartial.candidate?.id, '');
+    assert.equal(decodedPartial.candidate?.text, 'Text without an ID');
+    assert.equal(decodedPartial.candidate?.raw, partialCandidate);
+    assert.equal(decodeTurn([null, null, null, { malformed: true }])?.candidate, null);
+
+    const rawDocument = [[[null]]];
+    const withMedia = [[ID], null, [], [[['rc_media', [['Image prompt']]]]]];
+    if (!Array.isArray(withMedia[3])) throw new Error('fixture model payload must be array');
+    withMedia[3][12] = rawDocument;
+    assert.equal(decodeTurn(withMedia)?.rawAnswerDocument, rawDocument);
 });
 
 test('thinking and citation helpers ignore malformed nodes, deduplicate URLs and preserve thought order', () => {
