@@ -3,6 +3,16 @@ import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js"
 import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
 export type ConversationListItem = GeminiIndexObservationInput & { id: string };
 
+/** Validated LIST row facts. The official ordering timestamp is separate
+ * from the more permissive source update timestamp. */
+export interface DecodedGeminiListRow {
+    id: string;
+    title: string;
+    createdAt: number | null;
+    updatedAt: number | null;
+    orderTime: number;
+}
+
 /** Source-layout validity and official ordering evidence, independent of request/account context. */
 export interface GeminiListPageEvidence {
     valid: boolean;
@@ -33,13 +43,7 @@ export interface ListParseDiagnostics {
     topParsed: string | null;
 }
 
-const FALLBACK_SCHEMA = GEMINI_JSPB_SCHEMA;
-
-function getSchema(): typeof GEMINI_JSPB_SCHEMA {
-    return GEMINI_JSPB_SCHEMA;
-}
-
-function getProtocol(): GeminiProtocolModule {
+ function getProtocol(): GeminiProtocolModule {
     return GeminiProtocol;
 }
 
@@ -48,17 +52,39 @@ function extractListItemTimestamp(item: unknown): number | null {
     return Array.isArray(item) ? payloadToMs(item[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP]) : null;
 }
 
-function listResult(conversations: ConversationListItem[], nextPageToken: string | null, rows: unknown[] | null,
+/** Decode each source LIST row once, before producing indexes or page evidence. */
+export function decodeGeminiListRow(raw: unknown): DecodedGeminiListRow | null {
+    if (!Array.isArray(raw)) return null;
+    const fields: unknown[] = raw;
+    const idValue = fields[GEMINI_JSPB_SCHEMA.LIST_ITEM.ID] || "";
+    if (typeof idValue !== 'string' || !idValue) return null;
+    const id = normId(idValue);
+    if (!id || id === 'unknown' || isReservedRoute(id)) return null;
+
+    const rawTitle = fields[GEMINI_JSPB_SCHEMA.LIST_ITEM.TITLE];
+    const stamp = fields[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP];
+    const updatedAt = payloadToMs(stamp);
+    const createdAt = payloadToMs(fields[GEMINI_JSPB_SCHEMA.LIST_ITEM.CREATE_TIME_ALT]);
+
+    // Scan coverage requires the precise official [seconds, nanoseconds] tuple.
+    const officialTime = Array.isArray(stamp) && stamp.length === 2
+        && typeof stamp[0] === 'number' && Number.isInteger(stamp[0])
+        && typeof stamp[1] === 'number' && Number.isInteger(stamp[1])
+        && stamp[1] >= 0 && stamp[1] < 1e9;
+
+    return { id, title: typeof rawTitle === 'string' ? rawTitle.trim() : '',
+        createdAt, updatedAt, orderTime: officialTime ? updatedAt ?? 0 : 0 };
+}
+
+function listResult(decoded: DecodedGeminiListRow[], nextPageToken: string | null, rawRowCount: number | null,
     sourceEndConfirmed = false): ListParseResult {
-    const keys = conversations.map((item, index) => {
-        const row = rows?.[index];
-        const stamp = Array.isArray(row) ? row[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP] : undefined;
-        // Only the exact official seconds/nanoseconds tuple can establish ordering.
-        const time = Array.isArray(stamp) && stamp.length === 2 && Number.isInteger(stamp[0])
-            && Number.isInteger(stamp[1]) && stamp[1] >= 0 && stamp[1] < 1e9 ? payloadToMs(stamp) : null;
-        return { id: item.id, time: time ?? 0 };
-    });
-    const valid = (nextPageToken !== null || sourceEndConfirmed) && rows !== null && rows.length === conversations.length
+    const conversations: ConversationListItem[] = decoded.map(row => ({
+        id: row.id, title: row.title, titleSource: 'provider',
+        ...(row.createdAt !== null ? { createdAt: row.createdAt } : {}),
+        ...(row.updatedAt !== null ? { updatedAt: row.updatedAt } : {})
+    }));
+    const keys = decoded.map(row => ({ id: row.id, time: row.orderTime }));
+    const valid = (nextPageToken !== null || sourceEndConfirmed) && rawRowCount !== null && rawRowCount === decoded.length
         && keys.every(key => key.id.length >= 3) && new Set(keys.map(key => key.id)).size === keys.length;
     return { conversations, nextPageToken, pageEvidence: { valid, keys,
         ordered: valid && keys.every(key => key.time > 0) && keys.every((key, i) => i === 0 || keys[i - 1].time >= key.time) } };
@@ -120,37 +146,16 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
             }
             const innerSchema = GEMINI_JSPB_SCHEMA.INNER;
             const rows: unknown[] | null = inner.length === 0 ? [] : Array.isArray(inner[innerSchema.LIST_SECONDARY]) ? inner[innerSchema.LIST_SECONDARY] : (Array.isArray(inner[innerSchema.METADATA_ONLY_LIST]) ? inner[innerSchema.METADATA_ONLY_LIST] : null);
-            let convs: ConversationListItem[] = [];
-            const schema = getSchema();
-            const listItemSchema = schema.LIST_ITEM || FALLBACK_SCHEMA.LIST_ITEM;
-
-            for (let item of rows ?? []) {
-                if (!Array.isArray(item)) continue;
-                let id = item[listItemSchema.ID] || item[0] || "",
-                    title = item[listItemSchema.TITLE] || item[1] || "",
-                    createTs: number | null = null;
-
-                let serverTs = extractListItemTimestamp(item);
-
-                let createArr = item[listItemSchema.CREATE_TIME_ALT];
-                createTs = payloadToMs(createArr);
-
-                if (typeof id !== 'string' || !id) continue;
-                id = normId(id);
-                if (!id || id === 'unknown' || isReservedRoute(id)) continue;
-                try {
-                    convs.push({ id, title: typeof title === 'string' ? title.trim() : '', titleSource: 'provider',
-                        ...(createTs !== null ? { createdAt: createTs } : {}),
-                        ...(serverTs !== null ? { updatedAt: serverTs } : {}) });
-                } catch (error) {
-                    if (!(error instanceof TypeError)) throw error;
-                }
+            const decoded: DecodedGeminiListRow[] = [];
+            for (const rawRow of rows ?? []) {
+                const row = decodeGeminiListRow(rawRow);
+                if (row) decoded.push(row);
             }
             const nextToken = extractNextPageToken(inner, innerSchema.NEXT_TOKEN_CANDIDATES);
             return {
                 // Only the known explicit terminal slot may certify a natural
                 // end; a missing/unrecognized token is not terminal evidence.
-                ...listResult(convs, nextToken, rows, nextToken === null && (inner.length === 0 || inner[1] === null)),
+                ...listResult(decoded, nextToken, rows?.length ?? null, nextToken === null && (inner.length === 0 || inner[1] === null)),
                 _raw: inner
             };
         } catch (e: unknown) {
