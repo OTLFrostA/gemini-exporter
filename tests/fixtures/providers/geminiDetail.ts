@@ -96,7 +96,68 @@ function generatedFileTurn(packet: unknown[], chip: unknown[], content: string, 
     return [['r_' + id, 'c_e6dc4e0732ba568b'], [1700000000, 0], [['Prompt']], payload];
 }
 
+
+/** Raw Gemini image-evidence Detail responses (search metadata must not become assets). */
+function visibleImageResponse(document?: unknown, includeSecondary = false): string {
+    const searchUrl = 'https://encrypted-tbn2.gstatic.com/licensed-image?q=example';
+    const searchResult = [
+        [[searchUrl], null, 2048, 1536, null, null, null, 0, 'getty:example', 'getty', 'Getty Images'],
+        [['https://www.gettyimages.com/detail/example'], '', 8], null,
+        [[searchUrl], null, 2048, 1536, null, null, null, 0], null, null, null,
+        ['http://googleusercontent.com/image_agent_tag_example', null, 'Reference diagram', null, null, 1],
+    ];
+    const candidate: unknown[] = ['rc_visible_images_test', ['Answer without pictures'], 'en'];
+    candidate[12] = [searchResult];
+    const candidates: unknown[] = [candidate];
+    if (includeSecondary) {
+        const secondary: unknown[] = ['rc_secondary_images_test', ['Second answer without pictures'], 'en'];
+        secondary[12] = [searchResult];
+        candidates.push(secondary);
+    }
+    const model: unknown[] = [candidates];
+    if (document) model[12] = document;
+    const turn = [['c_visible_images_test'], [1700000000, 0], [['Question']], model];
+    return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
+}
+const visibleImageDocument = (): unknown =>
+    JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/wire-turn-3-12-b-stack.json', 'utf8'));
+
 const fixtureMap = {
+
+    'G_VISIBLE_IMAGE_01': () => visibleImageResponse(),
+    'G_VISIBLE_IMAGE_02': () => visibleImageResponse(),
+    'G_VISIBLE_IMAGE_03': () => visibleImageResponse(visibleImageDocument()),
+    'G_VISIBLE_IMAGE_04': () => visibleImageResponse(visibleImageDocument(), true),
+    'G_GROUNDING_CITATION_MARKERS_01': () => {
+        const inner = [
+            [
+                [
+                    ['c_533ac8ca2ecb8bd7', 'r_turn_u0'],
+                    [1700000000, 0],
+                    ['Load configuration test_config.json', 0],
+                    null,
+                ],
+                [
+                    ['c_533ac8ca2ecb8bd7', 'r_turn_m1'],
+                    [1700000005, 0],
+                    null,
+                    [[
+                        [
+                            'rc_candidate_0',
+                            [['Loaded \`test_config.json\`[cite: 1]:\n\n* **status**: \`"ok"\`[cite: 1]']],
+                            null, null, null, null, null, null, null, null, null, null,
+                            [{ '8': [], '44': [
+                                [['[cite: 1]', 0], [[null, [[null, 0, 'test_config.json', null, [3, null, 'File attachment']]]]]],
+                            ] }],
+                        ],
+                    ]],
+                ],
+            ],
+            null,
+            'c_533ac8ca2ecb8bd7',
+        ];
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
+    },
     'G_GENERATED_FILES_01': () => {
         const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_generated_file.json', 'utf8')) as { packet: unknown[]; chip: unknown[] };
         return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[
