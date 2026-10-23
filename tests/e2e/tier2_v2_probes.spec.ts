@@ -4,6 +4,8 @@ import { buildSync } from 'esbuild';
 import { resolve } from 'node:path';
 import { readGeminiAuditInput, auditGeminiEvidence } from '../helpers/geminiDualParse';
 import { openOptions } from './uiFixture';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
 
 const root = resolve(__dirname, '../..');
 const accountId = '10000000-0000-4000-8000-000000000001';
@@ -31,11 +33,6 @@ async function source(context: import('@playwright/test').BrowserContext) {
     await page.goto('https://gemini.google.com/app/probe');
     await expect(page.locator('#geminiExportBadge')).toBeVisible();
     return page;
-}
-function wire() {
-    const turn = [['c_probe','r_question'],[1700000000,0],[['Question']],[[['rc_question',[['Answer']]]]]];
-    // Characterized native Detail payload: turns, pagination slot, title.
-    return JSON.stringify([['wrb.fr','hNvQHb',JSON.stringify([[turn], null, 'Probe title'])]]);
 }
 
 /** Runtime must have a genuine account-bound Content tab before Scan/Export. */
@@ -81,7 +78,7 @@ test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset clears lo
 test('Tier 2 scan observer sees real UI → Application → Recent RPC completion and persisted Coverage', async ({ context, extensionId }) => {
     const page = await workbench(context,extensionId); await source(context);
     await expectVerifiedSource(page);
-    const list = JSON.stringify([['wrb.fr','MaZiqc',JSON.stringify([null,null,[['c_probe','Probe title',null,null,null,[1700000000,0]]]])]]);
+    const list = geminiListGen('G_E2E_TIER2_LIST_01');
     await page.route('**/batchexecute*',route => route.fulfill({contentType:'application/json',body:list}));
     expect(await page.evaluate(scanObserver)).toEqual({clicked:true});
     await expect.poll(() => page.evaluate(() => Reflect.get(window,'__tier2ScanEvidence').finished)).toBe(true);
@@ -120,7 +117,7 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
                 detailRequests.push(String(args[0]));
             }
         } catch { detailRequests.push('unrecognized request'); }
-        return route.fulfill({contentType:'application/json',body:wire()});
+        return route.fulfill({contentType:'application/json',body:geminiDetailGen('G_E2E_TIER2_DETAIL_01')});
     });
     await page.locator('#btnSelectAll').click();
     await expect(page.locator('#btnExport')).toBeEnabled();
