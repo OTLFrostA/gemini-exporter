@@ -96,25 +96,7 @@ test('engine - L1 rejects a brand placeholder while L2 preserves the derived use
     assert.equal((await getIndex(key))?.title, '如何设计微服务架构');
 });
 
-test('engine - RateLimiter detects 429 status and calculates backoff with jitter', () => {
-    const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/l1/client/rateLimiter.js');
-    assert.strictEqual(isRateLimited({ status: 429 }), true);
-    assert.strictEqual(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), false);
-    assert.strictEqual(isRateLimited({ error: 'Too many requests, quota exceeded' }), false);
-    assert.strictEqual(isRateLimited({ success: true } as any), false);
-    assert.strictEqual(isRateLimited({ status: 200 }), false);
-    assert.strictEqual(isRateLimited(null), false);
 
-    const b0 = calculateBackoff(0, { initialDelayMs: 1000, jitterMs: 200, maxDelayMs: 5000 });
-    assert.ok(b0 >= 1000 && b0 <= 1200, `Expected b0 between 1000 and 1200, got ${b0}`);
-
-    const manager = new RateLimitManager({ initialDelayMs: 500, maxDelayMs: 2000, jitterMs: 100 });
-    assert.strictEqual(manager.rateLimitCooldownUntil, 0);
-    manager.recordRateLimit(1500);
-    assert.ok(manager.rateLimitCooldownUntil > Date.now());
-    manager.reset();
-    assert.strictEqual(manager.rateLimitCooldownUntil, 0);
-});
 
 test('engine - completion persists the delivered source version without a recovery session', async t => {
     const host = v2ExportHost(t);

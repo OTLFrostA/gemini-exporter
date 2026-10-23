@@ -1,3 +1,4 @@
+import { abortableSleep, calculateBackoff } from '../../../shared/utils/retryUtils.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import { chatgptAccountObservation } from './accountObservation.js';
@@ -52,6 +53,7 @@ export class ChatGPTProvider implements AIProvider {
 
     private fetchFn: ChatGPTFetch;
     private origin: string;
+    private readonly cooldowns = new Map<string, number>();
     private readonly resources?: SourceResourceContext;
 
     constructor(deps?: ChatGPTProviderDeps) {
@@ -79,24 +81,40 @@ export class ChatGPTProvider implements AIProvider {
         return account;
     }
     private async authedGet<T>(path: string, account: Account, signal?: AbortSignal): Promise<T> {
-        signal?.throwIfAborted();
-        const sessionResponse = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
-        if (!sessionResponse.ok) throw new Error(`ChatGPT session failed: ${sessionResponse.status}`);
-        const session = await sessionResponse.json() as ChatGPTApiSession;
-        const observed = chatgptAccountObservation(session);
-        if (observed ? observed.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') throw new TypeError('ChatGPT request account mismatch');
-        const token = session.accessToken;
-        if (!token) throw new Error('ChatGPT session has no accessToken');
-        const res = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
-            credentials: 'include',
-            signal,
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'X-Authorization': `Bearer ${token}`,
-            },
-        });
-        if (!res.ok) throw new Error(`ChatGPT API ${path} failed: ${res.status}`);
-        return (await res.json()) as T;
+        for (let attempt = 0; ; attempt++) {
+            // Account-scoped cooldown also applies to another request on this
+            // provider. A cancelled export must not erase the server deadline.
+            let remaining = (this.cooldowns.get(account.id) ?? 0) - Date.now();
+            while (remaining > 0) {
+                if (await abortableSleep(remaining, signal)) signal?.throwIfAborted();
+                remaining = (this.cooldowns.get(account.id) ?? 0) - Date.now();
+            }
+            signal?.throwIfAborted();
+            // Re-observe identity after every cooldown; a browser account can
+            // change while the export is waiting.
+            const sessionResponse = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
+            if (!sessionResponse.ok) throw new Error(`ChatGPT session failed: ${sessionResponse.status}`);
+            const session = await sessionResponse.json() as ChatGPTApiSession;
+            const observed = chatgptAccountObservation(session);
+            if (observed ? observed.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') throw new TypeError('ChatGPT request account mismatch');
+            const token = session.accessToken;
+            if (!token) throw new Error('ChatGPT session has no accessToken');
+            const res = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
+                credentials: 'include', signal,
+                headers: { Authorization: `Bearer ${token}`, 'X-Authorization': `Bearer ${token}` },
+            });
+            if (res.status === 429) {
+                const header = res.headers.get('Retry-After');
+                const seconds = header !== null && /^\d+(?:\.\d+)?$/.test(header.trim()) ? Number(header) * 1000 : NaN;
+                const date = header ? Date.parse(header) - Date.now() : NaN;
+                const retryAfterMs = Number.isFinite(seconds) ? seconds : Number.isFinite(date) ? Math.max(0, date) : 0;
+                const delay = calculateBackoff(attempt, { initialDelayMs: 30000, maxDelayMs: 120000, retryAfterMs });
+                this.cooldowns.set(account.id, Math.max(this.cooldowns.get(account.id) ?? 0, Date.now() + delay));
+                if (attempt < 3) continue;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ChatGPT API ${path} failed`);
+            return (await res.json()) as T;
+        }
     }
 
     async checkReadiness(accountId: Account['id']): Promise<ProviderReadiness> {

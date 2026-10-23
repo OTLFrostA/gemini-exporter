@@ -111,12 +111,17 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
     type ImageNodeDetector = (node: unknown, schema: typeof GEMINI_JSPB_SCHEMA) => RawImageCandidate | null;
 
+    function isRecord(value: unknown): value is Record<string, unknown> {
+        return value !== null && typeof value === "object" && !Array.isArray(value);
+    }
+
     const detectInlineImageTuple: ImageNodeDetector = (node, schema) => {
         if (!Array.isArray(node)) return null;
+        const slots: unknown[] = node;
         const inl = schema.INLINE_IMAGE;
-        const url = node[inl.URL];
-        const width = node[inl.WIDTH];
-        const height = node[inl.HEIGHT];
+        const url = slots[inl.URL];
+        const width = slots[inl.WIDTH];
+        const height = slots[inl.HEIGHT];
         if (
             node.length >= 3 &&
             typeof url === "string" &&
@@ -124,11 +129,12 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             typeof width === "number" &&
             typeof height === "number"
         ) {
+            const rawToken = slots[inl.TOKEN];
             return {
                 sourceUrl: url,
                 width,
                 height,
-                token: typeof node[inl.TOKEN] === "string" ? node[inl.TOKEN] : void 0,
+                token: typeof rawToken === "string" ? rawToken : void 0,
                 detectorKind: "extractImages [url,w,h]"
             };
         }
@@ -137,11 +143,12 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
     const detectGeneratedMediaNode: ImageNodeDetector = (node, schema) => {
         if (!Array.isArray(node)) return null;
+        const slots: unknown[] = node;
         const gen = schema.GENERATED_IMAGE;
-        const url = node[gen.URL];
-        const filename = node[gen.FILENAME];
-        const mimeTypeVal = node[gen.MIME_TYPE];
-        const dims = node[gen.DIMENSIONS];
+        const url = slots[gen.URL];
+        const filename = slots[gen.FILENAME];
+        const mimeTypeVal = slots[gen.MIME_TYPE];
+        const dims: unknown = slots[gen.DIMENSIONS];
         if (
             node.length >= 4 &&
             typeof url === "string" &&
@@ -154,15 +161,18 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         ) {
             // Derivative upscale renditions (e.g. 2x with UPSCALE_FACTOR > 1) are secondary variants,
             // not the authoritative source generation.
-            if (typeof node[gen.UPSCALE_FACTOR] === "number" && node[gen.UPSCALE_FACTOR] > 1) {
+            const upscaleFactor = slots[gen.UPSCALE_FACTOR];
+            if (typeof upscaleFactor === "number" && upscaleFactor > 1) {
                 return null;
             }
             const rawFileName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "";
-            const width = Array.isArray(dims) && typeof dims[0] === "number" ? dims[0] : void 0;
-            const height = Array.isArray(dims) && typeof dims[1] === "number" ? dims[1] : void 0;
-            const size = Array.isArray(dims) && typeof dims[2] === "number" ? dims[2] : void 0;
+            const rawDims: unknown[] | null = Array.isArray(dims) ? dims : null;
+            const width = rawDims !== null && typeof rawDims[0] === "number" ? rawDims[0] : void 0;
+            const height = rawDims !== null && typeof rawDims[1] === "number" ? rawDims[1] : void 0;
+            const size = rawDims !== null && typeof rawDims[2] === "number" ? rawDims[2] : void 0;
             const mimeType = typeof mimeTypeVal === "string" ? mimeTypeVal : void 0;
-            const token = typeof node[gen.TOKEN] === "string" ? node[gen.TOKEN] : void 0;
+            const rawToken = slots[gen.TOKEN];
+            const token = typeof rawToken === "string" ? rawToken : void 0;
             return {
                 sourceUrl: url,
                 width,
@@ -179,8 +189,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
     const detectAttachmentType36: ImageNodeDetector = (node) => {
         // Form 1: Deserialized object with attachmentType === 36 (runtime structured content node / attachment)
-        if (node && typeof node === "object" && !Array.isArray(node)) {
-            const obj = node as Record<string, unknown>;
+        if (isRecord(node)) {
+            const obj = node;
             if (obj.attachmentType !== 36) return null;
             const kc = typeof obj.Kc === "string" ? obj.Kc : undefined;
             const ze = typeof obj.Ze === "string" ? obj.Ze : (typeof obj.NHc === "string" ? obj.NHc : undefined);
@@ -210,23 +220,31 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
         // Form 2: Wire format tuple for search image attachment (repeated array with image URLs and title)
         if (Array.isArray(node) && node.length >= 8) {
-            const slot0 = node[0];
-            const slot3 = node[3];
-            const slot7 = node[7];
-            const gstaticTuple = Array.isArray(slot3) && slot3.length >= 4
+            const slots: unknown[] = node;
+            const slot0 = slots[0];
+            const slot3 = slots[3];
+            const slot7 = slots[7];
+            const gstaticTuple: unknown[] | null = Array.isArray(slot3) && slot3.length >= 4
                 ? slot3
                 : (Array.isArray(slot0) && slot0.length >= 4 ? slot0 : null);
-            if (gstaticTuple && Array.isArray(gstaticTuple[0]) && typeof gstaticTuple[0][0] === "string") {
-                const rawUrl = gstaticTuple[0][0];
-                const width = typeof gstaticTuple[2] === "number" ? gstaticTuple[2] : undefined;
-                const height = typeof gstaticTuple[3] === "number" ? gstaticTuple[3] : undefined;
+            const rawImageTuple = gstaticTuple?.[0];
+            const imageTuple: unknown[] | null = Array.isArray(rawImageTuple) ? rawImageTuple : null;
+            const rawUrl = imageTuple?.[0];
+            if (typeof rawUrl === "string") {
+                const rawWidth = gstaticTuple?.[2];
+                const rawHeight = gstaticTuple?.[3];
+                const width = typeof rawWidth === "number" ? rawWidth : undefined;
+                const height = typeof rawHeight === "number" ? rawHeight : undefined;
 
                 let title: string | undefined;
                 let fallbackGoogleUrl: string | undefined;
-                if (Array.isArray(slot7) && typeof slot7[0] === "string") {
-                    fallbackGoogleUrl = slot7[0];
-                    if (typeof slot7[2] === "string" && slot7[2].trim()) {
-                        title = slot7[2].trim();
+                const fallbackTuple: unknown[] | null = Array.isArray(slot7) ? slot7 : null;
+                const fallbackUrl = fallbackTuple?.[0];
+                if (typeof fallbackUrl === "string") {
+                    fallbackGoogleUrl = fallbackUrl;
+                    const fallbackTitle = fallbackTuple?.[2];
+                    if (typeof fallbackTitle === "string" && fallbackTitle.trim()) {
+                        title = fallbackTitle.trim();
                     }
                 }
 
@@ -417,8 +435,9 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             const filenames: string[] = [];
             let fallbackId = "";
 
-            for (let i = 0; i < node.length; i++) {
-                const item = node[i];
+            const slots: unknown[] = node;
+            for (let i = 0; i < slots.length; i++) {
+                const item = slots[i];
                 if (typeof item === "string") {
                     const trimmed = item.trim();
                     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
@@ -508,24 +527,27 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         // Pass 1: strict path only — typed indices, never marked heuristic.
         deepWalk([root], (node) => {
             if (Array.isArray(node)) {
-                for (let i = 0; i < node.length; i++) {
-                    let item = node[i];
-                    if (Array.isArray(item) && item.length >= 4 && Array.isArray(item[doc.CHIP_URL]) && item[doc.CHIP_URL].length > 0 && typeof item[doc.CHIP_URL][0] === "string" && item[doc.CHIP_URL][0].includes("immersive_entry_chip") && typeof item[doc.ID] === "string" && typeof item[doc.TITLE] === "string") {
-                        let chipUrl = item[doc.CHIP_URL][0],
-                            id = item[doc.ID],
-                            rawTitle = item[doc.TITLE];
-                        let title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
-                        let createdAt: number | undefined;
-                        if (Array.isArray(item[doc.TIMESTAMP]) && typeof item[doc.TIMESTAMP][0] === "number") createdAt = 1000 * item[doc.TIMESTAMP][0];
-                        let contentId = typeof item[doc.CONTENT_ID] === "string" && item[doc.CONTENT_ID].length > 10 ? item[doc.CONTENT_ID] : void 0;
-                        pushMeta({
-                            id,
-                            title,
-                            chipUrl,
-                            createdAt,
-                            contentId
-                        });
-                    }
+                const entries: unknown[] = node;
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i];
+                    if (!Array.isArray(entry) || entry.length < 4) continue;
+                    const fields: unknown[] = entry;
+                    const chip: unknown = fields[doc.CHIP_URL];
+                    const chipParts: unknown[] | null = Array.isArray(chip) ? chip : null;
+                    const chipUrl = chipParts?.[0];
+                    const id = fields[doc.ID];
+                    const rawTitle = fields[doc.TITLE];
+                    if (typeof chipUrl !== "string" || !chipUrl.includes("immersive_entry_chip")
+                        || typeof id !== "string" || typeof rawTitle !== "string") continue;
+
+                    const title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
+                    const rawTimestamp = fields[doc.TIMESTAMP];
+                    const timestamp: unknown = Array.isArray(rawTimestamp) ? rawTimestamp[0] : undefined;
+                    const createdAt = typeof timestamp === "number" ? 1000 * timestamp : undefined;
+                    const rawContentId = fields[doc.CONTENT_ID];
+                    const contentId = typeof rawContentId === "string" && rawContentId.length > 10
+                        ? rawContentId : undefined;
+                    pushMeta({ id, title, chipUrl, createdAt, contentId });
                 }
             }
         });
@@ -535,16 +557,18 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         // Heuristic by construction — results are marked source: 'heuristic-flat'.
         deepWalk([root], (node) => {
             if (Array.isArray(node)) {
-                for (let i = 0; i < node.length; i++) {
-                    let item = node[i];
-                    if (!Array.isArray(item)) continue;
+                const entries: unknown[] = node;
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i];
+                    if (!Array.isArray(entry)) continue;
+                    const item: unknown[] = entry;
                     try {
-                        let flat = item.flat(Infinity).filter(x => typeof x === "string");
+                        const flat = item.flat(Infinity).filter((x): x is string => typeof x === "string");
                         if (flat.length > 500) continue;
-                        let chip = flat.find(x => x.includes("immersive_entry_chip"));
+                        const chip = flat.find(x => x.includes("immersive_entry_chip"));
                         if (chip) {
-                            let uuid = flat.find(x => uuidRe.test(x));
-                            let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length >= 8 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
+                            const uuid = flat.find(x => uuidRe.test(x));
+                            const title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length >= 8 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
                             pushMeta({
                                 id: uuid || flat.find(x => x.includes("rc_")) || chip,
                                 title: title || "",

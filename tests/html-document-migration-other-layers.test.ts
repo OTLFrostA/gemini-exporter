@@ -1,11 +1,10 @@
 // Retained Application export-entry scenarios; still included in normal discovery.
 import { composeFixture } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 /**
  * tests/html-document-migration.test.ts
  * Item 1 (P0): production HTML export routes through the canonical path
- * (ChatFormatter.formatHtmlDocument: parseConversation -> Domain -> Document AST -> HTML backend).
+ * (Domain -> Document AST -> HTML renderer).
  *
  * History: this file originally compared the legacy toHtml() output with
  * the new production entry as migration evidence. Item 2 (P0) removed the

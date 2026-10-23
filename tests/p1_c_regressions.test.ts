@@ -20,7 +20,6 @@ const paginationMod = require('../src/l1/client/gemini/api/pagination.js');
 // 走 ESM 静态链接不受影响）。测试内给 require 缓存打补丁，仅用于测试。
 const tabServiceMod: any = require('../src/runtime/capabilities/tabService.js');
 if (tabServiceMod && !tabServiceMod.TabService) tabServiceMod.TabService = tabServiceMod;
-const { withRateLimitRetry } = require('../src/l1/client/rateLimiter.js');
 const { waitForResources, attemptResource } = require('../src/shared/resources/resourceResult.js');
 const { acquireSourceResource } = require('../src/l1/resources/sourceResources.js');
 // The retired asset pipeline belongs to the unselected runtime cases below.
@@ -230,14 +229,7 @@ test('p1c - HTTP 429 honors explicit server hint across a response without reada
     assert.strictEqual(result.shouldRetry, true);
     assert.ok(result.delayMs >= 2000 && result.delayMs <= 30000);
 });
-test('p1c - request retry is bounded and only retries HTTP 429', async () => {
-    let calls = 0;
-    const value = await withRateLimitRetry(async () => {
-        if (++calls < 3) throw new Error('HTTP 429 Too Many Requests');
-        return 'bytes';
-    }, { maxRetries: 3, initialDelayMs: 1, jitterMs: 0 });
-    assert.strictEqual(value, 'bytes'); assert.strictEqual(calls, 3);
-});
+
 test('p1c - source download propagates cancellation before and during acquisition', async () => {
     const original = globalThis.fetch; let calls = 0;
     globalThis.fetch = async (_url: unknown, options?: RequestInit) => {

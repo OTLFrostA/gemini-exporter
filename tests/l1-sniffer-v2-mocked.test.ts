@@ -4,18 +4,15 @@ import { ports, GEMINI_ACCOUNT } from './helpers/l1V2UnitMocks.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
+import { deleteGen } from './fixtures/providers/geminiDelete.js';
+import { deleteRequestGen } from './fixtures/providers/geminiDeleteRequest.js';
 
 const origin = 'https://gemini.google.com';
 const url = origin + '/_/BardChatUi/data/batchexecute';
 const subject = { providerId: 'gemini', providerAccountId: GEMINI_ACCOUNT.providerAccountId };
 const chat = 'source_sniff_123';
-const wireList = (rows: unknown[], next: string | null = null) =>
-    JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, next, rows])]]);
-const row = (id: string) => ['c_' + id, 'Title ' + id, null, null, null, [1700000000, 0]];
-const wireDetail = () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
-    [[[ 'c_' + chat, 'r_question'], [1700000000, 0], [['Question']],
-        [[['rc_answer', [['Answer']]]]]]], null,
-])]]);
 function event(type: string, payload: Record<string, unknown>): MessageEvent {
     return { source: globalThis.window, origin, data: { type, payload } } as unknown as MessageEvent;
 }
@@ -45,7 +42,7 @@ test('Sniffer submits list facts and request-bound page evidence without Applica
     const callbacks: string[] = [];
     ports.beforeIndexCommit = () => { callbacks.push('committed'); };
     init({ onIndexesCommitted: () => { callbacks.push('notified'); } });
-    await handleWindowMessage(captured(wireList([row('source_sniff_list')]), {
+    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_01'), {
         listRequest: { streamId: 'recent', requestCursor: null },
     }));
     assert.deepEqual(callbacks, ['committed', 'notified']);
@@ -60,22 +57,22 @@ test('Sniffer submits list facts and request-bound page evidence without Applica
 });
 
 test('Sniffer accepts identifiable Index without falsely trusting unknown captured account/cursor', async () => {
-    await handleWindowMessage(captured(wireList([row('source_sniff_list')]), {
+    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_02'), {
         requestAccountObservation: null, listRequest: { streamId: 'recent', requestCursor: null },
     }));
     assert.equal(ports.indexes.length, 1);
     assert.equal(ports.indexes[0].accountId, GEMINI_ACCOUNT.id);
     assert.equal(ports.indexes[0].page, undefined, 'fallback to real A is not verified Gaia evidence');
     ports.reset();
-    await handleWindowMessage(captured(wireList([row('source_sniff_list')]), { listRequest: undefined }));
+    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_03'), { listRequest: undefined }));
     assert.equal(ports.indexes.length, 1);
     assert.equal(ports.indexes[0].page, undefined, 'no request cursor means no Coverage evidence');
 });
 
 test('Sniffer does not request an Account for unrecognized, empty or invalid unknown captures', async () => {
     await handleWindowMessage(captured('[]', { requestAccountObservation: null }));
-    await handleWindowMessage(captured(wireList([]), { requestAccountObservation: null }));
-    await handleWindowMessage(captured(wireList([row('valid')]), {
+    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_04'), { requestAccountObservation: null }));
+    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_05'), {
         requestAccountObservation: null, url: 'https://wrong.example.com/batchexecute',
     }));
     assert.deepEqual(ports.lookups, []);
@@ -91,7 +88,7 @@ test('Sniffer accepted/changed has exactly three distinct v2 effects', async () 
         original(key, parsed);
     };
     init({ resources, onDetailChanged: key => events.push('changed:' + key.conversationId) });
-    const observed = captured(wireDetail(), {
+    const observed = captured(geminiDetailGen('G_SNIFFER_DETAIL_01'), {
         detailRequest: { conversationId: chat, requestCursor: null },
     });
     try {
@@ -120,7 +117,7 @@ test('Sniffer does not retain resources or announce Live Save before Detail comm
     init({ resources, onDetailChanged: () => { events.push('changed'); } });
     ports.detailError = new Error('mock L2 transaction rejected');
     try {
-        await assert.rejects(handleWindowMessage(captured(wireDetail(), {
+        await assert.rejects(handleWindowMessage(captured(geminiDetailGen('G_SNIFFER_DETAIL_02'), {
             detailRequest: { conversationId: chat, requestCursor: null },
         })), /mock L2 transaction rejected/);
         assert.deepEqual(events, []);
@@ -129,7 +126,7 @@ test('Sniffer does not retain resources or announce Live Save before Detail comm
 });
 
 test('Sniffer never performs active requests to supplement an uncorrelated or unfinished Detail', async () => {
-    await handleWindowMessage(captured(wireDetail()));
+    await handleWindowMessage(captured(geminiDetailGen('G_SNIFFER_DETAIL_03')));
     assert.equal(ports.details.length, 1);
     assert.equal(ports.details[0].detail.quality.status, 'unknown');
     assert.equal(ports.deletions.length, 0);
@@ -138,10 +135,8 @@ test('Sniffer never performs active requests to supplement an uncorrelated or un
 
 test('only a request-bound, positively confirmed deletion is handed to L2 once', async () => {
     const id = 'deadbeef00112233';
-    const requestBody = new URLSearchParams({ 'f.req': JSON.stringify([[[
-        'GzXR5e', JSON.stringify(['c_' + id]), null, 'generic',
-    ]]]) }).toString();
-    const responseText = JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([null, 'c_' + id])]]);
+    const requestBody = deleteRequestGen('G_DELETE_SNIFFER_REQUEST_01');
+    const responseText = deleteGen('G_DELETE_SNIFFER_RESPONSE_01');
     const done: string[] = [];
     init({ onConversationDeleted: () => done.push('notified') });
     const deleted = event(CrossWorldEvents.CONVERSATION_DELETED, {
@@ -153,7 +148,7 @@ test('only a request-bound, positively confirmed deletion is handed to L2 once',
     assert.deepEqual(done, ['committed', 'notified']);
     ports.reset();
     await handleWindowMessage(event(CrossWorldEvents.CONVERSATION_DELETED, {
-        slot: 'u0', id, url, requestAccountObservation: subject, requestBody, responseText: '',
+        slot: 'u0', id, url, requestAccountObservation: subject, requestBody, responseText: deleteGen('G_DELETE_SNIFFER_RESPONSE_02'),
     }));
     assert.deepEqual(ports.deletions, [], 'outgoing DELETE alone is never a confirmation');
 });

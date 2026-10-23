@@ -10,6 +10,7 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountIds.js';
 import { sourceDetail, sourceMessage } from './helpers/l1SourceFixture.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
 import { ingestDetail as ingestThroughContentRuntime } from '../src/runtime/api/domainIngestion.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
@@ -21,14 +22,7 @@ useIndexStorage();
 const CONVERSATION_ID = 'native_bridge';
 
 function parseNativeReply(): SourceConversationParseResult {
-    const turn = [
-        ['c_' + CONVERSATION_ID, 'r_abc123'],
-        [1700000000, 0],
-        [['Independent question']],
-        [[['rc_answer', [['Independent answer']]]]],
-    ];
-    const raw = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Native title'])]]);
-    return parseGeminiRpcConversation(raw, { providerId: 'gemini', targetConvId: CONVERSATION_ID });
+    return parseGeminiRpcConversation(geminiDetailGen('G_DETAIL_NATIVE_TRANSPORT_01'), { providerId: 'gemini', targetConvId: CONVERSATION_ID });
 }
 
 // A source payload is not a normalized v2 Detail merely because it arrived over IPC.

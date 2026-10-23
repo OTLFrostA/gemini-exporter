@@ -12,7 +12,7 @@ import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
 import { createExportPathPlanner, buildExportFiles } from '../src/l4/packaging/index.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
 import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
 import { TypstSandboxCompiler } from '../src/l4/format/pdf/typst/typstSandboxCompiler.js';

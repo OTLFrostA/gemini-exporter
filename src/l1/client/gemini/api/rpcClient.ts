@@ -1,4 +1,5 @@
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
+import type { GeminiCredentials } from './credentialManager.js';
 
 const GEMINI_API_URL = "https://gemini.google.com/_/BardChatUi/data/batchexecute";
 
@@ -6,7 +7,7 @@ export interface RpcRequestOptions {
     api: string;
     rpcids: string;
     fReq: string;
-    cred?: any;
+    cred?: Partial<GeminiCredentials>;
     sourcePath?: string;
     timeoutMs?: number;
     signal?: AbortSignal | null;
@@ -15,7 +16,6 @@ export interface RpcRequestOptions {
 export interface GeminiClientRpcClientModule {
     GEMINI_API_URL: string;
     getProtocol: () => GeminiProtocolModule;
-    getUtils: () => any;
     getApiUrl: (slot?: string | null) => string;
     nextReqid: () => string;
     generateFallbackSid: () => string;
@@ -24,7 +24,6 @@ export interface GeminiClientRpcClientModule {
 }
 
 import { GeminiProtocol } from "../../../protocol/gemini/protocol.js";
-import { GeminiUtils } from "../../../../shared/utils/utils.js";
 import { generateFallbackSid } from "./credentialManager.js";
 
 function getProtocol(): GeminiProtocolModule {
@@ -32,10 +31,6 @@ function getProtocol(): GeminiProtocolModule {
 }
 
 const nextReqid = GeminiProtocol.createReqidGenerator();
-
-function getUtils(): any {
-    return GeminiUtils;
-}
 
     function getApiUrl(slot?: string | null): string {
         if (slot && slot !== "default") {
@@ -68,7 +63,7 @@ function getUtils(): any {
             rpcids,
             "source-path": sourcePath,
             bl: cred?.bl || P.BL_FALLBACK,
-            "f.sid": cred?.sid || generateFallbackSid(),
+            "f.sid": String(cred?.sid || generateFallbackSid()),
             _reqid: nextReqid(),
             rt: "c"
         });
@@ -78,7 +73,7 @@ function getUtils(): any {
         if (cred?.at) body.append("at", cred.at);
 
         let controller: AbortController | null = null;
-        let timeoutId: any = null;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
         if (timeoutMs > 0 && typeof AbortController !== "undefined") {
             controller = new AbortController();
@@ -107,7 +102,6 @@ function getUtils(): any {
 export {
     GEMINI_API_URL,
     getProtocol,
-    getUtils,
     getApiUrl,
     nextReqid,
     generateFallbackSid,
@@ -118,7 +112,6 @@ export {
 export const GeminiClientRpcClient: GeminiClientRpcClientModule = {
     GEMINI_API_URL,
     getProtocol,
-    getUtils,
     getApiUrl,
     nextReqid,
     generateFallbackSid,

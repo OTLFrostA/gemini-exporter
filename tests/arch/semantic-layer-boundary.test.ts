@@ -149,7 +149,7 @@ test('boundary reader detects re-export, type-only, dynamic import and require e
     const owner = resolve(core, 'l4/format/html/probe.ts');
     const edges = dependencies(owner, `
         import type { DomainMessage } from '../../../l2/conversationDetail.js';
-        export { parseConversation } from '../../../l1/parsers/parseConversation.js';
+        export { parseGeminiRpcConversation } from '../../../l1/parsers/gemini/rpc/parseConversation.js';
         const decoder = import('../../../l1/parsers/gemini/rpc/detailDecoder.js');
         const storage = require('../../../l3a/storageService.js');
         type Record = import('../../../l1/parsers/legacyStorage/conversationRecord.js').ConversationRecordInput;

@@ -26,6 +26,15 @@ const nativeAnyError = (rpc: string, code: unknown,
 
 // One unique key per consuming List test call site. Values preserve the old data.
 const fixtureMap = {
+
+    'G_BOUNDARY_LIST_01': () => {
+        const ids = ['c_missingtitle123', 'c_nulltitle123456', 'c_objecttitle1234', 'c_blanktitle12345'];
+        const rows = [null, [], 'not-a-row', [ids[0]], [ids[1], null], [ids[2], { title: 'wrong shape' }], [ids[3], ' \t ']];
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, rows])]]);
+    },
+    'G_BOUNDARY_LIST_02': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc',
+        JSON.stringify([null, null, [['c_boundary12345678', 'Secondary title']]])]]),
+    'G_BOUNDARY_LIST_03': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [], 'tC_empty_page'])]]),
     'G_L1_CLIENT_V2_MOCKED_01': () => geminiList(['source_alpha']),
     'G_L1_CLIENT_V2_MOCKED_02': () => JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]],
@@ -144,6 +153,23 @@ const fixtureMap = {
     ]),
     'G_E2E_PRODUCTION_V2_01': () => wire([
         sourceRow('passive', 'Captured title', 1700000000),
+    ]),
+    'G_SNIFFER_LIST_01': () => wire([sourceRow('source_sniff_list', 'Title source_sniff_list', 1700000000)]),
+    'G_SNIFFER_LIST_02': () => wire([sourceRow('source_sniff_list', 'Title source_sniff_list', 1700000000)]),
+    'G_SNIFFER_LIST_03': () => wire([sourceRow('source_sniff_list', 'Title source_sniff_list', 1700000000)]),
+    'G_SNIFFER_LIST_04': () => wire([]),
+    'G_SNIFFER_LIST_05': () => wire([sourceRow('valid', 'Title valid', 1700000000)]),
+    'G_ACTIVE_TITLE_01': () => wire([
+        ['c_generic_title_01', 'Observed generic_title_01', null, null, null, [1700000000, 0]],
+        ['c_sniff_title_01', 'Observed sniff_title_01', null, null, null, [1700000000, 0]],
+        ['c_resolved_title_01', 'Observed resolved_title_01', null, null, null, [1700000000, 0]],
+        ['c_undated_rpc_01', 'Observed undated_rpc_01', null, null, null, null],
+    ]),
+    'G_GEMINI_CLIENT_RETRY_01': () => ")]}'\n\n" + wire([
+        ['c_chat_rec_400', '400 Recovery Chat', null, null, null, [1700000000, 0]],
+    ]),
+    'G_VERIFIED_SCAN_OVERLAP_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', null, null, null, [13], 'generic'],
     ]),
 };
 

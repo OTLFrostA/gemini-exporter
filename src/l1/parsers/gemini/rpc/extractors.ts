@@ -244,19 +244,24 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         return GeminiProtocol;
     }
 
+    function isObjectRecord(value: unknown): value is Record<string, unknown> {
+        return value !== null && typeof value === "object";
+    }
+
     function deepWalk(root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth: number = 50): void {
         function walk(node: unknown, depth: number) {
-            if (!node || typeof node !== "object" || depth > maxDepth) return;
+            if (!node || !isObjectRecord(node) || depth > maxDepth) return;
             const shouldDescend = visitor(node, depth);
             if (shouldDescend === false) return;
             if (Array.isArray(node)) {
+                const array: unknown[] = node;
                 for (let i = 0; i < node.length; i++) {
-                    walk(node[i], depth + 1);
+                    walk(array[i], depth + 1);
                 }
             } else {
-                for (const k in (node as Record<string, unknown>)) {
+                for (const k in node) {
                     if (Object.prototype.hasOwnProperty.call(node, k)) {
-                        walk((node as Record<string, unknown>)[k], depth + 1);
+                        walk(node[k], depth + 1);
                     }
                 }
             }
@@ -268,14 +273,15 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         if (Array.isArray(turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD])) return true;
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (Array.isArray(modelPayload)) {
-            const cands = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+            const modelSlots: unknown[] = modelPayload;
+            const cands = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
             if (Array.isArray(cands)) {
-                for (const c of cands) {
-                    if (
-                        Array.isArray(c) &&
-                        typeof c[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] === "string" &&
-                        (c[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] as string).startsWith("rc_")
-                    ) return true;
+                const candidates: unknown[] = cands;
+                for (const c of candidates) {
+                    if (!Array.isArray(c)) continue;
+                    const candidateSlots: unknown[] = c;
+                    const id = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+                    if (typeof id === "string" && id.startsWith("rc_")) return true;
                 }
             }
         }
@@ -302,7 +308,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         if (turn.length < 3) {
             warnings.push(`Turn array length (${turn.length}) is less than expected minimum 3`);
         }
-        const head = turn[GEMINI_JSPB_SCHEMA.TURN.ID_META];
+        const turnSlots: unknown[] = turn;
+        const head = turnSlots[GEMINI_JSPB_SCHEMA.TURN.ID_META];
         let idStr = "";
         if (typeof head === "string") idStr = head;
         else if (Array.isArray(head) && head.length) {
@@ -314,23 +321,26 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             warnings.push(`Turn head '${idStr.slice(0, 32)}' matches turn-id pattern but no rc_/c_d content markers found; isTurn() rejects this element (treated as non-turn)`);
         }
 
-        const userPayload = turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
+        const userPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
         if (userPayload !== undefined && !Array.isArray(userPayload)) {
             warnings.push(`UserPayload at index 2 is not an array (type: ${typeof userPayload})`);
         }
 
-        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        const modelPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (modelPayload !== undefined) {
             if (!Array.isArray(modelPayload)) {
                 warnings.push(`ModelPayload at index 3 is not an array (type: ${typeof modelPayload})`);
             } else if (modelPayload.length > 0) {
-                const candBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+                const modelSlots: unknown[] = modelPayload;
+                const candBlock = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
                 if (!Array.isArray(candBlock)) {
                     warnings.push(`Candidates at index 3[0] is not an array (type: ${typeof candBlock})`);
                 } else if (candBlock.length > 0) {
-                    const firstCand = candBlock[0];
+                    const candSlots: unknown[] = candBlock;
+                    const firstCand = candSlots[0];
                     if (Array.isArray(firstCand)) {
-                        const candId = firstCand[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+                        const firstCandSlots: unknown[] = firstCand;
+                        const candId = firstCandSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
                         if (typeof candId !== "string" || (!candId.startsWith("rc_") && !candId.startsWith("c_"))) {
                             warnings.push(`First candidate ID at 3[0][0][0] does not match 'rc_' prefix: ${JSON.stringify(candId)}`);
                         }
@@ -355,20 +365,25 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
     function extractModelCandidates(turn: unknown): unknown[] {
         if (!turn || !Array.isArray(turn)) return [];
-        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        const turnSlots: unknown[] = turn;
+        const modelPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (!modelPayload || !Array.isArray(modelPayload) || modelPayload.length === 0) return [];
+        const modelSlots: unknown[] = modelPayload;
 
-        const candidateBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+        const candidateBlock = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
         if (Array.isArray(candidateBlock)) {
-            if (candidateBlock.length > 0 && Array.isArray(candidateBlock[0])) {
-                return candidateBlock;
+            const candidates: unknown[] = candidateBlock;
+            if (candidateBlock.length > 0 && Array.isArray(candidates[0])) {
+                return candidates;
             }
-            if (typeof candidateBlock[0] === "string") {
-                return [candidateBlock];
+            if (typeof candidates[0] === "string") {
+                return [candidates];
             }
         }
-        if (Array.isArray(modelPayload[0]) && typeof modelPayload[0][0] === "string" && modelPayload[0][0].startsWith("rc_")) {
-            return modelPayload;
+        const first = modelSlots[0];
+        if (Array.isArray(first)) {
+            const firstSlots: unknown[] = first;
+            if (typeof firstSlots[0] === "string" && firstSlots[0].startsWith("rc_")) return modelSlots;
         }
         return [];
     }
@@ -380,7 +395,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
         (body) => {
             if (!Array.isArray(body)) return null;
-            const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
+            const bodySlots: unknown[] = body;
+            const parts = bodySlots[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
             if (typeof parts === "string") return parts;
             if (Array.isArray(parts)) {
                 const textChunks: string[] = [];
@@ -406,10 +422,11 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
     function extractCandidateText(cand: unknown): string {
         if (!cand) return "";
-        const body = Array.isArray(cand)
-            ? (cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
-                ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
-                : (cand.length === 1 ? cand[0] : cand))
+        const candidateSlots: unknown[] | null = Array.isArray(cand) ? cand : null;
+        const body: unknown = candidateSlots !== null
+            ? (candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
+                ? candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
+                : (candidateSlots.length === 1 ? candidateSlots[0] : candidateSlots))
             : cand;
 
         for (const extractor of CANDIDATE_BODY_EXTRACTORS) {
@@ -459,13 +476,19 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         }
         if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
             try {
-                const parsed = JSON.parse(trimmed);
-                if (Array.isArray(parsed)) return parsed;
+                const parsed: unknown = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    const rows: unknown[] = parsed;
+                    return rows;
+                }
             } catch {
                 try {
                     const cleaned = safeStructureClean(trimmed).trim();
-                    const parsed = JSON.parse(cleaned);
-                    if (Array.isArray(parsed)) return parsed;
+                    const parsed: unknown = JSON.parse(cleaned);
+                    if (Array.isArray(parsed)) {
+                        const rows: unknown[] = parsed;
+                        return rows;
+                    }
                 } catch { /* proceed to chunk scanner */ }
             }
         }
@@ -507,16 +530,18 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
                     if (depth === 0 && startIdx !== -1) {
                         const chunk = text.slice(startIdx, i + 1);
                         try {
-                            const parsed = JSON.parse(chunk);
+                            const parsed: unknown = JSON.parse(chunk);
                             if (Array.isArray(parsed)) {
-                                allTop.push(...parsed);
+                                const rows: unknown[] = parsed;
+                                allTop.push(...rows);
                             }
                         } catch {
                             try {
                                 const cleaned = safeStructureClean(chunk).trim();
-                                const parsed = JSON.parse(cleaned);
+                                const parsed: unknown = JSON.parse(cleaned);
                                 if (Array.isArray(parsed)) {
-                                    allTop.push(...parsed);
+                                    const rows: unknown[] = parsed;
+                                    allTop.push(...rows);
                                 }
                             } catch { /* intentional: skip malformed chunk */ }
                         }
@@ -533,8 +558,11 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             try {
                 const tail = text.slice(startIdx) + "]".repeat(depth);
                 const cleaned = safeStructureClean(tail).trim();
-                const parsed = JSON.parse(cleaned);
-                if (Array.isArray(parsed)) return parsed;
+                const parsed: unknown = JSON.parse(cleaned);
+                if (Array.isArray(parsed)) {
+                    const rows: unknown[] = parsed;
+                    return rows;
+                }
             } catch { /* intentional fallback failure */ }
         }
 
@@ -581,13 +609,18 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         if (!candidate) return [];
 
         deepWalk(candidate, (node) => {
-            if (!node || typeof node !== "object") return;
-            const record = node as Record<string, unknown>;
+            if (!node || !isObjectRecord(node)) return;
+            const record = node;
             const f44 = record["44"] ?? record[44];
             if (Array.isArray(f44)) {
-                for (const item of f44) {
-                    if (Array.isArray(item) && Array.isArray(item[0])) {
-                        const raw = item[0][0];
+                const list: unknown[] = f44;
+                for (const item of list) {
+                    if (!Array.isArray(item)) continue;
+                    const itemSlots: unknown[] = item;
+                    const first = itemSlots[0];
+                    if (Array.isArray(first)) {
+                        const nestedSlots: unknown[] = first;
+                        const raw = nestedSlots[0];
                         if (typeof raw === "string") {
                             const trimmed = raw.trim();
                             if (/^\[cite:\s*\d+(?:\s*,\s*\d+)*\]$/i.test(trimmed)) {
@@ -624,9 +657,9 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
                 for (const el of node) {
                     if (typeof el === "string" && CONV_ID_STRICT_RE.test(el)) { foundId = el; return false; }
                 }
-            } else if (node && typeof node === "object") {
-                for (const k in (node as Record<string, unknown>)) {
-                    const v = (node as Record<string, unknown>)[k];
+            } else if (isObjectRecord(node)) {
+                for (const k in node) {
+                    const v = node[k];
                     if (typeof v === "string" && CONV_ID_STRICT_RE.test(v)) { foundId = v; return false; }
                 }
             }
@@ -650,6 +683,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
     function extractConversationTitle(inner: unknown, turns?: unknown[]): TitleResult {
         if (Array.isArray(inner)) {
+            const innerSlots: unknown[] = inner;
             const sanitizeIfTitle = (val: unknown): string | null => {
                 if (typeof val === "string" && val.length > 0 && !val.startsWith("c_") && !val.startsWith("tC") && !val.startsWith("rc_")) {
                     const clean = cleanTitle(val);
@@ -661,7 +695,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             const candidateTitle = extractCandidateValue(inner, GEMINI_JSPB_SCHEMA.INNER.TITLE_CANDIDATES, sanitizeIfTitle);
             if (candidateTitle) return { title: candidateTitle, source: "rpc" };
 
-            const primary = inner[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
+            const primary = innerSlots[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
             if (Array.isArray(primary) && typeof primary[1] === "string") {
                 const clean = cleanTitle(primary[1]);
                 if (isRealTitle(clean)) return { title: clean, source: "rpc" };
@@ -677,9 +711,12 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
-                const t2 = Array.isArray(t) ? t[2] : undefined;
-                const t20 = Array.isArray(t2) ? t2[0] : undefined;
-                const uText = Array.isArray(t20) ? t20[0] : undefined;
+                const turnSlots: unknown[] | null = Array.isArray(t) ? t : null;
+                const t2 = turnSlots?.[2];
+                const payloadSlots: unknown[] | null = Array.isArray(t2) ? t2 : null;
+                const t20 = payloadSlots?.[0];
+                const textSlots: unknown[] | null = Array.isArray(t20) ? t20 : null;
+                const uText = textSlots?.[0];
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
                     const concise = smartSummarizePrompt(uText);
                     if (isRealTitle(concise)) return { title: concise, source: "sniff" };

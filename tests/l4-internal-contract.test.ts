@@ -4,7 +4,7 @@ import { v2Conversation } from './helpers/l4V2Fixtures.js';
 import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
 import { PdfResourceError } from '../src/l4/format/pdf/errors.js';
 import { missingResource, type PreparedResources } from '../src/shared/resources/resourceResult.js';

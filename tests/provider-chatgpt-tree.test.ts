@@ -662,117 +662,24 @@ test('Intelligent UI questionnaires use the provider fallback without executing 
 });
 
 
-test('Loop-generated questionnaire data survives an official fallback that omits every question', () => {
-    const raw = `{@body const questions = [{q:"Which waste?",opts:["Peels","Plastic","Glass"]},{q:"How to aerate?",opts:["Mix","Seal","Flood"]}]}
-{#each questions as question, i}<text>{question.q}</text>{/each}`;
-    const snapshot = chatGPTInteractiveSnapshot(raw, '# Compost quiz\n\n[Submit]');
-    assert.equal(snapshot.incomplete, false);
-    assert.equal(snapshot.representation, 'provider-fallback');
-    assert.ok(snapshot.text.startsWith('# Compost quiz\n\n[Submit]'));
-    assert.equal(snapshot.recoveredStrings, 8);
-    for (const label of ['Which waste?', 'Peels', 'Plastic', 'Glass', 'How to aerate?', 'Mix', 'Seal', 'Flood', '[Submit]'])
-        assert.ok(snapshot.text.includes(label), label);
-    assert.ok(!snapshot.text.includes('{#each'));
-    const answer = textNode('answer', 'question', 'assistant', raw);
-    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: '# Compost quiz\n\n[Submit]' } };
-    const parsed = parseChatGPTConversation({ assetsByNode: new Map(), conversation: {
-        id: 'dynamic-quiz', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
-        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
-    } });
-    assert.equal(parsed.conversation.detail.quality.status, 'complete');
-    assert.ok(!parsed.diagnostics.some(item => item.code === 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE'));
-    const diagnostic = parsed.diagnostics.find(item => item.code === 'CHATGPT_INTERACTIVE_STATIC_SNAPSHOT');
-    assert.equal(diagnostic?.severity, 'info');
-    assert.deepEqual(diagnostic?.details, { representation: 'provider-fallback', recoveredStrings: 8, interactiveBehaviorPreserved: false });
-    assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('Peels'));
-});
-
-test('Interactive snapshot rejects executable bindings and handles empty fallback-only source', () => {
-    for (const expression of ['fetch("https://invalid.example")', '[{q:run()}]', '["hidden"].map(run)', '["hidden"] + run()', '[...secrets]', '[{get q(){return "hidden"}}]']) {
-        const snapshot = chatGPTInteractiveSnapshot(`{@body const questions = ${expression}}{#each questions as q}<text>{q}</text>{/each}`, '[Submit]');
-        assert.equal(snapshot.incomplete, false, 'fully preserved fallback is independent of executable component support');
-        assert.equal(snapshot.text, '[Submit]');
-        assert.ok(!snapshot.text.includes('hidden'));
-        assert.ok(!snapshot.text.includes('fetch('));
-        assert.equal(chatGPTInteractiveSnapshot(`{@body const questions = ${expression}}{#each questions as q}<text>{q}</text>{/each}`).incomplete, true);
-    }
-    const answer = textNode('answer', 'question', 'assistant', '');
-    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: 'Question and options' } };
-    assert.equal(shouldSkipChatGPTMessage(answer.message), false);
-    answer.message!.metadata = { model_dil_v2: {} };
-    assert.equal(shouldSkipChatGPTMessage(answer.message), false);
-    assert.equal(chatGPTInteractiveSnapshot('').incomplete, true);
-    assert.ok(chatGPTInteractiveSnapshot('{@body const q = [{"text" : "safe <tag> *value*", "opts": ["a", "b"]}]}{#each q as x}', 'Submit').text.includes('safe \\<tag\\> \\*value\\*'));
-});
-
-test('Complete fallback remains exact for unsupported dynamic components and source size limits', () => {
-    const fallback = '# Questionnaire\n\nQuestion?\n\n- Yes\n- No\n\n[Submit]\n';
-    for (const raw of [
-        '{@body const questions = fetchQuestions()}{#each questions as q}{#if q.visible}<radio>{q.text}</radio>{/if}{/each}',
-        '{#if state.submitted}<text>{calculateScore()}</text>{/if}',
-        '<radio-group value={selection}><radio>Yes</radio></radio-group>',
-        '{@body ' + ' '.repeat(1_000_001),
-    ]) {
-        const snapshot = chatGPTInteractiveSnapshot(raw, fallback);
-        assert.equal(snapshot.text, fallback);
-        assert.equal(snapshot.incomplete, false);
-        assert.equal(snapshot.recoveredStrings, 0);
-        assert.equal(snapshot.representation, 'provider-fallback');
-    }
-});
-
-test('A fallback that already contains loop labels is not duplicated or downgraded', () => {
-    const raw = '{@body const $questions = [{q:"Question?",opts:["Yes","No"]}]}'
-        + '{#each $questions as q}<text>{q.q}</text>{/each}';
-    const fallback = '# Complete quiz\n\nQuestion?\n\n- Yes\n- No\n\n[Submit]\n';
-    const snapshot = chatGPTInteractiveSnapshot(raw, fallback);
-    assert.equal(snapshot.text, fallback);
-    assert.equal(snapshot.incomplete, false);
-    assert.equal(snapshot.recoveredStrings, 0);
-    const recovered = chatGPTInteractiveSnapshot(raw, '[Submit]');
-    assert.equal(recovered.recoveredStrings, 3, 'dollar signs in valid bindings are matched literally');
-    const distinctBinding = raw.replace('{#each $questions as', '{#each $questionsExtra as');
-    assert.equal(chatGPTInteractiveSnapshot(distinctBinding, '[Submit]').recoveredStrings, 0,
-        'a different loop binding must not expose an unrelated declaration');
-});
-
-test('Without a fallback, literal recovery remains partial and ignores arrays outside rendered loops', () => {
-    const raw = '{@body const internal = ["internal-id","not-visible"]}'
-        + '{@body const questions = [{q:"Question one?",opts:["Yes","No"]},{q:"Question two?",opts:["Yes","No"]}]}\n'
-        + '{#each questions as q}<text>{q.q}</text>{/each}';
-    const snapshot = chatGPTInteractiveSnapshot(raw, ' \n ');
-    assert.equal(snapshot.incomplete, true);
-    assert.equal(snapshot.representation, 'literal-recovery');
-    assert.equal(snapshot.recoveredStrings, 6);
-    assert.equal(snapshot.text.match(/Yes/g)?.length, 2, 'repeated options belong to both questions');
-    assert.ok(!snapshot.text.includes('internal-id'));
-    assert.ok(!snapshot.text.includes('not-visible'));
-    assert.ok(snapshot.text.includes('no usable Markdown fallback'));
-    assert.equal(chatGPTInteractiveSnapshot('', ' \n ').representation, 'unavailable');
-    const answer = textNode('answer', 'question', 'assistant', raw);
-    answer.message!.metadata = { model_dil_v2: {} };
-    const parsed = parseChatGPTConversation({ assetsByNode: new Map(), conversation: {
-        id: 'fallback-missing', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
-        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
-    } });
-    assert.equal(parsed.conversation.detail.quality.status, 'partial');
-    assert.ok(parsed.diagnostics.some(item => item.code === 'CHATGPT_INTERACTIVE_CONTENT_INCOMPLETE' && item.severity === 'warning'));
-});
-
-test('Captured live DIL quiz preserves every fallback character and recovers three questions with nine options', () => {
+test('Captured live DIL quiz parses nested questions/options before buttons, without fallback', () => {
     const fixture = JSON.parse(readFileSync(join(__dirname, 'fixtures/chatgpt_dynamic_questionnaire.json'), 'utf8')) as {
-        raw: string; fallbackMarkdown: string; expectedQuestions: number; expectedOptions: number;
+        raw: string; fallbackMarkdown: string;
     };
     const snapshot = chatGPTInteractiveSnapshot(fixture.raw, fixture.fallbackMarkdown);
-    assert.ok(snapshot.text.startsWith(fixture.fallbackMarkdown));
+    assert.equal(snapshot.representation, 'structured-source');
     assert.equal(snapshot.incomplete, false);
-    assert.equal(snapshot.recoveredStrings, fixture.expectedQuestions + fixture.expectedOptions);
-    assert.equal(snapshot.text.split('\n').filter(line => /^- \d\. /.test(line)).length, 3);
-    assert.equal(snapshot.text.split('\n').filter(line => /^  - /.test(line)).length, 9);
+    assert.equal(snapshot.fallbackBlocks, 0);
+    const ordered = ['1. 以下哪种垃圾', 'A. 果皮和蔬菜残渣', 'B. 塑料包装袋', 'C. 玻璃碎片',
+        '2. 为了让堆肥', 'A. 密封后完全不管', 'B. 适当混合并保持透气', 'C. 不断加入大量清水',
+        '3. 怎样判断', 'A. 有强烈刺鼻气味', 'B. 仍能清楚辨认所有新鲜厨余', 'C. 颜色较深',
+        '[提交问卷]', '[清空重答]', 'COMPOST-END'];
+    let at = -1;
+    for (const token of ordered) { const next = snapshot.text.indexOf(token); assert.ok(next > at, token); at = next; }
+    assert.equal(chatGPTInteractiveSnapshot(fixture.raw).text, snapshot.text, 'fallback is not required to parse this component');
     for (const token of ['{#each', 'onChange', 'GenUI.issueNewTurn', 'DIL.useState']) assert.ok(!snapshot.text.includes(token));
-
     const answer = textNode('answer', 'question', 'assistant', fixture.raw);
-    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: fixture.fallbackMarkdown } };
+    answer.message!.metadata = { model_dil_v2: {} };
     const conversation: ChatGPTApiConversationWithId = {
         id: 'captured-quiz', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
         mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
@@ -780,17 +687,12 @@ test('Captured live DIL quiz preserves every fallback character and recovers thr
     const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('COMPOST-END'));
-    assert.equal(conversation.mapping.answer.message?.content, answer.message?.content, 'source content is not mutated');
-
+    assert.equal((answer.message!.content as { parts: string[] }).parts[0], fixture.raw, 'source is not mutated');
     answer.message!.end_turn = false;
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality.status, 'partial',
-        'preserving the fallback cannot hide an unfinished source reply');
-    answer.message!.end_turn = true;
-    answer.parent = 'missing';
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality.status, 'partial',
-        'preserving the fallback cannot hide a broken conversation branch');
+    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality.status, 'partial');
+    answer.message!.end_turn = true; answer.parent = 'missing';
+    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality.status, 'partial');
 });
-
 
 test('DIL AsyncImage gallery becomes one ordered image resource instead of leaked control JSON', () => {
     const url = 'https://images.openai.com/static-rsc-4/' + 'a'.repeat(300) + '?purpose=fullsize';
@@ -859,4 +761,78 @@ test('DIL fallback norm escapes preserve all table cells and math', () => {
     assert.doesNotThrow(() => katex.renderToString(math.source, { throwOnError: true }));
     assert.ok(serialized.includes('Vert{}'));
     assert.ok(!serialized.includes('inlineCode'));
+});
+
+test('an unclosed inline opener cannot consume formulas in later table cells or rows', () => {
+    const source = String.raw`| Bulk \(C_0\) \(wt% B) | \(f_\alpha\) \(exact) | \(f_\beta\) \(exact) |
+| --- | --- | --- |
+| 20 | \(1\) | \(0\) |`;
+    const actual = preprocessChatGPTMarkdown(source);
+    assert.ok(actual.includes(String.raw`| Bulk $C_0$ \(wt% B) | $f_\alpha$ \(exact) | $f_\beta$ \(exact) |`));
+    assert.ok(actual.includes('| 20 | $1$ | $0$ |'));
+});
+
+test('ChatGPT 429 respects Retry-After, refreshes identity, and retries the same page', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
+    let calls = 0, sessions = 0;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) {
+            sessions++;
+            return new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'retry-user' }, account: { id: 'retry-space' } }));
+        }
+        calls++;
+        assert.ok(url.endsWith('/conversations?offset=0&limit=100'));
+        return calls === 1 ? new Response('', { status: 429, headers: { 'Retry-After': '90' } })
+            : new Response(JSON.stringify({ items: [], total: 0, limit: 100, offset: 0 }));
+    } });
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls, 1);
+    t.mock.timers.tick(89999);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls, 1);
+    t.mock.timers.tick(1);
+    assert.equal(await pending, 'source_end');
+    assert.equal(calls, 2); assert.equal(sessions, 2);
+});
+
+test('ChatGPT 429 cooldown aborts promptly without another request', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['abort-user', 'abort-space']));
+    let calls = 0;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'abort-user' }, account: { id: 'abort-space' } }));
+        calls++; return new Response('', { status: 429, headers: { 'Retry-After': '90' } });
+    } });
+    const controller = new AbortController();
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent', signal: controller.signal });
+    const rejected = assert.rejects(pending, { name: 'AbortError' });
+    await new Promise(resolve => setImmediate(resolve));
+    controller.abort(); await rejected;
+    t.mock.timers.tick(180000);
+    assert.equal(calls, 1);
+});
+
+test('ChatGPT 429 retries are bounded and recheck a changed account', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['bounded-user', 'space']));
+    let calls = 0, changed = false;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({ accessToken: 'tok', user: { id: changed ? 'another-user' : 'bounded-user' }, account: { id: 'space' } }));
+        calls++; return new Response('', { status: 429, headers: { 'Retry-After': '1' } });
+    } });
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+    const rejected = assert.rejects(pending, /HTTP 429/);
+    for (let i = 0; i < 4; i++) {
+        await new Promise(resolve => setImmediate(resolve));
+        t.mock.timers.tick(121000);
+    }
+    await rejected; assert.equal(calls, 4);
+    changed = true;
+    const again = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+    const mismatch = assert.rejects(again, /account mismatch/);
+    await new Promise(resolve => setImmediate(resolve));
+    t.mock.timers.tick(121000);
+    await mismatch; assert.equal(calls, 4);
 });

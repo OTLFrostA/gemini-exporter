@@ -1,6 +1,5 @@
 import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';

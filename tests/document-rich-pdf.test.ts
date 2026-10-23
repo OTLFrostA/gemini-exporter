@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import type { DocumentAst, DisplayInline } from '../src/l3b/ast/ast.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { renderDocumentTypstCore } from '../src/l4/format/typst/renderTypstCore.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';

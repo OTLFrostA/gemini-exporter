@@ -103,7 +103,7 @@ graph TD
 
         subgraph CoreUtils ["工具库与单点真理 (src/shared/utils/)"]
             UT_SSoT["domain/ingestion.ts / conversationIndex.ts<br/>(L2 标题仲裁、快照选择和列表覆盖)"]
-            UT_Path["pathUtils.ts / chipUtils.ts / progressUtils.ts / tabService.ts (Strict Tab Routing)"]
+            UT_Path["pathUtils.ts / titleText.ts / chipUtils.ts / tabService.ts (Strict Tab Routing)"]
             UT_I18n["i18n.ts (locales/zh.ts, locales/en.ts)"]
         end
 
@@ -233,11 +233,7 @@ graph TD
 | `src/l3a/schemaMigration.ts` | Core: Storage | `ensureStorageReady` | 当前物理 Schema 的启动检查；不包含旧记录迁移。 | `storageService.ts`, `lifecycle.ts` | `chrome.storage.local` | `ST_Service` |
 | `src/l3a/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
 | `src/l3a/formatStore.ts` | Core: Storage | `FormatStore` | 校验并持久化用户的导出格式偏好设置与自定义模板参数。 | UI Settings, Popup | `chrome.storage.local` | `ST_Service` |
-| `src/shared/utils/utils.ts` | Core: Utils | `GeminiUtils` (单点真理 SSoT 集合) | 汇聚全局路径清理、标题仲裁与列表合并去重逻辑的统一门面。 | 全系统所有模块 | 格式规范与仲裁结果 | `UT_SSoT` |
-| `src/shared/utils/titleUtils.ts` | Core: Utils | `resolveTitle`, `resolveDetailTitle`, `cleanTitle` | 标题清理与来源归一化工具；标题选择委托 `domain/titleAuthority.ts`（user > provider > derived）。 | `utils.ts`, `parseList`, `syncEngine` | 统一规范标题字符串 | `UT_SSoT` |
-| `src/l2/indexCollection.ts` | Core: Domain | `mergeConversation`, `deduplicateConversations` | 负责多源会话合并与去重，保证高权标题与最新更新时间戳永不倒退。 | `utils.ts`, `syncEngine`, `takeoutEngine` | 合并后的稳定会话数组 | `UT_SSoT` |
 | `src/shared/utils/pathUtils.ts` | Core: Utils | `sanitizeRelativePath`, `buildExportFileName`, `normId`, `AccountProfile` | 严格清洗相对路径与文件名，定义多账号用户画像契约，防范路径穿越 (Path Traversal) 漏洞。 | `fsWriter`, `zipWriter`, `exportOrchestrator`, `bootstrap` | 安全合法的文件名与路径 | `UT_Path` |
-| `src/ui/shared/progressUtils.ts` | Core: Utils | `formatETA`, `formatByteSize`, `calculateRate` | 计算传输速率、剩余时间人类可读格式化。 | `progressReporter.ts` | 格式化文本输出 | `UT_Path` |
 | `src/runtime/capabilities/tabService.ts` | Core: Utils | `TabService`, `getGeminiTab`, `sendToGeminiTab` | 严格按账号 Slot 定向检索 Gemini 标签页并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝串账号盲投。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
 | `src/shared/utils/i18n.ts` | Core: Utils | `I18nClass`, `getI18n` | 中英双语轻量翻译引擎，支持动态语言切换与多级占位符替换。 | UI Views, Controllers, Tour | 国际化本地化字典 | `UT_I18n` |
 | `src/l1/parsers/shared/chipUtils.ts` | Core: Utils | `ChipUtils`, `isInternalChipUrl`, `stripInternalChipMarkdown` | 过滤并清洗 Gemini 内部提及 (User Mention / Model Tag) 产生的内部 Chip 标签。 | `attachments.ts`, `chatFormatter.ts` | 清洗后的 Markdown/文本 | `UT_Path` |
@@ -272,7 +268,6 @@ graph TD
 | `src/ui/uiCommon.ts` | UI: Common | `$`, `getI18n`, `t`, `setWorkbenchControlsDisabled` | UI 前端跨视图共享的 DOM 快捷选择器、工作台操作按钮禁用状态控制与 i18n 辅助方法。 | UI 各 Controller 与 Views | 界面 DOM 元素 | `UI_Common` |
 | `src/ui/shared/domI18n.ts` | UI: Utils | `applyI18n`, `applyLangToggleUI`, `setSafeFormattedContent` | UI 专属 DOM 国际化渲染引擎与语言切换控件绑定，将 DOM 渲染彻底剥离出 Core 层。 | `uiCommon.ts`, `popup.ts`, `optionsSettings.ts` | 前台各页面真实 DOM 树 | `UI_Common` |
 | `src/ui/popup/popup.ts` | UI: Popup | `popup.ts` (Entrypoint) | 扩展浮窗交互中心：当前页单篇导出与去控制台批量导出。 | 用户点击扩展图标 | `chatFormatter` | `POP_Main` |
-| `src/shared/types/index.ts` | Core: Types | `Conversation`, `ChatMessage`, `Attachment`, `ExportRecord` 等 | 全仓 9 大类型定义文件契约中心，为跨世界事件、会话实体、UI 接口与导出参数提供静态类型保障。 | 全仓所有 TS 模块 | TypeScript 编译期检查 | 契约层 |
 
 ---
 
@@ -612,7 +607,7 @@ sequenceDiagram
 
 1. **核心逻辑零 DOM 依赖与分层基线 (Zero DOM Baseline & Layered Browser API Policy)**：
    `src/core/` 按领域职责组织模块，其中不同子层对浏览器 API 的依赖边界有明确区分：
-   - **严格零 DOM / 零浏览器 API 层（纯逻辑，可在任意 JS 运行时执行）**：响应解析器（`parsers/*`）、格式化器（`chatFormatter`）、纯工具库（`titleUtils`、`indexCollection`、`pathUtils`、`progressUtils`、`chipUtils`）、协议常量与类型定义（`protocol/*`）、Provider 接口规范（`aiProvider.ts`）。这些模块严禁导入或依赖任何浏览器专属变量（`document`、`HTMLElement`、`window`），确保可被纯 Node.js 单元测试直接加载验证。
+   - **严格零 DOM / 零浏览器 API 层（纯逻辑，可在任意 JS 运行时执行）**：响应解析器（`parsers/*`）、格式化器（`chatFormatter`）、纯工具库（`titleText`、`pathUtils`、`chipUtils`）、协议常量与类型定义（`protocol/*`）、Provider 接口规范（`aiProvider.ts`）。这些模块严禁导入或依赖任何浏览器专属变量（`document`、`HTMLElement`、`window`），确保可被纯 Node.js 单元测试直接加载验证。
    - **运行时基础设施层（允许浏览器标准 API，禁止 DOM 渲染操作）**：API 客户端（`api/client/*`：`credentialManager` 通过 `querySelectorAll("script")` 只读提取页面内嵌凭据、`rpcClient` 调用 `fetch` 发送 RPC 请求、`pagination` 读取 `window.__gemExporterAborted` 作为旧版中断兼容 fallback）、持久化存储（`storage/*`：使用 `chrome.storage.local`、`IndexedDB`）、文件写入器（`writers/*`：使用 `FileSystem Access API`）、标签页服务（`tabService`：使用 `chrome.tabs`）以及导出编排引擎（`exportOrchestrator`：直接导入 `tabService` 与 `fsWriter`，调用 `chrome.tabs` 与 FileSystem Access API 完成标签页协调与磁盘直写）。这些模块允许使用 `fetch`、`chrome.*`、`IndexedDB`、`FileSystem API` 等浏览器运行时标准 API，但**严禁执行任何 DOM 渲染行为**（`createElement`、`appendChild`、`innerHTML` 赋值、样式操作等），确保 UI 渲染职责完全归属 `src/ui/` 与 `src/runtime/content/` 层。
 2. **严格的 UI 分层关注点分离 (Strict UI Separation of Concerns)**：
    - `state/`：单向数据流与响应式存储数据状态管理；
@@ -653,9 +648,10 @@ flowchart TD
     subgraph Tier2 ["第二层：真实调试 Chrome 全流程实跑 (Tier 2: Live Debug Staging)"]
         T2_Chrome["启动调试端口 Chrome (9222 端口)"]
         T2_Pool["20 题多模态动态场景池 (--pool 消费与自动补仓)"]
-        T2_DAG["DAGRunner 拓扑依赖调度器 (19 大特性生命周期闭环)"]
+        T2_Plugins["平台插件多选 (Gemini / ChatGPT / 自定义)"]
+        T2_DAG["公共 DAG 调度器与生命周期 (平台注册验收用例)"]
         T2_Assert["ExportSpecificationAsserter (物理解压 ZIP 逐字与多模态黄金断言)"]
-        T2_Chrome --> T2_Pool --> T2_DAG --> T2_Assert
+        T2_Chrome --> T2_Plugins --> T2_Pool --> T2_DAG --> T2_Assert
     end
 
     subgraph Tier3 ["第三层：纯视觉 AI 盲测与自主质检 (Tier 3: Pure Visual Agent)"]
@@ -673,7 +669,10 @@ flowchart TD
 - **查看依赖变更影响拓扑**：`python3 scripts/test_impact_analyzer.py --summary`
 - **运行单点定向测试**：`python3 tests/run_tests.py --filter <keyword>`
 - **启动测试专用 Chrome**：`./scripts/open_test_chrome.sh`
-- **运行 Tier 2 场景池实跑测试**：`npm run test:tier2 -- --pool`
+- **运行 Tier 2 场景池实跑测试（默认 Gemini）**：`npm run test:tier2 -- --pool`
+- **多选平台串行实跑**：`npm run test:tier2 -- --platforms gemini chatgpt`
+- **离线查看平台与验收计划**：`npm run test:tier2 -- --platforms all --plan`
+- **平台插件契约、能力范围及报告**：[Tier 2 platform plugins](tier2-platform-plugins.md)
 - **运行 Tier 3 纯视觉自主审查**：`python3 scripts/test_visual_agent.py --api --ai-review`
 
 ---

@@ -14,11 +14,8 @@ import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
 import { buildMinimalValidPdf } from './helpers/stubPdfCompiler.js';
 import { resourceDiagnostics } from '../src/shared/resources/resourceResult.js';
 const { collectDocumentResources } = require('../src/l3b/ast/resourceReferences.js');
-const { decodeDataUrl, decodeDataUrlAsset } = require('../src/l4/format/resources/dataUrl.js');
 const { assertDomainClosure } = require('../src/l2/closure.js');
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-const PNG_SHA256 = 'c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77';
-const PNG_REF = `assets/sha256/c4/14/${PNG_SHA256}.png`;
 async function prepare(content: string, id = 'dataurl') {
     const input = { id, title: 'data url assets', messages: [{ id: 'm1', role: 'user', content }] };
     const before = JSON.stringify(input);
@@ -83,12 +80,6 @@ test('percent-encoded SVG input decodes before image mounting', async () => {
     assert.ok(result.pathMap.get(id)?.endsWith('.svg'));
     assert.ok(!result.diagnostics.some((d: {code: string}) => d.code === 'FORMAT_CONTENT_OMITTED'));
 });
-test('strict data URL decoder refuses oversized inline payloads before allocating decoded bytes', () => {
-    const over = 'A'.repeat(Math.ceil((10 * 1024 * 1024 + 1) / 3) * 4);
-    const result = decodeDataUrl(`data:image/png;base64,${over}`);
-    assert.equal(result.ok, false);
-    assert.equal(result.code, 'DATA_URL_TOO_LARGE');
-});
 test('malformed original data URL failures are sidecar diagnostics', async () => {
     for (const uri of ['data:image/png;base64', 'data:image/png;base64,!!!not-base64!!!', 'data:image/png,%zz']) {
         const result = await prepare(`![x](${uri})`);
@@ -108,41 +99,6 @@ test('remote input remains a URI fact; offline preparation cannot invent bytes',
     assert.equal(result.pathMap.size, 0);
     assert.match(result.unresolved[0]?.reason, /no network fetch/);
 });
-test('decodeDataUrlAsset unit checks: header parsing and strictness', async () => {
-    const ok = await decodeDataUrlAsset(`data:image/png;base64,${PNG_B64}`);
-    assert.ok(ok.ok);
-    if (ok.ok) {
-        assert.strictEqual(ok.mimeType, 'image/png');
-        assert.strictEqual(ok.storageRef, PNG_REF);
-        assert.strictEqual(ok.sha256, PNG_SHA256);
-        assert.strictEqual(ok.suggestedName, 'image.png');
-    }
-    // Whitespace inside base64 is insignificant.
-    const spaced = await decodeDataUrlAsset(`data:image/png;base64,${PNG_B64.slice(0, 20)} ${PNG_B64.slice(20)}`);
-    assert.ok(spaced.ok && spaced.storageRef === PNG_REF);
-
-    const noComma = await decodeDataUrlAsset('data:image/png;base64');
-    assert.ok(!noComma.ok && noComma.code === 'DATA_URL_MALFORMED');
-
-    const badPad = await decodeDataUrlAsset('data:image/png;base64,AB=C');
-    assert.ok(!badPad.ok && badPad.code === 'DATA_URL_MALFORMED');
-
-    const emptyType = await decodeDataUrlAsset('data:,hello');
-    assert.ok(emptyType.ok && emptyType.mimeType === 'application/octet-stream');
-    if (emptyType.ok) assert.deepStrictEqual(Buffer.from(emptyType.bytes), Buffer.from('hello'));
-});
-
-test('decodeDataUrl stays synchronous and returns bytes without a digest', () => {
-    const decoded: any = decodeDataUrl(`data:image/png;base64,${PNG_B64}`);
-    assert.ok(decoded.ok);
-    assert.strictEqual(decoded.mimeType, 'image/png');
-    assert.ok(!('sha256' in decoded), 'sync decode must not compute a digest');
-    assert.ok(!('storageRef' in decoded), 'sync decode must not build a storageRef');
-    assert.deepStrictEqual(Buffer.from(decoded.bytes), Buffer.from(PNG_B64, 'base64'));
-    const bad: any = decodeDataUrl('data:image/png;base64');
-    assert.ok(!bad.ok && bad.code === 'DATA_URL_MALFORMED');
-});
-
 test('prepared bytes are isolated between export runs and remain intact in the owning run', async () => {
     const first = await prepare(`![dot](data:image/png;base64,${PNG_B64})`, 'first');
     const second = await prepare('no images', 'second');

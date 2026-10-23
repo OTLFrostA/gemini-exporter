@@ -8,7 +8,10 @@ import { closeDomainResources } from '../../../src/l1/parsers/shared/resources/d
 import { resolveTitle, isTitleSource } from '../../../src/l2/titleAuthority.js';
 import { validateParserDomain } from '../../../src/l2/runtimeValidation.js';
 import type { BlockNode } from '../../../src/l2/content/blocks.js';
-import { parseImportedBody } from '../../../src/l1/parsers/shared/importedContentAdapter.js';
+import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../../src/l1/parsers/shared/markdown/index.js';
+import { convertHtmlToMarkdown } from '../../../src/l1/parsers/shared/html/htmlToMarkdown.js';
+const parseImportedBody = (body: string, context: MarkdownParseContext): BlockNode[] =>
+    parseMarkdownToBlocks(convertHtmlToMarkdown(body), '', context);
 import { parseGeminiBody, parseSourceReasoning } from '../../../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { supplementLegacyGeneratedMedia } from './generatedMediaReconciliation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';

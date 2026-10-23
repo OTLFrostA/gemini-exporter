@@ -9,7 +9,10 @@ npm run test:tier2 -- --provider chatgpt
 The ChatGPT suite covers complex 5- and 8-round conversations, passive local
 save and promotion, request-confirmed remote deletion and same-key local cleanup,
 popup download, scan, and physical Markdown/HTML/JSON/PDF exports. Gemini's
-existing full suite remains separate, including its Takeout workflow.
+platform-specific cases retain their Takeout workflow. Both plugins now use the
+[shared Tier 2 scheduler and lifecycle](tier2-platform-plugins.md); multi-select
+with `--platforms gemini chatgpt`. The validation recorded below predates that
+framework refactor and does not certify a new multi-platform live run.
 
 ## Recorded validation
 

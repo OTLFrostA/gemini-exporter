@@ -1,8 +1,8 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
-import { validateZipFile } from '../src/l1/imports/takeout/zipBombGuard.js';
+import { parseGeminiTakeoutConversation } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
+import { validateZipFile } from '../src/l1/parsers/shared/archive/zipBombGuard.js';
 
 test('batch A acquisition rejects empty provider bytes instead of claiming success', async () => {
     const { acquireSourceResource } = require('../src/l1/resources/sourceResources.js');
@@ -18,9 +18,9 @@ const takeoutHtml = `<div class="outer-cell"><a href="https://gemini.google.com/
 2026-09-02T12:00:00Z<br><p>A cat.</p></div></div>`;
 
 test('batch A native Takeout keeps explicitly referenced user images as semantic assets', () => {
-    const parsed = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout', providerId: 'gemini', data: {
+    const parsed = parseGeminiTakeoutConversation({
         htmlText: takeoutHtml, archiveFiles: { 'cat.png': { dir: false } }
-    } });
+    }, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     const user = parsed.conversation.detail.messages[0];
     assert.equal(user.role, 'user');
     const asset = parsed.conversation.detail.assets[0];
@@ -32,7 +32,7 @@ test('batch A native Takeout keeps explicitly referenced user images as semantic
 });
 
 test('batch A native Takeout reports missing archive references without inventing a match', () => {
-    const parsed = parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout', providerId: 'gemini', data: { htmlText: takeoutHtml } });
+    const parsed = parseGeminiTakeoutConversation({ htmlText: takeoutHtml }, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(parsed.conversation.detail.assets.length, 1);
     assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_MISSING_RESOURCE'));
     assert.equal(Object.hasOwn(parsed.conversation.detail.assets[0], 'failureReason'), false);

@@ -1,6 +1,7 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 const { sourceDetail, sourceMessage } = require('./helpers/l1SourceFixture.js');
 const { parseGeminiRpcConversation } = require('../src/l1/parsers/gemini/rpc/parseConversation.js');
+const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
 /**
  * Phase C 规格测试 —— 解析可观测 (P1-8 / P1-9)
  * red-by-design: 修复前失败、修复后通过。
@@ -17,52 +18,26 @@ const pagination = require('../src/l1/client/gemini/api/pagination.js');
 const { contentQuality } = require('../src/l1/parsers/qualityEvidence.js');
 
 // ---------------------------------------------------------------- helpers
-function makeDetailRpc(inner: unknown): string {
-    const innerStr = JSON.stringify(inner);
-    const outer = JSON.stringify([["wrb.fr", "hNvQHb", innerStr]]);
-    return `)]}'\n\n${outer}`;
-}
-function makeTurn(opts: {
-    userPayload?: unknown; candText?: string; convId?: string; tsSec?: number; extraCand?: unknown[];
-} = {}): unknown[] {
-    const {
-        userPayload = [["hello"]],
-        candText = "world",
-        convId = "c_abc123def456",
-        tsSec = 1700000000,
-        extraCand = []
-    } = opts;
-    const cand: unknown[] = ["rc_cand000001", [candText], "en", ...extraCand];
-    return [
-        [convId],
-        [tsSec, 0],
-        userPayload,
-        [[cand]]
-    ];
-}
 function modelMessageOf(res: any): any {
     return res.messages.find((m: any) => m.role === "model");
 }
 
 // ---------------------------------------------------------------- P1-8: turnsRejected + schemaDrift
 test('P1-8a: 漂移夹具产出 turnsRejected=1 且 schemaDrift 非空', () => {
-    const junk = [["x_123"], [1, 0], [["u"]]]; // isTurn 拒绝
-    const oddTurn = makeTurn({ userPayload: "非数组形态的 user payload", convId: "c_odd000000000001" });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), oddTurn, junk]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_01'));
     assert.strictEqual(res.turnsRejected, 1, 'junk 元素应被计数为拒识');
     assert.ok(Array.isArray(res.schemaDrift) && res.schemaDrift.length > 0, 'schemaDrift 应非空');
 });
 
 test('P1-8b: 正常 payload 无拒识、无漂移', () => {
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), makeTurn({ convId: "c_abc123def457" })]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_02'));
     assert.strictEqual(res.turnsRejected || 0, 0, '正常 turn 不应被拒识');
     assert.ok(!res.schemaDrift || res.schemaDrift.length === 0, '正常 payload 不应有 schemaDrift');
 });
 
 test('P1-8c: parser 统一质量状态，拒识内容判 partial', () => {
-    const junk = [["x_123"], [1, 0], [["u"]]];
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), junk]]));
-    const result = parseGeminiRpcConversation(makeDetailRpc([[makeTurn(), junk]]), { providerId: 'gemini', account: fixtureAccount(), targetConvId: 'abc123def456' });
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_03'));
+    const result = parseGeminiRpcConversation(geminiDetailGen('G_OBSERVABILITY_04'), { providerId: 'gemini', account: fixtureAccount(), targetConvId: 'abc123def456' });
     const quality = result.conversation.detail.quality;
     assert.strictEqual(result.evidence?.rejectedTurns, 1);
     assert.ok(result.diagnostics.some((d: { code: string }) => d.code === 'GEMINI_TURNS_REJECTED'));
@@ -189,12 +164,9 @@ test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透
 });
 
 test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {
-    const docId = UUID;
-    const flatItem = ["https://y/immersive_entry_chip/e2e", docId, "End To End Heuristic Title"];
-    const clueText = "## End To End Heuristic Title\n\n" + "正文".repeat(100); // >200 字符，明确匹配文档标题
+    const clueText = "## End To End Heuristic Title\n\n" + "正文".repeat(100);
     assert.ok(clueText.length > 200);
-    const turn = makeTurn({ extraCand: [[flatItem], clueText] });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_DOC_01'));
     const model = modelMessageOf(res);
     assert.ok(model && model.documents && model.documents.length > 0, '应产出 documents');
     const doc = model.documents[0];
@@ -202,12 +174,7 @@ test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {
 });
 
 test('decodeGeminiDetail: strips immersive_entry_chip from document contentMarkdown and extracts heading title', () => {
-    const docId = UUID;
-    const flatItem = ["https://y/immersive_entry_chip/0", docId, "Document"];
-    const rawDocText = "http://googleusercontent.com/immersive_entry_chip/0\n# 虚构城市水力建模分析\n\n" + "正文详细内容".repeat(20);
-    const docContent = [docId, [[rawDocText]]];
-    const turn = makeTurn({ extraCand: [[flatItem], docContent] });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_DOC_02'));
     const model = modelMessageOf(res);
     assert.ok(model && model.documents && model.documents.length > 0, '应产出 documents');
     const doc = model.documents[0];
@@ -216,12 +183,7 @@ test('decodeGeminiDetail: strips immersive_entry_chip from document contentMarkd
 });
 
 test('decodeGeminiDetail: ignores document when contentMarkdown contains only chip URL', () => {
-    const docId = UUID;
-    const flatItem = ["https://y/immersive_entry_chip/0", docId, "Document"];
-    const rawDocText = "http://googleusercontent.com/immersive_entry_chip/0\n";
-    const docContent = [docId, [[rawDocText]]];
-    const turn = makeTurn({ extraCand: [[flatItem], docContent] });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_DOC_03'));
     const model = modelMessageOf(res);
     assert.ok(!model || !model.documents || model.documents.length === 0, '仅包含 chip 的空文档不应产出');
 });
@@ -248,9 +210,7 @@ test('LP-03: missing, mentioned-only or ambiguous title must not claim an unrela
 });
 
 test('LP-03: Detail decoding leaves unmatched deep research content unattached', () => {
-    const flatItem = ['https://y/immersive_entry_chip/no-match', UUID, 'Target Research Report'];
-    const unrelated = '# Different Document\n\n' + 'Unrelated content '.repeat(35);
-    const model = modelMessageOf(detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn({ extraCand: [[flatItem], unrelated] })]])));
+    const model = modelMessageOf(detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_DOC_04')));
     assert.ok(model, 'valid model reply remains present');
     assert.equal(model.documents?.length ?? 0, 0, 'unmatched material must not be manufactured into the target document');
 });

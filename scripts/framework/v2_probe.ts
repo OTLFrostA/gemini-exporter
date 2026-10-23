@@ -35,8 +35,8 @@ export async function storedConversation(input: ConversationKey) {
     return { index, detail, exportRecord };
 }
 /** The harness must use the same Skip predicate as the Application export. */
-export async function skipEligibleIds() {
-    const state = await snapshot();
+export async function skipEligibleIds(providerId = 'gemini') {
+    const state = await snapshot(providerId);
     const settings = await getSettings();
     return state.rows.filter(row => shouldSkipExport(state.records[row.key.conversationId] ?? null,
         row.updatedAt, { keys: [row.key], format: settings.defaultFormat, delivery: 'browserDownload',

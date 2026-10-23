@@ -284,10 +284,6 @@ def test_javascript_unit_tests(target_tests=None):
 
             preload_js = []
             for mod_path, mod_id in [
-                ("src/shared/utils/utils.js", "../src/shared/utils/utils.js"),
-                ("src/shared/utils/utils.js", "./src/shared/utils/utils.js"),
-                ("src/shared/utils/utils.js", "./utils.js"),
-                ("src/shared/utils/utils.js", "../utils.js"),
                 ("src/l1/parsers/gemini/rpc/extractors.js", "./parser/extractors.js"),
                 ("src/l1/parsers/gemini/rpc/extractors.js", "./extractors.js"),
                 ("src/l1/parsers/gemini/rpc/extractors.js", "../src/l1/parsers/gemini/rpc/extractors.js"),
@@ -312,8 +308,6 @@ def test_javascript_unit_tests(target_tests=None):
                 ("src/l1/client/gemini/geminiClient.js", "../src/l1/client/gemini/geminiClient.js"),
                 ("src/l1/client/gemini/geminiClient.js", "./src/l1/client/gemini/geminiClient.js"),
                 ("src/l1/client/gemini/geminiClient.js", "./geminiClient.js"),
-                ("utils.js", "../utils.js"),
-                ("utils.js", "./utils.js"),
                 ("src/core/constants.js", "../src/core/constants.js"),
                 ("src/core/constants.js", "./constants.js"),
                 ("src/core/tabService.js", "../src/core/tabService.js"),
@@ -321,18 +315,12 @@ def test_javascript_unit_tests(target_tests=None):
                 ("src/l4/delivery/writers/fsWriter.js", "../src/l4/delivery/writers/fsWriter.js"),
                 ("src/l4/delivery/writers/writerInterface.js", "../src/l4/delivery/writers/writerInterface.js"),
                 ("src/core/engine/chatFormatter.js", "../src/core/engine/chatFormatter.js"),
-                ("src/l1/imports/takeout/zipBombGuard.js", "./takeout/zipBombGuard.js"),
-                ("src/l1/imports/takeout/zipBombGuard.js", "./zipBombGuard.js"),
-                ("src/l1/imports/takeout/zipBombGuard.js", "../src/l1/imports/takeout/zipBombGuard.js"),
                 ("src/shared/resources/takeout/mediaIndex.js", "./takeout/mediaIndex.js"),
                 ("src/shared/resources/takeout/mediaIndex.js", "./mediaIndex.js"),
                 ("src/shared/resources/takeout/mediaIndex.js", "../src/shared/resources/takeout/mediaIndex.js"),
                 ("src/l1/imports/takeout/importTakeout.js", "./takeout/takeoutParser.js"),
                 ("src/l1/imports/takeout/importTakeout.js", "./takeoutParser.js"),
                 ("src/l1/imports/takeout/importTakeout.js", "../src/l1/imports/takeout/importTakeout.js"),
-                ("src/l1/imports/takeoutEngine.js", "../src/l1/imports/takeoutEngine.js"),
-                ("src/l1/imports/takeoutEngine.js", "./src/l1/imports/takeoutEngine.js"),
-                ("src/l1/imports/takeoutEngine.js", "./takeoutEngine.js"),
                 ("src/core/engine/export/progressReporter.js", "./export/progressReporter.js"),
                 ("src/core/engine/export/progressReporter.js", "./progressReporter.js"),
                 ("src/core/engine/export/progressReporter.js", "../src/core/engine/export/progressReporter.js"),
@@ -342,15 +330,9 @@ def test_javascript_unit_tests(target_tests=None):
                 ("src/core/engine/export/batchWorker.js", "./export/batchWorker.js"),
                 ("src/core/engine/export/batchWorker.js", "./batchWorker.js"),
                 ("src/core/engine/export/batchWorker.js", "../src/core/engine/export/batchWorker.js"),
-                ("src/l1/client/rateLimiter.js", "./export/rateLimiter.js"),
-                ("src/l1/client/rateLimiter.js", "./rateLimiter.js"),
-                ("src/l1/client/rateLimiter.js", "../src/l1/client/rateLimiter.js"),
                 ("src/core/engine/export/exportOrchestrator.js", "./export/exportOrchestrator.js"),
                 ("src/core/engine/export/exportOrchestrator.js", "./exportOrchestrator.js"),
                 ("src/core/engine/export/exportOrchestrator.js", "../src/core/engine/export/exportOrchestrator.js"),
-                ("src/application/exportEngine.js", "../src/application/exportEngine.js"),
-                ("src/application/exportEngine.js", "./src/application/exportEngine.js"),
-                ("src/application/exportEngine.js", "./exportEngine.js"),
                 ("src/core/exporter/zipWriter.js", "../src/core/exporter/zipWriter.js"),
                 ("src/core/exporter/fsWriter.js", "../src/core/exporter/fsWriter.js"),
                 ("src/ui/options/state/conversationsStore.js", "../src/ui/options/state/conversationsStore.js"),
@@ -828,6 +810,13 @@ def test_framework_environment_suite():
     assert res.returncode == 0, f"test_framework_environment.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 2 TestEnvironment & Unified Lifecycle test suite passed")
 
+def test_tier2_platforms_suite():
+    import subprocess
+    res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_tier2_platforms.py")],
+                         capture_output=True, text=True)
+    assert res.returncode == 0, f"test_tier2_platforms.py failed: {res.stderr or res.stdout}"
+    print("  ✓ Platform-independent Tier 2 plugin orchestration passed")
+
 def test_dag_subgraph_suite():
     import subprocess
     cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_dag_subgraph.py")]
@@ -946,6 +935,7 @@ def run_all():
                 if any("env" in f for f in affected):
                     test_framework_environment_suite()
                 if any(x in f for f in affected for x in ["framework", "dag", "cases"]):
+                    test_tier2_platforms_suite()
                     test_dag_subgraph_suite()
                     test_tier2_assertions_suite()
                 if any("impact_analyzer" in f for f in affected):
@@ -983,6 +973,7 @@ def run_all():
     test_pipeline_decoupling_suite()
     test_visual_sandbox_suite()
     test_framework_environment_suite()
+    test_tier2_platforms_suite()
     test_dag_subgraph_suite()
     test_tier2_assertions_suite()
     test_impact_analyzer_suite()

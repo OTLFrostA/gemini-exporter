@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { decodeGeminiDetail, findTurnsDeep } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { robustFirstPayload, extractModelCandidates, extractCandidateText, extractThoughts, extractCitations } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { extractInnerPayload, extractNextPageToken } from '../src/l1/parsers/gemini/rpc/payload.js';
@@ -56,15 +58,14 @@ test('list: official timestamp and count slots win while extra fields survive on
 
 test('list: null rows, truncated rows and malformed titles retain current defaults', () => {
     const ids = ['c_missingtitle123', 'c_nulltitle123456', 'c_objecttitle1234', 'c_blanktitle12345'];
-    const rows = [null, [], 'not-a-row', [ids[0]], [ids[1], null], [ids[2], { title: 'wrong shape' }], [ids[3], ' \t ']];
-    const parsed = parseList(rpc([null, rows], 'MaZiqc'));
+    const parsed = parseList(geminiListGen('G_BOUNDARY_LIST_01'));
     assert.deepEqual(parsed.conversations.map(c => [c.id, c.title, c.titleSource, c.updatedAt, c.messageCount]), [
         [ids[0].slice(2), '', 'provider', undefined, undefined],
         [ids[1].slice(2), '', 'provider', undefined, undefined],
         [ids[2].slice(2), '', 'provider', undefined, undefined],
         [ids[3].slice(2), '', 'provider', undefined, undefined]
     ]);
-    assert.equal(parseList(rpc([null, null, [[ID, 'Secondary title']]], 'MaZiqc')).conversations[0].title, 'Secondary title');
+    assert.equal(parseList(geminiListGen('G_BOUNDARY_LIST_02')).conversations[0].title, 'Secondary title');
 });
 
 test('missing or malformed envelopes distinguish list diagnostics from detail failures', () => {
@@ -82,16 +83,14 @@ test('missing or malformed envelopes distinguish list diagnostics from detail fa
     assert.equal(Object.hasOwn(empty, 'timestamp'), false);
     assert.equal(empty.schemaDrift, undefined);
     assert.equal(empty._debug!.turnsLen, 0);
-    const emptyList = parseList(rpc([null, [], 'tC_empty_page'], 'MaZiqc'));
+    const emptyList = parseList(geminiListGen('G_BOUNDARY_LIST_03'));
     assert.deepEqual(emptyList.conversations, []);
     assert.equal(emptyList.nextPageToken, 'tC_empty_page');
     assert.equal(emptyList._debug, undefined);
 });
 
 test('detail: reverse wire ordering, candidates and authoritative timestamps remain stable', () => {
-    const newest = turn('Newest prompt', 1700000010, [['rc_new_a', [['First variant']]], ['rc_new_b', 'Second variant']]);
-    const oldest = turn('Oldest prompt', 1700000000, [['rc_old', [['Old answer']]]]);
-    const parsed = decodeGeminiDetail(rpc([[newest, oldest], 'tC_detail_cursor', 'Official detail title', { extra: true }]));
+    const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_01'));
     assert.equal(parsed.id, ID);
     assert.deepEqual(parsed.messages.map(m => [m.role, m.content]), [
         ['user', 'Oldest prompt'], ['model', 'Old answer'], ['user', 'Newest prompt'], ['model', 'First variant']
@@ -108,10 +107,11 @@ test('detail: reverse wire ordering, candidates and authoritative timestamps rem
 });
 
 test('detail: absent optional fields and truncated candidates do not fabricate messages or timestamps', () => {
-    const userOnly = [[ID], null, [['User only prompt']]];
-    const modelOnly = [[ID], null, null, [[['rc_model_only', [['Model only answer']]]]]];
-    for (const [wireTurn, expected] of [[userOnly, ['User only prompt']], [modelOnly, ['Model only answer']]] as const) {
-        const parsed = decodeGeminiDetail(rpc([[wireTurn]]));
+    for (const [key, expected] of [
+        ['G_BOUNDARY_DETAIL_02', ['User only prompt']],
+        ['G_BOUNDARY_DETAIL_03', ['Model only answer']],
+    ] as const) {
+        const parsed = decodeGeminiDetail(geminiDetailGen(key));
         assert.deepEqual(parsed.messages.map(m => m.content), expected);
         assert.equal(Object.hasOwn(parsed, 'timestamp'), false);
         assert.equal(Object.hasOwn(parsed, 'createdAt'), false);
@@ -150,17 +150,15 @@ test('detail: missing or malformed titles keep the existing newest-wire-prompt f
         assert.equal(parsed.titleSource, 'sniff');
         assert.equal(Object.hasOwn(parsed, 'titles'), false);
     }
-    const flatUser = turn();
-    flatUser[2] = ['Flat user prompt title'];
-    assert.equal(decodeGeminiDetail(rpc([[flatUser]])).title, 'Flat user prompt title');
+    assert.equal(decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_04')).title, 'Flat user prompt title');
 });
 
 test('detail: metadata-only and undiscoverable-turn payloads retain distinct drift diagnostics', () => {
-    const metadata = decodeGeminiDetail(rpc([null, null, [[ID, 'Metadata title']]]));
+    const metadata = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_05'));
     assert.deepEqual(metadata.messages, []);
     assert.ok(metadata.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
     assert.deepEqual(metadata._debug!.schemaDriftWarnings, metadata.schemaDrift);
-    const missingTurns = decodeGeminiDetail(rpc([null, { extra: true }]));
+    const missingTurns = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_06'));
     assert.deepEqual(missingTurns.messages, []);
     assert.ok(missingTurns.schemaDrift?.some(w => w.startsWith('Payload drift:')));
 });
@@ -168,8 +166,7 @@ test('detail: metadata-only and undiscoverable-turn payloads retain distinct dri
 test('known behavior: rejected turn with a user payload still emits a user message', () => {
     // Known mismatch: turnsRejected counts rejected recognizers, but the message
     // loop does not skip them. Characterize here; fix separately from typing.
-    const rejected = [['x_not_a_turn'], null, [['Rejected recognizer prompt']]];
-    const parsed = decodeGeminiDetail(rpc([[turn(), rejected]]));
+    const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_07'));
     assert.equal(parsed.turnsRejected, 1);
     assert.equal(parsed.messages[0].content, 'Rejected recognizer prompt');
     assert.equal(parsed.messages[0].role, 'user');
@@ -247,7 +244,7 @@ test('sanitized Tier-2 wire fixtures retain structured nodes and search images t
 test('known behavior: an ID-only candidate becomes model content through the single-element fallback', () => {
     // Existing fallback treats a one-element candidate as its text body.
     assert.equal(extractCandidateText(['rc_missing']), 'rc_missing');
-    const parsed = decodeGeminiDetail(rpc([[turn('Missing body prompt', null, [['rc_missing']])]]));
+    const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_08'));
     assert.equal(parsed.messages.find(m => m.role === 'model')?.content, 'rc_missing');
 });
 

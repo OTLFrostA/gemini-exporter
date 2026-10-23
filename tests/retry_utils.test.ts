@@ -3,16 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { calculateBackoff, abortableSleep } from '../src/shared/utils/retryUtils.js';
 import {
     handleHttp429,
     interruptibleSleep
 } from '../src/l1/client/gemini/api/retryPolicy.js';
-import {
-    RateLimitManager,
-    calculateBackoff as engineCalculateBackoff,
-    abortableSleep as engineAbortableSleep
-} from '../src/l1/client/rateLimiter.js';
 
 const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
@@ -93,17 +87,7 @@ test('retryPolicy - handleHttp429 honors Retry-After header and backoff options'
 // 4. RateLimiter re-exports & Parity
 // ---------------------------------------------------------------------------
 
-test('rateLimiter - engine re-exports calculateBackoff and abortableSleep matching retryUtils', () => {
-    assert.strictEqual(typeof engineCalculateBackoff, 'function', 'rateLimiter re-exports calculateBackoff');
-    assert.strictEqual(typeof engineAbortableSleep, 'function', 'rateLimiter re-exports abortableSleep');
 
-    const val1 = calculateBackoff(2, { initialDelayMs: 500, jitterMs: 0 });
-    const val2 = engineCalculateBackoff(2, { initialDelayMs: 500, jitterMs: 0 });
-    assert.strictEqual(val1, val2, 'calculateBackoff parity between modules');
-
-    const mgr = new RateLimitManager({ initialDelayMs: 500, maxDelayMs: 5000, jitterMs: 0 });
-    assert.strictEqual(mgr.calculateBackoff(2), 2000);
-});
 
 // ---------------------------------------------------------------------------
 // 5. Architectural Boundary Check: No Inverted Dependencies

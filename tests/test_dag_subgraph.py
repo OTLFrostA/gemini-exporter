@@ -371,7 +371,7 @@ class TestExportFormatDecoupling(unittest.TestCase):
 
 
 class TestSearchClearIsolation(unittest.TestCase):
-    def run_case(self, preserve_selection, store_total=12):
+    def run_case(self, preserve_selection, store_total=12, platform_id='gemini'):
         # Earlier independent cases have changed both the search and selection.
         state = {"query": "another-chat", "selected": False}
         cdp = MagicMock()
@@ -383,6 +383,7 @@ class TestSearchClearIsolation(unittest.TestCase):
             return state["selected"]
         cdp.eval.side_effect = eval_dispatch
         ctx = MagicMock()
+        ctx.platform_id = platform_id
         ctx.shared_data = {"target_search_id": "target-chat"}
         ctx.connect_options.return_value = cdp
 
@@ -394,7 +395,8 @@ class TestSearchClearIsolation(unittest.TestCase):
             state["selected"] = state["query"] == chat_id and checked
             return state["selected"]
 
-        def clear(connection):
+        def clear(connection, provider_id):
+            self.assertEqual(provider_id, platform_id)
             state["query"] = ""
             if not preserve_selection:
                 state["selected"] = False
@@ -410,6 +412,9 @@ class TestSearchClearIsolation(unittest.TestCase):
 
     def test_intervening_cases_do_not_invalidate_clear_selection_contract(self):
         self.assertTrue(self.run_case(preserve_selection=True)[0])
+
+    def test_chatgpt_clear_uses_its_own_platform(self):
+        self.assertTrue(self.run_case(preserve_selection=True, platform_id='chatgpt')[0])
 
     def test_clear_that_loses_selection_still_fails(self):
         self.assertFalse(self.run_case(preserve_selection=False)[0])

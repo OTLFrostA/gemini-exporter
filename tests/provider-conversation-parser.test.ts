@@ -1,7 +1,6 @@
 import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
-const { parseConversation } = require('../src/l1/parsers/parseConversation.js');
 /** Provider parsing, Domain closure and composed attachment-placement regressions. */
 export {};
 const test = require('node:test');

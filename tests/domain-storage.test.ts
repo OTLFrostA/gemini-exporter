@@ -14,7 +14,6 @@ import { storageIdentity } from './helpers/admitFixture.js';
 import { readFixture, removeFixture } from './helpers/admitFixture.js';
 import { restoreDomainSnapshot as readStorageDomain } from '../src/l2/runtimeValidation.js';
 import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import type { DomainFixture } from './helpers/domainFixture.js';
 
 

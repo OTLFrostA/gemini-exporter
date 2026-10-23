@@ -9,7 +9,7 @@ import { getConversationDetail } from '../src/l1/client/gemini/api/pagination.js
 import { assertDomainClosure } from '../src/l2/closure.js';
 import { extractBlockText } from '../src/l2/content/unknownFallback.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
-const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 function page(request: string, seconds: number, cursor: string | null = null) {
     const turn = [['c_native', request], [seconds, 0], [[`Question ${request}`]], [[['rc_' + request, [['**Answer**']]]]]];
     return parseGeminiRpcConversation(JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], cursor, 'Title'])],
@@ -60,8 +60,7 @@ test('production RPC client parses raw responses without invoking the legacy det
     const transport = require('../src/l1/client/gemini/api/rpcClient.js') as typeof import('../src/l1/client/gemini/api/rpcClient.js');
     const originalCred = credentials.resolveCred, originalPost = transport.postBatchexecute;
     credentials.resolveCred = async () => ({ at: 'test', bl: 'test', accountSlot: '10000000-0000-4000-8000-000000000001', fSid: 'test' });
-    const rawTurn = [['c_native', 'r_one'], [1700000000, 0], [['Question']], [[['rc_one', [['Answer']]]]]];
-    transport.postBatchexecute = async () => new Response(rpc([[rawTurn], null, 'Native title']));
+    transport.postBatchexecute = async () => new Response(geminiDetailGen('G_NATIVE_CALLERS_01'));
     try {
         const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js') as typeof import('../src/l1/client/gemini/geminiClient.js');
         const detail = await new GeminiAPIClient().fetchConversationPage('native', null, '10000000-0000-4000-8000-000000000001');
@@ -81,7 +80,7 @@ test('native pagination rejects mixed legacy message pages instead of dropping t
 
 test('metadata-only detail retry follows native pagination to its terminal page', async () => {
     const calls: Array<{ token?: string | null; detailOnly?: boolean }> = [];
-    const empty = parseGeminiRpcConversation(rpc([null, null, [['c_native']]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
+    const empty = parseGeminiRpcConversation(geminiDetailGen('G_NATIVE_CALLERS_02'), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
     const detail = await getConversationDetail({ async fetchConversationPage(_id, token, _sid, options) {
         calls.push({ token, detailOnly: options?.detailOnly });
         if (!options?.detailOnly) return empty;
@@ -124,7 +123,7 @@ test('Takeout prompt-cell attachments and audio stay user-owned while response r
 
 
 test('metadata-only retry cannot hide a subsequent detail-page fetch failure', async () => {
-    const empty = parseGeminiRpcConversation(rpc([null, null, [['c_native']]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
+    const empty = parseGeminiRpcConversation(geminiDetailGen('G_NATIVE_CALLERS_03'), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
     await assert.rejects(getConversationDetail({ async fetchConversationPage(_id, token, _sid, options) {
         if (!options?.detailOnly) return empty;
         if (token) throw new Error('Interrupted detail chain');

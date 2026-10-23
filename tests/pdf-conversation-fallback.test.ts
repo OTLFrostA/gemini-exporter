@@ -20,7 +20,7 @@ import { updateSettings } from '../src/application/settings/index.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type { AIProvider } from '../src/l1/client/aiProvider.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
-import { renderDocumentTypst } from '../src/l4/format/typst/renderTypst.js';
+import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
 import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
 import { buildMinimalValidPdf } from './helpers/stubPdfCompiler.js';

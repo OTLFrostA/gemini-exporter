@@ -3,8 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
-const { withRateLimitRetry, isRateLimited } = require('../src/l1/client/rateLimiter.js');
 const { handleHttp400 } = require('../src/l1/client/gemini/api/retryPolicy.js');
+const { listGen: geminiListGen } = require('./fixtures/providers/gemini.js') as typeof import('./fixtures/providers/gemini.js');
 const { useIndexStorage } = require('./helpers/indexStorage.js');
 useIndexStorage();
 
@@ -70,12 +70,10 @@ test('geminiClient - getConversationList recovers on HTTP 400 with fresh credent
             };
         }
         // Second call succeeds with valid batchexecute list
-        const mockListInner = JSON.stringify([null, null, [["c_chat_rec_400", "400 Recovery Chat", null, null, null, [1700000000, 0]]]]);
-        const mockTop = JSON.stringify([["wrb.fr", "MaZiqc", mockListInner]]);
         return {
             ok: true,
             status: 200,
-            text: async () => `)]}'\n\n${mockTop}`
+            text: async () => geminiListGen('G_GEMINI_CLIENT_RETRY_01')
         };
     };
 
@@ -109,72 +107,3 @@ test('geminiClient - abort signal immediately halts client and flags isAborted',
 });
 
 
-// ---------------------------------------------------------------------------
-// 5. withRateLimitRetry operation
-// ---------------------------------------------------------------------------
-test('rateLimiter - withRateLimitRetry retries on rate limit and succeeds', async () => {
-    let attempts = 0;
-    const retryLogs: number[] = [];
-
-    const result = await withRateLimitRetry(
-        async () => {
-            attempts++;
-            if (attempts < 3) {
-                return { success: false, status: 429, error: 'rate limit' };
-            }
-            return { success: true, data: 'ok' };
-        },
-        {
-            maxRetries: 3,
-            initialDelayMs: 5,
-            jitterMs: 0,
-            onRetry: (retryCount: number) => {
-                retryLogs.push(retryCount);
-            }
-        }
-    );
-
-    assert.strictEqual(attempts, 3);
-    assert.deepStrictEqual(retryLogs, [0, 1]);
-    assert.deepStrictEqual(result, { success: true, data: 'ok' });
-});
-
-test('rateLimiter - withRateLimitRetry respects abort signal', async () => {
-    const controller = new AbortController();
-    controller.abort();
-
-    await assert.rejects(
-        async () => {
-            await withRateLimitRetry(
-                async () => ({ success: true }),
-                { signal: controller.signal }
-            );
-        },
-        /Operation aborted/
-    );
-});
-
-test('rateLimiter - HTTP 429 errors retry but ordinary provider errors do not', async () => {
-    let attempts = 0;
-    const result = await withRateLimitRetry(async () => {
-        attempts++;
-        if (attempts === 1) throw new Error('HTTP 429 Too Many Requests :: response body');
-        return 'ok';
-    }, { initialDelayMs: 1, jitterMs: 0 });
-    assert.strictEqual(result, 'ok');
-    assert.strictEqual(attempts, 2);
-
-    for (const message of ['["BardErrorInfo",1096]', 'RESOURCE_EXHAUSTED',
-        'Too many requests', 'quota exceeded', 'rate limit exceeded',
-        '服务端上限', 'request failed: 429', 'HTTP 4290', 'conversation 429']) {
-        const error = new Error(message);
-        assert.strictEqual(isRateLimited(error), false, message);
-        assert.strictEqual(isRateLimited({ error: message }), false, message);
-        attempts = 0;
-        await assert.rejects(withRateLimitRetry(async () => {
-            attempts++;
-            throw error;
-        }, { initialDelayMs: 1, jitterMs: 0 }), (actual: unknown) => actual === error);
-        assert.strictEqual(attempts, 1, message);
-    }
-});

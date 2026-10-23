@@ -5,8 +5,8 @@ import { discoverChatGPTAccounts } from '../src/runtime/capabilities/chatgptDisc
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import { scanAll } from '../src/application/sync/scanController.js';
 import { listAccounts, listIndexes } from '../src/l3a/storageService.js';
-
-const session = { accessToken: 'test-token', user: { id: 'user', name: 'Test user' }, account: { id: 'workspace' } };
+import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
+import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 
 async function environment() {
     const storage = indexStorage({}, { seedAccounts: false });
@@ -41,10 +41,9 @@ test('Granted discovery registers the session workspace and the production scan 
         globalThis.fetch = async (input, init) => {
             const url = String(input); env.calls.push(new URL(url).pathname);
             assert.equal(init?.credentials, 'include');
-            if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(session));
+            if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(chatgptSessionGen('C_DISCOVERY_SESSION_01')));
             assert.equal(url, 'https://chatgpt.com/backend-api/conversations?offset=0&limit=100');
-            return new Response(JSON.stringify({ total: 1, offset: 0, limit: 100,
-                items: [{ id: 'live-shaped-chat', title: 'ChatGPT conversation', create_time: 1000, update_time: 2000 }] }));
+            return new Response(JSON.stringify(chatgptListGen('C_DISCOVERY_LIST_01')));
         };
         const [account] = await discoverChatGPTAccounts();
         assert.equal(account.providerId, 'chatgpt');
@@ -64,13 +63,14 @@ test('Granted discovery registers the session workspace and the production scan 
 test('Missing login or workspace identity cannot create a ChatGPT scan account', async () => {
     const env = await environment();
     try {
-        for (const value of [{}, { ...session, account: undefined }, { ...session, accessToken: '' }]) {
+        for (const key of ['C_DISCOVERY_SESSION_02', 'C_DISCOVERY_SESSION_03', 'C_DISCOVERY_SESSION_04'] as const) {
+            const value = chatgptSessionGen(key);
             globalThis.fetch = async () => new Response(JSON.stringify(value));
             assert.deepEqual(await discoverChatGPTAccounts(), []);
         }
         assert.deepEqual(await listAccounts(), []);
         assert.equal(ProviderRegistry.get('chatgpt'), undefined);
-        globalThis.fetch = async () => new Response('{}', { status: 401 });
+        globalThis.fetch = async () => new Response(JSON.stringify(chatgptSessionGen('C_DISCOVERY_SESSION_05')), { status: 401 });
         await assert.rejects(discoverChatGPTAccounts(), /session failed: 401/);
     } finally { env.restore(); }
 });

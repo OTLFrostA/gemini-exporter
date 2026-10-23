@@ -22,7 +22,7 @@ function markCredSessionFailed(): void {
 const SK_CRED_MAP = STORAGE_KEYS.CREDENTIALS_MAP;
 const SK_CRED = STORAGE_KEYS.CREDENTIALS;
 
-const Proto: GeminiProtocolModule = GeminiProtocol as any;
+const Proto: GeminiProtocolModule = GeminiProtocol;
 
 function isDev(): boolean {
     if (typeof window !== 'undefined') {
@@ -33,7 +33,9 @@ function isDev(): boolean {
     return false;
 }
 
-function updateContextCreds(creds: Record<string, any>): void {
+type BootstrapCredential = Partial<GeminiCredentialsPayload> & { accountId?: string; email?: string; name?: string };
+
+function updateContextCreds(creds: BootstrapCredential): void {
     if (typeof window !== 'undefined') {
         const ctx = window.__gemExporterContentContext;
         if (ctx && typeof ctx.setCredentials === 'function') {
@@ -137,10 +139,10 @@ export function isExtAlive(): boolean {
     }
 }
 
-export async function loadCredentialsMap(): Promise<Record<string, any>> {
+export async function loadCredentialsMap(): Promise<Record<string, BootstrapCredential>> {
     let storage = getCredStorage();
     if (!storage) return {};
-    let mapObj: any = {};
+    let mapObj: Record<string, unknown> = {};
     try {
         mapObj = await storage.get([SK_CRED_MAP]);
     } catch (e: unknown) {
@@ -154,13 +156,15 @@ export async function loadCredentialsMap(): Promise<Record<string, any>> {
             throw e;
         }
     }
-    return mapObj[SK_CRED_MAP] || {};
+    const saved = mapObj[SK_CRED_MAP];
+    return saved && typeof saved === 'object' && !Array.isArray(saved)
+        ? saved as Record<string, BootstrapCredential> : {};
 }
 
-export async function saveCredentials(map: Record<string, any>, cred?: any): Promise<void> {
+export async function saveCredentials(map: Record<string, BootstrapCredential>, cred?: Partial<GeminiCredentialsPayload>): Promise<void> {
     let storage = getCredStorage();
     if (!storage) return;
-    const toSave: Record<string, any> = { [SK_CRED_MAP]: map };
+    const toSave: Record<string, unknown> = { [SK_CRED_MAP]: map };
     if (cred) toSave[SK_CRED] = cred;
     try {
         await storage.set(toSave);
@@ -188,14 +192,14 @@ export async function saveCredentials(map: Record<string, any>, cred?: any): Pro
 // module top-level call, the DOMContentLoaded/load hooks and the MAIN-world
 // postMessage listener can all fire back-to-back on page load, and
 // unsynchronized load→save cycles would overwrite each other's map entries.
-let _credOpChain: Promise<any> = Promise.resolve();
+let _credOpChain: Promise<unknown> = Promise.resolve();
 function runSerializedCredOp<T>(op: () => Promise<T>): Promise<T> {
     const run = _credOpChain.then(() => withCredMapLock(op), () => withCredMapLock(op));
     _credOpChain = run.then(() => undefined, () => undefined);
     return run;
 }
 
-async function ensureCredsOnce(): Promise<any> {
+async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
     try {
         if (!isExtAlive()) return null;
         const atFromPage = extractAtFromPage();
@@ -208,7 +212,7 @@ async function ensureCredsOnce(): Promise<any> {
             updateContextCreds({ at: atFromPage });
         }
         const map = await loadCredentialsMap();
-        const vals = Object.values(map) as any[];
+        const vals = Object.values(map);
         if (atFromPage && vals.length === 0) {
             const slot = detectSlotFromUrl();
             const fakeSid = 'page_sid_' + Date.now();
@@ -244,7 +248,7 @@ async function ensureCredsOnce(): Promise<any> {
                 if (isDev()) console.log('[Gemini Exporter] at refreshed from page', 'atLen', atFromPage.length);
             } else if (blFromPage && best.bl !== blFromPage) {
                 best.bl = blFromPage;
-                map[best.sid] = best;
+                map[String(best.sid)] = best;
                 await saveCredentials(map);
                 updateContextCreds({ bl: blFromPage });
             }
@@ -253,19 +257,19 @@ async function ensureCredsOnce(): Promise<any> {
             const best = vals[0];
             if (best.bl !== blFromPage) {
                 best.bl = blFromPage;
-                map[best.sid] = best;
+                map[String(best.sid)] = best;
                 await saveCredentials(map);
                 updateContextCreds({ bl: blFromPage });
                 if (isDev()) console.log('[Gemini Exporter] bl refreshed', 'blLen', blFromPage.length);
             }
         }
     } catch (e) {
-        if (!String(e && (e as any).message || e).includes('Extension context invalidated')) console.warn('ensureCreds fail', e);
+        if (!getErrorMessage(e).includes('Extension context invalidated')) console.warn('ensureCreds fail', e);
     }
     return null;
 }
 
-export function ensureCreds(): Promise<any> {
+export function ensureCreds(): Promise<BootstrapCredential | null> {
     return runSerializedCredOp(ensureCredsOnce);
 }
 
@@ -325,8 +329,8 @@ export function initBootstrap(): void {
                         sid,
                         accountSlot: slot || old.accountSlot || 'u0',
                         accountId: account?.accountId,
-                        email: profile?.email || (old as any).email,
-                        name: profile?.name || (old as any).name,
+                        email: profile?.email || old.email,
+                        name: profile?.name || old.name,
                         lastUsed: Date.now(),
                         bl: p.bl || old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
                     };

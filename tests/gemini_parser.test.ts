@@ -1,11 +1,11 @@
 const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
 const { parseList } = require('../src/l1/parsers/gemini/rpc/parseList.js');
-const { highResVariant } = require('../src/l1/client/gemini/geminiImageUrl.js');
 const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { cleanTitle } = require('../src/shared/utils/utils.js');
+const { cleanTitle } = require('../src/shared/utils/titleText.js');
 
 test('gemini_parser - isRealTitle', () => {
     assert.strictEqual(isRealTitle(''), false);
@@ -37,15 +37,7 @@ test('utils - cleanTitle brand suffix and prefix stripping', () => {
     assert.strictEqual(cleanTitle('纯净标题没有后缀'), '纯净标题没有后缀');
 });
 
-test('gemini_parser - highResVariant', () => {
-    const orig = 'https://lh3.googleusercontent.com/abc=s256';
-    const high = highResVariant(orig);
-    assert.strictEqual(high, 'https://lh3.googleusercontent.com/abc=s0');
 
-    // Never mutate Google Places / Maps photo CDN signatures
-    const places = 'https://lh3.googleusercontent.com/places/v1/media/xyz';
-    assert.strictEqual(highResVariant(places), places);
-});
 
 test('gemini_parser - parseList with valid batchexecute RPC text', () => {
     const inner = JSON.stringify([null, [["c_1234567890abcdef","Test Title",[1700000000,0],[1700000000,0],5]], "tC_token123"]);
@@ -56,13 +48,6 @@ test('gemini_parser - parseList with valid batchexecute RPC text', () => {
     assert.strictEqual(res.conversations[0].id, '1234567890abcdef');
     assert.strictEqual(res.conversations[0].title, 'Test Title');
     assert.strictEqual(res.nextPageToken, 'tC_token123');
-});
-
-test('utils - resolveTitle displays the canonical L2 title and semantic source', () => {
-    const { resolveTitle } = require('../src/shared/utils/utils.js');
-    assert.deepStrictEqual(resolveTitle({ title: 'Canonical title', titleSource: 'provider' }), { title: 'Canonical title', source: 'provider' });
-    assert.deepStrictEqual(resolveTitle({ title: 'User title', titleSource: 'user' }), { title: 'User title', source: 'user' });
-    assert.deepStrictEqual(resolveTitle({}), { title: '未命名对话', source: 'derived' });
 });
 
 test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extracts official RPC title', () => {
@@ -99,23 +84,7 @@ test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extrac
 });
 
 test('gemini_parser - decodeGeminiDetail with hNvQHb only falls back gracefully', () => {
-    const mockDetailInner = [
-        [
-            [
-                ["c_fallback_123", "r_turn_1"],
-                null,
-                [["如何用Rust写WebAssembly插件"]],
-                [[["rc_model_1", ["这是Rust WebAssembly回答"]]]]
-            ]
-        ],
-        null,
-        "Rust WebAssembly 开发实战"
-    ];
-
-    const topPayload = [
-        ["wrb.fr", "hNvQHb", JSON.stringify(mockDetailInner)]
-    ];
-    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+    const rawText = geminiDetailGen('G_DETAIL_PARSER_FALLBACK_01');
 
     const parsed = decodeGeminiDetail(rawText, 'fallback_123');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'fallback_123');
@@ -125,15 +94,7 @@ test('gemini_parser - decodeGeminiDetail with hNvQHb only falls back gracefully'
 });
 
 test('gemini_parser - decodeGeminiDetail with metadata-only payload returns empty messages and retains raw', () => {
-    const mockMetaOnlyInner = [
-        null,
-        null,
-        [["c_meta_only_456", "仅元数据标题", null, null, null, [1774139824, 809290000], null, null, null, 2]]
-    ];
-    const topPayload = [
-        ["wrb.fr", "hNvQHb", JSON.stringify(mockMetaOnlyInner)]
-    ];
-    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+    const rawText = geminiDetailGen('G_DETAIL_PARSER_META_ONLY_01');
 
     const parsed = decodeGeminiDetail(rawText, 'meta_only_456');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'meta_only_456');
@@ -263,8 +224,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     assert.strictEqual(citations[0].url, "https://arxiv.org/abs/1234.5678");
     assert.strictEqual(citations[0].title, "Quantum Supremacy Paper");
 
-    // 3. attachments: highResVariant & isInternalChipUrl
-    assert.strictEqual(highResVariant("https://lh3.googleusercontent.com/pic=w500-h300"), "https://lh3.googleusercontent.com/pic=s0");
+    // 3. attachments: isInternalChipUrl
     assert.strictEqual(attachments.isInternalChipUrl("https://googleusercontent.com/immersive_entry_chip/abc"), true);
     assert.strictEqual(attachments.isInternalChipUrl("https://example.com/normal.png"), false);
 

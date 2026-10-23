@@ -1,7 +1,6 @@
 import type { ConversationParser } from '../src/l1/parsers/contracts.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import type { TrustedDomain } from '../src/l2/runtimeValidation.js';
-import { parseConversation } from '../src/l1/parsers/parseConversation.js';
 import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/l1/imports/takeout/readArchive.js';
@@ -9,8 +8,6 @@ import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/l1/impor
 import type { ConversationParseResult } from '../src/l1/parsers/contracts.js';
 // @ts-expect-error The old resource/Domain output is not a public L1 API.
 import type { ResourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
-// @ts-expect-error The barrel must not re-export the old contract.
-import type { ConversationParseResult as BarrelLegacyResult } from '../src/l1/parsers/index.js';
 
 const rawParser: ConversationParser<{ text: string }> = raw => ({ conversationId: 'source',
     conversation: { index: {}, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] } },
@@ -32,10 +29,10 @@ function sourceContract(result: SourceConversationParseResult) {
     const trusted: TrustedDomain = result.conversation;
     void trusted;
 }
-// @ts-expect-error Provider is required.
-parseConversation({ format: 'gemini-rpc', data: '[]' });
-// @ts-expect-error RPC expects raw text.
-parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: {} });
-// @ts-expect-error ZIP IO belongs to Import, not the pure Parser dispatcher.
-parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data: new Uint8Array() });
+// @ts-expect-error Provider identity is required by the RPC parser.
+parseGeminiRpcConversation('[]', {});
+// @ts-expect-error RPC expects raw response text, not an object.
+parseGeminiRpcConversation({}, { providerId: 'gemini' });
+// @ts-expect-error ZIP IO belongs to Import, not the raw Takeout parser.
+parseGeminiTakeoutConversation(new Uint8Array(), { providerId: 'gemini' });
 void [asyncParser, rpcParser, takeoutParser, zipReader, sourceContract];

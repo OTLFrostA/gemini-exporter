@@ -19,7 +19,7 @@ class TestStatus(Enum):
 
 
 class FeatureDomain(Enum):
-    PAGE_CHAT = "Gemini 网页端与多轮问答"
+    PAGE_CHAT = "平台网页端与多轮问答"
     LIFECYCLE = "会话生命周期与实时同步"
     TAKEOUT = "Takeout 离线导入与标题晋级"
     WORKBENCH = "工作台搜索、过滤与交互控制"
@@ -46,10 +46,15 @@ class TestResult:
 
 
 class FeatureRegistry:
-    def __init__(self):
+    def __init__(self, standard=True):
         self._features: Dict[str, Feature] = {}
         self._results: Dict[str, TestResult] = {}
-        self._init_standard_features()
+        if standard:
+            self._init_standard_features()
+
+    @property
+    def results(self):
+        return dict(self._results)
 
     def _init_standard_features(self):
         # -------------------------------------------------------------
