@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { compareConversationIndexes, indexActivityTime, mergeConversationIndex } from '../src/l2/conversationIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 
 test('index ordering prioritizes authored activity over creation and leaves unknown times after known times', () => {
     const records = [indexFixture({ id: 'recent', title: 'Recent', createdAt: 5000 }), indexFixture({ id: 'unknown-time', title: 'Unknown', lastSeen: 99999 }),
@@ -23,7 +24,7 @@ test('reviving an old conversation monotonically advances activity without chang
     assert.equal(mergeConversationIndex(newer, old).updatedAt, 5000);
 });
 test('list parsing provides strict indexes and independent source times, with no invented counts or aliases', () => {
-    const wire = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [['c_server123', 'Server title', null, null, 12, [1700000000, 0]]]])]]);
+    const wire = geminiListGen('G_CONVERSATION_ORDER_01');
     const index = parseList(wire).conversations[0];
     assert.equal(index.updatedAt, 1700000000000);
     assert.equal(index.createdAt, undefined);
