@@ -173,7 +173,7 @@ class ClaudeTier2Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             runner = self.runner(folder)
             runner.chat = Mock()
-            messages = [{'role': 'user', 'text': 'Question'}, {'role': 'assistant', 'text': 'Answer'}]
+            messages = [{'id': 'u', 'role': 'user', 'text': 'Question'}, {'id': 'new', 'role': 'assistant', 'text': 'Answer'}]
             runner.webpage = Mock(side_effect=[[], messages, messages, messages, messages])
             runner.source = Mock(side_effect=AssertionError('Per-turn source API forbidden'))
             runner.chat.eval.side_effect = lambda expression, **kw: ('one' if 'location.pathname.split' in expression
@@ -228,3 +228,48 @@ class ClaudeTier2Tests(unittest.TestCase):
                 runner.physical_exports()
             self.assertFalse((Path(folder)/'downloads/json/stale.json').exists())
             self.assertEqual(len(list(Path(folder).glob('downloads-previous-*/json/stale.json'))), 1)
+
+    def test_local_required_hosts_preserve_release_manifest_and_refresh_assets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = (Path(__file__).resolve().parents[1]/'manifest.json').read_text()
+            (root/'manifest.json').write_text(source)
+            for name in ('src', 'dist', 'lib', 'icons', '_locales'):
+                (root/name).mkdir()
+                (root/name/'asset').write_text('first')
+            runner = self.runner(root/'output')
+            runner.root = root
+            with patch.dict('os.environ', {'TIER2_CLAUDE_REQUIRED_HOSTS': '1'}):
+                runner.prepare_extension()
+                staged = json.loads((runner.extension_root/'manifest.json').read_text())
+                self.assertIn('https://claude.ai/*', staged['host_permissions'])
+                self.assertNotIn('https://claude.ai/*', staged['optional_host_permissions'])
+                self.assertEqual((root/'manifest.json').read_text(), source)
+                (root/'src/asset').write_text('new build')
+                (runner.extension_root/'dist/stale').write_text('stale')
+                runner.prepare_extension()
+                self.assertEqual((runner.extension_root/'src/asset').read_text(), 'new build')
+                self.assertFalse((runner.extension_root/'dist/stale').exists())
+            with patch.dict('os.environ', {'TIER2_CLAUDE_REQUIRED_HOSTS': '0'}):
+                runner.prepare_extension()
+                self.assertEqual(runner.extension_root, root)
+                self.assertEqual(runner.report['testInstallMode'], 'optional-claude-hosts')
+
+    def test_native_reply_identity_survives_virtualized_message_counts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = self.runner(folder)
+            runner.chat = Mock()
+            old = [{'id': str(i), 'role': 'assistant', 'text': 'Old'} for i in range(5)]
+            visible = [{'role': 'user', 'text': 'Question'}, {'id': 'new-reply', 'role': 'assistant', 'text': 'Final answer'}]
+            runner.webpage = Mock(side_effect=[old, visible, visible, visible, visible])
+            runner.chat.eval.side_effect = lambda expression, **kw: ('one' if 'location.pathname.split' in expression
+                else {'stop': False, 'question': False} if expression.startswith('({stop:') else True)
+            def wait(operation, *args):
+                for _ in range(8):
+                    result = operation()
+                    if result:
+                        return result
+                raise TimeoutError('did not settle')
+            with patch('scripts.framework.claude_live.wait_for', side_effect=wait):
+                self.assertEqual(runner.send('Question'), 'one')
+            self.assertEqual(json.loads((Path(folder)/'one.progress.json').read_text())['prompts'], ['Question'])

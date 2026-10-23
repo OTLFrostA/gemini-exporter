@@ -1,5 +1,7 @@
 """Claude CDP operations. Source APIs are read once at scenario boundaries, never polled."""
 import json
+import os
+import shutil
 import re
 import subprocess
 import time
@@ -73,8 +75,28 @@ class ClaudeLiveRunner(BrowserAcceptance):
         self.org = None
         self.rate_limited = False
 
+    def prepare_extension(self):
+        """Required Claude permission applies only to this ignored local install copy."""
+        self.extension_root = self.root
+        if os.environ.get('TIER2_CLAUDE_REQUIRED_HOSTS') != '1':
+            self.report['testInstallMode'] = 'optional-claude-hosts'
+            return
+        target = self.root/'temp/tier2-claude-required-hosts'
+        shutil.rmtree(target, ignore_errors=True)
+        target.mkdir(parents=True)
+        for name in ('src', 'dist', 'lib', 'icons', '_locales'):
+            shutil.copytree(self.root/name, target/name)
+        manifest = json.loads((self.root/'manifest.json').read_text())
+        hosts = ['https://claude.ai/*']
+        manifest['host_permissions'] = list(dict.fromkeys(manifest.get('host_permissions', [])+hosts))
+        manifest['optional_host_permissions'] = [host for host in manifest.get('optional_host_permissions', []) if host not in hosts]
+        (target/'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n')
+        self.extension_root = target
+        self.report['testInstallMode'] = 'required-claude-hosts'
+
     def prepare(self):
         subprocess.run(['node', 'build.js'], cwd=self.root, check=True)
+        self.prepare_extension()
         target = next((t for t in get_tabs(self.port) if t.get('url', '').startswith('https://claude.ai/')), None)
         if not target:
             raise ValueError('Open the logged-in Claude test account on this CDP port')
@@ -142,10 +164,10 @@ class ClaudeLiveRunner(BrowserAcceptance):
         return self.chat.eval("""[...document.querySelectorAll('[data-testid=user-message],[data-testid=assistant-message]')].map(e=>{
             const clone=e.cloneNode(true);clone.querySelectorAll('.katex').forEach(math=>math.replaceWith(document.createTextNode(math.querySelector('annotation')?.textContent||'[MISSING MATH SOURCE]')));
             clone.querySelectorAll('button,svg,style,script,[aria-hidden=true]').forEach(e=>e.remove());
-            return {role:e.dataset.testid==='user-message'?'user':'assistant',text:clone.textContent,html:e.outerHTML};})""") or []
+            return {id:e.dataset.turnKey,role:e.dataset.testid==='user-message'?'user':'assistant',text:clone.textContent,html:e.outerHTML};})""") or []
 
     def send(self, prompt):
-        previous_count = len([m for m in self.webpage() if m['role'] == 'assistant'])
+        previous_ids = {m.get('id') for m in self.webpage() if m['role'] == 'assistant'}
         selector = '[data-testid=chat-input]'
         wait_for(lambda: self.chat.eval('!!document.querySelector('+json.dumps(selector)+')'))
         self.chat.eval("(()=>{const e=document.querySelector('[data-testid=chat-input]');e.focus();const r=document.createRange();r.selectNodeContents(e);const s=getSelection();s.removeAllRanges();s.addRange(r)})()", user_gesture=True)
@@ -165,9 +187,11 @@ class ClaudeLiveRunner(BrowserAcceptance):
             messages = self.webpage()
             users = [m for m in messages if m['role'] == 'user']
             assistants = [m for m in messages if m['role'] == 'assistant']
-            if state.get('stop') or state.get('question') or not users or users[-1]['text'].strip() != prompt.strip() or len(assistants) <= previous_count or not assistants[-1]['text'].strip():
+            if state.get('stop') or state.get('question') or not users or users[-1]['text'].strip() != prompt.strip() or not assistants or messages[-1]['role'] != 'assistant' or assistants[-1].get('id') in previous_ids or not assistants[-1]['text'].strip():
                 stable = 0
                 return None
+            if not assistants[-1].get('id'):
+                raise ValueError('Claude reply is missing its native turn identity')
             value = json.dumps(messages, sort_keys=True)
             stable = stable+1 if value == previous else 0
             previous = value

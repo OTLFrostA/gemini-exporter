@@ -212,3 +212,34 @@ check exposed and fixed Workbench links incorrectly pointing Claude IDs at
 Gemini. It was not a clean-install 5/8-turn full run, and does not establish
 coverage of the remaining lifecycle gates. Local account response bodies and
 exported files remain ignored under `tests/output/`.
+
+For local Claude iteration, use `TIER2_CLAUDE_REQUIRED_HOSTS=1 npm run test:tier2
+-- --platform claude`. The harness rebuilds an ignored unpacked copy under
+`temp/tier2-claude-required-hosts/` with `https://claude.ai/*` required. Shipping
+`manifest.json` and ordinary release packaging retain optional permissions. The
+report records `testInstallMode: required-claude-hosts`; this mode does not test
+the shipping optional-permission prompt. Remove the environment variable to use
+the ordinary install and real native permission prompt again.
+
+### Claude full-plan run, 2026-10-22
+
+The required-host local install completed clean installation and onboarding.
+The first 5-turn scene completed. Native Claude Docs output exposed a waiter bug:
+virtualization reduced visible assistant-node counts after a new reply, so count
+growth could not prove completion. The waiter now uses Claude's native
+`data-turn-key` identity; a regression covers five old visible nodes shrinking
+to one new reply. A resumed full plan verified the five-turn source once and did
+not resend any completed prompt or consume another scenario pair.
+
+The second scene completed 4 of 8 planned turns, then Claude Free displayed its
+five-hour message-quota notice with a 02:00 reset. The next prompt remained in
+the composer; waiting for an enabled send button timed out. This is an observed
+account quota, not an observed HTTP 429. The final matrix is **1 PASS, 3 FAIL,
+18 dependency SKIP**: missing page badge, passive sidebar capture and incomplete
+multi-turn generation failed; real uninstall/reinstall passed. Connection and
+onboarding passed outside the case matrix. Export, golden and lifecycle cases
+were blocked, so this run does not validate their physical outputs. There were
+no source-API polling loops; the resumed run used one independent prefix read.
+The scenario pool was replenished from 18 to 20 with new optics and queueing
+scenes. Reports, interruption history and quota observations remain local under
+`tests/output/tier2-claude-full-required-20261022/`.

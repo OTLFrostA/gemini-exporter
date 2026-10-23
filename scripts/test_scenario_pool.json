@@ -1,47 +1,5 @@
 [
   {
-    "id": "acoustics_helmholtz_resonator_dimensions",
-    "title": "Acoustics: Helmholtz resonator geometry and tuning",
-    "domain": "acoustics_helmholtz_resonance",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational cutaway illustration of a Helmholtz resonator with a cavity and short neck. Label cavity volume, neck length, neck radius and an illustrative air plug. Mark all dimensions as synthetic teaching values.",
-      "Derive the lumped acoustic mass and compliance model in LaTeX and the Helmholtz resonance frequency with an explicit end correction. State assumptions and SI units and distinguish angular frequency from hertz.",
-      "Write complete runnable standard-library Python computing resonance frequency for validated positive geometries. Include tests for scaling all lengths, increasing volume, zero or negative dimensions and agreement with a hand-calculated reference.",
-      "Provide a Markdown table of hypothetical cavity volumes and neck dimensions with predicted frequency, effective length and sensitivity to end correction. Explain why those predictions are not measured acoustic performance.",
-      "Write a reproducibility report linking the illustration, formulas and code. Discuss viscothermal losses, radiation damping and breakdown of the lumped approximation; include a Chinese-English glossary."
-    ]
-  },
-  {
-    "id": "statistics_beta_binomial_predictive_calibration",
-    "title": "Statistics: beta-binomial updating and predictive uncertainty",
-    "domain": "statistics_bayesian_beta_binomial",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic quality-control experiment with exchangeable Bernoulli observations and a Beta prior. Give hypothetical success and failure counts and clearly distinguish prior beliefs from observed data.",
-      "Derive the posterior density and posterior mean in LaTeX. Explain conjugacy, the normalization constant and why a posterior probability is not a frequentist confidence level.",
-      "Derive the beta-binomial posterior predictive distribution for a future batch. Obtain its expectation and variance and contrast it with plugging the posterior mean into a binomial model.",
-      "Write complete runnable standard-library Python computing the predictive probabilities using lgamma and stable normalization. Validate integer sample sizes and positive prior parameters.",
-      "Add tests that probabilities sum to one, that n=0 is deterministic, that symmetric priors yield symmetric predictions, and that computed moments agree with the analytical formulas.",
-      "Provide a Markdown table comparing weak, uniform and concentrated synthetic priors for identical observations. Include posterior mean, predictive mean and predictive variance with clear numerical precision.",
-      "Explain prior sensitivity and model misspecification under dependent observations. Show a reproducible grid of prior parameters and report its results without presenting it as empirical calibration evidence.",
-      "Write a detailed bilingual reproducibility report separating synthetic observations, probability computations, uncertainty interpretations and limitations from changing defect rates or nonexchangeable sampling."
-    ]
-  },
-  {
     "id": "photogrammetry_rectified_stereo_depth",
     "title": "Photogrammetry: rectified stereo depth and uncertainty",
     "domain": "photogrammetry_stereo_geometry",
@@ -410,6 +368,48 @@
       "Derive time and space complexity in LaTeX for both a simple quadratic graph builder and a version using per-item access history. Draw an aligned ASCII diagram showing one witnessed cycle.",
       "Give counterexamples separating conflict serializability, view serializability and strictness, including a blind-write example. Clearly identify the assumptions needed for each claim.",
       "Write a detailed bilingual English-Chinese engineering audit with complete runnable code, deterministic tests, certificate validation and the limits of inferring database isolation guarantees from observed finite schedules."
+    ]
+  },
+  {
+    "id": "optics_thin_lens_depth_of_field",
+    "title": "Optics: thin-lens imaging and depth-of-field assumptions",
+    "domain": "optics_thin_lens_depth_of_field",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original educational ray diagram for a thin converging lens, showing an object beyond twice the focal length, the inverted image, optical axis and three principal rays. Label all distances as synthetic teaching values, not measurements.",
+      "Derive the thin-lens equation and signed transverse magnification in LaTeX. State the sign convention and paraxial assumptions; calculate the image position for a 50 mm focal length and a 200 mm object distance.",
+      "Write complete runnable standard-library Python computing image distance and magnification. Validate units and inputs; test an object at infinity by a large-distance limit, an object at the focal plane, a virtual image and uniform scaling of all distances.",
+      "Provide a Markdown table varying object distance and aperture for hypothetical settings. Distinguish image distance, magnification, geometrical blur and diffraction; identify which values require an explicit circle-of-confusion criterion.",
+      "Write a reproducibility report relating the diagram, equations and numerical results. Explain aberrations and where the thin-lens approximation fails, and include a Chinese-English glossary with a small counterexample to confusing depth of field with depth of focus."
+    ]
+  },
+  {
+    "id": "queueing_mm1_stationary_latency",
+    "title": "Queueing: M/M/1 stationary delay and overload boundaries",
+    "domain": "queueing_mm1_stationary_latency",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Model a hypothetical single-server service desk as an M/M/1 queue. Specify arrival and service units and independence assumptions; use a synthetic example of 8 arrivals and 10 completed services per hour, clearly labeled as not observed data.",
+      "Derive the stationary queue-length distribution from detailed balance in LaTeX. Prove the normalization condition and explain why a stationary probability distribution fails when arrival rate reaches service rate.",
+      "Derive mean number in system, waiting time in system and waiting time before service using Little's law. Compute the synthetic example with units and distinguish service time from total response time.",
+      "Derive the stationary tail probability for total response time and compute a 95th-percentile value. State exactly which delay variable has an atom at zero and which does not.",
+      "Write complete runnable standard-library Python for a seeded discrete-event simulation with a warm-up interval and a fixed observation window. Track completed and censored jobs separately and avoid pretending that unfinished jobs have zero latency.",
+      "Add executable tests for event ordering, nonnegative waiting times, reproducibility and conservation of arrivals minus departures. Explain why finite simulation estimates must not be asserted exactly equal to stationary formulas.",
+      "Provide a Markdown table comparing synthetic utilization levels of 0.2, 0.5, 0.8, 0.95 and 1.05 at fixed service rate. Report stationary metrics only where they exist; include a transient finite-horizon interpretation for overload.",
+      "Write a final audit report joining equations, code and assumptions. Construct a bursty non-Poisson counterexample where equal mean arrival rate does not justify M/M/1 percentile claims, and give a Chinese-English glossary."
     ]
   }
 ]
