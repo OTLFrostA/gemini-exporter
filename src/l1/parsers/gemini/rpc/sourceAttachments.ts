@@ -122,7 +122,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         const url = slots[inl.URL];
         const width = slots[inl.WIDTH];
         const height = slots[inl.HEIGHT];
-        const token = slots[inl.TOKEN];
         if (
             node.length >= 3 &&
             typeof url === "string" &&
@@ -134,7 +133,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 sourceUrl: url,
                 width,
                 height,
-                token: typeof token === "string" ? token : void 0,
+                token: typeof slots[inl.TOKEN] === "string" ? slots[inl.TOKEN] : void 0,
                 detectorKind: "extractImages [url,w,h]"
             };
         }
@@ -148,8 +147,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         const url = slots[gen.URL];
         const filename = slots[gen.FILENAME];
         const mimeTypeVal = slots[gen.MIME_TYPE];
-        const rawDims = slots[gen.DIMENSIONS];
-        const dims: unknown[] | null = Array.isArray(rawDims) ? rawDims : null;
+        const dims: unknown = slots[gen.DIMENSIONS];
         if (
             node.length >= 4 &&
             typeof url === "string" &&
@@ -157,22 +155,21 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             (
                 (typeof filename === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(filename) || /watermarked_img_/i.test(filename))) ||
                 (typeof mimeTypeVal === "string" && mimeTypeVal.startsWith("image/")) ||
-                (dims !== null && typeof dims[0] === "number" && typeof dims[1] === "number")
+                (Array.isArray(dims) && typeof dims[0] === "number" && typeof dims[1] === "number")
             )
         ) {
             // Derivative upscale renditions (e.g. 2x with UPSCALE_FACTOR > 1) are secondary variants,
             // not the authoritative source generation.
-            const upscaleFactor = slots[gen.UPSCALE_FACTOR];
-            if (typeof upscaleFactor === "number" && upscaleFactor > 1) {
+            if (typeof slots[gen.UPSCALE_FACTOR] === "number" && (slots[gen.UPSCALE_FACTOR] as number) > 1) {
                 return null;
             }
             const rawFileName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "";
-            const width = dims !== null && typeof dims[0] === "number" ? dims[0] : void 0;
-            const height = dims !== null && typeof dims[1] === "number" ? dims[1] : void 0;
-            const size = dims !== null && typeof dims[2] === "number" ? dims[2] : void 0;
+            const rawDims: unknown[] | null = Array.isArray(dims) ? dims : null;
+            const width = rawDims !== null && typeof rawDims[0] === "number" ? rawDims[0] : void 0;
+            const height = rawDims !== null && typeof rawDims[1] === "number" ? rawDims[1] : void 0;
+            const size = rawDims !== null && typeof rawDims[2] === "number" ? rawDims[2] : void 0;
             const mimeType = typeof mimeTypeVal === "string" ? mimeTypeVal : void 0;
-            const rawToken = slots[gen.TOKEN];
-            const token = typeof rawToken === "string" ? rawToken : void 0;
+            const token = typeof slots[gen.TOKEN] === "string" ? slots[gen.TOKEN] : void 0;
             return {
                 sourceUrl: url,
                 width,
@@ -526,11 +523,12 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
         // Pass 1: strict path only — typed indices, never marked heuristic.
         deepWalk([root], (node) => {
-            if (!Array.isArray(node)) return;
-            const entries: unknown[] = node;
-            for (const entry of entries) {
-                if (!Array.isArray(entry) || entry.length < 4) continue;
-                const fields: unknown[] = entry;
+            if (Array.isArray(node)) {
+                const entries: unknown[] = node;
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i];
+                    if (!Array.isArray(entry) || entry.length < 4) continue;
+                    const fields: unknown[] = entry;
                 const chip: unknown = fields[doc.CHIP_URL];
                 const chipParts: unknown[] | null = Array.isArray(chip) ? chip : null;
                 const chipUrl = chipParts?.[0];
@@ -546,7 +544,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 const rawContentId = fields[doc.CONTENT_ID];
                 const contentId = typeof rawContentId === "string" && rawContentId.length > 10
                     ? rawContentId : undefined;
-                pushMeta({ id, title, chipUrl, createdAt, contentId });
+                    pushMeta({ id, title, chipUrl, createdAt, contentId });
+                }
             }
         });
         if (out.length > 0) return out;
@@ -554,11 +553,12 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         // Pass 2: flat fallback, only when the strict path produced nothing.
         // Heuristic by construction — results are marked source: 'heuristic-flat'.
         deepWalk([root], (node) => {
-            if (!Array.isArray(node)) return;
-            const entries: unknown[] = node;
-            for (const entry of entries) {
-                if (!Array.isArray(entry)) continue;
-                const item: unknown[] = entry;
+            if (Array.isArray(node)) {
+                const entries: unknown[] = node;
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i];
+                    if (!Array.isArray(entry)) continue;
+                    const item: unknown[] = entry;
                 try {
                     const flat = item.flat(Infinity).filter((x): x is string => typeof x === "string");
                     if (flat.length > 500) continue;
@@ -574,6 +574,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                         });
                     }
                 } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
+                }
             }
         });
         return out;
