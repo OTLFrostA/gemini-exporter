@@ -7,7 +7,6 @@
  */
 import type { DomainCitation } from '../../../l2/conversationDetail.js';
 import type {
-    ChatGPTApiConversationItem,
     ChatGPTConversationNode,
 } from './chatgptTypes.js';
 
@@ -152,39 +151,4 @@ export function uploadedFilesOfChatGPTNode(node: ChatGPTConversationNode): ChatG
         });
     }
     return out;
-}
-
-/**
- * Incremental list refresh (mirrors pionxzh refreshConversationList): the API
- * orders by update_time newest-first, so every change since cache sits before
- * the first still-unchanged item; paging stops there.
- */
-export function refreshChatGPTList(
-    cached: ChatGPTApiConversationItem[],
-    pages: ChatGPTApiConversationItem[][],
-): { head: ChatGPTApiConversationItem[]; reachedKnown: boolean } {
-    const known = new Map(cached.map((c) => [c.id, c.update_time]));
-    const head: ChatGPTApiConversationItem[] = [];
-    for (const items of pages) {
-        const firstUnchanged = items.findIndex(
-            (c) => known.has(c.id) && known.get(c.id) === c.update_time,
-        );
-        if (firstUnchanged !== -1) {
-            head.push(...items.slice(0, firstUnchanged));
-            return { head, reachedKnown: true };
-        }
-        head.push(...items);
-        if (items.length === 0) break;
-    }
-    return { head, reachedKnown: false };
-}
-
-/** Merge refreshed head on top, dropping stale positions (dedupe by id). */
-export function applyChatGPTHead(
-    head: ChatGPTApiConversationItem[],
-    items: ChatGPTApiConversationItem[],
-): ChatGPTApiConversationItem[] {
-    if (head.length === 0) return items;
-    const headIds = new Set(head.map((c) => c.id));
-    return [...head, ...items.filter((c) => !headIds.has(c.id))];
 }
