@@ -52,17 +52,3 @@ export function stripInternalChipMarkdown(text?: string | null): string {
     // Preserve authored whitespace; global blank-line cleanup changes code.
     return cleaned;
 }
-
-const ChipUtils = {
-    INTERNAL_CHIP_TOKEN_PATTERN,
-    INTERNAL_CHIP_URL_RE,
-    isInternalChipUrl,
-    stripInternalChipMarkdown
-};
-
-if (typeof module === 'object' && module.exports) {
-    module.exports = ChipUtils;
-}
-
-export default ChipUtils;
-
