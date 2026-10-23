@@ -216,7 +216,7 @@ function decodeMessage(value: unknown): ChatGPTNodeMessage {
     const time = timestamp(source.create_time), updated = timestamp(source.update_time);
     return {
         id: source.id,
-        author: { role, metadata: {}, ...(text(author.name) !== undefined ? { name: text(author.name) } : {}) },
+        author: { role, ...(text(author.name) !== undefined ? { name: text(author.name) } : {}) },
         content: decodeContent(source.content),
         recipient: text(source.recipient) ?? '',
         ...(text(source.status) !== undefined ? { status: text(source.status) } : {}),
@@ -246,13 +246,15 @@ function decodeNode(value: unknown, key: string): ChatGPTConversationNode {
 
 /** Validate one received Detail and bind it to the requested conversation ID. */
 export function decodeChatGPTDetail(value: unknown, requestedId: string): ChatGPTApiConversationWithId {
-    const source = record(value), rawMapping = record(source?.mapping);
-    if (!source || !rawMapping || !requestedId) throw new TypeError('Invalid ChatGPT Detail payload');
-    // Both native identifiers must agree. Either may be absent on some endpoints.
+    const source = record(value);
+    if (!source || !requestedId) throw new TypeError('Invalid ChatGPT Detail payload');
+    // Reject a foreign conversation identity even when the rest of the body is malformed.
     for (const key of ['id', 'conversation_id']) {
         if (source[key] !== undefined && source[key] !== requestedId)
             throw new TypeError('ChatGPT Detail identity mismatch');
     }
+    const rawMapping = record(source.mapping);
+    if (!rawMapping) throw new TypeError('Invalid ChatGPT Detail payload');
     const mapping: Record<string, ChatGPTConversationNode> = {};
     for (const [key, raw] of Object.entries(rawMapping)) {
         Object.defineProperty(mapping, key, {

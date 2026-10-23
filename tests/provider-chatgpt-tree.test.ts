@@ -55,7 +55,7 @@ function textNode(
         parent,
         children: [],
         message: {
-            author: { role, metadata: {} },
+            author: { role },
             content: { content_type: 'text', parts: [text] },
             id: `msg-${id}`,
             recipient: 'all',
@@ -164,7 +164,7 @@ test('tool image nodes are kept and their sediment pointers collected', () => {
         parent: 'u1',
         children: [],
         message: {
-            author: { role: 'tool', metadata: {} },
+            author: { role: 'tool' },
             content: {
                 content_type: 'multimodal_text',
                 parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_abc' }],
@@ -180,7 +180,7 @@ test('tool image nodes are kept and their sediment pointers collected', () => {
         parent: 't1',
         children: [],
         message: {
-            author: { role: 'tool', name: 'browser', metadata: {} },
+            author: { role: 'tool', name: 'browser' },
             content: { content_type: 'text', parts: ['searching...'] },
             id: 'msg-t2',
             recipient: 'all',
@@ -211,7 +211,7 @@ test('Detail submits image identities; bytes are acquired on demand without chan
         u1: {
             id: 'u1', parent: 'root', children: ['t1'],
             message: {
-                author: { role: 'user', metadata: {} },
+                author: { role: 'user' },
                 content: {
                     content_type: 'multimodal_text',
                     parts: [
@@ -226,7 +226,7 @@ test('Detail submits image identities; bytes are acquired on demand without chan
         t1: {
             id: 't1', parent: 'u1', children: ['a1'],
             message: {
-                author: { role: 'tool', metadata: {} },
+                author: { role: 'tool' },
                 content: {
                     content_type: 'multimodal_text',
                     parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_missing' }],
@@ -237,7 +237,7 @@ test('Detail submits image identities; bytes are acquired on demand without chan
         a1: {
             id: 'a1', parent: 't1', children: [],
             message: {
-                author: { role: 'assistant', metadata: {} },
+                author: { role: 'assistant' },
                 content: { content_type: 'text', parts: ['here is your cat'] },
                 id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
             },
@@ -301,7 +301,7 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
         u1: {
             id: 'u1', parent: 'root', children: ['th'],
             message: {
-                author: { role: 'user', metadata: {} },
+                author: { role: 'user' },
                 content: { content_type: 'text', parts: ['q'] },
                 id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
             },
@@ -309,7 +309,7 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
         th: {
             id: 'th', parent: 'u1', children: ['rc'],
             message: {
-                author: { role: 'assistant', metadata: {} },
+                author: { role: 'assistant' },
                 content: { content_type: 'thoughts', thoughts: [{ summary: 'plan', content: 'step by step' }] },
                 id: 'msg-th', recipient: 'all', status: 'finished_successfully', weight: 1,
             },
@@ -317,15 +317,16 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
         rc: {
             id: 'rc', parent: 'th', children: ['a1'],
             message: {
-                author: { role: 'assistant', metadata: { finished_duration_sec: 12 } },
+                author: { role: 'assistant' },
                 content: { content_type: 'reasoning_recap', content: 'Thought for 12 seconds' },
+                metadata: { finished_duration_sec: 12 },
                 id: 'msg-rc', recipient: 'all', status: 'finished_successfully', weight: 1,
             },
         },
         a1: {
             id: 'a1', parent: 'rc', children: [],
             message: {
-                author: { role: 'assistant', metadata: {} },
+                author: { role: 'assistant' },
                 content: { content_type: 'text', parts: ['answer'] },
                 id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
             },
@@ -373,7 +374,7 @@ test('bodies parse to structured blocks and models stay per-message', () => {
         u1: {
             id: 'u1', parent: 'root', children: ['a1'],
             message: {
-                author: { role: 'user', metadata: {} },
+                author: { role: 'user' },
                 content: { content_type: 'text', parts: ['hi'] },
                 id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
                 metadata: { model_slug: 'gpt-6' },
@@ -382,7 +383,7 @@ test('bodies parse to structured blocks and models stay per-message', () => {
         a1: {
             id: 'a1', parent: 'u1', children: [],
             message: {
-                author: { role: 'assistant', metadata: {} },
+                author: { role: 'assistant' },
                 content: { content_type: 'text', parts: ['# Title\n\n```python\nprint(1)\n```\n\n公式 \\(e=mc^2\\)'] },
                 id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
                 metadata: { model_slug: 'gpt-6-pro' },
@@ -411,7 +412,7 @@ test('repeated image pointers reuse one asset instead of breaking closure', () =
     const tool = (id: string, parent: string): ChatGPTConversationNode => ({
         id, parent, children: [],
         message: {
-            author: { role: 'tool', metadata: {} },
+            author: { role: 'tool' },
             content: {
                 content_type: 'multimodal_text',
                 parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_dup' }],
@@ -424,7 +425,7 @@ test('repeated image pointers reuse one asset instead of breaking closure', () =
         u1: {
             id: 'u1', parent: 'root', children: ['t1'],
             message: {
-                author: { role: 'user', metadata: {} },
+                author: { role: 'user' },
                 content: { content_type: 'text', parts: ['again'] },
                 id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
             },
@@ -454,7 +455,7 @@ test('citations dedupe by URL across tether and grouped references', () => {
     const node: ChatGPTConversationNode = {
         id: 'a1', children: [],
         message: {
-            author: { role: 'assistant', metadata: {} },
+            author: { role: 'assistant' },
             content: { content_type: 'text', parts: ['hi'] },
             id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
             metadata: {
@@ -474,7 +475,7 @@ test('uploaded non-image files recorded, images left to the image path', () => {
     const node: ChatGPTConversationNode = {
         id: 'u1', children: [],
         message: {
-            author: { role: 'user', metadata: {} },
+            author: { role: 'user' },
             content: { content_type: 'text', parts: ['see files'] },
             id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
             metadata: {

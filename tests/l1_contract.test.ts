@@ -234,7 +234,7 @@ test('L1 import submits facts and returns count/status with numerical progress',
 test('L1 ChatGPT body quality is independent of missing image bytes', () => {
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'), conversation: { id: 'chatgpt_123', create_time: 1700000000, update_time: 1700000001, is_archived: false, title: 'Images', current_node: 'node', mapping: {
         root: { id: 'root', children: ['node'] },
-        node: { id: 'node', parent: 'root', children: [], message: { id: 'msg', author: { role: 'assistant', metadata: {} }, recipient: 'all', status: 'finished_successfully', weight: 1, content: { content_type: 'multimodal_text', parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_123' }] } } },
+        node: { id: 'node', parent: 'root', children: [], message: { id: 'msg', author: { role: 'assistant' }, recipient: 'all', status: 'finished_successfully', weight: 1, content: { content_type: 'multimodal_text', parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_123' }] } } },
     } }, assetsByNode: new Map() });
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     assert.equal(parsed.conversation.detail.assets.length, 1);

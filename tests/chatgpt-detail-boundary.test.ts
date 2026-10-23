@@ -98,6 +98,24 @@ test('ChatGPT Detail decoder sanitizes optional nested metadata without leaking 
     assert.equal('strange' in (meta ?? {}), false);
 });
 
+test('ChatGPT Detail boundary discards unused raw author.metadata without inventing an internal field', () => {
+    const original = detailGen('C_DETAIL_L1_SOURCE_01');
+    const answer = original.mapping.answer;
+    const raw = {
+        ...original,
+        mapping: { ...original.mapping, answer: {
+            ...answer, message: {
+                ...answer.message, author: {
+                    role: 'assistant', name: 'model', metadata: { untrusted: { data: 123 } },
+                },
+            },
+        } },
+    };
+    const decoded = decodeChatGPTDetail(raw, id);
+    assert.deepEqual(decoded.mapping.answer.message?.author, { role: 'assistant', name: 'model' });
+    assert.equal('metadata' in (decoded.mapping.answer.message?.author ?? {}), false);
+});
+
 test('ChatGPT Detail boundary retains unknown content kinds as non-renderable, not guessed prose', () => {
     const original = detailGen('C_DETAIL_L1_SOURCE_01');
     const answer = original.mapping.answer;
