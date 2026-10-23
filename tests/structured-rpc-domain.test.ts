@@ -31,7 +31,7 @@ const {
     decodeGeminiAnnotation,
     decodeGeminiStructuredNode,
     decodeGeminiStructuredPayload,
-    extractStructuredContent,
+    inspectStructuredContent,
 } = require('../src/l1/parsers/gemini/rpc/structuredContent.js');
 const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const { decodeTurn } = require('../src/l1/parsers/gemini/rpc/extractors.js');
@@ -494,21 +494,22 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     assert.ok(decodedTurn);
 
     // Primary candidate (candidateIndex = 0)
-    const struct0 = extractStructuredContent({
+    const struct0 = inspectStructuredContent({
         candidate: multiCandTurn[3][0][0],
         turnDocument: decodedTurn.rawAnswerDocument,
         candidateIndex: 0
     });
-    assert.ok(struct0, 'Candidate 0 receives structured content from turn[3][12]');
-    assert.strictEqual(struct0.children.length, 3);
+    assert.strictEqual(struct0.status, 'decoded', 'Candidate 0 receives structured content from turn[3][12]');
+    if (struct0.status !== 'decoded') throw new Error('Primary candidate structured decode failed');
+    assert.strictEqual(struct0.document.children.length, 3);
 
     // Alternative candidate (candidateIndex = 1)
-    const struct1 = extractStructuredContent({
+    const struct1 = inspectStructuredContent({
         candidate: multiCandTurn[3][0][1],
         turnDocument: decodedTurn.rawAnswerDocument,
         candidateIndex: 1
     });
-    assert.strictEqual(struct1, undefined, 'Candidate 1+ must NOT receive turn[3][12] without proven evidence');
+    assert.strictEqual(struct1.status, 'candidate_unmatched', 'Candidate 1+ must NOT receive turn[3][12] without proven evidence');
 
     // Verify end-to-end normalization of multi-candidate messages
     const conv = {
@@ -519,13 +520,12 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
                 id: 'm_cand0',
                 role: 'model',
                 content: 'Draft 0 raw text',
-                structuredContent: struct0,
+                structuredContent: struct0.document,
             },
             {
                 id: 'm_cand1',
                 role: 'model',
                 content: 'Draft 1 raw text: **bold from markdown**',
-                structuredContent: struct1, // undefined
             },
         ],
     };
@@ -584,13 +584,14 @@ test('Wire JSPB decoding in Gemini parser layer', () => {
     ];
     const decodedTurn = decodeTurn(mockTurn);
     assert.ok(decodedTurn);
-    const extracted = extractStructuredContent({
+    const extracted = inspectStructuredContent({
         candidate: decodedTurn.candidate?.raw,
         turnDocument: decodedTurn.rawAnswerDocument,
         candidateIndex: decodedTurn.candidateIndex
     });
-    assert.ok(extracted, 'Extracted structured document from the decoded Turn evidence');
-    assert.strictEqual(extracted.children.length, 3);
+    assert.strictEqual(extracted.status, 'decoded', 'Extracted structured document from the decoded Turn evidence');
+    if (extracted.status !== 'decoded') throw new Error('Expected decoded structured turn');
+    assert.strictEqual(extracted.document.children.length, 3);
 });
 
 test('Fallback: missing structuredContent falls back to existing Markdown parser', async () => {
