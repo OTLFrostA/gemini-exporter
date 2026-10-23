@@ -1,7 +1,5 @@
 declare const __EXT_VERSION__: string | undefined;
 
-export type AllowedFormat = 'markdown' | 'html' | 'json' | 'pdf';
-
 export const STORAGE_KEYS = {
     FORMAT: 'gemini_export_format',
     ZIP: 'gemini_export_zip',
@@ -22,8 +20,6 @@ export const STORAGE_KEYS = {
     HAS_IMPORTED_TAKEOUT: 'has_imported_takeout'
 } as const;
 
-export const ALLOWED_FORMATS: AllowedFormat[] = ['markdown', 'html', 'json', 'pdf'];
-export const DEFAULT_FORMAT: AllowedFormat = 'markdown';
 export const DIRECT_WRITE_THRESHOLD = 20;
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
 

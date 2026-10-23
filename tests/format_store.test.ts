@@ -4,12 +4,17 @@ import { readFileSync } from 'node:fs';
 import { indexStorage } from './helpers/indexStorage.js';
 import { ensureUpgraded } from '../src/migration/upgradeV1.js';
 import { getSettings, updateSettings } from '../src/application/settings/index.js';
-import { ALLOWED_FORMATS, DEFAULT_FORMAT, FEEDBACK_URL } from '../src/shared/utils/constants.js';
+import { FEEDBACK_URL } from '../src/shared/utils/constants.js';
+const SUPPORTED_FORMATS: readonly string[] = ['markdown', 'html', 'json', 'pdf'];
 const html = () => readFileSync('src/ui/options/options.html', 'utf8');
 
-test('current export format constants retain the four supported formats and Markdown default', async () => {
-    assert.deepEqual(ALLOWED_FORMATS, ['markdown', 'html', 'json', 'pdf']); assert.equal(DEFAULT_FORMAT, 'markdown');
-    const env = indexStorage(); try { assert.equal((await getSettings()).defaultFormat, 'markdown'); } finally { env.restore(); }
+test('current Settings default to the supported Markdown export format', async () => {
+    const env = indexStorage();
+    try {
+        const format = (await getSettings()).defaultFormat;
+        assert.equal(format, 'markdown');
+        assert.ok(SUPPORTED_FORMATS.includes(format));
+    } finally { env.restore(); }
 });
 test('current Options format control accepts exactly the four current formats', () => {
     const select = html().match(/<select id="format"[^>]*>(.*?)<\/select>/s)?.[1]; assert.ok(select);
@@ -20,13 +25,13 @@ test('current Options format control accepts exactly the four current formats', 
 test('removed saved formats normalize only through the one-time migration owner', async () => {
     for (const value of ['markdown', 'html', 'json', 'pdf', 'json_openai', 'json_raw', 'invalid']) {
         const env = indexStorage({ gemini_export_format: value }); try {
-            await ensureUpgraded(); assert.equal((await getSettings()).defaultFormat, ALLOWED_FORMATS.includes(value as typeof ALLOWED_FORMATS[number]) ? value : 'markdown');
+            await ensureUpgraded(); assert.equal((await getSettings()).defaultFormat, SUPPORTED_FORMATS.includes(value) ? value : 'markdown');
         } finally { env.restore(); }
     }
 });
 test('format control choices match the ExportRequest formats rather than removed legacy variants', () => {
     const select = html().match(/<select id="format"[^>]*>(.*?)<\/select>/s)?.[1] ?? '';
-    assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(match => match[1]).sort(), [...ALLOWED_FORMATS].sort());
+    assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(match => match[1]).sort(), [...SUPPORTED_FORMATS].sort());
 });
 test('constants - FEEDBACK_URL is configured', () => { assert.equal(FEEDBACK_URL, 'https://tally.so/r/Y56ZBB'); });
 for (const stored of ['json_openai', 'json_raw']) for (const developerMode of [false, true]) test(`migration repairs saved ${stored} in developer mode ${developerMode}`, async () => {

@@ -33,4 +33,3 @@ export async function executeLiveSave(value: ConversationKey, refreshDetail = fa
     }
 }
 export const LiveSaveCoordinator = { init, cleanup, executeLiveSave };
-export default LiveSaveCoordinator;

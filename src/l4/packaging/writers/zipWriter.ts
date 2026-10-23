@@ -131,4 +131,3 @@ class ZipWriter implements IExportWriter {
 }
 
 export { ZipWriter };
-export default ZipWriter;

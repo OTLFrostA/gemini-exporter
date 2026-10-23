@@ -1,28 +1,7 @@
 import type { DirectoryHandle } from '../../../runtime/capabilities/directoryHandle.js';
 
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
-import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../../shared/utils/pathUtils.js';
 import { assertExportPath } from '../../packaging/exportPath.js';
-
-export interface FsWriterModule {
-    FsWriter: typeof FsWriter;
-    ensureSubDir: typeof ensureSubDir;
-    sanitizeFileName: typeof sanitizeFileName;
-    sanitizeRelativePath: typeof sanitizeRelativePath;
-}
-
-declare global {
-    var FsWriter: FsWriterModule;
-}
-
-function sanitizeFileName(name?: string | null, fallback: string = 'untitled'): string {
-    return utilsSanitizeFileName(name, fallback);
-}
-
-function sanitizeRelativePath(p?: string | null, defaultName: string = 'file'): string {
-    return utilsSanitizeRelativePath(p, defaultName);
-}
-
 
 async function ensureSubDir(root: FileSystemDirectoryHandle, subPath: string): Promise<FileSystemDirectoryHandle> {
     let cur = root;
@@ -41,11 +20,6 @@ class FsWriter implements IExportWriter {
     batchDirHandle: FileSystemDirectoryHandle | null;
     // Serialize concurrent writes targeting the same target path
     __writeChains: Map<string, Promise<void>>;
-
-    static FsWriter = FsWriter;
-    static ensureSubDir = ensureSubDir;
-    static sanitizeFileName = sanitizeFileName;
-    static sanitizeRelativePath = sanitizeRelativePath;
 
     constructor(dirHandle: (FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>) | null | undefined) {
         if (!dirHandle) throw new Error('Directory handle is required for FsWriter');
@@ -129,20 +103,5 @@ class FsWriter implements IExportWriter {
     }
 }
 
-export {
-    FsWriter,
-    ensureSubDir,
-    sanitizeFileName,
-    sanitizeRelativePath
-};
-
-export const FsWriterModule: FsWriterModule = {
-    FsWriter,
-    ensureSubDir,
-    sanitizeFileName,
-    sanitizeRelativePath
-};
-
-
-export default FsWriterModule;
+export { FsWriter, ensureSubDir };
 
