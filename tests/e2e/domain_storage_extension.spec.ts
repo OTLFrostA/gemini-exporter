@@ -1,5 +1,6 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
+import { requestGen as geminiDetailRequestGen } from '../fixtures/providers/geminiDetailRequest.js';
 
 test.beforeEach(async ({context, extensionId}) => {
     void extensionId;
@@ -19,11 +20,9 @@ test('content-script native detail is committed in extension IndexedDB and remai
     await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
     await source.goto('https://gemini.google.com/app/cross_origin_native');
     await source.waitForFunction(() => window.__gemExporterHookInstalled === true);
-    await source.evaluate(async () => {
-        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams({
-            'f.req': JSON.stringify([[['hNvQHb', JSON.stringify(['c_cross_origin_native', null, null, 1, [1], [4], null, 1]), null, 'generic']]])
-        }) });
-    });
+    await source.evaluate(async body => {
+        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams(body) });
+    }, geminiDetailRequestGen('G_E2E_DOMAIN_STORAGE_DETAIL_REQUEST_01'));
     await expect.poll(() => options.evaluate(async () => {
         const request = indexedDB.open('gemini_exporter_v2');
         const db = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
