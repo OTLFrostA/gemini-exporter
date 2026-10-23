@@ -15,12 +15,11 @@ test('errors - active TakeoutParseError extends GeminiError', () => {
     assert.strictEqual(rootErr.name, 'GeminiError');
     assert.strictEqual(rootErr.message, 'Root error');
 
-    // 3. TakeoutParseError
+    // 2. TakeoutParseError
     const takeoutErr = new TakeoutParseError('Structure changed', true, 'MyActivity.html');
     assert.ok(takeoutErr instanceof GeminiError);
     assert.strictEqual(takeoutErr.formatDrift, true);
     assert.strictEqual(takeoutErr.entryName, 'MyActivity.html');
-
 });
 
 test('messaging - getErrorMessage safely normalizes all error types', () => {
