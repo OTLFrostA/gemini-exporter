@@ -110,9 +110,6 @@ export interface TrustedDomain extends DomainConversationWithDetail { detail: Tr
 /** Frozen public read view: structural Index plus required Detail; no brand or DTO. */
 export type ReadonlyDomain = Readonly<DomainConversation & { detail: ConversationDetail }>;
 
-/** Body trust survives metadata changes; no flat snapshot is constructed. */
-export function selectConversationBody(conversation: TrustedDomain): TrustedDomainBody { return conversation.detail; }
-
 export function withConversationMetadata(detail: TrustedDomainBody, index: DomainConversationIndex): TrustedDomain {
     if (!sameConversationKey(index.key, detail.key)) throw new TypeError('Conversation key mismatch');
     return { index, detail };

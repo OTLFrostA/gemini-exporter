@@ -221,14 +221,10 @@ const accountIdentityPort: Pick<typeof import('../../src/l2/accountRegistry.js')
 /** These cross-layer mocks isolate the L1 dependency boundary. */
 const titleSources = ['user', 'provider', 'derived'] as const;
 const rank = { user: 3, provider: 2, derived: 1 };
-const reliableTitleSource = (value?: string | null) =>
-    titleSources.find(source => source === value);
 const titleAuthorityPort: Pick<typeof import('../../src/l2/titleAuthority.js'),
-    'TITLE_SOURCE_PRIORITY' | 'TITLE_TIER_RANK' | 'normalizeReliableTitleSource' | 'resolveReliableTitleSource'> = {
+    'TITLE_SOURCE_PRIORITY' | 'TITLE_TIER_RANK'> = {
     TITLE_SOURCE_PRIORITY: [...titleSources],
     TITLE_TIER_RANK: { ...rank },
-    normalizeReliableTitleSource: reliableTitleSource,
-    resolveReliableTitleSource: (...values) => values.map(reliableTitleSource).find(Boolean),
 };
 const indexComparisonPort: Pick<typeof import('../../src/l2/conversationIndex.js'),
     'indexActivityTime' | 'compareConversationIndexes'> = {
@@ -286,12 +282,6 @@ export function installL1V2Mocks(): void {
                     const createdAt = normalizeTimestamp(source.createdAt), updatedAt = normalizeTimestamp(source.updatedAt);
                     return { ...(createdAt !== undefined ? { createdAt } : {}),
                         ...(updatedAt !== undefined ? { updatedAt } : {}) };
-                },
-                toIso: (value: unknown) => {
-                    const ms = normalizeTimestamp(value);
-                    if (ms === undefined) return undefined;
-                    const date = new Date(ms);
-                    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
                 },
             };
             if (request.endsWith('/l2/content/unknownFallback.js')) return unknownPayloadPort;
