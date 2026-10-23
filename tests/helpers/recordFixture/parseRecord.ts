@@ -1,7 +1,7 @@
 import { semanticTitleSource } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
 import { contentQuality, type ContentQuality } from '../../../src/l1/parsers/qualityEvidence.js';
 import { parseIndexMetadata } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
-import { normalizeConversationTimes } from '../../../src/l2/time.js';
+import { normalizeTimestamp } from '../../../src/l2/time.js';
 import { structuredBodyAttachments } from './contentAdapter.js';
 import { closeSourceCitations } from '../../../src/l1/parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../../src/l1/parsers/shared/resources/domainResourceAdapter.js';
@@ -165,10 +165,11 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
     const resources = closeDomainResources(providerId, legacyMessages.map(message => copyMessage(message, parseContent, parseReasoning)),
         legacyMessages.map(message => ({ input: message, bodyAttachments: providerId === 'gemini' ? structuredBodyAttachments(message) : [] })));
     const title = legacyTitle(conversation);
-    const sourceVersion = normalizeConversationTimes({ updatedAt: conversation.updatedAt }).updatedAt;
+    const sourceVersion = normalizeTimestamp(conversation.updatedAt);
+    const createdAt = normalizeTimestamp(conversation.createdAt);
     const domain = {
         index: { key: { accountId: options.account.id, conversationId: providerId === 'gemini' ? (conversation.id ?? '').replace(/^c_/, '') : conversation.id ?? '' }, ...parseIndexMetadata({ providerId, id: conversation.id ?? '', title: title?.value ?? '',
-            ...(title ? { titleSource: title.source } : {}), ...normalizeConversationTimes({ createdAt: conversation.createdAt }),
+            ...(title ? { titleSource: title.source } : {}), ...(createdAt !== undefined ? { createdAt } : {}),
             ...(sourceVersion !== undefined ? { updatedAt: sourceVersion } : {}), messageCount: resources.messages.length,
             ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}) }) },
         detail: { assets: resources.assets, messages: resources.messages,
