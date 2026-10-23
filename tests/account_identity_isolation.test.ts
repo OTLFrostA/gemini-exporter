@@ -23,7 +23,7 @@ const {
 } = require('../src/l1/parsers/gemini/dom/accountSniffer.js');
 
 const { resolveCred } = require('../src/l1/client/gemini/api/credentialManager.js');
-const TabService = require('../src/runtime/capabilities/tabService.js').default || require('../src/runtime/capabilities/tabService.js');
+const TabService = require('../src/runtime/capabilities/tabService.js');
 const ConversationsStore = require('../src/ui/options/state/conversationsStore.js');
 
 

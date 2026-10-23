@@ -121,6 +121,3 @@ async function requestTabNavigation(message: { action: 'openGeminiPage' } | { ac
 }
 export function openGeminiPage(): Promise<unknown> { return requestTabNavigation({ action: 'openGeminiPage' }); }
 export function reloadGeminiTab(tabId?: number): Promise<unknown> { return requestTabNavigation({ action: 'reloadGeminiTab', tabId }); }
-export const TabService = { resolveScanTarget, resolveAccountTab, getGeminiTab, sendToGeminiTab, checkGeminiStatus,
-    getAITab, sendToAITab, openGeminiPage, reloadGeminiTab };
-export default TabService;

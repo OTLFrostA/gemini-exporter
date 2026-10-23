@@ -14,11 +14,6 @@ export function __setModuleOverride<T = unknown>(name: string, impl: T | undefin
     else overrides.set(name, impl);
 }
 
-export function __clearModuleOverrides(): void {
-    if (isProduction()) return;
-    overrides.clear();
-}
-
 export function __getModuleOverride<T = unknown>(name: string): T | undefined {
     if (isProduction()) return undefined;
     return overrides.get(name) as T | undefined;

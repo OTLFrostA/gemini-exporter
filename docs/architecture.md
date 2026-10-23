@@ -129,7 +129,7 @@ graph TD
     CS_LiveCoord -- "runtime.sendMessage (liveSaveViaHandle)" --> BG_LiveHandler
     OPT_Controllers -- "runtime.sendMessage (deepScan)" --> BG_Entry
     ENG_Worker -- "runtime.sendMessage (fetchBatch)" --> BG_Entry
-    BG_Entry -- "下行通道 (TabService.sendToGeminiTab → chrome.tabs.sendMessage)" --> CS_Entry
+    BG_Entry -- "下行通道 (sendToGeminiTab → chrome.tabs.sendMessage)" --> CS_Entry
     POP_Main -- "runtime.sendMessage (fetchChat)" --> BG_Entry
     OPT_Controllers -- "runtime.sendMessage" --> BG_Entry
 
@@ -234,14 +234,14 @@ graph TD
 | `src/l3a/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
 | `src/l3a/formatStore.ts` | Core: Storage | `FormatStore` | 校验并持久化用户的导出格式偏好设置与自定义模板参数。 | UI Settings, Popup | `chrome.storage.local` | `ST_Service` |
 | `src/shared/utils/pathUtils.ts` | Core: Utils | `sanitizeRelativePath`, `buildExportFileName`, `normId`, `AccountProfile` | 严格清洗相对路径与文件名，定义多账号用户画像契约，防范路径穿越 (Path Traversal) 漏洞。 | `fsWriter`, `zipWriter`, `exportOrchestrator`, `bootstrap` | 安全合法的文件名与路径 | `UT_Path` |
-| `src/runtime/capabilities/tabService.ts` | Core: Utils | `TabService`, `getGeminiTab`, `sendToGeminiTab` | 严格按账号 Slot 定向检索 Gemini 标签页并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝串账号盲投。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
+| `src/runtime/capabilities/tabService.ts` | Core: Utils | `resolveAccountTab`, `getGeminiTab`, `sendToGeminiTab` | 严格按 Account UUID 验证目标标签页身份并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝跨账号投递。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
 | `src/shared/utils/i18n.ts` | Core: Utils | `I18nClass`, `getI18n` | 中英双语轻量翻译引擎，支持动态语言切换与多级占位符替换。 | UI Views, Controllers, Tour | 国际化本地化字典 | `UT_I18n` |
 | `src/l1/parsers/shared/chipUtils.ts` | Core: Utils | `ChipUtils`, `isInternalChipUrl`, `stripInternalChipMarkdown` | 过滤并清洗 Gemini 内部提及 (User Mention / Model Tag) 产生的内部 Chip 标签。 | `attachments.ts`, `chatFormatter.ts` | 清洗后的 Markdown/文本 | `UT_Path` |
-| `src/shared/utils/constants.ts` | Core: Utils | `GeminiConstants`, `STORAGE_KEYS`, `DEFAULT_EXPORT_FOLDER_NAME` | 全局跨模块共享系统配置与存储键名真理源 (SSoT)。 | 全系统所有模块 | 配置常量定义 | `UT_SSoT` |
+| `src/shared/utils/constants.ts` | Core: Utils | `STORAGE_KEYS`, `ALLOWED_FORMATS`, `getExtensionVersion` | 全局跨模块共享系统配置与存储键名真理源 (SSoT)。 | 全系统所有模块 | 配置常量定义 | `UT_SSoT` |
 | `src/runtime/environment.ts` | Core: Utils | `isLocalDevelopment` | 运行时环境感知，基于 URL 参数及调试标记判定是否处于开发者调试模式。 | UI 模块, `utils.ts` | 调试环境布尔标记 | `UT_SSoT` |
 | `src/runtime/ipc/messaging.ts` | Core: Utils | `sendTypedMessage`, `isMessageAction`, `getErrorMessage` | 强类型安全的跨世界与跨扩展上下文消息传递包装器，附带超时与异常提取。 | Background, Content, UI | `chrome.runtime.sendMessage` | `UT_SSoT` |
 | `src/shared/utils/retryUtils.ts` | Core: Utils | `calculateBackoff`, `abortableSleep`, `BackoffOptions` | 纯退避重试与 AbortSignal 可中断延迟工具，消除 API Client 对导出引擎的反向依赖与循环引用。 | `retryPolicy.ts`, `rateLimiter.ts`, `assetPipeline.ts` | 延迟毫秒数与可中断休眠 | `UT_SSoT` |
-| `src/shared/utils/moduleOverrides.ts` | Core: Utils | `__setModuleOverride`, `__resolveModule`, `__clearModuleOverrides` | 运行时模块重定向与轻量依赖注入容器，支持无头单元测试注入 Mock 实现。 | 全系统所有模块 | 动态依赖解析 | `UT_SSoT` |
+| `src/shared/utils/moduleOverrides.ts` | Core: Utils | `__setModuleOverride`, `__resolveModule` | 运行时模块重定向与轻量依赖注入容器，支持无头单元测试注入 Mock 实现。 | 全系统所有模块 | 动态依赖解析 | `UT_SSoT` |
 | `src/l1/protocol/gemini/protocol.ts` | Core: Protocol | `GeminiProtocol`, `CrossWorldEvents` | 定义 wire 级 RPC 标识符 (`RPCS.LIST`, `RPCS.DELETE`)、跨世界事件名与关键断言。 | `hookCredentials`, `messageBridge` | 协议契约常量 | `MAIN_Hook`, `CS_Bridge` |
 | `src/l1/protocol/gemini/events.ts` | Core: Protocol | `GeminiCredentialsPayload`, `GeminiStreamEvents` | 强类型事件 Payload 接口定义。 | 全协议层 | TypeScript 类型校验 | 契约层 |
 | `src/ui/options/options.ts` | UI: Options | `options.ts` (Entrypoint) | 工作台初始化编排器，挂载上下文并装配初始化子模块。 | 用户访问 `options.html` | UI 子模块协调 | `OPT_Main` |
@@ -549,7 +549,7 @@ sequenceDiagram
   5. **凭据防偷调与严格隔离机制**：
      - `CredentialManager.resolveCred(slot)` 实行单向封闭解析，若目标 Slot 无可用凭据直接返回空 Token，**严禁跨槽位偷用其他账号的 Token**，彻底消除串号 403 风险；
   6. **严格槽位标签页定向路由机制**：
-     - `TabService.getGeminiTab(slot)` 与 `sendToGeminiTab(msg, slot)` 严格基于 URL 中的 Slot 进行过滤；若目标 Slot 的标签页未打开，**强制抛出明确错误**，绝不盲目回退到其他账号的标签页执行请求；
+     - `getGeminiTab(accountId)` 与 `sendToGeminiTab(msg, accountId)` 严格基于 Account UUID 验证目标页面身份；若目标账号的标签页未打开，**强制抛出明确错误**，绝不盲目回退到其他账号的标签页执行请求；
   7. **空账号状态防劫持**：
      - `ConversationsStore.loadStore(slot)` 保证在切换到 0 条会话的新账号时，绝不自动跳回 `u0`；
   8. 监视如果包含 `Proto.RPCS.DELETE` 删除事件，精准提取被删除的会话 ID 并通知 Options 工作台无需刷新实时剔除该项，实现瞬态删除与本地存储的一致性同步。

@@ -5,23 +5,11 @@
  * @unverified-provider-scaffold Verified live via 9222 (2.1MB PNG, 2026-10-14).
  */
 
-/** Upper bound for a single in-memory image download (15 MiB). */
-export const CHATGPT_MAX_IMAGE_BYTES = 15 * 1024 * 1024;
-
 export interface ChatGPTParsedDownload {
     downloadUrl: string;
     fileName?: string;
     byteLength?: number;
     mimeType?: string;
-}
-
-export interface ChatGPTResolvedImage {
-    assetId: string;
-    sourceUri: string;
-    dataBase64: string;
-    mediaType?: string;
-    fileName?: string;
-    byteLength?: number;
 }
 
 /** `sediment://file_abc` -> `file_abc`; non-sediment pointers yield null. */
@@ -35,10 +23,6 @@ export function fileIdFromPointer(pointer: string): string | null {
 export function buildFileDownloadPath(fileId: string): string {
     return `/files/download/${encodeURIComponent(fileId)}`;
 }
-
-import { assetIdForPointer } from '../../parsers/chatgpt/conversationTree.js';
-
-export { assetIdForPointer };
 
 /** Narrow the files/download payload without ever upgrading unknown data. */
 export function parseFileDownloadPayload(value: unknown): ChatGPTParsedDownload | null {
