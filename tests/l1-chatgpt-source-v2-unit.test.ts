@@ -84,7 +84,8 @@ test('ChatGPT optional legacy missing flag preserves absence and rejects malform
     const page = chatgptListGen('C_L1_CHATGPT_SOURCE_V2_UNIT_03');
     assert.equal(parseChatGPTList(page).hasMissingConversations, undefined);
     assert.equal(parseChatGPTList(chatgptListGen('C_L1_CHATGPT_SOURCE_V2_UNIT_04')).hasMissingConversations, true);
-    for (const malformed of chatgptListGen('C_L1_CHATGPT_SOURCE_V2_UNIT_05')) {
+    for (const key of ['C_L1_CHATGPT_SOURCE_V2_UNIT_05_0', 'C_L1_CHATGPT_SOURCE_V2_UNIT_05_1', 'C_L1_CHATGPT_SOURCE_V2_UNIT_05_2', 'C_L1_CHATGPT_SOURCE_V2_UNIT_05_3'] as const) {
+        const malformed = chatgptListGen(key);
         assert.throws(() => parseChatGPTList(malformed), TypeError);
     }
 });
