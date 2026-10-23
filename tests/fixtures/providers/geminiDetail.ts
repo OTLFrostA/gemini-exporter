@@ -1,4 +1,15 @@
-import { readFileSync } from 'node:fs';
+import timestampPairs from '../gemini_timestamp_pairs.json';
+import generatedFile from '../provider/gemini_generated_file.json';
+import sourceJson0 from '../provider/structured_rpc/live-combined-file-citations.json';
+import sourceJson1 from '../provider/structured_rpc/wire-case-b-cand.json';
+import sourceJson2 from '../provider/structured_rpc/wire-turn-3-12-b-stack.json';
+import sourceJson3 from '../provider/structured_rpc/live-file-citations.json';
+import sourceJson4 from '../provider/structured_rpc/live-optics-table-citations.json';
+import sourceJson5 from '../provider/structured_rpc/live-blockquote.json';
+import sourceJson6 from '../provider/structured_rpc/live-source-attributions.json';
+import sourceJson7 from '../provider/structured_rpc/live-source-table.json';
+import sourceJson8 from '../provider/structured_rpc/live-range-coder.json';
+import sourceJson9 from '../provider/structured_rpc/live-imagen-panel.json';
 import { decodeGeminiStructuredPayload } from '../../../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { listGen as geminiListGen } from './gemini.js';
 /** Native batchexecute response bodies containing Gemini's hNvQHb Detail RPC. */
@@ -60,8 +71,23 @@ function coverageWire(raw: unknown, candidates: unknown[] = [['rc_answer', [[COV
 
 /** Source-attribution probes: each key resolves one native hNvQHb response. */
 const citationFallback = 'UNRELATED_MARKDOWN_SENTINEL';
-const citationFile = (name: string): unknown =>
-    JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/' + name + '.json', 'utf8'));
+const citationFiles: Record<string, unknown> = {
+    'live-combined-file-citations': sourceJson0,
+    'wire-case-b-cand': sourceJson1,
+    'wire-turn-3-12-b-stack': sourceJson2,
+    'live-file-citations': sourceJson3,
+    'live-optics-table-citations': sourceJson4,
+    'live-blockquote': sourceJson5,
+    'live-source-attributions': sourceJson6,
+    'live-source-table': sourceJson7,
+    'live-range-coder': sourceJson8,
+    'live-imagen-panel': sourceJson9,
+};
+const citationFile = (name: string): unknown => {
+    const data = citationFiles[name];
+    if (data === undefined) throw new Error('Missing captured Gemini citation fixture ' + name);
+    return structuredClone(data);
+};
 const citationText = (value: string, annotations: unknown[] = []): unknown[] => [null, [null, 0, value, annotations]];
 const citationField = (index: number, value: unknown): unknown[] =>
     Object.assign(Array(index + 1).fill(null), { [index]: value });
@@ -122,7 +148,7 @@ function visibleImageResponse(document?: unknown, includeSecondary = false): str
     return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
 }
 const visibleImageDocument = (): unknown =>
-    JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/wire-turn-3-12-b-stack.json', 'utf8'));
+    citationFile('wire-turn-3-12-b-stack');
 
 
 /** Exact Detail turn layout used by the P1-E source-wire regression cases. */
@@ -394,7 +420,7 @@ const fixtureMap = {
         return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
     },
     'G_GENERATED_FILES_01': () => {
-        const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_generated_file.json', 'utf8')) as { packet: unknown[]; chip: unknown[] };
+        const fixture = structuredClone(generatedFile) as { packet: unknown[]; chip: unknown[] };
         return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[
             generatedFileTurn(fixture.packet, fixture.chip, 'Before\n\nAfter', 'later', true),
             generatedFileTurn(fixture.packet, fixture.chip, 'Earlier caption', 'earlier', false),
@@ -534,7 +560,7 @@ const fixtureMap = {
     'G_DUAL_AUDIT_13': () => dualAuditWire('Hello', null),
     'G_DUAL_AUDIT_14': () => dualAuditWire(),
     'G_DUAL_AUDIT_15': () => dualAuditWire(),
-    'G_STRUCTURED_COVERAGE_01': () => coverageWire(JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-range-coder.json', 'utf8'))),
+    'G_STRUCTURED_COVERAGE_01': () => coverageWire(citationFile('live-range-coder')),
     'G_STRUCTURED_COVERAGE_02': () => {
         const leaf = coverageTextNode('PRIVATE_SOURCE_TEXT', 999);
         const list = Object.assign(Array(12).fill(null), { 11: [[[[leaf]]]] });
@@ -542,7 +568,7 @@ const fixtureMap = {
     },
     'G_STRUCTURED_COVERAGE_03': () => coverageWire(undefined),
     'G_STRUCTURED_COVERAGE_04': () => coverageWire(
-        JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-imagen-panel.json', 'utf8')),
+        citationFile('live-imagen-panel'),
         [['rc_image', [['\n']]]],
     ),
     'G_TIMESTAMP_HONESTY_01': () => rpc([[
@@ -803,7 +829,7 @@ function versionMixed(messageTime: number[], version?: number[], more = false, i
 }
 function versionPairDetail(index: number): string {
     const pairs: Array<{ metadataWire: number[]; detailTurnWire: number[] }> =
-        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
+        timestampPairs;
     const pair = pairs[index];
     if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
     return versionMixed(pair.detailTurnWire, pair.metadataWire);
