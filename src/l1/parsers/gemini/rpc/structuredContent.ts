@@ -703,8 +703,3 @@ export function inspectStructuredContent(turn: unknown, cand?: unknown, candidat
     if (candidateIndex !== 0) return { status: 'candidate_unmatched' };
     return decode(raw);
 }
-
-export function extractStructuredContent(turn: unknown, cand?: unknown, candidateIndex = 0): GeminiStructuredDocument | undefined {
-    const result = inspectStructuredContent(turn, cand, candidateIndex);
-    return result.status === 'decoded' ? result.document : undefined;
-}
