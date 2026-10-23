@@ -230,9 +230,10 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     assert.equal(decodeTurn([null, null, null, { malformed: true }])?.candidate, null);
 
     const rawDocument = [[[null]]];
-    const withMedia = [[ID], null, [], [[['rc_media', [['Image prompt']]]]]];
-    if (!Array.isArray(withMedia[3])) throw new Error('fixture model payload must be array');
-    withMedia[3][12] = rawDocument;
+    const withMedia: unknown[] = [[ID], null, [], [[['rc_media', [['Image prompt']]]]]];
+    const modelPayload = withMedia[3];
+    if (!Array.isArray(modelPayload)) throw new Error('fixture model payload must be array');
+    modelPayload[12] = rawDocument;
     assert.equal(decodeTurn(withMedia)?.rawAnswerDocument, rawDocument);
 });
 
