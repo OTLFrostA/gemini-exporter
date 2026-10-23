@@ -86,6 +86,36 @@ function citationInvalidFileMarker(marker: string): string {
 }
 
 const fixtureMap = {
+    'G_STRUCTURED_CITATIONS_29': () => citationWire(
+        [[[citationText('body', [citationSourceAnnotation(0, 99)])]]],
+        citationSourceTable()),
+    'G_STRUCTURED_CITATIONS_30': () => citationWire(
+        [[[citationText('body', [citationSourceAnnotation(0, 4, [])])]]],
+        citationSourceTable()),
+    'G_STRUCTURED_CITATIONS_31': () => citationWire(
+        [[[citationText('body', [citationSourceAnnotation(0, 4, ['unknown'])])]]],
+        citationSourceTable()),
+    'G_STRUCTURED_CITATIONS_32': () => citationWire(
+        [[[citationText('body', [[0, 4, [null, null, null, [null, ['spp_fixture']], 'unknown']]])]]],
+        citationSourceTable()),
+    'G_STRUCTURED_CITATIONS_33': () => citationWire(
+        [[[citationText('body', [[0, 4, [[null, null, null, null, 2], null, null, [null, []]]]])]]],
+        citationSourceTable()),
+    'G_STRUCTURED_CITATIONS_34': () => citationWire(
+        [[[citationText('body', [citationSourceAnnotation(0, 3), [2, 4, [[null, null, null, null, 2]]]])]]],
+        citationSourceTable()),
+    'G_STRUCTURED_CITATIONS_35': () => citationWire(
+        [[[citationText('body', [[0, 4, [[null, null, null, null, 3]]], citationSourceAnnotation(1, 3)])]]],
+        citationSourceTable()),
+    'G_STRUCTURED_CITATIONS_36': () => {
+        const table = citationSourceTable();
+        const rows = table[1] as unknown[][];
+        rows.push([['same ID different URL'], [1], [['https://example.com/conflict', 'Conflict']], 'spp_fixture']);
+        return citationWire([[[citationText('body', [citationSourceAnnotation(0, 4)])]]], table);
+    },
+    'G_STRUCTURED_CITATIONS_37': () => citationWire(
+        [[[citationText('body', [citationSourceAnnotation(0, 4)])]]],
+        citationSourceTable([['javascript:bad', 'Bad']])),
     'G_STRUCTURED_CITATIONS_15': () => citationInvalidFileMarker('[cite: 1]'),
     'G_STRUCTURED_CITATIONS_16': () => citationInvalidFileMarker('[cite: 1, 1]'),
     'G_STRUCTURED_CITATIONS_17': () => citationInvalidFileMarker('[cite: 1, 0]'),
