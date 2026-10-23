@@ -154,7 +154,37 @@ function mixedNativeDocument(kind: number, body: string, more = false, suffix = 
     ]);
 }
 
+function boundaryTop(inner: unknown): string {
+    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
+}
+function boundaryTitleWire(value: unknown): string {
+    return rpc([[boundaryTurn('Newest prompt title'), boundaryTurn('Oldest prompt title')], null, value]);
+}
+
 const fixtureMap = {
+    'G_BOUNDARY_DETAIL_INNER_NULL_01': () => boundaryTop(null),
+    'G_BOUNDARY_DETAIL_INNER_ARRAY_01': () => boundaryTop([]),
+    'G_BOUNDARY_DETAIL_INNER_OBJECT_01': () => boundaryTop({ unexpected: true }),
+    'G_BOUNDARY_DETAIL_INNER_NUMBER_01': () => boundaryTop(42),
+    'G_BOUNDARY_DETAIL_INNER_SCALAR_01': () => boundaryTop('scalar'),
+    'G_BOUNDARY_DETAIL_INNER_BROKEN_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', '[broken']]),
+    'G_BOUNDARY_DETAIL_EMPTY_TEXT_01': () => '',
+    'G_BOUNDARY_DETAIL_EMPTY_JSON_01': () => '[]',
+    'G_BOUNDARY_DETAIL_RPC_NULL_01': () => rpc(null),
+    'G_BOUNDARY_DETAIL_RPC_FALSE_01': () => rpc(false),
+    'G_BOUNDARY_DETAIL_RPC_EMPTY_01': () => rpc([]),
+    'G_BOUNDARY_DETAIL_RENAMED_01': () => {
+        const wireTurn = boundaryTurn();
+        const wrapped = { additional: { layers: [[[wireTurn]]] }, extra: true };
+        return ")]}'\n\n" + JSON.stringify([['renamedEnvelope', 'renamedRpc', JSON.stringify(wrapped)]]);
+    },
+    'G_BOUNDARY_TITLE_UNDEFINED_01': () => boundaryTitleWire(undefined),
+    'G_BOUNDARY_TITLE_NULL_01': () => boundaryTitleWire(null),
+    'G_BOUNDARY_TITLE_EMPTY_01': () => boundaryTitleWire([]),
+    'G_BOUNDARY_TITLE_OBJECT_01': () => boundaryTitleWire({ title: 'wrong shape' }),
+    'G_BOUNDARY_TITLE_BLANK_01': () => boundaryTitleWire(''),
+    'G_BOUNDARY_TITLE_SPACE_01': () => boundaryTitleWire('  '),
+    'G_BOUNDARY_TITLE_GENERIC_01': () => boundaryTitleWire('Google Gemini'),
     'G_NATIVE_CALLERS_MIXED_01': () => mixedNativePage('r_new', 1700000010, 'tC_older'),
     'G_NATIVE_CALLERS_MIXED_02': () => mixedNativePage('r_old', 1700000000),
     'G_NATIVE_CALLERS_MIXED_03': () => mixedNativePage('r_one', 1700000000, 'tC_repeat'),
