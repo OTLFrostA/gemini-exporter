@@ -43,7 +43,7 @@ test('adapter submits source Detail and returns completion without a Domain/tran
     parsed.transport.decodedPayload = { source: 'wire' };
     const before = structuredClone(parsed);
     let request: unknown;
-    const provider = new GeminiProvider({ getConversationList: async () => sourceList(),
+    const provider = new GeminiProvider({ getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'),
         getConversationDetail: async (...args) => { request = args; return parsed; } }, async () => 'u1');
     const controller = new AbortController();
     assert.equal(await provider.fetchConversationDetail(ACCOUNT_UUID, parsed.conversationId, controller.signal), undefined);
@@ -56,7 +56,7 @@ test('adapter submits source Detail and returns completion without a Domain/tran
     assert.equal((await getConversations(OTHER_ACCOUNT_UUID)).length, 0);
 });
 test('adapter commits a natural empty terminal before callback and exposes no aggregate fields', async () => {
-    const provider = new GeminiProvider({ getConversationList: async () => sourceList(), getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    const provider = new GeminiProvider({ getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'), getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     let progress: unknown;
     assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', onPageCommitted: async info => { progress = info; return false; } }), 'source_end');
     assert.deepEqual(Object.keys(progress as object).sort(), ['page', 'scanHead', 'totalObserved']);
