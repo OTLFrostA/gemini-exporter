@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { listGen as geminiListGen } from './gemini.js';
 /** Native batchexecute response bodies containing Gemini's hNvQHb Detail RPC. */
 const DOMAIN_ID = 'c_native12345678';
 const rpc = (inner: unknown): string => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
@@ -159,7 +160,48 @@ function boundaryTitleWire(value: unknown): string {
     return rpc([[boundaryTurn('Newest prompt title'), boundaryTurn('Oldest prompt title')], null, value]);
 }
 
+
+/** Complete native batchexecute batches for production E2E passive/live-save audit. */
+function e2eProductionMixed(id: string, question: string, answer: string, title: string): string {
+    const turn = [['c_' + id, 'r_question'], [1700000000, 0], [[question]],
+        [[['rc_question', [[answer]]]]]];
+    return JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_' + id, title, null, null, null, [1700000000, 0]],
+        ]])],
+    ]);
+}
+/** Fixed Detail responses used to verify request-UUID ownership across Gaia switches. */
+function e2eUuidDetail(id: string): string {
+    const turn = [['c_' + id, 'r_turn'], [1700000000, 0],
+        [['Question']], [[['rc_turn', [['Answer']]]]]];
+    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Source title'])]]);
+}
+/** Original L1 mixed Detail+List source response; the List half is the existing List key. */
+function l1ContractWire(prompt = 'Question', next: string | null = null): string {
+    const listRows: unknown[][] = JSON.parse(geminiListGen('G_L1_CONTRACT_01'));
+    return JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[
+            [['c_source_chat_123', 'r_' + prompt], [1700000000, 0], [[prompt]],
+                [[['rc_' + prompt, [['Answer']]]]]],
+        ], next])],
+        ...listRows,
+    ]);
+}
+
 const fixtureMap = {
+    'G_E2E_PRODUCTION_PASSIVE_MIXED_01': () =>
+        e2eProductionMixed('passive', 'Question from passive capture', 'Answer from passive capture', 'Passive detail'),
+    'G_E2E_PRODUCTION_NATIVE_AUDIT_MIXED_01': () =>
+        e2eProductionMixed('production', 'Question production', 'Current native answer', 'Current title'),
+    'G_E2E_PRODUCTION_CONTINUED_MIXED_01': () =>
+        e2eProductionMixed('abcdef123456', 'Final prompt', 'Final appended answer', 'Current continued title'),
+    'G_E2E_UUID_DETAIL_STALE_01': () => e2eUuidDetail('staleuuid123'),
+    'G_E2E_UUID_DETAIL_CURRENT_01': () => e2eUuidDetail('currentuuid123'),
+    'G_L1_CONTRACT_DETAIL_DEFAULT_01': () => l1ContractWire(),
+    'G_L1_CONTRACT_DETAIL_NEWER_01': () => l1ContractWire('Newer', 'tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_DETAIL_OLDER_01': () => l1ContractWire('Older'),
     'G_BOUNDARY_DETAIL_INNER_NULL_01': () => boundaryTop(null),
     'G_BOUNDARY_DETAIL_INNER_ARRAY_01': () => boundaryTop([]),
     'G_BOUNDARY_DETAIL_INNER_OBJECT_01': () => boundaryTop({ unexpected: true }),
