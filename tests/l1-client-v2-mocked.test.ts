@@ -8,7 +8,7 @@ import { createSourceResourceContext } from '../src/l1/resources/sourceResources
 import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { sourceDetail, sourceMessage } from './helpers/l1SourceFixture.js';
-import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
+import { parseList, type ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
@@ -25,8 +25,8 @@ const client = (pages: ListParseResult[]) => ({
 });
 
 test('Gemini Client commits canonical keyless Index/page evidence before callback', async () => {
-    const first = geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_01');
-    const second = geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_02');
+    const first = parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_01'));
+    const second = parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_02'));
     const provider = new GeminiProvider(client([first, second]), route);
     const seen: Array<{ page: number; committed: number; head: boolean }> = [];
     const end = await provider.listConversations({
@@ -49,14 +49,15 @@ test('Gemini Client commits canonical keyless Index/page evidence before callbac
 });
 
 test('L1 preserves Index facts without certifying an untrusted page or default account', async () => {
-    const untrusted = geminiListGen('G_L1_CLIENT_V2_MOCKED_01');
+    const untrusted = parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_01'));
+    untrusted.pageEvidence.valid = false;
     await assert.rejects(new GeminiProvider(client([untrusted]), route).listConversations({
         accountId: GEMINI_ACCOUNT.id, streamId: 'recent',
     }), /Unverified Gemini list page/);
     assert.equal(ports.indexes.length, 1);
     assert.equal(ports.indexes[0].page?.valid, false);
     ports.reset();
-    await assert.rejects(new GeminiProvider(client([geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_03')]), route).listConversations({
+    await assert.rejects(new GeminiProvider(client([parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_03'))]), route).listConversations({
         accountId: DEFAULT_ACCOUNT.id, streamId: 'recent',
     }), /Unverified Gemini list endpoint/);
     assert.equal(ports.indexes.length, 1);
@@ -64,9 +65,9 @@ test('L1 preserves Index facts without certifying an untrusted page or default a
 });
 
 test('Gemini provider-limit is conveyed as a committed empty request-bound page, not estimated history length', async () => {
-    const limit = geminiListGen('G_L1_CLIENT_V2_MOCKED_02');
+    const limit = parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_02'));
     let callbacks = 0;
-    const end = await new GeminiProvider(client([geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_04'), limit]), route)
+    const end = await new GeminiProvider(client([parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_04')), limit]), route)
         .listConversations({ accountId: GEMINI_ACCOUNT.id, streamId: 'recent',
             onPageCommitted: async () => { callbacks++; return false; } });
     assert.equal(end, 'provider_limit');
@@ -82,7 +83,7 @@ test('failed L2 Index commit prevents Client progress and next-page acquisition'
     ports.indexError = new Error('mock Index transaction failed');
     let callback = false, requests = 0;
     const provider = new GeminiProvider({
-        async getConversationList() { requests++; return geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_05'); },
+        async getConversationList() { requests++; return parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_05')); },
         async getConversationDetail() { return sourceDetail(); },
     }, route);
     await assert.rejects(provider.listConversations({
@@ -109,7 +110,7 @@ test('Gemini Detail may retain source bytes only for L2 accepted candidates', as
     };
     const resources = createSourceResourceContext();
     const provider = new GeminiProvider({
-        async getConversationList() { return geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_06'); },
+        async getConversationList() { return parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_06')); },
         async getConversationDetail() { return parsed; },
     }, route, resources);
     const key = { accountId: GEMINI_ACCOUNT.id, conversationId: parsed.conversationId };
@@ -130,7 +131,7 @@ test('Gemini Detail may retain source bytes only for L2 accepted candidates', as
 
 test('source-confirmed target deletion waits for L2 committed deletion and reports stable not-found', async () => {
     const provider = new GeminiProvider({
-        async getConversationList() { return geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_07'); },
+        async getConversationList() { return parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_07')); },
         async getConversationDetail() {
             throw new ConfirmedGeminiConversationNotFound('c_source_chat_123');
         },
@@ -150,14 +151,14 @@ test('source-confirmed target deletion waits for L2 committed deletion and repor
 test('Client refuses changed account route and mismatched Provider before committing anything', async () => {
     let checks = 0, fetched = false;
     const provider = new GeminiProvider({
-        async getConversationList() { fetched = true; return geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_08'); },
+        async getConversationList() { fetched = true; return parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_08')); },
         async getConversationDetail() { fetched = true; return sourceDetail(); },
     }, async () => ++checks === 1 ? 'u0' : 'u1');
     await assert.rejects(provider.listConversations({ accountId: GEMINI_ACCOUNT.id, streamId: 'recent' }),
         /route changed/);
     assert.equal(fetched, false);
     assert.equal(ports.indexes.length, 0);
-    const foreign = new GeminiProvider(client([geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_09')]), route);
+    const foreign = new GeminiProvider(client([parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_09'))]), route);
     await assert.rejects(foreign.listConversations({ accountId: CHATGPT_ACCOUNT.id, streamId: 'recent' }),
         /Provider account mismatch/);
 });
@@ -204,7 +205,7 @@ test('Detail diagnostics expose parsing evidence and L2 admission without export
     }] });
     const parsed = { ...mergeConversationPages([page], 'token_loop', false), transport: page.transport };
     const provider = new GeminiProvider({
-        async getConversationList() { return geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_10'); },
+        async getConversationList() { return parseList(geminiListGen('G_L1_CLIENT_V2_MOCKED_SRC_10')); },
         async getConversationDetail() { return parsed; },
     }, route);
     ports.detailDecision = { accepted: false, changed: false };
