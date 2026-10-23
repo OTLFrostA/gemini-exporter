@@ -27,5 +27,3 @@ export class ProviderRegistryClass<TProvider extends AIProvider = AIProvider> {
 }
 
 export const ProviderRegistry = new ProviderRegistryClass();
-export default ProviderRegistry;
-

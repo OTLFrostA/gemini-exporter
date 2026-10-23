@@ -66,4 +66,3 @@ export function init(): void {
     registerCleanup(() => chrome.runtime.onMessage.removeListener(listener));
 }
 export const MessageRouter = { init };
-export default MessageRouter;

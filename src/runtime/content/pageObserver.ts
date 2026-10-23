@@ -142,6 +142,3 @@ export const PageObserver = {
     observeTitleChanges,
     startPeriodicSync
 };
-
-
-export default PageObserver;

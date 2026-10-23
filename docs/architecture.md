@@ -237,7 +237,7 @@ graph TD
 | `src/runtime/capabilities/tabService.ts` | Core: Utils | `resolveAccountTab`, `getGeminiTab`, `sendToGeminiTab` | 严格按 Account UUID 验证目标标签页身份并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝跨账号投递。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
 | `src/shared/utils/i18n.ts` | Core: Utils | `I18nClass`, `getI18n` | 中英双语轻量翻译引擎，支持动态语言切换与多级占位符替换。 | UI Views, Controllers, Tour | 国际化本地化字典 | `UT_I18n` |
 | `src/l1/parsers/shared/chipUtils.ts` | Core: Utils | `ChipUtils`, `isInternalChipUrl`, `stripInternalChipMarkdown` | 过滤并清洗 Gemini 内部提及 (User Mention / Model Tag) 产生的内部 Chip 标签。 | `attachments.ts`, `chatFormatter.ts` | 清洗后的 Markdown/文本 | `UT_Path` |
-| `src/shared/utils/constants.ts` | Core: Utils | `STORAGE_KEYS`, `ALLOWED_FORMATS`, `getExtensionVersion` | 全局跨模块共享系统配置与存储键名真理源 (SSoT)。 | 全系统所有模块 | 配置常量定义 | `UT_SSoT` |
+| `src/shared/utils/constants.ts` | Shared: Utils | `STORAGE_KEYS`, `DIRECT_WRITE_THRESHOLD`, `FEEDBACK_URL`, `getExtensionVersion` | 跨模块存储键、UI 提示阈值、反馈入口及版本信息；导出格式以 Application 类型和当前 UI 为准。 | L1, Runtime, UI | 配置常量和版本信息 | `UT_SSoT` |
 | `src/runtime/environment.ts` | Core: Utils | `isLocalDevelopment` | 运行时环境感知，基于 URL 参数及调试标记判定是否处于开发者调试模式。 | UI 模块, `utils.ts` | 调试环境布尔标记 | `UT_SSoT` |
 | `src/runtime/ipc/messaging.ts` | Core: Utils | `sendTypedMessage`, `isMessageAction`, `getErrorMessage` | 强类型安全的跨世界与跨扩展上下文消息传递包装器，附带超时与异常提取。 | Background, Content, UI | `chrome.runtime.sendMessage` | `UT_SSoT` |
 | `src/shared/utils/retryUtils.ts` | Core: Utils | `calculateBackoff`, `abortableSleep`, `BackoffOptions` | 纯退避重试与 AbortSignal 可中断延迟工具，消除 API Client 对导出引擎的反向依赖与循环引用。 | `retryPolicy.ts`, `rateLimiter.ts`, `assetPipeline.ts` | 延迟毫秒数与可中断休眠 | `UT_SSoT` |

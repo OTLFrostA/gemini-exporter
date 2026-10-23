@@ -116,18 +116,4 @@ export function isVersionGreater(v1?: string | null, v2?: string | null): boolea
     return false;
 }
 
-export default {
-    normId,
-    shortId,
-    shortScope,
-    isReservedRoute,
-    RESERVED_ROUTES,
-    sanitizeFileName,
-    sanitizeRelativePath,
-    isGeminiUrl,
-    detectSlotFromUrl,
-    extractConversationIdFromUrl,
-    buildExportFileName,
-    isVersionGreater
-};
 
