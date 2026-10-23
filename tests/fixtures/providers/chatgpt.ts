@@ -22,7 +22,7 @@ const listSession = () => ({
     accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' },
 });
 
-export const chatgptListFixtures = {
+const fixtureValues = {
     clientSession: () => ({
         accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' },
     }),
@@ -115,3 +115,40 @@ export const chatgptListFixtures = {
             create_time: 1700000000, update_time: 1700000010 },
     ], { total: 1, offset: 0, limit: 100 }),
 };
+
+// One unique key per consuming List test call site. Values preserve the old data.
+const fixtureMap = {
+    'C_L1_CLIENT_V2_MOCKED_03': fixtureValues.clientSession,
+    'C_L1_CLIENT_V2_MOCKED_04': fixtureValues.clientComplete,
+    'C_L1_CLIENT_V2_MOCKED_05': fixtureValues.clientSession,
+    'C_L1_CLIENT_V2_MOCKED_06': fixtureValues.clientIncomplete,
+    'C_L1_CHATGPT_SOURCE_V2_UNIT_01': fixtureValues.parserNativePaging,
+    'C_L1_CHATGPT_SOURCE_V2_UNIT_02': fixtureValues.parserInvalidOffset,
+    'C_L1_CHATGPT_SOURCE_V2_UNIT_03': fixtureValues.parserMissingFlagAbsent,
+    'C_L1_CHATGPT_SOURCE_V2_UNIT_04': fixtureValues.parserMissingFlagPresent,
+    'C_L1_CHATGPT_SOURCE_V2_UNIT_05': fixtureValues.parserMalformedFlags,
+    'C_L1_CONTRACT_20': fixtureValues.conflictingAccountSession,
+    'C_LIST_SOURCE_BOUNDARY_01': fixtureValues.boundaryIndexFacts,
+    'C_LIST_SOURCE_BOUNDARY_02': fixtureValues.boundaryMalformedPages,
+    'C_LIST_SOURCE_BOUNDARY_03': fixtureValues.boundarySessionToken,
+    'C_LIST_SOURCE_BOUNDARY_04': fixtureValues.boundarySchemaDrift,
+    'C_LIST_SOURCE_BOUNDARY_05': fixtureValues.boundarySessionIndex,
+    'C_LIST_SOURCE_BOUNDARY_06': fixtureValues.boundaryCommitted,
+    'C_PROVIDER_CHATGPT_TREE_01': fixtureValues.treeIncrementalRefresh,
+    'C_PROVIDER_CHATGPT_TREE_02': fixtureValues.treeListSession,
+    'C_PROVIDER_CHATGPT_TREE_03': fixtureValues.treeOnePage,
+    'C_PROVIDER_CHATGPT_TREE_04': fixtureValues.treeListSession,
+    'C_PROVIDER_CHATGPT_TREE_05_0': () => fixtureValues.treeOffsetPage(0),
+    'C_PROVIDER_CHATGPT_TREE_05_100': () => fixtureValues.treeOffsetPage(100),
+    'C_PROVIDER_CHATGPT_TREE_06': fixtureValues.treeListSession,
+    'C_PROVIDER_CHATGPT_TREE_07': fixtureValues.treeEmpty,
+    'C_PROVIDER_CHATGPT_TREE_08': fixtureValues.treeUntrustedPages,
+    'C_PROVIDER_CHATGPT_TREE_09': fixtureValues.treeListSession,
+    'C_E2E_CHATGPT_SCAN_01': fixtureValues.browserList,
+    'C_E2E_CHATGPT_SCAN_02': fixtureValues.browserSession,
+};
+
+/** Single public List data entrypoint for chatgpt; no cross-provider protocol abstraction. */
+export function listGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
+    return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
+}
