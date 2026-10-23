@@ -16,7 +16,7 @@ function sourceRow(id: string, title: string, seconds: number) {
 }
 
 /** Backward-compatible generator used by existing List tests via sourceList. */
-export function geminiList(ids: readonly string[] = [], nextCursor: string | null = null) {
+function geminiList(ids: readonly string[] = [], nextCursor: string | null = null) {
     return parsed(ids.map(id => sourceRow(id, 'Title ' + id, 1700000000)), nextCursor);
 }
 
@@ -31,7 +31,7 @@ const nativeAnyError = (rpc: string, code: unknown,
     type = 'type.googleapis.com/assistant.boq.bard.application.BardErrorInfo') =>
     ['wrb.fr', rpc, null, null, null, [5, null, [[type, [code]]]], 'generic'];
 
-export const geminiListFixtures = {
+const fixtureValues = {
     invalidSourcePage: () => {
         const page = geminiList(['source_alpha']);
         page.pageEvidence.valid = false;
@@ -170,3 +170,74 @@ export const geminiListFixtures = {
         return { header, doc };
     },
 };
+
+// One unique key per consuming List test call site. Values preserve the old data.
+const fixtureMap = {
+    'G_L1_CLIENT_V2_MOCKED_01': fixtureValues.invalidSourcePage,
+    'G_L1_CLIENT_V2_MOCKED_02': fixtureValues.providerLimit,
+    'G_L1_CLIENT_V2_MOCKED_SRC_01': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
+    'G_L1_CLIENT_V2_MOCKED_SRC_02': () => geminiList(['source_beta']),
+    'G_L1_CLIENT_V2_MOCKED_SRC_03': () => geminiList(['source_alpha']),
+    'G_L1_CLIENT_V2_MOCKED_SRC_04': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
+    'G_L1_CLIENT_V2_MOCKED_SRC_05': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
+    'G_L1_CLIENT_V2_MOCKED_SRC_06': () => geminiList(),
+    'G_L1_CLIENT_V2_MOCKED_SRC_07': () => geminiList(),
+    'G_L1_CLIENT_V2_MOCKED_SRC_08': () => geminiList(),
+    'G_L1_CLIENT_V2_MOCKED_SRC_09': () => geminiList(),
+    'G_L1_CLIENT_V2_MOCKED_SRC_10': () => geminiList(),
+    'G_L1_LIST_RPC_ISOLATION_01': fixtureValues.rpcIsolationUnrelatedError,
+    'G_L1_LIST_RPC_ISOLATION_02': fixtureValues.rpcIsolationMissingEnvelope,
+    'G_L1_LIST_RPC_ISOLATION_03': fixtureValues.rpcIsolationTargetWins,
+    'G_L1_LIST_RPC_ISOLATION_04': fixtureValues.rpcIsolationProviderLimit,
+    'G_L1_LIST_RPC_ISOLATION_05': fixtureValues.rpcIsolationNativeLimit,
+    'G_L1_LIST_RPC_ISOLATION_06': fixtureValues.rpcIsolationInvalidNativeErrors,
+    'G_L1_CONTRACT_01': fixtureValues.contractDetailSidecar,
+    'G_L1_CONTRACT_02': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_03': fixtureValues.contractEmptyPage,
+    'G_L1_CONTRACT_04': fixtureValues.contractPage,
+    'G_L1_CONTRACT_05': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_06': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_07': fixtureValues.contractPage,
+    'G_L1_CONTRACT_08': fixtureValues.contractPage,
+    'G_L1_CONTRACT_09': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_10': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_11': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789', 'different_chat_456', 1700000040),
+    'G_L1_CONTRACT_12': fixtureValues.malformedWire,
+    'G_L1_CONTRACT_13': fixtureValues.contractEmptyPage,
+    'G_L1_CONTRACT_14': fixtureValues.contractPage,
+    'G_L1_CONTRACT_15': fixtureValues.invalidBardErrors,
+    'G_L1_CONTRACT_16': () => fixtureValues.contractWire('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_17': fixtureValues.contractEmptyWire,
+    'G_L1_CONTRACT_18': fixtureValues.contractWire,
+    'G_L1_CONTRACT_19': fixtureValues.contractWire,
+    'G_L1_CONTRACT_21': fixtureValues.providerLimit,
+    'G_L1_CONTRACT_22': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
+    'G_L1_CONTRACT_23': () => fixtureValues.contractPage('tC_NEXT_PAGE_123456789'),
+    'G_LIST_SOURCE_BOUNDARY_07': fixtureValues.boundaryObservation,
+    'G_LIST_SOURCE_BOUNDARY_08': fixtureValues.boundaryInvalidLayouts,
+    'G_LIST_SOURCE_BOUNDARY_09': fixtureValues.boundaryContinuation,
+    'G_LIST_SOURCE_BOUNDARY_10': fixtureValues.boundaryTerminalCursor,
+    'G_LIST_SOURCE_BOUNDARY_11': fixtureValues.domMetadata,
+    'G_OBSERVED_PAGE_INGEST_01': fixtureValues.observedPageWire,
+    'G_PAGE_OBSERVATION_01': fixtureValues.observationOrderedPage,
+    'G_PAGE_OBSERVATION_02_RECENT': () => fixtureValues.observationRequest('recent', 'incoming'),
+    'G_PAGE_OBSERVATION_02_PINNED': () => fixtureValues.observationRequest('pinned', 'incoming'),
+    'G_PAGE_OBSERVATION_03': fixtureValues.observationFallbackTimePage,
+    'G_PAGE_OBSERVATION_04': fixtureValues.observationRisingTimePage,
+    'G_PAGE_OBSERVATION_05': fixtureValues.observationUnknownRequest,
+    'G_PAGE_OBSERVATION_06': fixtureValues.observationCapturedEmpty,
+    'G_PAGE_OBSERVATION_07': fixtureValues.observationUnknownNonempty,
+    'G_PAGE_OBSERVATION_08': fixtureValues.observationEqualTimes,
+    'G_PAGE_OBSERVATION_09': fixtureValues.observationSubsecondTie,
+    'G_PAGE_OBSERVATION_10': fixtureValues.observationDuplicate,
+    'G_PAGE_OBSERVATION_11': fixtureValues.observationExpandedRequests,
+    'G_PAGE_OBSERVATION_12': fixtureValues.observationSinglePage,
+    'G_RPC_LIST_INGEST_01': fixtureValues.rpcIngestWire,
+    'G_UNIFIED_INGEST_INTEGRITY_01': fixtureValues.mixedInvalidParsedPage,
+    'G_E2E_PRODUCTION_V2_01': fixtureValues.browserPassiveCaptureWire,
+};
+
+/** Single public List data entrypoint for gemini; no cross-provider protocol abstraction. */
+export function listGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
+    return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
+}
