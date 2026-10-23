@@ -424,10 +424,10 @@ test('Content cleanup unregisters individual completed requests and drains liste
     const unregister = cleanup.registerCleanup(() => { calls++; });
     unregister();
     cleanup.registerCleanup(() => { calls++; });
-    assert.equal(cleanup.pendingCleanupCount(), 1);
+    assert.equal(global.window.__gemExporterCleanups?.length, 1);
     cleanup.runCleanups(); cleanup.runCleanups();
     assert.equal(calls, 1);
-    assert.equal(cleanup.pendingCleanupCount(), 0);
+    assert.equal(global.window.__gemExporterCleanups?.length, 0);
 });
 
 test('Worker API readiness shares the background upgrade promise and never messages itself', async () => {
