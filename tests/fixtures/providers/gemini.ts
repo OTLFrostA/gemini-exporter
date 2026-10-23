@@ -26,6 +26,15 @@ const nativeAnyError = (rpc: string, code: unknown,
 
 // One unique key per consuming List test call site. Values preserve the old data.
 const fixtureMap = {
+
+    'G_BOUNDARY_LIST_01': () => {
+        const ids = ['c_missingtitle123', 'c_nulltitle123456', 'c_objecttitle1234', 'c_blanktitle12345'];
+        const rows = [null, [], 'not-a-row', [ids[0]], [ids[1], null], [ids[2], { title: 'wrong shape' }], [ids[3], ' \t ']];
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, rows])]]);
+    },
+    'G_BOUNDARY_LIST_02': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc',
+        JSON.stringify([null, null, [['c_boundary12345678', 'Secondary title']]])]]),
+    'G_BOUNDARY_LIST_03': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [], 'tC_empty_page'])]]),
     'G_L1_CLIENT_V2_MOCKED_01': () => geminiList(['source_alpha']),
     'G_L1_CLIENT_V2_MOCKED_02': () => JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]],
