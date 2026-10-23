@@ -16,7 +16,7 @@ async function seed() {
     await putExportRecord(key, { status: 'ok', format: 'markdown', exportedAt: 100 });
 }
 function failingProvider(error: Error) {
-    return new GeminiProvider({ getConversationList: async () => sourceList(),
+    return new GeminiProvider({ getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'),
         getConversationDetail: async () => { throw error; } }, async () => 'u0');
 }
 test('D2: incidental 11167, generic 404 and unverified error strings cannot delete local facts', async () => {
