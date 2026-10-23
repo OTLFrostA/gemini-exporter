@@ -1,6 +1,7 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 const { sourceDetail, sourceMessage } = require('./helpers/l1SourceFixture.js');
 const { parseGeminiRpcConversation } = require('../src/l1/parsers/gemini/rpc/parseConversation.js');
+const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
 /**
  * Phase C 规格测试 —— 解析可观测 (P1-8 / P1-9)
  * red-by-design: 修复前失败、修复后通过。
@@ -46,23 +47,20 @@ function modelMessageOf(res: any): any {
 
 // ---------------------------------------------------------------- P1-8: turnsRejected + schemaDrift
 test('P1-8a: 漂移夹具产出 turnsRejected=1 且 schemaDrift 非空', () => {
-    const junk = [["x_123"], [1, 0], [["u"]]]; // isTurn 拒绝
-    const oddTurn = makeTurn({ userPayload: "非数组形态的 user payload", convId: "c_odd000000000001" });
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), oddTurn, junk]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_01'));
     assert.strictEqual(res.turnsRejected, 1, 'junk 元素应被计数为拒识');
     assert.ok(Array.isArray(res.schemaDrift) && res.schemaDrift.length > 0, 'schemaDrift 应非空');
 });
 
 test('P1-8b: 正常 payload 无拒识、无漂移', () => {
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), makeTurn({ convId: "c_abc123def457" })]]));
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_02'));
     assert.strictEqual(res.turnsRejected || 0, 0, '正常 turn 不应被拒识');
     assert.ok(!res.schemaDrift || res.schemaDrift.length === 0, '正常 payload 不应有 schemaDrift');
 });
 
 test('P1-8c: parser 统一质量状态，拒识内容判 partial', () => {
-    const junk = [["x_123"], [1, 0], [["u"]]];
-    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), junk]]));
-    const result = parseGeminiRpcConversation(makeDetailRpc([[makeTurn(), junk]]), { providerId: 'gemini', account: fixtureAccount(), targetConvId: 'abc123def456' });
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_03'));
+    const result = parseGeminiRpcConversation(geminiDetailGen('G_OBSERVABILITY_04'), { providerId: 'gemini', account: fixtureAccount(), targetConvId: 'abc123def456' });
     const quality = result.conversation.detail.quality;
     assert.strictEqual(result.evidence?.rejectedTurns, 1);
     assert.ok(result.diagnostics.some((d: { code: string }) => d.code === 'GEMINI_TURNS_REJECTED'));
