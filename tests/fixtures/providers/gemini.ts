@@ -26,6 +26,10 @@ const nativeAnyError = (rpc: string, code: unknown,
 
 // One unique key per consuming List test call site. Values preserve the old data.
 const fixtureMap = {
+    'G_PERF_RETRY_429_01': () => {
+        const inner = JSON.stringify([null, [['c_conv123', 'Conversation 1', [1700000000, 0], [1700000000, 0], 1]], null]);
+        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'MaZiqc', inner]]);
+    },
     'G_MESSAGE_BRIDGE_LIST_01': () => JSON.stringify([['wrb.fr', 'MaZiqc',
         JSON.stringify([null, null, [['c_bridge_chat_123', 'Title', null, null, null, [1700000000, 0]]]])]]),
     'G_TAKEOUT_LIMIT_01': () => JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]]]),
