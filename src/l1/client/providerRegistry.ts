@@ -2,7 +2,6 @@ import type { AIProvider } from "./aiProvider.js";
 
 export class ProviderRegistryClass<TProvider extends AIProvider = AIProvider> {
     private providers: Map<string, TProvider> = new Map();
-    private defaultProviderId: string = 'gemini';
 
     register(provider: TProvider): void {
         if (!provider || !provider.id) {
@@ -24,60 +23,6 @@ export class ProviderRegistryClass<TProvider extends AIProvider = AIProvider> {
 
     get(id: string): TProvider | undefined {
         return this.providers.get(id);
-    }
-
-    getAll(): TProvider[] {
-        return Array.from(this.providers.values());
-    }
-
-    setDefaultProviderId(id: string): void {
-        if (!this.providers.has(id)) {
-            throw new Error(`[ProviderRegistry] cannot set default provider to unregistered id "${id}"`);
-        }
-        this.defaultProviderId = id;
-    }
-
-    getDefault(): TProvider | undefined {
-        return this.providers.get(this.defaultProviderId);
-    }
-
-    findByUrl(url: string): TProvider | undefined {
-        if (!url) return undefined;
-        for (const provider of this.providers.values()) {
-            if (typeof provider.matchesUrl === 'function' && provider.matchesUrl(url)) {
-                return provider;
-            }
-        }
-        for (const provider of this.providers.values()) {
-            if (typeof provider.matchesUrl === 'function') continue;
-            if (Array.isArray(provider.hostPatterns)) {
-                for (const pattern of provider.hostPatterns) {
-                    if (this.matchPattern(pattern, url)) {
-                        return provider;
-                    }
-                }
-            }
-        }
-        return undefined;
-    }
-
-    private matchPattern(pattern: string, url: string): boolean {
-        if (pattern === url) return true;
-        try {
-            const parsedUrl = new URL(url);
-            if (pattern.startsWith('https://') || pattern.startsWith('http://')) {
-                const cleanPattern = pattern.endsWith('*') ? pattern.slice(0, -1) : pattern;
-                const parsedPattern = new URL(cleanPattern.endsWith('/') ? cleanPattern : cleanPattern + '/');
-                if (parsedUrl.origin === parsedPattern.origin) {
-                    return parsedUrl.pathname.startsWith(parsedPattern.pathname);
-                }
-            }
-        } catch {}
-        if (pattern.endsWith('/*')) {
-            const prefix = pattern.slice(0, -1);
-            return url.startsWith(prefix);
-        }
-        return false;
     }
 }
 

@@ -160,8 +160,7 @@ test('boundary reader detects re-export, type-only, dynamic import and require e
 });
 
 test('native parsing does not allocate export paths or sanitized filenames', () => {
-    const naming = new Set(['sanitizeFileName', 'sanitizeFileNameLegacy', 'sanitizeRelativePath',
-        'getUniqueLocalName', 'buildExportFileName', 'buildExportFileNameLegacy', 'resolveExportFileName']);
+    const naming = new Set(['sanitizeFileName', 'sanitizeRelativePath', 'getUniqueLocalName', 'buildExportFileName']);
     for (const [name, file] of sources) {
         if (!name.startsWith('l1/parsers/')) continue;
         for (const token of tokens(readFileSync(file, 'utf8'))) {

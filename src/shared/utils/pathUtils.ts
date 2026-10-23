@@ -116,62 +116,8 @@ export function isVersionGreater(v1?: string | null, v2?: string | null): boolea
     return false;
 }
 
-export function sanitizeFileNameLegacy(name?: string | null, fallback: string = 'untitled'): string {
-    if (!name) return fallback;
-    let s = String(name).replace(/[\r\n\t\f\v]+/g, ' ').replace(/[\u0000-\u001F\u007F-\u009F]/g, '_');
-    s = s.replace(/\.\.\//g, '_').replace(/\.\.\\/g, '_');
-    s = s.replace(/[<>:"/\\|?*]+/g, '_');
-    s = s.replace(/\.{2,}/g, '_');
-    s = s.replace(/^\.+|\.+$/g, '');
-    s = s.trim();
-    if (!s) return fallback;
-    if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = s + '_chat';
-    let ext = '';
-    const lastDot = s.lastIndexOf('.');
-    if (lastDot > 0 && s.length - lastDot <= 6) {
-        ext = s.slice(lastDot);
-        s = s.slice(0, lastDot);
-    }
-    if (s.length > 70) s = s.slice(0, 70).trim();
-    s = s.replace(/[\.\s_]+$/g, '').trim();
-    if (!s) s = fallback;
-    return s + ext;
-}
-
-export function buildExportFileNameLegacy(title?: string | null, id?: string | null, ext: string = 'md'): string {
-    const safeTitle = sanitizeFileNameLegacy(title || 'untitled');
-    const nid = normId(id);
-    const cid6 = nid.length >= 6 ? nid.slice(-6) : (nid || 'chat');
-    const cleanExt = ext.replace(/^\.+/, '') || 'md';
-    return `${safeTitle}_${cid6}.${cleanExt}`;
-}
-
-export type FileExistsFn = (name: string) => boolean | Promise<boolean>;
-
-export async function resolveExportFileName(
-    title?: string | null,
-    id?: string | null,
-    ext: string = 'md',
-    exists?: FileExistsFn
-): Promise<string> {
-    const fileName = buildExportFileName(title, id, ext);
-    const legacyName = buildExportFileNameLegacy(title, id, ext);
-    if (!exists || legacyName === fileName) return fileName;
-    try {
-        if (await exists(fileName)) return fileName;
-    } catch {}
-    try {
-        if (await exists(legacyName)) return legacyName;
-    } catch {}
-    return fileName;
-}
-
-
 export default {
     normId,
-    sanitizeFileNameLegacy,
-    buildExportFileNameLegacy,
-    resolveExportFileName,
     shortId,
     shortScope,
     isReservedRoute,

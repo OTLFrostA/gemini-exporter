@@ -125,7 +125,7 @@ stubModule('../../src/runtime/api/accountRegistry.js', { async getAccount(id: st
     return state.accountOverride === undefined ? { ...account, id } : state.accountOverride;
 } });
 stubModule('../../src/l1/client/providerRegistry.js', {
-    ProviderRegistry: { get() { return provider; }, register() {}, setDefaultProviderId() {} },
+    ProviderRegistry: { get() { return provider; }, register() {} },
 });
 stubModule('../../src/l1/client/gemini/geminiProvider.js', { defaultGeminiProvider: provider });
 stubModule('../../src/l1/resources/sourceResources.js', {
