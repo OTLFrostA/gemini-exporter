@@ -85,7 +85,46 @@ function citationInvalidFileMarker(marker: string): string {
     return citationWire(copy);
 }
 
+/** Raw source-turn fixture for generated file-chip placement and UTF-8 resource checks. */
+function generatedFileTurn(packet: unknown[], chip: unknown[], content: string, id: string, document: boolean): unknown[] {
+    const candidate: unknown[] = ['rc_' + id, [content], 'en'];
+    const payload: unknown[] = [[candidate]];
+    if (document) {
+        candidate[30] = [packet];
+        payload[12] = [[[ [null, [null, 0, 'Before']], chip, [null, [null, 0, 'After']] ]]];
+    }
+    return [['r_' + id, 'c_e6dc4e0732ba568b'], [1700000000, 0], [['Prompt']], payload];
+}
+
 const fixtureMap = {
+    'G_GENERATED_FILES_01': () => {
+        const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_generated_file.json', 'utf8')) as { packet: unknown[]; chip: unknown[] };
+        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[
+            generatedFileTurn(fixture.packet, fixture.chip, 'Before\n\nAfter', 'later', true),
+            generatedFileTurn(fixture.packet, fixture.chip, 'Earlier caption', 'earlier', false),
+        ]])]]);
+    },
+    'G_PROVIDER_ADAPTER_01': () => {
+        const turn = [['c_prefixed_detail', 'r_request'], [1700000000, 0], [['Question']],
+            [[['rc_answer', [['Answer ![image](data:image/png;base64,AQID)']]]]]];
+        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Canonical detail'])]]);
+    },
+    'G_MESSAGE_BRIDGE_DETAIL_01': () => JSON.stringify([['wrb.fr', 'hNvQHb',
+        JSON.stringify([[[['c_bridge_chat_123', 'r_1'], [1700000000, 0], [['Question']],
+            [[['rc_1', [['Answer']]]]]]]])]]),
+    'G_LIVE_SAVE_OBSERVER_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+        [[['c_passive123', 'r_question'], [1700000000, 0], [['Question']],
+            [[['rc_answer', [['Answer']]]]]]], null,
+    ])]]),
+    'G_MESSAGE_ROUTER_LIVE_SAVE_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+        [[['c_source_sniff_123', 'r_question'], [1700000000, 0], [['Question']],
+            [[['rc_answer', [['Answer']]]]]]], null,
+    ])]]),
+    'G_STRUCTURED_CITATIONS_38': () => {
+        const good = citationField(31, [[['[cite: 1]', 0], [[null, [[null, 0, 'file.json', null, null, null, null, null, 1, null, null, 'application/json'], null, null, null, null, null, 'file.json']]], ['quote', 0]]]);
+        good[32] = 'unknown visible payload';
+        return citationWire([[[good]]]);
+    },
     'G_STRUCTURED_CITATIONS_29': () => citationWire(
         [[[citationText('body', [citationSourceAnnotation(0, 99)])]]],
         citationSourceTable()),

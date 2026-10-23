@@ -4,20 +4,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { extractGeneratedFiles } from '../src/l1/parsers/gemini/rpc/generatedFiles.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_generated_file.json', 'utf8')) as { packet: unknown[]; chip: unknown[] };
 const packet = fixture.packet;
-function turn(text: string, id: string, document: boolean): unknown[] {
-    const candidate: unknown[] = ['rc_' + id, [text], 'en'];
-    const payload: unknown[] = [[candidate]];
-    if (document) {
-        candidate[30] = [packet];
-        payload[12] = [[[ [null, [null, 0, 'Before']], fixture.chip, [null, [null, 0, 'After']] ]]];
-    }
-    return [['r_' + id, 'c_e6dc4e0732ba568b'], [1700000000, 0], [['Prompt']], payload];
-}
 test('generated file stays on its source turn, retains chip position, and carries exact UTF-8 source bytes', () => {
-    const input = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn('Before\n\nAfter', 'later', true), turn('Earlier caption', 'earlier', false)]])]]);
+    const input = geminiDetailGen('G_GENERATED_FILES_01');
     const result = parseGeminiRpcConversation(input, { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'e6dc4e0732ba568b' });
     const { conversation } = result;
     assert.equal(conversation.detail.assets.length, 1, 'no heuristic duplicate or cross-turn document');

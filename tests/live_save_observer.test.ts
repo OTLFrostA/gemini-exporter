@@ -7,6 +7,7 @@ import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
 import { getDetail } from '../src/l3a/storageService.js';
 import { extractConversationIdFromUrl } from '../src/shared/utils/pathUtils.js';
 import { resolveCurrentAccount } from '../src/runtime/content/accountContext.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 // The old DOM/debounce LiveSaveObserver is retired. Actual passive admissions
 // commit Detail; stream completion requests Application acquisition without inventing DOM Detail.
@@ -36,9 +37,7 @@ test('stream lifecycle notifications do not save unfinished or uncommitted DOM c
 });
 test('a real completed passive Detail triggers after storage commit and duplicate captures do not retrigger', async t => {
     const h = await host(t);
-    const text = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
-        [[['c_passive123', 'r_question'], [1700000000, 0], [['Question']], [[['rc_answer', [['Answer']]]]]]], null,
-    ])]]);
+    const text = geminiDetailGen('G_LIVE_SAVE_OBSERVER_01');
     const event = h.event('GEMINI_NETWORK_BATCHEXECUTE', { text, requestedAt: 1700000000000, truncated: false,
         url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute', detailRequest: { conversationId: 'passive123', requestCursor: null } });
     await handleWindowMessage(event);
