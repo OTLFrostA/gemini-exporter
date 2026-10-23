@@ -72,14 +72,12 @@ function typecheckContracts(): void {
 }
 void typecheckContracts;
 
-// P1-094 is a real runtime invariant: consumers rely on this hierarchy.
-test('P1-094: live error subclasses extend GeminiError and dead class stays absent', () => {
+// P1-094: the live Takeout parse error retains the shared hierarchy.
+test('P1-094: TakeoutParseError extends GeminiError and retired RPC error is absent', () => {
     const errors = require('../src/shared/types/errors.js');
     assert.equal(errors.GeminiRpcError, undefined);
     assert.equal(typeof errors.GeminiError, 'function');
-    for (const name of ['ExportPipelineError', 'TakeoutParseError', 'StorageError']) {
-        assert.ok(new errors[name]('x') instanceof errors.GeminiError, name);
-    }
+    assert.ok(new errors.TakeoutParseError('x') instanceof errors.GeminiError);
 });
 
 // P1-097: a removed unused file is not a runtime contract; deleted.
