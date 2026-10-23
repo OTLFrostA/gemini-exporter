@@ -1,47 +1,5 @@
 [
   {
-    "id": "acoustics_helmholtz_resonator_dimensions",
-    "title": "Acoustics: Helmholtz resonator geometry and tuning",
-    "domain": "acoustics_helmholtz_resonance",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational cutaway illustration of a Helmholtz resonator with a cavity and short neck. Label cavity volume, neck length, neck radius and an illustrative air plug. Mark all dimensions as synthetic teaching values.",
-      "Derive the lumped acoustic mass and compliance model in LaTeX and the Helmholtz resonance frequency with an explicit end correction. State assumptions and SI units and distinguish angular frequency from hertz.",
-      "Write complete runnable standard-library Python computing resonance frequency for validated positive geometries. Include tests for scaling all lengths, increasing volume, zero or negative dimensions and agreement with a hand-calculated reference.",
-      "Provide a Markdown table of hypothetical cavity volumes and neck dimensions with predicted frequency, effective length and sensitivity to end correction. Explain why those predictions are not measured acoustic performance.",
-      "Write a reproducibility report linking the illustration, formulas and code. Discuss viscothermal losses, radiation damping and breakdown of the lumped approximation; include a Chinese-English glossary."
-    ]
-  },
-  {
-    "id": "statistics_beta_binomial_predictive_calibration",
-    "title": "Statistics: beta-binomial updating and predictive uncertainty",
-    "domain": "statistics_bayesian_beta_binomial",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic quality-control experiment with exchangeable Bernoulli observations and a Beta prior. Give hypothetical success and failure counts and clearly distinguish prior beliefs from observed data.",
-      "Derive the posterior density and posterior mean in LaTeX. Explain conjugacy, the normalization constant and why a posterior probability is not a frequentist confidence level.",
-      "Derive the beta-binomial posterior predictive distribution for a future batch. Obtain its expectation and variance and contrast it with plugging the posterior mean into a binomial model.",
-      "Write complete runnable standard-library Python computing the predictive probabilities using lgamma and stable normalization. Validate integer sample sizes and positive prior parameters.",
-      "Add tests that probabilities sum to one, that n=0 is deterministic, that symmetric priors yield symmetric predictions, and that computed moments agree with the analytical formulas.",
-      "Provide a Markdown table comparing weak, uniform and concentrated synthetic priors for identical observations. Include posterior mean, predictive mean and predictive variance with clear numerical precision.",
-      "Explain prior sensitivity and model misspecification under dependent observations. Show a reproducible grid of prior parameters and report its results without presenting it as empirical calibration evidence.",
-      "Write a detailed bilingual reproducibility report separating synthetic observations, probability computations, uncertainty interpretations and limitations from changing defect rates or nonexchangeable sampling."
-    ]
-  },
-  {
     "id": "photogrammetry_rectified_stereo_depth",
     "title": "Photogrammetry: rectified stereo depth and uncertainty",
     "domain": "photogrammetry_stereo_geometry",
@@ -410,6 +368,48 @@
       "Derive time and space complexity in LaTeX for both a simple quadratic graph builder and a version using per-item access history. Draw an aligned ASCII diagram showing one witnessed cycle.",
       "Give counterexamples separating conflict serializability, view serializability and strictness, including a blind-write example. Clearly identify the assumptions needed for each claim.",
       "Write a detailed bilingual English-Chinese engineering audit with complete runnable code, deterministic tests, certificate validation and the limits of inferring database isolation guarantees from observed finite schedules."
+    ]
+  },
+  {
+    "id": "genetics_hardy_weinberg_inbreeding_audit",
+    "title": "Population genetics: Hardy-Weinberg assumptions and inbreeding audit",
+    "domain": "population_genetics_genotype_equilibrium",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational diagram showing two abstract alleles A and a combining into AA, Aa and aa in a hypothetical population. Label allele frequency versus genotype frequency and clearly mark the diagram as a synthetic teaching model, not individual medical advice.",
+      "Derive Hardy-Weinberg genotype frequencies in LaTeX. Introduce an inbreeding coefficient F and derive the adjusted AA, Aa and aa frequencies, proving normalization and conservation of the allele frequencies. State model assumptions and valid parameter bounds.",
+      "Write complete runnable standard-library Python for the genotype probabilities and expected counts. Validate input bounds, handle p=0 and p=1, and include automated checks for normalization, conserved allele frequency, and F=0 and F=1 limits. Do not claim execution unless actually executed.",
+      "Provide a Markdown table for hypothetical populations with p=0.2, 0.5 and 0.8 and F=0, 0.25 and 1. Show all genotype probabilities and expected counts for N=1000. Distinguish expected counts from random observations and discuss sampling uncertainty.",
+      "Write a bilingual Chinese-English reproducibility report linking the diagram, derivation, table and code. Construct a counterexample to random mating, explain how population subdivision can mimic heterozygote deficiency, and distinguish a mathematical fit from evidence about ancestry or disease."
+    ]
+  },
+  {
+    "id": "numerical_adaptive_simpson_error_budget",
+    "title": "Numerical analysis: adaptive Simpson quadrature and error accounting",
+    "domain": "numerical_analysis_adaptive_quadrature",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define adaptive Simpson quadrature for a finite real interval, including the single-panel and split-panel estimates. Derive the extrapolated error estimator in LaTeX, explaining exactly which smoothness assumptions justify the factor 15.",
+      "Give detailed recursive pseudocode with absolute and relative tolerances, a finite evaluation budget, maximum depth, cached function values, and a structured convergence result. Specify invariants and how the absolute tolerance is apportioned between children.",
+      "Implement complete runnable standard-library Python with the same contract. Avoid re-evaluating cached endpoints or midpoints, reject nonfinite integrand values, handle reversed and zero-width intervals explicitly, and preserve separate estimate, estimated error, evaluation count and convergence flag.",
+      "Create unit tests for a cubic polynomial, sin(x) on [0, pi], exp(x) on [0,1], a zero-width interval, reversed limits, nonfinite values and exhausted budgets. Include analytic reference values, and clearly distinguish executable tests from tests actually executed.",
+      "Construct a narrow smooth bump that an initial sampling grid can miss. Explain why a small reported local estimator is not a universal accuracy certificate; provide a reproducible counterexample and a strategy that improves detection without claiming a general guarantee.",
+      "Produce a Markdown comparison table of hypothetical tolerances and evaluation budgets for a smooth function and a difficult oscillatory function. Label illustrative values explicitly if you have not run the implementation; explain which convergence claims can be made from recorded evidence.",
+      "Analyze time and memory costs in terms of accepted panels and recursion depth. Derive a tolerance allocation example and discuss cancellation, roundoff, nondeterministic integrands and why clipping recursion must not silently report success.",
+      "Write a final Chinese-English audit with API examples, the assumptions behind the estimator, a matrix mapping each failure mode to a test, and a reproducibility checklist that distinguishes analytic facts, measured results, and unresolved numerical uncertainty."
     ]
   }
 ]
