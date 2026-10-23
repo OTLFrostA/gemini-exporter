@@ -96,7 +96,7 @@ export async function initMitexWasm(wasmSource?: string | Uint8Array | ArrayBuff
         } else if (typeof process !== 'undefined' && process.versions?.node) {
             const fs = getNodeModule<typeof import('node:fs')>('node:fs');
             const wasmPath = getWasmPathInNode();
-            bytes = fs.readFileSync(wasmPath);
+            bytes = fs!.readFileSync(wasmPath);
         } else if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
             const url = chrome.runtime.getURL('src/l4/format/typst/mitex/vendor/mitex_wasm_bg.wasm');
             const resp = await fetch(url);
