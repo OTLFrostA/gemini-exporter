@@ -1,9 +1,10 @@
 import { expression, type Scope } from './expression.js';
 import { attribute, type DilNode } from './syntax.js';
 
-export const layoutComponents = new Set(['box', 'row', 'column', 'grid', 'grid-item', 'text', 'p', 'label', 'strong', 'em']);
+export const layoutComponents = new Set(['box', 'row', 'column', 'grid', 'grid-item', 'text', 'p', 'label', 'caption', 'strong', 'em']);
 export const controlComponents = new Set(['radio-group', 'checkbox-group', 'radio', 'checkbox', 'button', 'select', 'option', 'input']);
 export const descriptions: Record<string, string> = {
+    COMPOUND_INTEREST: 'Explains compound interest and continuous growth or discounting.',
     VARIANCE: 'Explains variance from squared deviations around a mean.',
     ANGULAR_FREQUENCY_RELATION: 'Shows the relationship between angular frequency and ordinary frequency.',
 };
@@ -44,6 +45,11 @@ export function component(node: DilNode, content: string, scope: Scope, source: 
         // and promotes the image to a Domain asset. No URL is invented here.
         return `\n\n\uE200image_group\uE202${JSON.stringify({ query: [query] })}\uE201\n\n`;
     }
+    if (node.name === 'math') {
+        const value = prop(node, 'value', scope);
+        if (typeof value !== 'string') throw new Error('Missing math source');
+        return prop(node, 'block', scope) === true ? `\n\n\\[\n${value}\n\\]\n\n` : `\\(${value}\\)`;
+    }
     if (node.name === 'LearningViz') {
         const id = prop(node, 'type_id', scope);
         if (typeof id !== 'string' || !Object.hasOwn(descriptions, id)) throw new Error('Unsupported learning visualization');
@@ -56,12 +62,17 @@ export function component(node: DilNode, content: string, scope: Scope, source: 
                 return `- ${key}: ${String(value)}`;
             }).join('\n');
         }
-        return `\n\n${descriptions[id]}${initial}\n\n`;
+        return `\n\n${descriptions[id]}${initial}${content.trim() ? '\n\n' + content.trim() : ''}\n\n`;
     }
     if (controlComponents.has(node.name)) {
         if (node.name === 'input') {
-            const value = prop(node, 'placeholder', scope);
-            return typeof value === 'string' ? `\n\n${value}\n\n` : '';
+            const placeholder = prop(node, 'placeholder', scope);
+            const initial = prop(node, 'value', scope);
+            if (initial !== undefined && initial !== null && typeof initial === 'object') throw new Error('Non-scalar input value');
+            // Provider source holds defaults, not the user's live input state.
+            const label = typeof placeholder === 'string'
+                ? `[输入框占位文本：${placeholder}]（当前值不可用。）` : '[输入框的值不可用]';
+            return `\n\n${label}${initial === undefined ? '' : '\n\n初始值：' + String(initial)}\n\n`;
         }
         if (node.name === 'button') return `\n\n[${content.trim()}]\n\n`;
         if (['radio', 'checkbox', 'option'].includes(node.name)) return `\n- ${content.trim()}\n`;

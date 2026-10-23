@@ -104,7 +104,7 @@ export function attribute(node: DilNode, name: string): string | undefined {
         while (/\s/.test(source[at] ?? '') && at < source.length) at++;
         const key = /^[\w-]+/.exec(source.slice(at))?.[0]; if (!key) break; at += key.length;
         while (/\s/.test(source[at] ?? '') && at < source.length) at++;
-        if (source[at] !== '=') continue;
+        if (source[at] !== '=') { if (key === name) return 'true'; continue; }
         at++; while (/\s/.test(source[at] ?? '') && at < source.length) at++;
         const start = at;
         if (source[at] === '{') at = closingBrace(source, at) + 1;

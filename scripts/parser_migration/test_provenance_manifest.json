@@ -2484,10 +2484,10 @@
       "file": "tests/provider-chatgpt-dil.test.ts",
       "domain": "chatgpt",
       "classification": "P2",
-      "provenanceSource": "68 retained synthetic educational ChatGPT source/fallback captures plus component ordering and bounded non-executing interpreter contracts",
+      "provenanceSource": "114 retained synthetic educational ChatGPT source/fallback captures plus component ordering and bounded non-executing interpreter contracts",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Offline captured component source coverage and synthetic safety cases; does not claim live Tier 2 or interactive runtime fidelity.",
-      "testCount": 75,
+      "testCount": 121,
       "tests": [
         {
           "name": "Captured DIL live-00: source is independently parseable without fallback",
@@ -2762,6 +2762,190 @@
           "classification": "P2"
         },
         {
+          "name": "Captured DIL live-68: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-69: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-70: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-71: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-72: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-73: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-74: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-75: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-76: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-77: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-78: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-79: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-80: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-81: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-82: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-83: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-84: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-85: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-86: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-87: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-88: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-89: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-90: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-91: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-92: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-93: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-94: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-95: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-96: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-97: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-98: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-99: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-100: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-101: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-102: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-103: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-104: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-105: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-106: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-107: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-108: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-109: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-110: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-111: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-112: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-113: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
           "name": "Live Helmholtz checklist stays before conclusion with all six labels and static initial counter",
           "classification": "P2"
         },
@@ -2794,11 +2978,11 @@
   ],
   "summary": {
     "totalSuites": 49,
-    "totalTests": 458,
+    "totalTests": 504,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 438,
+      "P2": 484,
       "P3": 2,
       "P4": 0
     }

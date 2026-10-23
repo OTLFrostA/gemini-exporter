@@ -115,13 +115,15 @@ function copyChatGPTNode(node: ChatGPTConversationNode): ChatGPTConversationNode
     const message = node.message;
     if (!message) return { ...node };
     if (isTextContent(message)) {
-        // DIL fallback escapes a norm's backslash again for its GFM table.
-        // Undo only that observed fallback encoding inside bracket math.
-        const fallback = message.metadata?.model_dil_v2?.fallbackMarkdown?.replace(
-            /\\\(([\s\S]*?)\\\)/g, (_raw, math: string) => `\\(${math.replace(/\\\\\|/g, '\\Vert{}')}\\)`);
-        const parts = message.metadata?.model_dil_v2
-            ? [chatGPTInteractiveSnapshot(message.content.parts.join(''), fallback).text]
-            : [...message.content.parts];
+        const snapshot = message.metadata?.model_dil_v2
+            ? chatGPTInteractiveSnapshot(message.content.parts.join(''), message.metadata.model_dil_v2.fallbackMarkdown)
+            : undefined;
+        // Normalize the provider fallback dialect only after source selection.
+        // Rewriting fallback first can invent a disagreement with correct source
+        // and replace exact code bodies with provider-reformatted code.
+        const parts = snapshot ? [snapshot.fallbackBlocks ? snapshot.text.replace(
+            /\\\(([\s\S]*?)\\\)/g, (_raw, math: string) => `\\(${math.replace(/\\\\\|/g, '\\Vert{}')}\\)`)
+            : snapshot.text] : [...message.content.parts];
         const gallery = dilGalleryParts(parts.join(''), message);
         return {
             ...node,

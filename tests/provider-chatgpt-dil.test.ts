@@ -6,6 +6,8 @@ import { chatGPTInteractiveSnapshot as snapshot } from '../src/l1/parsers/chatgp
 import { expression } from '../src/l1/parsers/chatgpt/dil/expression.js';
 import { parseMarkdownAst } from '../src/l1/parsers/shared/markdown/parseMarkdown.js';
 import { preprocessChatGPTMarkdown } from '../src/l1/parsers/chatgpt/markdownCompatibility.js';
+import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
+import type { BlockNode } from '../src/l2/content/blocks.js';
 import type { RootContent } from 'mdast';
 
 const corpus = JSON.parse(readFileSync(join(__dirname, 'fixtures/chatgpt_dil_corpus.json'), 'utf8')) as Array<{name: string; raw: string; fallback: string}>;
@@ -13,6 +15,11 @@ function codes(text: string): string[] {
     const result: string[] = [];
     const walk = (nodes: RootContent[]) => { for (const node of nodes) { if (node.type === 'code') result.push(node.value); if ('children' in node) walk(node.children); } };
     walk(parseMarkdownAst(preprocessChatGPTMarkdown(text)).children); return result;
+}
+function domainCodes(blocks: BlockNode[]): string[] {
+    return blocks.flatMap(block => block.type === 'code' ? [block.code]
+        : block.type === 'quote' ? domainCodes(block.blocks)
+        : block.type === 'list' ? block.items.flatMap(item => domainCodes(item.blocks)) : []);
 }
 function ordered(text: string, expected: string[]) {
     let at = -1;
@@ -28,9 +35,22 @@ for (const fixture of corpus) test(`Captured DIL ${fixture.name}: source is inde
     assert.equal(withFallback.fallbackBlocks, 0);
     // Verify every original Python CodeBlock physically survives, including
     // indentation. This oracle reads raw component bodies, not parser output.
+    const parsed = parseChatGPTConversation({ assetsByNode: new Map(), conversation: {
+        id: fixture.name, title: fixture.name, current_node: 'answer', create_time: 1, update_time: 2, is_archived: false,
+        mapping: { root: { id: 'root', children: ['answer'] }, answer: { id: 'answer', parent: 'root', children: [], message: {
+            id: 'answer', author: { role: 'assistant', metadata: {} }, recipient: 'all', weight: 1, end_turn: true,
+            status: 'finished_successfully', content: { content_type: 'text', parts: [fixture.raw] },
+            metadata: { model_dil_v2: { fallbackMarkdown: fixture.fallback } },
+        } } },
+    } });
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    assert.equal(parsed.conversation.detail.messages.length, 1);
     const actualCodes = codes(direct.text);
+    const productionCodes = parsed.conversation.detail.messages.flatMap(message => domainCodes(message.content));
     for (const match of fixture.raw.matchAll(/<CodeBlock\b[^>]*>\n?([\s\S]*?)\n?<\/CodeBlock>/g)) {
-        assert.ok(actualCodes.includes(match[1].replace(/\n\s*$/, '')), `${fixture.name}: code body changed`);
+        const expected = match[1].replace(/\n\s*$/, '');
+        assert.ok(actualCodes.includes(expected), `${fixture.name}: code body changed`);
+        assert.ok(productionCodes.includes(expected), `${fixture.name}: production conversation changed code body`);
     }
 });
 
@@ -55,11 +75,13 @@ test('Layout cards, title, divider, code, SVG, learning widget and gallery rende
         + '<divider/><CodeBlock language="python">print("<box>{literal}</box>")</CodeBlock>'
         + '<svg><text fontSize="12">diagram</text></svg>'
         + '<LearningViz type_id="ANGULAR_FREQUENCY_RELATION" initial_values={{frequency:100}}/>'
-        + '<AsyncImage query="test diagram"/></box>\nAfter';
+        + '<AsyncImage query="test diagram"/><caption>Caption text</caption>'
+        + '<math block value="x^2"/><input value="10" placeholder="Enter value"/>'
+        + '<LearningViz type_id="COMPOUND_INTEREST">Growth formula</LearningViz></box>\nAfter';
     const result = snapshot(raw);
     assert.equal(result.incomplete, false);
     ordered(result.text, ['# Before', '**Summary**', 'Count', '64', '---', '```python', 'print("<box>{literal}</box>")',
-        '```svg', 'font-size="12"', 'Shows the relationship', '- frequency: 100', '\uE200image_group', 'After']);
+        '```svg', 'font-size="12"', 'Shows the relationship', '- frequency: 100', '\uE200image_group', 'Caption text', 'x^2', '输入框占位文本：Enter value', '初始值：10', 'Explains compound interest', 'Growth formula', 'After']);
     assert.deepEqual(codes(result.text), ['print("<box>{literal}</box>")', '<svg><text font-size="12">diagram</text></svg>']);
 });
 
