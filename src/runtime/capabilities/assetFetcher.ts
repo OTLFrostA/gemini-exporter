@@ -473,7 +473,7 @@ export async function fetchImageBuffer(url: string, timeoutMs = 12000): Promise<
             } else if (res && res.success && (res.dataBase64 || res.blobBase64)) {
                 try {
                     const b64 = res.dataBase64 || res.blobBase64;
-                    const binStr = atob(b64);
+                    const binStr = atob(b64!);
                     const len = binStr.length;
                     const bytes = new Uint8Array(len);
                     for (let i = 0; i < len; i++) bytes[i] = binStr.charCodeAt(i);
