@@ -1,6 +1,7 @@
 import { parseGeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/parseConversation.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence } from '../../src/l1/parsers/gemini/rpc/detailEvidence.js';
 import { parseList } from '../../src/l1/parsers/gemini/rpc/parseList.js';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 
 /** Native source fixtures intentionally contain neither Account UUID nor trusted Domain. */
 export function sourceMessage(id: string, content = id, role: 'user' | 'model' = 'model'): GeminiMessageEvidence {
@@ -11,9 +12,9 @@ export function sourceDetail(overrides: Partial<GeminiDetailEvidence> = {}) {
         messages: [sourceMessage('answer')], updatedAt: 1700000000000,
         url: 'https://gemini.google.com/app/source_chat_123', nextPageToken: null, attachmentCount: 0, ...overrides }, { providerId: 'gemini' });
 }
-export function sourceList(ids: string[] = [], next: string | null = null) {
-    return parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, next,
-        ids.map(id => ['c_' + id, 'Title ' + id, null, null, null, [1700000000, 0]])])]]));
+/** Parsed native List evidence; all wire construction lives in listGen(key). */
+export function sourceList(key: Parameters<typeof geminiListGen>[0]) {
+    return parseList(geminiListGen(key));
 }
 export function activityHtml(answer = '<p>Answer</p>', id = 'source_chat_123', time = '2026-09-02T12:00:00Z') {
     return `<div class="outer-cell"><a href="https://gemini.google.com/app/${id}">Conversation</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question<br>${time}<br>${answer}</div></div>`;
