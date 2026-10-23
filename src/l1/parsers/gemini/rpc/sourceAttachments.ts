@@ -45,7 +45,6 @@ export interface DocSectionsResult {
 
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extractors.js";
 
-const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
 
     const GOOGLE_MEDIA_HOST_RE = /(^|\.)googleusercontent\.com$|(^|\.)usercontent\.google\.com$|(^|\.)drive\.google\.com$|(^|\.)docs\.google\.com$|(^|\.)gstatic\.com$/i;
     function getUrlHost(u: string): string {
@@ -66,14 +65,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 console.warn(`[Gemini Exporter] media URL skipped (host not in whitelist, ${kind}): host=${host} url=${String(url).slice(0, 220)}`);
             }
         } catch (e) { /* ignore */ }
-    }
-
-    function extractImageSelectionIndex(sourceUrl?: string | null): number | undefined {
-        if (!sourceUrl || typeof sourceUrl !== "string") return undefined;
-        let match = sourceUrl.match(IMAGE_GEN_RE);
-        if (!match) return undefined;
-        if (!/^\d+$/.test(match[1])) return void 0;
-        return parseInt(match[1], 10);
     }
 
     function getImageDedupKey(imageObj: Partial<ImageAttachment>): string {
@@ -686,9 +677,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
 export {
     collectImages, responseImages,
-    IMAGE_GEN_RE,
     isInternalChipUrl,
-    extractImageSelectionIndex,
     getImageDedupKey,
     filterNewImages,
     extractImageEvidence,
