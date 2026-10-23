@@ -1,5 +1,6 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
+import { deleteGen as geminiDeleteGen } from '../fixtures/providers/geminiDelete.js';
 
 // Actual v2 deletion semantics: a confirmed provider deletion removes the
 // conversation's Index, Detail and ExportRecord together. No archive shadow.
@@ -32,10 +33,10 @@ async function geminiSource(context: import('@playwright/test').BrowserContext) 
     await source.waitForFunction(() => Boolean(Reflect.get(window, '__gemExporterHookInstalled')));
     return source;
 }
-async function remoteDelete(source: import('@playwright/test').Page, replyId: string, nativeVoid = false) {
+async function remoteDelete(source: import('@playwright/test').Page, responseKey: Parameters<typeof geminiDeleteGen>[0]) {
     await source.route('**/batchexecute*', route => route.fulfill({
         status: 200, contentType: 'application/json',
-        body: JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify(nativeVoid ? [] : [null, 'c_' + replyId])]]),
+        body: geminiDeleteGen(responseKey),
     }));
     await source.evaluate(async conversationId => {
         await fetch('/_/BardChatUi/data/batchexecute?rpcids=GzXR5e', {
@@ -62,7 +63,7 @@ for (const nativeVoid of [false, true]) test(`real MAIN ${nativeVoid ? 'native v
     expect(before.targetRecord?.status).toBe('ok');
 
     const source = await geminiSource(context);
-    await remoteDelete(source, targetId, nativeVoid);
+    await remoteDelete(source, nativeVoid ? 'G_DYNAMIC_DELETE_VOID_01' : 'G_DYNAMIC_DELETE_ECHO_01');
     await expect.poll(async () => (await read(options)).targetIndex).toBeNull();
     const after = await read(options);
     expect(after.targetDetail).toBeNull();
@@ -84,7 +85,7 @@ test('an unmatched Gemini deletion reply cannot remove a different v2 Domain', a
     await seedConversations(options, [{ id: targetId, title: 'Must stay' }],
         { [targetId]: { format: 'markdown', status: 'ok', exportedAt: 100 } });
     const source = await geminiSource(context);
-    await remoteDelete(source, 'aaaaaaaaaaaaaaaa');
+    await remoteDelete(source, 'G_DYNAMIC_DELETE_UNMATCHED_01');
     await expect.poll(async () => (await read(options)).targetIndex?.title).toBe('Must stay');
     const after = await read(options);
     expect(after.targetDetail).not.toBeNull();
