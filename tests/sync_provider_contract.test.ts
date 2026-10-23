@@ -37,10 +37,10 @@ async function fixture(run: (env: ReturnType<typeof indexStorage>, provider: (pa
         ProviderRegistry.unregister('gemini');if(previous)ProviderRegistry.register(previous);env.restore();
     }
 }
-const limit = (): ListParseResult => ({...sourceList(), failure:'hit_google_limit',pageEvidence:{valid:false,ordered:false,keys:[]}});
+const limit = (): ListParseResult => ({...sourceList('G_SOURCE_EMPTY_01'), failure:'hit_google_limit',pageEvidence:{valid:false,ordered:false,keys:[]}});
 
 test('Scan progress counts only committed pages and source entries',async()=>fixture(async(_env,provider)=>{
-    provider([sourceList(['first'],'tC_next'),sourceList(['second'])]);
+    provider([sourceList('G_SOURCE_FIRST_NEXT_01'),sourceList('G_SOURCE_SECOND_01')]);
     const progress: ScanProgress[]=[];
     const result=await scanAll({accountId:ACCOUNT_UUID,forceFull:true},{onProgress:p=>progress.push(p)});
     assert.deepEqual(progress,[{pagesFetched:1,conversationsFetched:1},{pagesFetched:2,conversationsFetched:2}]);
@@ -48,14 +48,14 @@ test('Scan progress counts only committed pages and source entries',async()=>fix
     assert.equal((await listIndexes(ACCOUNT_UUID)).length,4);
 }));
 test('complete and empty Recent sources preserve unseen local Index and export facts',async()=>fixture(async(_env,provider)=>{
-    for(const page of [sourceList(['visible']),sourceList()]){
+    for(const page of [sourceList('G_SOURCE_VISIBLE_01'),sourceList('G_SOURCE_EMPTY_01')]){
         provider([page]);assert.equal((await scanAll({accountId:ACCOUNT_UUID,forceFull:true})).status,'complete');
         assert.ok((await listIndexes(ACCOUNT_UUID)).some(i=>i.key.conversationId==='offline'));
         assert.ok(await getExportRecord({accountId:ACCOUNT_UUID,conversationId:'old'}));
     }
 }));
 test('partial provider limit is an explicit continuation result and preserves observed pages',async()=>fixture(async(_env,provider)=>{
-    provider([sourceList(['visible'],'tC_limit'),limit()]);
+    provider([sourceList('G_SOURCE_VISIBLE_LIMIT_01'),limit()]);
     const result=await scanAll({accountId:ACCOUNT_UUID,forceFull:true});
     assert.equal(result.status,'partial_limit');assert.equal(result.reason,'provider_limit');
     assert.equal(result.pagesFetched,2);assert.ok((await listIndexes(ACCOUNT_UUID)).some(i=>i.key.conversationId==='visible'));
@@ -65,19 +65,19 @@ test('1096 at the initial Recent request is not a confirmed continuation boundar
     assert.equal(result.status,'error');assert.equal((await getCoverage(ACCOUNT_UUID,'recent'))?.range ?? null,null);
 }));
 test('cancellation returns aborted without deleting existing facts or manufacturing Coverage',async()=>fixture(async(_env,provider)=>{
-    provider([sourceList(['never'])]);const controller=new AbortController();controller.abort();
+    provider([sourceList('G_SOURCE_NEVER_01')]);const controller=new AbortController();controller.abort();
     assert.equal((await scanAll({accountId:ACCOUNT_UUID},{signal:controller.signal})).status,'aborted');
     assert.equal((await listIndexes(ACCOUNT_UUID)).length,2);assert.equal((await getCoverage(ACCOUNT_UUID,'recent'))?.range ?? null,null);
 }));
 test('malformed pages and cursor loops remain errors without reconciliation',async()=>fixture(async(_env,provider)=>{
-    const malformed={...sourceList(),failure:'invalid_response' as const};
-    for(const pages of [[malformed],[sourceList(['first'],'tC_loop'),sourceList(['second'],'tC_loop')]]){
+    const malformed={...sourceList('G_SOURCE_EMPTY_01'),failure:'invalid_response' as const};
+    for(const pages of [[malformed],[sourceList('G_SOURCE_FIRST_LOOP_01'),sourceList('G_SOURCE_SECOND_LOOP_01')]]){
         provider(pages);assert.equal((await scanAll({accountId:ACCOUNT_UUID,forceFull:true})).status,'error');
         assert.ok((await listIndexes(ACCOUNT_UUID)).some(i=>i.key.conversationId==='offline'));
     }
 }));
 test('Recent pages with unverified source ordering never advertise source_end',async()=>fixture(async(_env,provider)=>{
-    const page=sourceList(['untrusted']);page.pageEvidence.ordered=false;
+    const page=sourceList('G_SOURCE_UNTRUSTED_01');page.pageEvidence.ordered=false;
     provider([page]);
     const result=await scanAll({accountId:ACCOUNT_UUID,forceFull:true});
     assert.equal(result.status,'error');
@@ -86,48 +86,48 @@ test('Recent pages with unverified source ordering never advertise source_end',a
     assert.equal((await getCoverage(ACCOUNT_UUID,'recent'))?.range ?? null,null);
 }));
 test('a repeated Recent source ID across pages cannot certify complete Coverage',async()=>fixture(async(_env,provider)=>{
-    provider([sourceList(['repeated'],'tC_repeat'),sourceList(['repeated'])]);
+    provider([sourceList('G_SOURCE_REPEATED_CURSOR_01'),sourceList('G_SOURCE_REPEATED_01')]);
     const result=await scanAll({accountId:ACCOUNT_UUID,forceFull:true});
     assert.equal(result.status,'error');
     assert.equal(result.pagesFetched,2);
     assert.equal((await getCoverage(ACCOUNT_UUID,'recent'))?.range ?? null,null);
 }));
 test('ordinary request failures cannot manufacture a provider limit or reusable boundary',async()=>fixture(async(_env,provider)=>{
-    provider([sourceList(['first'],'tC_next'),new Error('HTTP 500')]);
+    provider([sourceList('G_SOURCE_FIRST_NEXT_01'),new Error('HTTP 500')]);
     assert.equal((await scanAll({accountId:ACCOUNT_UUID,forceFull:true})).status,'error');
     assert.deepEqual(await getCoverage(ACCOUNT_UUID,'recent'),{range:null});
 }));
 test('Index write failure prevents commit progress; a later scan recovers',async()=>fixture(async(env,provider)=>{
-    const progress:ScanProgress[]=[];env.fail('indexes');provider([sourceList(['visible'])]);
+    const progress:ScanProgress[]=[];env.fail('indexes');provider([sourceList('G_SOURCE_VISIBLE_01')]);
     assert.equal((await scanAll({accountId:ACCOUNT_UUID},{onProgress:p=>progress.push(p)})).status,'error');
-    assert.deepEqual(progress,[]);env.fail();provider([sourceList(['visible'])]);
+    assert.deepEqual(progress,[]);env.fail();provider([sourceList('G_SOURCE_VISIBLE_01')]);
     assert.equal((await scanAll({accountId:ACCOUNT_UUID,forceFull:true})).status,'complete');
 }));
 test('legacy lastSync/checkpoint timestamps cannot authorize early stop',async()=>fixture(async(env,provider)=>{
     env.local.lastSync=Number.MAX_SAFE_INTEGER;env.local.scanCheckpoint=Number.MAX_SAFE_INTEGER;
-    provider([sourceList(['head'],'tC_next'),sourceList(['later'])]);
+    provider([sourceList('G_SOURCE_HEAD_NEXT_01'),sourceList('G_SOURCE_LATER_01')]);
     const result=await scanAll({accountId:ACCOUNT_UUID});assert.equal(result.pagesFetched,2);assert.equal(result.status,'complete');
     assert.ok((await listIndexes(ACCOUNT_UUID)).some(i=>i.key.conversationId==='later'));
 }));
 test('Recent acquisition uses the verified slot and excludes the Pinned filter',async()=>fixture(async(_env,provider)=>{
-    provider([sourceList(['visible'])],async(cursor,slot,filter)=>{
-        assert.equal(cursor,null);assert.equal(slot,'u2');assert.equal(filter,undefined);return sourceList();
+    provider([sourceList('G_SOURCE_VISIBLE_01')],async(cursor,slot,filter)=>{
+        assert.equal(cursor,null);assert.equal(slot,'u2');assert.equal(filter,undefined);return sourceList('G_SOURCE_EMPTY_01');
     });
     assert.equal((await scanAll({accountId:ACCOUNT_UUID})).status,'complete');
     assert.equal(await getCoverage(ACCOUNT_UUID,'pinned'),null);
 }));
 test('later-page rename persists at the same activity timestamp',async()=>fixture(async(_env,provider)=>{
-    const renamed=sourceList(['old']);renamed.conversations[0].title='Renamed elsewhere';renamed.conversations[0].updatedAt=10;
-    provider([sourceList(['new'],'tC_next'),renamed]);
+    const renamed=sourceList('G_SOURCE_OLD_01');renamed.conversations[0].title='Renamed elsewhere';renamed.conversations[0].updatedAt=10;
+    provider([sourceList('G_SOURCE_NEW_NEXT_01'),renamed]);
     assert.equal((await scanAll({accountId:ACCOUNT_UUID,forceFull:true})).status,'complete');
     const old=(await listIndexes(ACCOUNT_UUID)).find(i=>i.key.conversationId==='old')!;
     assert.equal(old.title,'Renamed elsewhere');assert.equal(old.updatedAt,10);
 }));
 test('diagnostic strings do not override authoritative business results',async()=>fixture(async(_env,provider)=>{
-    const page=sourceList(['visible']);Object.assign(page,{_debug:{error:'BARD_ERROR_INFO',bardError:'quota speculation',textLen:0,rawPreview:'',topParsed:null}});
+    const page=sourceList('G_SOURCE_VISIBLE_01');Object.assign(page,{_debug:{error:'BARD_ERROR_INFO',bardError:'quota speculation',textLen:0,rawPreview:'',topParsed:null}});
     provider([page]);assert.equal((await scanAll({accountId:ACCOUNT_UUID})).status,'complete');
 }));
 test('the current Scan result exposes no legacy completeness/receipt/checkpoint schema',async()=>fixture(async(_env,provider)=>{
-    provider([sourceList()]);const result=await scanAll({accountId:ACCOUNT_UUID});
+    provider([sourceList('G_SOURCE_EMPTY_01')]);const result=await scanAll({accountId:ACCOUNT_UUID});
     assert.deepEqual(Object.keys(result).sort(),['conversationsFetched','pagesFetched','status']);
 }));
