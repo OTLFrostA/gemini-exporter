@@ -80,7 +80,7 @@ test('L1 GeminiProvider injected client commits through real L2/L3a without any 
     ] });
     const calls: string[] = [];
     const provider = new GeminiProvider({
-        getConversationList: async () => sourceList(),
+        getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'),
         getConversationDetail: async (conversationId, slot) => {
             calls.push(conversationId + ':' + slot);
             return source;
