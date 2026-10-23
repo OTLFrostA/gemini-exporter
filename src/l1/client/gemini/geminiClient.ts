@@ -310,30 +310,4 @@ export {
     pagination
 };
 
-export const GeminiClientExports = {
-    GeminiAPIClient,
-    ConfirmedGeminiConversationNotFound,
-    getApiUrl,
-    detectSlot,
-    resolveCred,
-    loadCredMap,
-    credentialManager,
-    retryPolicy,
-    rpcClient,
-    pagination
-};
-
-type GetApiUrlFn = typeof getApiUrl;
-type DetectSlotFn = typeof detectSlot;
-type ResolveCredFn = typeof resolveCred;
-type LoadCredMapFn = typeof loadCredMap;
-
-
-
-if (typeof module === "object" && module.exports) {
-    module.exports = GeminiClientExports;
-}
-
-export default GeminiClientExports;
-
 export type { GeminiListRequestOptions, GeminiDetailRequestOptions, PaginatedDetailResult } from './api/pagination.js';
