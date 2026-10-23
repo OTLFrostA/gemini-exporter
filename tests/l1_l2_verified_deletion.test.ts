@@ -1,5 +1,4 @@
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { IDBObjectStore } from 'fake-indexeddb';
 import { indexStorage } from './helpers/indexStorage.js';
