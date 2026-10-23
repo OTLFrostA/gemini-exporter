@@ -6,6 +6,7 @@ import { ingestIndexes } from '../src/l2/ingestion.js';
 import { listIndexes } from '../src/l3a/storageService.js';
 import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 useIndexStorage();
 const observation = (id: string, updatedAt: number, title: string) => ({ id, updatedAt, title, titleSource: 'rpc' });
 
@@ -44,7 +45,7 @@ test('malformed source identities cannot overwrite existing Index facts; invalid
     assert.deepEqual(await listIndexes(ACCOUNT_UUID), before);
 });
 test('a mixed RPC page admits only recognized rows and cannot certify coverage from invalid rows', async () => {
-    const parsed = geminiListGen('G_UNIFIED_INGEST_INTEGRITY_01');
+    const parsed = parseList(geminiListGen('G_UNIFIED_INGEST_INTEGRITY_01'));
     assert.equal(parsed.pageEvidence.valid, false);
     await ingestIndexes(ACCOUNT_UUID, parsed.conversations.map(row => parseGeminiIndexObservation(row, 'rpc-list')));
     const indexes = await listIndexes(ACCOUNT_UUID);
