@@ -2,6 +2,8 @@ import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, accountId } from './uiFixture';
 import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
+import { requestGen as geminiListRequestGen } from '../fixtures/providers/geminiListRequest.js';
+import { requestGen as geminiDetailRequestGen } from '../fixtures/providers/geminiDetailRequest.js';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
@@ -26,13 +28,10 @@ async function readIndexes(options: import('@playwright/test').Page, id: string)
 }
 async function send(source: import('@playwright/test').Page, transport: 'fetch' | 'xhr',
     rpc: 'MaZiqc' | 'hNvQHb', id: string) {
-    await source.evaluate(async ({ transport, rpc, id }) => {
-        const args = rpc === 'MaZiqc'
-            ? [20, null, [0, null, 1]]
-            : ['c_' + id, 10, null, 1, [1], [4], null, 1];
-        const body = new URLSearchParams({
-            'f.req': JSON.stringify([[[rpc, JSON.stringify(args), null, 'generic']]]),
-        }).toString();
+    const body = rpc === 'MaZiqc' ? geminiListRequestGen('G_E2E_UUID_LIST_REQUEST_01')
+        : geminiDetailRequestGen(id === 'staleuuid123'
+            ? 'G_E2E_UUID_DETAIL_REQUEST_STALE_01' : 'G_E2E_UUID_DETAIL_REQUEST_CURRENT_01');
+    await source.evaluate(async ({ transport, body }) => {
         const url = '/_/BardChatUi/data/batchexecute';
         if (transport === 'fetch') await fetch(url, { method: 'POST', body });
         else await new Promise<void>((resolve, reject) => {
@@ -42,7 +41,7 @@ async function send(source: import('@playwright/test').Page, transport: 'fetch' 
             xhr.onerror = () => reject(new Error('XHR failed'));
             xhr.send(body);
         });
-    }, { transport, rpc, id });
+    }, { transport, body });
 }
 
 for (const transport of ['fetch', 'xhr'] as const) {
