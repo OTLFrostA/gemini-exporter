@@ -187,23 +187,20 @@ test('unknown composite children, malformed citations and ambiguous wire fields 
 });
 
 test('malformed/unresolved attribution, crossing ranges and source annotations inside leaves fail closed', () => {
-    const badAnnotations = [sourceAnnotation(0, 99), sourceAnnotation(0, 4, []), sourceAnnotation(0, 4, ['unknown']),
-        [0, 4, [null, null, null, [null, ['spp_fixture']], 'unknown']],
-        [0, 4, [[null, null, null, null, 2], null, null, [null, []]]],
-    ];
-    for (const annotation of badAnnotations) {
-        const result = parse([[[text('body', [annotation])]]], sourceTable());
+    for (const key of ['G_STRUCTURED_CITATIONS_29', 'G_STRUCTURED_CITATIONS_30',
+        'G_STRUCTURED_CITATIONS_31', 'G_STRUCTURED_CITATIONS_32',
+        'G_STRUCTURED_CITATIONS_33'] as const) {
+        const result = parseKey(key);
         assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'));
     }
-    for (const annotations of [
-        [sourceAnnotation(0, 3), [2, 4, [[null, null, null, null, 2]]]],
-        [[0, 4, [[null, null, null, null, 3]]], sourceAnnotation(1, 3)],
-    ]) rejected(parse([[[text('body', annotations)]]], sourceTable()), 'adapter_rejected');
+    for (const key of ['G_STRUCTURED_CITATIONS_34', 'G_STRUCTURED_CITATIONS_35'] as const) {
+        rejected(parseKey(key), 'adapter_rejected');
+    }
     const table = sourceTable();
     const entries = table[1] as unknown[][];
     entries.push([['same ID different URL'], [1], [['https://example.com/conflict', 'Conflict']], 'spp_fixture']);
     assert.deepEqual(extractSourceAttributions(['rc', [], table]), []);
-    rejected(parse([[[text('body', [sourceAnnotation(0, 4)])]]], table), 'adapter_rejected');
-    rejected(parse([[[text('body', [sourceAnnotation(0, 4)])]]], sourceTable([['javascript:bad', 'Bad']])), 'adapter_rejected');
+    rejected(parseKey('G_STRUCTURED_CITATIONS_36'), 'adapter_rejected');
+    rejected(parseKey('G_STRUCTURED_CITATIONS_37'), 'adapter_rejected');
     assert.equal(decodeGeminiAnnotation([0, 4, [null, null, null, ['wrong', ['spp_fixture']]]]), null);
 });
