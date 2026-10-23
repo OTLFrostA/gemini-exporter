@@ -6,9 +6,9 @@
 const isProduction = (): boolean =>
     typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
 
-const overrides = new Map<string, any>();
+const overrides = new Map<string, unknown>();
 
-export function __setModuleOverride<T = any>(name: string, impl: T | undefined): void {
+export function __setModuleOverride<T = unknown>(name: string, impl: T | undefined): void {
     if (isProduction()) return;
     if (impl === undefined) overrides.delete(name);
     else overrides.set(name, impl);
@@ -19,16 +19,14 @@ export function __clearModuleOverrides(): void {
     overrides.clear();
 }
 
-export function __getModuleOverride<T = any>(name: string): T | undefined {
+export function __getModuleOverride<T = unknown>(name: string): T | undefined {
     if (isProduction()) return undefined;
-    return overrides.get(name);
+    return overrides.get(name) as T | undefined;
 }
 
-export function __resolveModule(name: string, fallback: null | undefined): any;
-export function __resolveModule<T>(name: string, fallback: T): T;
-export function __resolveModule(name: string, fallback?: any): any {
+export function __resolveModule<T>(name: string, fallback: T): T {
     if (isProduction()) return fallback;
     const o = overrides.get(name);
-    return o !== undefined ? o : fallback;
+    return o !== undefined ? o as T : fallback;
 }
 
