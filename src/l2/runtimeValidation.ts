@@ -110,11 +110,6 @@ export interface TrustedDomain extends DomainConversationWithDetail { detail: Tr
 /** Frozen public read view: structural Index plus required Detail; no brand or DTO. */
 export type ReadonlyDomain = Readonly<DomainConversation & { detail: ConversationDetail }>;
 
-export function withConversationMetadata(detail: TrustedDomainBody, index: DomainConversationIndex): TrustedDomain {
-    if (!sameConversationKey(index.key, detail.key)) throw new TypeError('Conversation key mismatch');
-    return { index, detail };
-}
-
 function assertSchema(value: unknown): asserts value is DomainConversationDetail {
     let valid = false;
     try { valid = domain(value); } catch { throw new TypeError('Invalid recursive Domain contract'); }
@@ -176,13 +171,4 @@ export function restoreDomainSnapshot(value: unknown): TrustedDomain {
     const conversation = detail === value.detail ? value : { ...value, detail };
     trustedBodies.add(detail);
     return conversation as TrustedDomain;
-}
-
-/** Preserve body trust while recording a checked source version, without reparsing content. */
-export function withSourceVersion(conversation: TrustedDomain, savedAt: number | undefined): TrustedDomain {
-    if (savedAt !== undefined && !Number.isSafeInteger(savedAt)) throw new TypeError('Invalid source version');
-    const { savedAt: _old, ...body } = conversation.detail;
-    const detail: TrustedDomainBody = { ...body, ...(savedAt !== undefined ? { savedAt } : {}) };
-    trustedBodies.add(detail);
-    return { index: conversation.index, detail };
 }

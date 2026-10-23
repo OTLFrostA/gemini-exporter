@@ -1,12 +1,3 @@
-
-export interface ZipBombGuardModule {
-    MAX_ZIP_SIZE: number;
-    MAX_ENTRY_COUNT: number;
-    MAX_TOTAL_UNCOMPRESSED: number;
-    validateZipFile: (file?: unknown) => void;
-    validateZipEntries: (zip?: unknown) => void;
-}
-
 export const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB compressed size
 export const MAX_ENTRY_COUNT = 10000; // 10,000 files
 export const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB uncompressed estimate
@@ -91,13 +82,3 @@ export function validateZipEntries(zip?: unknown, translate?: ZipGuardTranslator
         throw new Error(msg);
     }
 }
-
-export const ZipBombGuard: ZipBombGuardModule = {
-    MAX_ZIP_SIZE,
-    MAX_ENTRY_COUNT,
-    MAX_TOTAL_UNCOMPRESSED,
-    validateZipFile,
-    validateZipEntries
-};
-
-export default ZipBombGuard;

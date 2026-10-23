@@ -6,20 +6,6 @@ export class GeminiError extends Error {
     }
 }
 
-export class ExportPipelineError extends GeminiError {
-    chatId?: string;
-    step?: 'init' | 'fetch' | 'format' | 'write' | 'asset' | 'package';
-    isPermissionRevoked?: boolean;
-
-    constructor(message: string, chatId?: string, step?: 'init' | 'fetch' | 'format' | 'write' | 'asset' | 'package', isPermissionRevoked: boolean = false) {
-        super(message);
-        this.name = 'ExportPipelineError';
-        this.chatId = chatId;
-        this.step = step;
-        this.isPermissionRevoked = isPermissionRevoked;
-    }
-}
-
 export class TakeoutParseError extends GeminiError {
     formatDrift?: boolean;
     entryName?: string;
@@ -29,17 +15,5 @@ export class TakeoutParseError extends GeminiError {
         this.name = 'TakeoutParseError';
         this.formatDrift = formatDrift;
         this.entryName = entryName;
-    }
-}
-
-export class StorageError extends GeminiError {
-    operation?: string;
-    key?: string;
-
-    constructor(message: string, operation?: string, key?: string) {
-        super(message);
-        this.name = 'StorageError';
-        this.operation = operation;
-        this.key = key;
     }
 }
