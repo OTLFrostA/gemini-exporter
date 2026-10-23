@@ -1,5 +1,11 @@
 /** Native request bodies for the Gemini MaZiqc List RPC. */
 const fixtureMap = {
+    'G_E2E_PAGE_SYNC_LIST_REQUEST_01': () => new URLSearchParams({
+        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]),
+    }).toString(),
+    'G_E2E_TITLE_ARBITRATION_LIST_REQUEST_01': () => new URLSearchParams({
+        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]),
+    }).toString(),
     'G_HOOK_GENERIC_PROBE_REQUEST_01': () => 'f.req=[[["wrb.fr",null]]]',
     'G_HOOK_MALFORMED_LIST_REQUEST_01': () => 'f.req=[[["MaZiqc",null]]]',
     'G_HOOK_LIST_CURSOR_REQUEST_01': () => new URLSearchParams({
