@@ -21,13 +21,11 @@ import type {
     ProviderReadiness,
 } from '../aiProvider.js';
 import type {
-    ChatGPTApiConversationWithId,
     ChatGPTApiSession,
 } from '../../parsers/chatgpt/chatgptTypes.js';
 import { CHATGPT_HOSTS, chatGPTApiBase } from '../../parsers/chatgpt/chatgptTypes.js';
-import {
-    parseChatGPTConversation,
-} from '../../parsers/chatgpt/parseConversation.js';
+import { parseChatGPTConversation } from '../../parsers/chatgpt/parseConversation.js';
+import { decodeChatGPTDetail } from '../../parsers/chatgpt/decodeDetail.js';
 import {
     buildFileDownloadPath,
     fileIdFromPointer,
@@ -203,13 +201,7 @@ export class ChatGPTProvider implements AIProvider {
     async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal): Promise<void> {
         const account = await this.context(accountId);
         const raw = await this.authedGet<unknown>(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new TypeError('Invalid ChatGPT Detail payload');
-        const sourceId = Reflect.get(raw, 'id');
-        // Some endpoint versions omit the ID; an explicit different ID can
-        // never be silently relabeled as the requested conversation.
-        if (sourceId !== undefined && (typeof sourceId !== 'string' || sourceId !== conversationId))
-            throw new TypeError('ChatGPT Detail identity mismatch');
-        const conversation = { ...raw, id: conversationId } as ChatGPTApiConversationWithId;
+        const conversation = decodeChatGPTDetail(raw, conversationId);
         const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
         signal?.throwIfAborted();
         const index = parsed.conversation.index;

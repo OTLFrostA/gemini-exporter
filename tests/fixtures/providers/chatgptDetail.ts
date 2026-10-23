@@ -5,7 +5,7 @@ function textNode(id: string, parent: string, role: 'assistant' | 'user', conten
     return {
         id, parent, children: [],
         message: {
-            id: 'message-' + id, author: { role, metadata: {} }, recipient: 'all',
+            id: 'message-' + id, author: { role }, recipient: 'all',
             status: 'finished_successfully', weight: 1, content: { content_type: 'text', parts: [content] },
         },
     };
@@ -37,7 +37,7 @@ const fixtureMap = {
         answer: {
             id: 'answer', parent: 'root', children: [],
             message: {
-                id: 'message-image', author: { role: 'assistant', metadata: {} },
+                id: 'message-image', author: { role: 'assistant' },
                 recipient: 'all', status: 'finished_successfully', weight: 1,
                 content: {
                     content_type: 'multimodal_text',
