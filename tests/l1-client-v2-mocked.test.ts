@@ -11,6 +11,7 @@ import { sourceDetail, sourceMessage } from './helpers/l1SourceFixture.js';
 import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
+import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 
 beforeEach(() => ports.reset());
 const route = async () => 'u0';
@@ -164,7 +165,7 @@ test('Client refuses changed account route and mismatched Provider before commit
 test('ChatGPT uses the same v2 Index/page port and checks native completeness before source_end', async () => {
     const fetchFn = async (url: string) => new Response(JSON.stringify(
         url.endsWith('/api/auth/session')
-            ? chatgptListGen('C_L1_CLIENT_V2_MOCKED_03')
+            ? chatgptSessionGen('C_L1_CLIENT_V2_MOCKED_03')
             : chatgptListGen('C_L1_CLIENT_V2_MOCKED_04'),
     ), { status: 200 });
     const provider = new ChatGPTProvider({ fetchFn });
@@ -187,7 +188,7 @@ test('ChatGPT uses the same v2 Index/page port and checks native completeness be
     ports.reset();
     const invalid = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
         url.endsWith('/api/auth/session')
-            ? chatgptListGen('C_L1_CLIENT_V2_MOCKED_05')
+            ? chatgptSessionGen('C_L1_CLIENT_V2_MOCKED_05')
             : chatgptListGen('C_L1_CLIENT_V2_MOCKED_06'),
     ), { status: 200 }) });
     await assert.rejects(invalid.listConversations({ accountId: CHATGPT_ACCOUNT.id, streamId: 'recent' }),
