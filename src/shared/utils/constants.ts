@@ -1,4 +1,3 @@
-import { isAccountId } from '../../l2/accountRegistry.js';
 declare const __EXT_VERSION__: string | undefined;
 
 export type AllowedFormat = 'markdown' | 'html' | 'json' | 'pdf';
@@ -23,34 +22,12 @@ export const STORAGE_KEYS = {
     HAS_IMPORTED_TAKEOUT: 'has_imported_takeout'
 } as const;
 
-export type StorageKeyMap = typeof STORAGE_KEYS;
-
-export const DEFAULT_EXPORT_FOLDER_NAME = 'gemini_export';
-
-export const IDB_DATABASES = {
-    DETAILS: 'gemini_exporter_details_idb',
-    HANDLES: 'gemini_exporter_idb'
-} as const;
-
-export interface GeminiConstantsModule {
-    ALLOWED_FORMATS: AllowedFormat[];
-    DEFAULT_FORMAT: AllowedFormat;
-    DIRECT_WRITE_THRESHOLD: number;
-    FEEDBACK_URL: string;
-    STORAGE_KEYS: StorageKeyMap;
-    EXT_VERSION: string;
-    DEFAULT_EXPORT_FOLDER_NAME: string;
-    IDB_DATABASES: typeof IDB_DATABASES;
-    getExtensionVersion: (customVersion?: string) => string;
-    exportedIdsKey: (slot: string | null | undefined) => string;
-}
-
 export const ALLOWED_FORMATS: AllowedFormat[] = ['markdown', 'html', 'json', 'pdf'];
 export const DEFAULT_FORMAT: AllowedFormat = 'markdown';
 export const DIRECT_WRITE_THRESHOLD = 20;
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
 
-export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '';
+const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '';
 
 export function getExtensionVersion(customVersion?: string): string {
     if (customVersion) return customVersion;
@@ -62,26 +39,3 @@ export function getExtensionVersion(customVersion?: string): string {
     } catch {}
     return EXT_VERSION;
 }
-
-export const GeminiConstants: GeminiConstantsModule = {
-    ALLOWED_FORMATS,
-    DEFAULT_FORMAT,
-    DIRECT_WRITE_THRESHOLD,
-    STORAGE_KEYS,
-    FEEDBACK_URL,
-    DEFAULT_EXPORT_FOLDER_NAME,
-    IDB_DATABASES,
-    EXT_VERSION,
-    getExtensionVersion,
-    exportedIdsKey
-};
-
-export function exportedIdsKey(accountId?: string | null): string {
-    if (!isAccountId(accountId)) throw new TypeError('Export records require a Registry account UUID');
-    return `exported_${accountId}`;
-}
-
-if (typeof module === 'object' && module.exports) module.exports = GeminiConstants;
-
-export default GeminiConstants;
-
