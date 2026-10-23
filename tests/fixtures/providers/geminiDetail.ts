@@ -75,7 +75,41 @@ function citationWire(raw: unknown, table?: unknown, alternatives: unknown[] = [
     ])]]);
 }
 
+/** Previously inline malformed citation probes, encoded as distinct source responses. */
+function citationInvalidFileMarker(marker: string): string {
+    const raw = citationFile('live-combined-file-citations') as unknown[][][][];
+    const copy = JSON.parse(JSON.stringify(raw)) as unknown[][][][];
+    const node = copy[0][0][0] as unknown[];
+    const payload = node[31] as unknown[][][];
+    payload[0][0][0] = marker;
+    return citationWire(copy);
+}
+
 const fixtureMap = {
+    'G_STRUCTURED_CITATIONS_15': () => citationInvalidFileMarker('[cite: 1]'),
+    'G_STRUCTURED_CITATIONS_16': () => citationInvalidFileMarker('[cite: 1, 1]'),
+    'G_STRUCTURED_CITATIONS_17': () => citationInvalidFileMarker('[cite: 1, 0]'),
+    'G_STRUCTURED_CITATIONS_18': () => citationInvalidFileMarker('[cite: 1, 2, 3]'),
+    'G_STRUCTURED_CITATIONS_19': () => citationInvalidFileMarker('[cite: 1, unknown]'),
+    'G_STRUCTURED_CITATIONS_20': () => citationWire({ children: [citationField(13, [[]])] }),
+    'G_STRUCTURED_CITATIONS_21': () => citationWire({ children: [citationField(13, ['invalid'])] }),
+    'G_STRUCTURED_CITATIONS_22': () => citationWire({ children: [
+        citationField(13, [[citationText('valid'), citationField(38, ['unknown'])]]),
+    ] }),
+    'G_STRUCTURED_CITATIONS_23': () => citationWire({ children: [
+        { nodeType: 'paragraph', children: [{ nodeType: 1, code: 'not inline' }] },
+    ] }),
+    'G_STRUCTURED_CITATIONS_24': () => citationWire({ children: [
+        { nodeType: 'paragraph', children: [{ nodeType: 18, text: 'heading', jJ: 2 }] },
+    ] }),
+    'G_STRUCTURED_CITATIONS_25': () => citationWire([[[citationField(31, [])]]]),
+    'G_STRUCTURED_CITATIONS_26': () => citationWire([[[citationField(31, [['[cite: 1]', 0]])]]]),
+    'G_STRUCTURED_CITATIONS_27': () => citationWire([[[citationField(31, [
+        [['[cite: 0]', 0], [], ['quote', 0]],
+    ])]]]),
+    'G_STRUCTURED_CITATIONS_28': () => citationWire([[[citationField(31, [
+        [['[cite: 1]', 0], [], ['quote', 0]],
+    ])]]]),
     'G_STRUCTURED_CITATIONS_01': () => citationWire(citationFile('live-file-citations')),
     'G_STRUCTURED_CITATIONS_02': () => citationWire(citationFile('live-optics-table-citations')),
     'G_STRUCTURED_CITATIONS_03': () => citationWire(citationFile('live-blockquote')),
