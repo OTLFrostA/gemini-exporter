@@ -18,7 +18,7 @@ export interface AssetFetchResponse {
     error?: string;
 }
 import { contentContext } from '../content/contentContext.js';
-import { getErrorMessage } from '../ipc/messaging.js';
+import { getErrorMessage } from '../../shared/utils/errorText.js';
 
 const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024;
 // Chrome JSON IPC has its own limit: base64 expands by 4/3,

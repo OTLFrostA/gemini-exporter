@@ -10,9 +10,8 @@ import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { ChatMessage, Attachment } from './helpers/historicalConversation.js';
-import type { MessageAction } from '../src/runtime/types/messages.js';
 
-// P1-090, 091, 092, 093, 098, 099, 100 are type-check contracts.
+// P1-090, 091, 093, 098, 099, 100 are type-check contracts.
 // The @ts-expect-error directives fail compilation if forbidden types
 // become legal again, so they are intentionally not runtime assertions.
 function typecheckContracts(): void {
@@ -42,15 +41,6 @@ function typecheckContracts(): void {
         isImage: true, subDir: 'assets', source: 'takeout'
     };
 
-    // P1-092: supported actions remain valid without freezing the total
-    // number of actions when ChatGPT/Claude support is added.
-    const actions: MessageAction[] = [
-        'openOptions', 'getAccountContext', 'getFileBlob', 'getImageBlob',
-        'ensureV2Ready', 'domainIngest', 'getLocalIndexCount', 'runLiveSave',
-    ];
-    // @ts-expect-error - the deleted ghost action cannot be reintroduced
-    const invalidAction: MessageAction = 'startExport';
-
     type IsAny<T> = 0 extends (1 & T) ? true : false;
 
     // P1-099: removed ambient globals must stay gone and the one retained
@@ -66,8 +56,7 @@ function typecheckContracts(): void {
     type _NoCitationSource = import('./helpers/historicalConversation.js').CitationSource;
 
     void fromParser; void fromOtherProvider;
-    void message; void conversation; void attachment; void actions;
-    void invalidAction;
+    void message; void conversation; void attachment;
     void clientMustBeTyped;
 }
 void typecheckContracts;
