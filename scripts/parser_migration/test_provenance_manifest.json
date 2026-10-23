@@ -1986,8 +1986,8 @@
       "classification": "P2",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "provenanceSource": "ChatGPT backend-api mapping evidence to Domain boundary: tree linearization, dialect markdown, reasoning/citations, asset downloads and optional-host access, verified live via 9222 debug profile",
-      "notes": "Unverified provider scaffold: parser owns Domain branding per trust boundary; adapter unregistered until a user grants optional hosts.",
-      "testCount": 17,
+      "notes": "Provider mapping, branch/stream integrity, component ordering, asset binding and bounded network retry contracts, including a retained live questionnaire.",
+      "testCount": 32,
       "tests": [
         {
           "name": "system and empty assistant turns are skipped, user turns kept in order",
@@ -1995,7 +1995,17 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
+          "name": "missing ChatGPT ancestors and cyclic mappings never claim complete Detail or loop",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
           "name": "consecutive assistant turns merge into one node",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "a linked but streaming or interrupted ChatGPT reply never claims complete coverage",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -2025,7 +2035,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "fetchConversationDetail downloads image pointers into Domain assets",
+          "name": "Detail submits image identities; bytes are acquired on demand without changing body quality",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -2070,7 +2080,72 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
+          "name": "ChatGPT current list schema without the legacy missing flag traverses all pages",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ChatGPT empty current list schema proves source exhaustion",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ChatGPT Detail never relabels a foreign source conversation ID",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ChatGPT list refuses source_end when pagination, ordering or completeness is unverified",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
           "name": "optional access helper never prompts and registers only on grant",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Intelligent UI questionnaires use the provider fallback without executing or exporting component code",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Captured live DIL quiz parses nested questions/options before buttons, without fallback",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "DIL AsyncImage gallery becomes one ordered image resource instead of leaked control JSON",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "DIL galleries bind each query to its resolution ID despite reordered results",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "DIL fallback norm escapes preserve all table cells and math",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "an unclosed inline opener cannot consume formulas in later table cells or rows",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ChatGPT 429 respects Retry-After, refreshes identity, and retries the same page",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ChatGPT 429 cooldown aborts promptly without another request",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ChatGPT 429 retries are bounded and recheck a changed account",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -2404,15 +2479,326 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/provider-chatgpt-dil.test.ts",
+      "domain": "chatgpt",
+      "classification": "P2",
+      "provenanceSource": "68 retained synthetic educational ChatGPT source/fallback captures plus component ordering and bounded non-executing interpreter contracts",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Offline captured component source coverage and synthetic safety cases; does not claim live Tier 2 or interactive runtime fidelity.",
+      "testCount": 75,
+      "tests": [
+        {
+          "name": "Captured DIL live-00: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-01: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-02: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-03: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-04: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-05: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-06: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-07: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-08: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-09: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-10: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-11: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-12: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-13: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-14: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-15: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-16: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-17: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-18: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-19: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-20: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-21: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-22: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-23: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-24: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-25: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-26: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-27: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-28: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-29: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-30: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-31: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-32: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-33: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-34: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-35: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-36: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-37: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-38: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-39: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-40: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-41: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-42: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-43: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-44: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-45: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-46: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-47: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-48: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-49: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-50: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-51: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-52: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-53: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-54: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-55: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-56: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-57: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-58: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-59: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-60: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-61: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-62: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-63: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-64: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-65: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-66: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Captured DIL live-67: source is independently parseable without fallback",
+          "classification": "P2"
+        },
+        {
+          "name": "Live Helmholtz checklist stays before conclusion with all six labels and static initial counter",
+          "classification": "P2"
+        },
+        {
+          "name": "Layout cards, title, divider, code, SVG, learning widget and gallery render in source order",
+          "classification": "P2"
+        },
+        {
+          "name": "Literal loops render only referenced fields, retain repeated choices, and honor nested conditions",
+          "classification": "P2"
+        },
+        {
+          "name": "Components preserve Markdown code, inline code, formulas, and safe literal interpolation",
+          "classification": "P2"
+        },
+        {
+          "name": "Only the unsupported component uses uniquely anchored fallback; siblings and restored labels stay",
+          "classification": "P2"
+        },
+        {
+          "name": "Unknown, malformed and ambiguous components preserve fallback or explicitly report unavailable content",
+          "classification": "P2"
+        },
+        {
+          "name": "Expressions and handlers cannot execute calls, access prototypes, or expand arbitrary data",
+          "classification": "P2"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 48,
-    "totalTests": 368,
+    "totalSuites": 49,
+    "totalTests": 458,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 348,
+      "P2": 438,
       "P3": 2,
       "P4": 0
     }
