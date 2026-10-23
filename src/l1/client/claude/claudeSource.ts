@@ -51,7 +51,7 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
                     }
                     return getJson(requestedPath);
                 },
-                args: [path, expectedOrganization],
+                args: expectedOrganization === undefined ? [path] : [path, expectedOrganization],
             });
             if (results.length !== 1 || results[0]?.result === undefined)
                 throw new Error('Claude source returned no data');
