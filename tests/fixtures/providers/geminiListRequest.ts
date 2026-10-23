@@ -12,7 +12,7 @@ const fixtureMap = {
     })('pinned', 'incoming'),
     'G_PAGE_OBSERVATION_05': () => new URLSearchParams({
         'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([50, null, [2, null, 1]]), null, 'generic']]]),
-    }).toString(),,
+    }).toString(),
     'G_PAGE_OBSERVATION_11_VALID': () => requestBody([null, null, 1, null, null, null, null, null, null, 1]),
     'G_PAGE_OBSERVATION_11_INVALID_0': () => requestBody([null, null, 1, null, null, null, null, null, null]),
     'G_PAGE_OBSERVATION_11_INVALID_1': () => requestBody([null, null, 1, null, null, null, null, null, null, 1, null]),
