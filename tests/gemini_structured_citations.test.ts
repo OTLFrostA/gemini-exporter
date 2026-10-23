@@ -182,8 +182,7 @@ test('unknown composite children, malformed citations and ambiguous wire fields 
         'G_STRUCTURED_CITATIONS_27', 'G_STRUCTURED_CITATIONS_28'] as const) {
         rejected(parseKey(key), 'decode_rejected');
     }
-    good[32] = 'unknown visible payload';
-    rejected(parse([[[good]]]), 'decode_rejected');
+    rejected(parseKey('G_STRUCTURED_CITATIONS_38'), 'decode_rejected');
 });
 
 test('malformed/unresolved attribution, crossing ranges and source annotations inside leaves fail closed', () => {
