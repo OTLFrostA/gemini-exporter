@@ -6,15 +6,14 @@ import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidenc
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
 import { stripInternalChipMarkdown } from "../../shared/chipUtils.js";
 import { __resolveModule } from "../../../../shared/utils/moduleOverrides.js";
-import type { TurnDriftReport, TitleResult, Citation } from "./extractors.js";
+import type { TurnDriftReport, TitleResult, Citation, DecodedGeminiTurn, DecodedGeminiCandidate } from "./extractors.js";
 import type { ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocLink, DocSectionsResult } from "./sourceAttachments.js";
 
 import {
     GEMINI_JSPB_SCHEMA,
     detectTurnSchemaDrift,
     hasTurnContentMarkers,
-    extractModelCandidates,
-    extractCandidateText,
+    decodeTurn,
     safeStructureClean,
     robustFirstPayload,
     deepWalk,
@@ -24,7 +23,6 @@ import {
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,
-    extractTurnTimestamp,
     normId,
     cleanTitle,
     isRealTitle
@@ -239,15 +237,14 @@ function extractTurnsFromInner(
 }
 
 function buildUserMessage(
-    turn: unknown,
-    ts: number | null,
+    turn: DecodedGeminiTurn,
     media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     imageSeq: { value: number }
 ): GeminiMessageEvidence | null {
-    const turnSlots: unknown[] = Array.isArray(turn) ? turn : [];
-    const userPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
+    const ts = turn.timestamp;
+    const userPayload = turn.userPayload;
     const uText = extractUserTextFromPayload(userPayload);
     const uImgs = filterNewImages(media.images(userPayload, imageSeq), dedupSet);
     const uFiles = extractUserFiles(userPayload).filter((f: UserFileAttachment) => {
@@ -259,15 +256,7 @@ function buildUserMessage(
 
     if (!uText && !uImgs.length && !uFiles.length) return null;
 
-    let userMsgId = "";
-    const idMeta = turnSlots[0];
-    if (Array.isArray(idMeta)) {
-        userMsgId = idMeta.find((x: unknown): x is string => typeof x === "string" && x.startsWith("r_"))
-            || (typeof idMeta[1] === "string" ? idMeta[1] : "")
-            || (typeof idMeta[0] === "string" ? idMeta[0] : "");
-    } else if (typeof idMeta === "string") {
-        userMsgId = idMeta;
-    }
+    const userMsgId = turn.userMessageId;
 
     const formattedImages = uImgs.length ? uImgs.map((i: ImageAttachment) => ({
         ...i,
@@ -315,13 +304,14 @@ function buildUserMessage(
         }
     }
 
-    const userRequestId = media.sourceOnly ? extractRawTurnRequestId(turn) : extractTurnRequestId(turn);
+    const rawRequestId = extractRawTurnRequestId(turn.raw);
+    const userRequestId = media.sourceOnly ? rawRequestId : extractTurnRequestId(turn.raw);
 
     return {
-        id: media.sourceOnly ? (extractRawTurnRequestId(turn) ?? "") : userMsgId,
+        id: media.sourceOnly ? (rawRequestId ?? "") : userMsgId,
         role: "user",
         providerRequestId: userRequestId || void 0,
-        rawProviderRequestId: extractRawTurnRequestId(turn),
+        rawProviderRequestId: rawRequestId,
         turnId: userMsgId || void 0,
         content: uText,
         timestamp: ts,
@@ -334,23 +324,22 @@ function buildUserMessage(
 }
 
 function parseCandidateResponse(
-    cand: unknown,
-    turn: unknown,
-    ts: number | null,
+    candidate: DecodedGeminiCandidate,
+    turn: DecodedGeminiTurn,
     inner: unknown,
     media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     imageSeq: { value: number },
-    candidateIndex = 0,
     convId?: string
 ): GeminiMessageEvidence | null {
-    const candidateSlots: unknown[] = Array.isArray(cand) ? cand : [];
-    const turnSlots: unknown[] = Array.isArray(turn) ? turn : [];
-    const rawCandidateId = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
-    const candidateId = typeof rawCandidateId === 'string' ? rawCandidateId : "";
-    const candidateBlock = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] || cand;
-    let responseText = extractCandidateText(cand);
+    const cand = candidate.raw;
+    const rawTurn = turn.raw;
+    const ts = turn.timestamp;
+    const candidateIndex = turn.candidateIndex;
+    const candidateId = candidate.id;
+    const candidateBlock = candidate.body || cand;
+    let responseText = candidate.text;
 
     if (!responseText) {
         const textArr: string[] = [];
@@ -366,13 +355,10 @@ function parseCandidateResponse(
         responseText = textArr.join("\n\n");
     }
 
-    const structuredExtraction = inspectStructuredContent(turn, cand, candidateIndex);
+    const structuredExtraction = inspectStructuredContent(rawTurn, cand, candidateIndex);
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
-    const modelPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
-    const rawAnswerDocument = candidateIndex === 0 && Array.isArray(modelPayload)
-        ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12]
-        : undefined;
-    const answerBody = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
+    const rawAnswerDocument = candidateIndex === 0 ? turn.rawAnswerDocument : undefined;
+    const answerBody = candidate.body;
     const candImages = media.responseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
     const filteredImages = filterNewImages(candImages, dedupSet);
 
@@ -459,9 +445,10 @@ function parseCandidateResponse(
         responseText = stripInternalChipMarkdown(responseText);
     }
 
-    const providerRequestId = media.sourceOnly ? extractRawTurnRequestId(turn) : extractTurnRequestId(turn);
+    const rawRequestId = extractRawTurnRequestId(rawTurn);
+    const providerRequestId = media.sourceOnly ? rawRequestId : extractTurnRequestId(rawTurn);
     const generatedCount = candImages.filter(img => img.isGenerated).length;
-    const generationPrompt = extractUserTextFromPayload(turnSlots[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD]);
+    const generationPrompt = extractUserTextFromPayload(turn.userPayload);
     const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
         const isGen = !!img.isGenerated;
         const ordinal = isGen ? (img.imageOrdinal ?? (generatedCount === 1 ? 0 : undefined)) : undefined;
@@ -519,18 +506,14 @@ function parseCandidateResponse(
 
     if (!responseText && !thoughts && !attachments.length && !docDetails.length && !structuredContent) return null;
 
-    const idMeta = turnSlots[0];
-    const fallbackRawId = Array.isArray(idMeta)
-        ? (idMeta.find((x: unknown) => typeof x === "string" && (x.startsWith("rc_") || x.startsWith("r_"))) || idMeta[1] || idMeta[0])
-        : idMeta;
-    const fallbackTurnId = typeof fallbackRawId === 'string' ? fallbackRawId : "";
+    const fallbackTurnId = turn.fallbackTurnId;
 
     return {
-        id: media.sourceOnly ? (typeof candidateId === "string" ? candidateId : "") : (candidateId || fallbackTurnId || ""),
+        id: media.sourceOnly ? candidateId : (candidateId || fallbackTurnId || ""),
         role: "model",
         content: responseText || "",
         providerRequestId: providerRequestId || void 0,
-        rawProviderRequestId: extractRawTurnRequestId(turn),
+        rawProviderRequestId: rawRequestId,
         turnId: fallbackTurnId || void 0,
         thoughts: thoughts || void 0,
         citations: citations.length ? citations : void 0,
@@ -604,49 +587,33 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
         const imageSeq = { value: 1 };
         const rev = [...turns].reverse();
 
-        for (const turn of rev) {
-            const drift: TurnDriftReport = detectTurnSchemaDrift(turn, convId);
+        for (const rawTurn of rev) {
+            const drift: TurnDriftReport = detectTurnSchemaDrift(rawTurn, convId);
             if (drift.isDrifted) {
                 schemaDriftWarnings.push(...drift.warnings);
             }
-            const ts = extractTurnTimestamp(turn) ?? null;
 
-            const userMsg = buildUserMessage(turn, ts, media, dedupSet, docDedupSet, imageSeq);
-            if (userMsg) {
-                allMsgs.push(userMsg);
-            }
+            // Close known fields once; media/structured decoders retain raw evidence.
+            const turn = decodeTurn(rawTurn);
+            if (!turn) continue;
 
-            const candList = extractModelCandidates(turn);
-            if (Array.isArray(candList)) {
-                // hNvQHb retains alternative drafts for a single user request.
-                // The live wire's turn[3][3] identifies the displayed answer;
-                // exporting every draft creates consecutive Assistant turns.
-                const modelPayload = Array.isArray(turn) ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
-                const selectedId = Array.isArray(modelPayload) ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.SELECTED_CANDIDATE_ID] : undefined;
-                const selectedIndex = typeof selectedId === 'string' && selectedId.startsWith('rc_')
-                    ? candList.findIndex(cand => Array.isArray(cand) && cand[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] === selectedId)
-                    : -1;
-                // Older payloads omit selection evidence: retain their primary draft.
-                const answerIndex = selectedIndex >= 0 ? selectedIndex : 0;
-                for (let ci = 0; ci < candList.length; ci++) {
-                    if (ci !== answerIndex) continue;
-                    const cand = candList[ci];
-                    const modelMsg = parseCandidateResponse(
-                        cand,
-                        turn,
-                        ts,
-                        inner,
-                        media,
-                        dedupSet,
-                        docDedupSet,
-                        imageSeq,
-                        ci,
-                        convId
-                    );
-                    if (modelMsg) {
-                        allMsgs.push(modelMsg);
-                    }
-                }
+            const userMsg = buildUserMessage(turn, media, dedupSet, docDedupSet, imageSeq);
+            if (userMsg) allMsgs.push(userMsg);
+
+            // hNvQHb may contain drafts; decodeTurn preserves the selected ID
+            // and the historical primary-draft fallback in one place.
+            if (turn.candidate) {
+                const modelMsg = parseCandidateResponse(
+                    turn.candidate,
+                    turn,
+                    inner,
+                    media,
+                    dedupSet,
+                    docDedupSet,
+                    imageSeq,
+                    convId
+                );
+                if (modelMsg) allMsgs.push(modelMsg);
             }
         }
 
