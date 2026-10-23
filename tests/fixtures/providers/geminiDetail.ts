@@ -129,7 +129,67 @@ function p1RegressionTurn(userPayload: unknown = [['hello']], text = 'world', ex
     return [['c_abc123def456'], [1700000000, 0], userPayload, [[candidate]]];
 }
 
+
+/** Existing parameterized native Detail+List data, selected exclusively by key. */
+function mixedNativePage(request: string, seconds: number, cursor: string | null = null): string {
+    const turn = [['c_native', request], [seconds, 0], [['Question ' + request]],
+        [[['rc_' + request, [['**Answer**']]]]]];
+    return JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[turn], cursor, 'Title'])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_native', 'Title', null, null, null, [1700000010, 0]]]])],
+    ]);
+}
+function mixedNativeDocument(kind: number, body: string, more = false, suffix = 'report.md', metadata = true): string {
+    const row: unknown[] = ['c_native_chat_' + suffix, null, 'Source document', null, body];
+    row[10] = kind;
+    if (metadata) row[8] = [['Metadata that must never become document prose'.repeat(5)]];
+    const candidate: unknown[] = ['rc_native', ['Answer before document']];
+    candidate[30] = [row];
+    const turn = [['c_native_chat', 'r_native'], null, [['Question']], [[candidate]], [1700000010, 0]];
+    return JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[turn], more ? 'next' : null, null, []])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
+            [['c_native_chat', 'Title', null, null, null, [1700000000, 0]]]])],
+    ]);
+}
+
 const fixtureMap = {
+    'G_NATIVE_CALLERS_MIXED_01': () => mixedNativePage('r_new', 1700000010, 'tC_older'),
+    'G_NATIVE_CALLERS_MIXED_02': () => mixedNativePage('r_old', 1700000000),
+    'G_NATIVE_CALLERS_MIXED_03': () => mixedNativePage('r_one', 1700000000, 'tC_repeat'),
+    'G_NATIVE_CALLERS_MIXED_04': () => mixedNativePage('r_native', 1700000000, 'tC_old'),
+    'G_NATIVE_CALLERS_MIXED_05': () => mixedNativePage('r_older', 1700000000),
+    'G_NATIVE_CALLERS_MIXED_06': () => mixedNativePage('r_newer', 1700000010, 'tC_retry_older'),
+    'G_NATIVE_CALLERS_MIXED_07': () => mixedNativePage('r_newer', 1700000010, 'tC_retry_older'),
+    'G_NATIVE_ACQ_MIXED_01': () => mixedNativePage('r_new', 1700000010, 'tC_older'),
+    'G_NATIVE_ACQ_MIXED_02': () => mixedNativePage('r_old', 1700000000),
+    'G_NATIVE_ACQ_MIXED_03': () => mixedNativePage('r_one', 1700000000, 'tC_repeat'),
+    'G_NATIVE_ACQ_MIXED_04': () => mixedNativePage('r_native', 1700000000, 'tC_old'),
+    'G_NATIVE_ACQ_MIXED_05': () => mixedNativePage('r_older', 1700000000),
+    'G_NATIVE_ACQ_MIXED_06': () => mixedNativePage('r_newer', 1700000010, 'tC_retry_older'),
+    'G_NATIVE_ACQ_MIXED_07': () => mixedNativePage('r_newer', 1700000010, 'tC_retry_older'),
+    'G_NATIVE_DOCUMENT_01': () => mixedNativeDocument(1, '# Report\n\nExact source body'),
+    'G_NATIVE_DOCUMENT_02': () => mixedNativeDocument(1, '# Report\n\nExact source body', true),
+    'G_NATIVE_DOCUMENT_03': () => mixedNativeDocument(2, "```python\nprint(\"ok\")\n```"),
+    'G_NATIVE_DOCUMENT_04': () => mixedNativeDocument(2, "```python\nprint(\"ok\")\n```", true),
+    'G_NATIVE_DOCUMENT_05': () => mixedNativeDocument(3, '# Research\n\nReferences and findings'),
+    'G_NATIVE_DOCUMENT_06': () => mixedNativeDocument(3, '# Research\n\nReferences and findings', true),
+    'G_NATIVE_DOCUMENT_07': () => mixedNativeDocument(3, 'First body', false, 'first', false),
+    'G_NATIVE_DOCUMENT_08': () => mixedNativeDocument(3, 'Second body', false, 'second', false),
+    'G_DYNAMIC_TITLE_ARBITRATION_DETAIL_01': () => {
+        const turn = [['c_sniff_test_chat_888', 'r_question'], [1700000000, 0],
+            [['如何构建高性能分布式缓存系统？']], [[['rc_question', [['构建高性能分布式缓存需要注意这些要点']]]]]];
+        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, ''])]]);
+    },
+    'G_BOUNDARY_ALTERNATE_RPC_01': () => {
+        const turn = [['c_boundary12345678', 'r_AB12'], [1700000000, 500000000],
+            [['Boundary user prompt']], [[['rc_boundary', [['Boundary model answer'], 'en']]]]];
+        return JSON.stringify([
+            ['wrb.fr', 'hNvQHb', '[null]'],
+            ['wrb.fr', 'otherRpc', JSON.stringify([[turn]])],
+        ]);
+    },
     'G_P1E_DETAIL_01': () => rpc([[p1RegressionTurn(undefined,
         '第一行\nhttps://googleusercontent.com/immersive_entry_chip/abc123\n第三行')]]),
     'G_P1E_DETAIL_02': () => rpc([[p1RegressionTurn(undefined,
