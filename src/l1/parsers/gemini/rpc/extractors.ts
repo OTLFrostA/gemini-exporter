@@ -210,15 +210,19 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         return value !== null && typeof value === "object";
     }
 
+    // Array.isArray narrows elements to any; preserve the untrusted element type.
+    function isUnknownArray(value: unknown): value is unknown[] {
+        return Array.isArray(value);
+    }
+
     function deepWalk(root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth: number = 50): void {
         function walk(node: unknown, depth: number) {
             if (!node || !isObjectRecord(node) || depth > maxDepth) return;
             const shouldDescend = visitor(node, depth);
             if (shouldDescend === false) return;
-            if (Array.isArray(node)) {
-                const array: unknown[] = node;
+            if (isUnknownArray(node)) {
                 for (let i = 0; i < node.length; i++) {
-                    walk(array[i], depth + 1);
+                    walk(node[i], depth + 1);
                 }
             } else {
                 for (const k in node) {
@@ -234,15 +238,12 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
     function hasTurnContentMarkers(turn: unknown[]): boolean {
         if (Array.isArray(turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD])) return true;
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
-        if (Array.isArray(modelPayload)) {
-            const modelSlots: unknown[] = modelPayload;
-            const cands = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
-            if (Array.isArray(cands)) {
-                const candidates: unknown[] = cands;
-                for (const c of candidates) {
-                    if (!Array.isArray(c)) continue;
-                    const candidateSlots: unknown[] = c;
-                    const id = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+        if (isUnknownArray(modelPayload)) {
+            const cands = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+            if (isUnknownArray(cands)) {
+                for (const c of cands) {
+                    if (!isUnknownArray(c)) continue;
+                    const id = c[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
                     if (typeof id === "string" && id.startsWith("rc_")) return true;
                 }
             }
@@ -263,15 +264,14 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
     function detectTurnSchemaDrift(turn: unknown, convId?: string): TurnDriftReport {
         const warnings: string[] = [];
-        if (!Array.isArray(turn)) {
+        if (!isUnknownArray(turn)) {
             warnings.push("Turn is not an array");
             return { isDrifted: true, warnings };
         }
         if (turn.length < 3) {
             warnings.push(`Turn array length (${turn.length}) is less than expected minimum 3`);
         }
-        const turnSlots: unknown[] = turn;
-        const head = turnSlots[GEMINI_JSPB_SCHEMA.TURN.ID_META];
+        const head = turn[GEMINI_JSPB_SCHEMA.TURN.ID_META];
         let idStr = "";
         if (typeof head === "string") idStr = head;
         else if (Array.isArray(head) && head.length) {
@@ -283,26 +283,23 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             warnings.push(`Turn head '${idStr.slice(0, 32)}' matches turn-id pattern but no rc_/c_d content markers found; isTurn() rejects this element (treated as non-turn)`);
         }
 
-        const userPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
+        const userPayload = turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
         if (userPayload !== undefined && !Array.isArray(userPayload)) {
             warnings.push(`UserPayload at index 2 is not an array (type: ${typeof userPayload})`);
         }
 
-        const modelPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (modelPayload !== undefined) {
-            if (!Array.isArray(modelPayload)) {
+            if (!isUnknownArray(modelPayload)) {
                 warnings.push(`ModelPayload at index 3 is not an array (type: ${typeof modelPayload})`);
             } else if (modelPayload.length > 0) {
-                const modelSlots: unknown[] = modelPayload;
-                const candBlock = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
-                if (!Array.isArray(candBlock)) {
+                const candBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+                if (!isUnknownArray(candBlock)) {
                     warnings.push(`Candidates at index 3[0] is not an array (type: ${typeof candBlock})`);
                 } else if (candBlock.length > 0) {
-                    const candSlots: unknown[] = candBlock;
-                    const firstCand = candSlots[0];
-                    if (Array.isArray(firstCand)) {
-                        const firstCandSlots: unknown[] = firstCand;
-                        const candId = firstCandSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+                    const firstCand = candBlock[0];
+                    if (isUnknownArray(firstCand)) {
+                        const candId = firstCand[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
                         if (typeof candId !== "string" || (!candId.startsWith("rc_") && !candId.startsWith("c_"))) {
                             warnings.push(`First candidate ID at 3[0][0][0] does not match 'rc_' prefix: ${JSON.stringify(candId)}`);
                         }
@@ -326,26 +323,22 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
     }
 
     function extractModelCandidates(turn: unknown): unknown[] {
-        if (!turn || !Array.isArray(turn)) return [];
-        const turnSlots: unknown[] = turn;
-        const modelPayload = turnSlots[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
-        if (!modelPayload || !Array.isArray(modelPayload) || modelPayload.length === 0) return [];
-        const modelSlots: unknown[] = modelPayload;
+        if (!turn || !isUnknownArray(turn)) return [];
+        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        if (!modelPayload || !isUnknownArray(modelPayload) || modelPayload.length === 0) return [];
 
-        const candidateBlock = modelSlots[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
-        if (Array.isArray(candidateBlock)) {
-            const candidates: unknown[] = candidateBlock;
-            if (candidateBlock.length > 0 && Array.isArray(candidates[0])) {
-                return candidates;
+        const candidateBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+        if (isUnknownArray(candidateBlock)) {
+            if (candidateBlock.length > 0 && Array.isArray(candidateBlock[0])) {
+                return candidateBlock;
             }
-            if (typeof candidates[0] === "string") {
-                return [candidates];
+            if (typeof candidateBlock[0] === "string") {
+                return [candidateBlock];
             }
         }
-        const first = modelSlots[0];
-        if (Array.isArray(first)) {
-            const firstSlots: unknown[] = first;
-            if (typeof firstSlots[0] === "string" && firstSlots[0].startsWith("rc_")) return modelSlots;
+        const first = modelPayload[0];
+        if (isUnknownArray(first) && typeof first[0] === "string" && first[0].startsWith("rc_")) {
+            return modelPayload;
         }
         return [];
     }
@@ -356,9 +349,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         (body) => (typeof body === "string" ? body : null),
 
         (body) => {
-            if (!Array.isArray(body)) return null;
-            const bodySlots: unknown[] = body;
-            const parts = bodySlots[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
+            if (!isUnknownArray(body)) return null;
+            const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
             if (typeof parts === "string") return parts;
             if (Array.isArray(parts)) {
                 const textChunks: string[] = [];
@@ -384,7 +376,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
 
     function extractCandidateText(cand: unknown): string {
         if (!cand) return "";
-        const candidateSlots: unknown[] | null = Array.isArray(cand) ? cand : null;
+        const candidateSlots = isUnknownArray(cand) ? cand : null;
         const body: unknown = candidateSlots !== null
             ? (candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
                 ? candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
@@ -439,18 +431,12 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
             try {
                 const parsed: unknown = JSON.parse(trimmed);
-                if (Array.isArray(parsed)) {
-                    const rows: unknown[] = parsed;
-                    return rows;
-                }
+                if (isUnknownArray(parsed)) return parsed;
             } catch {
                 try {
                     const cleaned = safeStructureClean(trimmed).trim();
                     const parsed: unknown = JSON.parse(cleaned);
-                    if (Array.isArray(parsed)) {
-                        const rows: unknown[] = parsed;
-                        return rows;
-                    }
+                    if (isUnknownArray(parsed)) return parsed;
                 } catch { /* proceed to chunk scanner */ }
             }
         }
@@ -493,18 +479,12 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
                         const chunk = text.slice(startIdx, i + 1);
                         try {
                             const parsed: unknown = JSON.parse(chunk);
-                            if (Array.isArray(parsed)) {
-                                const rows: unknown[] = parsed;
-                                allTop.push(...rows);
-                            }
+                            if (isUnknownArray(parsed)) allTop.push(...parsed);
                         } catch {
                             try {
                                 const cleaned = safeStructureClean(chunk).trim();
                                 const parsed: unknown = JSON.parse(cleaned);
-                                if (Array.isArray(parsed)) {
-                                    const rows: unknown[] = parsed;
-                                    allTop.push(...rows);
-                                }
+                                if (isUnknownArray(parsed)) allTop.push(...parsed);
                             } catch { /* intentional: skip malformed chunk */ }
                         }
                         startIdx = -1;
@@ -521,10 +501,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
                 const tail = text.slice(startIdx) + "]".repeat(depth);
                 const cleaned = safeStructureClean(tail).trim();
                 const parsed: unknown = JSON.parse(cleaned);
-                if (Array.isArray(parsed)) {
-                    const rows: unknown[] = parsed;
-                    return rows;
-                }
+                if (isUnknownArray(parsed)) return parsed;
             } catch { /* intentional fallback failure */ }
         }
 
@@ -574,15 +551,12 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             if (!node || !isObjectRecord(node)) return;
             const record = node;
             const f44 = record["44"] ?? record[44];
-            if (Array.isArray(f44)) {
-                const list: unknown[] = f44;
-                for (const item of list) {
-                    if (!Array.isArray(item)) continue;
-                    const itemSlots: unknown[] = item;
-                    const first = itemSlots[0];
-                    if (Array.isArray(first)) {
-                        const nestedSlots: unknown[] = first;
-                        const raw = nestedSlots[0];
+            if (isUnknownArray(f44)) {
+                for (const item of f44) {
+                    if (!isUnknownArray(item)) continue;
+                    const first = item[0];
+                    if (isUnknownArray(first)) {
+                        const raw = first[0];
                         if (typeof raw === "string") {
                             const trimmed = raw.trim();
                             if (/^\[cite:\s*\d+(?:\s*,\s*\d+)*\]$/i.test(trimmed)) {
@@ -644,8 +618,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
     }
 
     function extractConversationTitle(inner: unknown, turns?: unknown[]): TitleResult {
-        if (Array.isArray(inner)) {
-            const innerSlots: unknown[] = inner;
+        if (isUnknownArray(inner)) {
             const sanitizeIfTitle = (val: unknown): string | null => {
                 if (typeof val === "string" && val.length > 0 && !val.startsWith("c_") && !val.startsWith("tC") && !val.startsWith("rc_")) {
                     const clean = cleanTitle(val);
@@ -657,7 +630,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             const candidateTitle = extractCandidateValue(inner, GEMINI_JSPB_SCHEMA.INNER.TITLE_CANDIDATES, sanitizeIfTitle);
             if (candidateTitle) return { title: candidateTitle, source: "rpc" };
 
-            const primary = innerSlots[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
+            const primary = inner[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
             if (Array.isArray(primary) && typeof primary[1] === "string") {
                 const clean = cleanTitle(primary[1]);
                 if (isRealTitle(clean)) return { title: clean, source: "rpc" };
@@ -673,12 +646,9 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
-                const turnSlots: unknown[] | null = Array.isArray(t) ? t : null;
-                const t2 = turnSlots?.[2];
-                const payloadSlots: unknown[] | null = Array.isArray(t2) ? t2 : null;
-                const t20 = payloadSlots?.[0];
-                const textSlots: unknown[] | null = Array.isArray(t20) ? t20 : null;
-                const uText = textSlots?.[0];
+                const t2 = isUnknownArray(t) ? t[2] : undefined;
+                const t20 = isUnknownArray(t2) ? t2[0] : undefined;
+                const uText = isUnknownArray(t20) ? t20[0] : undefined;
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
                     const concise = smartSummarizePrompt(uText);
                     if (isRealTitle(concise)) return { title: concise, source: "sniff" };
