@@ -70,7 +70,7 @@
   "src/l2/streamCoverage.ts",
   "src/l1/client/gemini/listObservation.ts",
   "tests/stream_coverage.test.ts",
-  "src/l1/parsers/gemini/rpc/generatedFiles.ts",
+  "src/l1/parsers/gemini/rpc/candidateArtifacts.ts",
   "src/l2/runtimeValidation.ts",
   "src/l1/parsers/chatgpt/chatgptTypes.ts",
   "src/l1/parsers/chatgpt/conversationTree.ts",
