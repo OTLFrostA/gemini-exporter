@@ -88,7 +88,16 @@ const fixtureMap = {
     ], { total: 1, offset: 0, limit: 100 }),
 };
 
-/** One real endpoint, one output shape: native conversations API JSON. */
-export function listGen(key: keyof typeof fixtureMap): Record<string, unknown> {
+/** The native /backend-api/conversations JSON payload, including malformed test values. */
+export interface ChatGPTConversationsResponse {
+    items?: unknown;
+    total?: unknown;
+    offset?: unknown;
+    limit?: unknown;
+    cursor?: unknown;
+    has_missing_conversations?: unknown;
+}
+
+export function listGen(key: keyof typeof fixtureMap): ChatGPTConversationsResponse {
     return fixtureMap[key]();
 }
