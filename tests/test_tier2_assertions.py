@@ -1348,6 +1348,7 @@ class GeminiDualParseTests(unittest.TestCase):
         from scripts.framework.gemini_dual_parse import INSTALL_CAPTURE
         script = r"""
         const assert = require('node:assert/strict');
+        const { requestGen: geminiDetailRequestGen } = require('./tests/fixtures/providers/geminiDetailRequest.js');
         global.window=global; global.location={href:'chrome-extension://test/options.html'};
         let promise; const seen=[];
         const original=function(...args){seen.push([this,args]);return promise=Promise.resolve(new Response('exact wire'));};
@@ -1355,7 +1356,7 @@ class GeminiDualParseTests(unittest.TestCase):
         assert.throws(()=>eval(INSTALL),/already installed/);
         (async()=>{
             const input='https://gemini.google.com/_/BardChatUi/data/batchexecute';
-            const init={method:'POST',body:new URLSearchParams({'f.req':JSON.stringify([[['hNvQHb',JSON.stringify(['c_target',null])]]])}).toString()};
+            const init={method:'POST',body:geminiDetailRequestGen('G_TIER2_CAPTURE_NATIVE_REQUEST_01')};
             const returned=fetch(input,init); assert.equal(returned,promise);
             const response=await returned; assert.equal(await response.text(),'exact wire');
             await Promise.all(__geminiDualCapture.pending);
@@ -1365,7 +1366,7 @@ class GeminiDualParseTests(unittest.TestCase):
             assert.deepEqual(Object.keys(__geminiDualCapture.replies),['target']);
         })().catch(e=>{console.error(e);process.exitCode=1});
         """.replace('INSTALL',json.dumps(INSTALL_CAPTURE))
-        result=subprocess.run(['node','-e',script],capture_output=True,text=True)
+        result=subprocess.run(['node','-r','./tests/ts_register.js','-e',script],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_additional_case_is_registered_and_missing_or_mismatched_sources_fail(self):
