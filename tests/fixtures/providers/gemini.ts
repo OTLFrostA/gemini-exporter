@@ -17,7 +17,6 @@ const contractRow = (id = 'source_chat_123', seconds = 1700000050) =>
 const rpcRow = () => sourceRow('verifiedrpc123', 'Verified', 1700000050);
 const rpcEnvelope = (rpc: string, inner: unknown) => ['wrb.fr', rpc, JSON.stringify(inner)];
 const rpcBatchWire = (...rows: unknown[][]) => JSON.stringify(rows);
-const asWire = (raw: string): string => raw;
 // Native Any envelope regression characterized from 2026-10-20 hNvQHb NotFound.
 const nativeAnyError = (rpc: string, code: unknown,
     type = 'type.googleapis.com/assistant.boq.bard.application.BardErrorInfo') =>
@@ -28,9 +27,9 @@ const nativeAnyError = (rpc: string, code: unknown,
 // One unique key per consuming List test call site. Values preserve the old data.
 const fixtureMap = {
     'G_L1_CLIENT_V2_MOCKED_01': () => geminiList(['source_alpha']),
-    'G_L1_CLIENT_V2_MOCKED_02': () => asWire(JSON.stringify([
+    'G_L1_CLIENT_V2_MOCKED_02': () => JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]],
-    ])),
+    ]),
     'G_L1_CLIENT_V2_MOCKED_SRC_01': () => geminiList(['source_alpha'], 'tC_NEXT_123456789'),
     'G_L1_CLIENT_V2_MOCKED_SRC_02': () => geminiList(['source_beta']),
     'G_L1_CLIENT_V2_MOCKED_SRC_03': () => geminiList(['source_alpha']),
@@ -77,7 +76,7 @@ const fixtureMap = {
         wire([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
     'G_L1_CONTRACT_11': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
         wire([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789', 'different_chat_456', 1700000040),
-    'G_L1_CONTRACT_12': () => asWire('garbage'),
+    'G_L1_CONTRACT_12': () => 'garbage',
     'G_L1_CONTRACT_13': () => wire(),
     'G_L1_CONTRACT_14': (nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
         wire([contractRow(id, seconds)], nextCursor),
@@ -87,9 +86,9 @@ const fixtureMap = {
     'G_L1_CONTRACT_17': () => wire(),
     'G_L1_CONTRACT_18': (nextCursor: string | null = null) => wire([contractRow()], nextCursor),
     'G_L1_CONTRACT_19': (nextCursor: string | null = null) => wire([contractRow()], nextCursor),
-    'G_L1_CONTRACT_21': () => asWire(JSON.stringify([
+    'G_L1_CONTRACT_21': () => JSON.stringify([
         ['wrb.fr', 'MaZiqc', null, null, null, ['BardErrorInfo', 1096]],
-    ])),
+    ]),
     'G_L1_CONTRACT_22': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
         wire([contractRow(id, seconds)], nextCursor))('tC_NEXT_PAGE_123456789'),
     'G_L1_CONTRACT_23': () => ((nextCursor: string | null = null, id = 'source_chat_123', seconds = 1700000050) =>
@@ -120,9 +119,9 @@ const fixtureMap = {
         sourceRow('abcdef123', 'abcdef123', 1700000010),
         sourceRow('abcdef456', 'abcdef456', 1700000020),
     ]),
-    'G_PAGE_OBSERVATION_06': () => asWire(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']])),
+    'G_PAGE_OBSERVATION_06': () => JSON.stringify([['wrb.fr', 'MaZiqc', '[]']]),
     'G_PAGE_OBSERVATION_07': () =>
-        asWire(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, { unexpected: true }])]])),
+        JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, { unexpected: true }])]]),
     'G_PAGE_OBSERVATION_08': () => wire([
         sourceRow('abcdef123', 'abcdef123', 1700000020),
         sourceRow('abcdef456', 'abcdef456', 1700000020),
