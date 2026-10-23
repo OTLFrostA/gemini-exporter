@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import timestampPairs from '../gemini_timestamp_pairs.json';
 /** Raw network responses for the Gemini MaZiqc List RPC only. */
 function wire(rows: readonly unknown[] = [], nextCursor: string | null = null): string {
     return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, nextCursor, rows])]]);
@@ -387,8 +387,7 @@ const fixtureMap = {
 
 /** Six fixed anonymized source timestamp pairs, consumed through List keys. */
 function versionPairList(index: number): string {
-    const pairs: Array<{ listWire: number[] }> =
-        JSON.parse(readFileSync('tests/fixtures/gemini_timestamp_pairs.json', 'utf8'));
+    const pairs: Array<{ listWire: number[] }> = timestampPairs;
     const pair = pairs[index];
     if (!pair) throw new Error('Missing Gemini timestamp pair ' + index);
     return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
