@@ -7,7 +7,7 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
  *
  * Item 2 (P0): the legacy sync toHtml() / formatContent(chat, 'html') path
  * was removed; these tests now exercise the canonical renderer, which
- * shares GEM_HTML_CSS / GEM_HTML_SCRIPT / sanitizeUrl from htmlTemplate.ts.
+ * shares GEM_HTML_CSS / GEM_HTML_SCRIPT from htmlTemplate.ts.
  */
 export {};
 const test = require('node:test');
