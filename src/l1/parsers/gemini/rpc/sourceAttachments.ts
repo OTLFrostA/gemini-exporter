@@ -111,12 +111,18 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
     type ImageNodeDetector = (node: unknown, schema: typeof GEMINI_JSPB_SCHEMA) => RawImageCandidate | null;
 
+    function isRecord(value: unknown): value is Record<string, unknown> {
+        return value !== null && typeof value === "object" && !Array.isArray(value);
+    }
+
     const detectInlineImageTuple: ImageNodeDetector = (node, schema) => {
         if (!Array.isArray(node)) return null;
+        const slots: unknown[] = node;
         const inl = schema.INLINE_IMAGE;
-        const url = node[inl.URL];
-        const width = node[inl.WIDTH];
-        const height = node[inl.HEIGHT];
+        const url = slots[inl.URL];
+        const width = slots[inl.WIDTH];
+        const height = slots[inl.HEIGHT];
+        const token = slots[inl.TOKEN];
         if (
             node.length >= 3 &&
             typeof url === "string" &&
@@ -128,7 +134,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 sourceUrl: url,
                 width,
                 height,
-                token: typeof node[inl.TOKEN] === "string" ? node[inl.TOKEN] : void 0,
+                token: typeof token === "string" ? token : void 0,
                 detectorKind: "extractImages [url,w,h]"
             };
         }
@@ -137,11 +143,13 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
     const detectGeneratedMediaNode: ImageNodeDetector = (node, schema) => {
         if (!Array.isArray(node)) return null;
+        const slots: unknown[] = node;
         const gen = schema.GENERATED_IMAGE;
-        const url = node[gen.URL];
-        const filename = node[gen.FILENAME];
-        const mimeTypeVal = node[gen.MIME_TYPE];
-        const dims = node[gen.DIMENSIONS];
+        const url = slots[gen.URL];
+        const filename = slots[gen.FILENAME];
+        const mimeTypeVal = slots[gen.MIME_TYPE];
+        const rawDims = slots[gen.DIMENSIONS];
+        const dims: unknown[] | null = Array.isArray(rawDims) ? rawDims : null;
         if (
             node.length >= 4 &&
             typeof url === "string" &&
@@ -149,20 +157,22 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             (
                 (typeof filename === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(filename) || /watermarked_img_/i.test(filename))) ||
                 (typeof mimeTypeVal === "string" && mimeTypeVal.startsWith("image/")) ||
-                (Array.isArray(dims) && typeof dims[0] === "number" && typeof dims[1] === "number")
+                (dims !== null && typeof dims[0] === "number" && typeof dims[1] === "number")
             )
         ) {
             // Derivative upscale renditions (e.g. 2x with UPSCALE_FACTOR > 1) are secondary variants,
             // not the authoritative source generation.
-            if (typeof node[gen.UPSCALE_FACTOR] === "number" && node[gen.UPSCALE_FACTOR] > 1) {
+            const upscaleFactor = slots[gen.UPSCALE_FACTOR];
+            if (typeof upscaleFactor === "number" && upscaleFactor > 1) {
                 return null;
             }
             const rawFileName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "";
-            const width = Array.isArray(dims) && typeof dims[0] === "number" ? dims[0] : void 0;
-            const height = Array.isArray(dims) && typeof dims[1] === "number" ? dims[1] : void 0;
-            const size = Array.isArray(dims) && typeof dims[2] === "number" ? dims[2] : void 0;
+            const width = dims !== null && typeof dims[0] === "number" ? dims[0] : void 0;
+            const height = dims !== null && typeof dims[1] === "number" ? dims[1] : void 0;
+            const size = dims !== null && typeof dims[2] === "number" ? dims[2] : void 0;
             const mimeType = typeof mimeTypeVal === "string" ? mimeTypeVal : void 0;
-            const token = typeof node[gen.TOKEN] === "string" ? node[gen.TOKEN] : void 0;
+            const rawToken = slots[gen.TOKEN];
+            const token = typeof rawToken === "string" ? rawToken : void 0;
             return {
                 sourceUrl: url,
                 width,
@@ -179,8 +189,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
     const detectAttachmentType36: ImageNodeDetector = (node) => {
         // Form 1: Deserialized object with attachmentType === 36 (runtime structured content node / attachment)
-        if (node && typeof node === "object" && !Array.isArray(node)) {
-            const obj = node as Record<string, unknown>;
+        if (isRecord(node)) {
+            const obj = node;
             if (obj.attachmentType !== 36) return null;
             const kc = typeof obj.Kc === "string" ? obj.Kc : undefined;
             const ze = typeof obj.Ze === "string" ? obj.Ze : (typeof obj.NHc === "string" ? obj.NHc : undefined);
@@ -210,23 +220,31 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
         // Form 2: Wire format tuple for search image attachment (repeated array with image URLs and title)
         if (Array.isArray(node) && node.length >= 8) {
-            const slot0 = node[0];
-            const slot3 = node[3];
-            const slot7 = node[7];
-            const gstaticTuple = Array.isArray(slot3) && slot3.length >= 4
+            const slots: unknown[] = node;
+            const slot0 = slots[0];
+            const slot3 = slots[3];
+            const slot7 = slots[7];
+            const gstaticTuple: unknown[] | null = Array.isArray(slot3) && slot3.length >= 4
                 ? slot3
                 : (Array.isArray(slot0) && slot0.length >= 4 ? slot0 : null);
-            if (gstaticTuple && Array.isArray(gstaticTuple[0]) && typeof gstaticTuple[0][0] === "string") {
-                const rawUrl = gstaticTuple[0][0];
-                const width = typeof gstaticTuple[2] === "number" ? gstaticTuple[2] : undefined;
-                const height = typeof gstaticTuple[3] === "number" ? gstaticTuple[3] : undefined;
+            const rawImageTuple = gstaticTuple?.[0];
+            const imageTuple: unknown[] | null = Array.isArray(rawImageTuple) ? rawImageTuple : null;
+            const rawUrl = imageTuple?.[0];
+            if (typeof rawUrl === "string") {
+                const rawWidth = gstaticTuple?.[2];
+                const rawHeight = gstaticTuple?.[3];
+                const width = typeof rawWidth === "number" ? rawWidth : undefined;
+                const height = typeof rawHeight === "number" ? rawHeight : undefined;
 
                 let title: string | undefined;
                 let fallbackGoogleUrl: string | undefined;
-                if (Array.isArray(slot7) && typeof slot7[0] === "string") {
-                    fallbackGoogleUrl = slot7[0];
-                    if (typeof slot7[2] === "string" && slot7[2].trim()) {
-                        title = slot7[2].trim();
+                const fallbackTuple: unknown[] | null = Array.isArray(slot7) ? slot7 : null;
+                const fallbackUrl = fallbackTuple?.[0];
+                if (typeof fallbackUrl === "string") {
+                    fallbackGoogleUrl = fallbackUrl;
+                    const fallbackTitle = fallbackTuple?.[2];
+                    if (typeof fallbackTitle === "string" && fallbackTitle.trim()) {
+                        title = fallbackTitle.trim();
                     }
                 }
 
@@ -417,8 +435,9 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             const filenames: string[] = [];
             let fallbackId = "";
 
-            for (let i = 0; i < node.length; i++) {
-                const item = node[i];
+            const slots: unknown[] = node;
+            for (let i = 0; i < slots.length; i++) {
+                const item = slots[i];
                 if (typeof item === "string") {
                     const trimmed = item.trim();
                     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
