@@ -106,9 +106,13 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         return value !== null && typeof value === "object" && !Array.isArray(value);
     }
 
+    function isUnknownArray(value: unknown): value is unknown[] {
+        return Array.isArray(value);
+    }
+
     const detectInlineImageTuple: ImageNodeDetector = (node, schema) => {
-        if (!Array.isArray(node)) return null;
-        const slots: unknown[] = node;
+        if (!isUnknownArray(node)) return null;
+        const slots = node;
         const inl = schema.INLINE_IMAGE;
         const url = slots[inl.URL];
         const width = slots[inl.WIDTH];
@@ -133,13 +137,13 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
     };
 
     const detectGeneratedMediaNode: ImageNodeDetector = (node, schema) => {
-        if (!Array.isArray(node)) return null;
-        const slots: unknown[] = node;
+        if (!isUnknownArray(node)) return null;
+        const slots = node;
         const gen = schema.GENERATED_IMAGE;
         const url = slots[gen.URL];
         const filename = slots[gen.FILENAME];
         const mimeTypeVal = slots[gen.MIME_TYPE];
-        const dims: unknown = slots[gen.DIMENSIONS];
+        const dims = slots[gen.DIMENSIONS];
         if (
             node.length >= 4 &&
             typeof url === "string" &&
@@ -147,7 +151,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
             (
                 (typeof filename === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(filename) || /watermarked_img_/i.test(filename))) ||
                 (typeof mimeTypeVal === "string" && mimeTypeVal.startsWith("image/")) ||
-                (Array.isArray(dims) && typeof dims[0] === "number" && typeof dims[1] === "number")
+                (isUnknownArray(dims) && typeof dims[0] === "number" && typeof dims[1] === "number")
             )
         ) {
             // Derivative upscale renditions (e.g. 2x with UPSCALE_FACTOR > 1) are secondary variants,
@@ -157,7 +161,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                 return null;
             }
             const rawFileName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "";
-            const rawDims: unknown[] | null = Array.isArray(dims) ? dims : null;
+            const rawDims = isUnknownArray(dims) ? dims : null;
             const width = rawDims !== null && typeof rawDims[0] === "number" ? rawDims[0] : void 0;
             const height = rawDims !== null && typeof rawDims[1] === "number" ? rawDims[1] : void 0;
             const size = rawDims !== null && typeof rawDims[2] === "number" ? rawDims[2] : void 0;
@@ -210,16 +214,16 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         }
 
         // Form 2: Wire format tuple for search image attachment (repeated array with image URLs and title)
-        if (Array.isArray(node) && node.length >= 8) {
-            const slots: unknown[] = node;
+        if (isUnknownArray(node) && node.length >= 8) {
+            const slots = node;
             const slot0 = slots[0];
             const slot3 = slots[3];
             const slot7 = slots[7];
-            const gstaticTuple: unknown[] | null = Array.isArray(slot3) && slot3.length >= 4
+            const gstaticTuple = isUnknownArray(slot3) && slot3.length >= 4
                 ? slot3
-                : (Array.isArray(slot0) && slot0.length >= 4 ? slot0 : null);
+                : (isUnknownArray(slot0) && slot0.length >= 4 ? slot0 : null);
             const rawImageTuple = gstaticTuple?.[0];
-            const imageTuple: unknown[] | null = Array.isArray(rawImageTuple) ? rawImageTuple : null;
+            const imageTuple = isUnknownArray(rawImageTuple) ? rawImageTuple : null;
             const rawUrl = imageTuple?.[0];
             if (typeof rawUrl === "string") {
                 const rawWidth = gstaticTuple?.[2];
@@ -229,7 +233,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
 
                 let title: string | undefined;
                 let fallbackGoogleUrl: string | undefined;
-                const fallbackTuple: unknown[] | null = Array.isArray(slot7) ? slot7 : null;
+                const fallbackTuple = isUnknownArray(slot7) ? slot7 : null;
                 const fallbackUrl = fallbackTuple?.[0];
                 if (typeof fallbackUrl === "string") {
                     fallbackGoogleUrl = fallbackUrl;
@@ -415,18 +419,18 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
 
     function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
         let files: UserFileAttachment[] = [];
-        if (!Array.isArray(turnUserArr)) return files;
+        if (!isUnknownArray(turnUserArr)) return files;
         let warnedHosts = new Set<string>();
         let seenUrls = new Set<string>();
 
         deepWalk(turnUserArr, (node) => {
-            if (!Array.isArray(node)) return;
+            if (!isUnknownArray(node)) return;
 
             const googleUrls: string[] = [];
             const filenames: string[] = [];
             let fallbackId = "";
 
-            const slots: unknown[] = node;
+            const slots = node;
             for (let i = 0; i < slots.length; i++) {
                 const item = slots[i];
                 if (typeof item === "string") {
@@ -517,14 +521,14 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
 
         // Pass 1: strict path only — typed indices, never marked heuristic.
         deepWalk([root], (node) => {
-            if (Array.isArray(node)) {
-                const entries: unknown[] = node;
+            if (isUnknownArray(node)) {
+                const entries = node;
                 for (let i = 0; i < entries.length; i++) {
                     const entry = entries[i];
-                    if (!Array.isArray(entry) || entry.length < 4) continue;
-                    const fields: unknown[] = entry;
-                    const chip: unknown = fields[doc.CHIP_URL];
-                    const chipParts: unknown[] | null = Array.isArray(chip) ? chip : null;
+                    if (!isUnknownArray(entry) || entry.length < 4) continue;
+                    const fields = entry;
+                    const chip = fields[doc.CHIP_URL];
+                    const chipParts = isUnknownArray(chip) ? chip : null;
                     const chipUrl = chipParts?.[0];
                     const id = fields[doc.ID];
                     const rawTitle = fields[doc.TITLE];
@@ -533,7 +537,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
 
                     const title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
                     const rawTimestamp = fields[doc.TIMESTAMP];
-                    const timestamp: unknown = Array.isArray(rawTimestamp) ? rawTimestamp[0] : undefined;
+                    const timestamp = isUnknownArray(rawTimestamp) ? rawTimestamp[0] : undefined;
                     const createdAt = typeof timestamp === "number" ? 1000 * timestamp : undefined;
                     const rawContentId = fields[doc.CONTENT_ID];
                     const contentId = typeof rawContentId === "string" && rawContentId.length > 10
@@ -547,12 +551,12 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         // Pass 2: flat fallback, only when the strict path produced nothing.
         // Heuristic by construction — results are marked source: 'heuristic-flat'.
         deepWalk([root], (node) => {
-            if (Array.isArray(node)) {
-                const entries: unknown[] = node;
+            if (isUnknownArray(node)) {
+                const entries = node;
                 for (let i = 0; i < entries.length; i++) {
                     const entry = entries[i];
-                    if (!Array.isArray(entry)) continue;
-                    const item: unknown[] = entry;
+                    if (!isUnknownArray(entry)) continue;
+                    const item = entry;
                     try {
                         const flat = item.flat(Infinity).filter((x): x is string => typeof x === "string");
                         if (flat.length > 500) continue;
@@ -582,7 +586,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
 
         deepWalk(root, (node) => {
             if (matched) return false;
-            if (Array.isArray(node)) {
+            if (isUnknownArray(node)) {
                 let idMatch: "exact" | "substring" | null = null;
                 for (let elem of node) {
                     if (typeof elem !== "string") continue;
@@ -597,10 +601,10 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                     }
                 }
                 if (idMatch) {
-                    let hasSections = node.some(x => Array.isArray(x) && x.some(y => Array.isArray(y) && typeof y[0] === "string" && y[0].length > 50));
+                    let hasSections = node.some(x => isUnknownArray(x) && x.some(y => isUnknownArray(y) && typeof y[0] === "string" && y[0].length > 50));
                     let hasLongStr = node.some(x => typeof x === "string" && x.length > 200 && (x.includes("#") || x.includes("\n\n")));
                     if (hasSections || hasLongStr) {
-                        matched = node as MatchedDocContent;
+                        matched = node;
                         if (idMatch === "substring") matched.contentMatch = "substring";
                         return false;
                     }
@@ -618,14 +622,15 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         const contentMatch = (
             typeof docContentArr === "object" &&
             docContentArr !== null &&
-            (docContentArr as { contentMatch?: unknown }).contentMatch === "substring"
+            "contentMatch" in docContentArr &&
+            docContentArr.contentMatch === "substring"
         )
             ? "substring" as const
             : void 0;
-        if (!Array.isArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
+        if (!isUnknownArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
 
         deepWalk(docContentArr, (node) => {
-            if (Array.isArray(node)) {
+            if (isUnknownArray(node)) {
                 if (node.length >= 2 && typeof node[0] === "string" && typeof node[1] === "string" && node[1].startsWith("http")) {
                     links.push({
                         title: node[0],
@@ -656,7 +661,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         const candidates: string[] = [];
 
         deepWalk(root, (node) => {
-            if (Array.isArray(node)) {
+            if (isUnknownArray(node)) {
                 for (let elem of node) {
                     if (typeof elem === "string" && elem.length > 200 && (elem.includes("# ") || elem.includes("## ") || elem.includes("\n\n"))) {
                         if (!elem.includes("immersive_entry_chip") && !elem.includes("BardErrorInfo")) {
