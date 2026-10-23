@@ -557,6 +557,13 @@ const fixtureMap = {
         rpc([[[['c_testid1234567890ab', 'r1'], null,
             [['Special test message with , null , in code and [brackets]']],
             [[['rc1', [['answer1']]]]]]], null, 'Test Title']),
+
+    'G_L1_VERIFIED_DETAIL_1167_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1167]]]),
+    'G_L1_VERIFIED_DETAIL_1096_01': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]]),
+    'G_L1_VERIFIED_DETAIL_1096_02': () =>
+        String.fromCharCode(41, 93, 125, 39) + '\n\n' + JSON.stringify([['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1096]]]),
 };
 
 export function detailGen(key: keyof typeof fixtureMap): string {
