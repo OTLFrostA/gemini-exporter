@@ -1,6 +1,7 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, accountId } from './uiFixture';
 import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
@@ -60,14 +61,10 @@ for (const transport of ['fetch', 'xhr'] as const) {
             await source.route('**/batchexecute*', async route => {
                 const current = index++;
                 if (current === 0) { arrived(); await held; }
-                const id = current === 0 ? 'staleuuid123' : 'currentuuid123';
-                const turn = [['c_' + id, 'r_turn'], [1700000000, 0],
-                    [['Question']], [[['rc_turn', [['Answer']]]]]];
-                const payload = kind === 'list'
-                    ? [null, [['c_' + id, 'Source title', null, null, null, [1700000000, 0]]], null]
-                    : [[turn], null, 'Source title'];
-                await route.fulfill({ contentType: 'application/json',
-                    body: JSON.stringify([['wrb.fr', rpc, JSON.stringify(payload)]]) });
+                const response = kind === 'list'
+                    ? geminiListGen(current === 0 ? 'G_E2E_UUID_LIST_STALE_01' : 'G_E2E_UUID_LIST_CURRENT_01')
+                    : geminiDetailGen(current === 0 ? 'G_E2E_UUID_DETAIL_STALE_01' : 'G_E2E_UUID_DETAIL_CURRENT_01');
+                await route.fulfill({ contentType: 'application/json', body: response });
             });
             const pending = send(source, transport, rpc, 'staleuuid123');
             await requestArrived;
