@@ -10,10 +10,6 @@ import { textOfBlocks } from './helpers/contentText.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 const ID = 'c_native12345678';
-const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
-function turn(prompt = 'Question', seconds: number | null = 1700000000, candidates: unknown[] = [['rc_answer', [['Answer']]]], request = 'r_AB12'): unknown[] {
-    return [[ID, request], seconds === null ? null : [seconds, 0], [[prompt]], [candidates]];
-}
 const native = (data: string) => parseGeminiRpcConversation(data, { account: fixtureAccount('gemini'), providerId: 'gemini' });
 const text = textOfBlocks;
 
@@ -107,13 +103,7 @@ test('source candidates round-trip as keyless JSON without transport or credenti
 
 test('sanitized existing wire evidence retains structured content and closed image references', async t => {
     t.mock.timers.enable({ apis: ['Date'], now: 1700000000000 });
-    const fixture = (name: string): unknown => JSON.parse(readFileSync(join(__dirname, 'fixtures/provider/structured_rpc', name), 'utf8'));
-    const candidate = fixture('wire-case-b-cand.json');
-    const structured = fixture('wire-turn-3-12-b-stack.json');
-    const rawTurn = turn('Explain Bell inequalities', null, [candidate]);
-    assert.ok(Array.isArray(rawTurn[3]));
-    rawTurn[3][12] = structured;
-    const raw = rpc([[rawTurn]]);
+    const raw = geminiDetailGen('G_RPC_DOMAIN_CAPTURED_STACK_01');
     const result = native(raw);
     assert.ok(result.conversation.detail.assets.some(a => a.kind === 'image'));
     assertDomainClosure((result.conversation).detail);
