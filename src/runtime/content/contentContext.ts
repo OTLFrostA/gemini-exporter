@@ -1,5 +1,5 @@
 import type { GeminiProviderClient } from '../../l1/client/gemini/geminiContracts.js';
-export interface GeminiCredentials {
+interface GeminiCredentials {
     at?: string;
     bl?: string;
     sid?: string;
@@ -14,12 +14,12 @@ export interface ActiveClientContract {
     [key: string]: unknown;
 }
 
-export type TimerHandle = number | ReturnType<typeof setTimeout> | MutationObserver | AbortController;
+type TimerHandle = number | ReturnType<typeof setTimeout> | MutationObserver | AbortController;
 
-export type ContentEvent = 'credentials' | 'abort' | 'reset' | 'scanStart' | 'scanEnd' | 'langChange' | 'devModeChange';
+type ContentEvent = 'credentials' | 'abort' | 'reset' | 'scanStart' | 'scanEnd' | 'langChange' | 'devModeChange';
 
 /** Only emitted payloads have a fixed shape; events without producers stay opaque. */
-export interface ContentEventArgs {
+interface ContentEventArgs {
     credentials: [GeminiCredentials | null];
     abort: [];
     langChange: [string];
