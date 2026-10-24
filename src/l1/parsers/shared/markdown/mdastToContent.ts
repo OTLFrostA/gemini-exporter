@@ -156,7 +156,7 @@ function unknownBlockText(value: unknown): string {
 /**
  * Adapt a single MDAST PhrasingContent node to shared InlineNode[].
  */
-export function adaptPhrasingNode(
+function adaptPhrasingNode(
     node: PhrasingContent,
     ctx: MarkdownParseContext,
 ): InlineNode[] {
@@ -384,7 +384,7 @@ function tryExtractDisplayMathParagraph(
 /**
  * Adapt a single MDAST block content node to shared BlockNode[].
  */
-export function adaptBlockNode(
+function adaptBlockNode(
     node: RootContent,
     ctx: MarkdownParseContext,
     rawMarkdown: string,
@@ -584,7 +584,7 @@ export function adaptBlockNode(
 /**
  * Adapt an array of MDAST block content nodes to shared BlockNode[].
  */
-export function adaptBlockNodes(
+function adaptBlockNodes(
     nodes: RootContent[],
     ctx: MarkdownParseContext,
     rawMarkdown: string,

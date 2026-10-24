@@ -515,4 +515,4 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
 
 
 export { decodeGeminiDetail, isTurn, findTurnsDeep, DOC_TITLE_FALLBACK_RE };
-export type { DetailMediaReader };
+

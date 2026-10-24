@@ -27,10 +27,10 @@ import { TypstSandboxCompiler } from '../../src/l4/format/pdf/typst/typstSandbox
 import { renderDocumentTypstCore } from '../../src/l4/format/typst/renderTypstCore.js';
 import { RealWasmSandboxHost, repoRoot } from '../../tests/helpers/realWasmSandbox.js';
 
-export type MarkdownParserFn = (content: string, id: string) => Promise<{ conversation: DomainConversationDetail; diagnostics: Diagnostic[] }>;
-export type MathConverterFn = (latex: string, display: boolean) => { typst?: string; diagnostic?: any };
+type MarkdownParserFn = (content: string, id: string) => Promise<{ conversation: DomainConversationDetail; diagnostics: Diagnostic[] }>;
+type MathConverterFn = (latex: string, display: boolean) => { typst?: string; diagnostic?: any };
 
-export interface CorpusRunnerOptions {
+interface CorpusRunnerOptions {
     corpusPath?: string;
     outputPath?: string;
     corpusCategory?: 'all' | 'real_gemini_output' | 'scenario_inputs' | 'synthetic_fixtures';
@@ -41,7 +41,7 @@ export interface CorpusRunnerOptions {
     compileTypst?: boolean;
 }
 
-export interface CorpusReport {
+interface CorpusReport {
     timestamp: string;
     corpusSet: string;
     markdown: {

@@ -723,7 +723,7 @@ test('Resource IPC fetches only L1-specified locators and enforces blob caps bef
         documentElement: { innerHTML: 'https://lh3.googleusercontent.com/unrelated' } } as any;
     const fetcher = load('src/runtime/capabilities/assetFetcher.ts', {
         'src/runtime/content/contentContext.js': { contentContext: { isDevMode: () => false } },
-    });
+    }).AssetFetcher;
     let reply: any;
     try {
         global.fetch = (async () => { requests++; return { ok: false, status: 404 }; }) as any;

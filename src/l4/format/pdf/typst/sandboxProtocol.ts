@@ -59,13 +59,13 @@ export interface ProtocolMessageBody {
     readonly error?: unknown;
 }
 
-export interface ParsedProtocolMessage {
+interface ParsedProtocolMessage {
     type: string;
     jobId: string | null;
     body: ProtocolMessageBody;
 }
 
-export type ParseResult =
+type ParseResult =
     | { ok: true; message: ParsedProtocolMessage }
     | { ok: false; reason: string };
 
@@ -120,7 +120,7 @@ export function parseProtocolMessage(data: unknown, allowedTypes: ReadonlySet<st
     return { ok: true, message: { type: record.type, jobId: record.jobId, body: record } };
 }
 
-export interface MessageEventLike {
+interface MessageEventLike {
     source: unknown;
     origin: string;
 }

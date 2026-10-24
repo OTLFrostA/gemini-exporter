@@ -32,7 +32,7 @@ export const records = new Map<string, ExportRecord>();
 export const events: string[] = [];
 export const deliveries: ExportArtifact[][] = [];
 export const contexts: SourceResourceContext[] = [];
-export let settings: Partial<GlobalSettings> = {};
+let settings: Partial<GlobalSettings> = {};
 
 type RenderFormat = 'markdown' | 'html' | 'json';
 type RendererCall = { format: RenderFormat; key: string; locale?: 'zh' | 'en'; bindings: ResourceBindings };

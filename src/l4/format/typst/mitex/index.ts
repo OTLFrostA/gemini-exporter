@@ -12,7 +12,4 @@ export {
     simulateMitexInitFailureForTesting,
 } from './mitexLoader.js';
 
-export {
-    convertMathWithMitex,
-    type MathConversionResult,
-} from './mitexConverter.js';
+export { convertMathWithMitex } from './mitexConverter.js';

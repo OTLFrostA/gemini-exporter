@@ -1,7 +1,7 @@
 import * as source from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult, MatchedDocContent } from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 export * from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
-export interface GeminiParserAttachmentsModule {
+interface GeminiParserAttachmentsModule {
     isInternalChipUrl: (u?: string | null) => boolean;
     getImageDedupKey: (imageObj: Partial<ImageAttachment>) => string;
     filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
@@ -80,6 +80,6 @@ export interface GeminiParserAttachmentsModule {
 export function extractImages(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
     return source.collectImages(obj, seqRef, normalizeRawImage);
 }
-export const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages };
+const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages };
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;
 export default GeminiParserAttachments;

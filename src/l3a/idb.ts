@@ -8,10 +8,10 @@ import type { ExportRecord } from '../application/export/types.js';
 export const DATABASE_NAME = 'gemini_exporter_v2';
 export const DATABASE_VERSION = 1;
 
-export interface CoverageRow { accountId: string; streamId: string; value: StreamCoverage }
-export interface ExportRow { accountId: string; conversationId: string; value: ExportRecord }
+interface CoverageRow { accountId: string; streamId: string; value: StreamCoverage }
+interface ExportRow { accountId: string; conversationId: string; value: ExportRecord }
 
-export interface StoreValueMap {
+interface StoreValueMap {
     accounts: Account;
     indexes: DomainConversationIndex;
     details: DomainConversationDetail;
@@ -19,9 +19,9 @@ export interface StoreValueMap {
     exportRecords: ExportRow;
     directoryHandles: FileSystemDirectoryHandle | null;
 }
-export type StoreName = keyof StoreValueMap;
+type StoreName = keyof StoreValueMap;
 
-export interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAll' | 'index'> {
+interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAll' | 'index'> {
     get(query: IDBValidKey | IDBKeyRange): IDBRequest<V | undefined>;
     getAll(query?: IDBValidKey | IDBKeyRange | null, count?: number): IDBRequest<V[]>;
     index(name: string): Omit<IDBIndex, 'get'> & {
@@ -29,7 +29,7 @@ export interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAl
     };
 }
 
-export interface TypedIDBTransaction extends Omit<IDBTransaction, 'objectStore'> {
+interface TypedIDBTransaction extends Omit<IDBTransaction, 'objectStore'> {
     objectStore<S extends StoreName>(name: S): TypedObjectStore<StoreValueMap[S]>;
 }
 
@@ -39,7 +39,7 @@ declare global {
     }
 }
 
-export type StoreQueryResult = void | boolean | string | Account | Account[] | DomainConversationIndex | DomainConversationIndex[]
+type StoreQueryResult = void | boolean | string | Account | Account[] | DomainConversationIndex | DomainConversationIndex[]
     | DomainConversationDetail | CoverageRow | ExportRow | Record<string, ExportRecord>
     | FileSystemDirectoryHandle | DetailIngestResult | null;
 

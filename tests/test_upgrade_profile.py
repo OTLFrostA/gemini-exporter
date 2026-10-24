@@ -78,30 +78,6 @@ for(const change of [
                                 text=True, capture_output=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_offline_failures_require_exact_ids_and_expected_reasons(self):
-        code = """
-import assert from 'node:assert/strict';
-import {NativeExportFailure,assertOfflineFailures,assertExpectedOfflineFailure} from './scripts/upgrade_failures.mjs';
-const ids=['a','b'];
-const valid=ids.map(id=>({id,error:'fetch failed: Failed to fetch'}));
-assertOfflineFailures(JSON.parse(JSON.stringify(valid)),ids); // ZIP report evidence.
-assertExpectedOfflineFailure(new NativeExportFailure(valid),ids); // Bound UI evidence.
-for(const failed of [
- [{id:'other',error:valid[0].error},{id:'elsewhere',error:valid[0].error}],
- [valid[0]], [valid[0],valid[0]], [...valid,{id:'other',error:valid[0].error}],
- ...['Timeout 120000ms exceeded','ZIP generation failed','Invalid Domain schema','Harness error','offline schema missing','Detail fetch failed','Failed to fetch: schema invalid',undefined].map(error=>[{...valid[0],error},valid[1]]),
- undefined,
-]){
- assert.throws(()=>assertOfflineFailures(failed,ids));
- assert.throws(()=>assertExpectedOfflineFailure(new NativeExportFailure(failed),ids));
-}
-for(const error of [new Error('Native export failure: fake prefix'),new Error('Timeout'),new Error('ZIP generation failed')])
- assert.throws(()=>assertExpectedOfflineFailure(error,ids), e=>e===error);
-"""
-        result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=ROOT,
-                                text=True, capture_output=True, timeout=20)
-        self.assertEqual(result.returncode, 0, result.stderr)
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -35,13 +35,13 @@ export interface GeminiLineBreakNode {
     nodeType: 13;
 }
 
-export interface GeminiTableCell {
+interface GeminiTableCell {
     children: GeminiStructuredNode[];
     colSpan?: number;
     rowSpan?: number;
 }
 
-export interface GeminiTableRow {
+interface GeminiTableRow {
     cells: GeminiTableCell[];
 }
 
@@ -50,7 +50,7 @@ export interface GeminiTableNode {
     rows: GeminiTableRow[];
 }
 
-export interface GeminiListItem {
+interface GeminiListItem {
     children: GeminiStructuredNode[];
 }
 
@@ -694,7 +694,7 @@ export type GeminiStructuredExtraction =
     | { status: 'decode_rejected'; issue: GeminiStructuredDecodeIssue };
 
 /** Source ownership comes from decodeTurn; never re-interpret the raw Turn. */
-export interface GeminiStructuredEvidenceInput {
+interface GeminiStructuredEvidenceInput {
     candidate: unknown;
     turnDocument: unknown;
     candidateIndex: number;

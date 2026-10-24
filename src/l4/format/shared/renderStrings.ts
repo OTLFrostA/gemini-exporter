@@ -1,4 +1,4 @@
-export interface RendererStrings {
+interface RendererStrings {
     thinkingSummary: string;
     thinkingProgress: string;
     thinkingProcess: string;

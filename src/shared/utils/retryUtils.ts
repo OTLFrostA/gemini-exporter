@@ -6,7 +6,7 @@
  * without creating circular dependencies or coupling to export engine state.
  */
 
-export interface BackoffOptions {
+interface BackoffOptions {
     initialDelayMs?: number;
     maxDelayMs?: number;
     jitterMs?: number;

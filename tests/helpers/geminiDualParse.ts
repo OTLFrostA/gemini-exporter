@@ -7,9 +7,9 @@ import type { GeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/detai
 import { decodeGeminiDetail } from '../../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { parseGeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/parseConversation.js';
 
-export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
-export interface Difference { path: string; structured?: Value; markdown?: Value }
-export interface MessageAudit {
+type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
+interface Difference { path: string; structured?: Value; markdown?: Value }
+interface MessageAudit {
     index: number; id?: string;
     status: 'match' | 'different' | 'structured_unavailable';
     reason?: unknown;

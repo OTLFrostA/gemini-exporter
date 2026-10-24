@@ -73,20 +73,41 @@ test('TabAction marks production Gemini tabs active and unrelated tabs inactive'
     const originalChrome = globalThis.chrome;
     const icons: unknown[] = [];
     const titles: unknown[] = [];
+    type UpdatedListener = (tabId: number, changeInfo: { url?: string }, tab: { url?: string }) => void;
+    type ActivatedListener = (activeInfo: { tabId: number }) => void;
+    const listeners: { updated?: UpdatedListener; activated?: ActivatedListener } = {};
     try {
-        (globalThis as any).chrome = { action: {
-            setIcon: async (value: unknown) => { icons.push(value); },
-            setTitle: async (value: unknown) => { titles.push(value); }
-        } };
-        const action = load('src/runtime/background/tabAction.ts');
-        assert.equal(action.isGeminiTabUrl('https://gemini.google.com/u/1/app'), true);
-        assert.equal(action.isGeminiTabUrl('https://example.com/gemini.google.com'), false);
-        action.updateTabActionState(7, 'https://gemini.google.com/app');
-        action.updateTabActionState(8, 'https://other.example/path');
-        assert.equal(icons.length, 2);
-        assert.deepEqual(icons[0], { tabId: 7, path: action.ACTION_COLOR_ICONS });
-        assert.deepEqual(icons[1], { tabId: 8, path: action.ACTION_GRAY_ICONS });
-        assert.match((titles[0] as any).title, /Active/);
+        (globalThis as any).chrome = {
+            action: {
+                setIcon: async (value: unknown) => { icons.push(value); },
+                setTitle: async (value: unknown) => { titles.push(value); }
+            },
+            tabs: {
+                onActivated: { addListener: (listener: ActivatedListener) => { listeners.activated = listener; } },
+                onUpdated: { addListener: (listener: UpdatedListener) => { listeners.updated = listener; } },
+                query: (_query: unknown, callback: (tabs: unknown[]) => void) => callback([]),
+                get: (id: number, callback: (tab: { id: number; url: string }) => void) =>
+                    callback({ id, url: 'https://gemini.google.com/u/1/app' })
+            }
+        };
+        const { initTabActionListeners } = load('src/runtime/background/tabAction.ts');
+        initTabActionListeners();
+        assert.ok(listeners.updated && listeners.activated, 'Production tab event listeners registered');
+
+        listeners.updated(7, { url: 'https://gemini.google.com/app' }, {});
+        listeners.updated(8, { url: 'https://other.example/path' }, {});
+        listeners.updated(9, { url: 'https://example.com/gemini.google.com' }, {});
+        listeners.activated({ tabId: 10 });
+
+        const color = { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' };
+        const gray = { 16: 'icons/icon16_gray.png', 48: 'icons/icon48_gray.png', 128: 'icons/icon128_gray.png' };
+        assert.deepEqual(icons, [
+            { tabId: 7, path: color },
+            { tabId: 8, path: gray },
+            { tabId: 9, path: gray },
+            { tabId: 10, path: color },
+        ]);
+        assert.match((titles[0] as { title: string }).title, /Active/);
     } finally { globalThis.chrome = originalChrome; }
 });
 

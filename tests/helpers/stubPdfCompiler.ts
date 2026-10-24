@@ -8,7 +8,7 @@
  */
 import type { IPdfCompiler, PdfCompileResult, PdfCompileContext, TypstRenderPayload } from '../../src/l4/format/pdf/pdfCompiler.js';
 
-export const STUB_PDF_COMPILER_NAME = 'stub-pdf-compiler';
+const STUB_PDF_COMPILER_NAME = 'stub-pdf-compiler';
 
 /** Computes real xref byte offsets so the output passes structural PDF verification. */
 export function buildMinimalValidPdf(): Uint8Array {
@@ -57,7 +57,7 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
     });
 }
 
-export interface StubPdfCompilerOptions {
+interface StubPdfCompilerOptions {
     failWith?: string;
     delayMs?: number;
 }

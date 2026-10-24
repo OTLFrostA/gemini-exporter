@@ -1,4 +1,4 @@
-export interface UserProfileInfo {
+interface UserProfileInfo {
     email?: string;
     name?: string;
     gaiaId?: string;

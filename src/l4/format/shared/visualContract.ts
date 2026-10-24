@@ -2,7 +2,7 @@
  * Keep typography and visual spacing independent of pagination constraints.
  */
 interface TypeScaleEntry { readonly size: number; readonly weight: number; readonly lineHeight: number }
-export interface VisualContract {
+interface VisualContract {
     readonly content: { readonly maxWidth: 880; readonly proseWidth: 720; readonly pageSidePadding: 32 };
     readonly spacing: { readonly inline: 6; readonly paragraph: 12; readonly block: 18; readonly section: 30; readonly turn: 40 };
     readonly type: {

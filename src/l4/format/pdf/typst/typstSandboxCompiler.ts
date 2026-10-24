@@ -25,21 +25,21 @@ import {
 
 const PDF_MAGIC = '%PDF-';
 
-export interface SandboxFrame {
+interface SandboxFrame {
     readonly contentWindow: unknown;
     postToSandbox(message: Record<string, unknown>, transfer?: Transferable[]): void;
     onMessage(handler: (event: { source: unknown; origin: string; data: unknown }) => void): () => void;
     destroy(): void;
 }
 
-export interface SandboxHost {
+interface SandboxHost {
     pageUrl(): string;
     assetUrl(relativePath: string): string;
     fetchBytes(url: string): Promise<Uint8Array>;
     createFrame(url: string): SandboxFrame;
 }
 
-export class BrowserSandboxHost implements SandboxHost {
+class BrowserSandboxHost implements SandboxHost {
     pageUrl(): string {
         return chrome.runtime.getURL(SANDBOX_PAGE_PATH);
     }
@@ -79,7 +79,7 @@ export class BrowserSandboxHost implements SandboxHost {
     }
 }
 
-export interface TypstSandboxCompilerOptions {
+interface TypstSandboxCompilerOptions {
     host?: SandboxHost;
     wasmPath?: string;
     fontPaths?: readonly string[];

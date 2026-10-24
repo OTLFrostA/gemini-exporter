@@ -1,4 +1,5 @@
 import type { GeminiListRequestContext } from '../../parsers/gemini/rpc/listRequest.js';
+import type { GeminiDetailRequestContext } from '../../parsers/gemini/rpc/detailRequest.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 export interface GeminiCredentialsPayload {
     at: string;
@@ -21,7 +22,7 @@ export interface GeminiConversationDeletedPayload {
 
 export interface GeminiNetworkBatchexecutePayload {
     listRequest?: GeminiListRequestContext;
-    detailRequest?: import('../../parsers/gemini/rpc/detailRequest.js').GeminiDetailRequestContext;
+    detailRequest?: GeminiDetailRequestContext;
     truncated: boolean;
     requestedAt: number;
     /** Immutable Provider evidence captured at send time; ISOLATED resolves the Registry UUID. */

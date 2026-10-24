@@ -16,7 +16,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../../protocol/gemini/protocol
 import { extractConversationIdFromUrl, normId } from '../../../shared/utils/pathUtils.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
 
-export interface MessageBridgeDeps {
+interface MessageBridgeDeps {
     resources?: SourceResourceContext;
     onIndexesCommitted?: (accountId: string) => void;
     onStreamStart?: (cid?: string | null, slot?: string) => void;

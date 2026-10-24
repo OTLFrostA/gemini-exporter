@@ -214,7 +214,12 @@ function createHookSandbox(sniffProfile?: typeof import('../src/l1/parsers/gemin
     };
     vm.createContext(sandbox);
     vm.runInContext(protocolCode, sandbox, { filename: 'protocol.js' });
-    win.GeminiProtocol = sandbox.GeminiProtocol;
+    // The IIFE exposes the protocol module namespace; the hook receives its
+    // actual imports, not the namespace or legacy individually exported constants.
+    const protocolModule = sandbox.GeminiProtocol;
+    sandbox.GeminiProtocol = protocolModule.GeminiProtocol;
+    sandbox.CrossWorldEvents = protocolModule.CrossWorldEvents;
+    win.GeminiProtocol = protocolModule.GeminiProtocol;
     vm.runInContext(hookCode, sandbox, { filename: 'hookCredentials.js' });
     posted.length = 0;
     return { posted, win, Xhr: MockXhr };

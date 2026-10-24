@@ -4,7 +4,7 @@ import type { DomainFixture } from '../domainFixture.js';
 import type { ConversationRecordParseContext } from './parseRecord.js';
 import { normId } from '../../../src/shared/utils/pathUtils.js';
 
-export interface LegacyStorageRaw { metadata: unknown; detail?: unknown }
+interface LegacyStorageRaw { metadata: unknown; detail?: unknown }
 function record(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid legacy storage record');
     return value as Record<string, unknown>;

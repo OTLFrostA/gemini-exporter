@@ -5,7 +5,7 @@
  * @unverified-provider-scaffold Verified live via 9222 (2.1MB PNG, 2026-10-14).
  */
 
-export interface ChatGPTParsedDownload {
+interface ChatGPTParsedDownload {
     downloadUrl: string;
     fileName?: string;
     byteLength?: number;

@@ -1,5 +1,5 @@
 /** Decode raw byte carriers without interpreting provider or resource semantics. */
-export interface AttachmentByteInput {
+interface AttachmentByteInput {
     dataBuffer?: ArrayBuffer | ArrayBufferView | number[];
     dataBase64?: string;
     blobBase64?: string;
