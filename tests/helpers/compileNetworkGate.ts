@@ -31,13 +31,13 @@
  *    阶段运行。
  */
 
-export interface NetworkGateViolation {
+interface NetworkGateViolation {
     kind: 'fetch' | 'xhr' | 'websocket';
     url: string;
     method?: string;
 }
 
-export interface NetworkGateReport<T> {
+interface NetworkGateReport<T> {
     /** 被测函数的返回值 (原样透传)。 */
     result: T;
     /** 执行期间所有被拦截到的网络调用 (含 data:/blob:)。 */
