@@ -217,15 +217,9 @@ interface GeminiClientRetryPolicyModule {
         };
     }
 
-export {
-    handleHttp400,
-    handleHttp401,
-    handleHttp429,
-    interruptibleSleep,
-    parseRetryAfterMs
-};
+export { handleHttp400, handleHttp429, interruptibleSleep, parseRetryAfterMs };
 
-export const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
+const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
     handleHttp400,
     handleHttp401,
     handleHttp429,
