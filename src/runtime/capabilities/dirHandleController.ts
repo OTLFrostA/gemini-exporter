@@ -45,6 +45,3 @@ export async function requestDirHandle(): Promise<DirectoryHandle> {
 }
 export function getDirHandle(): DirectoryHandle | null { return current; }
 export function setDirHandle(handle: DirectoryHandle | null): void { current = handle; pending = null; }
-export const DirHandleController = { getStoredDirHandle, saveStoredDirHandle, verifyDirPermission,
-    restoreSavedDirHandle, getPendingPermissionHandle, reauthorizeDirHandle, requestDirHandle, getDirHandle, setDirHandle };
-export default DirHandleController;

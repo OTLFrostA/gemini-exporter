@@ -218,4 +218,3 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
     }
 }
 export const MessageBridge = { init, handleWindowMessage };
-export default MessageBridge;
