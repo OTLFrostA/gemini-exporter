@@ -66,11 +66,6 @@ export const runExport = async (request,options={}) => {h.exports.push(request);
  const exported = aborted ? 0 : request.keys.length - failed.length;
  return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;
-export const requestGeminiConnection = async () => {h.connectionRequests.push(['gemini',navigator.userActivation.isActive]);return h.geminiAccess??true;};
-export const requestChatGPTConnection = async () => {h.connectionRequests.push(['chatgpt',navigator.userActivation.isActive]);return h.chatgptAccess??false;};
-export const discoverChatGPTAccounts = async () => {h.discoveryCalls.push('chatgpt');if(h.discoveryError)throw Error(h.discoveryError);return h.chatgptAccounts??[];};
-export const requestClaudeConnection = async () => {h.connectionRequests.push(['claude',navigator.userActivation.isActive]);return h.claudeAccess??false;};
-export const discoverClaudeAccounts = async () => {h.discoveryCalls.push('claude');if(h.discoveryError)throw Error(h.discoveryError);return h.claudeAccounts??[];};
 export const sendTabMessage = (tabId,message,timeoutMs) => {
  h.tabRequests.push({tabId,message,timeoutMs});
  return chrome.tabs.sendMessage(tabId,message);

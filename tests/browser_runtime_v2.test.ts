@@ -17,7 +17,6 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/l1/client/claude/accountObservation.js': { observeClaudeAccount: async () => null },
         'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
         'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
-        'src/runtime/capabilities/chatgptInjection.js': { syncChatGPTContentScripts: async () => {} },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PLATFORM_HOSTS, platformOrigins, type SourcePlatform } from '../src/shared/platformHosts.js';
-import { hasPlatformAccess, requestPlatformAccess, requestPlatformsAccess } from '../src/l1/client/platformAccess.js';
+import { hasPlatformAccess, requestPlatformsAccess } from '../src/l1/client/platformAccess.js';
 import { syncPlatformContentScripts, syncAllPlatformContentScripts } from '../src/runtime/capabilities/platformInjection.js';
 
 const platforms = Object.keys(PLATFORM_HOSTS) as SourcePlatform[];
@@ -48,7 +48,7 @@ test('only an explicit platform grant registers its scripts; revocation preserve
         assert.deepEqual(requests, []);
         for (const platform of platforms) {
             pendingGesture = true;
-            const request = requestPlatformAccess(platform);
+            const request = requestPlatformsAccess([platform]);
             pendingGesture = false;
             assert.equal(await request, true);
             assert.equal(await hasPlatformAccess(platform), true);

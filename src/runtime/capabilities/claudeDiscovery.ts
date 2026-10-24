@@ -1,13 +1,7 @@
-import { syncClaudeContentScripts } from './claudeInjection.js';
+import { syncPlatformContentScripts } from './platformInjection.js';
 import { getOrCreateAccount } from '../api/accountRegistry.js';
-import { hasClaudeAccess, readClaudeSource, requestClaudeAccess, ensureClaudeRegistered } from '../../l1/client/claude/claudeAccess.js';
+import { hasClaudeAccess, readClaudeSource, ensureClaudeRegistered } from '../../l1/client/claude/claudeAccess.js';
 import type { Account } from '../../l2/accountRegistry.js';
-
-export async function requestClaudeConnection(): Promise<boolean> {
-    const granted = await requestClaudeAccess();
-    if (granted) await syncClaudeContentScripts();
-    return granted;
-}
 
 /** Read only chat-capable Claude organizations; never invent an account from a tab URL. */
 export async function discoverClaudeAccounts(): Promise<Account[]> {
@@ -25,7 +19,7 @@ export async function discoverClaudeAccounts(): Promise<Account[]> {
         : verified.length === 1 ? verified : [];
     if (!organizations.length) return [];
     await ensureClaudeRegistered();
-    await syncClaudeContentScripts();
+    await syncPlatformContentScripts('claude');
     const accounts: Account[] = [];
     for (const organization of organizations) {
         const name = typeof organization.name === 'string' ? organization.name.trim() : '';
