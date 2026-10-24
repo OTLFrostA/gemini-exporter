@@ -62,7 +62,7 @@ export const GM_MD_004_LINE_START_DISPLAY = Object.freeze({
  * (e.g. \\begin{aligned}, \\end{aligned}) are attached directly to $$ on the fence line.
  * Standard micromark mathFlow requires standalone $$ delimiters to open and close fences.
  */
-export function normalizeMathFences(source: string): string {
+function normalizeMathFences(source: string): string {
     if (!source || !source.includes('$$')) return source;
 
     const lines = source.split('\n');
@@ -221,7 +221,7 @@ export function normalizeTableMathPipes(source: string): string {
     return lines.join('\n');
 }
 
-export const GM_MD_002_TABLE_MATH_PIPES: MarkdownCompatRule = Object.freeze({
+const GM_MD_002_TABLE_MATH_PIPES: MarkdownCompatRule = Object.freeze({
     id: 'GM-MD-002', domain: 'markdown',
     evidence: 'tests/fixtures/provider/math/gm_md_002_evidence.md',
     observedAt: '2026-10-11T17:31:25Z',
@@ -283,7 +283,7 @@ export function normalizeEscapedDollarMath(source: string): string {
     return result;
 }
 
-export const GM_MD_003_ESCAPED_DOLLAR_MATH: MarkdownCompatRule = Object.freeze({
+const GM_MD_003_ESCAPED_DOLLAR_MATH: MarkdownCompatRule = Object.freeze({
     id: 'GM-MD-003', domain: 'markdown',
     evidence: 'tests/fixtures/provider/math/gm_md_003_evidence.md',
     observedAt: '2026-10-15T19:07:00Z',
@@ -311,5 +311,5 @@ export function preprocessGeminiMarkdown(source: string): string {
 }
 
 
-export { MATHSCR_COMPAT_RULE as GM_TEX_001_SCR_NORMALIZATION, preprocessLatex as preprocessGeminiLatex } from '../../../../shared/utils/latexCompatibility.js';
+export { preprocessLatex as preprocessGeminiLatex } from '../../../../shared/utils/latexCompatibility.js';
 export const GEMINI_TEX_COMPAT_RULES: readonly TexCompatRule[] = Object.freeze([...LATEX_COMPAT_RULES, GM_TEX_003_BAR_ALIASES]);
