@@ -1,5 +1,5 @@
-export const DATABASE_NAME = 'gemini_exporter_v2';
-export const DATABASE_VERSION = 1;
+const DATABASE_NAME = 'gemini_exporter_v2';
+const DATABASE_VERSION = 1;
 
 /** Call from an extension-origin context. Browser Runtime owns IPC routing. */
 export function openStorageDB(): Promise<IDBDatabase> {
