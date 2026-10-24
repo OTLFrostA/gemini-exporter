@@ -1,7 +1,7 @@
 /** Resource namespaces written relative to the exported archive root. */
-export const ARCHIVE_RESOURCE_NAMESPACES = ['assets', 'files'] as const;
+const ARCHIVE_RESOURCE_NAMESPACES = ['assets', 'files'] as const;
 
-export function safeDecodeURIComponent(str: string): string {
+function safeDecodeURIComponent(str: string): string {
     const escaped = str.replace(/%(?![0-9a-fA-F]{2})/g, '%25');
     try {
         return decodeURIComponent(escaped);
