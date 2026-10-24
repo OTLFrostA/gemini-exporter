@@ -1,9 +1,5 @@
 import type { GeminiListRequestContext } from '../../parsers/gemini/rpc/listRequest.js';
 import type { Account } from '../../../l2/accountRegistry.js';
-import { CrossWorldEvents, type CrossWorldEventType } from './protocol.js';
-
-export { CrossWorldEvents, type CrossWorldEventType };
-
 export interface GeminiCredentialsPayload {
     at: string;
     sid: string;
