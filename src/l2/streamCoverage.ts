@@ -21,7 +21,7 @@ export class CoverageSession {
         copy.pages = new Map(this.pages); copy.conflicts = new Set(this.conflicts);
         return copy;
     }
-    observe<T>(previous: StreamCoverage, page: PageObservation<T>): StreamCoverage {
+    observe(previous: StreamCoverage, page: PageObservation): StreamCoverage {
         const prior = this.pages.get(page.requestCursor);
         if (page.requestCursor === null && (this.conflicts.has(null) || prior && !samePage(prior, page))) {
             if (prior && page.requestedAt < prior.requestedAt) return previous;
@@ -35,8 +35,8 @@ export class CoverageSession {
             this.conflicts.add(page.requestCursor); this.pages.delete(page.requestCursor); return previous;
         }
         if (this.conflicts.has(page.requestCursor)) return previous;
-        const { items: _items, ...evidence } = page;
-        this.pages.set(page.requestCursor, evidence);
+        const { providerId, accountId, streamId, requestCursor, nextCursor, requestedAt, requestKnown, valid, ordered, terminal, keys } = page;
+        this.pages.set(page.requestCursor, { providerId, accountId, streamId, requestCursor, nextCursor, requestedAt, requestKnown, valid, ordered, ...(terminal !== undefined ? { terminal } : {}), keys });
         if (this.pages.size > 2000) this.pages.delete(this.pages.keys().next().value ?? null);
         const chain = this.chain();
         return chain.terminal ? { range: chain.range } : previous;

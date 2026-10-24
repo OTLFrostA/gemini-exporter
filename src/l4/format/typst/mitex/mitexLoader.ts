@@ -21,14 +21,27 @@ export function simulateMitexInitFailureForTesting(fn: (() => Error | null) | nu
     initFailureSimulator = fn;
 }
 
-function getNodeModule<T>(name: string): T | null {
+type NodePath = Pick<typeof import('node:path'), 'join'>;
+type NodeFs = Pick<typeof import('node:fs'), 'existsSync' | 'readFileSync'>;
+
+function isNodePath(value: unknown): value is NodePath {
+    return typeof value === 'object' && value !== null && 'join' in value && typeof value.join === 'function';
+}
+
+function isNodeFs(value: unknown): value is NodeFs {
+    return typeof value === 'object' && value !== null
+        && 'existsSync' in value && typeof value.existsSync === 'function'
+        && 'readFileSync' in value && typeof value.readFileSync === 'function';
+}
+
+function loadRawModule(name: 'node:path' | 'node:fs'): unknown {
     if (typeof process !== 'undefined' && process.versions?.node) {
         try {
             if (typeof module !== 'undefined' && typeof module.require === 'function') {
-                return module.require(name) as T;
+                return module.require(name);
             }
             if (typeof require !== 'undefined') {
-                return require(name) as T;
+                return require(name);
             }
         } catch {
             return null;
@@ -37,9 +50,19 @@ function getNodeModule<T>(name: string): T | null {
     return null;
 }
 
+function getNodePath(): NodePath | null {
+    const loaded = loadRawModule('node:path');
+    return isNodePath(loaded) ? loaded : null;
+}
+
+function getNodeFs(): NodeFs | null {
+    const loaded = loadRawModule('node:fs');
+    return isNodeFs(loaded) ? loaded : null;
+}
+
 function getWasmPathInNode(): string {
-    const path = getNodeModule<typeof import('node:path')>('node:path');
-    const fs = getNodeModule<typeof import('node:fs')>('node:fs');
+    const path = getNodePath();
+    const fs = getNodeFs();
     if (!path || !fs) {
         throw new Error('Node.js modules node:path and node:fs are not available in current environment.');
     }
@@ -60,7 +83,7 @@ function getWasmPathInNode(): string {
 
 function initNodeSync(): void {
     if (isReady) return;
-    const fs = getNodeModule<typeof import('node:fs')>('node:fs');
+    const fs = getNodeFs();
     if (!fs) return;
     const wasmPath = getWasmPathInNode();
     const wasmBytes = fs.readFileSync(wasmPath);
@@ -94,7 +117,7 @@ export async function initMitexWasm(wasmSource?: string | Uint8Array | ArrayBuff
             }
             bytes = await resp.arrayBuffer();
         } else if (typeof process !== 'undefined' && process.versions?.node) {
-            const fs = getNodeModule<typeof import('node:fs')>('node:fs');
+            const fs = getNodeFs();
             const wasmPath = getWasmPathInNode();
             if (!fs) throw new Error('Node.js filesystem is unavailable');
             bytes = fs.readFileSync(wasmPath);

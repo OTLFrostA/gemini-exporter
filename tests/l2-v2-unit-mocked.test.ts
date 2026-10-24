@@ -12,11 +12,11 @@ const ABSENT_ACCOUNT = '10000000-0000-4000-8000-000000000009';
 const index = (conversationId: string, title = 'One', updatedAt = 100) => ({
     conversationId, fields: { title, titleSource: 'provider' as const, updatedAt },
 });
-const evidence = (keys: Array<{ id: string; time: number }>, overrides: Partial<Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>> = {}) => ({
+const evidence = (keys: Array<{ id: string; time: number }>, overrides: Partial<Omit<PageObservation, 'providerId' | 'accountId'>> = {}) => ({
     streamId: 'recent', requestCursor: null as string | null, nextCursor: null as string | null,
     requestedAt: 1700000000000, requestKnown: true, valid: true, ordered: true, keys,
     ...overrides,
-} satisfies Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>);
+} satisfies Omit<PageObservation, 'providerId' | 'accountId'>);
 const body = (savedAt: number, status: ConversationDetail['quality']['status'] = 'complete', messageCount = 1):
     Omit<ConversationDetail, 'key'> => ({
         savedAt, quality: { status }, assets: [],
@@ -170,14 +170,14 @@ test('L2 propagates Storage failures without fabricating success decisions', asy
 
 test('L2 Coverage refuses mismatched Registry identity without touching Storage', async () => {
     await assert.rejects(recordPageCoverage(ACCOUNT.id, {
-        ...evidence([{ id: 'c', time: 10 }]), accountId: ABSENT_ACCOUNT, providerId: 'gemini', items: [],
+        ...evidence([{ id: 'c', time: 10 }]), accountId: ABSENT_ACCOUNT, providerId: 'gemini',
     }), /Coverage requires its Registry UUID/);
     assert.deepEqual(calls.coverageUpdates, []);
 });
 
 test('L2 Coverage aborts a cancelled page decision without persisting a boundary', async () => {
     await assert.rejects(recordPageCoverage(ACCOUNT.id, {
-        ...evidence([{ id: 'c', time: 10 }]), accountId: ACCOUNT.id, providerId: 'gemini', items: [],
+        ...evidence([{ id: 'c', time: 10 }]), accountId: ACCOUNT.id, providerId: 'gemini',
     }, () => false), /cancelled/);
     assert.equal(coverageFor('recent'), undefined);
 });

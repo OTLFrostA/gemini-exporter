@@ -98,7 +98,7 @@ export class GeminiProvider implements GeminiProviderContract {
             await ingestIndexes(account.id, result.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')), pageEvidence);
             options.signal?.throwIfAborted();
             totalObserved += result.conversations.length;
-            const { providerId: _provider, accountId: _account, items: _items, ...head } = observation;
+            const { providerId: _provider, accountId: _account, ...head } = observation;
             const trustedHead = !sentHead && pageEvidence && head.requestCursor === null && head.requestKnown && head.valid && head.ordered;
             if (trustedHead) sentHead = true;
             const stop = await options.onPageCommitted?.({ page, totalObserved, ...(trustedHead ? { scanHead: head } : {}) });

@@ -173,6 +173,7 @@ type QueryLocalFontsFn = () => Promise<LocalFontEntry[]>;
 /** Browser APIs missing from the bundled DOM declarations, scoped to this adapter. */
 declare global {
     interface Window { queryLocalFonts?: QueryLocalFontsFn }
+    interface Permissions { query(permissionDesc: PermissionDescriptor | { name: 'local-fonts' }): Promise<PermissionStatus> }
     var queryLocalFonts: QueryLocalFontsFn | undefined;
     var __geminiLocalFontsCache: LocalFontEntry[] | undefined;
 }
@@ -234,7 +235,7 @@ async function localFontsGranted(): Promise<boolean> {
     if (typeof navigator === 'undefined' || !navigator.permissions?.query) return true;
     try {
         // Chromium supports this permission; the bundled DOM PermissionName union does not yet.
-        const permission = await navigator.permissions.query({ name: 'local-fonts' as PermissionName });
+        const permission = await navigator.permissions.query({ name: 'local-fonts' });
         return permission.state === 'granted';
     } catch { return false; }
 }

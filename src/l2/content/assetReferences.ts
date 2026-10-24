@@ -1,12 +1,14 @@
-import type { BlockNode, TableRow } from './blocks.js';
+import type { BlockNode, ListItem, TableCell, TableRow } from './blocks.js';
 import type { InlineNode } from './inline.js';
+
+type MappableNode = BlockNode | InlineNode | TableRow | TableCell | ListItem;
 
 /** Bind semantic resource references to export asset identities without interpreting body syntax. */
 export function mapContentAssetReferences(
     blocks: BlockNode[],
     resolve: (ref: string, kind: 'image' | 'file', alt?: string, title?: string) => string,
 ): BlockNode[] {
-    const mapArray = <T>(values: T[], map: (value: T) => T): T[] => {
+    const mapArray = <T extends MappableNode>(values: T[], map: (value: T) => T): T[] => {
         const mapped = values.map(map);
         return mapped.every((value, index) => value === values[index]) ? values : mapped;
     };

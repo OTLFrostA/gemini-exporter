@@ -288,7 +288,7 @@ export async function runExport(request: ExportRequest, options: {
             }
         }
         signal.throwIfAborted();
-        let plans: ReturnType<typeof planExportPaths>;
+        let plans: readonly ExportPathPlan[];
         try {
             plans = folderPlanner ? [] : planExportPaths(pending, request.format);
         } catch (error) {

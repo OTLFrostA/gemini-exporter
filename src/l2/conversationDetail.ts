@@ -79,14 +79,14 @@ export interface DomainConversationDetail {
 export type ConversationDetail = DomainConversationDetail;
 
 /** Select a single snapshot; neither message count nor local capture time proves coverage. */
-export function selectConversationDetail<T extends { detail: DomainConversationDetail }>(
-    existing: T | undefined, incoming: T,
-): T {
+export function selectConversationDetail(
+    existing: DomainConversationDetail | null | undefined, incoming: DomainConversationDetail,
+): DomainConversationDetail {
     if (!existing) return incoming;
-    if (!sameConversationKey(existing.detail.key, incoming.detail.key)) throw new TypeError('Detail identity mismatch');
-    if (existing.detail.quality.status === 'complete' && incoming.detail.quality.status !== 'complete') return existing;
+    if (!sameConversationKey(existing.key, incoming.key)) throw new TypeError('Detail identity mismatch');
+    if (existing.quality.status === 'complete' && incoming.quality.status !== 'complete') return existing;
     // An unversioned archive cannot supersede a snapshot with an online version.
-    if (existing.detail.savedAt !== undefined && incoming.detail.savedAt === undefined) return existing;
-    if (existing.detail.savedAt !== undefined && incoming.detail.savedAt !== undefined && incoming.detail.savedAt < existing.detail.savedAt) return existing;
+    if (existing.savedAt !== undefined && incoming.savedAt === undefined) return existing;
+    if (existing.savedAt !== undefined && incoming.savedAt !== undefined && incoming.savedAt < existing.savedAt) return existing;
     return incoming;
 }

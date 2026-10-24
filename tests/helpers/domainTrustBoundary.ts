@@ -67,7 +67,7 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
         if (name === 'assertDomainClosure' && owner !== validator) report(node, 'Closure belongs only to the shared validator');
     };
     for (const node of nodes) {
-        if (/^(?:l2|l3b|application)\//.test(owner)
+        if (/^(?:l2|l3a|l3b|application|l4)\//.test(owner)
             && (isAsExpression(node) || isTypeAssertion(node) || isNonNullExpression(node))) {
             report(node, 'typed business layers must narrow or construct values without assertions');
         }

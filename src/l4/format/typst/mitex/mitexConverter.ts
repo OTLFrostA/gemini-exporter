@@ -49,7 +49,7 @@ export function convertMathWithMitex(
         };
     }
 
-    if (typeof source !== 'string' || source.trim() === '') {
+    if (source.trim() === '') {
         return {
             diagnostic: warn(
                 'TYPST_MATH_EMPTY',

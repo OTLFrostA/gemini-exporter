@@ -5,14 +5,14 @@ export function getAccount(id: Account['id']): Promise<Account | null> {
     return readOne('accounts', id);
 }
 export function listAccounts(): Promise<Account[]> {
-    return inStore<Account[]>('accounts', 'readonly', (store, done) => {
+    return inStore('accounts', 'readonly', (store, done) => {
         const request = store.getAll();
         request.onsuccess = () => done(request.result);
     });
 }
 /** The unique identity lookup and insert share one readwrite transaction. */
 export function insertAccountIfAbsent(account: Account): Promise<Account> {
-    return inStore<Account>('accounts', 'readwrite', (store, done) => {
+    return inStore('accounts', 'readwrite', (store, done) => {
         const request = store.index('providerIdentity').get([account.providerId, account.providerAccountId]);
         request.onsuccess = () => {
             if (request.result !== undefined) done(request.result);
@@ -29,7 +29,7 @@ export function admitAccountAtomically(providerId: Account['providerId'],
         const request = store.getAll();
         request.onsuccess = () => {
             try {
-                const all = request.result as Account[];
+                const all = request.result;
                 const existing = all.filter(account => account.providerId === providerId);
                 const accepted = decide(existing);
                 if (accepted.providerId !== providerId) throw new TypeError('Account provider mismatch');
@@ -68,7 +68,7 @@ export function putAccount(account: Account): Promise<void> {
         const request = store.get(account.id);
         request.onsuccess = () => {
             try {
-                const old = request.result as Account | undefined;
+                const old = request.result;
                 if (old && (old.providerId !== account.providerId || old.providerAccountId !== account.providerAccountId))
                     throw new TypeError('Account identity cannot change');
                 store.put(account);

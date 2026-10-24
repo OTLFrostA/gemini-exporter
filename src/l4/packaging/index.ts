@@ -13,9 +13,9 @@ export type ExportPathPlan = Readonly<{
     resources: ResourceBindings;
     externalResourceIds: ReadonlySet<string>;
 }>;
-const extensions = { markdown: 'md', html: 'html', json: 'json', pdf: 'pdf' } as const;
-const mimeTypes = { markdown: 'text/markdown; charset=utf-8', html: 'text/html; charset=utf-8',
-    json: 'application/json; charset=utf-8', pdf: 'application/pdf' } as const;
+const extensions: Readonly<Record<ExportFormat, string>> = { markdown: 'md', html: 'html', json: 'json', pdf: 'pdf' };
+const mimeTypes: Readonly<Record<ExportFormat, string>> = { markdown: 'text/markdown; charset=utf-8', html: 'text/html; charset=utf-8',
+    json: 'application/json; charset=utf-8', pdf: 'application/pdf' };
 const resourceExtensions: Readonly<Record<string, string>> = {
     'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp',
     'image/svg+xml': 'svg', 'application/pdf': 'pdf', 'text/plain': 'txt',
@@ -44,7 +44,7 @@ export function createExportPathPlanner(format: ExportFormat):
     return (conversation, prepared, fileIds) => {
         const id = conversation.index.key.conversationId;
         const fileName = reserve('', buildExportFileName(conversation.index.title, id, extensions[format]));
-        const resources: Record<string, string> = Object.create(null);
+        const resources: Record<string, string> = {};
         const externalResourceIds = new Set<string>();
         for (const asset of conversation.detail.assets) {
             const result = prepared.get(asset.id);

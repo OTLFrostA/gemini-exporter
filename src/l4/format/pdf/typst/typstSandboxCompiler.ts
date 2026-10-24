@@ -13,6 +13,8 @@ import {
     checkMessageSource,
     newJobId,
     parseProtocolMessage,
+    readSandboxDiagnostic,
+    readSandboxError,
     SANDBOX_MESSAGE_TYPES,
 } from './sandboxProtocol.js';
 import {
@@ -617,16 +619,12 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 kind: 'compiled',
                 pdf: pdf instanceof ArrayBuffer ? pdf : null,
                 diagnostics: Array.isArray(body.diagnostics)
-                    ? (body.diagnostics as Array<{ severity?: unknown; message?: unknown }>).map((d) => ({
-                        severity: typeof d.severity === 'string' ? d.severity : 'error',
-                        message: typeof d.message === 'string' ? d.message : String(d.message ?? ''),
-                    }))
+                    ? body.diagnostics.map(readSandboxDiagnostic)
                     : [],
             });
         } else if (message.type === SANDBOX_TO_HOST.ERROR) {
-            const err = body.error as { name?: unknown; message?: unknown } | undefined;
-            const name = typeof err?.name === 'string' ? err.name : 'Error';
-            const error = new Error(typeof err?.message === 'string' ? err.message : 'sandbox reported an error');
+            const { name, message: text } = readSandboxError(body.error);
+            const error = new Error(text);
             error.name = name;
             job.reject(error);
         }

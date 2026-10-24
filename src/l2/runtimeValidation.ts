@@ -130,8 +130,8 @@ function assertSchema(value: unknown): asserts value is DomainConversationDetail
 }
 
 /** In-memory evidence only; IPC and persistence never carry this marker. */
-const trustedBodies = new WeakSet<object>();
-function isTrustedBody(value: object): value is TrustedDomainBody {
+const trustedBodies = new WeakSet<Omit<DomainConversationDetail, 'key'>>();
+function isTrustedBody(value: Omit<DomainConversationDetail, 'key'>): value is TrustedDomainBody {
     return trustedBodies.has(value);
 }
 

@@ -1,13 +1,24 @@
 // typst.ts's wasm-bindgen glue calls `new Function(...)` at init, which MV3 extension_pages CSP forbids;
 // running inside an MV3 sandbox page allows `'unsafe-eval'` and `'wasm-unsafe-eval'`.
 
-export const HOST_TO_SANDBOX = {
+export const HOST_TO_SANDBOX: {
+    readonly INIT: 'typst/init';
+    readonly COMPILE: 'typst/compile';
+    readonly CANCEL: 'typst/cancel';
+} = {
     INIT: 'typst/init',
     COMPILE: 'typst/compile',
     CANCEL: 'typst/cancel',
-} as const;
+};
 
-export const SANDBOX_TO_HOST = {
+export const SANDBOX_TO_HOST: {
+    readonly READY: 'typst/ready';
+    readonly INITED: 'typst/inited';
+    readonly PROGRESS: 'typst/progress';
+    readonly FONTS_INSTALLED: 'typst/fonts-installed';
+    readonly COMPILED: 'typst/compiled';
+    readonly ERROR: 'typst/error';
+} = {
     READY: 'typst/ready',
     INITED: 'typst/inited',
     PROGRESS: 'typst/progress',
@@ -15,7 +26,7 @@ export const SANDBOX_TO_HOST = {
     FONTS_INSTALLED: 'typst/fonts-installed',
     COMPILED: 'typst/compiled',
     ERROR: 'typst/error',
-} as const;
+};
 
 export const HOST_MESSAGE_TYPES: ReadonlySet<string> = new Set(Object.values(HOST_TO_SANDBOX));
 export const SANDBOX_MESSAGE_TYPES: ReadonlySet<string> = new Set(Object.values(SANDBOX_TO_HOST));
@@ -34,21 +45,63 @@ export const BUNDLED_FONT_PATHS: readonly string[] = [
     'src/l4/format/pdf/sandbox/fonts/NotoEmoji-Variable.ttf',
 ];
 
+export interface ProtocolMessageBody {
+    readonly wasm?: unknown;
+    readonly files?: unknown;
+    readonly binaries?: unknown;
+    readonly fonts?: unknown;
+    readonly initMs?: unknown;
+    readonly stage?: unknown;
+    readonly current?: unknown;
+    readonly total?: unknown;
+    readonly pdf?: unknown;
+    readonly diagnostics?: unknown;
+    readonly error?: unknown;
+}
+
 interface ParsedProtocolMessage {
     type: string;
     jobId: string | null;
-    body: Record<string, unknown>;
+    body: ProtocolMessageBody;
 }
 
 type ParseResult =
     | { ok: true; message: ParsedProtocolMessage }
     | { ok: false; reason: string };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function isSandboxFileEntry(value: unknown): value is { path: string; text: string } {
+    return isRecord(value) && typeof value.path === 'string' && typeof value.text === 'string';
+}
+
+export function isSandboxBinaryEntry(value: unknown): value is { path: string; buf: ArrayBuffer } {
+    return isRecord(value) && typeof value.path === 'string' && value.buf instanceof ArrayBuffer;
+}
+
+export function readSandboxDiagnostic(value: unknown): { severity: string; message: string } {
+    if (!isRecord(value)) return { severity: 'error', message: String(value ?? '') };
+    return {
+        severity: typeof value.severity === 'string' ? value.severity : 'error',
+        message: typeof value.message === 'string' ? value.message : String(value.message ?? ''),
+    };
+}
+
+export function readSandboxError(value: unknown): { name: string; message: string } {
+    const err = isRecord(value) ? value : undefined;
+    return {
+        name: typeof err?.name === 'string' ? err.name : 'Error',
+        message: typeof err?.message === 'string' ? err.message : 'sandbox reported an error',
+    };
+}
+
 export function parseProtocolMessage(data: unknown, allowedTypes: ReadonlySet<string>): ParseResult {
-    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    if (!isRecord(data)) {
         return { ok: false, reason: 'message is not a plain object' };
     }
-    const record = data as Record<string, unknown>;
+    const record = data;
     if (typeof record.type !== 'string' || record.type.length === 0) {
         return { ok: false, reason: 'message has no string type' };
     }

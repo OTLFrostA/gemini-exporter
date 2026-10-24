@@ -14,8 +14,8 @@ const baseline = { range: { head: { id: 'old100', time: 100 }, tail: { id: 'old7
 function seedCoverage(accountId: string, stream: string, value: typeof baseline): Promise<void> {
     return updateCoverageAtomically(accountId, stream, () => ({ next: value, result: undefined }));
 }
-function page(times: number[], requestCursor: string | null, nextCursor: string | null): PageObservation<unknown> {
-    return { providerId: 'gemini', accountId, streamId: 'recent', items: [],
+function page(times: number[], requestCursor: string | null, nextCursor: string | null): PageObservation {
+    return { providerId: 'gemini', accountId, streamId: 'recent',
         requestCursor, nextCursor, requestedAt: 1, requestKnown: true, valid: true, ordered: true,
         keys: times.map(time => ({ id: 'id' + time, time })) };
 }
@@ -79,7 +79,7 @@ test('Cleared frozen Coverage cannot authorize early stop or resurrect a deleted
         const head = page([130, 110], null, 'tail');
         await CoverageAdmission.recordPageCoverage(accountId, head);
         await CoverageAdmission.recordPageCoverage(accountId, page([95], 'tail', 'more'));
-        const { providerId: _provider, accountId: _account, items: _items, ...scanHead } = head;
+        const { providerId: _provider, accountId: _account, ...scanHead } = head;
         assert.equal(await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead), true);
         await clearStoredAccountScanRecords(accountId);
         assert.equal(await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead), false);
@@ -108,7 +108,7 @@ test('a disjoint committed replacement cannot authorize an early stop from an ob
         await CoverageAdmission.recordPageCoverage(accountId, page([95], 'tail', 'more'));
         const replacement = { range: { head: { id: 'new500', time: 500 }, tail: { id: 'new400', time: 400 } } };
         await seedCoverage(accountId, 'recent', replacement);
-        const { providerId: _provider, accountId: _account, items: _items, ...scanHead } = head;
+        const { providerId: _provider, accountId: _account, ...scanHead } = head;
         assert.equal(await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead), false);
         assert.deepEqual(await getCoverage(accountId, 'recent'), replacement);
     } finally { env.restore(); }

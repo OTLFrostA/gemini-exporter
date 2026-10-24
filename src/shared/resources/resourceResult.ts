@@ -1,19 +1,19 @@
-/** A recoverable resource failure is separate from conversation/source facts. */
-export type ResourceResult<T> =
-    | { ok: true; resourceId: string; value: T }
-    | { ok: false; resourceId: string; reason: string; code: string; httpStatus?: number; sourceUrl?: string };
-export type ResourceFailure = Extract<ResourceResult<never>, { ok: false }>;
 /** Transport encodings are normalized once; successful acquisition always contains bytes. */
 export interface ResourceBytes { bytes: Uint8Array; mediaType?: string; name?: string }
 /** Only a successful write/mount produces a delivery receipt. */
 export interface ResourceDelivery { path: string }
-export type PreparedResources = ReadonlyMap<string, ResourceResult<ResourceBytes>>;
+/** A recoverable resource failure is separate from conversation/source facts. */
+export type ResourceResult<T extends ResourceBytes | ResourceDelivery = ResourceBytes> =
+    | { ok: true; resourceId: string; value: T }
+    | { ok: false; resourceId: string; reason: string; code: string; httpStatus?: number; sourceUrl?: string };
+export type ResourceFailure = Extract<ResourceResult<never>, { ok: false }>;
+export type PreparedResources = ReadonlyMap<string, ResourceResult>;
 
 export function missingResource(resourceId: string, reason: string, code = 'RESOURCE_UNAVAILABLE'): ResourceFailure {
     return { ok: false, resourceId, reason, code };
 }
 /** Cancellation retains control-flow semantics; only individual resource errors recover. */
-export async function attemptResource<T>(resourceId: string, work: () => Promise<T>, signal?: AbortSignal | null): Promise<ResourceResult<T>> {
+export async function attemptResource(resourceId: string, work: () => Promise<ResourceBytes>, signal?: AbortSignal | null): Promise<ResourceResult> {
     signal?.throwIfAborted();
     try {
         const value = await work();

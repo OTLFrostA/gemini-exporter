@@ -2,6 +2,7 @@ import type { Account } from '../l2/accountRegistry.js';
 import type { ConversationKey } from '../l2/conversationKey.js';
 import type { DomainConversationIndex } from '../l2/conversationIndex.js';
 import type { DomainConversationDetail } from '../l2/conversationDetail.js';
+import type { DetailIngestResult } from '../l2/ingestion.js';
 import { inStore, inStores, readOne } from './idb.js';
 
 export const conversationAddress = (key: ConversationKey): [string, string] => [key.accountId, key.conversationId];
@@ -20,7 +21,7 @@ export function getIndex(key: ConversationKey): Promise<DomainConversationIndex 
     return readOne('indexes', conversationAddress(key));
 }
 export function listIndexes(accountId: Account['id']): Promise<DomainConversationIndex[]> {
-    return inStore<DomainConversationIndex[]>('indexes', 'readonly', (store, done) => {
+    return inStore('indexes', 'readonly', (store, done) => {
         const request = store.getAll(IDBKeyRange.bound([accountId], [accountId, []]));
         request.onsuccess = () => done(request.result);
     });
@@ -48,7 +49,7 @@ export function updateIndexesAtomically(keys: readonly ConversationKey[],
             } catch (error) { fail(error); }
             return;
         }
-        const previous: (DomainConversationIndex | null)[] = new Array(keys.length);
+        const previous: (DomainConversationIndex | null)[] = new Array<DomainConversationIndex | null>(keys.length);
         let remaining = keys.length;
         keys.forEach((key, i) => {
             const request = store.get(conversationAddress(key));
@@ -73,7 +74,7 @@ export function updateIndexesAtomically(keys: readonly ConversationKey[],
 }
 
 /** The Index get-or-create and Detail selection commit atomically across both stores. */
-export function updateConversationAtomically<R>(key: ConversationKey,
+export function updateConversationAtomically<R extends DetailIngestResult | void = DetailIngestResult>(key: ConversationKey,
     decide: (oldIndex: DomainConversationIndex | null, oldDetail: DomainConversationDetail | null) =>
         { index?: DomainConversationIndex; detail?: DomainConversationDetail; result: R }): Promise<R> {
     return inStores<R>(['indexes', 'details'], 'readwrite', (tx, done, fail) => {

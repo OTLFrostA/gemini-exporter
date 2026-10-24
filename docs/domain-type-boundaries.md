@@ -33,10 +33,16 @@ a lookup predicate reuses it for validated bodies. Clone/IPC copies must validat
 
 ## Downstream contracts and gates
 
-L2, L3b and Application have no type-cast expressions or non-null assertions.
+L2, L3a, L3b, Application and L4 have no type-cast expressions or non-null assertions.
 Compiler-based architecture tests reject their reintroduction, including ordinary
 casts unrelated to the Domain brand. Type-aware lint rejects implicit `any` flow
-through these three owners as well as explicit `any`.
+through all five owners as well as explicit `any`.
+
+L2 coverage and detail selection operate on concrete Domain shapes (`PageObservation`
+cursor evidence and `DomainConversationDetail`) rather than generic wrappers. L3a maps
+each IndexedDB store name to its fixed row type via `StoreValueMap`, eliminating
+unbounded store generics and result casts. PDF sandbox IPC, JSZip and Node module
+loading narrow unknown values through explicit runtime predicates before use.
 
 Application uses a discriminated pending-export type: JSON has no reading AST;
 Markdown, HTML and PDF require one. Composer relationships use typed references,
@@ -45,9 +51,6 @@ optional compiler capability declared in `IPdfCompiler`, not a cast to another
 interface. File System Access preserves ordinary byte views and copies shared
 memory views only when required by its native write contract.
 
-Compile-time `typeof`, literal `as const`, native capability detection, and
-validation of actual external input are not interchangeable with unchecked casts.
-This change does not claim zero such tokens throughout the repository. Remaining
-native IndexedDB result assertions in L3a, dynamic JSZip/Node module loading, and
-PDF sandbox IPC decoding are separate adapter boundaries; generated third-party
-WASM declarations are excluded from the owned-source zero-any gate.
+Compile-time `typeof`, native capability detection, and validation of actual
+external input are not interchangeable with unchecked casts. Generated third-party
+WASM declarations under `vendor/` are excluded from the owned-source zero-any gate.
