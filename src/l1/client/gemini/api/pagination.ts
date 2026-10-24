@@ -110,5 +110,5 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
 }
 
 export { getConversationDetail };
-export const GeminiClientPagination: GeminiClientPaginationModule = { getConversationDetail };
+const GeminiClientPagination: GeminiClientPaginationModule = { getConversationDetail };
 export default GeminiClientPagination;
