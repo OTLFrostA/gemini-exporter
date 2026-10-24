@@ -38,6 +38,7 @@ import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
 import { fileDownloadGen } from './fixtures/providers/chatgptFileDownload.js';
+import { signedAssetGen } from './fixtures/providers/chatgptSignedAsset.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type {
     ChatGPTApiConversationWithId,
@@ -206,7 +207,7 @@ test('files/download helpers narrow signed-url payloads', () => {
 });
 
 test('Detail submits image identities; bytes are acquired on demand without changing body quality', async () => {
-    const pngBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const pngBytes = signedAssetGen('C_SIGNED_ASSET_CAT_PNG_01');
     const provider = new ChatGPTProvider({
         fetchFn: (url) => {
             const u = String(url);

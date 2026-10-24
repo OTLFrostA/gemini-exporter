@@ -5,7 +5,7 @@ import { join, relative } from 'node:path';
 
 /**
  * ChatGPT HTTP mock payloads are owned by the corresponding endpoint Gen(key):
- * session, List, Detail, Stream, and file-download JSON.
+ * session, List, Detail, Stream, deletion, file-download JSON and signed asset bytes.
  * Parser-level shape tests and ordinary response/status assertions are not HTTP mocks.
  */
 const root = join(__dirname);
@@ -36,6 +36,8 @@ test('ChatGPT native HTTP response mocks use their endpoint-keyed fixtures', () 
         /new\s+Response\(\s*(?:''|"")\s*,\s*\{\s*status:\s*429/g,
         // SSE transport literals are owned by streamGen(key), not individual source tests.
         /chatGPTStreamEvent\(\s*['"]data:/g,
+        // Native deletion acknowledgements must not be constructed inline.
+        /confirmedChatGPTDeletion\(\s*(?:null|\{[^}]*\})\s*,\s*(?:null|\{[^}]*\})/g,
     ];
     for (const file of testSources(root)) {
         const path = relative(root, file).replaceAll('\\', '/');
@@ -43,7 +45,10 @@ test('ChatGPT native HTTP response mocks use their endpoint-keyed fixtures', () 
         const source = readFileSync(file, 'utf8');
         // Only scan native ChatGPT test consumers; other providers use different generators.
         if (!/\b(?:ChatGPTProvider|chatgpt(?:List|Session|Detail)Gen|installChatGPTHook|chatGPTRequest)\b/.test(source)) continue;
-        for (const pattern of inlineMocks) {
+        const patterns = source.includes('confirmedChatGPTDeletion(')
+            ? [...inlineMocks, /\{\s*success:\s*(?:true|false|'true'|"true")\s*\}/g]
+            : inlineMocks;
+        for (const pattern of patterns) {
             for (const match of source.matchAll(pattern)) {
                 const line = source.slice(0, match.index).split('\n').length;
                 violations.push(`${path}:${line} constructs a ChatGPT response outside Gen(key)`);
