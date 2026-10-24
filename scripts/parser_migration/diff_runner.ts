@@ -22,7 +22,7 @@ export type DiffCategory =
     | 'C_BOTH_REASONABLE'
     | 'D_CANNOT_DETERMINE';
 
-export type DiffRationaleKind =
+type DiffRationaleKind =
     | 'IDENTICAL'
     | 'FORMATTING_LOST'
     | 'LINK_CORRUPTED'
@@ -32,21 +32,21 @@ export type DiffRationaleKind =
     | 'CONTENT_CHANGED'
     | 'UNKNOWN_FALLBACK_DIVERGENCE';
 
-export interface BlockSummary {
+interface BlockSummary {
     type: string;
     textLength: number;
     childCount: number;
     preview: string;
 }
 
-export interface AstSemanticFingerprint {
+interface AstSemanticFingerprint {
     blockCount: number;
     blockTypes: string[];
     blocks: BlockSummary[];
     totalTextLength: number;
 }
 
-export interface SemanticDiffResult {
+interface SemanticDiffResult {
     domain: 'markdown' | 'latex';
     inputPreview: string;
     hasDiff: boolean;
