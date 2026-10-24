@@ -57,7 +57,7 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
     });
 }
 
-export interface StubPdfCompilerOptions {
+interface StubPdfCompilerOptions {
     failWith?: string;
     delayMs?: number;
 }
