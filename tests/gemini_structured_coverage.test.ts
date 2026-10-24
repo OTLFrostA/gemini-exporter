@@ -51,6 +51,21 @@ test('wire style 3 means inline code, independently of content and container', (
     }
 });
 
+test('source IDs share one validated grammar for object and wire annotations', () => {
+    const sourceIds = ['spp_alpha', 'spp_beta-2'];
+    assert.deepEqual(decodeGeminiAnnotation({ start: 0, end: 6, type: 'source', sourceIds }), {
+        start: 0, end: 6, type: 'source', sourceIds,
+    });
+    assert.deepEqual(decodeGeminiAnnotation([0, 6, [null, null, null, [null, sourceIds]]]), {
+        start: 0, end: 6, type: 'source', sourceIds,
+    });
+    for (const invalid of [[], ['spp_alpha', 'wrong'], ['spp_alpha', 2], [null]]) {
+        assert.equal(decodeGeminiAnnotation({ start: 0, end: 6, type: 'source', sourceIds: invalid }), null);
+        assert.equal(decodeGeminiAnnotation([0, 6, [null, null, null, [null, invalid]]]), null);
+    }
+    assert.equal(decodeGeminiAnnotation([0, 6, [null, null, null, [null, sourceIds], ['unvalidated']]]), null);
+});
+
 test('unknown nested annotation rejects whole document and reports only shape evidence', () => {
     const result = parse('G_STRUCTURED_COVERAGE_02');
     assert.ok(JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
