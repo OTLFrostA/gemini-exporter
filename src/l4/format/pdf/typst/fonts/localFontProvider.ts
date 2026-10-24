@@ -48,7 +48,7 @@ export const CJK_FONT_STACK: readonly string[] = [
     'Hiragino Sans GB',
 ];
 
-export const LATIN_FONT_STACK: readonly string[] = [
+const LATIN_FONT_STACK: readonly string[] = [
     'SF Pro Text',
     'SF Pro Display',
     'Helvetica Neue',
