@@ -162,13 +162,6 @@ export function rankLocalFontCandidates(
     return out;
 }
 
-export function bestCandidateForFamily(
-    candidates: readonly LocalFontCandidate[],
-    requestedFamily: string,
-): LocalFontCandidate | undefined {
-    return candidates.find((c) => c.requestedFamily === requestedFamily);
-}
-
 export type LocalFontQueryReason = 'api-unavailable' | 'permission-denied' | 'query-failed';
 
 export type LocalFontQueryResult =
@@ -340,7 +333,7 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
     const resolveStack = (stack: readonly string[], label: string, selected: ResolvedLocalFont[] = fonts): void => {
         const candidates = rankLocalFontCandidates(query.fonts, stack, claimedEntries);
         for (const family of stack) {
-            const best = bestCandidateForFamily(candidates, family);
+            const best = candidates.find(candidate => candidate.requestedFamily === family);
             if (!best) {
                 const wouldMatch = rankLocalFontCandidates(query.fonts, [family]).length > 0;
                 diagnostics.push(

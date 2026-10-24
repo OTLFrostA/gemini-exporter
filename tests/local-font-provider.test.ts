@@ -16,7 +16,6 @@ const assert = require('node:assert');
 
 const {
     rankLocalFontCandidates,
-    bestCandidateForFamily,
     queryLocalFontsProvider,
     resolveLocalFonts,
     warmLocalFontCache,
@@ -105,7 +104,7 @@ test('matcher: case-insensitive, no match returns empty', () => {
     assert.strictEqual(rankLocalFontCandidates(entries, ['Comic Sans']).length, 0);
 });
 
-test('bestCandidateForFamily returns the Regular-first candidate', () => {
+test('ranked candidates place each family Regular-first', () => {
     const entries = [
         mockEntry('Arial', 'Arial-Bold', 'Bold'),
         mockEntry('Arial Black', 'Arial-Black', 'Regular'),
@@ -114,11 +113,11 @@ test('bestCandidateForFamily returns the Regular-first candidate', () => {
         mockEntry('Arial', 'ArialMT', 'Regular'),
     ];
     const cands = rankLocalFontCandidates(entries, ['Arial', 'PingFang SC']);
-    const best = bestCandidateForFamily(cands, 'Arial');
+    const best = cands.find((candidate: { requestedFamily: string }) => candidate.requestedFamily === 'Arial');
     assert.strictEqual(best && best.postscriptName, 'ArialMT');
-    const bestCjk = bestCandidateForFamily(cands, 'PingFang SC');
+    const bestCjk = cands.find((candidate: { requestedFamily: string }) => candidate.requestedFamily === 'PingFang SC');
     assert.strictEqual(bestCjk && bestCjk.postscriptName, 'PingFangSC-Regular');
-    assert.strictEqual(bestCandidateForFamily(cands, 'Missing'), undefined);
+    assert.strictEqual(cands.some((candidate: { requestedFamily: string }) => candidate.requestedFamily === 'Missing'), false);
 });
 
 test('provider: API absent returns api-unavailable, does not throw', async () => {

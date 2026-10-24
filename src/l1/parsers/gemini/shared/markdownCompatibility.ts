@@ -57,14 +57,6 @@ export const GM_MD_004_LINE_START_DISPLAY = Object.freeze({
     description: 'Live Gemini renders a $$ formula on its own line as a separate display block even without a blank line before it. Split its parsed paragraph, retaining preceding/following prose and list ownership; delimiters sharing a line with prose stay inline.',
 });
 
-/** Contextual native-paragraph recovery; the audit keeps comparing unmodified branches. */
-export const GM_MD_005_LITERAL_NATIVE_MATH = Object.freeze({
-    id: 'GM-MD-005', domain: 'markdown',
-    evidence: 'tests/fixtures/provider/math/gm_md_005_evidence.json',
-    observedAt: '2026-10-21T22:26:19Z',
-    description: 'Native emphasis consumes the star in **$Q^* = 30$** and leaves literal dollars. Recover inline math only from a unique raw Markdown paragraph with identical surrounding prose; preserve code, citations and already parsed native math.',
-});
-
 /**
  * Normalizes multiline display-math fences ($$) where LaTeX environment keywords
  * (e.g. \\begin{aligned}, \\end{aligned}) are attached directly to $$ on the fence line.

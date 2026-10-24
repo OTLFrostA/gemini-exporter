@@ -18,10 +18,6 @@ export interface BackoffOptions {
     retryAfterMs?: number;
 }
 
-export interface RateLimiterOptions extends BackoffOptions {
-    maxRetries?: number;
-}
-
 /**
  * Calculates exponential backoff with optional jitter and Retry-After floor.
  *
