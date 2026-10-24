@@ -8,7 +8,7 @@ interface LatexCompatRule {
     readonly originalHash?: string;
     readonly transform: (source: string) => string;
 }
-export const MATHSCR_COMPAT_RULE: LatexCompatRule = Object.freeze({
+const MATHSCR_COMPAT_RULE: LatexCompatRule = Object.freeze({
     id: 'GM-TEX-001',
     domain: 'tex',
     evidence: 'tests/fixtures/provider/math/gm_tex_001_evidence.tex',
@@ -26,7 +26,7 @@ export function normalizeTextUnderscores(source: string): string {
             (token, escapes: string) => escapes.length % 2 ? token : escapes + '\\_') + '}');
 }
 
-export const TEXT_UNDERSCORE_COMPAT_RULE: LatexCompatRule = Object.freeze({
+const TEXT_UNDERSCORE_COMPAT_RULE: LatexCompatRule = Object.freeze({
     id: 'GM-TEX-002', domain: 'tex',
     evidence: 'tests/fixtures/provider/math/gm_tex_002_evidence.tex',
     observedAt: '2026-10-15T19:58:00Z',
