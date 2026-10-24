@@ -2,6 +2,7 @@ import type { ConversationParser } from '../src/l1/parsers/contracts.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import type { TrustedDomain } from '../src/l2/runtimeValidation.js';
 import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/l1/imports/takeout/readArchive.js';
 // @ts-expect-error The old trusted Parser contract is not a public L1 API.
@@ -30,7 +31,7 @@ function sourceContract(result: SourceConversationParseResult) {
     void trusted;
 }
 // @ts-expect-error Provider identity is required by the RPC parser.
-parseGeminiRpcConversation('[]', {});
+parseGeminiRpcConversation(geminiDetailGen('G_DETAIL_NATIVE_TRANSPORT_EMPTY_BATCH_01'), {});
 // @ts-expect-error RPC expects raw response text, not an object.
 parseGeminiRpcConversation({}, { providerId: 'gemini' });
 // @ts-expect-error ZIP IO belongs to Import, not the raw Takeout parser.
