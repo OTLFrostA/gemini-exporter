@@ -4,8 +4,8 @@ export interface TakeoutSourceFile {
     _data?: { uncompressedSize?: number };
     async?: (type: string) => Promise<unknown>;
 }
-export interface TakeoutArchiveResource { path: string; entry: TakeoutSourceFile }
-export type TakeoutResourceResolution =
+interface TakeoutArchiveResource { path: string; entry: TakeoutSourceFile }
+type TakeoutResourceResolution =
     | { status: 'resolved'; resource: TakeoutArchiveResource; method: 'relative-path' | 'archive-path' | 'basename' | 'stem' | 'normalized-name' | 'normalized-stem' }
     | { status: 'ambiguous'; candidates: readonly TakeoutArchiveResource[] }
     | { status: 'missing' };
