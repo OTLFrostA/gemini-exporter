@@ -17,9 +17,6 @@ export async function admitFixture(accountId: string | null | undefined, parsed:
     if (!result) throw new Error('Fixture Detail missing');
     return result;
 }
-export async function admitFixtures(accountId: string | null | undefined, parsed: readonly DomainFixture[]): Promise<void> {
-    for (const item of parsed) await admitFixture(accountId, item);
-}
 export async function readFixture(key: ConversationKey): Promise<DomainFixture | null> {
     const conversation = await readStoredConversation(key);
     return conversation ? { account: fixtureAccountFor(conversation), conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} } : null;
