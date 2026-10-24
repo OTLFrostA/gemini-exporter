@@ -1,5 +1,4 @@
 import type { DomainConversationDetail } from './conversationDetail.js';
-import { mapContentAssetReferences } from './content/assetReferences.js';
 import type { BlockNode } from './content/blocks.js';
 import type { InlineNode } from './content/inline.js';
 
@@ -16,32 +15,16 @@ export function assertDomainClosure(conversation: Pick<DomainConversationDetail,
             if (!citation.id || citations.has(citation.id)) throw new TypeError(`Duplicate or empty Domain citation identity in messages[${index}]`);
             citations.add(citation.id);
         }
-        // Schema validation has already established the Content AST shape.
-        // Traverse its typed edges instead of rediscovering arbitrary object structure.
+        const reference = (ref: string): void => {
+            if (!assets.has(ref)) throw new TypeError(`Unregistered Domain asset '${ref}' in messages[${index}]`);
+        };
+        // Check asset and citation references together over the validated AST.
         const checkInline = (node: InlineNode): void => {
-            switch (node.type) {
-                case 'citationRef':
-                    if (!citations.has(node.citationId)) {
-                        throw new TypeError(`Unregistered Domain citation '${String(node.citationId)}' in messages[${index}]`);
-                    }
-                    return;
-                case 'strong':
-                case 'emphasis':
-                case 'strikethrough':
-                case 'link':
-                    node.children.forEach(checkInline);
-                    return;
-                case 'text':
-                case 'inlineCode':
-                case 'image':
-                case 'inlineMath':
-                case 'lineBreak':
-                    return;
-                default: {
-                    const exhaustive: never = node;
-                    return exhaustive;
-                }
+            if (node.type === 'citationRef' && !citations.has(node.citationId)) {
+                throw new TypeError(`Unregistered Domain citation '${node.citationId}' in messages[${index}]`);
             }
+            if (node.type === 'image') reference(node.assetId);
+            if ('children' in node) node.children.forEach(checkInline);
         };
         const checkBlock = (node: BlockNode): void => {
             switch (node.type) {
@@ -61,9 +44,11 @@ export function assertDomainClosure(conversation: Pick<DomainConversationDetail,
                     node.rows.forEach(row => row.cells.forEach(cell => cell.children.forEach(checkInline)));
                     return;
                 case 'image':
+                    reference(node.assetId);
                     node.caption?.forEach(checkInline);
                     return;
                 case 'file':
+                    reference(node.assetId);
                     node.description?.forEach(checkInline);
                     return;
                 case 'code':
@@ -79,14 +64,8 @@ export function assertDomainClosure(conversation: Pick<DomainConversationDetail,
         };
         message.content.forEach(checkBlock);
         message.reasoning?.forEach(checkBlock);
-        const reference = (ref: string): string => {
-            if (!assets.has(ref)) throw new TypeError(`Unregistered Domain asset '${ref}' in messages[${index}]`);
-            return ref;
-        };
         const owned = message.attachmentIds ?? [];
         if (new Set(owned).size !== owned.length) throw new TypeError(`Duplicate Domain attachment reference in messages[${index}]`);
         owned.forEach(reference);
-        mapContentAssetReferences(message.content, reference);
-        if (message.reasoning !== undefined) mapContentAssetReferences(message.reasoning, reference);
     });
 }

@@ -149,10 +149,8 @@ function readDetail(value: unknown): DomainConversationDetail {
     return detail;
 }
 
-function registerDetail(detail: DomainConversationDetail): TrustedDomainBody {
+function registerDetail(detail: DomainConversationDetail): asserts detail is TrustedDomainBody {
     trustedBodies.add(detail);
-    if (!isTrustedBody(detail)) throw new TypeError('Unregistered Domain detail');
-    return detail;
 }
 
 /** Parser finalization preserves canonical graphs and never interprets provider payloads. */
@@ -173,26 +171,16 @@ export function acceptDetailFacts(key: DomainConversationDetail['key'], facts: O
 
 /** Persistence/IPC values are already detached by the transport; no JSON clone. */
 export function restoreDomainDetail(value: unknown): TrustedDomainBody {
-    return registerDetail(readDetail(value));
+    const detail = readDetail(value);
+    registerDetail(detail);
+    return detail;
 }
 
 export function restoreDomainSnapshot(value: unknown): TrustedDomain {
     if (!object(value) || Object.keys(value).some(key => key !== 'index' && key !== 'detail')) throw new TypeError('Invalid Domain conversation');
     const index = restoreConversationIndex(value.index);
-    const validatedDetail = readDetail(value.detail);
-    if (!sameConversationKey(index.key, validatedDetail.key)) throw new TypeError('Conversation key mismatch');
-    const detail = registerDetail(validatedDetail);
-    // Reuse canonical parser output; restored indexes must retain the decoder's canonical form.
-    if (detail === value.detail && isConversationWithTrustedDetail(value)) return value;
+    const detail = readDetail(value.detail);
+    if (!sameConversationKey(index.key, detail.key)) throw new TypeError('Conversation key mismatch');
+    registerDetail(detail);
     return { index, detail };
-}
-
-function isConversationWithTrustedDetail(value: { index: unknown; detail: unknown } | Record<string, unknown>): value is TrustedDomain {
-    return object(value.detail) && isTrustedBody(value.detail) && isCanonicalIndex(value.index);
-}
-function isCanonicalIndex(value: unknown): value is DomainConversationIndex {
-    try {
-        const restored = restoreConversationIndex(value);
-        return object(value) && Object.keys(value).length === Object.keys(restored).length;
-    } catch { return false; }
 }

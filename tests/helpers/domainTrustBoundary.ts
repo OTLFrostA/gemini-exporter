@@ -91,7 +91,7 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
                 const schema = owner === validator && parent && isFunctionDeclaration(parent)
                     && ((parent.name?.text === 'assertSchema' && types.has('DomainConversationDetail'))
                         || (parent.name?.text === 'isTrustedBody' && types.has('TrustedDomainBody'))
-                        || (parent.name?.text === 'isConversationWithTrustedDetail' && types.has('TrustedDomain')));
+                        || (parent.name?.text === 'registerDetail' && types.has('TrustedDomainBody')));
                 if (!schema && !internal) report(node, 'unauthorized trust-producing predicate');
             }
         }

@@ -24,12 +24,12 @@ variants have individual schemas, and schema checks precede reference closure.
 Optional-field canonicalization returns `unknown`, rather than claiming a generic
 transformation preserves every possible `T`. Changed graphs are checked before
 use. Recovery retains the canonical Index returned by its decoder, omits undefined
-optional fields and leaves the input untouched. Already canonical graphs retain
-their references.
+optional fields and leaves the input untouched. Canonical Detail graphs retain
+their references; the conversation wrapper and decoded Index are rebuilt.
 
 A private WeakSet records validated body identity only after schema, closure and
-conversation identity checks. A lookup predicate consumes that runtime evidence;
-there are no casts to a trusted Domain type. Clone/IPC copies must validate again.
+conversation identity checks. Registration supplies compile-time evidence directly;
+a lookup predicate reuses it for validated bodies. Clone/IPC copies must validate again.
 
 ## Downstream contracts and gates
 
