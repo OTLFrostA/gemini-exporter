@@ -3,6 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { decodeGeminiAnnotation, decodeGeminiStructuredPayload, inspectStructuredContent } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { extractImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+import type { JsonValue } from '../src/shared/utils/jsonTypes.js';
 import { decodeTurn } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
@@ -101,6 +103,47 @@ test('adapter rejection remains visible and preserves complete Markdown body', (
     assert.equal(diagnostics[0].sourceRef?.providerMessageId, 'rc_bad');
 });
 
+
+test('validated Gemini structured attachments preserve full search-image and UI-chip JSON metadata', () => {
+    const search = {
+        attachmentType: 36,
+        title: 'Source image',
+        Kc: 'https://lh3.googleusercontent.com/structured-image-source',
+        imageWidth: 640,
+        imageHeight: 480,
+        customFields: { flags: [null, true, 3, 'source'], nested: { value: 'retained' } },
+    };
+    const chip = {
+        attachmentType: 22,
+        message: 'Related questions',
+        items: [{ label: 'What next?', query: 'Explain more' }],
+    };
+    const decoded = decodeGeminiStructuredPayload({ children: [
+        { nodeType: 0, Xj: [search] },
+        { nodeType: 0, Xj: [chip] },
+    ] });
+    assert.ok(decoded);
+    const [imageNode, chipNode] = decoded.children;
+    assert.equal(imageNode.nodeType, 0);
+    assert.equal(chipNode.nodeType, 0);
+    if (imageNode.nodeType !== 0 || chipNode.nodeType !== 0) throw new Error('Expected attachment nodes');
+    const typedMetadata: JsonValue | undefined = imageNode.Xj?.[0];
+    assert.deepEqual(typedMetadata, search);
+    assert.deepEqual(chipNode.Xj, [chip]);
+    const images = extractImageEvidence(decoded);
+    assert.equal(images.length, 1, 'search result retains its image, UI chip contributes no image');
+    assert.equal(images[0].title, 'Source image');
+    assert.equal(images[0].width, 640);
+    assert.equal(images[0].height, 480);
+});
+
+test('Gemini structured attachments reject non-JSON nested metadata at ingress', () => {
+    const raw = (entry: unknown) => ({ children: [{ nodeType: 0, Xj: [entry] }] });
+    assert.equal(decodeGeminiStructuredPayload(raw({ attachmentType: 36, nested: { extra: undefined } })), null);
+    assert.equal(decodeGeminiStructuredPayload(raw({ attachmentType: 36, values: [1, () => 2] })), null);
+    assert.equal(decodeGeminiStructuredPayload(raw({ attachmentType: 36, width: Number.POSITIVE_INFINITY })), null);
+    assert.deepEqual(decodeGeminiStructuredPayload({ children: [{ nodeType: 0 }] })?.children, [{ nodeType: 0 }]);
+});
 
 test('captured Imagen envelope retains resource panels and closes exactly one native image asset', () => {
     const panel: unknown = JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-imagen-panel.json', 'utf8'));
