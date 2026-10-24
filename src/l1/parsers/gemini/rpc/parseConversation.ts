@@ -15,7 +15,7 @@ import { closeDomainResources } from '../../shared/resources/domainResourceAdapt
 import { parseGeminiBody, parseGeminiPrompt, parseSourceReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
 import type { SourceConversationParseResult } from '../../parsingResult.js';
 
-export interface GeminiRpcParseContext extends ConversationParseContext {
+interface GeminiRpcParseContext extends ConversationParseContext {
     targetConvId?: string;
     /** Differential audits select a body branch without dropping shared source metadata. */
     bodyRepresentation?: 'structured' | 'markdown';
