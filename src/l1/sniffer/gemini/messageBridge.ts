@@ -8,7 +8,7 @@ import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../..
 import { parseGeminiRpcConversation } from '../../parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { GeminiRpcParseResult } from '../../parsers/gemini/rpc/parseConversation.js';
-import { parseGeminiIndexObservation, type GeminiIndexObservationInput } from '../../parsers/gemini/parseIndexObservation.js';
+import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
 import { parseGeminiDomIndex } from '../../parsers/gemini/dom/parseIndex.js';
 import { isDevMode } from '../../../runtime/devMode.js';
 import { parseList } from '../../parsers/gemini/rpc/parseList.js';
@@ -16,7 +16,6 @@ import { GeminiProtocol, CrossWorldEvents } from '../../protocol/gemini/protocol
 import { extractConversationIdFromUrl, normId } from '../../../shared/utils/pathUtils.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
 
-export type MessageBridgeConversationInput = GeminiIndexObservationInput;
 export interface MessageBridgeDeps {
     resources?: SourceResourceContext;
     onIndexesCommitted?: (accountId: string) => void;
