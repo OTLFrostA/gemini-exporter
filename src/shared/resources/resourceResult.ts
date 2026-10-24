@@ -36,7 +36,7 @@ export async function attemptResource<T>(resourceId: string, work: () => Promise
 export class ResourceHttpError extends Error {
     constructor(readonly httpStatus: number) { super(`Resource request failed: HTTP ${httpStatus}`); }
 }
-export type ResourceIssueKind = 'expired' | 'restricted' | 'download' | 'processing';
+type ResourceIssueKind = 'expired' | 'restricted' | 'download' | 'processing';
 export function resourceIssueKind(failure: ResourceFailure): ResourceIssueKind {
     if (failure.code === 'RESOURCE_SOURCE_EXPIRED') return 'expired';
     if (failure.code === 'RESOURCE_ACCESS_RESTRICTED') return 'restricted';

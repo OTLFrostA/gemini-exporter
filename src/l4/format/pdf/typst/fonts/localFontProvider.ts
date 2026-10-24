@@ -2,7 +2,7 @@
 // Bundled text and math fonts keep offline exports readable without this permission.
 import type { Diagnostic } from '../../../../../shared/diagnostics/diagnostic.js';
 
-export interface LocalFontEntry {
+interface LocalFontEntry {
     readonly family: string;
     readonly fullName: string;
     readonly postscriptName: string;
@@ -25,7 +25,7 @@ export interface LocalFontResolution {
     readonly localFontsAvailable: boolean;
 }
 
-export interface LocalFontRequest {
+interface LocalFontRequest {
     cjk?: readonly string[];
     latin?: readonly string[];
     mono?: readonly string[];
@@ -48,7 +48,7 @@ export const CJK_FONT_STACK: readonly string[] = [
     'Hiragino Sans GB',
 ];
 
-export const LATIN_FONT_STACK: readonly string[] = [
+const LATIN_FONT_STACK: readonly string[] = [
     'SF Pro Text',
     'SF Pro Display',
     'Helvetica Neue',
@@ -71,7 +71,7 @@ export const MONO_FONT_STACK: readonly string[] = [
     'DejaVu Sans Mono',
 ];
 
-export interface LocalFontCandidate {
+interface LocalFontCandidate {
     readonly family: string;
     readonly postscriptName: string;
     readonly style: string;
@@ -162,9 +162,9 @@ export function rankLocalFontCandidates(
     return out;
 }
 
-export type LocalFontQueryReason = 'api-unavailable' | 'permission-denied' | 'query-failed';
+type LocalFontQueryReason = 'api-unavailable' | 'permission-denied' | 'query-failed';
 
-export type LocalFontQueryResult =
+type LocalFontQueryResult =
     | { ok: true; fonts: LocalFontEntry[] }
     | { ok: false; reason: LocalFontQueryReason; detail: string };
 

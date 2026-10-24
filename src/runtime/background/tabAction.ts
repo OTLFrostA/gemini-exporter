@@ -1,10 +1,10 @@
-export const ACTION_COLOR_ICONS: Record<number, string> = {
+const ACTION_COLOR_ICONS: Record<number, string> = {
     16: 'icons/icon16.png',
     48: 'icons/icon48.png',
     128: 'icons/icon128.png'
 };
 
-export const ACTION_GRAY_ICONS: Record<number, string> = {
+const ACTION_GRAY_ICONS: Record<number, string> = {
     16: 'icons/icon16_gray.png',
     48: 'icons/icon48_gray.png',
     128: 'icons/icon128_gray.png'
@@ -12,9 +12,9 @@ export const ACTION_GRAY_ICONS: Record<number, string> = {
 
 import { isGeminiUrl } from '../../shared/utils/pathUtils.js';
 
-export const isGeminiTabUrl = isGeminiUrl;
+const isGeminiTabUrl = isGeminiUrl;
 
-export function updateTabActionState(tabId?: number | null, url?: string | null): void {
+function updateTabActionState(tabId?: number | null, url?: string | null): void {
     if (typeof chrome === 'undefined' || !chrome.action || !tabId) return;
     const isGemini = isGeminiTabUrl(url);
     const icons = isGemini ? ACTION_COLOR_ICONS : ACTION_GRAY_ICONS;

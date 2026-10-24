@@ -4,11 +4,11 @@ import type { TitleSource } from '../../../l2/titleAuthority.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../shared/utils/titleText.js';
 import { normId, isReservedRoute } from '../../../shared/utils/pathUtils.js';
 
-export type ConversationIngestionSource = 'detail' | 'takeout' | 'snapshot';
+type ConversationIngestionSource = 'detail' | 'takeout' | 'snapshot';
 export function semanticTitleSource(source?: string): TitleSource {
     return source === 'user' ? 'user' : ['rpc', 'api-detail', 'dom', 'provider', 'openai'].includes(source ?? '') ? 'provider' : 'derived';
 }
-export interface ParsedMetadataInput {
+interface ParsedMetadataInput {
     account?: Account; providerId: string; id: string; title?: string; titleSource?: string;
     createdAt?: number; updatedAt?: number; activityAt?: number; url?: string; messageCount?: number;
 }

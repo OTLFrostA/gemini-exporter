@@ -1,5 +1,5 @@
 import { isVersionGreater } from '../../shared/utils/pathUtils.js';
-export type FeatureReleaseConfig =
+type FeatureReleaseConfig =
     | { version: string; stepId: string }
     | { version: string; kind: 'upgrade' };
 // Existing product announcements, newest first. Do not infer announcements from releases.

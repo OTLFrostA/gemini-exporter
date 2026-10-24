@@ -3,7 +3,7 @@ import { CENTERED_NOT_IMPLIES_COMPAT_RULE } from '../../../shared/utils/latexCom
 import type { Diagnostic as RenderDiagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { getErrorMessage } from '../../../shared/utils/errorText.js';
 
-export interface RenderMathHtmlResult {
+interface RenderMathHtmlResult {
     html: string;
     diagnostic?: RenderDiagnostic;
 }

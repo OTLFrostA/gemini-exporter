@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const AssetFetcherModule = require('../src/runtime/capabilities/assetFetcher.js');
 
-const { fetchWithCredentialFallback, downloadAssetDirect, toHighRes } = AssetFetcherModule;
+const { fetchWithCredentialFallback, downloadAssetDirect, toHighRes } = AssetFetcherModule.AssetFetcher;
 
 test('assetFetcher - toHighRes preserves gstatic.com thumbnail URLs without corrupting them', () => {
     const gstaticUrl = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQ9Ag43ZZiH3Vfs56ySvDFnu_p3Lx_RC_99CHpWd4i2nozwkOlerQxMFI&s=10';

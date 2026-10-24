@@ -34,7 +34,7 @@ import {
 
 import { parseChatGPTList } from '../../parsers/chatgpt/parseList.js';
 
-export interface ChatGPTFetch {
+interface ChatGPTFetch {
     (input: string, init?: RequestInit): Promise<Response>;
 }
 

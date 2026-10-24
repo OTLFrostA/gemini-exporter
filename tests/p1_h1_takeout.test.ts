@@ -28,7 +28,7 @@ test('p1_h1 - P1-114: zip guards fail closed on unknown size', () => {
     );
     assert.throws(
         () => zipBombGuard.validateZipEntries({ files: { 'huge.bin': { dir: false, _data: {
-            uncompressedSize: zipBombGuard.MAX_TOTAL_UNCOMPRESSED + 1
+            uncompressedSize: 1024 * 1024 * 1024 + 1 // Test the documented 1 GiB limit, not an internal export
         } } } } as any),
         /过大|超过|too large|OOM/i, 'declared uncompressed size must enforce the ZIP bomb cap without allocating bytes'
     );

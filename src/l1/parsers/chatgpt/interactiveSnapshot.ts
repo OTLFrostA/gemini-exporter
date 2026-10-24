@@ -1,6 +1,6 @@
 import { renderDil } from './dil/render.js';
 
-export interface ChatGPTInteractiveSnapshot {
+interface ChatGPTInteractiveSnapshot {
     text: string;
     /** Static textual content coverage; this never claims executable UI fidelity. */
     incomplete: boolean;

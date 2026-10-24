@@ -1,10 +1,10 @@
-export interface AssetFetchRequest {
+interface AssetFetchRequest {
     url?: string;
     candidates?: string[];
     fileName?: string;
     preferBuffer?: boolean;
 }
-export interface AssetFetchResponse {
+interface AssetFetchResponse {
     success: boolean;
     dataUrl?: string;
     dataBuffer?: ArrayBuffer;
@@ -28,18 +28,18 @@ const MAX_IPC_FILE_BLOB_SIZE = 44 * 1024 * 1024;
 const MAX_IPC_IMAGE_BLOB_SIZE = 14 * 1024 * 1024;
 const GG_CHAIN_MAX_HOPS = 5;
 
-export function ensureAlr(url: string): string {
+function ensureAlr(url: string): string {
     if (!url || typeof url !== 'string') return url;
     if (url.includes('alr=yes')) return url;
     return url.includes('?') ? url + '&alr=yes' : url + '?alr=yes';
 }
 
-export function isGgChainUrl(url: string): boolean {
+function isGgChainUrl(url: string): boolean {
     if (!url || typeof url !== 'string') return false;
     return url.includes('/gg/') || url.includes('/rd-gg/');
 }
 
-export async function fetchWithCredentialFallback(
+async function fetchWithCredentialFallback(
     url: string,
     init?: RequestInit,
     customFetch?: typeof fetch
@@ -74,7 +74,7 @@ export async function fetchWithCredentialFallback(
     }
 }
 
-export async function fetchGgChain(url: string, init?: RequestInit): Promise<Response> {
+async function fetchGgChain(url: string, init?: RequestInit): Promise<Response> {
     let current = ensureAlr(url);
     let lastRes: Response | null = null;
     const baseInit = init || {};
@@ -124,7 +124,7 @@ export async function fetchGgChain(url: string, init?: RequestInit): Promise<Res
     return lastRes;
 }
 
-export function toHighRes(url: string, variant = 's1024-rj'): string {
+function toHighRes(url: string, variant = 's1024-rj'): string {
     try {
         if (!url) return url;
         const hostname = new URL(url).hostname;
@@ -149,7 +149,7 @@ export function toHighRes(url: string, variant = 's1024-rj'): string {
     }
 }
 
-export function toDataUrl(blob: Blob): Promise<string> {
+function toDataUrl(blob: Blob): Promise<string> {
     if (typeof FileReader === 'undefined') {
         if (typeof Buffer !== 'undefined' && typeof blob.arrayBuffer === 'function') {
             return blob.arrayBuffer().then((buf: ArrayBuffer) => {
@@ -167,7 +167,7 @@ export function toDataUrl(blob: Blob): Promise<string> {
     });
 }
 
-export function extractLh3(text: string): string | null {
+function extractLh3(text: string): string | null {
     if (!text || typeof text !== 'string') return null;
     const clean = text
         .replace(/\\\//g, '/')
@@ -177,14 +177,14 @@ export function extractLh3(text: string): string | null {
     return m ? m[0] : null;
 }
 
-export function extractGucUrl(text: string): string | null {
+function extractGucUrl(text: string): string | null {
     const m = text.match(/https:\/\/[^\s"'<>]*(?:googleusercontent|usercontent\.google)[^\s"'<>]*download[^\s"'<>]*/i);
     if (m) return m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&');
     const m2 = text.match(/https:\/\/lh3\.google(?:usercontent)?\.com\/[^\s"'<>\\]+/i);
     return m2 ? m2[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
 }
 
-export async function handleGetFileBlob(msg: AssetFetchRequest, sendResponse: (resp: AssetFetchResponse) => void): Promise<void> {
+async function handleGetFileBlob(msg: AssetFetchRequest, sendResponse: (resp: AssetFetchResponse) => void): Promise<void> {
     try {
         // L1 supplies the locators. Runtime must not search the entire Gemini page
         // for an unrelated file when one selected asset's fetch fails.
@@ -339,7 +339,7 @@ export async function handleGetImageBlob(msg: AssetFetchRequest, sendResponse: (
     }
 }
 
-export async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: (resp: AssetFetchResponse) => void): Promise<void> {
+async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: (resp: AssetFetchResponse) => void): Promise<void> {
     try {
         const url = msg.url;
         if (!url) {
@@ -418,7 +418,7 @@ export async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: 
     }
 }
 
-export interface FetchedImageAsset {
+interface FetchedImageAsset {
     buffer: ArrayBuffer;
     mimeType: string;
     ext: string;
@@ -439,7 +439,7 @@ export function inferImageExt(mimeType?: string, url?: string): string {
     return 'jpg';
 }
 
-export async function fetchImageBuffer(url: string, timeoutMs = 12000): Promise<FetchedImageAsset | null> {
+async function fetchImageBuffer(url: string, timeoutMs = 12000): Promise<FetchedImageAsset | null> {
     if (!url || typeof url !== 'string') return null;
     return new Promise((resolve) => {
         let timer: ReturnType<typeof setTimeout> | null = null;

@@ -1,4 +1,4 @@
-export interface GeminiCredentials {
+interface GeminiCredentials {
     at?: string;
     bl?: string;
     sid?: string;
@@ -20,17 +20,17 @@ type ContentWindowMirror = Pick<Window,
     | '__gemExporterSyncInterval' | '__gemExporterTitleObserver' | '__gemExporterDebounceTimer'
 >;
 
-export type TimerHandle = number | ReturnType<typeof setTimeout> | MutationObserver | AbortController;
+type TimerHandle = number | ReturnType<typeof setTimeout> | MutationObserver | AbortController;
 
 /** The event name selects the exact listener argument tuple. */
-export interface ContentEventArgs {
+interface ContentEventArgs {
     credentials: [GeminiCredentials | null];
     abort: [];
     langChange: [string];
     devModeChange: [boolean];
 }
 
-export type ContentEvent = keyof ContentEventArgs;
+type ContentEvent = keyof ContentEventArgs;
 type ContentListeners = { [K in ContentEvent]: Set<(...args: ContentEventArgs[K]) => void> };
 
 

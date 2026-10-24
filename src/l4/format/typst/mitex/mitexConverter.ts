@@ -11,7 +11,7 @@ import type { Diagnostic as RenderDiagnostic } from '../../../../shared/diagnost
 import { preprocessLatex } from '../../../../shared/utils/latexCompatibility.js';
 import { mitexConvertMath } from './mitexLoader.js';
 
-export interface MathConversionResult {
+interface MathConversionResult {
     typst?: string;
     diagnostic?: RenderDiagnostic;
 }

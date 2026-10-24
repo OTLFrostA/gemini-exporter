@@ -20,7 +20,7 @@ export {};
 
 const zlib = require('node:zlib');
 
-export interface PdfObject { num: number; dict: string; stream: Buffer | null }
+interface PdfObject { num: number; dict: string; stream: Buffer | null }
 
 export function parseObjects(data: Buffer): Map<number, PdfObject> {
     const objs = new Map<number, PdfObject>();
@@ -263,9 +263,9 @@ function structureChildren(element: PdfObject, page: string | null): Array<{ ref
     return values;
 }
 
-export interface PdfContentRun { kind: 'text' | 'math' | 'code'; text: string; group: number | null }
+interface PdfContentRun { kind: 'text' | 'math' | 'code'; text: string; group: number | null }
 
-export interface ExtractedPdf {
+interface ExtractedPdf {
     text: string;
     contentRuns: PdfContentRun[];
     pageCount: number;

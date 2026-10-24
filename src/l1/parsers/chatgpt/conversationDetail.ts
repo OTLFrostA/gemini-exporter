@@ -130,7 +130,7 @@ export function citationsOfChatGPTNode(node: ChatGPTConversationNode): DomainCit
     return citations;
 }
 
-export interface ChatGPTUploadedFile {
+interface ChatGPTUploadedFile {
     id: string;
     name: string;
     mediaType?: string;

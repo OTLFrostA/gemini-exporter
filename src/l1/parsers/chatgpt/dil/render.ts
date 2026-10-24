@@ -3,7 +3,7 @@ import { expression, type Scope } from './expression.js';
 import { parseDil, type DilNode } from './syntax.js';
 
 interface Part { text?: string; unsupported?: string }
-export interface DilRenderResult { text: string; modules: string[]; fallbackBlocks: number; unsupported: string[]; incomplete: boolean }
+interface DilRenderResult { text: string; modules: string[]; fallbackBlocks: number; unsupported: string[]; incomplete: boolean }
 function projection(text: string): { text: string; offsets: number[]; ends: number[] } {
     const chars: string[] = [], offsets: number[] = [], ends: number[] = [];
     for (const match of text.matchAll(/\uE200image_group\uE202[^\uE201]*\uE201|&#(?:x[\da-f]+|\d+);|[\p{L}\p{N}]/giu)) {

@@ -1,7 +1,7 @@
 import type { ProviderConversationItem } from '../contracts.js';
 import { chatGPTTimestamp } from './timestamp.js';
 
-export interface ChatGPTListParseResult {
+interface ChatGPTListParseResult {
     conversations: ProviderConversationItem[];
     total?: number;
     offset?: number;

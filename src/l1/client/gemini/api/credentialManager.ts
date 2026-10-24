@@ -359,15 +359,7 @@ async function resolveCredInner(
     return result;
 }
 
-export {
-    getBlFromPage,
-    getAtFromPage,
-    detectSlot,
-    getCredStorage,
-    loadCredMap,
-    resolveCred,
-    generateFallbackSid
-};
+export { getBlFromPage, getAtFromPage, detectSlot, loadCredMap, resolveCred, generateFallbackSid };
 
 export const GeminiClientCredentialManager: GeminiClientCredentialManagerModule = {
     getBlFromPage,

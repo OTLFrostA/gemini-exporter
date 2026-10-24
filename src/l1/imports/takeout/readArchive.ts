@@ -2,8 +2,8 @@ import { validateZipFile, validateZipEntries } from '../../parsers/shared/archiv
 import { parseGeminiTakeoutConversation, parseGeminiTakeoutArchiveAsync, type GeminiTakeoutRaw, type GeminiTakeoutParseContext, type GeminiTakeoutParseResult, type TakeoutSourceFile } from '../../parsers/gemini/takeout/parseConversation.js';
 
 export type GeminiTakeoutZipRaw = Uint8Array | ArrayBuffer | Blob;
-export type TakeoutArchiveReader = (bytes: GeminiTakeoutZipRaw) => Promise<unknown>;
-export interface GeminiTakeoutZipContext extends GeminiTakeoutParseContext {
+type TakeoutArchiveReader = (bytes: GeminiTakeoutZipRaw) => Promise<unknown>;
+interface GeminiTakeoutZipContext extends GeminiTakeoutParseContext {
     readArchive?: TakeoutArchiveReader;
     activityPath?: string;
     onProgress?: (completed: number, total: number) => void;

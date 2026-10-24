@@ -17,17 +17,17 @@ export function consumeTourIntent(): boolean {
     if (url.searchParams.has('startTour')) { url.searchParams.delete('startTour'); history.replaceState(history.state, '', url); }
     return start;
 }
-export function destroy(): void {
+function destroy(): void {
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove(); root = null; mode = null; onDismiss = undefined; relayout = undefined;
     authorizationReady = false; onConnected = undefined;
 }
 function close(): void { const callback = onDismiss; destroy(); callback?.(); }
-export const finishTour = async (): Promise<void> => { destroy(); };
-export const skipTour = finishTour;
-export const dismissFeatureSpotlight = async (): Promise<void> => { close(); };
-export const isActive = (): boolean => root !== null;
+const finishTour = async (): Promise<void> => { destroy(); };
+const skipTour = finishTour;
+const dismissFeatureSpotlight = async (): Promise<void> => { close(); };
+const isActive = (): boolean => root !== null;
 function modalOpen(): boolean { return isActive() || !!document.querySelector('dialog[open], [aria-modal="true"]'); }
 
 
@@ -211,7 +211,7 @@ function footer(popover: HTMLElement): HTMLElement {
     return el;
 }
 
-export async function goToStep(index: number): Promise<void> {
+async function goToStep(index: number): Promise<void> {
     if (mode !== 'tour') return;
     if (index >= STEPS.length) { destroy(); return; }
     stepIndex = Math.max(0, index);
@@ -250,12 +250,12 @@ export async function goToStep(index: number): Promise<void> {
         });
     }
 }
-export async function nextStep(): Promise<void> {
+async function nextStep(): Promise<void> {
     if (STEPS[stepIndex]?.id === 'connect' && !authorizationReady) return;
     await goToStep(stepIndex + 1);
 }
-export async function prevStep(): Promise<void> { await goToStep(stepIndex - 1); }
-export async function startTour(connected?: (accountId: string) => Promise<void>): Promise<void> {
+async function prevStep(): Promise<void> { await goToStep(stepIndex - 1); }
+async function startTour(connected?: (accountId: string) => Promise<void>): Promise<void> {
     if (modalOpen()) return;
     destroy(); mode = 'tour'; onConnected = connected; await goToStep(0);
 }
@@ -279,7 +279,7 @@ export function showPlatformAuthorization(connected?: (accountId: string) => Pro
     relayout?.();
 }
 
-export function startFeatureSpotlight(version: string, stepId: string, dismissed: () => void): boolean {
+function startFeatureSpotlight(version: string, stepId: string, dismissed: () => void): boolean {
     if (modalOpen()) return false;
     const step = STEPS.find(item => item.id === stepId);
     const target = step?.target();
@@ -297,7 +297,7 @@ export function startFeatureSpotlight(version: string, stepId: string, dismissed
     return true;
 }
 /** One-time release notice for users crossing from v1 to 2.0. No feature target. */
-export function showV2UpgradeSpotlight(openFeedback: () => void): boolean {
+function showV2UpgradeSpotlight(openFeedback: () => void): boolean {
     if (modalOpen()) return false;
     mode = 'spotlight';
     const copy = document.createElement('div');
@@ -335,7 +335,7 @@ export function showV2UpgradeSpotlight(openFeedback: () => void): boolean {
     relayout?.();
     return true;
 }
-export function showTakeoutPrompt(
+function showTakeoutPrompt(
     count: number, dismissed: () => void, importFile: () => void, openTakeout: () => void,
 ): boolean {
     if (modalOpen()) return false;

@@ -34,7 +34,7 @@ export interface GeminiPaginationDetailClient {
 export interface PaginatedDetailResult extends SourceConversationParseResult {
     transport: DetailParseResult['transport'];
 }
-export interface GeminiClientPaginationModule { getConversationDetail: typeof getConversationDetail }
+interface GeminiClientPaginationModule { getConversationDetail: typeof getConversationDetail }
 
 /** Empty messages are trustworthy only when the native Detail body explicitly contains empty turns. */
 function isExplicitlyEmptyDetail(page: DetailParseResult): boolean {
@@ -110,5 +110,5 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
 }
 
 export { getConversationDetail };
-export const GeminiClientPagination: GeminiClientPaginationModule = { getConversationDetail };
+const GeminiClientPagination: GeminiClientPaginationModule = { getConversationDetail };
 export default GeminiClientPagination;

@@ -5,7 +5,7 @@ export type ConversationListItem = GeminiIndexObservationInput & { id: string };
 
 /** Validated LIST row facts. The official ordering timestamp is separate
  * from the more permissive source update timestamp. */
-export interface DecodedGeminiListRow {
+interface DecodedGeminiListRow {
     id: string;
     title: string;
     createdAt: number | null;

@@ -167,7 +167,7 @@ export interface SourceAttachmentGroup {
     input: SourceAttachmentLists;
     bodyAttachments?: readonly SourceAttachmentInput[];
 }
-export interface SourceAttachmentGroupResolution {
+interface SourceAttachmentGroupResolution {
     attachments: ResourceEvidence[];
     attachmentIndexes: number[][];
     findReference(ref: string, groupIndex?: number): number | undefined;

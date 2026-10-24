@@ -227,7 +227,7 @@ export function assetIdForPointer(pointer: string): string {
     return `img-${pointer.replace('sediment://', '').replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 }
 
-export type ChatGPTNodeSegment =
+type ChatGPTNodeSegment =
     | { kind: 'text'; text: string }
     | { kind: 'image'; pointer: string };
 
