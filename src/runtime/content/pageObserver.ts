@@ -49,14 +49,14 @@ export function debouncedSync(syncCallback?: () => void, delay = 350): void {
         clearTimeout(__syncDebounceTimer);
         __syncDebounceTimer = null;
     }
-    __syncDebounceTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
         __syncDebounceTimer = null;
         contentContext.clearTimer('debounceTimer');
         if (contentContext.getDeepScanPromise()) return;
         if (typeof syncCallback === 'function') syncCallback();
     }, delay);
-
-    contentContext.registerTimer('debounceTimer', __syncDebounceTimer);
+    __syncDebounceTimer = timer;
+    contentContext.registerTimer('debounceTimer', timer, () => clearTimeout(timer));
 }
 
 export function hookHistoryEvents(onUrlChanged: () => void): void {
@@ -102,7 +102,7 @@ export function observeTitleChanges(onTitleChanged: () => void): void {
                 onTitleChanged();
             });
             observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
-            contentContext.registerTimer('titleObserver', observer);
+            contentContext.registerTimer('titleObserver', observer, () => observer.disconnect());
         }
     } catch (e) {
         if (contentContext.isDevMode()) console.debug('[GemExporter:pageObserver]', e);
@@ -116,7 +116,7 @@ export function startPeriodicSync(syncCallback?: () => void, intervalMs = 15000)
         if (contentContext.getDeepScanPromise()) return;
         if (typeof syncCallback === 'function') syncCallback();
     }, intervalMs);
-    contentContext.registerTimer('syncInterval', syncInterval);
+    contentContext.registerTimer('syncInterval', syncInterval, () => clearInterval(syncInterval));
 }
 
 export function init({ onSync }: { onSync?: () => void } = {}): { cleanup: () => void; debouncedSync: typeof debouncedSync } {

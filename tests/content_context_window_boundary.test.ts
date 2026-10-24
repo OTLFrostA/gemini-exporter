@@ -8,7 +8,7 @@ test('ContentContext works without a browser mirror, including cleanup and abort
     context.setDevMode(true);
     context.setCredentials({ at: 'test-at', bl: 'test-bl' });
     context.setAborted(false);
-    context.registerTimer('titleObserver', controller);
+    context.registerTimer('titleObserver', controller, () => controller.abort());
     assert.equal(context.getTimer('titleObserver'), controller);
     context.clearTimer('titleObserver');
     assert.equal(controller.signal.aborted, true);
@@ -48,7 +48,7 @@ test('ContentContext mirrors debug and timer state to the injected browser only'
     assert.equal(aborts, 1, 'abort must not be invoked twice');
 
     const timer = setTimeout(() => {}, 60000);
-    context.registerTimer('syncInterval', timer);
+    context.registerTimer('syncInterval', timer, () => clearTimeout(timer));
     assert.equal(mirror.__gemExporterSyncInterval, timer);
     context.clearTimer('syncInterval');
     assert.equal(mirror.__gemExporterSyncInterval, null);
@@ -57,4 +57,48 @@ test('ContentContext mirrors debug and timer state to the injected browser only'
     assert.equal(mirror.__gemExporterDevMode, false);
     context.setInjected(false);
     assert.equal(mirror.__gemExporterInjected, true, 'debug-only mirrors remain unchanged outside dev mode');
+});
+
+test('ContentContext event listeners are keyed to typed payloads and support unsubscribe', () => {
+    const context = new ContentContext(null);
+    const seen: string[] = [];
+    const unsubscribe = context.on('credentials', value => seen.push(value?.at ?? 'cleared'));
+    context.setCredentials({ at: 'registered' });
+    context.setCredentials(null);
+    unsubscribe();
+    context.setCredentials({ at: 'not-seen' });
+    assert.deepEqual(seen, ['registered', 'cleared']);
+
+    let abortEvents = 0;
+    const stop = context.on('abort', () => { abortEvents++; });
+    context.abort();
+    stop();
+    context.abort();
+    assert.equal(abortEvents, 1);
+});
+
+test('ContentContext timer registration uses explicit cleanup exactly once', () => {
+    const context = new ContentContext(null);
+    const first = new AbortController();
+    const second = new AbortController();
+    let cleanups = 0;
+    context.registerTimer('titleObserver', first, () => { cleanups++; first.abort(); });
+    assert.equal(context.getTimer('titleObserver'), first);
+    context.registerTimer('titleObserver', second, () => { cleanups++; second.abort(); });
+    assert.equal(first.signal.aborted, true, 'replacement disposes the previous owner');
+    assert.equal(context.getTimer('titleObserver'), second);
+    assert.equal(cleanups, 1);
+    context.clearAllTimers();
+    assert.equal(second.signal.aborted, true);
+    assert.equal(cleanups, 2);
+    context.clearAllTimers();
+    assert.equal(cleanups, 2, 'repeat cleanup must be idempotent');
+});
+
+test('ContentContext timer cleanup failures are best-effort', () => {
+    const context = new ContentContext(null);
+    const controller = new AbortController();
+    context.registerTimer('titleObserver', controller, () => { throw new Error('cleanup failed'); });
+    assert.doesNotThrow(() => context.clearTimer('titleObserver'));
+    assert.equal(context.getTimer('titleObserver'), undefined);
 });
