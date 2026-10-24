@@ -77,7 +77,7 @@ test('Detail savedAt follows known source evidence even for partial or metadata-
     const conflicting = await commitSource(detail('G_VERSION_DETAIL_CONFLICT_ID_01', false, 'conflicting_chat'));
     assert.equal(conflicting.conversation.detail.quality.status, 'complete');
     assert.equal(conflicting.conversation.detail.savedAt, 1700000000000);
-    const metadata = parseGeminiRpcConversation(geminiListGen('G_VERSION_METADATA_ONLY_LIST_01'), {
+    const metadata = parseGeminiRpcConversation(geminiDetailGen('G_VERSION_DETAIL_METADATA_ONLY_01'), {
         account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'metadata_chat',
     });
     assert.equal((await commitSource(metadata)).conversation.detail.savedAt, 1700000000000);

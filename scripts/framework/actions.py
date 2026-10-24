@@ -396,14 +396,13 @@ class ExtensionActions:
             result = cdp_opt.eval("""(() => ({ busy:document.body.dataset.busy !== 'false',
                 status:document.getElementById('status')?.textContent || '' }))()""") or {}
             if result.get('busy') is False:
-                match = re.fullmatch(r'(?:Imported (\d+) conversations|已提交 (\d+) 条对话)（?\s*\((ok|partial)\)）?', result.get('status', ''))
-                # Chinese and English use different parentheses.
-                match = match or re.fullmatch(r'已提交 (\d+) 条对话（(ok|partial)）', result.get('status', ''))
+                match = re.fullmatch(r'Imported (\d+) conversations \((ok|partial)\)', result.get('status', ''))
+                match = match or re.fullmatch(r'已提交 (\d+) 条对话（(完成|部分完成)）', result.get('status', ''))
                 if not match:
                     return {'success': False, 'error': result.get('status') or 'No import result'}
                 source = cdp_opt.eval(f'globalThis.__tier2V2.inspectTakeout({json.dumps(zip_b64)}, {json.dumps(media_paths or [])})', await_promise=True)
-                return {'success': True, 'status': 'partial' if 'partial' in result['status'] else 'ok',
-                        'imported': int(next(v for v in match.groups() if v and v.isdigit())),
+                return {'success': True, 'status': 'partial' if match[2] in ('partial', '部分完成') else 'ok',
+                        'imported': int(match[1]),
                         'importedIds': source['ids'], 'mediaDigests': source['mediaDigests'], 'sourceResources': source['resources'],
                         'sourceFacts': source['sourceFacts'],
                         'uiStatus': result['status']}

@@ -7,7 +7,7 @@ interface InnerPayloadDiscoveryOptions {
     heuristicFilter?: (candidateStr: string) => boolean;
 }
 
-interface InnerPayloadDiscoveryResult {
+export interface InnerPayloadDiscoveryResult {
     inner: unknown | null;
     innerStr: string | null;
     isStandardWrb: boolean;

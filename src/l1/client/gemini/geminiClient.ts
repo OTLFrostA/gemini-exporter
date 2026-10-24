@@ -1,10 +1,9 @@
 import type { Account } from '../../../l2/accountRegistry.js';
-import { parseGeminiRpcConversation } from '../../parsers/gemini/rpc/parseConversation.js';
+import { parseGeminiResponse } from '../../parsers/gemini/rpc/parseResponse.js';
 import { isConfirmedGeminiDetailNotFound } from '../../parsers/gemini/rpc/parseDeletion.js';
 import GeminiProtocol, { GeminiProtocolModule } from "../../protocol/gemini/protocol.js";
 import { isDevMode } from "../../../runtime/devMode.js";
 import { getErrorMessage } from "../../../shared/utils/errorText.js";
-import { parseList } from "../../parsers/gemini/rpc/parseList.js";
 import { __resolveModule } from "../../../shared/utils/moduleOverrides.js";
 import GeminiClientCredentialManager, {
     getBlFromPage,
@@ -163,7 +162,7 @@ const pagination = GeminiClientPagination;
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
             }
             let txt = await resp.text();
-            return parseList(txt);
+            return parseGeminiResponse(txt).list();
         }
 
         async fetchConversationPage(conversationId: string, pageToken?: string | null, targetSid?: string | null, opts?: GeminiDetailRequestOptions): Promise<DetailParseResult> {
@@ -256,8 +255,9 @@ const pagination = GeminiClientPagination;
             }
 
             let text = await resp.text();
+            const response = parseGeminiResponse(text);
             try {
-                const native = parseGeminiRpcConversation(text, { providerId: 'gemini', targetConvId: conversationId });
+                const native = response.detail({ providerId: 'gemini', targetConvId: conversationId });
                 const parsed = native;
                 if (isDev) {
                     console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.conversation.detail.messages.length}`);
@@ -266,7 +266,7 @@ const pagination = GeminiClientPagination;
             } catch (err: unknown) {
                 const errMsg = getErrorMessage(err);
                 const errCategory = getProtocol().classifyDetailError(text, resp?.status);
-                if (isConfirmedGeminiDetailNotFound(text)) {
+                if (isConfirmedGeminiDetailNotFound(response.envelope)) {
                     if (isDev) {
                         console.info(`[Gemini Exporter Client] Conversation ${id} is confirmed deleted on server (BardErrorInfo: 1167). Skipping.`);
                     }

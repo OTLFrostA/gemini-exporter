@@ -66,3 +66,20 @@ test('task resource capture receives the same account/conversation binding as L2
         assert.deepEqual(observed, [{ accountId: ACCOUNT_UUID, conversationId: 'bridge_chat_123' }, 'bridge_chat_123']);
     } finally { resources.release(); init(); }
 });
+
+test('RPC identifiers in a foreign body cannot dispatch captured list or detail facts', async () => {
+    await handleWindowMessage(sourceCapture(geminiDetailGen('G_DISPATCH_DECOY_01')));
+    assert.deepEqual(await getConversations(ACCOUNT_UUID), []);
+});
+
+test('mixed batch dispatch admits both list and matching detail through the shared response', async () => {
+    await handleWindowMessage(sourceCapture(geminiDetailGen('G_DISPATCH_MIXED_01'), {
+        detailRequest: { conversationId: 'boundary12345678', requestCursor: null },
+    }));
+    const indexes = await getConversations(ACCOUNT_UUID);
+    assert.equal(indexes.length, 1);
+    assert.equal(indexes[0].title, 'Dispatch title');
+    const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'boundary12345678' });
+    assert.equal(stored?.messages.length, 2);
+    assert.equal(stored?.savedAt, 1700000010000);
+});

@@ -1,3 +1,4 @@
+import { geminiResponse, type GeminiResponseEnvelope } from './responseEnvelope.js';
 import { findListConversationMetadata } from './listMetadata.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
@@ -12,7 +13,6 @@ import {
     hasTurnContentMarkers,
     decodeTurn,
     safeStructureClean,
-    robustFirstPayload,
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,
@@ -29,7 +29,7 @@ import {
 import GeminiProtocol from "../../../protocol/gemini/protocol.js";
 import { isDevMode } from "../../../../runtime/devMode.js";
 const GeminiUtils = { isDevMode };
-import { extractInnerPayload, extractNextPageToken } from "./payload.js";
+import { extractNextPageToken } from "./payload.js";
 import { resolveDetailTitle } from "../../../../shared/utils/titleText.js";
 import {
     decodeGeminiUserResources,
@@ -379,13 +379,14 @@ function parseCandidateResponse(
 }
 
 /** Source facts only: no archive destinations, unique names or synthetic image filenames. */
-function decodeGeminiDetail(text: string, targetConvId?: string, overrides: unknown = {}): GeminiDetailEvidence {
+function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?: string, overrides: unknown = {}): GeminiDetailEvidence {
     return decodeDetailEvidence(text, targetConvId, overrides, { sourceOnly: true, images: extractImageEvidence, responseImages: extractResponseImageEvidence });
 }
 
-function decodeDetailEvidence(text: string, targetConvId: string | undefined, _overrides: unknown, media: DetailMediaReader): GeminiDetailEvidence {
+function decodeDetailEvidence(text: string | GeminiResponseEnvelope, targetConvId: string | undefined, _overrides: unknown, media: DetailMediaReader): GeminiDetailEvidence {
     try {
-        const top = robustFirstPayload(text);
+        const response = geminiResponse(text);
+        const top = response.scope(GeminiProtocol.RPCS.DETAIL);
         const utils = getUtils();
         const isDevMode = (utils && typeof utils.isDevMode === "function") ? utils.isDevMode() : false;
 
@@ -393,11 +394,7 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
         const wrb = protocol.WRB || "wrb.fr";
         const detailRpc = protocol.RPCS ? protocol.RPCS.DETAIL : "hNvQHb";
 
-        const { inner: extractedInner, innerStr, isStandardWrb } = extractInnerPayload(top, {
-            wrb,
-            rpcId: detailRpc,
-            heuristicFilter: s => /c_[a-zA-Z0-9_-]{8,64}/.test(s) || s.includes("rc_") || s.startsWith("[[")
-        });
+        const { inner: extractedInner, innerStr, isStandardWrb } = response.payload(detailRpc);
 
         if (!extractedInner) throw new Error("invalid");
 
@@ -455,7 +452,7 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
             }
         }
 
-        const metadata = findListConversationMetadata(top, convId === 'c_unknown' ? targetConvId ?? '' : convId);
+        const metadata = findListConversationMetadata(response, convId === 'c_unknown' ? targetConvId ?? '' : convId);
         const metaTitle = metadata?.title || null;
         const titleObj = extractConversationTitle(inner, turns);
         const nextToken = extractNextPageToken(inner, GEMINI_JSPB_SCHEMA.INNER.NEXT_TOKEN_CANDIDATES);

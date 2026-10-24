@@ -5,14 +5,15 @@ import { getAccount } from '../../../runtime/api/accountRegistry.js';
 import { geminiListObservation } from '../../client/gemini/listObservation.js';
 import { resolveRequestAccount, resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../../runtime/api/domainIngestion.js';
-import { parseGeminiRpcConversation } from '../../parsers/gemini/rpc/parseConversation.js';
+import { parseGeminiResponse } from '../../parsers/gemini/rpc/parseResponse.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { GeminiRpcParseResult } from '../../parsers/gemini/rpc/parseConversation.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
 import { parseGeminiDomIndex } from '../../parsers/gemini/dom/parseIndex.js';
 import { isDevMode } from '../../../runtime/devMode.js';
-import { parseList } from '../../parsers/gemini/rpc/parseList.js';
-import { GeminiProtocol, CrossWorldEvents } from '../../protocol/gemini/protocol.js';
+import type { ListParseResult } from '../../parsers/gemini/rpc/parseList.js';
+import type { GeminiListRequestContext } from '../../parsers/gemini/rpc/listRequest.js';
+import { CrossWorldEvents } from '../../protocol/gemini/protocol.js';
 import { extractConversationIdFromUrl, normId } from '../../../shared/utils/pathUtils.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
 
@@ -66,7 +67,11 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
     try {
         // Validate source and parse useful facts before anything can create a default Account.
         const capturedIdentity = field('requestAccountObservation');
-        let parsedList: ReturnType<typeof parseList> | null = null;
+        let parsedList: ListParseResult | null = null;
+        let listRequest: GeminiListRequestContext | null = null;
+        let detailRequest: { conversationId: string; requestCursor: string | null } | null = null;
+        let network: { truncated: boolean; requestedAt: number } | null = null;
+        let confirmedDeletion: string | null = null;
         let parsedDetail: GeminiRpcParseResult | null = null;
         if (raw.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
             const text = field('text'), truncated = field('truncated'), requestedAt = field('requestedAt'), url = field('url');
@@ -75,22 +80,28 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
             const source = new URL(url);
             if (source.protocol !== 'https:' || !['gemini.google.com', 'bard.google.com'].includes(source.hostname)
                 || !source.pathname.endsWith('/batchexecute')) return;
-            if (text.includes(GeminiProtocol.RPCS.LIST)) {
+            const response = parseGeminiResponse(text);
+            network = { truncated, requestedAt };
+            if (response.hasList) {
                 const request = field('listRequest');
-                if (request !== undefined && (!request || typeof request !== 'object'
-                    || !('streamId' in request) || !('requestCursor' in request)
-                    || (request.streamId !== 'recent' && request.streamId !== 'pinned')
-                    || (request.requestCursor !== null && typeof request.requestCursor !== 'string'))) return;
-                parsedList = parseList(text);
+                if (request !== undefined) {
+                    if (!request || typeof request !== 'object' || !('streamId' in request) || !('requestCursor' in request)
+                        || (request.streamId !== 'recent' && request.streamId !== 'pinned')
+                        || (request.requestCursor !== null && typeof request.requestCursor !== 'string')) return;
+                    listRequest = { streamId: request.streamId, requestCursor: request.requestCursor };
+                }
+                parsedList = response.list();
             }
-            if (text.includes(GeminiProtocol.RPCS.DETAIL)) {
+            if (response.hasDetail) {
                 const request = field('detailRequest');
-                if (request !== undefined && (!request || typeof request !== 'object'
-                    || !('conversationId' in request) || typeof request.conversationId !== 'string' || !/^[\w-]{1,128}$/.test(request.conversationId)
-                    || !('requestCursor' in request) || (request.requestCursor !== null && typeof request.requestCursor !== 'string'))) return;
-                parsedDetail = parseGeminiRpcConversation(text, { providerId: 'gemini' });
-                if (request && typeof request === 'object' && 'conversationId' in request
-                    && request.conversationId !== parsedDetail.conversationId) return;
+                if (request !== undefined) {
+                    if (!request || typeof request !== 'object' || !('conversationId' in request)
+                        || typeof request.conversationId !== 'string' || !/^[\w-]{1,128}$/.test(request.conversationId)
+                        || !('requestCursor' in request) || (request.requestCursor !== null && typeof request.requestCursor !== 'string')) return;
+                    detailRequest = { conversationId: request.conversationId, requestCursor: request.requestCursor };
+                }
+                parsedDetail = response.detail({ providerId: 'gemini' });
+                if (detailRequest && detailRequest.conversationId !== parsedDetail.conversationId) return;
             }
             if (!parsedList && !parsedDetail) return;
             if (capturedIdentity === null && !(parsedList && parsedList.conversations.length > 0)
@@ -102,8 +113,9 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
                 || typeof url !== 'string' || typeof requestBody !== 'string' || typeof responseText !== 'string') return;
             const source = new URL(url);
             if (source.protocol !== 'https:' || !['gemini.google.com', 'bard.google.com'].includes(source.hostname)
-                || !source.pathname.endsWith('/batchexecute')
-                || parseConfirmedGeminiDeletion(requestBody, responseText) !== id) return;
+                || !source.pathname.endsWith('/batchexecute')) return;
+            confirmedDeletion = parseConfirmedGeminiDeletion(requestBody, responseText);
+            if (confirmedDeletion !== id) return;
         } else if (raw.type === CrossWorldEvents.STREAM_START || raw.type === CrossWorldEvents.STREAM_COMPLETE) {
             // Unknown Stream signals by themselves are not proof of persistable content.
             if (capturedIdentity === null) return;
@@ -114,22 +126,11 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
         const account = await getAccount(accountContext.accountId);
         if (!account) return;
         if (raw.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
-            const text = field('text'), truncated = field('truncated'), requestedAt = field('requestedAt'), url = field('url');
-            if (typeof text !== 'string' || !text || text.length > 3000000 || typeof truncated !== 'boolean'
-                || typeof requestedAt !== 'number' || !Number.isFinite(requestedAt) || requestedAt <= 0 || typeof url !== 'string') return;
-            const source = new URL(url);
-            if (source.protocol !== 'https:' || !['gemini.google.com', 'bard.google.com'].includes(source.hostname)
-                || !source.pathname.endsWith('/batchexecute')) return;
-            if (text.includes(GeminiProtocol.RPCS.LIST)) {
-                const request = field('listRequest');
-                let context: import('../../parsers/gemini/rpc/listRequest.js').GeminiListRequestContext | null = null;
-                if (request !== undefined) {
-                    if (!request || typeof request !== 'object' || !('streamId' in request) || !('requestCursor' in request)
-                        || (request.streamId !== 'recent' && request.streamId !== 'pinned')
-                        || (request.requestCursor !== null && typeof request.requestCursor !== 'string')) return;
-                    context = { streamId: request.streamId, requestCursor: request.requestCursor };
-                }
-                const parsed = parsedList!;
+            if (!network) return;
+            const { truncated, requestedAt } = network;
+            if (parsedList) {
+                const parsed = parsedList;
+                const context = listRequest;
                 const page = geminiListObservation(parsed, context, account.id, truncated, requestedAt);
                 const evidenceKey = capturedIdentity && typeof capturedIdentity === 'object'
                     ? Reflect.get(capturedIdentity, 'providerAccountId') : null;
@@ -139,20 +140,16 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
                     trustedIdentity && context ? page : undefined);
                 if (deps === capturedDeps) capturedDeps.onIndexesCommitted?.(account.id);
             }
-            if (text.includes(GeminiProtocol.RPCS.DETAIL)) {
-                const request = field('detailRequest');
-                if (request !== undefined && (!request || typeof request !== 'object' || !('conversationId' in request)
-                    || typeof request.conversationId !== 'string' || !/^[\w-]{1,128}$/.test(request.conversationId)
-                    || !('requestCursor' in request) || (request.requestCursor !== null && typeof request.requestCursor !== 'string'))) return;
-                const native = parsedDetail!;
+            if (parsedDetail) {
+                const request = detailRequest;
+                const native = parsedDetail;
                 const cid = native.conversationId;
-                if (request && typeof request === 'object' && 'conversationId' in request && request.conversationId !== cid) return;
                 const key = JSON.stringify([account.id, slot, cid]);
                 const now = Date.now();
                 for (const [id, chain] of chains) if (now - chain.requestedAt > 120000) chains.delete(id);
                 // Uncorrelated pages remain usable facts, but never establish full coverage.
                 let pages = [native], complete = false;
-                if (request && typeof request === 'object' && 'conversationId' in request && request.conversationId === cid && 'requestCursor' in request && !truncated) {
+                if (request && request.conversationId === cid && !truncated) {
                     const previous = chains.get(key);
                     if (request.requestCursor === null) chains.delete(key);
                     else if (previous && previous.next === request.requestCursor && requestedAt >= previous.requestedAt
@@ -177,16 +174,10 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
         const id = field('id');
         if (id !== null && id !== undefined && (typeof id !== 'string' || !/^[\w-]{1,128}$/.test(id))) return;
         if (raw.type === CrossWorldEvents.CONVERSATION_DELETED) {
-            const requestBody = field('requestBody'), responseText = field('responseText'), url = field('url');
             const evidenceKey = capturedIdentity && typeof capturedIdentity === 'object'
                 ? Reflect.get(capturedIdentity, 'providerAccountId') : null;
-            if (typeof id !== 'string' || account.providerAccountId === 'default'
-                || evidenceKey !== account.providerAccountId
-                || typeof requestBody !== 'string' || typeof responseText !== 'string' || typeof url !== 'string') return;
-            const source = new URL(url);
-            if (source.protocol !== 'https:' || !['gemini.google.com', 'bard.google.com'].includes(source.hostname)
-                || !source.pathname.endsWith('/batchexecute')
-                || parseConfirmedGeminiDeletion(requestBody, responseText) !== id) return;
+            if (typeof id !== 'string' || confirmedDeletion !== id || account.providerAccountId === 'default'
+                || evidenceKey !== account.providerAccountId) return;
             await Promise.allSettled(earlier);
             await ingestDeletedConversation(account.id, id);
             if (deps === capturedDeps) {

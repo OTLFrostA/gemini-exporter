@@ -826,6 +826,24 @@ class ScanAndImportTests(unittest.TestCase):
         source[CID]['detail']['messages'] = []
         self.assertFalse(self.validate_takeout(record,source))
 
+    def test_takeout_action_reads_current_localized_completion_status_without_hiding_failure(self):
+        with tempfile.NamedTemporaryFile(suffix='.zip') as archive:
+            for status, expected in [('Imported 6 conversations (ok)', 'ok'),
+                                     ('Imported 6 conversations (partial)', 'partial'),
+                                     ('已提交 6 条对话（完成）', 'ok'),
+                                     ('已提交 6 条对话（部分完成）', 'partial'),
+                                     ('已提交 6 条对话（未知）', None), ('Import failed', None)]:
+                with self.subTest(status=status), patch('scripts.framework.actions.install_probe'):
+                    cdp = MagicMock()
+                    cdp.eval.side_effect = [True, {'busy': False, 'status': status},
+                                            {'ids': [], 'mediaDigests': {}, 'resources': {}, 'sourceFacts': {}}]
+                    result = CDPActions.import_takeout_zip(cdp, archive.name)
+                    self.assertEqual(result['success'], expected is not None)
+                    if expected:
+                        self.assertEqual((result['imported'], result['status']), (6, expected))
+                    else:
+                        self.assertEqual(result['error'], status)
+
     def test_takeout_case_checks_current_import_result_and_preserves_account(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'takeout.zip'
