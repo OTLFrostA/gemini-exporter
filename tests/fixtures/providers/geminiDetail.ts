@@ -330,6 +330,7 @@ function p1BadLeadingDetailWire(): string {
 }
 
 const fixtureMap = {
+    'G_PARSER_CONTRACT_MALFORMED_DETAIL_01': () => '[]',
     'G_BOUNDARY_SELECTED_DRAFT_01': () => boundarySelectedDraftWire(),
     'G_BOUNDARY_THOUGHT_CITATION_01': () => boundaryCitationThoughtWire(),
     'G_BOUNDARY_IMAGE_ATTACHMENT_01': () => boundaryImageAttachmentWire(),
