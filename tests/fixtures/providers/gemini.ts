@@ -1,5 +1,5 @@
 import timestampPairs from '../gemini_timestamp_pairs.json';
-/** Raw network responses for the Gemini MaZiqc List RPC only. */
+/** Gemini MaZiqc List responses and keyed malformed/empty batchexecute transport probes. */
 function wire(rows: readonly unknown[] = [], nextCursor: string | null = null): string {
     return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, nextCursor, rows])]]);
 }
@@ -60,6 +60,9 @@ function e2eUuidList(id: string): string {
 }
 
 const fixtureMap = {
+    'G_E2E_ACCOUNT_REGISTRY_EMPTY_BATCH_01': () => '[]',
+    'G_PARSER_CONTRACT_MALFORMED_LIST_01': () => '[]',
+    'G_MESSAGE_BRIDGE_OVERSIZED_BODY_01': () => 'x'.repeat(3000001),
     'G_P1E_LEADING_DECOY_LIST_01': () => {
         const junkStr = JSON.stringify('just public_wifi talk');
         const listInnerStr = JSON.stringify([null, [['c_list0012345678', 'ListTitle', null, null, 5]], null]);

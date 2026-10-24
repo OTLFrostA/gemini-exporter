@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures';
+import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import type { Page } from '@playwright/test';
 
 const registryBundle = require('esbuild').buildSync({ stdin: { resolveDir: require('node:path').resolve(__dirname, '../..'), loader: 'ts', contents: `
@@ -83,7 +84,7 @@ test('real MAIN → isolated → background discovery deduplicates across slots 
     expect((await accounts(options))[0].id).toBe(account.id);
 
     // A credential-bearing request uses the Registry UUID, including the default→u0 route.
-    await pages[0].route('**/batchexecute*', route => route.fulfill({ body: '[]' }));
+    await pages[0].route('**/batchexecute*', route => route.fulfill({ body: geminiListGen('G_E2E_ACCOUNT_REGISTRY_EMPTY_BATCH_01') }));
     await pages[0].evaluate(() => fetch('/_/BardChatUi/data/batchexecute?f.sid=test-registry-sid&at=test-registry-token'));
     await expect.poll(async () => options.evaluate(async () => {
         const value = await chrome.storage.session.get<{ gemini_credentials_map?: Record<string, { accountId?: string }> }>('gemini_credentials_map');

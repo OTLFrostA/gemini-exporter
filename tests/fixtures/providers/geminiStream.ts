@@ -38,6 +38,7 @@ function largeCumulativeStream(): string {
         + streamWire().split('\n').slice(2).join('\n');
 }
 const fixtureMap = {
+    'G_STREAM_EMPTY_HTTP_01': () => '',
     'G_STREAM_ANSWERED_01': () => streamWire(),
     'G_STREAM_UNANSWERED_01': () => streamWire(1),
     'G_STREAM_DIFFERENT_REQUEST_01': () => streamWire(2, 'r_def456'),

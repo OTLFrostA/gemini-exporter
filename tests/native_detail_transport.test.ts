@@ -48,14 +48,14 @@ test('v2 native RPC parsing produces keyless facts, not a versioned Domain envel
 });
 
 test('malformed native payloads and wrong Provider context cannot be admitted as Detail', async () => {
-    for (const raw of ['', 'not JSON', 'null']) {
-        assert.throws(() => parseGeminiRpcConversation(raw, { providerId: 'gemini' }));
+    for (const key of ['G_DETAIL_NATIVE_TRANSPORT_EMPTY_01', 'G_DETAIL_NATIVE_TRANSPORT_NON_JSON_01', 'G_DETAIL_NATIVE_TRANSPORT_NULL_01'] as const) {
+        assert.throws(() => parseGeminiRpcConversation(geminiDetailGen(key), { providerId: 'gemini' }));
     }
     for (const raw of [null, 42, {}]) {
         assert.throws(() => parseGeminiRpcConversation(raw as never, { providerId: 'gemini' }),
             /raw response text/);
     }
-    assert.throws(() => parseGeminiRpcConversation('[]', { providerId: 'chatgpt' }),
+    assert.throws(() => parseGeminiRpcConversation(geminiDetailGen('G_DETAIL_NATIVE_TRANSPORT_EMPTY_BATCH_01'), { providerId: 'chatgpt' }),
         /requires providerId gemini/);
     assert.equal(await getDetail({ accountId: ACCOUNT_UUID, conversationId: CONVERSATION_ID }), null);
 });

@@ -33,7 +33,7 @@ test('foreign window and foreign origin cannot submit captured facts', async () 
     await handleWindowMessage({ ...sourceCapture(), origin: 'https://evil.test' });
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 0);
 });
-for (const fields of [{ url: 'https://evil.test/batchexecute' }, { requestedAt: undefined }, { truncated: undefined }, { slot: 'other' }, { text: 'x'.repeat(3000001) }]) {
+for (const fields of [{ url: 'https://evil.test/batchexecute' }, { requestedAt: undefined }, { truncated: undefined }, { slot: 'other' }, { text: geminiListGen('G_MESSAGE_BRIDGE_OVERSIZED_BODY_01') }]) {
     test(`capture rejects malformed provenance ${Object.keys(fields)[0]}`, async () => {
         await handleWindowMessage(sourceCapture(list, fields)); assert.equal((await getConversations(ACCOUNT_UUID)).length, 0);
     });

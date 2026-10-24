@@ -330,6 +330,11 @@ function p1BadLeadingDetailWire(): string {
 }
 
 const fixtureMap = {
+    'G_PARSER_CONTRACT_MALFORMED_DETAIL_01': () => '[]',
+    'G_DETAIL_NATIVE_TRANSPORT_EMPTY_01': () => '',
+    'G_DETAIL_NATIVE_TRANSPORT_NON_JSON_01': () => 'not JSON',
+    'G_DETAIL_NATIVE_TRANSPORT_NULL_01': () => 'null',
+    'G_DETAIL_NATIVE_TRANSPORT_EMPTY_BATCH_01': () => '[]',
     'G_BOUNDARY_SELECTED_DRAFT_01': () => boundarySelectedDraftWire(),
     'G_BOUNDARY_THOUGHT_CITATION_01': () => boundaryCitationThoughtWire(),
     'G_BOUNDARY_IMAGE_ATTACHMENT_01': () => boundaryImageAttachmentWire(),

@@ -41,6 +41,20 @@ test('Gemini native response constructors remain inside one-key provider fixture
             const line = text.slice(0, match.index).split('\n').length;
             violations.push(path + ':' + line + ' constructs a native batchexecute response');
         }
+        // Plain malformed bodies and oversize stress responses also belong to Gen(key).
+        // Unlike array-based constructors, they previously escaped the basic wrb.fr guard.
+        const inlineLiteralMocks = [
+            /\b(?:parseList|parseGeminiRpcConversation)\s*\(\s*['"]\[\]['"]/g,
+            /\.route\(\s*['"][^'"]*batchexecute[^'"]*['"]\s*,\s*(?:async\s*)?\w+\s*=>\s*\w+\.fulfill\(\s*\{\s*body\s*:\s*['"]\[\]['"]/g,
+            /new\s+Response\(\s*['"]\s*['"]\s*\)/g,
+            /\btext:\s*['"]\w+['"]\.repeat\(\s*\d{6,}\s*\)/g,
+        ];
+        for (const pattern of inlineLiteralMocks) {
+            for (const match of text.matchAll(pattern)) {
+                const line = text.slice(0, match.index).split('\n').length;
+                violations.push(path + ':' + line + ' constructs a literal Gemini transport reply');
+            }
+        }
         // The common sourceList helper is a consumer of listGen(key), not a wire builder.
         if (path === 'helpers/l1SourceFixture.ts') {
             assert.match(text, /return\s+parseList\(geminiListGen\(key\)\)/);

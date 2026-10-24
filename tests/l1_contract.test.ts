@@ -145,7 +145,7 @@ test('L1 passive list uses captured identity and never borrows current account',
     assert.equal((await getConversations(OTHER_ACCOUNT_UUID)).length, 1);
 });
 test('L1 passive input validates URL, required fields and capture limits', async () => {
-    for (const extra of [{ url: 'https://evil.test/batchexecute' }, { requestedAt: undefined }, { truncated: undefined }, { text: 'a'.repeat(3000001) }]) {
+    for (const extra of [{ url: 'https://evil.test/batchexecute' }, { requestedAt: undefined }, { truncated: undefined }, { text: geminiListGen('G_MESSAGE_BRIDGE_OVERSIZED_BODY_01') }]) {
         await handleWindowMessage(sourceEvent(geminiListGen('G_L1_CONTRACT_19'), extra));
     }
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 0);

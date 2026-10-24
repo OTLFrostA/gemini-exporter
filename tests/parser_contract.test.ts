@@ -1,4 +1,6 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
+import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
@@ -32,12 +34,12 @@ test('malformed list and detail wire inputs fail closed without creating convers
     const previousWarn = console.warn;
     try {
         console.warn = () => {};
-        const parsed = parseList('[]');
+        const parsed = parseList(geminiListGen('G_PARSER_CONTRACT_MALFORMED_LIST_01'));
         assert.deepEqual(parsed.conversations, []);
         assert.equal(parsed.nextPageToken, null);
         assert.equal(parsed._debug?.error, 'NO_INNER_STR');
         assert.throws(
-            () => parseGeminiRpcConversation('[]', { account: fixtureAccount('gemini'), providerId: 'gemini' }),
+            () => parseGeminiRpcConversation(geminiDetailGen('G_PARSER_CONTRACT_MALFORMED_DETAIL_01'), { account: fixtureAccount('gemini'), providerId: 'gemini' }),
             /detail parse fail:/,
         );
     } finally {
