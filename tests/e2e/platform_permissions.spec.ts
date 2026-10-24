@@ -16,8 +16,8 @@ test('shipping install has no platform access and leaves unconnected source page
     }
     await options.locator('#btnTourGuide').click();
     for (const platform of ['gemini', 'chatgpt', 'claude']) {
-        const group = options.locator(`.tour-platform-permissions[data-platform="${platform}"]`);
-        await expect(group.locator('button')).toBeVisible();
+        const group = options.locator(`.platform-permission-row[data-platform="${platform}"]`);
+        await expect(group.locator('input[type=checkbox]')).toBeChecked();
         await group.locator('summary').click();
         await expect(group.locator('li').first()).toBeVisible();
     }

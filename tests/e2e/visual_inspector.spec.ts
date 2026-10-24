@@ -11,7 +11,7 @@ import * as path from 'node:path';
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 const outputDir = path.resolve(__dirname, '../../tests/output/visual_audit');
 const steps = [
-    ['Connect an AI platform', 'header h1'],
+    ['Authorize AI platforms', 'header h1'],
     ['Scan conversations', '#btnSyncAll'],
     ['Select conversations', '#btnSelectAll'],
     ['Choose a format', '#format'],
@@ -60,7 +60,11 @@ async function connectTourGemini(page: import('@playwright/test').Page) {
                 return Promise.resolve(response);
             } });
     }, { accountId });
-    await page.getByRole('button', { name: 'Connect Gemini', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'ChatGPT', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
+    await page.getByRole('button', { name: 'Authorize', exact: true }).click();
+    await expect(page.locator('#tourNextBtn')).toBeEnabled();
+    await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
 }
 async function verifyPopoverGeometry(page: import('@playwright/test').Page, target: string, action: string) {
@@ -79,16 +83,16 @@ async function verifyPopoverGeometry(page: import('@playwright/test').Page, targ
     }, { target, action })).toEqual({ present: true, clear: true, hittable: true });
 }
 
-test('the real seven-step v2 Tour requires connection and has no target collisions', async ({ context, extensionId }) => {
+test('the real seven-step v2 Tour uses platform authorization and has no target collisions', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.locator('#btnTourGuide').click();
     for (const [i, [title, target]] of steps.entries()) {
         await expect(page.locator('.tour-popover h2')).toHaveText(title);
-        const action = i === 0 ? 'Connect Gemini' : i === steps.length - 1 ? 'Start using' : 'Next';
+        const action = i === 0 ? 'Authorize' : i === steps.length - 1 ? 'Start using' : 'Next';
         await verifyPopoverGeometry(page, target, action);
         await screenshot(page, 'v2_tour_step_' + (i + 1) + '.png');
         if (i === 0) {
-            await expect(page.locator('#tourNextBtn')).toBeDisabled();
+            await expect(page.locator('#tourNextBtn')).toBeEnabled();
             await connectTourGemini(page);
         } else await page.getByRole('button', { name: action, exact: true }).click();
     }
@@ -119,7 +123,7 @@ test('manual Tour opens and closes without obsolete v1 tour-state persistence', 
     const page = await workbench(context, extensionId);
     const original = await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').getSettings());
     await page.locator('#btnTourGuide').click();
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await page.getByRole('button', { name: 'Skip', exact: true }).click();
     await expect(page.locator('.tour-overlay-container')).toHaveCount(0);
     expect(await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').getSettings())).toEqual(original);
@@ -141,7 +145,7 @@ test('approved 2.0 upgrade notice shows once without resurrecting retired v1 fea
     await page.reload(); await exposeUIStorage(page);
     await expect(page.locator('.tour-popover')).toHaveCount(0);
     await page.locator('#btnTourGuide').click();
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await page.getByRole('button', { name: 'Skip', exact: true }).click();
 });
 

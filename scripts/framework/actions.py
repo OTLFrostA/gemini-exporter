@@ -129,8 +129,8 @@ class ExtensionActions:
     def verify_onboarding_tour(port: int = 9222, ext_id: Optional[str] = None, timeout: int = 15,
                                provider_id: str = 'gemini') -> bool:
         """Drive the real installation Tour and verify URL consumption, without stored flags."""
-        connect_id = {'gemini': 'tourBtnOpenGemini', 'chatgpt': 'tourBtnConnectChatGPT',
-                      'claude': 'tourBtnConnectClaude'}[provider_id]
+        if provider_id not in ('gemini', 'chatgpt', 'claude'):
+            raise ValueError(f'Unsupported platform: {provider_id}')
         base = f"chrome-extension://{ext_id}/src/ui/options/options.html"
         deadline = time.monotonic() + timeout
         options_tab = None
@@ -149,16 +149,23 @@ class ExtensionActions:
                     const popover = document.querySelector('.tour-popover');
                     if (!popover) return {active:false, url:location.href};
                     const button = [...popover.querySelectorAll('button')].find(btn => /^(Next|下一步|Start using|开始使用)$/.test(btn.textContent));
-                    const connect = popover.querySelector('#' + """ + json.dumps(connect_id) + """);
-                    if (connect) return {active:true, needsConnection:true, ready:!connect.disabled};
+                    const authorize = popover.querySelector('#btnAuthorizePlatforms');
+                    const selectedState = popover.querySelector('.platform-permission-row[data-platform="' + """ + json.dumps(provider_id) + """ + '"] .platform-permission-state');
+                    const granted = selectedState?.dataset.authorized === 'true';
+                    if (authorize && (!""" + json.dumps(connection_attempted) + """ || !granted || !button || button.disabled))
+                        return {active:true, needsConnection:true, ready:!authorize.disabled};
                     if (button && !button.disabled) button.click();
                     return {active:true};
                 })()""") or {}
                 if state.get('needsConnection') and state.get('ready') and not connection_attempted:
-                    # Use the actual connection action once, preserving Chrome's permission gesture.
-                    # A failed/denied connection must fail the Tour, not bypass its first-step gate.
+                    # Request only the scenario platform, in one actual Chrome permission gesture.
+                    # Denied authorization must fail the Tour rather than bypass its first step.
                     connection_attempted = bool(cdp.eval("""(() => {
-                        const button = document.getElementById(""" + json.dumps(connect_id) + """);
+                        for (const input of document.querySelectorAll('.platform-permission-list input[type=checkbox]')) {
+                            input.checked = input.value === """ + json.dumps(provider_id) + """;
+                            input.dispatchEvent(new Event('change', {bubbles:true}));
+                        }
+                        const button = document.getElementById('btnAuthorizePlatforms');
                         if (!button || button.disabled) return false;
                         button.click(); return true;
                     })()""", user_gesture=True))

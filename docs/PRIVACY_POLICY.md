@@ -14,7 +14,7 @@ Gemini Exporter ("we", "our", or "the Extension") is committed to protecting you
 
 Gemini Exporter is an open-source, client-side browser extension designed for a single dedicated purpose: **to allow users to export and back up their own personal Google Gemini conversation history into local files (Markdown, JSON, TXT, PDF, or ZIP archives) on their computer.**
 
-All platform site access is optional and grouped separately for Gemini, ChatGPT and Claude. In onboarding, choose **Connect** for the platform you want to use; only its conversation and attachment sites are requested. Source builds include experimental ChatGPT and Claude adapters. Each uses your existing login directly, without a developer-operated intermediary.
+All platform site access is optional and grouped separately for Gemini, ChatGPT and Claude. In onboarding or **Site access**, select the platforms you want to use and click **Authorize**; only the selected platforms’ conversation and attachment sites are requested together. Source builds include experimental ChatGPT and Claude adapters. Each uses your existing login directly, without a developer-operated intermediary.
 
 ---
 
@@ -35,9 +35,9 @@ The Extension requests minimal permissions strictly necessary to perform its adv
 | :--- | :--- |
 | **`storage` / `unlimitedStorage`** | Used exclusively to save local user preferences (selected export format, ZIP packaging toggle, language) and local conversation index metadata to skip duplicate exports. |
 | **`scripting`** | Registers and activates source scripts only for platforms with granted site access. |
-| **Gemini optional sites (`gemini.google.com`, `*.googleusercontent.com`, `*.usercontent.google.com`, `drive.google.com`, `lh3.google.com`, `*.gstatic.com`)** | Requested together through Connect Gemini to read conversations and download their attachments. |
-| **ChatGPT optional sites (`chatgpt.com`, `chat.openai.com`, `images.openai.com`)** | Requested together through Connect ChatGPT to identify the signed-in user/workspace and read conversations and images. |
-| **Claude optional site (`claude.ai`)** | Requested through Connect Claude to identify the current organization and read conversations and attachments. |
+| **Gemini optional sites (`gemini.google.com`, `*.googleusercontent.com`, `*.usercontent.google.com`, `drive.google.com`, `lh3.google.com`, `*.gstatic.com`)** | Requested together when Gemini is selected for authorization to read conversations and download their attachments. |
+| **ChatGPT optional sites (`chatgpt.com`, `chat.openai.com`, `images.openai.com`)** | Requested together when ChatGPT is selected for authorization to identify the signed-in user/workspace and read conversations and images. |
+| **Claude optional site (`claude.ai`)** | Requested when Claude is selected for authorization to identify the current organization and read conversations and attachments. |
 
 No platform has mandatory host access or automatically injected source scripts at installation. Connecting one platform does not authorize another. No platform password or session token is saved in the local conversation database.
 
@@ -94,7 +94,7 @@ Gemini Exporter（以下简称“本扩展”）深知用户隐私的重要性�
 ### 1. 单一用途声明
 Gemini Exporter 是一款纯本地运行的开源浏览器扩展，仅用于实现单一核心功能：**允许用户将自己在 Google Gemini (gemini.google.com) 中的历史对话记录导出并备份为本地文件（Markdown、JSON、TXT、PDF 或 ZIP 压缩包）。**
 
-Gemini、ChatGPT、Claude 的网站访问权限均为可选项，按平台独立申请。在新手引导中点击对应平台的“连接”后，仅申请该平台会话与附件网站的访问权限。源码版包含实验性的 ChatGPT 和 Claude 适配器，通过现有登录会话直接读取您请求的数据，不经过开发者中转服务器。
+Gemini、ChatGPT、Claude 的网站访问权限均为可选项，按平台独立申请。在新手引导或“网站授权”中勾选所需平台并点击“授权”后，一次申请所选平台会话与附件网站的访问权限。源码版包含实验性的 ChatGPT 和 Claude 适配器，通过现有登录会话直接读取您请求的数据，不经过开发者中转服务器。
 
 ### 2. 零数据收集与 100% 客户端沙箱运行
 - **绝无外部服务器**：本扩展不设立、不连接任何外部后端服务器、中转节点或数据收集 API。
@@ -106,9 +106,9 @@ Gemini、ChatGPT、Claude 的网站访问权限均为可选项，按平台独立
 本扩展仅申请实现上述导出功能所必需的最小权限：
 - **`storage` / `unlimitedStorage`**：仅用于在本地记录用户的导出偏好（默认格式、是否打包 ZIP、中英语言设置）以及已导出对话标记，实现增量跳过已导出记录。
 - **`scripting`**：仅为已授权平台注册、激活来源脚本。
-- **Gemini 可选网站权限**：`gemini.google.com`、`*.googleusercontent.com`、`*.usercontent.google.com`、`drive.google.com`、`lh3.google.com`、`*.gstatic.com`，在“连接 Gemini”时一组申请，用于读取会话和附件。
-- **ChatGPT 可选网站权限**：`chatgpt.com`、`chat.openai.com`、`images.openai.com`，在“连接 ChatGPT”时一组申请，用于确认用户/工作区并读取会话和图片。
-- **Claude 可选网站权限**：`claude.ai`，在“连接 Claude”时申请，用于确认组织并读取会话和附件。
+- **Gemini 可选网站权限**：`gemini.google.com`、`*.googleusercontent.com`、`*.usercontent.google.com`、`drive.google.com`、`lh3.google.com`、`*.gstatic.com`，勾选 Gemini 并授权时一组申请，用于读取会话和附件。
+- **ChatGPT 可选网站权限**：`chatgpt.com`、`chat.openai.com`、`images.openai.com`，勾选 ChatGPT 并授权时一组申请，用于确认用户/工作区并读取会话和图片。
+- **Claude 可选网站权限**：`claude.ai`，勾选 Claude 并授权时申请，用于确认组织并读取会话和附件。
 
 安装时不强制授予任何平台的网站访问权，也不自动注入来源脚本。连接一个平台不会授权其他平台。平台密码和会话令牌不会写入本地会话数据库。
 

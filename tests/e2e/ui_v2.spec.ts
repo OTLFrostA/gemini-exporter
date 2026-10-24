@@ -283,7 +283,7 @@ test('UI v2: Takeout file input directly imports into current account and report
 });
 test('UI v2: real Tour hit testing, stale delays, feedback close, and no persistent Tour fields', async ({ page }) => {
     await mount(page,'options',{},'?startTour=1'); await expect(page).toHaveURL('https://ui.test/');
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
     // Highlighted scan is a real business click and advances without awaiting completion.
@@ -346,29 +346,28 @@ test('UI v2: Badge drag sends position to Runtime on pointerup, ignores ordinary
     await badge.click(); expect(await read(page,'events')).toContain('openOptions');
     expect(await page.evaluate(()=>Object.keys(localStorage))).toEqual([]);
 });
-test('UI v2: connection is required before Next, and closing never persists Tour state', async ({ page }) => {
-    await mount(page,'options',{tabs:[]},'?startTour=1');
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
-    expect(await read(page,'events')).not.toContain('open');
+test('UI v2: authorization uses one selected-platform action and closing never persists Tour state', async ({ page }) => {
+    await mount(page,'options',{tabs:[],geminiAccess:false},'?startTour=1');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await expect(page.locator('#tourNextBtn')).toBeDisabled();
     for (const platform of ['Gemini','ChatGPT','Claude'])
-        await expect(page.locator('.tour-popover').getByRole('button',{name:`Connect ${platform}`,exact:true})).toBeVisible();
-    await page.getByRole('button',{name:'Connect Gemini',exact:true}).click(); expect(await read(page,'events')).toContain('open');
-    await expect(page.locator('#tourNextBtn')).toBeDisabled();
-    await page.evaluate(({A})=>{
-        const h=Reflect.get(window,'harness');h.tabs=[{id:1,url:'https://gemini.google.com/app'}];
-        h.contextReply={ok:true,accountContext:{accountId:A,providerId:'gemini'}};
-        window.dispatchEvent(new Event('focus'));
-    },{A});
+        await expect(page.getByRole('checkbox',{name:platform,exact:true})).toBeChecked();
+    await page.getByRole('checkbox',{name:'ChatGPT',exact:true}).uncheck();
+    await page.getByRole('checkbox',{name:'Claude',exact:true}).uncheck();
+    await page.getByRole('button',{name:'Authorize',exact:true}).click();
+    await expect(page.locator('#tourNextBtn')).toBeEnabled();
+    expect(await read(page,'connectionRequests')).toEqual([[['gemini'],true]]);
+    expect(await read(page,'events')).not.toContain('open');
+    await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
-    await page.getByRole('button',{name:'Skip',exact:true}).click(); await expect(page.locator('.tour-popover')).toHaveCount(0);
+    await page.getByRole('button',{name:'Skip',exact:true}).click();
     expect(await read(page,'patches')).toEqual([]);
 });
 test('UI v2: final Tutorial button closes without opening feedback, actual feedback link opens only once', async ({ page }) => {
     await mount(page,'options');
     const lastStep = async () => {
         await page.locator('#btnTourGuide').click();
-        await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
+        await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
         await page.locator('#tourNextBtn').click();
         await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
         for (let i=0;i<5;i++) await page.getByRole('button',{name:'Next',exact:true}).click();
