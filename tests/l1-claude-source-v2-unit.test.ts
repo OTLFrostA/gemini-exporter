@@ -43,15 +43,6 @@ const c1 = '11111111-1111-4111-8111-111111111111';
 const c2 = '22222222-2222-4222-8222-222222222222';
 const root = '33333333-3333-4333-8333-333333333333';
 const leaf = '55555555-5555-4555-8555-555555555555';
-function message(uuid: string, parent: string | null, sender: string, text: string) {
-    return { uuid, parent_message_uuid: parent, sender,
-        content: [{ type: 'text', text }], created_at: '2026-10-01T00:00:00.000Z' };
-}
-function detail(messages: unknown[], current_leaf_message_uuid: string | null = leaf) {
-    return { uuid: c1, name: 'Claude authored title', created_at: '2026-10-01T00:00:00Z',
-        updated_at: '2026-10-02T00:00:00Z', chat_messages: messages,
-        current_leaf_message_uuid };
-}
 
 test('Claude collection returns sorted Domain list facts with source timestamps', () => {
     const result = parseClaudeList(claudeListGen('CL_L1_SOURCE_PARSE_SORTED_01').data);
@@ -89,22 +80,13 @@ test('Claude missing parent and missing leaf never claim complete source coverag
 });
 
 test('Claude preserves source Markdown, reasoning and text-bearing tool artifacts without claiming binary bytes', () => {
-    const messages = [message(root, null, 'human', 'Hello'),
-        { uuid: leaf, parent_message_uuid: root, sender: 'assistant',
-            content: [{ type: 'thinking', thinking: 'Consider the task' },
-                { type: 'text', text: 'Answer with \\(x^2\\)' },
-                { type: 'tool_use', name: 'artifacts', input: { title: 'app.ts', language: 'typescript', content: 'export const n = 42;' } }],
-            attachments: [{ file_name: 'notes.txt', extracted_content: 'document text' }] }];
-    const parsed = parseClaudeConversation(detail(messages), c1);
+    const parsed = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_MARKDOWN_ARTIFACTS_01'), c1);
     const assistant = parsed.conversation.detail.messages[1];
     assert.ok(assistant.reasoning?.length);
     assert.ok(assistant.content.some(b => b.type === 'code' && b.code.includes('const n')));
     assert.equal(parsed.conversation.detail.assets.length, 0);
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
-    const partial = parseClaudeConversation(detail([message(root, null, 'human', 'Hi'), {
-        ...message(leaf, root, 'assistant', 'Answer'),
-        files: [{ name: 'unavailable.pdf' }],
-    }]), c1);
+    const partial = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_MISSING_BINARY_FILE_01'), c1);
     assert.equal(partial.conversation.detail.quality.status, 'partial');
 });
 
@@ -120,25 +102,7 @@ test('Claude sentinel root closes a real branch without hiding missing ancestors
 });
 
 test('Claude native questionnaire, selected answers, sources and connectors survive physical renderers', async () => {
-    const blocks = [
-        { type: 'tool_use', id: 'question', name: 'AskUserQuestion', input: { questions: [
-            { header: 'Work', question: 'Which role?', multiSelect: false,
-                options: [{ label: 'Engineer', description: 'Build software' }, { label: 'Researcher', description: 'Study systems' }] },
-            { header: 'Tools', question: 'Which tools?', multiSelect: true,
-                options: [{ label: 'Editor', description: 'Write code' }, { label: 'Calendar', description: 'Plan time' }] },
-        ] } },
-        { type: 'tool_result', tool_use_id: 'question', name: 'AskUserQuestion',
-            content: [{ type: 'text', text: 'Selected: Engineer, Editor, Calendar' }] },
-        { type: 'tool_use', id: 'search', name: 'web_search', input: { query: 'Export documentation' } },
-        { type: 'tool_result', tool_use_id: 'search', name: 'web_search', content: [
-            { type: 'knowledge', title: 'Source article', url: 'https://example.com/article', is_missing: false },
-        ] },
-        { type: 'tool_use', id: 'connector', name: 'SuggestConnectors', input: { uuids: ['internal-id'] } },
-        { type: 'tool_result', tool_use_id: 'connector', name: 'suggest_connectors', content: [{ type: 'text',
-            text: JSON.stringify([{ name: 'Example connector', description: 'Read calendar entries', url: 'https://example.com/connect' }]) }] },
-    ];
-    const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Help'),
-        { ...message(leaf, root, 'assistant', ''), content: blocks }]), c1);
+    const parsed = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_QUESTIONNAIRE_FULL_01'), c1);
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     const compose = contentComposer(new Map(), id => ({ id, label: id }));
     const doc = { title: 'Widgets', metadata: { id: c1, provider: 'claude' }, messages: parsed.conversation.detail.messages.map(m =>
@@ -155,13 +119,7 @@ test('Claude native questionnaire, selected answers, sources and connectors surv
 });
 
 test('Claude memory operations never become Artifacts; real artifacts still preserve code', () => {
-    const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Hello'),
-        { ...message(leaf, root, 'assistant', ''), content: [
-            { type: 'tool_use', name: 'mcp__memory__memory_write', input: { path: '/profile.md', content: 'internal profile body' } },
-            { type: 'tool_result', name: 'memory_write', content: [{ type: 'text', text: 'internal version token' }],
-                structured_content: { parsed: { body: 'internal profile body' } } },
-            { type: 'tool_use', name: 'artifacts', input: { title: 'App', content: 'const answer = 42;', language: 'javascript' } },
-        ] }]), c1);
+    const parsed = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_MEMORY_WRITE_01'), c1);
     const serialized = JSON.stringify(parsed.conversation.detail.messages);
     assert.ok(!serialized.includes('internal profile body'));
     assert.ok(!serialized.includes('internal version token'));
@@ -171,15 +129,14 @@ test('Claude memory operations never become Artifacts; real artifacts still pres
 });
 
 test('Claude incomplete widgets, unsupported result blocks and missing binary content explain partial status', () => {
-    for (const bad of [
-        { type: 'tool_use', name: 'AskUserQuestion', input: { questions: [{ question: 'Which?', options: [{}] }] } },
-        { type: 'tool_use', name: 'future_widget', input: {} },
-        { type: 'tool_result', name: 'future_widget', content: [{ type: 'image', data: 'unavailable' }] },
-        { type: 'tool_result', name: 'web_search', content: [{ type: 'knowledge', title: 'Missing', is_missing: true }] },
-        { type: 'tool_result', name: 'suggest_connectors', content: [{ type: 'text', text: '{broken' }] },
-    ]) {
-        const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Q'),
-            { ...message(leaf, root, 'assistant', ''), content: [bad] }]), c1);
+    for (const key of [
+        'CL_L1_SOURCE_BAD_WIDGET_01',
+        'CL_L1_SOURCE_BAD_WIDGET_02',
+        'CL_L1_SOURCE_BAD_WIDGET_03',
+        'CL_L1_SOURCE_BAD_WIDGET_04',
+        'CL_L1_SOURCE_BAD_WIDGET_05',
+    ] as const) {
+        const parsed = parseClaudeConversation(claudeDetailGen(key), c1);
         assert.equal(parsed.conversation.detail.quality.status, 'partial');
         assert.ok(parsed.diagnostics.some(d => d.sourceRef?.providerMessageId === leaf));
     }
@@ -187,15 +144,7 @@ test('Claude incomplete widgets, unsupported result blocks and missing binary co
 
 test('Claude modern Write → Artifact preserves exact source as escaped code and the published link', () => {
     const code = '<h1>Backup checklist</h1>\n<script>window.example = "inert source";</script>';
-    const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Create a checklist'),
-        { ...message(leaf, root, 'assistant', ''), content: [
-            { type: 'tool_use', name: 'Skill', input: { skill: 'artifact-design' } },
-            { type: 'tool_result', name: 'Skill', content: [{ type: 'text', text: 'internal skill setup' }] },
-            { type: 'tool_use', name: 'Write', input: { file_path: '/home/claude/checklist.html', content: code } },
-            { type: 'tool_result', name: 'Write', content: [{ type: 'text', text: 'File created successfully' }] },
-            { type: 'tool_use', name: 'Artifact', input: { file_path: '/home/claude/checklist.html', description: 'Four backup steps' } },
-            { type: 'tool_result', name: 'Artifact', content: [{ type: 'text', text: 'Published at https://claude.ai/artifact/example-123 (Version 1). Internal publication instructions.' }] },
-        ] }]), c1);
+    const parsed = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_WRITE_ARTIFACT_01'), c1);
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     const sourceCode = parsed.conversation.detail.messages[1].content.filter(b => b.type === 'code');
     assert.deepEqual(sourceCode.map(b => b.code), [code]);
@@ -216,26 +165,18 @@ test('Claude modern Write → Artifact preserves exact source as escaped code an
 });
 
 test('Claude memory read and append do not leak stored profile bodies or internal versions', () => {
-    for (const operation of ['read', 'append']) {
-        const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Q'),
-            { ...message(leaf, root, 'assistant', 'A'), content: [
-                { type: 'tool_use', name: 'mcp__memory__memory_' + operation, input: { content: 'private memory input' } },
-                { type: 'tool_result', name: 'memory_' + operation, content: [{ type: 'text', text: 'private memory body and version token' }] },
-            ] }]), c1);
+    for (const key of ['CL_L1_SOURCE_MEMORY_READ_01', 'CL_L1_SOURCE_MEMORY_APPEND_01'] as const) {
+        const parsed = parseClaudeConversation(claudeDetailGen(key), c1);
         assert.equal(parsed.conversation.detail.quality.status, 'complete');
         assert.ok(!JSON.stringify(parsed.conversation.detail).includes('private memory'));
     }
 });
 
 test('Claude never invents published Artifact bytes from missing files or unparsed edits', () => {
-    for (const middle of [[], [{ type: 'tool_use', name: 'Edit', input: { file_path: '/tmp/app.html', old_string: 'before', new_string: 'after' } }]]) {
-        const content = middle.length ? [
-            { type: 'tool_use', name: 'Write', input: { file_path: '/tmp/app.html', content: 'old source must not be reused' } },
-            ...middle,
-        ] : [];
-        const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Q'),
-            { ...message(leaf, root, 'assistant', ''), content: [...content,
-                { type: 'tool_use', name: 'Artifact', input: { file_path: '/tmp/app.html' } }] }]), c1);
+    for (const key of [
+        'CL_L1_SOURCE_UNAVAILABLE_ARTIFACT_01', 'CL_L1_SOURCE_UNPARSED_ARTIFACT_EDIT_01',
+    ] as const) {
+        const parsed = parseClaudeConversation(claudeDetailGen(key), c1);
         assert.equal(parsed.conversation.detail.quality.status, 'partial');
         assert.ok(parsed.diagnostics.some(d => d.message.includes('artifact content is unavailable')));
         assert.ok(!JSON.stringify(parsed.conversation.detail).includes('old source must not be reused'));
@@ -243,42 +184,21 @@ test('Claude never invents published Artifact bytes from missing files or unpars
 });
 
 test('Claude generated Artifact file cards require unique captured path and matching UTF-8 bytes', () => {
-    const code = '<h1>中文清单</h1>', path = '/home/claude/checklist.html';
-    const file = { success: true, file_kind: 'blob', download_source: 'files-api', file_name: 'checklist.html',
-        size_bytes: new TextEncoder().encode(code).byteLength };
-    const publish = { type: 'tool_use', name: 'Artifact', input: { file_path: path } };
-    const write = { type: 'tool_use', name: 'Write', input: { file_path: path, content: code } };
-    for (const variant of ['matching', 'wrong-size', 'unrelated', 'uploaded', 'ambiguous'] as const) {
-        const metadata = variant === 'wrong-size' ? { ...file, size_bytes: code.length }
-            : variant === 'unrelated' ? { ...file, file_name: 'other.html' } : file;
-        const assistant = { ...message(leaf, root, 'assistant', ''), content: [write, publish,
-            ...(variant === 'ambiguous' ? [{ ...publish, input: { file_path: '/tmp/checklist.html' } }] : [])],
-            ...(variant === 'uploaded' ? { attachments: [metadata] } : { files: [metadata] }) };
-        const parsed = parseClaudeConversation(detail([message(root, null, 'human', 'Q'), assistant]), c1);
+    for (const [variant, key] of [
+        ['matching', 'CL_L1_SOURCE_FILE_CARD_MATCHING_01'],
+        ['wrong-size', 'CL_L1_SOURCE_FILE_CARD_WRONG_SIZE_01'],
+        ['unrelated', 'CL_L1_SOURCE_FILE_CARD_UNRELATED_01'],
+        ['uploaded', 'CL_L1_SOURCE_FILE_CARD_UPLOADED_01'],
+        ['ambiguous', 'CL_L1_SOURCE_FILE_CARD_AMBIGUOUS_01'],
+    ] as const) {
+        const parsed = parseClaudeConversation(claudeDetailGen(key), c1);
         assert.equal(parsed.conversation.detail.quality.status, variant === 'matching' ? 'complete' : 'partial', variant);
         assert.equal(parsed.diagnostics.some(d => d.code === 'claude.attachment.unavailable'), variant !== 'matching', variant);
     }
 });
 
 test('Claude native widgets, execution output and Docs edits preserve authored source', () => {
-    const blocks = [
-        { type: 'tool_use', name: 'visualize:read_me', input: { modules: ['diagram'] } },
-        { type: 'tool_result', name: 'visualize:read_me', content: [{ type: 'text', text: 'PRIVATE SETUP' }] },
-        { type: 'tool_use', name: 'visualize:show_widget', input: { title: 'Cutaway', widget_code: '<svg><title>Resonator</title></svg>' } },
-        { type: 'tool_use', name: 'TaskCreate', input: { subject: 'Compute', description: 'Validate units' } },
-        { type: 'tool_use', name: 'TaskUpdate', input: { taskId: '1', status: 'completed' } },
-        { type: 'tool_use', name: 'Bash', input: { command: 'python3 demo.py' } },
-        { type: 'tool_result', name: 'Bash', content: [{ type: 'text', text: '  f = 149.44\n' }] },
-        { type: 'tool_use', name: 'mcp__Claude_Docs__update', input: { engine: 'prose', payload: { ops: [
-            { op: 'replace', with: { as: 'markdown', from: { kind: 'inline', content: '## Derivation\n\n**Full** derivation.' } } },
-        ] } } },
-        { type: 'tool_result', name: 'mcp__Claude_Docs__update', content: [{ type: 'text', text: '{"verdict":"allow","xml":"<doc>…</doc>"}\nInternal setup instructions.' }] },
-        { type: 'tool_use', name: 'mcp__Claude_Docs__create', input: { object: 'utterance', payload: { value: { body: 'Confirm the chosen units?' } } } },
-        { type: 'tool_use', name: 'Artifact', input: { action: 'open', url: 'https://claude.ai/artifact/example' } },
-        { type: 'tool_use', name: 'SendUserFile', input: { files: ['/home/claude/result.py'], caption: 'Runnable result' } },
-        { type: 'tool_result', name: 'SendUserFile', content: [{ type: 'text', text: 'file_uuid: PRIVATE-FILE-ID. INTERNAL FILE CARD INSTRUCTIONS' }] },
-    ];
-    const parsed = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', ''), content: blocks }]), c1);
+    const parsed = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_WIDGETS_COMPLETE_01'), c1);
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     const output = JSON.stringify(parsed.conversation.detail.messages);
     for (const text of ['<svg>', 'Validate units', 'completed', 'python3 demo.py', '  f = 149.44', 'derivation.', 'Confirm the chosen units?']) assert.ok(output.includes(text), text);
@@ -286,22 +206,18 @@ test('Claude native widgets, execution output and Docs edits preserve authored s
     assert.ok(!output.includes('INTERNAL FILE CARD INSTRUCTIONS'));
     assert.ok(!output.includes('PRIVATE SETUP'));
     assert.ok(!output.includes('Internal setup instructions'));
-    const bad: Record<string, unknown>[] = structuredClone(blocks);
-    bad.push({ type: 'tool_use', name: 'mcp__Claude_Docs__update', input: { engine: 'unsupported' } });
-    assert.equal(parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', ''), content: bad }]), c1).conversation.detail.quality.status, 'partial');
+    assert.equal(parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_WIDGETS_UNSUPPORTED_ENGINE_01'), c1)
+        .conversation.detail.quality.status, 'partial');
 });
 
 test('Claude delivers generated files by stable file identity, never inventing bytes from Write', () => {
-    const file = { success: true, file_kind: 'blob', download_source: 'files-api', file_uuid: c2,
-        file_name: 'result.py', size_bytes: 8 };
-    const parsed = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', 'Done'), files: [file] }]), c1);
+    const parsed = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_GENERATED_FILE_01'), c1);
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     assert.deepEqual(parsed.conversation.detail.assets, [{ id: 'claude-file:' + c2, kind: 'file',
         sourceUri: 'claude-file:' + c2, name: 'result.py', byteLength: 8 }]);
     assert.equal(parsed.conversation.detail.messages[0].content.at(-1)?.type, 'file');
     assert.deepEqual(parsed.acquisitionHints, {});
-    const invalid = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', 'Done'),
-        files: [{ ...file, file_uuid: 'https://evil.example/file' }] }]), c1);
+    const invalid = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_GENERATED_FILE_INVALID_ID_01'), c1);
     assert.equal(invalid.conversation.detail.quality.status, 'partial');
     assert.deepEqual(invalid.conversation.detail.assets, []);
 });
@@ -323,8 +239,13 @@ test('Claude passive request routing binds exact origin, organization and native
 
 
 test('Claude preserves quota-interrupted output but never labels it complete', () => {
-    for (const reason of ['error', 'max_tokens', 'tool_use', 'user_canceled']) {
-        const parsed = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', 'Partial code explanation'), stop_reason: reason }]), c1);
+    for (const [reason, key] of [
+        ['error', 'CL_L1_SOURCE_QUOTA_ERROR_01'],
+        ['max_tokens', 'CL_L1_SOURCE_QUOTA_MAX_TOKENS_01'],
+        ['tool_use', 'CL_L1_SOURCE_QUOTA_TOOL_USE_01'],
+        ['user_canceled', 'CL_L1_SOURCE_QUOTA_USER_CANCELED_01'],
+    ] as const) {
+        const parsed = parseClaudeConversation(claudeDetailGen(key), c1);
         assert.equal(parsed.conversation.detail.quality.status, 'partial', reason);
         assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('Partial code explanation'));
     }
@@ -373,11 +294,7 @@ test('Claude passive hook uses only native traffic and suppresses cross-organiza
 
 
 test('Claude Docs template references render in document order without internal markers', () => {
-    const batch = { type: 'tool_use', name: 'mcp__Claude_Docs__batch', input: { batch: [], container: { create: { doc: {
-        markdown: '# Report\n\n<?claude block date?>\n\n<?claude block section?>',
-        blocks: { date: { type: 'date', value: '2026-10-22' }, section: { type: 'pending', intent: 'Explain uncertainty' } },
-    } } } } };
-    const parsed = parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', ''), content: [batch] }]), c1);
+    const parsed = parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_DOCS_TEMPLATE_01'), c1);
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     const output = JSON.stringify(parsed.conversation.detail.messages);
     assert.ok(output.includes('2026-10-22'));
@@ -387,11 +304,7 @@ test('Claude Docs template references render in document order without internal 
 
 
 test('Claude shell operations invalidate retained Artifact bytes and duplicate message IDs are rejected', () => {
-    const content = [
-        { type: 'tool_use', name: 'Write', input: { file_path: '/home/claude/test.txt', content: 'old' } },
-        { type: 'tool_use', name: 'Bash', input: { command: "printf new > /home/claude/test.txt" } },
-        { type: 'tool_use', name: 'Artifact', input: { file_path: '/home/claude/test.txt' } },
-    ];
-    assert.equal(parseClaudeConversation(detail([{ ...message(leaf, null, 'assistant', ''), content }]), c1).conversation.detail.quality.status, 'partial');
-    assert.throws(() => parseClaudeConversation(detail([message(leaf, null, 'assistant', 'One'), message(leaf, null, 'assistant', 'Two')]), c1), /Duplicate/);
+    assert.equal(parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_SHELL_INVALIDATES_ARTIFACT_01'), c1)
+        .conversation.detail.quality.status, 'partial');
+    assert.throws(() => parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_DUPLICATE_MESSAGE_UUID_01'), c1), /Duplicate/);
 });
