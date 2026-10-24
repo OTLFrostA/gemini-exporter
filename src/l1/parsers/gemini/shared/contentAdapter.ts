@@ -1,4 +1,4 @@
-import { formatUnknownPayload } from '../../../../l2/content/unknownFallback.js';
+import { formatUnknownPayload } from './unknownFallback.js';
 import type { BlockNode } from '../../../../l2/content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
 import type { ResourceEvidence as ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
@@ -26,8 +26,10 @@ function normalizeGeminiMath(blocks: BlockNode[]): BlockNode[] {
         else if (node.type === 'table') {
             if (node.caption) inlines(node.caption);
             [...(node.headerRows ?? []), ...node.rows].forEach(row => row.cells.forEach(cell => inlines(cell.children)));
-        } else if ((node.type === 'image' && node.caption) || (node.type === 'file' && node.description)) {
-            inlines(node.type === 'image' ? node.caption! : node.description!);
+        } else if (node.type === 'image') {
+            if (node.caption) inlines(node.caption);
+        } else if (node.type === 'file') {
+            if (node.description) inlines(node.description);
         }
     });
     visit(blocks);

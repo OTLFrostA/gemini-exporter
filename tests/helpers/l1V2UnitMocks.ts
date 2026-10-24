@@ -155,13 +155,6 @@ const normalizeTimestamp: typeof import('../../src/l2/time.js').normalizeTimesta
 
 /** Pure L2 helpers are also mocked; unit coverage asserts L1's use of the
  * declared v2 shape, not L2's implementation of an AST traversal or policy. */
-const unknownPayloadPort: Pick<typeof import('../../src/l2/content/unknownFallback.js'), 'formatUnknownPayload'> = {
-    formatUnknownPayload(payload) {
-        const text = typeof payload === 'string' ? JSON.stringify(payload) : JSON.stringify(payload) ?? 'null';
-        return { text: text.length > 2000 ? text.slice(0, 2000) + '…' : text,
-            truncated: text.length > 2000 };
-    },
-};
 type BlockNode = import('../../src/l2/content/blocks.js').BlockNode;
 type InlineNode = import('../../src/l2/content/inline.js').InlineNode;
 const assetReferencePort: Pick<typeof import('../../src/l2/content/assetReferences.js'), 'mapContentAssetReferences'> = {
@@ -260,7 +253,6 @@ export function installL1V2Mocks(): void {
                     a.accountId === b.accountId && a.conversationId === b.conversationId,
             };
             if (request.endsWith('/l2/time.js')) return { normalizeTimestamp };
-            if (request.endsWith('/l2/content/unknownFallback.js')) return unknownPayloadPort;
             if (request.endsWith('/l2/content/assetReferences.js')) return assetReferencePort;
             if (request.endsWith('/l2/sourceUri.js')) return sourceUriPort;
             if (request.endsWith('/l2/accountRegistry.js')) return accountIdentityPort;
