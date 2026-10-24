@@ -2,10 +2,10 @@ import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import type { Account } from '../../l2/accountRegistry.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 import type { DomainAsset } from '../../l2/conversationDetail.js';
-import type { PageObservation } from '../../l2/pageObservation.js';
+import type { PageObservationHead } from '../../l2/pageObservation.js';
 import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
 
-export type PageEvidence = Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>;
+export type PageEvidence = PageObservationHead;
 export interface CommittedListPage { page: number; totalObserved: number; scanHead?: PageEvidence }
 export type ListEnd = 'source_end' | 'provider_limit' | 'max_pages' | 'stopped';
 /** Request-bound evidence for a failed list page, retained for explicit diagnostic export. */

@@ -92,3 +92,30 @@ test('replayed Coverage observations identify keys by ID and source time, not ob
     const tail = page([80], 'next');
     assert.deepEqual(s.observe(emptyStream(), tail), { range: { head: head.keys[0], tail: tail.keys[0] } });
 });
+
+test('Coverage caches only cursor evidence, never the source row payload', () => {
+    const s = new CoverageSession();
+    const rows = [{ token: 'source-only-secret' }];
+    const observation: PageObservation<{ token: string }> = {
+        ...page([100]), items: rows,
+    };
+    assert.deepEqual(s.observe(emptyStream(), observation), {
+        range: { head: observation.keys[0], tail: observation.keys[0] },
+    });
+    const pages: unknown = Reflect.get(s, 'pages');
+    assert.ok(pages instanceof Map);
+    const retained: unknown = pages.get(null);
+    assert.ok(retained && typeof retained === 'object');
+    assert.notStrictEqual(retained, observation);
+    assert.equal(Object.hasOwn(retained, 'items'), false, 'source items must not be retained in coverage');
+});
+
+test('Coverage early-stop matching accepts evidence without source items', () => {
+    const prior = { range: { head: { id: 'old100', time: 100 }, tail: { id: 'old70', time: 70 } } };
+    const s = new CoverageSession();
+    const head = page([120, 110], null, 'bridge');
+    s.observe(prior, head);
+    s.observe(prior, page([105, 85], 'bridge', 'more'));
+    const { items: _items, ...evidence } = head;
+    assert.equal(s.connects(prior, evidence), true);
+});
