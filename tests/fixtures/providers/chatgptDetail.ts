@@ -18,7 +18,67 @@ function nativeDetail(mapping: Record<string, ChatGPTConversationNode>, current_
     };
 }
 
+function imageAcquisitionDetail() {
+    const mapping: Record<string, ChatGPTConversationNode> = {
+        root: { id: 'root', children: ['u1'] },
+        u1: {
+            id: 'u1', parent: 'root', children: ['t1'],
+            message: {
+                author: { role: 'user' },
+                content: {
+                    content_type: 'multimodal_text',
+                    parts: [
+                        'before image',
+                        { content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_cat' },
+                        'after image',
+                    ],
+                },
+                id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+        t1: {
+            id: 't1', parent: 'u1', children: ['a1'],
+            message: {
+                author: { role: 'tool' },
+                content: {
+                    content_type: 'multimodal_text',
+                    parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_missing' }],
+                },
+                id: 'msg-t1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+        a1: {
+            id: 'a1', parent: 't1', children: [],
+            message: {
+                author: { role: 'assistant' },
+                content: { content_type: 'text', parts: ['here is your cat'] },
+                id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+    };
+    return {
+        title: 'img chat', create_time: 1700000000, update_time: 1700000060,
+        current_node: 'a1', mapping, is_archived: false,
+    };
+}
+
 const fixtureMap = {
+    'C_CAPTURE_EMPTY_DETAIL_01': () => ({
+        id: '6acffdc5-c4d0-83e8-8e1b-ba60979a618a', mapping: {},
+    }),
+    'C_PROVIDER_CHATGPT_TREE_IMAGE_DETAIL_01': () => imageAcquisitionDetail(),
+    'C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_01': () => ({
+        conversation_id: 'foreign', mapping: {},
+    }),
+    'C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_02': () => ({
+        id: 'requested-conversation', mapping: null,
+    }),
+    'C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_03': () => ({
+        id: 'requested-conversation', mapping: {
+            one: { id: 'one', children: [], message: { bad: true } },
+        },
+    }),
+    'C_PROVIDER_CHATGPT_TREE_FOREIGN_DETAIL_01': () => ({ id: 'other-conversation' }),
     'C_DETAIL_L1_SOURCE_01': () => nativeDetail({
         root: { id: 'root', children: ['question'] },
         question: textNode('question', 'root', 'user', 'Question'),
@@ -48,6 +108,6 @@ const fixtureMap = {
     }),
 };
 
-export function detailGen(key: keyof typeof fixtureMap): ChatGPTApiConversationWithId {
-    return fixtureMap[key]();
+export function detailGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
+    return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
 }
