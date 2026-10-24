@@ -1,5 +1,5 @@
 /** Evidence-backed notation adaptation for the MiTeX engine. */
-export interface LatexCompatRule {
+interface LatexCompatRule {
     readonly id: string;
     readonly domain: 'tex';
     readonly evidence: string;
