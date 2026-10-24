@@ -1,0 +1,79 @@
+name: Linear-Inspired Dark Theme Preview (Temporary)
+
+on:
+  push:
+    branches: [style/dark-theme-charcoal-20261024]
+    paths: ['.github/workflows/preview-linear-dark.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Validate and build
+        run: |
+          npm run type-check
+          npm run build
+      - name: Extend capture for real dark Popup and palette assertions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("tests/e2e/readme_screenshots.spec.ts")
+          text = p.read_text()
+          before = """    await popup.close();"""
+          after = """    await page.evaluate(async () => {
+                  await Reflect.get(globalThis, 'uiFixture').updateSettings({ language: 'en', theme: 'dark' });
+              });
+              await popup.reload();
+              await expect(popup.locator('html')).toHaveAttribute('data-theme', 'dark');
+              await expect.poll(async () => popup.evaluate(
+                  () => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()
+              )).toBe('#101011');
+              await popup.locator('body').screenshot({
+                  path: path.join(output, 'screenshot_popup_linear_dark.png'),
+                  animations: 'disabled',
+              });
+              await popup.close();"""
+          assert text.count(before) == 1
+          p.write_text(text.replace(before,after))
+          PY
+      - name: Capture workbench and popup in Chromium (fixture data only)
+        env:
+          CAPTURE_README_SCREENSHOTS: '1'
+        run: xvfb-run --auto-servernum npx playwright test tests/e2e/readme_screenshots.spec.ts --workers=1
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linear-2026-dark-preview
+          path: |
+            store_assets/screenshot_1_1280x800.png
+            store_assets/screenshot_2_1280x800.png
+            store_assets/screenshot_3_1280x800.png
+            store_assets/screenshot_popup_v2.png
+            store_assets/screenshot_popup_linear_dark.png
+      - name: Retain reference screenshots for review on preview branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ui-snapshots/linear-2026-10-24
+          cp store_assets/screenshot_1_1280x800.png ui-snapshots/linear-2026-10-24/workbench-light-en.png
+          cp store_assets/screenshot_2_1280x800.png ui-snapshots/linear-2026-10-24/workbench-dark-en.png
+          cp store_assets/screenshot_3_1280x800.png ui-snapshots/linear-2026-10-24/workbench-light-zh.png
+          cp store_assets/screenshot_popup_v2.png ui-snapshots/linear-2026-10-24/popup-light-en.png
+          cp store_assets/screenshot_popup_linear_dark.png ui-snapshots/linear-2026-10-24/popup-dark-en.png
+          git add ui-snapshots/linear-2026-10-24/
+          git commit -m "test(visual): capture Linear-inspired dark workbench and popup"
+          git push origin HEAD:style/dark-theme-charcoal-20261024
