@@ -277,6 +277,9 @@ class PlatformsTest(unittest.TestCase):
         plugin.open = lambda config: ChatGPTPlugin.session(runtime)
         from scripts.framework.cases import workbench
         with contextlib.ExitStack() as stack:
+            monitor = stack.enter_context(patch('scripts.chrome_diagnostics.BrowserDiagnostics')).return_value
+            monitor.failure = None
+            monitor.finish.return_value = {}
             stack.enter_context(patch('scripts.framework.chatgpt_evidence.assert_full_exports', return_value={}))
             for name in ('SearchKeywordCase', 'SearchIdCase', 'SearchClearCase', 'SelectionControlsCase', 'LanguageToggleCase'):
                 stack.enter_context(patch.object(getattr(workbench, name), 'execute', return_value=(True, 'evidence', {})))
@@ -432,6 +435,7 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
 
 
 from test_tier2_claude import ClaudeTier2Tests
+from test_chrome_diagnostics import TestChromeDiagnostics
 
 
 if __name__ == '__main__':
