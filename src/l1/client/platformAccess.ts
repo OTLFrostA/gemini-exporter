@@ -8,7 +8,14 @@ export async function hasPlatformAccess(platform: SourcePlatform): Promise<boole
 
 /** Start the native request synchronously in the Connect button's user gesture. */
 export async function requestPlatformAccess(platform: SourcePlatform): Promise<boolean> {
+    return requestPlatformsAccess([platform]);
+}
+
+/** Request the union once, before any await can consume the click gesture. */
+export async function requestPlatformsAccess(platforms: readonly SourcePlatform[]): Promise<boolean> {
+    const origins = [...new Set(platforms.flatMap(platformOrigins))];
+    if (!origins.length) return false;
     if (typeof chrome === 'undefined' || !chrome.permissions?.request) return false;
-    try { return await chrome.permissions.request({ origins: platformOrigins(platform) }); }
+    try { return await chrome.permissions.request({ origins }); }
     catch { return false; }
 }

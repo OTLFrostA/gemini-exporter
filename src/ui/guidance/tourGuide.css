@@ -297,7 +297,18 @@
   box-shadow: none;
 }
 
-.tour-platform-permissions { display: flex; flex-direction: column; gap: 4px; }
-.tour-platform-permissions details { font-size: 11px; color: var(--tour-muted); }
-.tour-platform-permissions summary { cursor: pointer; }
-.tour-platform-permissions ul { margin: 4px 0; padding-left: 18px; overflow-wrap: anywhere; }
+.platform-authorization { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.platform-permission-list { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; border: 1px solid var(--tour-border); border-radius: 10px; min-width: 0; }
+.platform-permission-list legend { font-size: 11px; color: var(--tour-muted); margin-left: 10px; padding: 0 4px; }
+.platform-permission-row { padding: 10px 12px; }
+.platform-permission-row + .platform-permission-row { border-top: 1px solid var(--tour-border); }
+.platform-permission-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.platform-permission-choice { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.platform-permission-choice input { width: 16px; height: 16px; margin: 0; accent-color: var(--tour-accent); }
+.platform-permission-choice:has(input:focus-visible) { outline: 2px solid var(--tour-accent); outline-offset: 4px; border-radius: 2px; }
+.platform-permission-state { font-size: 11px; color: var(--tour-muted); }
+.platform-permission-state[data-authorized="true"] { color: var(--ok, #10b981); }
+.platform-permission-row details { font-size: 11px; color: var(--tour-muted); margin: 4px 0 0 25px; }
+.platform-permission-row summary { cursor: pointer; }
+.platform-permission-row ul { margin: 4px 0; padding-left: 16px; overflow-wrap: anywhere; }
+.platform-permission-hint { margin: 0; font-size: 11px; line-height: 1.6; color: var(--tour-muted); }

@@ -8,6 +8,26 @@ const mock = `
 const h = globalThis.harness;
 export const hasPlatformAccess = async platform => h[platform+'Access'] ?? (platform==='gemini');
 export const preparePlatformTab = async () => {};
+export const requestPlatformAuthorization = async platforms => {
+ h.connectionRequests.push([platforms,navigator.userActivation.isActive]);
+ const granted = h.holdPermission ? await new Promise(resolve=>h.finishPermission=resolve) : !h.permissionDenied;
+ if(granted) for(const platform of platforms) h[platform+'Access']=true;
+ return granted;
+};
+export const activatePlatformAccess = async platforms => {h.activatedPlatforms=platforms;return !h.activationFailure;};
+export const findAuthorizedAccount = async platforms => {
+ if(h.holdDiscovery) return new Promise(resolve=>h.finishDiscovery=resolve);
+ for(const platform of platforms){
+  if(!(h.tabs??[]).some(tab=>tab.url?.includes(platform==='gemini'?'gemini.google.com':platform==='chatgpt'?'chatgpt.com':'claude.ai')))continue;
+  if(platform!=='gemini')h.discoveryCalls.push(platform);
+  if(h.discoveryError)continue;
+  const context=platform==='gemini'?h.contextReply?.accountContext:null;
+  const account=platform==='gemini'?h.accounts.find(a=>a.id===context?.accountId&&context.providerId==='gemini'&&a.providerId==='gemini'&&a.providerAccountId!=='default'):h[platform+'Accounts']?.[0];
+  if(account)return account.id;
+ }
+ return null;
+};
+export const observePlatformAccess = listener => {h.accessListener=listener;return ()=>{h.accessListener=null;};};
 export const PLATFORM_HOSTS = {
  gemini:{pages:['https://gemini.google.com/*'],attachments:['https://*.googleusercontent.com/*']},
  chatgpt:{pages:['https://chatgpt.com/*','https://chat.openai.com/*'],attachments:['https://images.openai.com/*']},

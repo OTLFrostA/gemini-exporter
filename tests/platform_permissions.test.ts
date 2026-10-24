@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PLATFORM_HOSTS, platformOrigins, type SourcePlatform } from '../src/shared/platformHosts.js';
-import { hasPlatformAccess, requestPlatformAccess } from '../src/l1/client/platformAccess.js';
+import { hasPlatformAccess, requestPlatformAccess, requestPlatformsAccess } from '../src/l1/client/platformAccess.js';
 import { syncPlatformContentScripts, syncAllPlatformContentScripts } from '../src/runtime/capabilities/platformInjection.js';
 
 const platforms = Object.keys(PLATFORM_HOSTS) as SourcePlatform[];
@@ -89,5 +89,30 @@ test('cross-context duplicate registration succeeds only when the installed desc
         installed = [];
         corrupt = true;
         await assert.rejects(syncPlatformContentScripts('gemini'), /Duplicate script ID/);
+    } finally { holder.chrome = original; }
+});
+
+
+test('bulk authorization requests the selected origin union exactly once in the click gesture', async () => {
+    const holder = globalThis as unknown as { chrome?: unknown };
+    const original = holder.chrome;
+    const requests: string[][] = [];
+    let inGesture = true;
+    let allow = true;
+    holder.chrome = { permissions: { request: ({ origins }: { origins: string[] }) => {
+        assert.equal(inGesture, true);
+        requests.push(origins);
+        return Promise.resolve(allow);
+    } } };
+    try {
+        const result = requestPlatformsAccess(['gemini', 'claude', 'gemini']);
+        inGesture = false;
+        assert.equal(await result, true);
+        assert.deepEqual(requests, [[...platformOrigins('gemini'), ...platformOrigins('claude')]]);
+        assert.equal(await requestPlatformsAccess([]), false);
+        assert.equal(requests.length, 1);
+        inGesture = true; allow = false;
+        assert.equal(await requestPlatformsAccess(['chatgpt']), false);
+        assert.deepEqual(requests[1], platformOrigins('chatgpt'));
     } finally { holder.chrome = original; }
 });
