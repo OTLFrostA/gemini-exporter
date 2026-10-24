@@ -47,8 +47,9 @@ class ZipWriter implements IExportWriter {
     }
 
     sanitizePath(p?: string | null): string {
-        assertExportPath(p ?? '');
-        return p!;
+        const path = p ?? '';
+        assertExportPath(path);
+        return path;
     }
 
     writeFile(relativePath: string, content?: ZipContent | null, options?: WriteFileOptions): string {

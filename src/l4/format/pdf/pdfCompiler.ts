@@ -19,5 +19,7 @@ export interface PdfCompileResult {
 }
 export interface IPdfCompiler {
     readonly name: string;
+    /** Optional runtime-font capability; compilers without it use bundled fonts. */
+    setRuntimeFonts?(fonts: Uint8Array[]): void;
     compile(payload: TypstRenderPayload, context: PdfCompileContext): Promise<PdfCompileResult>;
 }

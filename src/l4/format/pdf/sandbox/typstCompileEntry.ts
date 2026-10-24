@@ -174,7 +174,7 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
         let pdf: ArrayBuffer | null = null;
         if (result && result.length > 0) {
             // Copy out of WASM memory before transferring.
-            pdf = result.slice().buffer as ArrayBuffer;
+            pdf = new Uint8Array(result).buffer;
         }
         reply(
             jobId,

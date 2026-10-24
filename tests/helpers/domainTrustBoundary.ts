@@ -18,16 +18,8 @@ const entries = new Map<string, Set<string>>([
 ]);
 const trustedTypes = new Set(['TrustedDomain', 'ConversationParseResult', 'ResourceConversationParseResult',
     'GeminiRpcParseResult', 'GeminiTakeoutParseResult', 'TrustedDomainBody', 'NativeConversationInput', 'WorkerChatResolveInput', 'ChatExportInput', 'PopupExportInput']);
-// The brand is confined to the validator. Only current-version authenticated transport adapters
-// reattach the publisher's existing trust after Chrome serialization; neither is a raw/page reader.
-const castOwners = new Map<string, Set<string>>([
-    ['TrustedDomain', new Set([validator])],
-    ['DomainConversationDetail', new Set([validator])],
-    ['ResourceConversationParseResult', new Set()],
-    ['TrustedDomainBody', new Set([validator])],
-]);
-const castFunctions = new Map([['TrustedDomain', new Set(['validateParserDomain', 'restoreDomainSnapshot'])],
-    ['DomainConversationDetail', new Set(['acceptDetailFacts', 'restoreDomainDetail'])], ['ResourceConversationParseResult', new Set(['nativeResult'])], ['TrustedDomainBody', new Set(['acceptDetailFacts', 'restoreDomainDetail'])]]);
+// Only the shared validator can attach in-memory evidence after schema/closure checks.
+// No production owner may manufacture a Domain type with a cast.
 function walk(node: Node, visit: (node: Node) => void): void { visit(node); node.forEachChild(child => { walk(child, visit); }); }
 
 /** Inspect real compiler nodes, retaining aliases and excluding comment/string contents. */
@@ -75,16 +67,17 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
         if (name === 'assertDomainClosure' && owner !== validator) report(node, 'Closure belongs only to the shared validator');
     };
     for (const node of nodes) {
+        if (/^(?:l2|l3b|application)\//.test(owner)
+            && (isAsExpression(node) || isTypeAssertion(node) || isNonNullExpression(node))) {
+            report(node, 'typed business layers must narrow or construct values without assertions');
+        }
         if (isImportSpecifier(node)) entry(node, symbol(node.propertyName ?? node.name));
         if (isExportSpecifier(node)) entry(node, symbol(node.propertyName ?? node.name));
         if (isCallExpression(node)) entry(node, symbol(node.expression));
         if (isAsExpression(node) || isTypeAssertion(node)) {
             const types = typeNames(node.type);
-            let ancestor = node.parent;
-            while (ancestor && !isFunctionDeclaration(ancestor)) ancestor = ancestor.parent;
-            const functionName = ancestor && isFunctionDeclaration(ancestor) ? ancestor.name?.text : undefined;
             for (const name of types) if (trustedTypes.has(name) || name === 'DomainConversationDetail') {
-                if (!castOwners.get(name)?.has(owner) || !functionName || !castFunctions.get(name)?.has(functionName)) report(node, `unauthorized trust assertion ${name}`);
+                report(node, `unauthorized trust assertion ${name}`);
                 if (isAsExpression(unwrap(node.expression)) || isTypeAssertion(unwrap(node.expression))) report(node, 'double trust assertion');
             }
         }
@@ -95,7 +88,10 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
                 const internal = owner === 'l1/parsers/parsingResult.ts' && parent && isFunctionDeclaration(parent)
                     && parent.name?.text === 'isResourceConversationParseResult'
                     && parent.parameters[0]?.type?.getText() === 'NativeConversationInput';
-                const schema = owner === validator && parent && isFunctionDeclaration(parent) && parent.name?.text === 'assertSchema' && types.has('DomainConversationDetail');
+                const schema = owner === validator && parent && isFunctionDeclaration(parent)
+                    && ((parent.name?.text === 'assertSchema' && types.has('DomainConversationDetail'))
+                        || (parent.name?.text === 'isTrustedBody' && types.has('TrustedDomainBody'))
+                        || (parent.name?.text === 'isConversationWithTrustedDetail' && types.has('TrustedDomain')));
                 if (!schema && !internal) report(node, 'unauthorized trust-producing predicate');
             }
         }

@@ -145,14 +145,6 @@ const readConversationKey: typeof import('../../src/l2/conversationKey.js').read
         throw new TypeError('Invalid conversation key');
     return { accountId, conversationId };
 };
-const normalizeTimestamp: typeof import('../../src/l2/time.js').normalizeTimestamp = value => {
-    if (typeof value === 'number') return Number.isSafeInteger(value) ? value : undefined;
-    if (typeof value !== 'string' || !value.trim()) return undefined;
-    const text = value.trim();
-    const ms = /^-?\d+$/.test(text) ? Number(text) : Date.parse(text);
-    return Number.isSafeInteger(ms) ? ms : undefined;
-};
-
 /** Pure L2 helpers are also mocked; unit coverage asserts L1's use of the
  * declared v2 shape, not L2's implementation of an AST traversal or policy. */
 type BlockNode = import('../../src/l2/content/blocks.js').BlockNode;
@@ -252,7 +244,6 @@ export function installL1V2Mocks(): void {
                 sameConversationKey: (a: ConversationKey, b: ConversationKey) =>
                     a.accountId === b.accountId && a.conversationId === b.conversationId,
             };
-            if (request.endsWith('/l2/time.js')) return { normalizeTimestamp };
             if (request.endsWith('/l2/content/assetReferences.js')) return assetReferencePort;
             if (request.endsWith('/l2/sourceUri.js')) return sourceUriPort;
             if (request.endsWith('/l2/accountRegistry.js')) return accountIdentityPort;

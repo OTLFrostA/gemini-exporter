@@ -9,7 +9,7 @@ import type { ResourceBindings } from '../../src/l4/packaging/resourceBindings.j
 import type { ExportPathPlan, ExportFormat, ExportDelivery } from '../../src/l4/packaging/index.js';
 import type { ExportRecord, ExportRequest } from '../../src/application/export/types.js';
 import type { GlobalSettings } from '../../src/application/settings/index.js';
-import type { AIProvider } from '../../src/l1/client/aiProvider.js';
+import type { AIProvider, ListFailureDiagnostics } from '../../src/l1/client/aiProvider.js';
 import type { ExportArtifact } from '../../src/l4/artifacts.js';
 import type { SourceResourceContext } from '../../src/l1/resources/sourceResources.js';
 
@@ -73,6 +73,30 @@ export const provider: AIProvider = {
 const defaultFetch = provider.fetchConversationDetail;
 const defaultAcquire = provider.acquireResource;
 const defaultList = provider.listConversations;
+
+// Cross-owner notification and source-error ports must stay mocked under strict isolation.
+const sourceErrorPort: Pick<typeof import('../../src/l1/client/sourceErrors.js'), 'ConfirmedSourceEmptyError'> = {
+    ConfirmedSourceEmptyError: class extends Error {
+        constructor() {
+            super('SOURCE_CONVERSATION_EMPTY: Source returned empty prompts and answers');
+            this.name = 'ConfirmedSourceEmptyError';
+        }
+    },
+};
+const domainChangePort: Pick<typeof import('../../src/runtime/api/domainChanges.js'), 'notifyDomainChanged'> = {
+    notifyDomainChanged(_accountId) {},
+};
+const providerErrorPort: Pick<typeof import('../../src/l1/client/aiProvider.js'), 'ProviderListError'> = {
+    ProviderListError: class extends Error {
+        constructor(message: string, readonly diagnostics: ListFailureDiagnostics) {
+            super(message);
+            this.name = 'ProviderListError';
+        }
+    },
+};
+stubModule('../../src/l1/client/aiProvider.js', providerErrorPort);
+stubModule('../../src/l1/client/sourceErrors.js', sourceErrorPort);
+stubModule('../../src/runtime/api/domainChanges.js', domainChangePort);
 
 // L2 fact reading, UUID admission and Coverage are mocked at their public ports.
 // No real Domain schema validator or list-coverage algorithm executes here.

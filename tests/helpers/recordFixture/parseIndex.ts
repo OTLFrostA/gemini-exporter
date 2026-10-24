@@ -1,7 +1,7 @@
 import type { Account } from '../../../src/l2/accountRegistry.js';
 import { semanticTitleSource, parseIndexMetadata } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../../../src/l2/conversationIndex.js';
-import { normalizeTimestamp } from '../../../src/l2/time.js';
+import { normalizeTimestamp } from '../../../src/l1/parsers/shared/time.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../src/shared/utils/titleText.js';
 import { isTitleSource, resolveTitle, type TitleCandidate } from '../../../src/l2/titleAuthority.js';
 import { normId, isReservedRoute } from '../../../src/shared/utils/pathUtils.js';
