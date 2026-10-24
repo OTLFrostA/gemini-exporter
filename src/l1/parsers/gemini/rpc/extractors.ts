@@ -850,7 +850,7 @@ export {
     isRealTitle
 };
 
-export const GeminiParserExtractors: GeminiParserExtractorsModule = {
+const GeminiParserExtractors: GeminiParserExtractorsModule = {
     GEMINI_JSPB_SCHEMA,
     RESEARCH_PROMPT_PREFIX_RE,
     detectTurnSchemaDrift,
