@@ -15,6 +15,10 @@ function list(items: unknown[], metadata: Omit<NativeListPage, 'items'> = {}): N
 
 // One unique key per consuming List test call site. Values preserve the old data.
 const fixtureMap = {
+    'C_PROVIDER_CHATGPT_TREE_RETRY_429_LIST_01': () => list([], { total: 0, limit: 100, offset: 0 }),
+    'C_PROVIDER_CHATGPT_TREE_RETRY_429_EMPTY_01': () => '',
+    'C_PROVIDER_CHATGPT_TREE_ABORT_429_EMPTY_01': () => '',
+    'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_EMPTY_01': () => '',
     'C_DISCOVERY_LIST_01': () => list([
         { id: 'live-shaped-chat', title: 'ChatGPT conversation', create_time: 1000, update_time: 2000 },
     ], { total: 1, offset: 0, limit: 100 }),
@@ -110,6 +114,6 @@ export interface ChatGPTConversationsResponse {
     has_missing_conversations?: unknown;
 }
 
-export function listGen(key: keyof typeof fixtureMap): ChatGPTConversationsResponse {
-    return fixtureMap[key]();
+export function listGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
+    return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
 }

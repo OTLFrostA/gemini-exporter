@@ -5,6 +5,7 @@ import { installChatGPTHook } from '../src/l1/sniffer/chatgpt/hook.js';
 import { streamGen } from './fixtures/providers/chatgptStream.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
+import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
 import { chatGPTSidebarPage } from '../src/l1/sniffer/chatgpt/sidebar.js';
 
 const cid = '6acffdc5-c4d0-83e8-8e1b-ba60979a618a';
@@ -43,7 +44,7 @@ test('MAIN capture never consumes the page response or exposes tokens, and rejec
                 sessions++;
                 return Response.json(switched && sessions > 1 ? chatgptSessionGen('C_CAPTURE_SESSION_02') : session);
             }
-            return Response.json({ id: cid, mapping: {} });
+            return Response.json(chatgptDetailGen('C_CAPTURE_EMPTY_DETAIL_01'));
         }, postMessage: (message: unknown) => events.push(message) };
         Object.defineProperty(globalThis, 'window', { configurable: true, value: windowMock });
         Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'https://chatgpt.com/c/'+cid, origin: 'https://chatgpt.com' } });

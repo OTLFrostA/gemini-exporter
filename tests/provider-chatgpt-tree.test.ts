@@ -36,6 +36,7 @@ import {
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
+import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
 import { fileDownloadGen } from './fixtures/providers/chatgptFileDownload.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type {
@@ -149,7 +150,7 @@ test('ChatGPTProvider checkReadiness reports logged-out session', async () => {
         fetchFn: (_url, init) => {
             seenCredentials = init?.credentials;
             return Promise.resolve(
-                new Response(JSON.stringify({}), { status: 200 }),
+                new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_READINESS_01')), { status: 200 }),
             );
         },
     });
@@ -206,43 +207,6 @@ test('files/download helpers narrow signed-url payloads', () => {
 
 test('Detail submits image identities; bytes are acquired on demand without changing body quality', async () => {
     const pngBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-    const mapping: Record<string, ChatGPTConversationNode> = {
-        root: { id: 'root', children: ['u1'] },
-        u1: {
-            id: 'u1', parent: 'root', children: ['t1'],
-            message: {
-                author: { role: 'user' },
-                content: {
-                    content_type: 'multimodal_text',
-                    parts: [
-                        'before image',
-                        { content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_cat' },
-                        'after image',
-                    ],
-                },
-                id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
-            },
-        },
-        t1: {
-            id: 't1', parent: 'u1', children: ['a1'],
-            message: {
-                author: { role: 'tool' },
-                content: {
-                    content_type: 'multimodal_text',
-                    parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_missing' }],
-                },
-                id: 'msg-t1', recipient: 'all', status: 'finished_successfully', weight: 1,
-            },
-        },
-        a1: {
-            id: 'a1', parent: 't1', children: [],
-            message: {
-                author: { role: 'assistant' },
-                content: { content_type: 'text', parts: ['here is your cat'] },
-                id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
-            },
-        },
-    };
     const provider = new ChatGPTProvider({
         fetchFn: (url) => {
             const u = String(url);
@@ -261,10 +225,7 @@ test('Detail submits image identities; bytes are acquired on demand without chan
                 }));
             }
             if (u.includes('/conversation/')) {
-                return Promise.resolve(new Response(JSON.stringify({
-                    title: 'img chat', create_time: 1700000000, update_time: 1700000060,
-                    current_node: 'a1', mapping, is_archived: false,
-                }), { status: 200 }));
+                return Promise.resolve(new Response(JSON.stringify(chatgptDetailGen('C_PROVIDER_CHATGPT_TREE_IMAGE_DETAIL_01')), { status: 200 }));
             }
             return Promise.resolve(new Response('nope', { status: 404 }));
         },
@@ -551,13 +512,15 @@ test('ChatGPT empty current list schema proves source exhaustion', async () => {
 
 test('ChatGPT Provider rejects foreign conversation_id and malformed Detail mapping', async () => {
     const account = await getOrCreateAccount('chatgpt', 'default');
-    for (const detail of [
-        { conversation_id: 'foreign', mapping: {} },
-        { id: 'requested-conversation', mapping: null },
-        { id: 'requested-conversation', mapping: { one: { id: 'one', children: [], message: { bad: true } } } },
-    ]) {
+    for (const detailKey of [
+        'C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_01',
+        'C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_02',
+        'C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_03',
+    ] as const) {
         const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
-            String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : detail,
+            String(url).endsWith('/api/auth/session')
+                ? chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_SESSION_01')
+                : chatgptDetailGen(detailKey),
         ), { status: 200 })) });
         await assert.rejects(provider.fetchConversationDetail(account.id, 'requested-conversation'),
             /Detail identity mismatch|Invalid ChatGPT Detail/);
@@ -567,7 +530,9 @@ test('ChatGPT Provider rejects foreign conversation_id and malformed Detail mapp
 
 test('ChatGPT Detail never relabels a foreign source conversation ID', async () => {
     const provider = new ChatGPTProvider({ fetchFn: url => Promise.resolve(new Response(JSON.stringify(
-        String(url).endsWith('/api/auth/session') ? { accessToken: 'tok' } : { id: 'other-conversation' },
+        String(url).endsWith('/api/auth/session')
+            ? chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_FOREIGN_DETAIL_SESSION_01')
+            : chatgptDetailGen('C_PROVIDER_CHATGPT_TREE_FOREIGN_DETAIL_01'),
     ), { status: 200 })) });
     const account = await getOrCreateAccount('chatgpt', 'default');
     await assert.rejects(provider.fetchConversationDetail(account.id, 'requested-conversation'),
@@ -759,12 +724,12 @@ test('ChatGPT 429 respects Retry-After, refreshes identity, and retries the same
     const provider = new ChatGPTProvider({ fetchFn: async url => {
         if (url.endsWith('/api/auth/session')) {
             sessions++;
-            return new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'retry-user' }, account: { id: 'retry-space' } }));
+            return new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_SESSION_01')));
         }
         calls++;
         assert.ok(url.endsWith('/conversations?offset=0&limit=100'));
-        return calls === 1 ? new Response('', { status: 429, headers: { 'Retry-After': '90' } })
-            : new Response(JSON.stringify({ items: [], total: 0, limit: 100, offset: 0 }));
+        return calls === 1 ? new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_EMPTY_01'), { status: 429, headers: { 'Retry-After': '90' } })
+            : new Response(JSON.stringify(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_LIST_01')));
     } });
     const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
     await new Promise(resolve => setImmediate(resolve));
@@ -782,8 +747,8 @@ test('ChatGPT 429 cooldown aborts promptly without another request', async t => 
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['abort-user', 'abort-space']));
     let calls = 0;
     const provider = new ChatGPTProvider({ fetchFn: async url => {
-        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({ accessToken: 'tok', user: { id: 'abort-user' }, account: { id: 'abort-space' } }));
-        calls++; return new Response('', { status: 429, headers: { 'Retry-After': '90' } });
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_ABORT_429_SESSION_01')));
+        calls++; return new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_ABORT_429_EMPTY_01'), { status: 429, headers: { 'Retry-After': '90' } });
     } });
     const controller = new AbortController();
     const pending = provider.listConversations({ accountId: account.id, streamId: 'recent', signal: controller.signal });
@@ -799,8 +764,10 @@ test('ChatGPT 429 retries are bounded and recheck a changed account', async t =>
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['bounded-user', 'space']));
     let calls = 0, changed = false;
     const provider = new ChatGPTProvider({ fetchFn: async url => {
-        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify({ accessToken: 'tok', user: { id: changed ? 'another-user' : 'bounded-user' }, account: { id: 'space' } }));
-        calls++; return new Response('', { status: 429, headers: { 'Retry-After': '1' } });
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(chatgptSessionGen(
+            changed ? 'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_SESSION_02' : 'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_SESSION_01',
+        )));
+        calls++; return new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_BOUNDED_429_EMPTY_01'), { status: 429, headers: { 'Retry-After': '1' } });
     } });
     const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
     const rejected = assert.rejects(pending, /HTTP 429/);

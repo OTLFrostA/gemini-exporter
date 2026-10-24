@@ -2,6 +2,28 @@
 const indexSession = () => ({ accessToken: 'test-token', user: { id: 'u-index' }, account: { id: 'w-index' } });
 const listSession = () => ({ accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } });
 const fixtureMap = {
+    'C_ACCOUNT_CONTEXT_WORKSPACE_01': () => ({
+        user: { id: 'subject' }, account: { id: 'workspace-1' }, accessToken: 'private-token',
+    }),
+    'C_ACCOUNT_CONTEXT_WORKSPACE_02': () => ({
+        user: { id: 'subject' }, account: { id: 'workspace-2' }, accessToken: 'private-token',
+    }),
+    'C_ACCOUNT_CONTEXT_LOGOUT_01': () => ({}),
+    'C_PROVIDER_CHATGPT_TREE_READINESS_01': () => ({}),
+    'C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_SESSION_01': () => ({ accessToken: 'tok' }),
+    'C_PROVIDER_CHATGPT_TREE_FOREIGN_DETAIL_SESSION_01': () => ({ accessToken: 'tok' }),
+    'C_PROVIDER_CHATGPT_TREE_RETRY_429_SESSION_01': () => ({
+        accessToken: 'tok', user: { id: 'retry-user' }, account: { id: 'retry-space' },
+    }),
+    'C_PROVIDER_CHATGPT_TREE_ABORT_429_SESSION_01': () => ({
+        accessToken: 'tok', user: { id: 'abort-user' }, account: { id: 'abort-space' },
+    }),
+    'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_SESSION_01': () => ({
+        accessToken: 'tok', user: { id: 'bounded-user' }, account: { id: 'space' },
+    }),
+    'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_SESSION_02': () => ({
+        accessToken: 'tok', user: { id: 'another-user' }, account: { id: 'space' },
+    }),
     'C_DISCOVERY_SESSION_01': () => ({
         accessToken: 'test-token', user: { id: 'user', name: 'Test user' }, account: { id: 'workspace' },
     }),
