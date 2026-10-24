@@ -7,16 +7,8 @@ import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../.
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
 import { inlineMathMarkdown } from '../../../shared/utils/markdownMath.js';
 
-function htmlEntity(char: string): string {
-    switch (char) {
-        case '&': return '&amp;';
-        case '<': return '&lt;';
-        case '>': return '&gt;';
-        case '"': return '&quot;';
-        case "'": return '&#39;';
-        default: return char;
-    }
-}
+const htmlEntities: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const htmlEntity = (char: string): string => htmlEntities[char] ?? char;
 
 function escapeText(text: string): string {
     return text.replace(/\\/g, '\\\\').replace(/[&<>]/g, htmlEntity)

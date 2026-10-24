@@ -59,3 +59,22 @@ test('citation registries stay message-local with identical IDs', () => {
     conversation.messages[1].citations = [{ id: 'source' }];
     assert.doesNotThrow(() => assertDomainClosure(conversation));
 });
+
+test('asset closure rejects missing assets across all body and reasoning containers', () => {
+    const image: BlockNode = { type: 'image', assetId: 'missing' };
+    const paragraph: BlockNode = { type: 'paragraph', children: [{ type: 'link', href: 'https://example.test', children: [image] }] };
+    const blocks: BlockNode[] = [
+        image, { type: 'file', assetId: 'missing' }, paragraph,
+        { type: 'heading', level: 1, children: [image] },
+        { type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [paragraph] }] }] },
+        { type: 'table', caption: [image], rows: [] },
+        { type: 'table', headerRows: [{ cells: [{ children: [image] }] }], rows: [] },
+        { type: 'table', rows: [{ cells: [{ children: [image] }] }] },
+        { type: 'image', assetId: 'image', caption: [image] },
+        { type: 'file', assetId: 'file', description: [image] },
+    ];
+    for (const block of blocks) {
+        assert.throws(() => assertDomainClosure(detail([block])), /Unregistered Domain asset 'missing'/);
+        assert.throws(() => assertDomainClosure(detail([], [block])), /Unregistered Domain asset 'missing'/);
+    }
+});
