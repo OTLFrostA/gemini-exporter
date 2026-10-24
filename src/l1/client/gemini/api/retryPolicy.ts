@@ -3,7 +3,7 @@ import { calculateBackoff, abortableSleep } from "../../../../shared/utils/retry
 import { STORAGE_KEYS } from "../../../../shared/utils/constants.js";
 import { withCredMapLock } from './credStorage.js';
 
-export interface Http400Params {
+interface Http400Params {
     resp: { status: number };
     snippet?: string;
     cred?: Partial<GeminiCredentials> | null;
@@ -14,20 +14,20 @@ export interface Http400Params {
     getCredStorage?: GeminiClientCredentialManagerModule['getCredStorage'];
 }
 
-export interface Http400Result {
+interface Http400Result {
     shouldRetry: boolean;
     freshAt?: string;
     freshBl?: string | null;
 }
 
-export interface Http401Params {
+interface Http401Params {
     cred?: Partial<GeminiCredentials> | null;
     loadCredMap?: GeminiClientCredentialManagerModule['loadCredMap'];
     getCredStorage?: GeminiClientCredentialManagerModule['getCredStorage'];
     refreshAtFromPage?: () => string | null;
 }
 
-export interface Http429Params {
+interface Http429Params {
     resp: { status: number; headers?: { get?: (header: string) => string | null } };
     retryCount?: number;
     maxRetries?: number;
@@ -36,14 +36,14 @@ export interface Http429Params {
     retryAfterMs?: number;
 }
 
-export interface Http429Result {
+interface Http429Result {
     shouldRetry: boolean;
     delayMs?: number;
     nextRetryCount?: number;
     aborted?: boolean;
 }
 
-export interface GeminiClientRetryPolicyModule {
+interface GeminiClientRetryPolicyModule {
     handleHttp400: (params: Http400Params) => Promise<Http400Result>;
     handleHttp401: (params: Http401Params) => Promise<void>;
     handleHttp429: (params: Http429Params) => Promise<Http429Result>;
