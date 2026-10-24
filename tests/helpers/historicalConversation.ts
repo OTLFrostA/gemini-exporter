@@ -61,7 +61,7 @@ export interface MessageCitation {
     title?: string;
 }
 
-export interface DocumentLink {
+interface DocumentLink {
     title: string;
     url: string;
 }
