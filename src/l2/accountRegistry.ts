@@ -11,9 +11,12 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 export function isAccountId(value: unknown): value is string {
     return typeof value === 'string' && uuid.test(value);
 }
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 function object(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid account');
-    return value as Record<string, unknown>;
+    if (!isRecord(value)) throw new TypeError('Invalid account');
+    return value;
 }
 /** Validate temporary transport parameters without introducing another account entity. */
 export function readAccountParameters(value: unknown): Omit<Account, 'id'> {

@@ -15,19 +15,32 @@ export interface DomainConversationIndex {
 export type ConversationIndex = DomainConversationIndex;
 export type ConversationIndexPatch = Partial<Omit<DomainConversationIndex, 'key'>>;
 const keys = new Set(['key', 'title', 'titleSource', 'createdAt', 'updatedAt', 'activityAt']);
+/** Index persistence/IPC ingress: validate unknown timestamps before constructing typed facts. */
+function readOptionalIndexTime(value: unknown): number | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value !== 'number' || !Number.isSafeInteger(value)) throw new TypeError('Invalid conversation index schema');
+    return value;
+}
 export function restoreConversationIndex(value: unknown): DomainConversationIndex {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid conversation index');
-    const raw = value as Record<string, unknown>;
-    const key = readConversationKey(raw.key);
-    const { title, titleSource, createdAt, updatedAt, activityAt } = raw;
-    if (Object.keys(raw).some(k => !keys.has(k))
-        || (title === undefined) !== (titleSource === undefined)
-        || title !== undefined && (typeof title !== 'string' || !title || title !== title.trim() || typeof titleSource !== 'string' || !isTitleSource(titleSource))
-        || createdAt !== undefined && (typeof createdAt !== 'number' || !Number.isSafeInteger(createdAt))
-        || updatedAt !== undefined && (typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt))
-        || activityAt !== undefined && (typeof activityAt !== 'number' || !Number.isSafeInteger(activityAt))) throw new TypeError('Invalid conversation index schema');
-    return { key, ...(title !== undefined ? { title: title as string, titleSource: titleSource as TitleSource } : {}),
-        ...(createdAt !== undefined ? { createdAt: createdAt as number } : {}), ...(updatedAt !== undefined ? { updatedAt: updatedAt as number } : {}), ...(activityAt !== undefined ? { activityAt: activityAt as number } : {}) };
+    const key = readConversationKey('key' in value ? value.key : undefined);
+    const title = 'title' in value ? value.title : undefined;
+    const titleSource = 'titleSource' in value ? value.titleSource : undefined;
+    if (Object.keys(value).some(k => !keys.has(k))) throw new TypeError('Invalid conversation index schema');
+
+    let titleFields: { title: string; titleSource: TitleSource } | undefined;
+    if (title !== undefined || titleSource !== undefined) {
+        if (typeof title !== 'string' || !title || title !== title.trim()
+            || typeof titleSource !== 'string' || !isTitleSource(titleSource)) throw new TypeError('Invalid conversation index schema');
+        titleFields = { title, titleSource };
+    }
+    const createdAt = readOptionalIndexTime('createdAt' in value ? value.createdAt : undefined);
+    const updatedAt = readOptionalIndexTime('updatedAt' in value ? value.updatedAt : undefined);
+    const activityAt = readOptionalIndexTime('activityAt' in value ? value.activityAt : undefined);
+    return { key, ...(titleFields ?? {}),
+        ...(createdAt !== undefined ? { createdAt } : {}),
+        ...(updatedAt !== undefined ? { updatedAt } : {}),
+        ...(activityAt !== undefined ? { activityAt } : {}) };
 }
 
 /** Missing facts preserve values. At the same title authority, the latest admission wins. */
@@ -36,11 +49,10 @@ export function mergeConversationIndex(old: DomainConversationIndex | undefined,
     if (!sameConversationKey(old.key, incoming.key)) throw new TypeError('Conversation index identity mismatch');
     const chosen = resolveTitle([old, incoming].flatMap(index => index.title && index.titleSource
         ? [{ value: index.title, source: index.titleSource }] : []));
-    const title = chosen ? { title: chosen.value, titleSource: chosen.source } : {};
     const createdAt = old.createdAt === undefined ? incoming.createdAt : incoming.createdAt === undefined ? old.createdAt : Math.min(old.createdAt, incoming.createdAt);
     const updatedAt = old.updatedAt === undefined ? incoming.updatedAt : incoming.updatedAt === undefined ? old.updatedAt : Math.max(old.updatedAt, incoming.updatedAt);
     const activityAt = old.activityAt === undefined ? incoming.activityAt : incoming.activityAt === undefined ? old.activityAt : Math.max(old.activityAt, incoming.activityAt);
-    return { key: { ...old.key }, ...(title.title !== undefined ? { title: title.title, titleSource: title.titleSource! } : {}),
+    return { key: { ...old.key }, ...(chosen ? { title: chosen.value, titleSource: chosen.source } : {}),
         ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}), ...(activityAt !== undefined ? { activityAt } : {}) };
 }
 export function indexActivityTime(index: Pick<DomainConversationIndex, 'updatedAt' | 'activityAt'>): number | undefined {
