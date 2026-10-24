@@ -51,7 +51,7 @@ test('passive deletion commits Bridge → Runtime IPC → Background → L2 befo
         }) as typeof chrome.runtime.sendMessage;
         let notified = false;
         init({ onConversationDeleted: () => { notified = true; } });
-        await handleWindowMessage(deletion({ responseText: '' }));
+        await handleWindowMessage(deletion({ responseText: geminiDeleteGen('G_REGRESSION_EMPTY_DELETE_RESPONSE_01') }));
         await handleWindowMessage(deletion({ responseText: geminiDeleteGen('G_FROZEN_CONTRACT_DELETE_RESPONSE_02') }));
         await handleWindowMessage(deletion({ requestAccountObservation: null }));
         assert.ok(await getDetail(key()));
