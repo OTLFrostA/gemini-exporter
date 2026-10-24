@@ -1,13 +1,13 @@
 // NOTE: Cannot import from extractors.ts (circular). Schema ref: GEMINI_JSPB_SCHEMA.ERROR_INFO.ERROR_SLOT = 5
 const ERROR_SLOT = 5;
 
-export interface InnerPayloadDiscoveryOptions {
+interface InnerPayloadDiscoveryOptions {
     wrb?: string;
     rpcId?: string | string[];
     heuristicFilter?: (candidateStr: string) => boolean;
 }
 
-export interface InnerPayloadDiscoveryResult {
+interface InnerPayloadDiscoveryResult {
     inner: unknown | null;
     innerStr: string | null;
     isStandardWrb: boolean;
