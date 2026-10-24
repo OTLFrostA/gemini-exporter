@@ -1,10 +1,11 @@
+import { readGeminiListRequest } from '../../src/l1/parsers/gemini/rpc/listRequest.js';
+import { geminiListPages, GEMINI_LIST_CAPTURE } from '../fixtures/providers/geminiListCapture.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { execFileSync } from 'node:child_process';
 import { buildSync } from 'esbuild';
 import { resolve } from 'node:path';
 import { readGeminiAuditInput, auditGeminiEvidence } from '../helpers/geminiDualParse';
 import { openOptions } from './uiFixture';
-import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
 
 const root = resolve(__dirname, '../..');
@@ -78,14 +79,22 @@ test('Tier 2 v2 read probe sees actual account-scoped data; Scan reset clears lo
 test('Tier 2 scan observer sees real UI → Application → Recent RPC completion and persisted Coverage', async ({ context, extensionId }) => {
     const page = await workbench(context,extensionId); await source(context);
     await expectVerifiedSource(page);
-    const list = geminiListGen('G_E2E_TIER2_LIST_01');
-    await page.route('**/batchexecute*',route => route.fulfill({contentType:'application/json',body:list}));
+    const pages = geminiListPages();
+    let next = 0;
+    await page.route('**/batchexecute*', async route => {
+        const packet = pages[next++];
+        expect(packet, 'scan must not request past the captured terminal').toBeDefined();
+        expect(readGeminiListRequest(route.request().postData())?.requestCursor)
+            .toBe(readGeminiListRequest(packet.requestBody)?.requestCursor);
+        await route.fulfill({contentType:'application/json',body:packet.responseBody});
+    });
     expect(await page.evaluate(scanObserver)).toEqual({clicked:true});
     await expect.poll(() => page.evaluate(() => Reflect.get(window,'__tier2ScanEvidence').finished)).toBe(true);
     const evidence = await page.evaluate(() => Reflect.get(window,'__tier2ScanEvidence'));
-    expect(evidence.error).toBeUndefined(); expect(evidence.response).toEqual({status:'complete',pagesFetched:1,conversationsFetched:1});
+    expect(evidence.error).toBeUndefined(); expect(evidence.response).toEqual({status:'complete',pagesFetched:GEMINI_LIST_CAPTURE.pageCount,conversationsFetched:GEMINI_LIST_CAPTURE.totalRows});
     const state = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').snapshot());
-    expect(state.coverage.range.head.id).toBe('probe');
+    expect(state.coverage.range.head.id).toBe(GEMINI_LIST_CAPTURE.first.id);
+    expect(next).toBe(GEMINI_LIST_CAPTURE.pageCount);
 });
 
 test('Tier 2 raw fetch probe captures the actual export RPC without consuming its response', async ({ context, extensionId }) => {

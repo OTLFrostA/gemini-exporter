@@ -1,3 +1,4 @@
+import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
@@ -7,7 +8,7 @@ import { geminiListObservation } from '../src/l1/client/gemini/listObservation.j
 import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
 test('active and passive normalization retain identical independent cursor and ordering evidence', () => {
     for (const streamId of ['recent', 'pinned'] as const) {
-        const result = parseList(geminiListGen('G_PAGE_OBSERVATION_01'));
+        const result = parseList(geminiListPage().responseBody);
         const request = readGeminiListRequest(geminiListRequestGen(streamId === 'recent' ? 'G_PAGE_OBSERVATION_02_RECENT' : 'G_PAGE_OBSERVATION_02_PINNED'));
         assert.deepEqual(request, { streamId, requestCursor: 'incoming' });
         const observation = geminiListObservation(result, request, 'account');
@@ -16,12 +17,10 @@ test('active and passive normalization retain identical independent cursor and o
         assert.equal(observation.streamId, streamId);
         assert.equal(observation.requestKnown, true);
         assert.equal(observation.requestCursor, 'incoming');
-        assert.equal(observation.nextCursor, null);
+        assert.equal(observation.nextCursor, readGeminiListRequest(geminiListPage(1).requestBody)!.requestCursor);
         assert.equal(observation.valid, true);
-        assert.deepEqual(observation.keys, [
-            { id: 'abcdef123', time: 1700000020000 },
-            { id: 'abcdef456', time: 1700000010000 },
-        ]);
+        assert.equal(observation.keys.length, GEMINI_LIST_CAPTURE.firstPageRows);
+        assert.deepEqual(observation.keys[0], { id: GEMINI_LIST_CAPTURE.first.id, time: GEMINI_LIST_CAPTURE.first.updatedAt });
         assert.equal(observation.ordered, streamId === 'recent');
     }
 });
@@ -66,7 +65,7 @@ test('captured expanded webpage recent filter establishes request identity witho
 });
 
 test('list coverage uses the parser failure outcome, never the diagnostic payload', () => {
-    const result = parseList(geminiListGen('G_PAGE_OBSERVATION_12'));
+    const result = parseList(geminiListPage().responseBody);
     const request = { streamId: 'recent' as const, requestCursor: null };
     const debug = { error: 'NO_INNER_STR' as const, bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null };
     assert.deepEqual(geminiListObservation({ ...result, _debug: debug }, request, 'account'),

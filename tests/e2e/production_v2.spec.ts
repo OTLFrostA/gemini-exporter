@@ -1,11 +1,10 @@
+import { geminiListPage, GEMINI_LIST_CAPTURE } from '../fixtures/providers/geminiListCapture.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
-import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
-import { requestGen as geminiListRequestGen } from '../fixtures/providers/geminiListRequest.js';
 import { requestGen as geminiDetailRequestGen } from '../fixtures/providers/geminiDetailRequest.js';
 import { streamGen as geminiStreamGen } from '../fixtures/providers/geminiStream.js';
 import { requestGen as geminiStreamRequestGen } from '../fixtures/providers/geminiStreamRequest.js';
@@ -109,18 +108,18 @@ test('real Content discovery resolves scan targets, deduplicates tabs and reject
 test('MAIN fetch → isolated L1 → Background L2 commits in extension IDB and updates Badge; forged export is inert', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     const source = await sourcePage(context);
-    const wire = geminiListGen('G_E2E_PRODUCTION_V2_01');
+    const wire = geminiListPage().responseBody;
     await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
     await source.evaluate(async body => {
         await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams(body) });
         window.postMessage({ action: 'runLiveSave', key: { accountId: 'fake', conversationId: 'passive' } }, location.origin);
-    }, geminiListRequestGen('G_E2E_PRODUCTION_LIST_REQUEST_01'));
-    await expect.poll(() => page.evaluate(async accountId => (await Reflect.get(globalThis, 'productionProbe').listIndexes(accountId)).length, accountId)).toBe(1);
+    }, geminiListPage().requestBody);
+    await expect.poll(() => page.evaluate(async accountId => (await Reflect.get(globalThis, 'productionProbe').listIndexes(accountId)).length, accountId)).toBe(GEMINI_LIST_CAPTURE.firstPageRows);
     // Badge v2 deliberately pulls counts on visibility restoration (and every ~60s),
     // not on an Index-commit push. Exercise that existing refresh boundary.
     await source.bringToFront();
     await source.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-    await expect(source.locator('#geminiExportBadge')).toContainText('1');
+    await expect(source.locator('#geminiExportBadge')).toContainText(String(GEMINI_LIST_CAPTURE.firstPageRows));
     expect(await page.evaluate(async accountId => Object.keys(await Reflect.get(globalThis, 'productionProbe').listExportRecords(accountId)).length, accountId)).toBe(0);
     expect(await source.evaluate(async () => (await indexedDB.databases()).map(db => db.name))).not.toContain('gemini_exporter_v2');
 });

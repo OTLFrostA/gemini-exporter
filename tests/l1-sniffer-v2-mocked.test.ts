@@ -1,3 +1,5 @@
+import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
+import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import test, { beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { ports, GEMINI_ACCOUNT } from './helpers/l1V2UnitMocks.js';
@@ -42,29 +44,31 @@ test('Sniffer submits list facts and request-bound page evidence without Applica
     const callbacks: string[] = [];
     ports.beforeIndexCommit = () => { callbacks.push('committed'); };
     init({ onIndexesCommitted: () => { callbacks.push('notified'); } });
-    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_01'), {
+    await handleWindowMessage(captured(geminiListPage().responseBody, {
         listRequest: { streamId: 'recent', requestCursor: null },
     }));
     assert.deepEqual(callbacks, ['committed', 'notified']);
     assert.equal(ports.indexes.length, 1);
     assert.equal(ports.indexes[0].accountId, GEMINI_ACCOUNT.id);
-    assert.deepEqual(ports.indexes[0].items.map(item => item.conversationId), ['source_sniff_list']);
+    assert.equal(ports.indexes[0].items.length, GEMINI_LIST_CAPTURE.firstPageRows);
+    assert.equal(ports.indexes[0].items[0].conversationId, GEMINI_LIST_CAPTURE.first.id);
     assert.equal(ports.indexes[0].page?.requestKnown, true);
     assert.equal(ports.indexes[0].page?.valid, true);
     assert.equal(ports.indexes[0].page?.ordered, true);
-    assert.equal(ports.indexes[0].page?.nextCursor, null);
-    assert.deepEqual(ports.indexes[0].page?.keys, [{ id: 'source_sniff_list', time: 1700000000000 }]);
+    assert.equal(ports.indexes[0].page?.nextCursor, readGeminiListRequest(geminiListPage(1).requestBody)!.requestCursor);
+    assert.equal(ports.indexes[0].page?.keys.length, GEMINI_LIST_CAPTURE.firstPageRows);
+    assert.deepEqual(ports.indexes[0].page?.keys[0], { id: GEMINI_LIST_CAPTURE.first.id, time: GEMINI_LIST_CAPTURE.first.updatedAt });
 });
 
 test('Sniffer accepts identifiable Index without falsely trusting unknown captured account/cursor', async () => {
-    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_02'), {
+    await handleWindowMessage(captured(geminiListPage().responseBody, {
         requestAccountObservation: null, listRequest: { streamId: 'recent', requestCursor: null },
     }));
     assert.equal(ports.indexes.length, 1);
     assert.equal(ports.indexes[0].accountId, GEMINI_ACCOUNT.id);
     assert.equal(ports.indexes[0].page, undefined, 'fallback to real A is not verified Gaia evidence');
     ports.reset();
-    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_03'), { listRequest: undefined }));
+    await handleWindowMessage(captured(geminiListPage().responseBody, { listRequest: undefined }));
     assert.equal(ports.indexes.length, 1);
     assert.equal(ports.indexes[0].page, undefined, 'no request cursor means no Coverage evidence');
 });
@@ -72,7 +76,7 @@ test('Sniffer accepts identifiable Index without falsely trusting unknown captur
 test('Sniffer does not request an Account for unrecognized, empty or invalid unknown captures', async () => {
     await handleWindowMessage(captured('[]', { requestAccountObservation: null }));
     await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_04'), { requestAccountObservation: null }));
-    await handleWindowMessage(captured(geminiListGen('G_SNIFFER_LIST_05'), {
+    await handleWindowMessage(captured(geminiListPage().responseBody, {
         requestAccountObservation: null, url: 'https://wrong.example.com/batchexecute',
     }));
     assert.deepEqual(ports.lookups, []);

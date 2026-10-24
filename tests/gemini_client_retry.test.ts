@@ -1,10 +1,10 @@
+import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
 const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
 const { handleHttp400 } = require('../src/l1/client/gemini/api/retryPolicy.js');
-const { listGen: geminiListGen } = require('./fixtures/providers/gemini.js') as typeof import('./fixtures/providers/gemini.js');
 const { useIndexStorage } = require('./helpers/indexStorage.js');
 useIndexStorage();
 
@@ -73,15 +73,15 @@ test('geminiClient - getConversationList recovers on HTTP 400 with fresh credent
         return {
             ok: true,
             status: 200,
-            text: async () => geminiListGen('G_GEMINI_CLIENT_RETRY_01')
+            text: async () => geminiListPage().responseBody
         };
     };
 
     try {
         const res = await client.getConversationList(null, 'u0');
         assert.strictEqual(callCount, 2, 'Should have retried once on 400');
-        assert.strictEqual(res.conversations.length, 1);
-        assert.strictEqual(res.conversations[0].id, 'chat_rec_400');
+        assert.strictEqual(res.conversations.length, GEMINI_LIST_CAPTURE.firstPageRows);
+        assert.strictEqual(res.conversations[0].id, GEMINI_LIST_CAPTURE.first.id);
     } finally {
         if (originalFetch) Object.defineProperty(globalThis, 'fetch', originalFetch);
         else delete (global as any).fetch;
