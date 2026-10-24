@@ -117,8 +117,10 @@ export function decodeGeminiCandidateResources(
             for (const metaItem of docs) {
                 const primary = findDocContentById(inner, metaItem.id);
                 const alt = metaItem.contentId ? findDocContentById(inner, metaItem.contentId) : null;
-                const parsedPrimary = parseDocSections(primary);
-                const parsedAlt: Partial<DocSectionsResult> & Pick<DocSectionsResult, "sections" | "links"> = alt ? parseDocSections(alt) : { sections: [], links: [], contentMarkdown: void 0 };
+                const parsedPrimary = parseDocSections(primary?.node, primary?.contentMatch);
+                const parsedAlt: Partial<DocSectionsResult> & Pick<DocSectionsResult, "sections" | "links"> = alt
+                    ? parseDocSections(alt.node, alt.contentMatch)
+                    : { sections: [], links: [], contentMarkdown: void 0 };
                 const md = parsedPrimary.contentMarkdown || parsedAlt.contentMarkdown || findDocMarkdownByClues(inner, metaItem);
                 const cleanMd = md ? stripInternalChipMarkdown(md).trim() : "";
                 if (!cleanMd) continue;

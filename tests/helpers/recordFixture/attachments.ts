@@ -1,5 +1,5 @@
 import * as source from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
-import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult } from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult, MatchedDocContent } from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 export * from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 export interface GeminiParserAttachmentsModule {
     isInternalChipUrl: (u?: string | null) => boolean;
@@ -11,8 +11,8 @@ export interface GeminiParserAttachmentsModule {
     extractResponseImages: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];
     extractUserFiles: (turnUserArr: unknown) => UserFileAttachment[];
     extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
-    findDocContentById: (root: unknown, docId: string) => unknown;
-    parseDocSections: (docContentArr: unknown) => DocSectionsResult;
+    findDocContentById: (root: unknown, docId: string) => MatchedDocContent | null;
+    parseDocSections: (docContentArr: unknown, contentMatch?: "substring") => DocSectionsResult;
     findDocMarkdownByClues: (root: unknown, metaItem?: DeepResearchDocMeta | null) => string;
     itemMatchesFilename: (name?: string | null) => boolean;
     extractFileNameFromUrl: (url: string) => string | null;
