@@ -1,3 +1,4 @@
+import { geminiRpcPacket, GEMINI_DETAIL_CAPTURE } from './fixtures/providers/geminiRpcCapture.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
@@ -60,12 +61,12 @@ test('production RPC client parses raw responses without invoking the legacy det
     const transport = require('../src/l1/client/gemini/api/rpcClient.js') as typeof import('../src/l1/client/gemini/api/rpcClient.js');
     const originalCred = credentials.resolveCred, originalPost = transport.postBatchexecute;
     credentials.resolveCred = async () => ({ at: 'test', bl: 'test', accountSlot: '10000000-0000-4000-8000-000000000001', fSid: 'test' });
-    transport.postBatchexecute = async () => new Response(geminiDetailGen('G_NATIVE_CALLERS_01'));
+    transport.postBatchexecute = async () => new Response(geminiRpcPacket('detail').responseBody);
     try {
         const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js') as typeof import('../src/l1/client/gemini/geminiClient.js');
-        const detail = await new GeminiAPIClient().fetchConversationPage('native', null, '10000000-0000-4000-8000-000000000001');
-        assert.equal(detail.conversation.index.title, 'Native title');
-        assert.equal(detail.conversation.detail.messages.length, 2);
+        const detail = await new GeminiAPIClient().fetchConversationPage(GEMINI_DETAIL_CAPTURE.conversationId, null, '10000000-0000-4000-8000-000000000001');
+        assert.equal(detail.conversation.index.title, GEMINI_DETAIL_CAPTURE.title);
+        assert.equal(detail.conversation.detail.messages.length, GEMINI_DETAIL_CAPTURE.messages);
         assert.equal(Reflect.get(detail.conversation.detail.messages[0], 'provenance'), undefined);
     } finally { credentials.resolveCred = originalCred; transport.postBatchexecute = originalPost; }
 });

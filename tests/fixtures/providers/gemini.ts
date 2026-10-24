@@ -1,11 +1,8 @@
+import { geminiListVariant, geminiListRow } from './geminiListCapture.js';
 import timestampPairs from '../gemini_timestamp_pairs.json';
 /** Gemini List edge/legacy responses. Normal traffic is shared via geminiListCapture.ts. */
-function wire(rows: readonly unknown[] = [], nextCursor: string | null = null): string {
-    return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, nextCursor, rows])]]);
-}
-function sourceRow(id: string, title: string, seconds: number) {
-    return ['c_' + id, title, null, null, null, [seconds, 0]];
-}
+const wire = geminiListVariant;
+const sourceRow = geminiListRow;
 
 /** Synthetic identity/cursor variants for focused protocol regressions. */
 function geminiList(ids: readonly string[] = [], nextCursor: string | null = null) {
@@ -33,26 +30,18 @@ function p1RegressionList(items: unknown[]): string {
 }
 
 
-function scanFlowWire(rows: unknown[]): string {
-    const inner = JSON.stringify([null, null, rows]);
-    return ")]}'\n\n" + '[["wrb.fr","MaZiqc",' + JSON.stringify(inner) + ']]';
-}
+const scanFlowWire = (rows: unknown[]): string => wire(rows);
 const scanRows = (renamed = false): unknown[] => [
-    ['c_scan_003', '微服务架构与分布式事务', [1700000200, 0], [1700000200, 0], 8, [1700000200, 0]],
-    ['c_scan_002', 'Rust 高性能异步网络编程', [1700000100, 0], [1700000100, 0], 6, [1700000100, 0]],
-    ['c_scan_001', renamed ? '改名后的老会话' : '量子计算与超导量子比特',
-        [1700000000, 0], [1700000000, 0], 4, [1700000000, 0]],
+    sourceRow('scan_003', '微服务架构与分布式事务', 1700000200),
+    sourceRow('scan_002', 'Rust 高性能异步网络编程', 1700000100),
+    sourceRow('scan_001', renamed ? '改名后的老会话' : '量子计算与超导量子比特', 1700000000),
 ];
-const fixedPage = (id: string, title: string, seconds: number): string =>
-    JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
-        [['c_' + id, title, null, null, null, [seconds, 0]]]])]]);
+const fixedPage = (id: string, title: string, seconds: number): string => wire([sourceRow(id, title, seconds)]);
 
-
-/** Immutable native List pages used by the real E2E cursor/coverage assertions. */
+/** Captured transport with explicit synthetic identities/times for state transitions. */
 function e2eIncrementalList(prefix: string, values: readonly number[], cursor: string | null): string {
-    return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, cursor,
-        values.map(time => ['c_' + prefix + time, (prefix === 'chat' ? 'Chat ' : 'Rebuild ') + time,
-            null, null, null, [1700000000 + time, 0]])])]]);
+    return wire(values.map(time => sourceRow(prefix + time,
+        (prefix === 'chat' ? 'Chat ' : 'Rebuild ') + time, 1700000000 + time)), cursor);
 }
 function e2eUuidList(id: string): string {
     return JSON.stringify([['wrb.fr', 'MaZiqc',
@@ -124,7 +113,7 @@ const fixtureMap = {
     'G_DYNAMIC_SCAN_FLOW_LIST_01': () => scanFlowWire(scanRows()),
     'G_DYNAMIC_SCAN_FLOW_LIST_02': () => scanFlowWire(scanRows(true)),
     'G_DYNAMIC_SCAN_FLOW_PINNED_01': () => scanFlowWire([
-        ['c_scan_pinned', '置顶的较早会话', null, null, null, [1600000000, 0]],
+        sourceRow('scan_pinned', '置顶的较早会话', 1600000000),
     ]),
     'G_PARSER_PAYLOAD_TOP_01': () => JSON.stringify([
         ['wrb.fr', 'MaZiqc', JSON.stringify([null, [['c_123', 'Title 1']]])],
