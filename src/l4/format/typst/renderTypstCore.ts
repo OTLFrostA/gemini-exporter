@@ -8,7 +8,7 @@ import type { RendererOptions } from '../shared/renderOptions.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { safeExternalHref } from '../shared/safeLinks.js';
 import { defaultPdfLayout, applyLayout } from './layout.js';
-import type { TypstBlockNode, TypstConversationRenderPayload, TypstInlineNode, TypstTableCell } from './transport.js';
+import type { TypstBlockNode, TypstConversationRenderPayload, TypstInlineNode, TypstTableCell, BlockLayout, TypstRenderMessage } from './transport.js';
 
 /** Internal technical hooks; no format-specific controls in the public Renderer. */
 interface TypstRuntimeHooks {
@@ -57,11 +57,12 @@ export function renderDocumentTypstCore(
     const missing = (kind: 'image' | 'file', label: string, id: string, details?: DisplayInline[]): TypstBlockNode => {
         runtime.onDiagnostic?.({ severity: 'warning', code: 'TYPST_V8_IMAGE_MISSING', message: `Missing prepared ${kind} resource` });
         const source = safeExternalHref(options.resourceFailures?.[id]?.sourceUrl ?? '');
-        const detailNodes = [...(details?.map(inline) ?? []), ...(source ? [{type:'link' as const, url:source, children:[{type:'text' as const,text:locale === 'zh' ? '查看来源' : 'Open source'}]}] : [])];
+        const detailNodes: TypstInlineNode[] = details?.map(inline) ?? [];
+        if (source) detailNodes.push({ type: 'link', url: source, children: [{ type: 'text', text: locale === 'zh' ? '查看来源' : 'Open source' }] });
         return ({ type: 'unknown', sourceType: `missing-${kind}`, label: unavailableResourceText(kind, '', locale, options.resourceFailures?.[id]), fallback: label, ...(detailNodes.length ? { details: detailNodes } : {}), layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
     };
     const block = (node: DisplayBlock): TypstBlockNode => {
-        const layout = { gapBeforePt: 0, keepWithNext: false, width: 'full' as const };
+        const layout: BlockLayout = { gapBeforePt: 0, keepWithNext: false, width: 'full' };
         switch (node.type) {
             case 'paragraph': return { type: 'paragraph', children: node.children.map(inline), layout };
             case 'heading': return { type: 'heading', level: node.level, children: node.children.map(inline), layout };
@@ -94,11 +95,13 @@ export function renderDocumentTypstCore(
             const blocks = message.blocks.map(block);
             const prefix = message.role === 'system' ? strings.systemMessage : message.role === 'developer' ? strings.developerMessage : message.role === 'unknown' ? strings.unknownRole : undefined;
             if (prefix) blocks.unshift({ type: 'note', children: [{ type: 'text', text: prefix }], layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
-            if (message.sources?.length) blocks.push({ type: 'note', label: strings.sources, children: message.sources.flatMap((item, index) => [
-                ...(index ? [{ type: 'lineBreak' as const }] : []),
-                safeExternalHref(item.href) ? { type: 'link' as const, url: safeExternalHref(item.href)!, children: [{ type: 'text' as const, text: sourceLabel(item) }] } : { type: 'text' as const, text: sourceLabel(item) },
-            ]), layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
-            const variant = message.role === 'user' ? 'bubble' as const : 'flow' as const;
+            if (message.sources?.length) blocks.push({ type: 'note', label: strings.sources, children: message.sources.flatMap((item, index): TypstInlineNode[] => {
+                const href = safeExternalHref(item.href);
+                const nodes: TypstInlineNode[] = index ? [{ type: 'lineBreak' }] : [];
+                nodes.push(href ? { type: 'link', url: href, children: [{ type: 'text', text: sourceLabel(item) }] } : { type: 'text', text: sourceLabel(item) });
+                return nodes;
+            }), layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
+            const variant: TypstRenderMessage['variant'] = message.role === 'user' ? 'bubble' : 'flow';
             applyLayout(blocks, variant === 'bubble', false);
             const next = document.messages[index + 1];
             return { id: 'msg-' + index, variant, ...(message.modelLabel ? { model: message.modelLabel } : {}), plainText: message.blocks.map(blockText).join('\n'), minWidthCards: blocks.flatMap(node => node.type === 'file' ? [{ label: node.name, metadata: node.metadata }] : []), gapAfterPt: next ? (variant === 'flow' && next.role === 'user' ? visual.spacing.turn : visual.spacing.section) * 0.75 : 0, blocks };

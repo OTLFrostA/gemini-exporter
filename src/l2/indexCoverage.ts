@@ -5,7 +5,10 @@ export function indexCoverageSession(accountId: string, streamId: string): Cover
     let session = sessions.get(key);
     if (!session) {
         session = new CoverageSession(); sessions.set(key, session);
-        if (sessions.size > 64) sessions.delete(sessions.keys().next().value!);
+        if (sessions.size > 64) {
+            const oldest = sessions.keys().next();
+            if (!oldest.done) sessions.delete(oldest.value);
+        }
     }
     return session;
 }

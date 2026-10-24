@@ -96,7 +96,8 @@ export async function initMitexWasm(wasmSource?: string | Uint8Array | ArrayBuff
         } else if (typeof process !== 'undefined' && process.versions?.node) {
             const fs = getNodeModule<typeof import('node:fs')>('node:fs');
             const wasmPath = getWasmPathInNode();
-            bytes = fs!.readFileSync(wasmPath);
+            if (!fs) throw new Error('Node.js filesystem is unavailable');
+            bytes = fs.readFileSync(wasmPath);
         } else if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
             const url = chrome.runtime.getURL('src/l4/format/typst/mitex/vendor/mitex_wasm_bg.wasm');
             const resp = await fetch(url);
@@ -108,7 +109,8 @@ export async function initMitexWasm(wasmSource?: string | Uint8Array | ArrayBuff
             throw new Error('Unsupported runtime for automatic MiTeX WASM loading; pass wasmSource explicitly.');
         }
 
-        const wasmRes = await WebAssembly.instantiate(bytes as BufferSource, { './mitex_wasm_bg.js': bg });
+        const wasmBytes = bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes);
+        const wasmRes = await WebAssembly.instantiate(wasmBytes, { './mitex_wasm_bg.js': bg });
         const wasmInstance = wasmRes.instance;
         bg.__wbg_set_wasm(wasmInstance.exports);
         isReady = true;

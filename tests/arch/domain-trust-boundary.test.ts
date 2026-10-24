@@ -29,6 +29,9 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
         `import {validateParserDomain as trust} from './validation';trust(raw);`,
         `export {restoreDomainSnapshot as trust} from './validation';`,
         `const result=raw as TrustedDomain;`,
+        `const result=raw as string;`,
+        `const result=raw!;`,
+        `const result=<number>raw;`,
         `import type {TrustedDomain as Closed} from './domain';type Native=Closed;const result=raw as Native;`,
         `function nativeResult(raw:unknown){return (raw as unknown) as ResourceConversationParseResult;}`,
         `function shallow(value:unknown):value is ResourceConversationParseResult{return !!value;}`,
@@ -52,7 +55,7 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
             else assert.ok(issues.length > 0, source);
         }
         // Even an otherwise authorized module cannot add a double trust assertion.
-        const double = snapshot.getDefaultProjectForFile([...virtual.keys()][9])!.program.getSourceFile([...virtual.keys()][9])!;
+        const double = snapshot.getDefaultProjectForFile([...virtual.keys()][12])!.program.getSourceFile([...virtual.keys()][12])!;
         assert.ok(trustBoundaryViolations(double, 'l2/readConversation.ts').some(issue => issue.includes('double trust assertion')));
         snapshot.dispose();
     } finally { api.close(); }

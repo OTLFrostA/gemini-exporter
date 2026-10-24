@@ -1,11 +1,10 @@
 export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
 
-/** Fields consumed by writers; additional JSZip file options pass through unchanged. */
+/** Options supported by the export pipeline and its writers. */
 export interface WriteFileOptions {
     base64?: boolean;
     compression?: 'STORE' | 'DEFLATE';
     compressionOptions?: { level?: number };
-    [key: string]: unknown;
 }
 
 export interface IExportWriter {

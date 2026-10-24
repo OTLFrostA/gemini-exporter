@@ -7,8 +7,19 @@ import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../.
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
 import { inlineMathMarkdown } from '../../../shared/utils/markdownMath.js';
 
+function htmlEntity(char: string): string {
+    switch (char) {
+        case '&': return '&amp;';
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '"': return '&quot;';
+        case "'": return '&#39;';
+        default: return char;
+    }
+}
+
 function escapeText(text: string): string {
-    return text.replace(/\\/g, '\\\\').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!))
+    return text.replace(/\\/g, '\\\\').replace(/[&<>]/g, htmlEntity)
         .replace(/([`*_\[\]#~$])/g, '\\$1').replace(/^(\s*)([-+] |\d+[.)] )/gm, (_, space: string, marker: string) => space + marker.replace(/[-+.)]/, '\\$&'));
 }
 
@@ -74,8 +85,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
     const inlines = (nodes: DisplayInline[], tableCell = false): string => nodes.map((node) => inline(node, tableCell)).join('');
     // GFM cannot express merged table cells. Use safe HTML for such tables,
     // preserving cell spans and readable content rather than flattening them.
-    const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, ch =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!));
+    const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, htmlEntity);
     const htmlInline = (node: DisplayInline): string => {
         switch (node.type) {
             case 'text': return escapeHtml(node.text);

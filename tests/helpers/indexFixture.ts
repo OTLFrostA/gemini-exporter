@@ -1,6 +1,6 @@
 import { restoreConversationIndex, type DomainConversationIndex } from '../../src/l2/conversationIndex.js';
 import { parseIndexMetadata } from '../../src/l1/parsers/shared/parseIndexMetadata.js';
-import { normalizeTimestamp } from '../../src/l2/time.js';
+import { normalizeTimestamp } from '../../src/l1/parsers/shared/time.js';
 import { resolveTitle } from '../../src/l2/titleAuthority.js';
 import { semanticTitleSource } from '../../src/l1/parsers/shared/parseIndexMetadata.js';
 import { cleanTitle, isBrandPlaceholderTitle } from '../../src/shared/utils/titleText.js';

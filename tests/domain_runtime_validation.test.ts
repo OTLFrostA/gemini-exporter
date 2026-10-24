@@ -153,3 +153,25 @@ test('Domain parser rejects unsafe or fractional savedAt timestamps', () => {
     }
     assert.equal(validateParserDomain({ ...source, detail: { ...source.detail, savedAt: 0 } }).detail.savedAt, 0);
 });
+
+
+test('snapshot recovery uses canonical Index output and preserves untouched Detail graphs', () => {
+    const source = valid();
+    const index = { ...source.index, createdAt: undefined, activityAt: undefined };
+    const raw = { ...source, index };
+    const restored = restoreDomainSnapshot(raw);
+    assert.equal(Object.hasOwn(restored.index, 'createdAt'), false);
+    assert.equal(Object.hasOwn(restored.index, 'activityAt'), false);
+    assert.equal(Object.hasOwn(raw.index, 'createdAt'), true, 'recovery does not mutate the transport');
+    assert.equal(restored.detail, source.detail);
+    assert.equal(restored.detail.messages, source.detail.messages);
+});
+
+test('canonicalization never launders extra undefined fields into a trusted graph', () => {
+    const source = valid();
+    for (const detail of [
+        { ...source.detail, unexpected: undefined },
+        { ...source.detail, messages: [{ ...source.detail.messages[0], unexpected: undefined }] },
+        { ...source.detail, messages: [{ ...source.detail.messages[0], content: [{ type: 'paragraph', children: [], unexpected: undefined }] }] },
+    ]) assert.throws(() => restoreDomainSnapshot({ index: source.index, detail }), TypeError);
+});

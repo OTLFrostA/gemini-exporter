@@ -129,15 +129,15 @@ test('semantic layers own their files and obey dependency direction, including t
     }
 });
 
-test('native parsers and renderers cannot acquire forbidden dependencies through a shared runtime helper', () => {
+test('native parsers, L2 and renderers cannot acquire forbidden dependencies through a shared runtime helper', () => {
     for (const owner of graph.keys()) {
-        if (!renderer(owner) && !/^l1\/parsers\//.test(owner)) continue;
+        if (!renderer(owner) && !/^l1\/parsers\//.test(owner) && !owner.startsWith('l2/')) continue;
         function walk(current: string, chain: string[], seen: Set<string>): void {
             if (seen.has(current)) return;
             seen.add(current);
             for (const edge of graph.get(current) ?? []) {
                 if (!edge.runtime) continue;
-                assert.ok(!forbidden(owner, edge.target), [...chain, edge.target].join(' → '));
+                assert.ok(owner.startsWith('l2/') ? !edge.target.startsWith('l1/') : !forbidden(owner, edge.target), [...chain, edge.target].join(' → '));
                 walk(edge.target, [...chain, edge.target], seen);
             }
         }

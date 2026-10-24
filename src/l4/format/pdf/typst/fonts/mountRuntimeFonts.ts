@@ -1,6 +1,5 @@
 import type { Diagnostic as RenderDiagnostic } from '../../../../../shared/diagnostics/diagnostic.js';
 import type { IPdfCompiler } from '../../pdfCompiler.js';
-import type { RuntimeFontConsumer } from '../typstSandboxCompiler.js';
 import { BUNDLED_MATH_FALLBACK, BUNDLED_TEXT_FALLBACK, SYSTEM_FALLBACK, type LocalFontResolution } from './localFontProvider.js';
 
 export interface MountedRuntimeFonts {
@@ -14,8 +13,7 @@ export async function mountRuntimeFonts(
     resolution: LocalFontResolution,
     compiler: IPdfCompiler,
 ): Promise<MountedRuntimeFonts> {
-    const consumer = compiler as unknown as RuntimeFontConsumer;
-    if (typeof consumer.setRuntimeFonts !== 'function') {
+    if (!compiler.setRuntimeFonts) {
         return {
             mountedCount: 0,
             mountedNames: [],
@@ -44,12 +42,12 @@ export async function mountRuntimeFonts(
                 severity: 'warning',
                 code: 'TYPST_LOCAL_FONT_READ_FAILED',
                 message: `Local font "${font.family}" (${font.postscriptName}) failed to read bytes (${
-                    (e as Error)?.message ?? String(e)
+                    e instanceof Error ? e.message : String(e)
                 }); it will not be mounted in the Typst sandbox.`,
             });
         }
     }
-    consumer.setRuntimeFonts(bytes);
+    compiler.setRuntimeFonts(bytes);
     const effectiveFonts: LocalFontResolution = {
         fonts: [],
         diagnostics: [...resolution.diagnostics, ...diagnostics],

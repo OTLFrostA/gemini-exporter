@@ -1,7 +1,7 @@
 import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeTimestamp } from '../src/l2/time.js';
+import { normalizeTimestamp } from '../src/l1/parsers/shared/time.js';
 import { validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';

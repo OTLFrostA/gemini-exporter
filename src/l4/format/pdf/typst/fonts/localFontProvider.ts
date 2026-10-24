@@ -170,17 +170,19 @@ export type LocalFontQueryResult =
 
 type QueryLocalFontsFn = () => Promise<LocalFontEntry[]>;
 
+/** Browser APIs missing from the bundled DOM declarations, scoped to this adapter. */
+declare global {
+    interface Window { queryLocalFonts?: QueryLocalFontsFn }
+    var queryLocalFonts: QueryLocalFontsFn | undefined;
+    var __geminiLocalFontsCache: LocalFontEntry[] | undefined;
+}
+
 function getQueryLocalFontsFn(): QueryLocalFontsFn | undefined {
-    const g = globalThis as unknown as {
-        window?: { queryLocalFonts?: unknown };
-        queryLocalFonts?: unknown;
-    };
-    const fn = g.window?.queryLocalFonts ?? g.queryLocalFonts;
-    return typeof fn === 'function' ? (fn as QueryLocalFontsFn) : undefined;
+    return (typeof window === 'undefined' ? undefined : window.queryLocalFonts) ?? globalThis.queryLocalFonts;
 }
 
 function classifyQueryError(err: unknown): { reason: LocalFontQueryReason; detail: string } {
-    const name = (err as { name?: string } | null)?.name ?? '';
+    const name = err !== null && typeof err === 'object' && 'name' in err && typeof err.name === 'string' ? err.name : '';
     const message = err instanceof Error ? err.message : String(err);
     if (name === 'NotAllowedError' || name === 'SecurityError') {
         return { reason: 'permission-denied', detail: `Local Font Access denied/blocked (${name}): ${message}` };
@@ -190,7 +192,7 @@ function classifyQueryError(err: unknown): { reason: LocalFontQueryReason; detai
 
 let localFontsCache: LocalFontEntry[] | null = null;
 const CACHE_KEY = '__geminiLocalFontsCache';
-const fontCacheHost = globalThis as typeof globalThis & { __geminiLocalFontsCache?: LocalFontEntry[] };
+const fontCacheHost = globalThis;
 
 export function getCachedLocalFonts(): LocalFontEntry[] | null {
     if (localFontsCache && localFontsCache.length > 0) return localFontsCache;
@@ -231,6 +233,7 @@ function setCachedLocalFonts(fonts: LocalFontEntry[]): void {
 async function localFontsGranted(): Promise<boolean> {
     if (typeof navigator === 'undefined' || !navigator.permissions?.query) return true;
     try {
+        // Chromium supports this permission; the bundled DOM PermissionName union does not yet.
         const permission = await navigator.permissions.query({ name: 'local-fonts' as PermissionName });
         return permission.state === 'granted';
     } catch { return false; }
@@ -286,7 +289,7 @@ function toResolved(entry: LocalFontEntry): ResolvedLocalFont {
         family,
         postscriptName,
         style,
-        source: 'local' as const,
+        source: 'local',
         async getBytes(): Promise<Uint8Array> {
             const buf = await (await entry.blob()).arrayBuffer();
             return new Uint8Array(buf);

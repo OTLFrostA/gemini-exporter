@@ -67,4 +67,6 @@ AST Composer and JSON receive the admitted Account + matching Index/Detail.
 Domain does not own formatting, export records or delivery. Full L1/Export/PDF v2
 work is deferred. Remote absence/deletion never erases local archives.
 
-See [Domain admission and storage](domain-storage.md) for the operational map.
+See [Domain admission and storage](domain-storage.md) for the operational map,
+and [Domain type boundaries](domain-type-boundaries.md) for parsing ownership,
+validation evidence and the assertion-free business-layer gates.
