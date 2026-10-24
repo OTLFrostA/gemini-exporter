@@ -34,13 +34,13 @@ export const BUNDLED_FONT_PATHS: readonly string[] = [
     'src/l4/format/pdf/sandbox/fonts/NotoEmoji-Variable.ttf',
 ];
 
-export interface ParsedProtocolMessage {
+interface ParsedProtocolMessage {
     type: string;
     jobId: string | null;
     body: Record<string, unknown>;
 }
 
-export type ParseResult =
+type ParseResult =
     | { ok: true; message: ParsedProtocolMessage }
     | { ok: false; reason: string };
 
@@ -67,7 +67,7 @@ export function parseProtocolMessage(data: unknown, allowedTypes: ReadonlySet<st
     return { ok: true, message: { type: record.type, jobId: record.jobId, body: record } };
 }
 
-export interface MessageEventLike {
+interface MessageEventLike {
     source: unknown;
     origin: string;
 }
