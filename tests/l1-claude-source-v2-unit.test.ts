@@ -42,7 +42,6 @@ test('Claude discovery injection omits absent optional arguments for Chrome seri
 const c1 = '11111111-1111-4111-8111-111111111111';
 const c2 = '22222222-2222-4222-8222-222222222222';
 const root = '33333333-3333-4333-8333-333333333333';
-const branch = '44444444-4444-4444-8444-444444444444';
 const leaf = '55555555-5555-4555-8555-555555555555';
 function message(uuid: string, parent: string | null, sender: string, text: string) {
     return { uuid, parent_message_uuid: parent, sender,
