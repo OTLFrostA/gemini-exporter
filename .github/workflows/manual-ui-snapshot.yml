@@ -1,0 +1,55 @@
+name: Capture Current UI Screenshots (Temporary)
+
+on:
+  push:
+    branches: [chore/ui-snapshot-20261023]
+    paths:
+      - '.github/workflows/manual-ui-snapshot.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build latest extension
+        run: npm run build
+      - name: Capture real browser screenshots with anonymous fixture conversations
+        env:
+          CAPTURE_README_SCREENSHOTS: '1'
+        run: xvfb-run --auto-servernum npx playwright test tests/e2e/readme_screenshots.spec.ts --workers=1
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screenshots-20261023
+          path: |
+            store_assets/screenshot_1_1280x800.png
+            store_assets/screenshot_2_1280x800.png
+            store_assets/screenshot_3_1280x800.png
+            store_assets/screenshot_popup_v2.png
+      - name: Save screenshots to snapshot-only branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ui-snapshots/2026-10-23
+          cp store_assets/screenshot_1_1280x800.png ui-snapshots/2026-10-23/workbench-light-en.png
+          cp store_assets/screenshot_2_1280x800.png ui-snapshots/2026-10-23/workbench-dark-en.png
+          cp store_assets/screenshot_3_1280x800.png ui-snapshots/2026-10-23/workbench-light-zh.png
+          cp store_assets/screenshot_popup_v2.png ui-snapshots/2026-10-23/popup-light-en.png
+          git add ui-snapshots/2026-10-23
+          git commit -m "docs: capture current UI screenshots" || exit 0
+          git push origin HEAD:chore/ui-snapshot-20261023
