@@ -8,6 +8,8 @@
 export {
     convertMathWithMitex,
     initMitexWasm,
+    isMitexReady,
+    mitexConvertMath,
     resetMitexForTesting,
     simulateMitexInitFailureForTesting,
     type MathConversionResult,
