@@ -177,6 +177,9 @@ class DAGRunner:
                 ctx.registry.record_result(fid, TestStatus.SKIP, 0.0, reason)
                 continue
 
+            checkpoint = getattr(ctx, 'browser_checkpoint', None)
+            if checkpoint:
+                checkpoint(fid)
             t0 = time.time()
             success = False
             status = TestStatus.FAIL
@@ -201,6 +204,9 @@ class DAGRunner:
 
             duration = time.time() - t0
             ctx.registry.record_result(fid, status, duration, message, details)
+
+            if checkpoint:
+                checkpoint(fid + ':completed')
 
             dur_str = f"{duration:.1f}s" if duration >= 1.0 else f"{int(duration * 1000)}ms"
             if status == TestStatus.WARN:

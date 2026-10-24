@@ -90,3 +90,38 @@ finishes before the next screenshot cannot prove busy-state locking or cancellat
 
 Restore viewport/download overrides at the end and preserve all evidence outside tracked
 product files. Do not claim uncovered or blocked items passed.
+
+## Chrome diagnostics (Tier 2 and shared Tier 3 launch)
+
+All three `open_test_chrome` launchers use `scripts/launch_test_chrome.py`.
+The launcher refuses an occupied port 9222 or a profile with a live lock owner; it does
+not terminate or replace the existing browser. Launches are detached from the
+shell process group and return once CDP is ready. Quit the dedicated browser
+normally through Chrome when you need to close it. Direct launcher calls accept
+`--port` for isolated diagnostics (the standard launchers use 9222). Test teardown only disconnects
+its CDP sessions.
+
+Launch evidence lives outside disposable worktrees in
+`$GEMINI_EXPORTER_TEST_PROFILE/diagnostics/<launch>/` (default profile:
+`~/.gemini-exporter-test-profile`). `launch.json` records PID, UTC start time,
+arguments and Chrome version/browser identity; `stderr.log` and `chrome.log`
+retain browser output. `chrome-launch.json` in the profile points at the latest
+launch. Existing browsers started by older scripts have no retroactive logs.
+
+Tier 2 writes `chrome-diagnostics/<run>/` inside each platform's output directory;
+`tier2-report.json` links that directory. Timestamped `events.jsonl` identifies
+connection, feature start/completion, and browser failure. A background probe
+checks the local browser endpoint every second (two-second request timeout),
+and feature boundaries check it again. Endpoint loss or changed browser identity
+permanently fails the run, even if a case swallows its transport error or Chrome
+is subsequently restarted. No browser restart is attempted. This conservatively
+reports **connection loss**, not a proven native crash.
+
+At teardown, launch logs are copied only when their browser identity matches.
+New macOS `Google Chrome*.ips` reports are retained under
+`crash-report-candidates/`: they are candidates, not proof of association with this
+browser. macOS can write a report after teardown; in that case inspect
+`~/Library/Logs/DiagnosticReports/` and compare PID and time with `launch.json`.
+Logs can contain page URLs and local paths; review them before sharing.
+Tier 3 benefits from the shared launch logs; the Tier 2 health monitor does not
+alter the visual explorer or its seven CLI primitives.

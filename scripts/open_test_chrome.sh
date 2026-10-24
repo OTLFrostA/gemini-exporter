@@ -55,11 +55,6 @@ echo "🔨 确保扩展最新生产构建 (node build.js)..."
 echo "💡 提示: 首次打开请在弹出的窗口中登录 Google 账号，后续将永远保持登录与插件就绪状态！"
 echo "=================================================="
 
-exec "$CHROME_BIN" \
-  --user-data-dir="$PROFILE_DIR" \
-  --load-extension="$REPO_DIR" \
-  --remote-debugging-port=9222 \
-  --enable-unsafe-extension-debugging \
-  --no-first-run \
-  --no-default-browser-check \
+exec python3 "$REPO_DIR/scripts/launch_test_chrome.py" \
+  --chrome "$CHROME_BIN" --profile "$PROFILE_DIR" --repo "$REPO_DIR" -- \
   "$START_URL" "${CHROME_EXTRA_ARGS[@]}"

@@ -79,7 +79,18 @@ def feature_spec(case):
 
 def run_session(session, report, persist=lambda: None):
     """One lifecycle for every plugin; errors and missing dependencies block success."""
+    diagnostics = None
+    port = getattr(session.context, 'port', None)
+    output_dir = getattr(session.context, 'output_dir', None)
+    if output_dir is None:
+        runtime = getattr(session.context, 'runtime', None)
+        output_dir = getattr(runtime, 'output_dir', None) or getattr(runtime, 'output', None)
     try:
+        if port is not None and output_dir is not None:
+            from scripts.chrome_diagnostics import BrowserDiagnostics
+            diagnostics = BrowserDiagnostics(port, output_dir)
+            session.context.browser_checkpoint = diagnostics.checkpoint
+            diagnostics.start()
         if 'plan' in report:
             actual = {key: feature_spec(case) for key, case in session.dag.cases.items()}
             declared = {spec['id']: spec for spec in report['plan']}
@@ -97,6 +108,8 @@ def run_session(session, report, persist=lambda: None):
         report['prepared'] = True
         persist()
         passed = session.dag.run(session.context, target_ids=session.target_ids)
+        if diagnostics:
+            diagnostics.checkpoint('finalization')
         report['passed'] = passed
     except Exception as error:
         report.update(passed=False, error=str(error), traceback=traceback.format_exc())
@@ -114,6 +127,18 @@ def run_session(session, report, persist=lambda: None):
             session.close()
         except Exception as error:
             report.update(passed=False, cleanup_error=str(error))
+        if diagnostics:
+            try:
+                try:
+                    diagnostics.check()
+                except RuntimeError:
+                    pass
+                report['chrome_diagnostics'] = diagnostics.finish()
+                if diagnostics.failure:
+                    report.update(passed=False, error=diagnostics.failure)
+                    print(f'❌ {diagnostics.failure}; evidence: {diagnostics.output}')
+            except Exception as error:
+                report.update(passed=False, diagnostics_error=str(error))
         persist()
     return report['passed']
 
