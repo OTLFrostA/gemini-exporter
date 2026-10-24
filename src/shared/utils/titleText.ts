@@ -102,3 +102,19 @@ export function cleanTitle(rawTitle?: string | null): string {
     if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
     return t;
 }
+
+export function resolveDetailTitle(
+    messages: ({ role?: unknown; content?: unknown } | null | undefined)[] | null | undefined,
+    convId?: string | number
+): { title: string; source: 'derived' } | null {
+    if (!Array.isArray(messages)) return null;
+    const firstUser = messages.find(m => m && m.role === 'user' && m.content && String(m.content).trim());
+    if (!firstUser) return null;
+    const rawContent = String(firstUser.content).trim().slice(0, 60).replace(/\n+/g, ' ');
+    const candidate = cleanTitle(rawContent);
+    if (isRealTitle(candidate, convId)) {
+        return { title: candidate, source: 'derived' };
+    }
+    return null;
+}
+
