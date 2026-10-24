@@ -46,7 +46,7 @@ function position(left: number, top: number): void {
     badge.style.top = `${Math.max(8, Math.min(top, innerHeight - badge.offsetHeight - 8))}px`;
     badge.style.right = 'auto'; badge.style.bottom = 'auto';
 }
-export async function refreshAccount(): Promise<void> {
+async function refreshAccount(): Promise<void> {
     const cachedId = getAccountContext()?.accountId ?? null;
     if (cachedId !== accountId) { accountId = null; count = null; clearFeedback(); stopCountPolling(); render(); }
     const context = await resolveCurrentAccount();
@@ -155,7 +155,7 @@ function ensureBadgeImpl(): HTMLElement | null {
     void refreshSettings().catch(console.warn); route(); return badge;
 }
 // Public Badge API remains frozen; implementation owns display and count timing.
-export const ensureBadge: () => HTMLElement | null = ensureBadgeImpl;
-export const showLiveSaveResult: (result: ExportResult | null, accountId: string) => void = showLiveSaveResultImpl;
-export const showLiveSaveError: (accountId: string) => void = showLiveSaveErrorImpl;
+const ensureBadge: () => HTMLElement | null = ensureBadgeImpl;
+const showLiveSaveResult: (result: ExportResult | null, accountId: string) => void = showLiveSaveResultImpl;
+const showLiveSaveError: (accountId: string) => void = showLiveSaveErrorImpl;
 export const BadgeView = { ensureBadge, refreshAccount, showLiveSaveResult, showLiveSaveError };
