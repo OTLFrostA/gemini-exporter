@@ -50,4 +50,3 @@ type ComparisonFieldCoverage = [
     RequireNever<FieldsNotCompared<Inline<'citationRef'>, 'type' | 'citationId' | 'label'>>,
     RequireNever<FieldsNotCompared<Inline<'lineBreak'>, 'type' | 'kind'>>,
 ];
-void (0 satisfies ComparisonFieldCoverage['length']);
