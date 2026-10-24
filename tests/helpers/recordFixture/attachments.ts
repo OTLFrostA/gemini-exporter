@@ -8,7 +8,6 @@ export interface GeminiParserAttachmentsModule {
     extractImageEvidence: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
     extractResponseImageEvidence: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];
     extractImages: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
-    extractResponseImages: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];
     extractUserFiles: (turnUserArr: unknown) => UserFileAttachment[];
     extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
     findDocContentById: (root: unknown, docId: string) => MatchedDocContent | null;
@@ -81,9 +80,6 @@ export interface GeminiParserAttachmentsModule {
 export function extractImages(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
     return source.collectImages(obj, seqRef, normalizeRawImage);
 }
-export function extractResponseImages(candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }): ImageAttachment[] {
-    return source.responseImages(candidate, visibleMedia, text, seqRef, extractImages);
-}
-export const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages, extractResponseImages };
+export const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages };
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;
 export default GeminiParserAttachments;

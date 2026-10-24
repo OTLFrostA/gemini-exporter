@@ -48,10 +48,6 @@ function getProtocol(): GeminiProtocolModule {
     return __resolveModule('GeminiProtocol', GeminiProtocol);
 }
 
-function getSchema(): typeof GEMINI_JSPB_SCHEMA {
-    return GEMINI_JSPB_SCHEMA;
-}
-
 const isTurnCache = new WeakMap<object, boolean>();
 
 function isUnknownArray(value: unknown): value is unknown[] {
@@ -518,5 +514,5 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
 }
 
 
-export { decodeGeminiDetail, decodeDetailEvidence, isTurn, isTurnsArray, findTurnsDeep, DOC_TITLE_FALLBACK_RE };
+export { decodeGeminiDetail, isTurn, findTurnsDeep, DOC_TITLE_FALLBACK_RE };
 export type { DetailMediaReader };
