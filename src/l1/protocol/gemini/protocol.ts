@@ -38,7 +38,7 @@ export const CrossWorldEvents = {
 } as const;
 
 export const EVENTS = CrossWorldEvents;
-export type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
+type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
 
 export type DetailErrorCategory =
     | 'confirmed_deleted'
