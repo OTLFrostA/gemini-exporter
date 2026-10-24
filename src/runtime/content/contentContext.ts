@@ -1,4 +1,3 @@
-import type { GeminiProviderClient } from '../../l1/client/gemini/geminiContracts.js';
 export interface GeminiCredentials {
     at?: string;
     bl?: string;
@@ -8,10 +7,9 @@ export interface GeminiCredentials {
     url?: string;
 }
 
+/** The only capability ContentContext consumes from its active client. */
 export interface ActiveClientContract {
     abort?: () => void;
-    getConversationDetail?: (...args: Parameters<GeminiProviderClient['getConversationDetail']>) => Promise<unknown>;
-    [key: string]: unknown;
 }
 
 /** A content script has a stable Window. Tests can inject a small mirror or null. */
@@ -24,31 +22,35 @@ type ContentWindowMirror = Pick<Window,
 
 export type TimerHandle = number | ReturnType<typeof setTimeout> | MutationObserver | AbortController;
 
-export type ContentEvent = 'credentials' | 'abort' | 'reset' | 'scanStart' | 'scanEnd' | 'langChange' | 'devModeChange';
-
-/** Only emitted payloads have a fixed shape; events without producers stay opaque. */
+/** The event name selects the exact listener argument tuple. */
 export interface ContentEventArgs {
     credentials: [GeminiCredentials | null];
     abort: [];
     langChange: [string];
     devModeChange: [boolean];
-    reset: unknown[];
-    scanStart: unknown[];
-    scanEnd: unknown[];
 }
+
+export type ContentEvent = keyof ContentEventArgs;
+type ContentListeners = { [K in ContentEvent]: Set<(...args: ContentEventArgs[K]) => void> };
 
 
 export class ContentContext {
     private _aborted = false;
     private _cancelledAt = 0;
     private _activeClient: ActiveClientContract | null = null;
-    private _deepScanPromise: Promise<unknown> | null = null;
+    // Legacy scan indicator; callers observe only pending vs. absent.
+    private _deepScanPromise: Promise<void> | null = null;
     private _credentials: GeminiCredentials | null = null;
-    private _timers = new Map<string, TimerHandle>();
+    private _timers = new Map<string, { handle: TimerHandle; cleanup: () => void }>();
     private _devMode = false;
     private _currentLang = 'zh';
     private _injected = false;
-    private _listeners = new Map<ContentEvent, Set<(...args: unknown[]) => void>>();
+    private readonly _listeners: ContentListeners = {
+        credentials: new Set(),
+        abort: new Set(),
+        langChange: new Set(),
+        devModeChange: new Set(),
+    };
 
     // Resolve the browser capability once at construction. Runtime methods
     // never need to re-check a global whose availability is fixed per context.
@@ -104,11 +106,11 @@ export class ContentContext {
         }
     }
 
-    public getDeepScanPromise(): Promise<unknown> | null {
+    public getDeepScanPromise(): Promise<void> | null {
         return this._deepScanPromise;
     }
 
-    public setDeepScanPromise(p: Promise<unknown> | null): void {
+    public setDeepScanPromise(p: Promise<void> | null): void {
         this._deepScanPromise = p;
         if (this._devMode && this._window) {
             this._window.__gemExporterDeepScanPromise = p;
@@ -131,37 +133,26 @@ export class ContentContext {
         this.emit('credentials', this._credentials);
     }
 
-    public registerTimer(key: string, handle: TimerHandle): void {
+    /** Timer owners know how to clean up their own handles at registration. */
+    public registerTimer(key: string, handle: TimerHandle, cleanup: () => void): void {
         this.clearTimer(key);
-        if (handle != null) {
-            this._timers.set(key, handle);
-            if (this._window) {
-                if (key === 'syncInterval') this._window.__gemExporterSyncInterval = handle;
-                else if (key === 'titleObserver') this._window.__gemExporterTitleObserver = handle;
-                else if (key === 'debounceTimer') this._window.__gemExporterDebounceTimer = handle;
-            }
+        this._timers.set(key, { handle, cleanup });
+        if (this._window) {
+            if (key === 'syncInterval') this._window.__gemExporterSyncInterval = handle;
+            else if (key === 'titleObserver') this._window.__gemExporterTitleObserver = handle;
+            else if (key === 'debounceTimer') this._window.__gemExporterDebounceTimer = handle;
         }
     }
 
     public getTimer(key: string): TimerHandle | undefined {
-        return this._timers.get(key);
+        return this._timers.get(key)?.handle;
     }
 
     public clearTimer(key: string): void {
-        const existing = this._timers.get(key);
-        if (existing != null) {
-            if (typeof existing === 'number' || typeof existing === 'object') {
-                if (typeof existing === 'object' && 'disconnect' in existing && typeof existing.disconnect === 'function') {
-                    try { existing.disconnect(); } catch { /* best-effort */ }
-                } else if (typeof existing === 'object' && 'abort' in existing && typeof existing.abort === 'function') {
-                    try { existing.abort(); } catch { /* best-effort */ }
-                } else {
-                    const timer = existing as ReturnType<typeof setTimeout>;
-                    clearInterval(timer);
-                    clearTimeout(timer);
-                }
-            }
+        const registered = this._timers.get(key);
+        if (registered) {
             this._timers.delete(key);
+            try { registered.cleanup(); } catch { /* best-effort cleanup */ }
         }
         if (this._window) {
             if (key === 'syncInterval') this._window.__gemExporterSyncInterval = null;
@@ -215,28 +206,20 @@ export class ContentContext {
     }
 
     public on<K extends ContentEvent>(event: K, listener: (...args: ContentEventArgs[K]) => void): () => void {
-        let set = this._listeners.get(event);
-        if (!set) {
-            set = new Set();
-            this._listeners.set(event, set);
-        }
-        const callback = listener as (...args: unknown[]) => void;
-        set.add(callback);
-        return () => {
-            set?.delete(callback);
-        };
+        const set = this._listeners[event];
+        set.add(listener);
+        return () => { set.delete(listener); };
     }
 
     public emit<K extends ContentEvent>(event: K, ...args: ContentEventArgs[K]): void {
-        const set = this._listeners.get(event);
-        if (set) {
-            for (const listener of Array.from(set)) {
-                try {
-                    listener(...args);
-                } catch (err) {
-                    if (this._devMode) {
-                        console.debug(`[ContentContext] error in listener for ${event}:`, err);
-                    }
+        const set = this._listeners[event];
+        if (!set) return;
+        for (const listener of Array.from(set)) {
+            try {
+                listener(...args);
+            } catch (err) {
+                if (this._devMode) {
+                    console.debug(`[ContentContext] error in listener for ${event}:`, err);
                 }
             }
         }
