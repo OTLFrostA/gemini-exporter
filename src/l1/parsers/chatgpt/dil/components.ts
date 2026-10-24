@@ -1,18 +1,18 @@
 import { expression, type Scope } from './expression.js';
 import { attribute, type DilNode } from './syntax.js';
 
-export const layoutComponents = new Set(['box', 'row', 'column', 'grid', 'grid-item', 'text', 'p', 'label', 'caption', 'strong', 'em']);
-export const controlComponents = new Set(['radio-group', 'checkbox-group', 'radio', 'checkbox', 'button', 'select', 'option', 'input']);
-export const descriptions: Record<string, string> = {
+const layoutComponents = new Set(['box', 'row', 'column', 'grid', 'grid-item', 'text', 'p', 'label', 'caption', 'strong', 'em']);
+const controlComponents = new Set(['radio-group', 'checkbox-group', 'radio', 'checkbox', 'button', 'select', 'option', 'input']);
+const descriptions: Record<string, string> = {
     COMPOUND_INTEREST: 'Explains compound interest and continuous growth or discounting.',
     VARIANCE: 'Explains variance from squared deviations around a mean.',
     ANGULAR_FREQUENCY_RELATION: 'Shows the relationship between angular frequency and ordinary frequency.',
 };
-export function prop(node: DilNode, name: string, scope: Scope): ReturnType<typeof expression> | undefined {
+function prop(node: DilNode, name: string, scope: Scope): ReturnType<typeof expression> | undefined {
     const source = attribute(node, name);
     return source === undefined ? undefined : expression(source.startsWith('{') ? source.slice(1, -1) : source, scope);
 }
-export function codeFence(value: string, language: string): string {
+function codeFence(value: string, language: string): string {
     const longest = Math.max(2, ...[...value.matchAll(/`+/g)].map(match => match[0].length));
     const fence = '`'.repeat(longest + 1);
     return `\n\n${fence}${language}\n${value.replace(/^\n/, '').replace(/\n\s*$/, '')}\n${fence}\n\n`;

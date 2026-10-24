@@ -10,7 +10,7 @@ export interface DilNode {
 
 /** Quote-aware delimiters also handle braces in event handler props. Handlers
  * are only tokenized, never interpreted or passed to the expression reader. */
-export function closingBrace(source: string, start: number): number {
+function closingBrace(source: string, start: number): number {
     let depth = 1, quote = '';
     for (let i = start + 1; i < source.length; i++) {
         const c = source[i];
