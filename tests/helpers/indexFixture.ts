@@ -18,7 +18,3 @@ export function indexFixture(value: unknown): DomainConversationIndex {
         title: title?.value ?? '', titleSource: title?.source,
         createdAt: normalizeTimestamp(raw.createdAt), updatedAt: normalizeTimestamp(raw.updatedAt ?? raw.timestamp ?? raw.chatTime) }) });
 }
-export function canonicalFixtureStore(store: Record<string, unknown>): Record<string, unknown> {
-    for (const [key, value] of Object.entries(store)) if (key.startsWith('conversations_') && Array.isArray(value)) store[key] = value.map(row => { const index = indexFixture(row); return { ...index, key: { ...index.key, accountId: key.slice('conversations_'.length) } }; });
-    return store;
-}

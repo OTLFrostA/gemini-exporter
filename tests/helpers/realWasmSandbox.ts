@@ -281,28 +281,3 @@ export function resolveLocalCjkFont(): string | null {
     return null;
 }
 
-/** Minimal RenderContext for driving TypstSandboxCompiler in tests. */
-export function testRenderContext(overrides: {
-    assets?: Record<string, Uint8Array>;
-    signal?: AbortSignal;
-} = {}): {
-    bundle: null;
-    assets: { resolve: (id: string) => Promise<{ bytes: Uint8Array } | null> };
-    locale: 'zh';
-    signal: AbortSignal;
-    reportProgress: () => void;
-} {
-    const store = overrides.assets ?? {};
-    return {
-        bundle: null as unknown as null,
-        assets: {
-            resolve: async (id: string) => {
-                const bytes = store[id];
-                return bytes ? { bytes } : null;
-            },
-        },
-        locale: 'zh' as const,
-        signal: overrides.signal ?? new AbortController().signal,
-        reportProgress: () => undefined,
-    };
-}
