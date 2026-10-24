@@ -29,3 +29,8 @@ Do not repeat page 0 to simulate pagination: its cursor and IDs repeat.
 Dedicated malformed, historic-layout, empty, ordering and error fixtures
 remain in `providers/gemini.ts`. This corpus does not establish the pinned,
 Detail or Delete RPC contracts.
+
+Additional Detail and empty Pinned evidence is documented in
+[`../gemini_rpc/README.md`](../gemini_rpc/README.md). State-transition tests now
+use `geminiListRow()` / `geminiListVariant()` to change only the required fields
+of the captured Recent layout; those are explicit derived fixtures.

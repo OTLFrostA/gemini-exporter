@@ -207,14 +207,13 @@ function e2eUuidDetail(id: string): string {
 }
 /** Original L1 mixed Detail+List source response; the List half is the existing List key. */
 function l1ContractWire(prompt = 'Question', next: string | null = null): string {
-    const listRows: unknown[][] = JSON.parse(geminiListGen('G_L1_CONTRACT_01'));
-    return JSON.stringify([
+    const frame = JSON.stringify([
         ['wrb.fr', 'hNvQHb', JSON.stringify([[
             [['c_source_chat_123', 'r_' + prompt], [1700000000, 0], [[prompt]],
                 [[['rc_' + prompt, [['Answer']]]]]],
         ], next])],
-        ...listRows,
     ]);
+    return geminiListGen('G_L1_CONTRACT_01') + `${frame.length + 2}\n${frame}\n`;
 }
 
 
@@ -718,7 +717,6 @@ const fixtureMap = {
         const body = [['**Answer** [1]'], ['THOUGHT', 'Check **facts**'], ['https://example.test/source', 'Source']];
         return rpc([[domainTurn('Question', 1700000000, [['rc_answer', body]])], null, 'Authored title']);
     },
-    'G_RPC_DOMAIN_03': () => rpc([[domainTurn()]]),
     'G_RPC_DOMAIN_04': () => rpc([[domainTurn('Question', null, undefined, 'r_AbCd12')]]),
     'G_RPC_DOMAIN_05': () => {
         const older = domainTurn('Older', 1700000000, [['rc_old', [['Old answer']]]], 'r_old');
@@ -730,7 +728,6 @@ const fixtureMap = {
     'G_RPC_DOMAIN_08': () => rpc([[domainTurn()]]),
     'G_RPC_DOMAIN_09': () => rpc([null, null, [[DOMAIN_ID, 'Metadata title']]]),
     'G_RPC_DOMAIN_10': () => rpc([null, null, [[DOMAIN_ID, 'Metadata title']]]),
-    'G_RPC_DOMAIN_11': () => rpc([[domainTurn()]]),
     'G_RPC_DOMAIN_12': () => {
         const image: unknown[] = [];
         image[2] = 'watermarked_img_native.png';
@@ -739,7 +736,6 @@ const fixtureMap = {
         image[15] = [640, 480, 100];
         return rpc([[domainTurn('Draw', null, [['rc_image', [['Image'], image]]], 'r_Ab12')]]);
     },
-    'G_RPC_DOMAIN_13': () => rpc([]),
     'G_RPC_DOMAIN_14': () => rpc(null),
     'G_RPC_DOMAIN_15': () => rpc([]),
     'G_RPC_DOMAIN_16': () => {
@@ -812,14 +808,9 @@ const fixtureMap = {
     'G_NATIVE_ACQ_05': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[], null, 'Verified empty conversation'])]]),
     'G_NATIVE_ACQ_06': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([null, null, [['c_native', 'Title']]])]]),
     'G_NATIVE_ACQ_07': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([null, null, [['c_native']]])]]),
-    'G_NATIVE_CALLERS_01': () => {
-        const turn = [['c_native', 'r_one'], [1700000000, 0], [['Question']], [[['rc_one', [['Answer']]]]]];
-        return ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Native title'])]]);
-    },
     'G_NATIVE_CALLERS_02': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([null, null, [['c_native']]])]]),
     'G_NATIVE_CALLERS_03': () => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([null, null, [['c_native']]])]]),
 
-    'G_PROVIDER_CONTRACT_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_source123', 'r_1'], null, [['Question']], [[['rc_1', [['Answer']]]]]]]])]]),
     'G_OBSERVABILITY_01': () => rpc([[observabilityTurn(),
         observabilityTurn('c_odd000000000001', '非数组形态的 user payload'),
         [['x_123'], [1, 0], [['u']]]]]),

@@ -1,3 +1,5 @@
+import { geminiRpcPacket } from './fixtures/providers/geminiRpcCapture.js';
+import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -24,4 +26,18 @@ test('recent acquisition never implicitly fetches pinned or establishes its cove
 test('unknown stream is rejected before network acquisition', async () => {
     const provider = new GeminiProvider({ getConversationList: async () => { assert.fail('unexpected request'); }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     await assert.rejects(provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'all' }), /stream/);
+});
+
+test('real empty pinned response commits pinned coverage without recent coverage', async () => {
+    const provider = new GeminiProvider({
+        getConversationList: async (cursor, _slot, filter) => {
+            assert.equal(cursor, null);
+            assert.deepEqual(filter, [1, null, 1]);
+            return parseList(geminiRpcPacket('pinned').responseBody);
+        },
+        getConversationDetail: async () => sourceDetail(),
+    }, async () => 'u0');
+    assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'pinned' }), 'source_end');
+    assert.ok(await getCoverage(ACCOUNT_UUID, 'pinned'));
+    assert.equal(await getCoverage(ACCOUNT_UUID, 'recent'), null);
 });

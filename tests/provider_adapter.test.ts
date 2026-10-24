@@ -1,3 +1,4 @@
+import { geminiRpcPacket, GEMINI_DETAIL_CAPTURE } from './fixtures/providers/geminiRpcCapture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -39,7 +40,7 @@ test('adapter: prefixed request IDs use the canonical source ID for admission an
 });
 
 test('adapter submits source Detail and returns completion without a Domain/transport payload', async () => {
-    const parsed = sourceDetail();
+    const parsed = parseGeminiRpcConversation(geminiRpcPacket('detail').responseBody, { providerId: 'gemini' });
     parsed.transport.decodedPayload = { source: 'wire' };
     const before = structuredClone(parsed);
     let request: unknown;
@@ -51,7 +52,7 @@ test('adapter submits source Detail and returns completion without a Domain/tran
     assert.equal((request as unknown[])[3], controller.signal);
     assert.deepEqual(parsed, before);
     const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: parsed.conversationId });
-    assert.ok(stored); assert.equal(stored.messages.length, 1);
+    assert.ok(stored); assert.equal(stored.messages.length, GEMINI_DETAIL_CAPTURE.messages);
     assert.equal(Reflect.get(stored, 'transport'), undefined);
     assert.equal((await getConversations(OTHER_ACCOUNT_UUID)).length, 0);
 });

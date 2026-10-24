@@ -1,3 +1,4 @@
+import { geminiRpcPacket, GEMINI_DETAIL_CAPTURE } from './fixtures/providers/geminiRpcCapture.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -36,7 +37,7 @@ test('raw RPC input constructs Domain content, reasoning and citations directly'
 });
 
 test('native parsing imports no historical persisted detail parser', () => {
-    assert.equal(native(geminiDetailGen('G_RPC_DOMAIN_03')).conversation.detail.messages.length, 2);
+    assert.equal(native(geminiRpcPacket('detail').responseBody).conversation.detail.messages.length, GEMINI_DETAIL_CAPTURE.messages);
     const source = readFileSync(join(__dirname, '../src/l1/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
     assert.doesNotMatch(source, /parseConversationRecord|parseConversation|parseLegacyConversation|types\/conversation|l3a/);
 });
@@ -93,7 +94,7 @@ test('metadata-only pages preserve title evidence without claiming a complete co
 });
 
 test('source candidates round-trip as keyless JSON without transport or credentials in the graph', () => {
-    const result = native(geminiDetailGen('G_RPC_DOMAIN_11'));
+    const result = native(geminiRpcPacket('detail').responseBody);
     const restored = JSON.parse(JSON.stringify(result.conversation));
     assert.deepEqual(restored, result.conversation);
     assertDomainClosure(restored.detail);
@@ -127,7 +128,7 @@ test('generated resources retain their authored request token independently of a
 });
 
 test('raw format validation rejects wrong providers and malformed envelopes', () => {
-    assert.throws(() => parseGeminiRpcConversation(geminiDetailGen('G_RPC_DOMAIN_13'), { account: fixtureAccount('openai'), providerId: 'openai' }), /providerId gemini/);
+    assert.throws(() => parseGeminiRpcConversation(geminiRpcPacket('detail').responseBody, { account: fixtureAccount('openai'), providerId: 'openai' }), /providerId gemini/);
     assert.throws(() => parseGeminiRpcConversation({} as never, { account: fixtureAccount('gemini'), providerId: 'gemini' }), /raw response text/);
     for (const key of ['G_RPC_DOMAIN_20', 'G_RPC_DOMAIN_21', 'G_RPC_DOMAIN_14'] as const) assert.throws(() => native(geminiDetailGen(key)), /detail parse fail/);
     const empty = parseGeminiRpcConversation(geminiDetailGen('G_RPC_DOMAIN_15'), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: ID });
