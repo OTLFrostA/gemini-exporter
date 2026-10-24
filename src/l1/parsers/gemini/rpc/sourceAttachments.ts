@@ -1,7 +1,9 @@
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../shared/chipUtils.js";
+import type { JsonValue } from "../../../../shared/utils/jsonTypes.js";
 
 export interface ImageAttachment {
-    sourceEvidence?: { detectorKind: string; node: unknown };
+    /** JSON-serialized matched wire tuple; never an unvalidated runtime object. */
+    sourceEvidence?: { detectorKind: string; node: JsonValue };
     isGenerated?: boolean;
     providerRequestId?: string;
     imageOrdinal?: number;
@@ -88,7 +90,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
     }
 
     export interface RawImageCandidate {
-        evidenceNode?: unknown;
+        evidenceNode?: JsonValue;
         sourceUrl: string;
         width?: number;
         height?: number;
@@ -303,6 +305,8 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
 
                 // Keep the matched media tuple (not the conversation body) for failed
                 // attachment diagnostics, so false detections can be reproduced.
+                // JSON.stringify normalizes raw wire metadata into a JSON-only
+                // diagnostic snapshot, so its parsed value satisfies JsonValue.
                 const evidenceJson = JSON.stringify(node);
                 raw.evidenceNode = evidenceJson.length <= 12000
                     ? JSON.parse(evidenceJson)

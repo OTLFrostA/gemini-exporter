@@ -1,4 +1,5 @@
 import { hideGeminiFileCitations } from '../shared/fileCitations.js';
+import type { SourceGeneratedMediaIdentity } from '../../shared/resources/generationEvent.js';
 import { closeGeminiCodeCitations } from '../shared/codeCitations.js';
 import type { GeminiStructuredNode } from './structuredContent.js';
 import { contentQuality } from '../../qualityEvidence.js';
@@ -115,7 +116,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     });
     const resources = closeDomainResources('gemini', messages, evidence.messages.map(message => {
         // These resources were explicitly extracted from this turn; preserve its original token.
-        const sourceGeneration = <T extends { isGenerated?: boolean; providerRequestId?: string; generation?: object }>(asset: T): T =>
+        const sourceGeneration = <T extends { isGenerated?: boolean; providerRequestId?: string; generation?: SourceGeneratedMediaIdentity }>(asset: T): T =>
             asset.isGenerated && message.rawProviderRequestId ? { ...asset, providerRequestId: message.rawProviderRequestId,
                 ...(asset.generation ? { generation: { ...asset.generation, providerRequestId: message.rawProviderRequestId } } : {}) } : asset;
         return { input: { ...message, images: message.images?.map(sourceGeneration), attachments: message.attachments?.map(sourceGeneration) }, bodyAttachments: structuredBodyAttachments(message) };
