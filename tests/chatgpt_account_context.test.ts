@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveCurrentAccount, getAccountContext, invalidateAccountContext } from '../src/runtime/content/accountContext.js';
+import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 
 test('ChatGPT badge binds session subject and workspace, rejects other providers and clears logout', async t => {
     const names = ['window', 'location', 'chrome', 'fetch'];
@@ -25,7 +26,9 @@ test('ChatGPT badge binds session subject and workspace, rejects other providers
     Object.defineProperty(globalThis, 'fetch', { configurable: true, value: async (url: string) => {
         assert.equal(url, '/api/auth/session');
         requests++;
-        return Response.json(loggedIn ? { user: { id: 'subject' }, account: { id: workspace }, accessToken: 'private-token' } : {});
+        return Response.json(loggedIn
+            ? chatgptSessionGen(workspace === 'workspace-1' ? 'C_ACCOUNT_CONTEXT_WORKSPACE_01' : 'C_ACCOUNT_CONTEXT_WORKSPACE_02')
+            : chatgptSessionGen('C_ACCOUNT_CONTEXT_LOGOUT_01'));
     } });
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: {
         sendMessage: async (message: Record<string, unknown>) => {
