@@ -15,7 +15,7 @@ function load(file: string, stubs: Record<string, unknown>) {
     const ports = { 'src/application/conversations/refreshConversation.js': { refreshConversation: () => assert.fail('Unexpected source refresh') }, 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
         'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => true },
         'src/l1/client/claude/accountObservation.js': { observeClaudeAccount: async () => null },
-        'src/runtime/capabilities/claudeInjection.js': { syncClaudeContentScripts: async () => {} },
+        'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
         'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
         'src/runtime/capabilities/chatgptInjection.js': { syncChatGPTContentScripts: async () => {} },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },

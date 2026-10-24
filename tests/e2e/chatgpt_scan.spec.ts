@@ -11,6 +11,15 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
     await page.evaluate(({ allow, list, session }) => {
         let granted = false;
         const query = chrome.tabs.query.bind(chrome.tabs);
+        // The source tab and permission grant are simulated in this HTTP-boundary test.
+        Object.defineProperty(chrome.tabs, 'get', { configurable: true, value: async () =>
+            ({ id: 99, url: 'https://chatgpt.com/' }) });
+        Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true, value: async () => ({ ok: true }) });
+        const scripts: chrome.scripting.RegisteredContentScript[] = [];
+        Object.defineProperty(chrome.scripting, 'getRegisteredContentScripts', { configurable: true,
+            value: async () => scripts });
+        Object.defineProperty(chrome.scripting, 'registerContentScripts', { configurable: true,
+            value: async (items: chrome.scripting.RegisteredContentScript[]) => { scripts.push(...items); } });
         Object.defineProperty(chrome.permissions, 'contains', { configurable: true, value: async () => granted });
         Object.defineProperty(chrome.permissions, 'request', { configurable: true, value: async () => { granted = allow; return granted; } });
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async (options: chrome.tabs.QueryInfo) =>

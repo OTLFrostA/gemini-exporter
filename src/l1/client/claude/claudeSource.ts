@@ -1,18 +1,8 @@
-export const CLAUDE_ORIGIN = 'https://claude.ai/*';
-
-export async function hasClaudeAccess(): Promise<boolean> {
-    if (typeof chrome === 'undefined' || !chrome.permissions?.contains) return false;
-    try { return await chrome.permissions.contains({ origins: [CLAUDE_ORIGIN] }); }
-    catch { return false; }
-}
-
-/** Must be called directly from the Connect Claude button's user gesture. */
-export async function requestClaudeAccess(): Promise<boolean> {
-    if (await hasClaudeAccess()) return true;
-    if (typeof chrome === 'undefined' || !chrome.permissions?.request) return false;
-    try { return await chrome.permissions.request({ origins: [CLAUDE_ORIGIN] }); }
-    catch { return false; }
-}
+import { hasPlatformAccess, requestPlatformAccess } from '../platformAccess.js';
+import { PLATFORM_HOSTS } from '../../../shared/platformHosts.js';
+export const CLAUDE_ORIGIN = PLATFORM_HOSTS.claude.pages[0];
+export function hasClaudeAccess(): Promise<boolean> { return hasPlatformAccess('claude'); }
+export function requestClaudeAccess(): Promise<boolean> { return requestPlatformAccess('claude'); }
 const allowedPath = /^\/api\/organizations(?:\/[\da-f-]{36}\/chat_conversations(?:\/[\da-f-]{36})?(?:\?tree=true&rendering_mode=messages&render_all_tools=true)?)?$/i;
 
 /**

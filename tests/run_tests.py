@@ -29,10 +29,11 @@ def test_manifest_structure():
         assert m["manifest_version"] == 3
         assert "storage" in m["permissions"]
         assert m["background"]["service_worker"] == "dist/background/background.js", "background service_worker must point to the esbuild dist output"
-        cs = m["content_scripts"]
-        assert cs[0]["js"] == ["dist/content/content.js"], "ISOLATED content script must load single bundled dist/content/content.js"
-        main_world = [c for c in cs if c.get("world") == "MAIN"]
-        assert len(main_world) == 1 and main_world[0]["js"] == ["dist/content/hook.js"], "MAIN world must load single bundled dist/content/hook.js"
+        assert not m.get("host_permissions"), "Platform origins must be optional"
+        assert not m.get("content_scripts"), "Source scripts must be permission-gated dynamic registrations"
+        assert "https://gemini.google.com/*" in m["optional_host_permissions"]
+        assert "https://chatgpt.com/*" in m["optional_host_permissions"]
+        assert "https://claude.ai/*" in m["optional_host_permissions"]
         war = m["web_accessible_resources"][0]["resources"]
         assert "dist/content/hook.js" in war, "web_accessible_resources must expose dist/content/hook.js"
         print("  ✓ manifest.json scripts and permissions verified")

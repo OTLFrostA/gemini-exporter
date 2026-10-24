@@ -6,6 +6,13 @@ import path from 'node:path';
 // Only the UI is under test. Domain/Application/Runtime ports are deliberate mocks.
 const mock = `
 const h = globalThis.harness;
+export const hasPlatformAccess = async platform => h[platform+'Access'] ?? (platform==='gemini');
+export const preparePlatformTab = async () => {};
+export const PLATFORM_HOSTS = {
+ gemini:{pages:['https://gemini.google.com/*'],attachments:['https://*.googleusercontent.com/*']},
+ chatgpt:{pages:['https://chatgpt.com/*','https://chat.openai.com/*'],attachments:['https://images.openai.com/*']},
+ claude:{pages:['https://claude.ai/*'],attachments:[]}
+};
 export const DIRECT_WRITE_THRESHOLD = 20;
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
 export const indexActivityTime = i => i.updatedAt === undefined ? i.activityAt : i.activityAt === undefined ? i.updatedAt : Math.max(i.updatedAt,i.activityAt);
@@ -39,6 +46,7 @@ export const runExport = async (request,options={}) => {h.exports.push(request);
  const exported = aborted ? 0 : request.keys.length - failed.length;
  return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;
+export const requestGeminiConnection = async () => {h.connectionRequests.push(['gemini',navigator.userActivation.isActive]);return h.geminiAccess??true;};
 export const requestChatGPTConnection = async () => {h.connectionRequests.push(['chatgpt',navigator.userActivation.isActive]);return h.chatgptAccess??false;};
 export const discoverChatGPTAccounts = async () => {h.discoveryCalls.push('chatgpt');if(h.discoveryError)throw Error(h.discoveryError);return h.chatgptAccounts??[];};
 export const requestClaudeConnection = async () => {h.connectionRequests.push(['claude',navigator.userActivation.isActive]);return h.claudeAccess??false;};

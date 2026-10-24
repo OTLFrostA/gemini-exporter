@@ -47,6 +47,20 @@ test('Tour requires a verified connection and exposes all three platforms withou
     await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
 });
 
+test('Tour groups site permissions by platform and Gemini denial cannot open a source', async () => {
+    await open({ geminiAccess: false }); await start();
+    for (const platform of ['gemini', 'chatgpt', 'claude']) {
+        const group = page.locator(`.tour-platform-permissions[data-platform="${platform}"]`);
+        assert.equal(await group.locator('button').count(), 1);
+        assert.equal(await group.locator('details').count(), 1);
+    }
+    await page.getByRole('button', { name: 'Connect Gemini', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('.tour-popover [role=status]')?.textContent?.includes('Allow access'));
+    assert.deepEqual(await read(page, 'connectionRequests'), [['gemini', true]]);
+    assert.deepEqual(await read(page, 'openedUrls') ?? [], []);
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
+});
+
 for (const [provider, name] of [['chatgpt', 'ChatGPT'], ['claude', 'Claude']]) {
     test(`Tour connects ${name} from its permission click and selects that account in the workbench`, async () => {
         const account = { id: B, providerId: provider, providerAccountId: `${provider}-account` };
@@ -137,7 +151,7 @@ test('Tour rejects unknown, placeholder and wrong-provider connection evidence',
 });
 
 test('Tour connection checks do not poll provider sessions, and closing discards pending evidence', async () => {
-    await open({ tabs: [{ id: 1, url: 'https://chatgpt.com/' }], contextReply: { ok: false },
+    await open({ chatgptAccess: true, tabs: [{ id: 1, url: 'https://chatgpt.com/' }], contextReply: { ok: false },
         accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'A' }, { id: B, providerId: 'chatgpt', providerAccountId: 'B' }] });
     await start();
     await page.waitForFunction(() => document.querySelector('.tour-popover [role=status]')?.textContent?.includes('at least one'));

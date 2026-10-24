@@ -5,7 +5,11 @@ import type { Account } from '../../l2/accountRegistry.js';
 import { syncChatGPTContentScripts } from './chatgptInjection.js';
 
 /** Called directly by the Connect button, preserving its user gesture. */
-export function requestChatGPTConnection(): Promise<boolean> { return requestChatGPTAccess(); }
+export async function requestChatGPTConnection(): Promise<boolean> {
+    const granted = await requestChatGPTAccess();
+    if (granted) await syncChatGPTContentScripts();
+    return granted;
+}
 
 /** Optional host access is granted explicitly in Options; discovery never prompts. */
 export async function discoverChatGPTAccounts(): Promise<Account[]> {

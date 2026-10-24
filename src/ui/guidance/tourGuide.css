@@ -296,3 +296,8 @@
   transform: none;
   box-shadow: none;
 }
+
+.tour-platform-permissions { display: flex; flex-direction: column; gap: 4px; }
+.tour-platform-permissions details { font-size: 11px; color: var(--tour-muted); }
+.tour-platform-permissions summary { cursor: pointer; }
+.tour-platform-permissions ul { margin: 4px 0; padding-left: 18px; overflow-wrap: anywhere; }

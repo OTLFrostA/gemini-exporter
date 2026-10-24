@@ -3,7 +3,11 @@ import { getOrCreateAccount } from '../api/accountRegistry.js';
 import { hasClaudeAccess, readClaudeSource, requestClaudeAccess, ensureClaudeRegistered } from '../../l1/client/claude/claudeAccess.js';
 import type { Account } from '../../l2/accountRegistry.js';
 
-export function requestClaudeConnection(): Promise<boolean> { return requestClaudeAccess(); }
+export async function requestClaudeConnection(): Promise<boolean> {
+    const granted = await requestClaudeAccess();
+    if (granted) await syncClaudeContentScripts();
+    return granted;
+}
 
 /** Read only chat-capable Claude organizations; never invent an account from a tab URL. */
 export async function discoverClaudeAccounts(): Promise<Account[]> {
