@@ -5,6 +5,8 @@ import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.j
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
+import { requestGen as geminiListRequestGen } from './fixtures/providers/geminiListRequest.js';
+import { deleteRequestGen as geminiDeleteRequestGen } from './fixtures/providers/geminiDeleteRequest.js';
 // L1 regression locks. Other-layer scenarios remain in regression_lock_other_layers.test.ts
 // and stay in ordinary repository discovery; see docs/l1-l2-freeze-repair.md.
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -56,8 +58,7 @@ test('hookCredentials - unrelated fetch and XHR traffic does not rescan account 
 test('p0-lock: deletion sniffing requires the exact request-bound acknowledgement and ignores decoys', async () => {
     const { posted, win } = createHookSandbox();
     const id = 'deadbeef00112233';
-    const body = new URLSearchParams({ 'f.req': JSON.stringify([[['otherRpc', JSON.stringify(['c_aabbccdd11223344'])],
-        ['GzXR5e', JSON.stringify(['c_' + id]), null, 'generic']]]) }).toString();
+    const body = geminiDeleteRequestGen('G_REGRESSION_MIXED_DELETE_REQUEST_01');
     win.__nextResponseText = geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_01');
     await win.fetch('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body });
     await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve));
@@ -68,9 +69,9 @@ test('p0-lock: deletion sniffing requires the exact request-bound acknowledgemen
 });
 test('p0-lock: response-only ids, unacknowledged requests and unrelated hex values cannot authorize deletion', async () => {
     for (const [body, response] of [
-        ['f.req=[[[' + JSON.stringify('GzXR5e') + ',null]]]', geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_02')],
-        ['f.req=[["aabbccdd11223344"],["GzXR5e","c_deadbeef00112233"]]', ''],
-        ['f.req=[["MaZiqc",null]]', geminiListGen('G_REGRESSION_LOCK_DECOY_LIST_01')],
+        [geminiDeleteRequestGen('G_REGRESSION_DELETE_NO_ID_REQUEST_01'), geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_02')],
+        [geminiDeleteRequestGen('G_REGRESSION_DECOY_DELETE_REQUEST_01'), geminiDeleteGen('G_REGRESSION_EMPTY_DELETE_RESPONSE_01')],
+        [geminiListRequestGen('G_REGRESSION_DECOY_LIST_REQUEST_01'), geminiListGen('G_REGRESSION_LOCK_DECOY_LIST_01')],
     ]) {
         const { posted, win } = createHookSandbox(); win.__nextResponseText = response;
         await win.fetch('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body });
@@ -84,13 +85,12 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
     // sandbox), not a hand copy: batchexecute response text flows through the
     // actual broadcastBatchexecute, which only relays when the text mentions
     // the LIST or DETAIL RPC ids.
-    const prefix = String.fromCharCode(41, 93, 125, 39) + '\n';
     const batchexecuteUrl = 'https://gemini.google.com/u/0/batchexecute';
 
     async function relayedTypesFor(responseText: string): Promise<string[]> {
         const { posted, win } = createHookSandbox();
         win.__nextResponseText = responseText;
-        await win.fetch(batchexecuteUrl, { method: 'POST', body: 'f.req=[[["wrb.fr",null]]]' });
+        await win.fetch(batchexecuteUrl, { method: 'POST', body: geminiListRequestGen('G_HOOK_GENERIC_PROBE_REQUEST_01') });
         // The relay resolves in a few ms via the promise chain; 500ms is ample
         // margin without making negative cases (filtered out) slow.
         const deadline = Date.now() + 500;
@@ -104,7 +104,7 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
         return (await relayedTypesFor(responseText)).includes('GEMINI_NETWORK_BATCHEXECUTE');
     }
 
-    const genericBatchexecute = prefix + JSON.stringify([['wrb.fr', 'generic_rpc', '[]', null]]);
+    const genericBatchexecute = geminiListGen('G_REGRESSION_GENERIC_DECOY_LIST_01');
     assert.strictEqual(await wasRelayed(genericBatchexecute), false, 'Generic wrb.fr response must be filtered out');
 
     const deleteBatchexecute = geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_03');
@@ -139,10 +139,10 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
 
     const req = new MockRequest(
         'https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid',
-        { body: 'f.req=[[["MaZiqc",null]]]' }
+        { body: geminiListRequestGen('G_HOOK_MALFORMED_LIST_REQUEST_01') }
     );
 
-    await win.fetch(req as any, { method: 'POST', body: 'f.req=[[["MaZiqc",null]]]' });
+    await win.fetch(req as any, { method: 'POST', body: geminiListRequestGen('G_HOOK_MALFORMED_LIST_REQUEST_01') });
     await new Promise(r => setTimeout(r, 50));
 
     // Must not emit credentials, stream events, or relayed batchexecute payloads
@@ -151,7 +151,7 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
     // In contrast, a direct string URL (or URL object) is recognized and intercepted
     await win.fetch('https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid', {
         method: 'POST',
-        body: 'f.req=[[["MaZiqc",null]]]'
+        body: geminiListRequestGen('G_HOOK_MALFORMED_LIST_REQUEST_01')
     });
     await new Promise(r => setTimeout(r, 50));
     assert.ok(posted.length > 0, 'String URL must be recognized and intercepted');
@@ -162,7 +162,7 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
 test('hookCredentials - real Request inputs preserve list cursor context', async () => {
     const { posted, win } = createHookSandbox();
     win.__nextResponseText = geminiListGen('G_REGRESSION_LOCK_CURSOR_LIST_01');
-    const body = new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([31, 'cursor', [0, null, 1]]), null, 'generic']]]) });
+    const body = new URLSearchParams(geminiListRequestGen('G_HOOK_LIST_CURSOR_REQUEST_01'));
     await win.fetch(new Request('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body }));
     await new Promise(r => setTimeout(r, 50));
     const relay = posted.find(p => p.msg.type === 'GEMINI_NETWORK_BATCHEXECUTE');
@@ -178,7 +178,7 @@ test('hookCredentials - fetch body preserves (init.body || requestBody) fallback
 
     // 1. Falsy init.body ('') must fall back to args[0].body (requestBody), matching init.body || (args[0] && args[0].body)
     const fallbackInput = {
-        body: 'f.req=at=fallback_at_token&f.sid=fallback_sid',
+        body: geminiListRequestGen('G_HOOK_FALLBACK_CREDENTIAL_REQUEST_01'),
         toString() {
             return 'https://gemini.google.com/u/0/batchexecute';
         }
@@ -192,7 +192,7 @@ test('hookCredentials - fetch body preserves (init.body || requestBody) fallback
 
     // 2. Truthy init.body must override requestBody
     posted.length = 0;
-    await win.fetch(fallbackInput as any, { method: 'POST', body: 'f.req=at=override_at_token&f.sid=override_sid' });
+    await win.fetch(fallbackInput as any, { method: 'POST', body: geminiListRequestGen('G_HOOK_OVERRIDE_CREDENTIAL_REQUEST_01') });
     await new Promise(r => setTimeout(r, 20));
 
     const credEvents2 = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
@@ -233,7 +233,7 @@ test('P2 regression: robustFirstPayload retains all 601 entries in a large multi
 
 
 test('P2 regression: robustFirstPayload handles strings containing brackets without corrupting structure', () => {
-    const jsonStr = `)]}'\n\n[[ "wrb.fr", "MaZiqc", "[[\\"c_123\\", \\"Title [with bracket]\\", [1700000000, 0]]]" ]]`;
+    const jsonStr = geminiListGen('G_REGRESSION_BRACKET_TITLE_LIST_01');
     const res = Extractors.robustFirstPayload(jsonStr);
     assert.ok(Array.isArray(res));
     assert.strictEqual(res.length, 1);
@@ -277,7 +277,7 @@ test('passive RPC lists bind captured UUID independently of the routing slot', a
     const runtime = accountRuntime();
     try {
         const bridge = require('../src/l1/sniffer/gemini/messageBridge.js'); bridge.init();
-        const text = JSON.stringify([['wrb.fr','MaZiqc',JSON.stringify([null,null,[['c_slot_isolation','Title']]])]]);
+        const text = geminiListGen('G_REGRESSION_SLOT_ISOLATION_LIST_01');
         for (const slot of ['u1','u0']) await bridge.handleWindowMessage({ origin: location.origin, source: window,
             data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot, requestAccountObservation: ACCOUNT_OBSERVATION,
                 requestedAt: Date.now(), truncated: false, url: 'https://gemini.google.com/_/BardChatUi/data/batchexecute' } } });

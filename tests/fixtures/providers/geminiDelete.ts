@@ -1,5 +1,16 @@
+import nativeDelete from '../gemini_native_delete.json';
 /** Raw Gemini GzXR5e conversation deletion RPC response bodies. */
 const fixtureMap = {
+    'G_NATIVE_CAPTURE_DELETE_RESPONSE_01': () => nativeDelete.responseText,
+    'G_NATIVE_CAPTURE_DELETE_MALFORMED_NULL_01': () =>
+        nativeDelete.responseText.replace('"[]"', JSON.stringify('null')),
+    'G_NATIVE_CAPTURE_DELETE_MALFORMED_ARRAY_01': () =>
+        nativeDelete.responseText.replace('"[]"', JSON.stringify('[null]')),
+    'G_NATIVE_CAPTURE_DELETE_MALFORMED_FALSE_01': () =>
+        nativeDelete.responseText.replace('"[]"', JSON.stringify('[false]')),
+    'G_NATIVE_CAPTURE_DELETE_MALFORMED_OTHER_01': () =>
+        nativeDelete.responseText.replace('"[]"', JSON.stringify('[null,"c_other"]')),
+    'G_REGRESSION_EMPTY_DELETE_RESPONSE_01': () => '',
     'G_DYNAMIC_DELETE_ECHO_01': () =>
         JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([null, 'c_8888abcd1234ef01'])]]),
     'G_DYNAMIC_DELETE_VOID_01': () =>

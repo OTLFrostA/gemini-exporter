@@ -2,6 +2,8 @@ import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
 import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
+import { requestGen as geminiListRequestGen } from '../fixtures/providers/geminiListRequest.js';
+import { requestGen as geminiDetailRequestGen } from '../fixtures/providers/geminiDetailRequest.js';
 
 /** Cross-module v2 title authority: L1 source -> L2 Index -> L3a -> real Options UI. */
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
@@ -28,12 +30,9 @@ async function providerList(source: import('@playwright/test').Page, key: Parame
         contentType: 'application/json',
         body: geminiListGen(key),
     }));
-    await source.evaluate(async () => fetch('/_/BardChatUi/data/batchexecute', {
-        method: 'POST',
-        body: new URLSearchParams({
-            'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]),
-        }),
-    }));
+    await source.evaluate(async body => fetch('/_/BardChatUi/data/batchexecute', {
+        method: 'POST', body: new URLSearchParams(body),
+    }), geminiListRequestGen('G_E2E_TITLE_ARBITRATION_LIST_REQUEST_01'));
 }
 
 test('v2 title precedence is user > provider > derived across actual passive RPC and L2 admissions', async ({ context, extensionId }) => {
@@ -94,13 +93,9 @@ test('a native Gemini detail with no titled metadata derives a v2 Index title fr
     }));
     // Native request parameters are the v2 characterized hNvQHb request contract.
     // The shipped MAIN hook and isolated MessageBridge parse/commit the real body.
-    await source.evaluate(async conversationId => fetch('/_/BardChatUi/data/batchexecute', {
-        method: 'POST',
-        body: new URLSearchParams({ 'f.req': JSON.stringify([[[
-            'hNvQHb', JSON.stringify(['c_' + conversationId, 10, null, 1, [1], [4], null, 1]),
-            null, 'generic',
-        ]]]) }),
-    }), id);
+    await source.evaluate(async body => fetch('/_/BardChatUi/data/batchexecute', {
+        method: 'POST', body: new URLSearchParams(body),
+    }), geminiDetailRequestGen('G_E2E_TITLE_ARBITRATION_DETAIL_REQUEST_01'));
     await expect.poll(async () => (await index(options, id))?.title ?? '').toContain('如何构建高性能分布式缓存');
     const stored = await index(options, id);
     expect(stored?.titleSource).toBe('derived');

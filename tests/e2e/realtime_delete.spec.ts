@@ -1,6 +1,7 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
 import { deleteGen as geminiDeleteGen } from '../fixtures/providers/geminiDelete.js';
+import { deleteRequestGen as geminiDeleteRequestGen } from '../fixtures/providers/geminiDeleteRequest.js';
 
 // Actual v2 deletion semantics: a confirmed provider deletion removes the
 // conversation's Index, Detail and ExportRecord together. No archive shadow.
@@ -38,15 +39,13 @@ async function remoteDelete(source: import('@playwright/test').Page, responseKey
         status: 200, contentType: 'application/json',
         body: geminiDeleteGen(responseKey),
     }));
-    await source.evaluate(async conversationId => {
+    await source.evaluate(async body => {
         await fetch('/_/BardChatUi/data/batchexecute?rpcids=GzXR5e', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-            body: new URLSearchParams({ 'f.req': JSON.stringify([[[
-                'GzXR5e', JSON.stringify(['c_' + conversationId]), null, 'generic',
-            ]]]) }),
+            body: new URLSearchParams(body),
         });
-    }, targetId);
+    }, geminiDeleteRequestGen('G_E2E_REALTIME_DELETE_REQUEST_01'));
 }
 
 for (const nativeVoid of [false, true]) test(`real MAIN ${nativeVoid ? 'native void' : 'echoed'} deletion RPC -> isolated L1 -> Background L2 atomically removes only confirmed v2 conversation facts`, async ({ context, extensionId }) => {

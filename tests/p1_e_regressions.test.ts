@@ -119,26 +119,14 @@ test('P1-064b: 标准 [[text]] 形态的用户文本提取不变', () => {
 test('P1-065a: 启发式跳过仅含 "c_" 子串的错误 chunk（decodeGeminiDetail）', () => {
     // 触发条件：无标准 WRB 信封；错误 chunk 排在正确 chunk 之前；
     // 错误 chunk 含 "c_" 子串（music_）但无完整会话 ID 格式，且内藏假 turn。
-    const junkStr = JSON.stringify({ data: [[["c_r_12345", [1, 2], "music_tv talk", null]]] });
-    const goodInnerStr = JSON.stringify([[makeTurn()]]);
-    const outer = JSON.stringify([
-        ["x.fr", "junk", junkStr],
-        ["y.fr", "data", goodInnerStr]
-    ]);
-    const res = detailDecoder.decodeGeminiDetail(`)]}'\n\n${outer}`);
+    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_LEADING_DECOY_DETAIL_01'));
     assert.strictEqual(res.messages.length, 2, '应解析出正确 chunk 的 user+model 两条消息');
     assert.strictEqual(userMessageOf(res).content, "hello");
     assert.strictEqual(modelMessageOf(res).content, "world");
 });
 
 test('P1-065b: bogus chunks preceding a genuine LIST envelope cannot take precedence (parseList)', () => {
-    const junkStr = JSON.stringify("just public_wifi talk");
-    const listInnerStr = JSON.stringify([null, [["c_list0012345678", "ListTitle", null, null, 5]], null]);
-    const outer = JSON.stringify([
-        ["x.fr", "junk", junkStr],
-        ["wrb.fr", "MaZiqc", listInnerStr]
-    ]);
-    const res = parseListMod.parseList(`)]}'\n\n${outer}`);
+    const res = parseListMod.parseList(geminiListGen('G_P1E_LEADING_DECOY_LIST_01'));
     assert.strictEqual(res.conversations.length, 1);
     assert.strictEqual(res.conversations[0].id, "list0012345678");
 });

@@ -12,6 +12,7 @@ import * as attachments from '../src/l1/parsers/gemini/rpc/sourceAttachments.js'
 import * as Extractors from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
+import { requestGen as geminiListRequestGen } from './fixtures/providers/geminiListRequest.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 import { isRealTitle } from '../src/l1/parsers/gemini/rpc/extractors.js';
@@ -247,12 +248,11 @@ test('hookCredentials - unrelated fetch and XHR traffic does not rescan account 
 });
 
 test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL payloads', async () => {
-    const prefix = String.fromCharCode(41, 93, 125, 39) + '\n';
     const batchexecuteUrl = 'https://gemini.google.com/u/0/batchexecute';
     async function relayedTypesFor(responseText: string): Promise<string[]> {
         const { posted, win } = createHookSandbox();
         win.__nextResponseText = responseText;
-        await win.fetch(batchexecuteUrl, { method: 'POST', body: 'f.req=[[["wrb.fr",null]]]' });
+        await win.fetch(batchexecuteUrl, { method: 'POST', body: geminiListRequestGen('G_HOOK_GENERIC_PROBE_REQUEST_01') });
         const deadline = Date.now() + 500;
         for (;;) {
             const types = posted.map((p: any) => p.msg.type);
@@ -263,7 +263,7 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
     async function wasRelayed(responseText: string): Promise<boolean> {
         return (await relayedTypesFor(responseText)).includes('GEMINI_NETWORK_BATCHEXECUTE');
     }
-    assert.strictEqual(await wasRelayed(prefix + JSON.stringify([['wrb.fr', 'generic_rpc', '[]', null]])), false);
+    assert.strictEqual(await wasRelayed(geminiListGen('G_EXTRACTED_GENERIC_DECOY_LIST_01')), false);
     assert.strictEqual(await wasRelayed(geminiDeleteGen('G_EXTRACTED_REGRESSION_FILTER_DELETE_01')), false);
     assert.strictEqual(await wasRelayed(geminiListGen('G_EXTRACTED_REGRESSION_FILTER_LIST_01')), true);
     assert.strictEqual(await wasRelayed(geminiDetailGen('G_EXTRACTED_REGRESSION_FILTER_DETAIL_01')), true);
@@ -283,11 +283,11 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
             return '[object Request]';
         }
     }
-    const req = new MockRequest('https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid', { body: 'f.req=[[["MaZiqc",null]]]' });
-    await win.fetch(req as any, { method: 'POST', body: 'f.req=[[["MaZiqc",null]]]' });
+    const req = new MockRequest('https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid', { body: geminiListRequestGen('G_HOOK_MALFORMED_LIST_REQUEST_01') });
+    await win.fetch(req as any, { method: 'POST', body: geminiListRequestGen('G_HOOK_MALFORMED_LIST_REQUEST_01') });
     await new Promise(r => setTimeout(r, 50));
     assert.strictEqual(posted.length, 0);
-    await win.fetch('https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid', { method: 'POST', body: 'f.req=[[["MaZiqc",null]]]' });
+    await win.fetch('https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid', { method: 'POST', body: geminiListRequestGen('G_HOOK_MALFORMED_LIST_REQUEST_01') });
     await new Promise(r => setTimeout(r, 50));
     assert.ok(posted.length > 0);
     assert.ok(posted.some(p => p.msg.type === 'GEMINI_CREDENTIALS'));
@@ -296,7 +296,7 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
 test('hookCredentials - real Request inputs preserve list cursor context', async () => {
     const { posted, win } = createHookSandbox();
     win.__nextResponseText = geminiListGen('G_EXTRACTED_REGRESSION_CURSOR_LIST_01');
-    const body = new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([31, 'cursor', [0, null, 1]]), null, 'generic']]]) });
+    const body = new URLSearchParams(geminiListRequestGen('G_HOOK_LIST_CURSOR_REQUEST_01'));
     await win.fetch(new Request('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body }));
     await new Promise(r => setTimeout(r, 50));
     const relay = posted.find(p => p.msg.type === 'GEMINI_NETWORK_BATCHEXECUTE');
@@ -308,7 +308,7 @@ test('hookCredentials - real Request inputs preserve list cursor context', async
 test('hookCredentials - fetch body preserves (init.body || requestBody) fallback semantics for falsy init.body', async () => {
     const { posted, win } = createHookSandbox();
     const fallbackInput = {
-        body: 'f.req=at=fallback_at_token&f.sid=fallback_sid',
+        body: geminiListRequestGen('G_HOOK_FALLBACK_CREDENTIAL_REQUEST_01'),
         toString() {
             return 'https://gemini.google.com/u/0/batchexecute';
         }
@@ -319,7 +319,7 @@ test('hookCredentials - fetch body preserves (init.body || requestBody) fallback
     assert.strictEqual(credEvents1.length, 1);
     assert.strictEqual(credEvents1[0].msg.payload.at, 'fallback_at_token');
     posted.length = 0;
-    await win.fetch(fallbackInput as any, { method: 'POST', body: 'f.req=at=override_at_token&f.sid=override_sid' });
+    await win.fetch(fallbackInput as any, { method: 'POST', body: geminiListRequestGen('G_HOOK_OVERRIDE_CREDENTIAL_REQUEST_01') });
     await new Promise(r => setTimeout(r, 20));
     const credEvents2 = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
     assert.strictEqual(credEvents2.length, 1);
@@ -348,7 +348,7 @@ test('P2 regression: robustFirstPayload retains all 601 entries in a large multi
 });
 
 test('P2 regression: robustFirstPayload handles strings containing brackets without corrupting structure', () => {
-    const jsonStr = `)]}'\n\n[[ "wrb.fr", "MaZiqc", "[[\\"c_123\\", \\"Title [with bracket]\\", [1700000000, 0]]]" ]]`;
+    const jsonStr = geminiListGen('G_REGRESSION_BRACKET_TITLE_LIST_01');
     const res = Extractors.robustFirstPayload(jsonStr);
     assert.ok(Array.isArray(res));
     assert.strictEqual(res.length, 1);

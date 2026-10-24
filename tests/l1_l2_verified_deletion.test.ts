@@ -1,5 +1,4 @@
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { IDBObjectStore } from 'fake-indexeddb';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -163,8 +162,9 @@ test('Metadata-only Detail with a transient retry failure cannot be admitted as 
 
 
 test('Tier 2 captured native void DELETE acknowledgement removes only the request-bound local key', async () => {
-    const fixture = JSON.parse(readFileSync('tests/fixtures/gemini_native_delete.json', 'utf8'));
-    const id = parseConfirmedGeminiDeletion(fixture.requestBody, fixture.responseText);
+    const requestBody = geminiDeleteRequestGen('G_NATIVE_CAPTURE_DELETE_REQUEST_01');
+    const responseText = geminiDeleteGen('G_NATIVE_CAPTURE_DELETE_RESPONSE_01');
+    const id = parseConfirmedGeminiDeletion(requestBody, responseText);
     assert.equal(id, conversationId);
     const env = indexStorage();
     try {
@@ -173,11 +173,11 @@ test('Tier 2 captured native void DELETE acknowledgement removes only the reques
         assert.equal(await getIndex(key), null); assert.equal(await getDetail(key), null); assert.equal(await getExportRecord(key), null);
         assert.ok(await getDetail(other)); assert.ok(await getExportRecord(other));
     } finally { env.restore(); }
-    for (const bad of ['null', '[null]', '[false]', '[null,"c_other"]']) {
-        assert.equal(parseConfirmedGeminiDeletion(fixture.requestBody,
-            fixture.responseText.replace('"[]"', JSON.stringify(bad))), null);
+    for (const key of ['G_NATIVE_CAPTURE_DELETE_MALFORMED_NULL_01',
+        'G_NATIVE_CAPTURE_DELETE_MALFORMED_ARRAY_01', 'G_NATIVE_CAPTURE_DELETE_MALFORMED_FALSE_01',
+        'G_NATIVE_CAPTURE_DELETE_MALFORMED_OTHER_01'] as const) {
+        assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiDeleteGen(key)), null);
     }
-    const requests = JSON.parse(new URLSearchParams(fixture.requestBody).get('f.req')!);
-    requests[0].push(requests[0][0]);
-    assert.equal(parseConfirmedGeminiDeletion(new URLSearchParams({ 'f.req': JSON.stringify(requests) }).toString(), fixture.responseText), null);
+    assert.equal(parseConfirmedGeminiDeletion(
+        geminiDeleteRequestGen('G_NATIVE_CAPTURE_DELETE_DUPLICATE_REQUEST_01'), responseText), null);
 });

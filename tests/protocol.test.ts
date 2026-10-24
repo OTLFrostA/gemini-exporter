@@ -7,6 +7,8 @@ import assert from 'node:assert';
 
 import Proto from '../src/l1/protocol/gemini/protocol.js';
 import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
+import { requestGen as geminiListRequestGen } from './fixtures/providers/geminiListRequest.js';
+import { deleteRequestGen as geminiDeleteRequestGen } from './fixtures/providers/geminiDeleteRequest.js';
 
 
 test('protocol - RPC endpoint names are centralized and match known values', () => {
@@ -47,10 +49,9 @@ test('protocol - LIMITS constants unify the sliding-window checks', () => {
 
 test('protocol - deletion anchors match the GzXR5e-anchored id and reject decoys', () => {
     const REAL = 'deadbeef00112233';
-    const DECOY = 'aabbccdd11223344';
 
     // Anchored payload: id directly after the delete-RPC name.
-    const anchored = `f.req=[["${DECOY}"],["GzXR5e","c_${REAL}"]]`;
+    const anchored = geminiDeleteRequestGen('G_REGRESSION_DECOY_DELETE_REQUEST_01');
     const m1 = anchored.match(Proto.DELETION_ANCHORS[0]);
     assert.strictEqual(m1![1], REAL, 'anchor 1 must extract the id following the delete-RPC name');
 
@@ -61,7 +62,7 @@ test('protocol - deletion anchors match the GzXR5e-anchored id and reject decoys
 
 
     // A hex token with no delete-RPC anchor must never match.
-    const noAnchor = 'f.req=[["MaZiqc","aabbccdd11223344"]]';
+    const noAnchor = geminiListRequestGen('G_PROTOCOL_NO_DELETE_ANCHOR_REQUEST_01');
     assert.strictEqual(noAnchor.match(Proto.DELETION_ANCHORS[0]), null);
     assert.strictEqual(noAnchor.match(Proto.DELETION_ANCHORS[1]), null);
 });

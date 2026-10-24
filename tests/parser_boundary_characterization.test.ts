@@ -15,9 +15,6 @@ import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/stru
 // fixtures; they characterize current behavior, not new wire compatibility.
 // The final test reuses sanitized Tier-2 wire evidence from PR #705.
 const ID = 'c_boundary12345678';
-function rpc(inner: unknown, method = 'hNvQHb', header = 'wrb.fr'): string {
-    return `)]}'\n\n${JSON.stringify([[header, method, JSON.stringify(inner)]])}`;
-}
 function turn(prompt = 'Boundary user prompt', seconds: number | null = 1700000000, candidates: unknown[] = [['rc_boundary', [['Boundary model answer'], 'en']]]): unknown[] {
     return [[ID, 'r_AB12'], seconds === null ? null : [seconds, 500000000], [[prompt]], [candidates]];
 }
@@ -228,7 +225,7 @@ test('Turn decoding validates known fields once and honors the selected draft', 
         raw: candidates[1]
     });
 
-    const parsed = decodeGeminiDetail(rpc([[raw]]));
+    const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_SELECTED_DRAFT_01'));
     const modelMessages = parsed.messages.filter(m => m.role === 'model');
     assert.equal(modelMessages.length, 1);
     assert.equal(modelMessages[0].content, 'Selected answer');
@@ -276,7 +273,7 @@ test('thinking and citation helpers ignore malformed nodes, deduplicate URLs and
         ['https://example.com/malformed', 42], ['https://googleusercontent.com/immersive_entry_chip/a', 'Internal chip']];
     assert.equal(extractThoughts(body), 'First thought\n\nSecond thought');
     assert.deepEqual(extractCitations(body), [{ url: 'https://example.com/source', title: 'First source title' }]);
-    const parsed = decodeGeminiDetail(rpc([[turn('Cited prompt', null, [['rc_cited', body]])]]));
+    const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_THOUGHT_CITATION_01'));
     const model = parsed.messages.find(m => m.role === 'model');
     assert.equal(model?.content, 'Visible answer');
     assert.equal(model?.thoughts, 'First thought\n\nSecond thought');
@@ -290,8 +287,7 @@ test('attachment helpers ignore null, empty and malformed shapes; valid response
         assert.deepEqual(extractDocumentsMeta(raw), []);
     }
     const url = 'https://lh3.googleusercontent.com/boundary-image';
-    const image = [url, 640, 480, 'boundary-token'];
-    const parsed = decodeGeminiDetail(rpc([[turn('Look at the image', null, [['rc_image', [[`![Image](${url})`], image, null, ['broken.png']]]])]]));
+    const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_IMAGE_ATTACHMENT_01'));
     assert.equal(parsed.attachmentCount, 1);
     const model = parsed.messages.find(m => m.role === 'model');
     assert.equal(model?.images?.[0].sourceUrl, url);
@@ -308,24 +304,20 @@ test('cursor fallback scans extra slots and ignores malformed candidates', () =>
 
 test('sanitized Tier-2 wire fixtures retain structured nodes and search images through detail parsing', () => {
     const fixture = (name: string): unknown => JSON.parse(readFileSync(join(__dirname, 'fixtures/provider/structured_rpc', name), 'utf8'));
-    const candidate = fixture('wire-case-b-cand.json');
     const document = fixture('wire-turn-3-12-b-stack.json');
     const decoded = decodeGeminiStructuredPayload(document);
     assert.ok(decoded);
     assert.equal(decoded.children.length, 49);
     assert.equal(decoded.children.filter(node => node.nodeType === 12).length, 13);
-    const wireTurn = turn('Explain Bell inequalities', null, [candidate]);
-    assert.ok(Array.isArray(wireTurn[3]));
-    wireTurn[3][12] = document;
-    const parsed = decodeGeminiDetail(rpc([[wireTurn]]));
+    const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_CAPTURED_STACK_01'));
     const model = parsed.messages.find(m => m.role === 'model');
     assert.deepEqual(model?.structuredContent, decoded);
     assert.ok(model?.content.includes('CHSH'));
     assert.ok((model?.images?.length ?? 0) > 0);
     assert.equal(parsed.schemaDrift, undefined);
     // A truncated field-12 tree must fall back, retaining the raw answer.
-    wireTurn[3][12] = [[[null]]];
-    const fallback = decodeGeminiDetail(rpc([[wireTurn]])).messages.find(m => m.role === 'model');
+    const fallback = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_CAPTURED_TRUNCATED_01'))
+        .messages.find(m => m.role === 'model');
     assert.equal(fallback?.structuredContent, undefined);
     assert.equal(fallback?.content, model?.content);
 });

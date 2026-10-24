@@ -50,30 +50,7 @@ test('gemini_parser - parseList with valid batchexecute RPC text', () => {
 });
 
 test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extracts official RPC title', () => {
-    const mockDetailInner = [
-        [
-            [
-                ["c_d3226d9a046c1116", "r_turn_1"],
-                null,
-                [["然后mod要怎么打呢，我下载了一个mod文件，但是https://www.nexusmods.com/slaythespire2/mods/91"]],
-                [[["rc_model_1", ["这是Mod安装解答内容"]]]]
-            ]
-        ],
-        null,
-        null
-    ];
-    const mockMetaInner = [
-        null,
-        null,
-        [["c_d3226d9a046c1116", "杀戮尖塔存档删除Mod风险", null, null, null, [1774139824, 809290000], null, null, null, 2]]
-    ];
-
-    const topPayload = [
-        ["wrb.fr", "hNvQHb", JSON.stringify(mockDetailInner)],
-        ["wrb.fr", "MaZiqc", JSON.stringify(mockMetaInner)]
-    ];
-    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
-
+    const rawText = geminiDetailGen('G_GEMINI_PARSER_MIXED_TITLE_01');
     const parsed = decodeGeminiDetail(rawText, 'd3226d9a046c1116');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'd3226d9a046c1116');
     assert.strictEqual(parsed.title, '杀戮尖塔存档删除Mod风险');

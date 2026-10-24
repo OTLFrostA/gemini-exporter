@@ -1,6 +1,7 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
 import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
+import { requestGen as geminiListRequestGen } from '../fixtures/providers/geminiListRequest.js';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
@@ -22,11 +23,9 @@ async function captureProviderList(source: import('@playwright/test').Page, key:
     }));
     // The real MAIN fetch hook captures this response and the isolated L1 bridge
     // commits it through the v2 Background Domain-ingestion port.
-    await source.evaluate(async () => fetch('/_/BardChatUi/data/batchexecute', {
-        method: 'POST',
-        body: new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc',
-            JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]) }),
-    }));
+    await source.evaluate(async body => fetch('/_/BardChatUi/data/batchexecute', {
+        method: 'POST', body: new URLSearchParams(body),
+    }), geminiListRequestGen('G_E2E_PAGE_SYNC_LIST_REQUEST_01'));
 }
 async function storedIndex(options: import('@playwright/test').Page, id: string) {
     return options.evaluate(async ({ accountId, id }) =>
