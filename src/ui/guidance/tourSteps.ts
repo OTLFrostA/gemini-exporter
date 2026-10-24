@@ -6,7 +6,7 @@ export interface TourStep {
     setupAction?: (advance: () => void) => () => void;
 }
 /** Delayed advancement belongs to the step and is cancelled with its listeners. */
-export function bindDelayedActions(bindings: [EventTarget | null, string][], advance: () => void, delay = 250): () => void {
+function bindDelayedActions(bindings: [EventTarget | null, string][], advance: () => void, delay = 250): () => void {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const onAction = (event: Event) => {
         if (event.type === 'change' && (event.target as HTMLInputElement)?.type === 'checkbox' && !(event.target as HTMLInputElement).checked) return;
