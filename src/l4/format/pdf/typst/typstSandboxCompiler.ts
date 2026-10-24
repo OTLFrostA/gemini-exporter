@@ -37,7 +37,7 @@ interface SandboxHost {
     createFrame(url: string): SandboxFrame;
 }
 
-export class BrowserSandboxHost implements SandboxHost {
+class BrowserSandboxHost implements SandboxHost {
     pageUrl(): string {
         return chrome.runtime.getURL(SANDBOX_PAGE_PATH);
     }
