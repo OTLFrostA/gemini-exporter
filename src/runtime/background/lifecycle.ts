@@ -2,8 +2,6 @@ import { ensureV2Ready } from './readiness.js';
 import { getSettings, updateSettings } from '../../application/settings/index.js';
 import { FEEDBACK_URL } from '../../shared/utils/constants.js';
 
-export { FEEDBACK_URL };
-
 /**
  * Configure chrome.storage.session access level so content scripts can access
  * memory-scoped CSRF credentials without disk persistence.
