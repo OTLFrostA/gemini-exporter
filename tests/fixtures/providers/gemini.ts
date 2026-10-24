@@ -1,5 +1,5 @@
 import timestampPairs from '../gemini_timestamp_pairs.json';
-/** Raw network responses for the Gemini MaZiqc List RPC only. */
+/** Gemini MaZiqc List responses and keyed malformed/empty batchexecute transport probes. */
 function wire(rows: readonly unknown[] = [], nextCursor: string | null = null): string {
     return JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, nextCursor, rows])]]);
 }
