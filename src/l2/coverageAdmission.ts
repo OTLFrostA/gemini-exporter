@@ -1,10 +1,10 @@
 import { isAccountId } from './accountRegistry.js';
-import type { PageObservation } from './pageObservation.js';
+import type { PageObservation, PageObservationEvidence, PageObservationHead } from './pageObservation.js';
 import { CoverageSession, emptyStream, type StreamCoverage } from './streamCoverage.js';
 import { indexCoverageSession, commitIndexCoverageSession } from './indexCoverage.js';
 import { getCoverage, updateCoverageAtomically } from '../l3a/storageService.js';
 export { getCoverage } from '../l3a/storageService.js';
-export type ScanHead = Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>;
+export type ScanHead = PageObservationHead;
 
 /** Evaluate source evidence under Storage's current Coverage, publishing the cursor chain after commit. */
 export async function recordPageCoverage<T>(accountId: string, page: PageObservation<T>, canCommit?: () => boolean): Promise<void> {
@@ -22,7 +22,7 @@ export async function recordPageCoverage<T>(accountId: string, page: PageObserva
 }
 export async function hasTrustedBoundary(accountId: string, frozenBaseline: StreamCoverage, scanHead: ScanHead): Promise<boolean> {
     if (!frozenBaseline.range) return false;
-    const head = { ...scanHead, providerId: '', accountId, items: [] };
+    const head: PageObservationEvidence = { ...scanHead, providerId: '', accountId };
     return updateCoverageAtomically(accountId, scanHead.streamId, current => {
         // A user clear must not resurrect a frozen pre-clear baseline.
         if (!current?.range) return { result: false };

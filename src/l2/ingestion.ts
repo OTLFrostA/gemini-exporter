@@ -4,7 +4,7 @@ import type { DomainConversationDetail, ConversationDetail } from './conversatio
 import { selectConversationDetail } from './conversationDetail.js';
 import { acceptDetailFacts, restoreDomainDetail } from './runtimeValidation.js';
 import CoverageAdmission from './coverageAdmission.js';
-import type { PageObservation } from './pageObservation.js';
+import type { PageObservationHead } from './pageObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
 import { getAccount, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
 import { conversationKey } from './conversationKey.js';
@@ -53,7 +53,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
 
 export async function ingestIndexes(accountId: Account['id'],
     items: ReadonlyArray<{ conversationId: ConversationKey['conversationId']; fields: Omit<ConversationIndex, 'key'> }>,
-    page?: Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>): Promise<void> {
+    page?: PageObservationHead): Promise<void> {
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Index account does not exist');
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
