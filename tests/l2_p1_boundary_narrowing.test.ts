@@ -77,10 +77,8 @@ test('L2 account decoding checks raw object shape and required fields before con
         email: 'person@example.test', displayName: 'Person' };
     const before = structuredClone(verified);
     assert.deepEqual(readAccount(verified), verified);
-    assert.deepEqual(readAccountParameters(verified), {
-        providerId: verified.providerId, providerAccountId: verified.providerAccountId,
-        email: verified.email, displayName: verified.displayName,
-    });
+    const { id: _accountId, ...parameters } = verified;
+    assert.deepEqual(readAccountParameters(parameters), parameters);
     assert.deepEqual(verified, before);
 
     assert.deepEqual(readAccount({ ...verified, providerAccountId: 'default' }), {
