@@ -3,7 +3,7 @@ import type { IPdfCompiler } from '../../pdfCompiler.js';
 import type { RuntimeFontConsumer } from '../typstSandboxCompiler.js';
 import { BUNDLED_MATH_FALLBACK, BUNDLED_TEXT_FALLBACK, SYSTEM_FALLBACK, type LocalFontResolution } from './localFontProvider.js';
 
-export interface MountedRuntimeFonts {
+interface MountedRuntimeFonts {
     readonly mountedCount: number;
     readonly mountedNames: readonly string[];
     readonly diagnostics: RenderDiagnostic[];
