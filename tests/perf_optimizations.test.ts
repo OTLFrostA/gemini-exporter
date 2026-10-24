@@ -1,5 +1,5 @@
+import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
-import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 useIndexStorage();
 export {};
 
@@ -41,14 +41,14 @@ test('perf - geminiClient 429 backoff retries and recovers on transient rate lim
                 ok: true,
                 status: 200,
                 headers: new Map(),
-                text: async () => geminiListGen('G_PERF_RETRY_429_01')
+                text: async () => geminiListPage().responseBody
             };
         };
 
         const res = await client.getConversationList(null, 'test_sid', null, { maxRetries: 3 });
         assert.strictEqual(callCount, 3, 'should have retried twice and succeeded on 3rd attempt');
-        assert.ok(res.conversations && res.conversations.length === 1, 'should have parsed conversations successfully');
-        assert.strictEqual(res.conversations[0].id, 'conv123');
+        assert.ok(res.conversations && res.conversations.length === GEMINI_LIST_CAPTURE.firstPageRows, 'should have parsed conversations successfully');
+        assert.strictEqual(res.conversations[0].id, GEMINI_LIST_CAPTURE.first.id);
         // P1-035: getConversationList now sets a 30s timeoutMs per request, so each
         // postBatchexecute arms one 30000ms timeout timer alongside the backoff sleeps.
         const timeoutTimers = recordedDelays.filter(d => d === 30000);

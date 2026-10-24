@@ -1,3 +1,4 @@
+import { geminiListPage, GEMINI_LIST_CAPTURE } from '../fixtures/providers/geminiListCapture.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, accountId } from './uiFixture';
 import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
@@ -95,7 +96,7 @@ test('delayed response keeps original v2 Account UUID without rolling back a new
     await source.route('**/batchexecute*', async route => {
         arrived(); await held;
         await route.fulfill({ contentType: 'application/json',
-            body: geminiListGen('G_E2E_UUID_PROFILE_LIST_01') });
+            body: geminiListPage().responseBody });
     });
     const pending = send(source, 'fetch', 'MaZiqc', 'profile_delay');
     await requestArrived;
@@ -106,7 +107,7 @@ test('delayed response keeps original v2 Account UUID without rolling back a new
     release();
     await pending;
     await expect.poll(async () => (await readIndexes(options, original.accountId)).some(row =>
-        row.key.conversationId === 'profile_delay')).toBe(true);
+        row.key.conversationId === GEMINI_LIST_CAPTURE.first.id)).toBe(true);
     const account = await options.evaluate(async id => Reflect.get(globalThis, 'uiFixture').getAccount(id), original.accountId);
     expect(account.email).toBe('new@example.com');
 });

@@ -1,3 +1,4 @@
+import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -10,7 +11,7 @@ import { createSourceResourceContext } from '../src/l1/resources/sourceResources
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 useIndexStorage(); useAccountRuntime(); beforeEach(() => { init(); });
-const list = geminiListGen('G_MESSAGE_BRIDGE_LIST_01');
+const list = geminiListPage(22).responseBody;
 const detail = geminiDetailGen('G_MESSAGE_BRIDGE_DETAIL_01');
 function event(type: string, extra: Record<string, unknown> = {}): MessageEvent {
     return { origin: location.origin, source: window, data: { type, payload: { slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION, ...extra } } } as unknown as MessageEvent;
@@ -40,7 +41,7 @@ for (const fields of [{ url: 'https://evil.test/batchexecute' }, { requestedAt: 
 }
 test('list facts enter L2 directly; unknown request evidence never certifies Coverage', async () => {
     await handleWindowMessage(sourceCapture());
-    assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
+    assert.equal((await getConversations(ACCOUNT_UUID)).length, GEMINI_LIST_CAPTURE.lastPageRows);
     assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range ?? null, null);
 });
 test('known natural list request can submit source evidence without a Sync dependency', async () => {

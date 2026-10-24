@@ -1,3 +1,4 @@
+import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -7,8 +8,7 @@ import { listIndexes, getIndex } from '../src/l3a/storageService.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { parseGeminiIndexObservation } from '../src/l1/parsers/gemini/parseIndexObservation.js';
-import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
-const text = geminiListGen('G_RPC_LIST_INGEST_01');
+const text = geminiListPage().responseBody;
 const items = () => parseList(text).conversations.map(item => parseGeminiIndexObservation(item,'rpc-list'));
 const capture = (): MessageEvent => ({origin:location.origin,source:window,data:{type:'GEMINI_NETWORK_BATCHEXECUTE',payload:{
     text,slot:'u2',requestAccountObservation:ACCOUNT_OBSERVATION,truncated:false,requestedAt:1,
@@ -20,7 +20,8 @@ test('RPC bridge and active L2 admission persist identical current Index facts',
     try {
         init(); await handleWindowMessage(capture());
         const passive=await listIndexes(ACCOUNT_UUID);
-        assert.equal(passive[0].title,'Server title'); assert.equal(passive[0].updatedAt,1700000000000);
+        assert.equal(passive.length,GEMINI_LIST_CAPTURE.firstPageRows);
+        assert.equal(passive[0].title,GEMINI_LIST_CAPTURE.first.title); assert.equal(passive[0].updatedAt,GEMINI_LIST_CAPTURE.first.updatedAt);
         assert.equal(passive[0].titleSource,'provider');
         await ingestIndexes(ACCOUNT_UUID,items());
         assert.deepEqual(await listIndexes(ACCOUNT_UUID),passive);
@@ -30,10 +31,10 @@ test('RPC bridge and active L2 admission persist identical current Index facts',
 test('confirmed deletion leaves no tombstone; fresh source observation may recreate the Index',async()=>{
     const env=indexStorage();
     try {
-        await ingestIndexes(ACCOUNT_UUID,items()); await ingestDeletedConversation(ACCOUNT_UUID,'abcdef123456');
-        assert.equal(await getIndex({accountId:ACCOUNT_UUID,conversationId:'abcdef123456'}),null);
+        await ingestIndexes(ACCOUNT_UUID,items()); await ingestDeletedConversation(ACCOUNT_UUID,GEMINI_LIST_CAPTURE.first.id);
+        assert.equal(await getIndex({accountId:ACCOUNT_UUID,conversationId:GEMINI_LIST_CAPTURE.first.id}),null);
         await ingestIndexes(ACCOUNT_UUID,items());
-        assert.equal((await listIndexes(ACCOUNT_UUID))[0].title,'Server title');
+        assert.equal((await listIndexes(ACCOUNT_UUID))[0].title,GEMINI_LIST_CAPTURE.first.title);
         assert.deepEqual(env.local,{});
     } finally {env.restore();}
 });
@@ -45,7 +46,7 @@ test('active and passive admissions propagate failed commits and retry through t
         await assert.rejects(handleWindowMessage(capture()),/write failed/);
         assert.deepEqual(await listIndexes(ACCOUNT_UUID),[]);
         env.fail();await handleWindowMessage(capture());
-        assert.equal((await listIndexes(ACCOUNT_UUID)).length,1);
+        assert.equal((await listIndexes(ACCOUNT_UUID)).length,GEMINI_LIST_CAPTURE.firstPageRows);
     } finally {runtime.restore();env.restore();}
 });
 test('duplicate and unchanged Index admissions use the atomic merge without retired receipts',async()=>{
@@ -54,6 +55,6 @@ test('duplicate and unchanged Index admissions use the atomic merge without reti
         assert.equal(await ingestIndexes(ACCOUNT_UUID,[...items(),...items()]),undefined);
         const writes=env.writes();
         await ingestIndexes(ACCOUNT_UUID,items());
-        assert.equal(env.writes(),writes);assert.equal((await listIndexes(ACCOUNT_UUID)).length,1);
+        assert.equal(env.writes(),writes);assert.equal((await listIndexes(ACCOUNT_UUID)).length,GEMINI_LIST_CAPTURE.firstPageRows);
     } finally {env.restore();}
 });

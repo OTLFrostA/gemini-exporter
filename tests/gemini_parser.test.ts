@@ -1,6 +1,7 @@
+import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
+import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
-const { listGen: geminiListGen } = require('./fixtures/providers/gemini.js') as typeof import('./fixtures/providers/gemini.js');
 const { parseList } = require('../src/l1/parsers/gemini/rpc/parseList.js');
 const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 export {};
@@ -41,12 +42,12 @@ test('utils - cleanTitle brand suffix and prefix stripping', () => {
 
 
 test('gemini_parser - parseList with valid batchexecute RPC text', () => {
-    const mockRpc = geminiListGen('G_GEMINI_PARSER_LIST_01');
+    const mockRpc = geminiListPage().responseBody;
     const res = parseList(mockRpc);
-    assert.strictEqual(res.conversations.length, 1);
-    assert.strictEqual(res.conversations[0].id, '1234567890abcdef');
-    assert.strictEqual(res.conversations[0].title, 'Test Title');
-    assert.strictEqual(res.nextPageToken, 'tC_token123');
+    assert.strictEqual(res.conversations.length, GEMINI_LIST_CAPTURE.firstPageRows);
+    assert.strictEqual(res.conversations[0].id, GEMINI_LIST_CAPTURE.first.id);
+    assert.strictEqual(res.conversations[0].title, GEMINI_LIST_CAPTURE.first.title);
+    assert.strictEqual(res.nextPageToken, readGeminiListRequest(geminiListPage(1).requestBody)!.requestCursor);
 });
 
 test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extracts official RPC title', () => {

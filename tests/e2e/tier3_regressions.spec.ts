@@ -1,9 +1,9 @@
+import { geminiListPage } from '../fixtures/providers/geminiListCapture.js';
 /** Deterministic counterexamples from the 2026-10-21 Luna rerun.
  * These checks reproduce the original failures on the pre-fix revision.
  */
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
-import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import { extractPdfText } from '../helpers/pdfTextExtract';
 import { readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -17,7 +17,7 @@ async function attachLoggedInGemini(context: BrowserContext) {
             </script><button aria-label="Google Account: Fixture (fixture@example.test)">Fixture</button>`,
     }));
     await context.route('**/batchexecute*', route => route.fulfill({
-        contentType: 'application/json', body: geminiListGen('G_E2E_TIER3_LIST_01'),
+        contentType: 'application/json', body: geminiListPage(22).responseBody,
     }));
     const gemini = await context.newPage();
     await gemini.goto('https://gemini.google.com/app');
@@ -85,7 +85,7 @@ test('opening logged-in Gemini after Options allows scanning without reloading e
     // Badge presence is an observable content-script readiness signal, not a sleep.
     await attachLoggedInGemini(context);
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('[data-chat-id="first_attach"]')).toContainText('First attachment conversation');
+    await expect(page.locator('[data-chat-id="0000000000000452"]')).toContainText('Captured conversation 0452');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await expect(page.locator('#status')).not.toContainText('Open Gemini, ChatGPT or Claude and connect');
 });
