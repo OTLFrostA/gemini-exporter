@@ -5,6 +5,6 @@ const fixtureMap = {
     'C_SIGNED_ASSET_CAT_PNG_01': () => new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
 };
 
-export function signedAssetGen(key: keyof typeof fixtureMap): Uint8Array {
+export function signedAssetGen(key: keyof typeof fixtureMap): Uint8Array<ArrayBuffer> {
     return fixtureMap[key]();
 }
