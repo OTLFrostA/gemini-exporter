@@ -329,6 +329,27 @@ function p1BadLeadingDetailWire(): string {
 }
 
 const fixtureMap = {
+    'G_VERSION_DETAIL_METADATA_ONLY_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+            ['c_metadata_chat', 'Metadata only', null, null, null, [1700000000, 0]],
+        ]])],
+        ['wrb.fr', 'hNvQHb', JSON.stringify([null, null, [['c_metadata_chat', 'Metadata only']]])],
+    ]),
+    'G_DISPATCH_MIXED_01': () => JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, [[BOUNDARY_ID, 'Dispatch title', null, null, null, [1700000010, 0]]], null])],
+        ['wrb.fr', 'hNvQHb', JSON.stringify([[boundaryTurn()]])],
+    ]),
+    'G_DISPATCH_CHUNKED_01': () => ")]}'\n42\n" + JSON.stringify([
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, [], null])],
+    ]) + '\n[malformed]\n64\n' + rpc([[boundaryTurn()]]) + '\n[["unfinished',
+    'G_DISPATCH_DECOY_01': () => JSON.stringify([
+        ['wrb.fr', 'otherRpc', JSON.stringify([[boundaryTurn('Mention MaZiqc and hNvQHb as text')]])],
+    ]),
+    'G_DISPATCH_DETAIL_ERROR_01': () => JSON.stringify([
+        ['wrb.fr', 'hNvQHb', null, null, null, ['BardErrorInfo', 1167]],
+        ['wrb.fr', 'otherRpc', JSON.stringify([[boundaryTurn()]])],
+    ]),
+
     'G_PARSER_CONTRACT_MALFORMED_DETAIL_01': () => '[]',
     'G_DETAIL_NATIVE_TRANSPORT_EMPTY_01': () => '',
     'G_DETAIL_NATIVE_TRANSPORT_NON_JSON_01': () => 'not JSON',

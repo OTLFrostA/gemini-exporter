@@ -152,13 +152,12 @@ test('detail: extra wrapping and renamed envelope use the existing fallback and 
     assert.equal(findTurnsDeep([atLimit]), null);
 });
 
-test('detail: alternate envelope chunks are searched when the matching RPC has no turns', () => {
-    const wireTurn = turn();
+test('detail: another RPC cannot supply turns when the matching RPC has no turns', () => {
     const text = geminiDetailGen('G_BOUNDARY_ALTERNATE_RPC_01');
     const parsed = decodeGeminiDetail(text);
-    assert.equal(parsed.messages.length, 2);
-    assert.deepEqual(parsed._raw, [[wireTurn]]);
-    assert.equal(parsed.schemaDrift, undefined);
+    assert.deepEqual(parsed.messages, []);
+    assert.deepEqual(parsed._raw, [null]);
+    assert.ok(parsed.schemaDrift?.some(w => w.startsWith('Payload drift:')));
 });
 
 test('detail: missing or malformed titles keep the existing newest-wire-prompt fallback', () => {

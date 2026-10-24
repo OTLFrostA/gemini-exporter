@@ -1,3 +1,4 @@
+import { geminiResponse, type GeminiResponseEnvelope } from './responseEnvelope.js';
 import { normId, isReservedRoute } from '../../../../shared/utils/pathUtils.js';
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
 import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
@@ -31,9 +32,9 @@ export interface ListParseResult {
     _debug?: ListParseDiagnostics;
 }
 
-import { GEMINI_JSPB_SCHEMA, robustFirstPayload } from "./extractors.js";
+import { GEMINI_JSPB_SCHEMA } from "./extractors.js";
 import { GeminiProtocol } from "../../../protocol/gemini/protocol.js";
-import { payloadToMs, extractInnerPayload, extractNextPageToken } from "./payload.js";
+import { payloadToMs, extractNextPageToken } from "./payload.js";
 
 export interface ListParseDiagnostics {
     error: "BARD_ERROR_INFO" | "NO_INNER_STR";
@@ -105,16 +106,18 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
         && hasCode(row[GEMINI_JSPB_SCHEMA.ERROR_INFO.ERROR_SLOT]));
 }
 
-    function parseList(text: string): ListParseResult {
+    function parseList(input: string | GeminiResponseEnvelope): ListParseResult {
+        const response = geminiResponse(input);
+        const text = response.text;
         try {
-            let top = robustFirstPayload(text);
+            const top = response.scope(GeminiProtocol.RPCS.LIST);
             const protocol = getProtocol();
             const wrb = protocol.WRB || "wrb.fr";
             const listRpc = protocol.RPCS ? protocol.RPCS.LIST : "MaZiqc";
 
             // A response from another RPC may resemble an empty LIST page.
             // Only the explicitly matching LIST wrapper can establish source coverage.
-            const { inner, innerStr, isStandardWrb, bardError } = extractInnerPayload(top, { wrb, rpcId: listRpc });
+            const { inner, innerStr, isStandardWrb, bardError } = response.payload(listRpc);
 
             if (!isStandardWrb || !innerStr || !inner) {
                 const listLimit = isConfirmedListLimit(top, wrb, listRpc);

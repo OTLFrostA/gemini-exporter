@@ -1,3 +1,4 @@
+import { GeminiResponseEnvelope } from './responseEnvelope.js';
 import { hideGeminiFileCitations } from '../shared/fileCitations.js';
 import type { SourceGeneratedMediaIdentity } from '../../shared/resources/generationEvent.js';
 import { closeGeminiCodeCitations } from '../shared/codeCitations.js';
@@ -15,7 +16,7 @@ import { closeDomainResources } from '../../shared/resources/domainResourceAdapt
 import { parseGeminiBody, parseGeminiPrompt, parseSourceReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
 import type { SourceConversationParseResult } from '../../parsingResult.js';
 
-interface GeminiRpcParseContext extends ConversationParseContext {
+export interface GeminiRpcParseContext extends ConversationParseContext {
     targetConvId?: string;
     /** Differential audits select a body branch without dropping shared source metadata. */
     bodyRepresentation?: 'structured' | 'markdown';
@@ -69,9 +70,9 @@ function citationsOf(message: GeminiMessageEvidence): { citations: DomainCitatio
 }
 
 /** Raw Gemini detail RPC -> keyless source facts. */
-export function parseGeminiRpcConversation(text: string, context: GeminiRpcParseContext): GeminiRpcParseResult {
+export function parseGeminiRpcConversation(text: string | GeminiResponseEnvelope, context: GeminiRpcParseContext): GeminiRpcParseResult {
     if (context.providerId !== 'gemini') throw new TypeError('Gemini RPC parser requires providerId gemini');
-    if (typeof text !== 'string') throw new TypeError('Gemini RPC input must be raw response text');
+    if (typeof text !== 'string' && !(text instanceof GeminiResponseEnvelope)) throw new TypeError('Gemini RPC input must be raw response text or a decoded response envelope');
     const evidence = decodeGeminiDetail(text, context.targetConvId);
     return parseGeminiDetailEvidence(evidence, context);
 }

@@ -1,88 +1,5 @@
 [
   {
-    "id": "spectroscopy_beer_lambert_mixture_inverse",
-    "title": "Spectroscopy: two-component Beer-Lambert inversion and conditioning",
-    "domain": "spectroscopy_mixture_identification",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of a two-wavelength absorption measurement of a two-component liquid mixture, labelling source, sample path length and detector. Mark the diagram as schematic. Define synthetic molar attenuation coefficients with units in a Markdown table.",
-      "Derive the two-component Beer-Lambert inverse problem in LaTeX. State assumptions, natural versus decimal logarithms and a determinant condition for identifying both concentrations.",
-      "Write complete standard-library Python solving the two-by-two inverse problem with finite input checks, nonzero path length and singular-system detection. Generate exact synthetic observations and recover their concentrations.",
-      "Give a Markdown table comparing a well-conditioned coefficient matrix and nearly collinear spectra. Perturb absorbance values and quantify concentration error without clipping negative estimates silently.",
-      "Write a Chinese-English reproducibility report covering blank correction, stray light, uncertainty propagation and limitations of linear mixture additivity. Include executable boundary tests and retain all unit definitions."
-    ]
-  },
-  {
-    "id": "distributed_systems_hybrid_logical_clocks",
-    "title": "Distributed systems: hybrid logical clocks and causal ordering",
-    "domain": "distributed_hybrid_logical_clocks",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic three-node message schedule with physical clock skew and local events. Give a Markdown table of physical times, sends, receives and a partial happens-before relation.",
-      "Derive a hybrid logical clock update rule in LaTeX with explicit counter tie cases. Distinguish causal implication from the converse and explain why total sorting cannot recover concurrency.",
-      "Write complete runnable standard-library Python implementing local tick, send and receive updates as immutable values. Validate nonnegative timestamps and counters.",
-      "Execute the synthetic schedule and produce a Markdown table of every HLC timestamp. Assert each event advances its local clock and every receive exceeds the corresponding send lexicographically.",
-      "Add tests for backward wall-clock movement, equal physical readings, large forward jumps and multiple receives in one millisecond. Explain logical counter overflow policy.",
-      "Compare Lamport, vector and hybrid clocks on the same event graph with code and a Markdown table. Show an explicit pair of concurrent events with ordered HLC timestamps.",
-      "Describe persistence across process restart and a node identifier tie breaker. Separate uniqueness requirements from causality and avoid treating untrusted future timestamps as harmless.",
-      "Write a detailed Chinese-English reproducibility audit with formulas, execution trace, executable assertions and limits concerning partitions, clock synchronization and malicious peers."
-    ]
-  },
-  {
-    "id": "hydrology_reservoir_mass_balance_implicit_euler",
-    "domain": "hydrology_reservoir_mass_balance",
-    "title": "Reservoir routing: conserved water and implicit time steps",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a small reservoir mass-balance model with rainfall inflow, evaporation and a linear outlet. State units and initial conditions in English and Chinese, with LaTeX equations.",
-      "Derive explicit and implicit Euler updates for a linear reservoir. Give a concrete rational example and a Markdown table comparing stability and nonnegative storage.",
-      "Write runnable standard-library Python for a rainfall pulse, asserting water balance at each time step and rejecting negative time steps or invalid coefficients.",
-      "Construct a Markdown table comparing dry weather, a single storm and repeated storms. Explain how reducing the time step changes storage error and peak outflow.",
-      "Provide a reproducible numerical audit with analytic solutions for constant forcing, complete Python tests, LaTeX error bounds and a concise Markdown report."
-    ]
-  },
-  {
-    "id": "logistics_min_cost_circulation_dual_audit",
-    "domain": "logistics_min_cost_circulation",
-    "title": "Relief logistics: minimum-cost flows and dual certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Create a four-node relief-supply network with integer capacities and transport costs. Give a Markdown edge table and define supply balance and objective in LaTeX.",
-      "Find a feasible integer flow for the network and explain each node conservation check in English and Chinese.",
-      "Derive reduced costs using vertex potentials. Show an improving residual cycle and calculate its exact cost change with LaTeX.",
-      "Write standard-library Python that builds forward and reverse residual edges, preserves capacities and verifies every flow update.",
-      "Implement a small minimum-cost circulation solver with deterministic tie breaking, including a worked example and a Markdown iteration table.",
-      "Add negative tests for infeasible supplies, disconnected demand, zero capacity and negative-cost cycles. Explain which cases are infeasibility versus optimization.",
-      "Build an independent exhaustive checker for tiny integer networks and compare its optimum with the solver, reporting discrepancies as a Markdown table.",
-      "Write a final reproducible audit with primal conservation checks, a dual reduced-cost certificate, complete Python tests and a discussion of computational limits."
-    ]
-  },
-  {
     "id": "control_theory_observability_gramian_certificate",
     "domain": "control_linear_system_observability",
     "title": "Linear systems: observability, hidden states and Gramian certificates",
@@ -411,6 +328,90 @@
       "Compare the local tangent-plane horizontal distance with a short-distance curvature estimate. Derive the meridional and prime-vertical radii and use them to estimate north/east components from small latitude/longitude changes. Quantify errors and explain why a fixed degrees-to-meters factor fails globally.",
       "Develop deterministic property tests spanning poles, antimeridian, negative heights and orbital altitudes. Check forward-inverse round trips and ENU norm preservation with clearly separated angular and linear tolerances. Include adversarial inputs and explain undefined longitude at an exact pole without hiding it inside an oversized tolerance.",
       "Package the transforms as a final small Python module and executable test suite. Provide an API table covering units, longitude normalization, singularities and exceptions, then give a reproducible command-line example for the two receivers. State the limits of a static ellipsoid when tectonic epoch, geoid height or Earth orientation matters."
+    ]
+  },
+  {
+    "id": "acoustics_rectangular_room_modes_inverse",
+    "title": "Room acoustics: mode frequencies and inverse dimension estimates",
+    "domain": "acoustics_room_eigenmodes",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of a rectangular acoustic chamber with labelled dimensions and a speaker and microphone. Mark the image as schematic. Give a Markdown table of synthetic dimensions, temperature and assumed sound speed with SI units.",
+      "Derive the rigid-wall rectangular-room mode frequencies in LaTeX. Explain axial, tangential and oblique modes, degeneracy and why the zero index triple is excluded.",
+      "Write complete standard-library Python enumerating all mode index triples up to a frequency limit with finite input checks, positive dimensions and deterministic sorting. Include executable tests for a cube and a noncubic room.",
+      "Use a clearly stated synthetic example to estimate one room dimension from three axial resonances. Give a Markdown table of noisy frequencies, inferred dimensions and residuals; explain identifiability when mode labels are unknown.",
+      "Write a Chinese-English reproducibility audit with LaTeX uncertainty propagation, complete Python boundary tests and limits of the rigid-wall model. Distinguish predicted eigenfrequencies from reverberation time and do not infer absorption from frequency alone."
+    ]
+  },
+  {
+    "id": "finite_fields_shamir_threshold_reconstruction",
+    "title": "Finite fields: threshold interpolation and reconstruction checks",
+    "domain": "finite_field_threshold_interpolation",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a small educational threshold-sharing example over an explicitly chosen prime field. Give a Markdown table of secret, polynomial degree, distinct nonzero evaluation points and deterministic toy coefficients. Explain that fixed toy coefficients are for reproducibility only.",
+      "Derive reconstruction at zero using Lagrange interpolation in LaTeX. State why denominator inverses exist and separate field arithmetic from ordinary rational arithmetic.",
+      "Write complete runnable standard-library Python for modular inversion, share generation and interpolation. Validate the prime modulus for the toy range, distinct nonzero share coordinates and field element bounds.",
+      "Reconstruct the example from every threshold-sized subset and give a Markdown table of subsets and results. Include executable assertions that all such subsets recover the same secret.",
+      "Demonstrate with exhaustive tiny-field enumeration that fewer than the threshold shares can correspond to multiple secrets. Count consistent polynomials and explain the assumptions behind the privacy statement.",
+      "Add executable negative tests for repeated coordinates, zero coordinates, a composite modulus, out-of-range values and insufficient shares. Explain why an unauthenticated corrupted share is not automatically detectable with exactly the threshold count.",
+      "Compare interpolation through all shares with interpolation through subsets when one share is corrupted. Give a concrete trace and Markdown table without claiming that majority voting always identifies a malicious participant.",
+      "Write a Chinese-English reproducibility report containing the formulas, complete Python tests and implementation limits. Explain unbiased random coefficients, secure random generation and why the educational program is not a production secret-management system."
+    ]
+  },
+  {
+    "id": "semiconductor_abrupt_junction_depletion_audit",
+    "title": "Semiconductors: abrupt junction depletion widths and charge balance",
+    "domain": "semiconductor_junction_electrostatics",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of an abrupt silicon p-n junction, marking ionized dopants, depletion boundaries and electric-field direction. Label it schematic. Give a Markdown table of synthetic dopant densities, permittivity, temperature and intrinsic carrier density with consistent units.",
+      "Derive the depletion approximation using Poisson's equation in LaTeX. Obtain charge neutrality, built-in potential and the two depletion widths, and distinguish electrostatic potential from electron potential energy.",
+      "Write complete standard-library Python calculating depletion widths, peak field and junction capacitance for the stated example. Check finite inputs, positive parameters and the permitted bias range, with explicit SI conversion tests.",
+      "Give a Markdown table comparing symmetric doping and a strongly asymmetric junction under several reverse biases. Verify integrated charge neutrality and compare analytic capacitance with a numerical derivative of stored charge.",
+      "Write a Chinese-English reproducibility report with executable boundary tests, LaTeX formulas and dimensional checks. Explain limits from degeneracy, breakdown, forward injection and the depletion approximation without extrapolating the formulas beyond their assumptions."
+    ]
+  },
+  {
+    "id": "automata_dfa_partition_refinement_certificate",
+    "title": "Automata: DFA minimization and distinguishing-word certificates",
+    "domain": "automata_partition_refinement",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a complete deterministic finite automaton over a two-symbol alphabet with reachable equivalent states and one unreachable state. Give a Markdown transition table, start state and accepting set, and describe its language precisely.",
+      "Define state equivalence and right-language equivalence in LaTeX. Explain why removing unreachable states and merging equivalent reachable states are distinct operations.",
+      "Write complete standard-library Python validating the transition function, declared state set and alphabet. Reject missing transitions, foreign targets and undeclared accepting states.",
+      "Implement deterministic partition refinement with a Markdown trace of each split on the example. State the stability invariant and explain how the quotient transition function becomes well defined.",
+      "Produce the minimized transition table with reproducible state names. Check that all quotient states are reachable and that the accepting set is consistent on each block.",
+      "Implement a product-automaton equivalence checker that returns a shortest distinguishing word when languages differ. Test the original against its quotient and against a deliberately corrupted quotient.",
+      "For every pair of distinct minimized states, generate a distinguishing-word certificate and verify it independently. Include the empty word where relevant and explain why bounded brute force alone is not a complete equivalence proof.",
+      "Write a Chinese-English reproducibility audit with complete Python tests, LaTeX invariants and Markdown results. Include one-state automata, an empty accepting set and an empty alphabet, clearly specifying the representation contract."
     ]
   }
 ]

@@ -3,12 +3,10 @@ import assert from 'node:assert/strict';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { decodeGeminiListRow, parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { findListConversationMetadata } from '../src/l1/parsers/gemini/rpc/listMetadata.js';
-import { robustFirstPayload } from '../src/l1/parsers/gemini/rpc/extractors.js';
-import { extractInnerPayload } from '../src/l1/parsers/gemini/rpc/payload.js';
+import { GeminiResponseEnvelope } from '../src/l1/parsers/gemini/rpc/responseEnvelope.js';
 
 function sourceRows(key: Parameters<typeof geminiListGen>[0]): unknown[] {
-    const top = robustFirstPayload(geminiListGen(key));
-    const { inner } = extractInnerPayload(top, { wrb: 'wrb.fr', rpcId: 'MaZiqc' });
+    const { inner } = new GeminiResponseEnvelope(geminiListGen(key)).payload('MaZiqc');
     assert.ok(Array.isArray(inner), 'LIST RPC must contain a decoded inner array');
     const rows: unknown = Array.isArray(inner[2]) ? inner[2] : inner[1];
     assert.ok(Array.isArray(rows), 'fixture must contain LIST rows');
@@ -59,11 +57,11 @@ test('ordering evidence requires official timestamps, not alternative or inferre
 });
 
 test('detail-side LIST metadata lookup reuses validated row fields', () => {
-    const top = robustFirstPayload(geminiListGen('G_LIST_SOURCE_BOUNDARY_07'));
+    const top = new GeminiResponseEnvelope(geminiListGen('G_LIST_SOURCE_BOUNDARY_07'));
     assert.deepEqual(findListConversationMetadata(top, 'boundary123'), {
         id: 'boundary123', title: 'Source title', titleSource: 'rpc',
         updatedAt: 1700000060000
     });
     assert.equal(findListConversationMetadata(top, 'other'), undefined);
-    assert.equal(findListConversationMetadata(robustFirstPayload(geminiListGen('G_LIST_SOURCE_BOUNDARY_08_2')), 'unknown'), undefined);
+    assert.equal(findListConversationMetadata(new GeminiResponseEnvelope(geminiListGen('G_LIST_SOURCE_BOUNDARY_08_2')), 'unknown'), undefined);
 });
