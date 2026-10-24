@@ -74,6 +74,15 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npm ci || npm install
 
+      - name: Knip export audit (temporary)
+        if: steps.filter.outputs.only_scenarios != 'true'
+        run: |
+          echo '======= KNIP PRODUCTION SCAN ======='
+          npx --yes knip@5 --config knip.json --production --include files,exports,types --no-progress --reporter compact || true
+          echo '======= KNIP TEST-AWARE SCAN ======='
+          npx --yes knip@5 --config knip.json --include files,exports,types --no-progress --reporter compact || true
+          echo '======= KNIP SCAN COMPLETE ======='
+
       - name: Scoped zero-any gate
         if: steps.filter.outputs.only_scenarios != 'true'
         run: node scripts/check-zero-any.cjs
