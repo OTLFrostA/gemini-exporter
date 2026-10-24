@@ -34,7 +34,7 @@ export class ConfirmedGeminiConversationNotFound extends Error {
     }
 }
 
-export interface GeminiAPIClientOptions {
+interface GeminiAPIClientOptions {
     signal?: AbortSignal | null;
     [key: string]: unknown;
 }
@@ -304,4 +304,4 @@ export {
     pagination
 };
 
-export type { GeminiListRequestOptions, GeminiDetailRequestOptions, PaginatedDetailResult } from './api/pagination.js';
+
