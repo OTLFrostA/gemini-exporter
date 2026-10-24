@@ -79,15 +79,6 @@ export interface ChatGPTApiConversation {
 
 export type ChatGPTApiConversationWithId = ChatGPTApiConversation & { id: string };
 
-export interface ChatGPTApiConversationItem {
-    id: string;
-    title: string;
-    create_time: number | string;
-    update_time?: number | string;
-    is_archived?: boolean;
-    gizmo_id?: string | null;
-}
-
 export interface ChatGPTApiSession {
     accessToken: string;
     expires: string;

@@ -1,4 +1,3 @@
-import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
 import { extractSourceAttributions, type GeminiSourceAttribution } from "./sourceAttributions.js";
 export interface JspbTurnSchema {
     ID_META: number;
@@ -179,17 +178,11 @@ export interface GeminiParserExtractorsModule {
     normId: (id?: string | number | null) => string;
     cleanTitle: (rawTitle?: string | null) => string;
     isRealTitle: (t?: string | null, fallbackId?: string | number) => boolean;
-    getUtils: () => GeminiUtilsModule;
-    getProtocol: () => GeminiProtocolModule;
 }
 
 import { normId } from "../../../../shared/utils/pathUtils.js";
 import { isRealTitle, cleanTitle } from "../../../../shared/utils/titleText.js";
-import { isDevMode } from "../../../../runtime/devMode.js";
-const GeminiUtils = { normId, isRealTitle, cleanTitle, isDevMode };
-type GeminiUtilsModule = typeof GeminiUtils;
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../../../shared/utils/titleText.js";
-import { GeminiProtocol } from "../../../protocol/gemini/protocol.js";
 import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.js";
 
 /**
@@ -263,15 +256,6 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             ERROR_SLOT: 5      // item[5] → JSON.stringify checks for "BardErrorInfo"
         }
     });
-
-    function getUtils(): GeminiUtilsModule {
-        return GeminiUtils;
-    }
-
-    // Protocol anti-corruption layer (see core/protocol/protocol.ts).
-    function getProtocol(): GeminiProtocolModule {
-        return GeminiProtocol;
-    }
 
     function isObjectRecord(value: unknown): value is Record<string, unknown> {
         return value !== null && typeof value === "object";
@@ -863,9 +847,7 @@ export {
     extractTurnTimestamp,
     normId,
     cleanTitle,
-    isRealTitle,
-    getUtils,
-    getProtocol
+    isRealTitle
 };
 
 export const GeminiParserExtractors: GeminiParserExtractorsModule = {
@@ -888,9 +870,7 @@ export const GeminiParserExtractors: GeminiParserExtractorsModule = {
     extractTurnTimestamp,
     normId,
     cleanTitle,
-    isRealTitle,
-    getUtils,
-    getProtocol
+    isRealTitle
 };
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
 

@@ -11,14 +11,6 @@ function isGeneratedMediaIdentity(value: unknown): value is GeneratedMediaIdenti
         && (value.time === undefined || value.time === null || typeof value.time === 'number');
 }
 
-export interface LegacyGeneratedMediaEvidence {
-    filename: string;
-    isGenerated?: boolean;
-    providerRequestId?: string;
-    imageOrdinal?: number;
-    generation?: GeneratedMediaIdentity;
-}
-
 /** Legacy acquisition compatibility: resolve media while raw provider evidence is still available. */
 export function supplementLegacyGeneratedMedia(
     chat: { id?: string; messages?: GenerationMessage[] | null },
