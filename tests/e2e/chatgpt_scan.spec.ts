@@ -11,6 +11,15 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
     await page.evaluate(({ allow, list, session }) => {
         let granted = false;
         const query = chrome.tabs.query.bind(chrome.tabs);
+        // The source tab and permission grant are simulated in this HTTP-boundary test.
+        Object.defineProperty(chrome.tabs, 'get', { configurable: true, value: async () =>
+            ({ id: 99, url: 'https://chatgpt.com/' }) });
+        Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true, value: async () => ({ ok: true }) });
+        const scripts: chrome.scripting.RegisteredContentScript[] = [];
+        Object.defineProperty(chrome.scripting, 'getRegisteredContentScripts', { configurable: true,
+            value: async () => scripts });
+        Object.defineProperty(chrome.scripting, 'registerContentScripts', { configurable: true,
+            value: async (items: chrome.scripting.RegisteredContentScript[]) => { scripts.push(...items); } });
         Object.defineProperty(chrome.permissions, 'contains', { configurable: true, value: async () => granted });
         Object.defineProperty(chrome.permissions, 'request', { configurable: true, value: async () => { granted = allow; return granted; } });
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async (options: chrome.tabs.QueryInfo) =>
@@ -34,7 +43,11 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
     await source(page, true);
     await expect(page.locator('header #btnConnectChatGPT, header #btnConnectClaude')).toHaveCount(0);
     await page.locator('#btnTourGuide').click();
-    await page.locator('#tourBtnConnectChatGPT').click();
+    await page.getByRole('checkbox', { name: 'Gemini', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
+    await page.locator('#btnAuthorizePlatforms').click();
+    await expect(page.locator('#tourNextBtn')).toBeEnabled();
+    await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
     await page.locator('#tourSkipBtn').click();
     await page.locator('#btnSyncAll').click();
@@ -61,8 +74,10 @@ test('Declining ChatGPT site access leaves the registry and history untouched', 
     const page = await openOptions(context, extensionId);
     await source(page, false);
     await page.locator('#btnTourGuide').click();
-    await page.locator('#tourBtnConnectChatGPT').click();
-    await expect(page.locator('.tour-popover [role=status]')).toContainText('Allow access to ChatGPT');
+    await page.getByRole('checkbox', { name: 'Gemini', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
+    await page.locator('#btnAuthorizePlatforms').click();
+    await expect(page.locator('.tour-popover [role=status]')).toContainText('Access was not granted');
     await expect(page.locator('#tourNextBtn')).toBeDisabled();
     await page.locator('#tourSkipBtn').click();
     expect(await page.evaluate(async () => (await Reflect.get(window, 'uiFixture').listAccounts())

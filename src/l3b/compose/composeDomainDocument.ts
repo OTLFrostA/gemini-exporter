@@ -3,7 +3,8 @@ import { sameConversationKey } from '../../l2/conversationKey.js';
 import type { ReadonlyDomain } from '../../l2/runtimeValidation.js';
 import { readingLabels } from './resourcePresentation.js';
 import { contentComposer } from './composeContent.js';
-import type { DocumentAst, SourceItem } from '../ast/ast.js';
+import type { BlockNode } from '../../l2/content/blocks.js';
+import type { DisplayBlock, DocumentAst, SourceItem } from '../ast/ast.js';
 
 /** Trusted Domain facts -> one format-neutral reading tree. No I/O or output policy. */
 export function composeDomainDocument(conversation: ReadonlyDomain, account: Readonly<Account>): DocumentAst {
@@ -26,7 +27,8 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
         const byId = new Map(citations.map(item => [item.citation.id, item]));
         const source = (id: string, explicit?: string) => {
             // L2 guarantees each reference resolves within this message.
-            const item = byId.get(id)!;
+            const item = byId.get(id);
+            if (!item) throw new TypeError(`Unresolved Domain citation: ${id}`);
             return {
                 id,
                 label: explicit?.trim() ? explicit : '[' + item.number + ']',
@@ -34,18 +36,16 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
             };
         };
         const compose = contentComposer(assets, source);
-        const attachments = (message.attachmentIds ?? []).map(id => {
-            const asset = assets.get(id)!;
+        const attachments = (message.attachmentIds ?? []).map((id): BlockNode => {
+            const asset = assets.get(id);
+            if (!asset) throw new TypeError(`Unresolved Domain asset: ${id}`);
             return asset.kind === 'image'
-                ? { type: 'image' as const, assetId: id, alt: asset.name }
-                : { type: 'file' as const, assetId: id, label: asset.name };
+                ? { type: 'image', assetId: id, alt: asset.name }
+                : { type: 'file', assetId: id, label: asset.name };
         });
-        const blocks = [
-            ...(message.reasoning?.length
-                ? [{ type: 'disclosure' as const, kind: 'reasoning', title: readingLabels.reasoning, blocks: compose(message.reasoning) }]
-                : []),
-            ...compose([...message.content, ...attachments]),
-        ];
+        const blocks: DisplayBlock[] = [];
+        if (message.reasoning?.length) blocks.push({ type: 'disclosure', kind: 'reasoning', title: readingLabels.reasoning, blocks: compose(message.reasoning) });
+        blocks.push(...compose([...message.content, ...attachments]));
         const sources: SourceItem[] = citations.map(({ citation, number, href, label }) => ({
             id: citation.id,
             label,

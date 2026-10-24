@@ -64,7 +64,7 @@ Takeout can supplement what Gemini exposes to an online scan. It cannot guarante
 
 **Why does PDF ask to access local fonts?** The local PDF renderer may request Chrome's Local Font Access permission to use installed fonts, especially for non-Latin scripts. Your document is compiled locally.
 
-**Can I back up ChatGPT, Claude, or Grok?** Source builds include experimental ChatGPT Workbench scanning and export: open ChatGPT and log in, click **Connect ChatGPT**, grant optional site access, then sync and export. ChatGPT popup export and Live Save are not supported. Claude and Grok are not implemented.
+**Can I back up ChatGPT, Claude, or Grok?** Source builds include experimental ChatGPT and Claude support. In onboarding or Site access, select Gemini, ChatGPT and/or Claude (all selected by default), then click Authorize. Chrome requests the selected platforms’ optional conversation and attachment sites together. Sign in on the platform websites, then select an account, sync and export. Each platform is authorized independently. Grok is not implemented.
 
 **What happens to ChatGPT questionnaires and interactive cards?** Exports preserve the provider's full Markdown fallback. Dynamic syntax alone does not mark that textual export incomplete. For loop-generated forms, literal question/option data is also recovered from arrays referenced by the template, without running component code. A dynamic component without a usable fallback remains incomplete because literal recovery cannot establish full text coverage. Buttons become labels; exports do not reproduce interactive state, submit forms or run ChatGPT actions. Selected answers and calculated results are preserved when they are present in the source fallback or subsequent conversation messages.
 

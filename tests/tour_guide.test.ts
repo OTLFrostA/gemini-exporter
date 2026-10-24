@@ -23,138 +23,145 @@ test('tourGuide - navigation, back and completion operate on current in-page sta
     await open(); await start(1); assert.equal(await page.locator('.tour-popover h2').textContent(), 'Scan conversations');
     await page.getByRole('button', { name: 'Next', exact: true }).click(); assert.equal(await page.locator('.tour-popover h2').textContent(), 'Select conversations');
     await page.getByRole('button', { name: 'Back', exact: true }).click(); assert.equal(await page.locator('.tour-popover h2').textContent(), 'Scan conversations');
-    await page.getByRole('button', { name: 'Back', exact: true }).click(); assert.equal(await page.locator('.tour-popover h2').textContent(), 'Connect an AI platform');
+    await page.getByRole('button', { name: 'Back', exact: true }).click(); assert.equal(await page.locator('.tour-popover h2').textContent(), 'Authorize AI platforms');
     await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(6)); await page.getByRole('button', { name: 'Start using', exact: true }).click();
     assert.equal(await page.locator('[role=dialog]').count(), 0); assert.deepEqual(await read(page, 'patches'), []);
 });
-test('Tour requires a verified connection and exposes all three platforms without automatic navigation', async () => {
-    await open(); await start();
-    for (const name of ['Gemini', 'ChatGPT', 'Claude']) await page.locator('.tour-popover').getByRole('button', { name: `Connect ${name}`, exact: true }).waitFor();
+async function choose(platforms: string[]) {
+    for (const platform of ['Gemini', 'ChatGPT', 'Claude']) {
+        await page.getByRole('checkbox', { name: platform, exact: true }).setChecked(platforms.includes(platform));
+    }
+}
+
+test('Authorization shows one button above a default-selected platform list without opening websites', async () => {
+    await open({ geminiAccess: false }); await start();
+    for (const name of ['Gemini', 'ChatGPT', 'Claude'])
+        assert.equal(await page.getByRole('checkbox', { name, exact: true }).isChecked(), true);
+    assert.equal(await page.locator('.platform-authorization button').count(), 1);
     assert.deepEqual(await read(page, 'events'), []);
     assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
-    await page.locator('#tourNextBtn').evaluate(button => (button as HTMLButtonElement).click());
     await page.evaluate(() => Reflect.get(window, 'testUi').tour.nextStep());
-    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Connect an AI platform');
-    await page.getByRole('button', { name: 'Connect Gemini', exact: true }).click();
-    assert.deepEqual(await read(page, 'openedUrls'), ['https://gemini.google.com/app']);
+    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Authorize AI platforms');
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
+    assert.deepEqual(await read(page, 'connectionRequests'), [[['gemini', 'chatgpt', 'claude'], true]]);
+    assert.deepEqual(await read(page, 'openedUrls') ?? [], []);
+    assert.equal(await page.locator('.platform-permission-state[data-authorized="true"]').count(), 3);
+    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Authorize AI platforms');
+    await page.locator('#tourNextBtn').click();
+    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Scan conversations');
+});
+
+test('Authorization requests only the selection, disables empty selection, and can retry denial', async () => {
+    await open({ geminiAccess: false, permissionDenied: true }); await start();
+    await choose([]);
+    assert.equal(await page.locator('#btnAuthorizePlatforms').isDisabled(), true);
+    await choose(['ChatGPT', 'Claude']);
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.waitForFunction(() => document.querySelector('.platform-authorization [role=status]')?.textContent?.includes('not granted'));
+    assert.deepEqual(await read(page, 'connectionRequests'), [[['chatgpt', 'claude'], true]]);
     assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
-    await page.evaluate(({ A }) => {
-        const h = Reflect.get(window, 'harness');
-        h.tabs = [{ id: 1, url: 'https://gemini.google.com/app' }];
-        h.contextReply = { ok: true, accountContext: { accountId: A, providerId: 'gemini' } };
-        window.dispatchEvent(new Event('focus'));
-    }, { A });
-    await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
+    assert.deepEqual(await read(page, 'discoveryCalls'), []);
+    await page.evaluate(() => { Reflect.get(window, 'harness').permissionDenied = false; });
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
+    assert.equal(await page.locator('.platform-permission-row[data-platform="gemini"] .platform-permission-state').textContent(), 'Not authorized');
 });
 
 for (const [provider, name] of [['chatgpt', 'ChatGPT'], ['claude', 'Claude']]) {
-    test(`Tour connects ${name} from its permission click and selects that account in the workbench`, async () => {
+    test(`Authorization can select an existing ${name} account without requiring login for the grant`, async () => {
         const account = { id: B, providerId: provider, providerAccountId: `${provider}-account` };
         await open({ accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'A' }, account],
-            [`${provider}Access`]: true, [`${provider}Accounts`]: [account],
-            tabs: [{ id: 1, url: 'https://gemini.google.com/app' },
-                { id: 2, url: provider === 'chatgpt' ? 'https://chatgpt.com/' : 'https://claude.ai/' }],
-            contextReply: { ok: true, accountContext: { accountId: A, providerId: 'gemini' } } });
+            [`${provider}Accounts`]: [account], tabs: [{ id: 2, url: provider === 'chatgpt' ? 'https://chatgpt.com/' : 'https://claude.ai/' }] });
         await page.locator('#btnTourGuide').click();
-        await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
-        assert.equal(await page.locator('.tour-popover h2').textContent(), 'Connect an AI platform');
-        await page.locator('.tour-popover').getByRole('button', { name: `Connect ${name}`, exact: true }).click();
-        await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
-        assert.deepEqual(await read(page, 'connectionRequests'), [[provider, true]], 'Permission starts in the click gesture');
-        assert.deepEqual(await read(page, 'discoveryCalls'), [provider]);
-        assert.equal(await page.locator('#accountIdSelect').inputValue(), B);
-    });
-    test(`Tour keeps Next disabled when ${name} access is denied`, async () => {
-        await open(); await start();
-        await page.locator('.tour-popover').getByRole('button', { name: `Connect ${name}`, exact: true }).click();
-        await page.waitForFunction(() => document.querySelector('.tour-popover [role=status]')?.textContent?.includes('Allow access'));
-        assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
-        assert.deepEqual(await read(page, 'discoveryCalls'), []);
-        assert.deepEqual(await read(page, 'events'), []);
-    });
-    test(`Tour opens ${name} for sign-in and checks once when the user returns`, async () => {
-        const url = provider === 'chatgpt' ? 'https://chatgpt.com/' : 'https://claude.ai/';
-        const account = { id: B, providerId: provider, providerAccountId: `${provider}-account` };
-        await open({ accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'A' }, account], [`${provider}Access`]: true });
-        await page.locator('#btnTourGuide').click();
-        await page.locator('.tour-popover').getByRole('button', { name: `Connect ${name}`, exact: true }).click();
-        await page.waitForFunction(() => Reflect.get(window, 'harness').openedUrls?.length === 1);
-        assert.deepEqual(await read(page, 'openedUrls'), [url]);
-        assert.deepEqual(await read(page, 'discoveryCalls'), [], 'No session request before a provider tab exists');
-        assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
-        await page.evaluate(({ provider, account, url }) => {
-            const h = Reflect.get(window, 'harness'); h.tabs = [{ id: 2, url }]; h[`${provider}Accounts`] = [account];
-            window.dispatchEvent(new Event('focus'));
-            document.dispatchEvent(new Event('visibilitychange'));
-        }, { provider, account, url });
-        await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
+        await choose([name]);
+        await page.locator('#btnAuthorizePlatforms').click();
+        await page.waitForFunction(() => document.querySelector('.platform-authorization [role=status]')?.textContent?.includes('Selected platforms authorized'));
+        assert.deepEqual(await read(page, 'connectionRequests'), [[[provider], true]]);
         assert.deepEqual(await read(page, 'discoveryCalls'), [provider]);
         assert.equal(await page.locator('#accountIdSelect').inputValue(), B);
     });
 }
 
-test('Tour does not retry a rate-limited connection automatically and allows another platform', async () => {
-    await open({ tabs: [{ id: 2, url: 'https://chatgpt.com/' }], contextReply: { ok: false },
-        chatgptAccess: true, discoveryError: 'ChatGPT session failed: 429' });
-    await start();
-    await page.locator('.tour-popover').getByRole('button', { name: 'Connect ChatGPT', exact: true }).click();
-    await page.waitForFunction(() => document.querySelector('.tour-popover [role=status]')?.textContent?.includes('Connection unavailable'));
-    assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
-    await page.waitForTimeout(1700);
-    assert.deepEqual(await read(page, 'discoveryCalls'), ['chatgpt']);
-    await page.evaluate(() => { const h = Reflect.get(window, 'harness'); h.discoveryError = undefined; h.tabs = []; });
-    await page.locator('#tourBtnOpenGemini').click();
-    assert.deepEqual(await read(page, 'openedUrls'), ['https://gemini.google.com/app']);
+test('Existing access enables Next; unchecking never revokes access, and revocation refreshes the view', async () => {
+    await open(); await start();
+    await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
+    await choose([]);
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(), false);
+    assert.deepEqual(await read(page, 'connectionRequests'), []);
+    await page.evaluate(() => { const h = Reflect.get(window, 'harness'); h.geminiAccess = false; h.accessListener(); });
+    await page.waitForFunction(() => (document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
+    assert.equal(await page.locator('.platform-permission-state[data-authorized="true"]').count(), 0);
 });
 
-test('Tour connection choices and disabled Next remain visible in both languages and a narrow viewport', async () => {
-    fs.mkdirSync('tests/output/visual_audit', { recursive: true });
-    for (const language of ['en', 'zh']) {
-        await open({ settings: { language } });
-        await page.setViewportSize({ width: 360, height: 640 });
-        await start();
-        for (const id of ['tourBtnOpenGemini', 'tourBtnConnectChatGPT', 'tourBtnConnectClaude', 'tourNextBtn']) {
-            const bounds = await page.locator(`#${id}`).boundingBox();
-            assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 360 && bounds.y + bounds.height <= 640);
-        }
-        assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
-        await page.screenshot({ path: `tests/output/visual_audit/onboarding-platforms-${language}.png`, animations: 'disabled' });
-        await page.close();
-    }
-});
-
-test('Tour rejects unknown, placeholder and wrong-provider connection evidence', async () => {
-    for (const context of [null, { accountId: 'unknown', providerId: 'gemini' },
-        { accountId: A, providerId: 'chatgpt' }, { accountId: B, providerId: 'gemini' }]) {
-        await open({ tabs: [{ id: 1, url: 'https://gemini.google.com/app' }],
-            accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'A' }, { id: B, providerId: 'gemini', providerAccountId: 'default' }],
-            contextReply: { ok: true, accountContext: context } });
-        await start();
-        await page.waitForFunction(() => document.querySelector('.tour-popover [role=status]')?.textContent?.includes('at least one'));
-        assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
-        await page.close();
-    }
-});
-
-test('Tour connection checks do not poll provider sessions, and closing discards pending evidence', async () => {
-    await open({ tabs: [{ id: 1, url: 'https://chatgpt.com/' }], contextReply: { ok: false },
-        accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'A' }, { id: B, providerId: 'chatgpt', providerAccountId: 'B' }] });
-    await start();
-    await page.waitForFunction(() => document.querySelector('.tour-popover [role=status]')?.textContent?.includes('at least one'));
-    const calls = (await read(page, 'tabRequests')).length;
-    await page.waitForTimeout(1700);
-    assert.equal((await read(page, 'tabRequests')).length, calls);
-    assert.deepEqual(await read(page, 'discoveryCalls'), []);
-    await page.evaluate(async () => {
-        chrome.tabs.sendMessage = (() => new Promise(resolve => Reflect.set(window, 'resolveTourContext', resolve))) as typeof chrome.tabs.sendMessage;
-        await Reflect.get(window, 'testUi').tour.goToStep(0);
-    });
-    await page.waitForFunction(() => Reflect.has(window, 'resolveTourContext'));
-    await page.keyboard.press('Escape');
-    await page.evaluate(({ B }) => Reflect.get(window, 'resolveTourContext')({ ok: true, accountContext: { accountId: B, providerId: 'chatgpt' } }), { B });
+test('Standalone authorization reuses the same list and stays outside the tutorial', async () => {
+    await open({ geminiAccess: false });
+    await page.locator('#btnPlatformPermissions').click();
+    assert.equal(await page.locator('#tourNextBtn').count(), 0);
+    assert.equal(await page.locator('.tour-step-badge').textContent(), 'Site access');
+    await choose(['Gemini']);
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.waitForFunction(() => document.querySelector('.platform-permission-state[data-authorized="true"]'));
+    await page.locator('#platformAuthorizationDone').click();
     assert.equal(await page.locator('.tour-popover').count(), 0);
+    await page.locator('#btnPlatformPermissions').click();
+    for (const name of ['Gemini', 'ChatGPT', 'Claude']) assert.equal(await page.getByRole('checkbox', { name, exact: true }).isChecked(), true);
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await read(page, 'patches'), []);
+});
+
+test('Closing discards a pending authorization result and does not change account selection', async () => {
+    await open({ geminiAccess: false, holdPermission: true }); await start();
+    await page.locator('#btnAuthorizePlatforms').click();
+    assert.equal(await page.getByRole('checkbox', { name: 'Gemini', exact: true }).isDisabled(), true);
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => Reflect.get(window, 'harness').finishPermission(true));
+    assert.equal(await page.locator('.tour-popover').count(), 0);
+    assert.deepEqual(await read(page, 'discoveryCalls'), []);
     assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
 });
+
+test('Slow account discovery does not block authorization and closing discards its late selection', async () => {
+    await open({ geminiAccess: false, holdDiscovery: true });
+    await page.locator('#btnTourGuide').click();
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishDiscovery === 'function');
+    await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
+    assert.equal(await page.locator('#btnAuthorizePlatforms').isEnabled(), true);
+    await page.keyboard.press('Escape');
+    await page.evaluate(({ B }) => Reflect.get(window, 'harness').finishDiscovery(B), { B });
+    assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
+});
+
+test('Account discovery failure does not negate a successful authorization or cause polling', async () => {
+    await open({ geminiAccess: false, tabs: [{ id: 2, url: 'https://chatgpt.com/' }], discoveryError: 'session failed: 429' });
+    await page.locator('#btnTourGuide').click(); await choose(['ChatGPT']);
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
+    assert.deepEqual(await read(page, 'discoveryCalls'), ['chatgpt']);
+    await page.waitForTimeout(1100);
+    assert.deepEqual(await read(page, 'discoveryCalls'), ['chatgpt']);
+    assert.deepEqual(await read(page, 'openedUrls') ?? [], []);
+});
+
+test('Authorization stays visible in both languages and a narrow viewport', async () => {
+    fs.mkdirSync('tests/output/visual_audit', { recursive: true });
+    for (const language of ['en', 'zh']) {
+        await open({ settings: { language }, geminiAccess: false });
+        await page.setViewportSize({ width: 360, height: 640 }); await start();
+        await page.waitForFunction(() => {
+            const popover = document.querySelector('.tour-popover') as HTMLElement | null;
+            return !!popover?.style.top && popover.getBoundingClientRect().bottom <= innerHeight;
+        });
+        for (const selector of ['#btnAuthorizePlatforms', '.platform-permission-list', '#tourNextBtn']) {
+            const bounds = await page.locator(selector).boundingBox();
+            assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 360 && bounds.y + bounds.height <= 640, `${selector}: ${JSON.stringify(bounds)}`);
+        }
+        await page.screenshot({ path: `tests/output/visual_audit/authorization-${language}.png`, animations: 'disabled' });
+        await page.close();
+    }
+});
+
 test('Tour startup intent is consumed once from URL with no durable completion preference', async () => {
     await open({}, '?startTour=1&keep=yes'); assert.equal(await page.locator('[role=dialog]').count(), 1);
     assert.equal(new URL(page.url()).searchParams.has('startTour'), false); assert.equal(new URL(page.url()).searchParams.get('keep'), 'yes');

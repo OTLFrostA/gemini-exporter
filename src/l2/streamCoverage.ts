@@ -1,10 +1,10 @@
-import type { PageObservation } from './pageObservation.js';
+import type { PageObservation, PageObservationEvidence } from './pageObservation.js';
 export interface CoverageKey { id: string; time: number }
 export interface CoverageRange { head: CoverageKey; tail: CoverageKey }
 export interface StreamCoverage { range: CoverageRange | null }
 export const emptyStream = (): StreamCoverage => ({ range: null });
 const overlaps = (a: CoverageRange, b: CoverageRange) => a.tail.time <= b.head.time && b.tail.time <= a.head.time;
-const samePage = (a: PageObservation<unknown>, b: PageObservation<unknown>) =>
+const samePage = (a: PageObservationEvidence, b: PageObservationEvidence) =>
     a.providerId === b.providerId && a.accountId === b.accountId && a.streamId === b.streamId
     && a.requestedAt === b.requestedAt && a.nextCursor === b.nextCursor && a.ordered === b.ordered
     && a.requestKnown === b.requestKnown && a.valid === b.valid && a.terminal === b.terminal
@@ -13,7 +13,8 @@ const samePage = (a: PageObservation<unknown>, b: PageObservation<unknown>) =>
 
 /** Ephemeral cursor evidence. Only a verified terminal chain establishes a new durable range. */
 export class CoverageSession {
-    private pages = new Map<string | null, PageObservation<unknown>>();
+    // Persist only cursor evidence; source rows belong to ingestion, not Coverage.
+    private pages = new Map<string | null, PageObservationEvidence>();
     private conflicts = new Set<string | null>();
     fork(): CoverageSession {
         const copy = new CoverageSession();
@@ -34,13 +35,14 @@ export class CoverageSession {
             this.conflicts.add(page.requestCursor); this.pages.delete(page.requestCursor); return previous;
         }
         if (this.conflicts.has(page.requestCursor)) return previous;
-        this.pages.set(page.requestCursor, page);
+        const { items: _items, ...evidence } = page;
+        this.pages.set(page.requestCursor, evidence);
         if (this.pages.size > 2000) this.pages.delete(this.pages.keys().next().value ?? null);
         const chain = this.chain();
         return chain.terminal ? { range: chain.range } : previous;
     }
     exhausted(): boolean { return this.chain().terminal; }
-    connects(previous: StreamCoverage, head: PageObservation<unknown>): boolean {
+    connects(previous: StreamCoverage, head: PageObservationEvidence): boolean {
         const anchor = this.pages.get(null);
         const chain = this.chain();
         return !!previous.range && head.requestCursor === null && !!anchor

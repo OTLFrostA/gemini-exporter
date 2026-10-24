@@ -45,7 +45,9 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
                     ...(node.caption !== undefined ? { caption: inlines(node.caption) } : {}),
                 };
             case 'file': {
-                const asset = assets.get(node.assetId)!, name = label(node.assetId, node.label, 'file');
+                const asset = assets.get(node.assetId);
+                if (!asset) throw new TypeError(`Unresolved Domain asset: ${node.assetId}`);
+                const name = label(node.assetId, node.label, 'file');
                 const description = node.description ? inlines(node.description) : undefined;
                 return { type: 'file', resourceId: node.assetId, label: name, kind: asset.kind, ...(asset.mediaType !== undefined ? { mediaType: asset.mediaType } : {}), ...(asset.byteLength !== undefined ? { byteLength: asset.byteLength } : {}), ...(description ? { description } : {}) };
             }

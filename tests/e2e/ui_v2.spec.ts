@@ -3,8 +3,8 @@ import { mount, read, A, B } from '../helpers/uiPortHarness';
 
 test('UI v2: Popup four formats use one request, preserve enabledDisk, include assets and never skip', async ({ page }) => {
     await mount(page, 'popup');
-    // Product contract: the v1 dark card/tabs presentation survives the v2 service migration.
-    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
+    // Product contract: the dark card/tabs layout survives the v2 service migration with the new Linear-inspired palette.
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(16, 16, 17)');
     await expect(page.locator('#chatInfoCard')).toBeVisible();
     await expect(page.locator('#formatTabs .tab-btn')).toHaveCount(4);
     for (const hiddenOfProductScope of ['#countBadge', '#chatTurnBadge', '#langToggle', '#progWrap', '#format']) {
@@ -37,7 +37,7 @@ test('UI v2: Options can toggle Light and Dark, persisting a shared preference',
     expect(await read(page, 'patches')).toContainEqual({ theme: 'light' });
     await page.locator('#btnThemeToggle').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(16, 16, 17)');
 });
 
 
@@ -108,7 +108,13 @@ test('UI v2: Dev switch uses left ON and right OFF beside its left label in both
         await label.click();
         await expect(toggle).toBeChecked();
         await expect.poll(knobX).toBe(0); // ON: knob moves left, towards Dev.
-        await expect(toggle).toHaveCSS('background-image', /linear-gradient/);
+        if (theme === 'light') {
+            // Keep the original light gradient; dark mode deliberately uses a flat indigo accent.
+            await expect(toggle).toHaveCSS('background-image', /linear-gradient/);
+        } else {
+            await expect(toggle).toHaveCSS('background-image', 'none');
+            await expect(toggle).toHaveCSS('background-color', 'rgb(94, 106, 210)');
+        }
         await expect(page.locator('body')).toHaveClass(/dev-mode/);
         await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(true);
 
@@ -226,7 +232,7 @@ test('UI v2: Popup blocks unknown context, supports index-less trusted key and p
 });
 test('UI v2: account switch clears selection and only selected current keys export; cancel waits for return', async ({ page }) => {
     await mount(page,'options',{holdExport:true});
-    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(16, 16, 17)');
     await expect(page.locator('.card-left')).toBeVisible();
     await expect(page.locator('.card-right')).toBeVisible();
     for (const id of ['progWrap','exportFailureCard','logSection','btnImportTakeout']) {
@@ -283,7 +289,7 @@ test('UI v2: Takeout file input directly imports into current account and report
 });
 test('UI v2: real Tour hit testing, stale delays, feedback close, and no persistent Tour fields', async ({ page }) => {
     await mount(page,'options',{},'?startTour=1'); await expect(page).toHaveURL('https://ui.test/');
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
     // Highlighted scan is a real business click and advances without awaiting completion.
@@ -346,29 +352,28 @@ test('UI v2: Badge drag sends position to Runtime on pointerup, ignores ordinary
     await badge.click(); expect(await read(page,'events')).toContain('openOptions');
     expect(await page.evaluate(()=>Object.keys(localStorage))).toEqual([]);
 });
-test('UI v2: connection is required before Next, and closing never persists Tour state', async ({ page }) => {
-    await mount(page,'options',{tabs:[]},'?startTour=1');
-    await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
-    expect(await read(page,'events')).not.toContain('open');
+test('UI v2: authorization uses one selected-platform action and closing never persists Tour state', async ({ page }) => {
+    await mount(page,'options',{tabs:[],geminiAccess:false},'?startTour=1');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await expect(page.locator('#tourNextBtn')).toBeDisabled();
     for (const platform of ['Gemini','ChatGPT','Claude'])
-        await expect(page.locator('.tour-popover').getByRole('button',{name:`Connect ${platform}`,exact:true})).toBeVisible();
-    await page.getByRole('button',{name:'Connect Gemini',exact:true}).click(); expect(await read(page,'events')).toContain('open');
-    await expect(page.locator('#tourNextBtn')).toBeDisabled();
-    await page.evaluate(({A})=>{
-        const h=Reflect.get(window,'harness');h.tabs=[{id:1,url:'https://gemini.google.com/app'}];
-        h.contextReply={ok:true,accountContext:{accountId:A,providerId:'gemini'}};
-        window.dispatchEvent(new Event('focus'));
-    },{A});
+        await expect(page.getByRole('checkbox',{name:platform,exact:true})).toBeChecked();
+    await page.getByRole('checkbox',{name:'ChatGPT',exact:true}).uncheck();
+    await page.getByRole('checkbox',{name:'Claude',exact:true}).uncheck();
+    await page.getByRole('button',{name:'Authorize',exact:true}).click();
+    await expect(page.locator('#tourNextBtn')).toBeEnabled();
+    expect(await read(page,'connectionRequests')).toEqual([[['gemini'],true]]);
+    expect(await read(page,'events')).not.toContain('open');
+    await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
-    await page.getByRole('button',{name:'Skip',exact:true}).click(); await expect(page.locator('.tour-popover')).toHaveCount(0);
+    await page.getByRole('button',{name:'Skip',exact:true}).click();
     expect(await read(page,'patches')).toEqual([]);
 });
 test('UI v2: final Tutorial button closes without opening feedback, actual feedback link opens only once', async ({ page }) => {
     await mount(page,'options');
     const lastStep = async () => {
         await page.locator('#btnTourGuide').click();
-        await expect(page.locator('.tour-popover h2')).toHaveText('Connect an AI platform');
+        await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
         await page.locator('#tourNextBtn').click();
         await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
         for (let i=0;i<5;i++) await page.getByRole('button',{name:'Next',exact:true}).click();

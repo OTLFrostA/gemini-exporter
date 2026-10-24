@@ -43,7 +43,7 @@ test('P1-7: current persistent settings and record failures propagate without ov
         assert.deepEqual(await getExportRecord(key),record);
     }finally{env.restore();}
 });
-test('D7: connection errors and missing Tabs API cannot advance the tour; verified context does',async()=>{
+test('D7: existing website authorization permits the tour even when Tabs or login checks are unavailable',async()=>{
     const {chromium}=await import('@playwright/test');const browser=await chromium.launch({headless:true});
     try{for(const state of ['error','missing','connected']){
         const page=await browser.newPage();await mount(page,'options');await page.locator('#list .item').waitFor();
@@ -53,13 +53,10 @@ test('D7: connection errors and missing Tabs API cannot advance the tour; verifi
             if(state==='missing')Reflect.deleteProperty(Reflect.get(window,'chrome'),'tabs');
             return Reflect.get(window,'testUi').tour.startTour();
         },state);
-        await page.waitForFunction(state=>state==='connected'?document.querySelector('#tourNextBtn')?.matches(':enabled'):document.querySelector('.tour-popover')?.textContent?.includes('Connection unavailable'),state);
-        if(state!=='connected')assert.match(await page.locator('.tour-popover').textContent()??'',/Connection unavailable/);
-        else {
-            assert.doesNotMatch(await page.locator('.tour-popover').textContent()??'',/Connection unavailable|Sign in to Gemini/);
-            await page.locator('#tourNextBtn').click();
-            assert.equal(await page.locator('.tour-popover h2').textContent(),'Scan conversations');
-        }
+        await page.waitForFunction(()=>document.querySelector('#tourNextBtn')?.matches(':enabled'));
+        assert.equal(await page.locator('.platform-permission-row[data-platform="gemini"] .platform-permission-state').textContent(),'Authorized');
+        await page.locator('#tourNextBtn').click();
+        assert.equal(await page.locator('.tour-popover h2').textContent(),'Scan conversations');
         await page.close();
     }}finally{await browser.close();}
 });

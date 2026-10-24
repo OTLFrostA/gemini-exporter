@@ -43,8 +43,7 @@ EVIDENCE = [{'prompt': 'Explain **pressure** and mass_balance.', 'response': REP
 
 class OnboardingConnectionContracts(unittest.TestCase):
     def test_tour_uses_the_selected_platform_connection_once_then_completes(self):
-        for provider, button_id in [('gemini', 'tourBtnOpenGemini'), ('chatgpt', 'tourBtnConnectChatGPT'),
-                                    ('claude', 'tourBtnConnectClaude')]:
+        for provider in ['gemini', 'chatgpt', 'claude']:
             with self.subTest(provider=provider):
                 cdp = MagicMock()
                 cdp.eval.side_effect = [
@@ -59,7 +58,8 @@ class OnboardingConnectionContracts(unittest.TestCase):
                     self.assertTrue(CDPActions.verify_onboarding_tour(ext_id='test', provider_id=provider))
                 attempts = [call for call in cdp.eval.call_args_list if call.kwargs.get('user_gesture')]
                 self.assertEqual(len(attempts), 1)
-                self.assertIn(button_id, attempts[0].args[0])
+                self.assertIn('btnAuthorizePlatforms', attempts[0].args[0])
+                self.assertIn(f'input.value === "{provider}"', attempts[0].args[0])
                 cdp.close.assert_called_once()
 
     def test_unconnected_tour_fails_without_repeated_connection_attempts(self):

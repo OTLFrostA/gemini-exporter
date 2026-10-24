@@ -34,7 +34,6 @@ export const UI_COPY: Record<'en' | 'zh', Record<string, string>> = {
     "dirCurrentTip": "Current selected export folder",
     "dirNotSet": "Directory not set",
     "exportFailureBannerTitle": "Some conversations failed to export",
-    "exportSettings": "Export Settings",
     "feedbackPrompt": "Got questions or suggestions?",
     "filterAll": "All",
     "filterNoRecord": "No export record",
@@ -72,7 +71,6 @@ export const UI_COPY: Record<'en' | 'zh', Record<string, string>> = {
     "takeoutImportModalDesc": "Supports original .zip archives exported from Google Takeout (no extraction needed). Restores older chats not accessible via API and establishes an offline multimodal asset pool.",
     "takeoutImportModalTitle": "📥 Import Google Takeout Archive",
     "takeoutLimitPromptTitle": "⚠️ Reached Google Cloud History Limit",
-    "titleConversations": "Conversations",
     "tourBtnGuide": "Tour Guide",
     "tourBtnGuideTip": "Start onboarding tour guide"
   },
@@ -110,7 +108,6 @@ export const UI_COPY: Record<'en' | 'zh', Record<string, string>> = {
     "dirCurrentTip": "当前选中的导出目录",
     "dirNotSet": "未设置目录",
     "exportFailureBannerTitle": "部分会话导出失败",
-    "exportSettings": "导出设置",
     "feedbackPrompt": "遇到问题或有新建议？",
     "filterAll": "全部",
     "filterNoRecord": "无导出记录",
@@ -148,7 +145,6 @@ export const UI_COPY: Record<'en' | 'zh', Record<string, string>> = {
     "takeoutImportModalDesc": "支持导入 Google Takeout 导出的原始 .zip 压缩包（无需手动解压）。导入后将自动补全云端 API 限制遗漏的早期历史会话，并建立离线多模态附件池。",
     "takeoutImportModalTitle": "📥 导入 Google Takeout 历史归档",
     "takeoutLimitPromptTitle": "⚠️ 达到 Google 云端拉取上限",
-    "titleConversations": "会话列表",
     "tourBtnGuide": "新手引导",
     "tourBtnGuideTip": "启动新手操作引导"
   }

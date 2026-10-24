@@ -116,7 +116,7 @@ export function stripConvertedMath(doc: TypstConversationRenderPayload): number 
             if ((node.type === 'strong' || node.type === 'emphasis' || node.type === 'strikethrough' || node.type === 'link') && 'children' in node) {
                 stripInline(node.children);
             } else if (node.type === 'inlineMath' && 'typst' in node && node.typst !== undefined) {
-                delete (node as { typst?: string }).typst;
+                delete node.typst;
                 stripped += 1;
             }
         }
@@ -150,7 +150,7 @@ export function stripConvertedMath(doc: TypstConversationRenderPayload): number 
                 break;
             case 'math':
                 if ('typst' in block && block.typst !== undefined) {
-                    delete (block as { typst?: string }).typst;
+                    delete block.typst;
                     stripped += 1;
                 }
                 break;
@@ -369,7 +369,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
             }
             imageBytes.set(imagePath, bytes);
             // Copy into a fresh ArrayBuffer so transferring neuters only our copy.
-            const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+            const buf = new Uint8Array(bytes).buffer;
             binaries.push({ path: imagePath, buf });
             transfer.push(buf);
         }
@@ -379,7 +379,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
 
         const payloadText = JSON.stringify(doc);
         const fontBuffers: ArrayBuffer[] = fonts.map((bytes) => {
-            const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+            const buf = new Uint8Array(bytes).buffer;
             transfer.push(buf);
             return buf;
         });
@@ -464,7 +464,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
             await this.readyPromiseOrTimeout(signal);
             const wasm = await this.host.fetchBytes(this.host.assetUrl(this.wasmPath));
             signal.throwIfAborted();
-            const wasmBuffer = wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength) as ArrayBuffer;
+            const wasmBuffer = new Uint8Array(wasm).buffer;
             const jobId = newJobId();
             const result = await this.roundTrip(
                 jobId,

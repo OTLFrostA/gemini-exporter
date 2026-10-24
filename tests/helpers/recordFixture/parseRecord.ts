@@ -1,7 +1,7 @@
 import { semanticTitleSource } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
 import { contentQuality, type ContentQuality } from '../../../src/l1/parsers/qualityEvidence.js';
 import { parseIndexMetadata } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
-import { normalizeTimestamp } from '../../../src/l2/time.js';
+import { normalizeTimestamp } from '../../../src/l1/parsers/shared/time.js';
 import { structuredBodyAttachments } from './contentAdapter.js';
 import { closeSourceCitations } from '../../../src/l1/parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../../src/l1/parsers/shared/resources/domainResourceAdapter.js';

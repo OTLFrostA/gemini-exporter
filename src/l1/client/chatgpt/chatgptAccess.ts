@@ -1,3 +1,4 @@
+import { hasPlatformAccess, requestPlatformAccess } from '../platformAccess.js';
 /**
  * Optional-host entry point for ChatGPT runtime access.
  *
@@ -9,38 +10,8 @@
 import { ProviderRegistry } from '../providerRegistry.js';
 import { ChatGPTProvider } from './chatgptProvider.js';
 
-export const CHATGPT_OPTIONAL_ORIGINS: readonly string[] = [
-    'https://chatgpt.com/*',
-    'https://chat.openai.com/*',
-];
-
-function origins(): string[] {
-    return [...CHATGPT_OPTIONAL_ORIGINS];
-}
-
-/** True when the user already granted the optional ChatGPT origins. */
-export async function hasChatGPTAccess(): Promise<boolean> {
-    if (typeof chrome === 'undefined' || !chrome.permissions?.contains) return false;
-    try {
-        return await chrome.permissions.contains({ origins: origins() });
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Ask the user for the optional ChatGPT origins. Resolves true only when
- * granted; never throws, so a dismiss/cancel stays a quiet false.
- */
-export async function requestChatGPTAccess(): Promise<boolean> {
-    if (await hasChatGPTAccess()) return true;
-    if (typeof chrome === 'undefined' || !chrome.permissions?.request) return false;
-    try {
-        return await chrome.permissions.request({ origins: origins() });
-    } catch {
-        return false;
-    }
-}
+export function hasChatGPTAccess(): Promise<boolean> { return hasPlatformAccess('chatgpt'); }
+export function requestChatGPTAccess(): Promise<boolean> { return requestPlatformAccess('chatgpt'); }
 
 /**
  * Register the ChatGPT adapter exactly when access is granted. Idempotent and

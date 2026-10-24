@@ -1,6 +1,6 @@
 import { extractAttachmentInlineBytes } from '../../../resources/attachmentBytes.js';
 import type { ResourceEvidence } from './resourceEvidence.js';
-import { normalizeTimestamp } from '../../../../l2/time.js';
+import { normalizeTimestamp } from '../time.js';
 import { sameGenerationEvent } from './generationEvent.js';
 
 /** Acquisition aliases are resolved here; none of these lists is part of Domain. */

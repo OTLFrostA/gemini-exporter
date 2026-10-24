@@ -10,8 +10,8 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
 function domainFixture(messages: any[], extra: any = {}) {
-    const createdAt = require('../src/l2/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
-    const updatedAt = require('../src/l2/time.js').normalizeTimestamp(extra.updatedAt);
+    const createdAt = require('../src/l1/parsers/shared/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
+    const updatedAt = require('../src/l1/parsers/shared/time.js').normalizeTimestamp(extra.updatedAt);
     return restoreDomainSnapshot({ index: { key: fixtureKey(String('c1'), 'gemini'),   title: 'Test convo', titleSource: "derived",
         ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) },
         detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages } });

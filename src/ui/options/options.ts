@@ -122,6 +122,7 @@ export async function initWorkbench(): Promise<void> {
         new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)));
     const render = () => {
         labelPage();
+        el('btnPlatformPermissions').textContent = text('Site access', '网站授权');
         if (currentStatus !== null) el('status').textContent = resolveUiMessage(currentStatus);
         if (currentProgress !== null) {
             const displayed = resolveUiMessage(currentProgress);
@@ -138,7 +139,7 @@ export async function initWorkbench(): Promise<void> {
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
             'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan',
             'chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
-            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide'];
+            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide','btnPlatformPermissions'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
             el<HTMLInputElement>(id).disabled = !settings || presentationSaving;
@@ -551,6 +552,7 @@ export async function initWorkbench(): Promise<void> {
         const link = document.createElement('a'); link.href = url; link.download = 'gemini-exporter-ui-diagnostics.json';
         link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
+    el('btnPlatformPermissions').addEventListener('click', () => { if (!busy) TourGuide.showPlatformAuthorization(select); });
     el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(select); });
     const stopSettings = observeSettings(() => {
         void readSettings().then(next => { settings = next; render(); }).catch(e => statusError(e));

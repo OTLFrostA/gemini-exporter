@@ -3,6 +3,11 @@ import type { DirectoryHandle } from '../../../runtime/capabilities/directoryHan
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
 import { assertExportPath } from '../../packaging/exportPath.js';
 
+/** File System Access accepts ArrayBuffer-backed views; copy shared memory only. */
+function isWritableBytes(value: Uint8Array): value is Uint8Array<ArrayBuffer> {
+    return value.buffer instanceof ArrayBuffer;
+}
+
 async function ensureSubDir(root: FileSystemDirectoryHandle, subPath: string): Promise<FileSystemDirectoryHandle> {
     let cur = root;
     assertExportPath(subPath);
@@ -85,7 +90,9 @@ class FsWriter implements IExportWriter {
             const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
             const writable = await fileHandle.createWritable();
             try {
-                await writable.write(actualContent as FileSystemWriteChunkType);
+                await writable.write(actualContent instanceof Uint8Array
+                    ? isWritableBytes(actualContent) ? actualContent : new Uint8Array(actualContent)
+                    : actualContent);
                 await writable.close();
             } catch (writeErr) {
                 if (typeof writable.abort === 'function') {

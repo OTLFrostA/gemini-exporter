@@ -31,9 +31,10 @@ import type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportI
 const comparable = (value: number | undefined): value is number => value !== undefined && Number.isSafeInteger(value);
 export function shouldSkipExport(record: ExportRecord | null, updatedAt: number | undefined, request: ExportRequest): boolean {
     if (!request.skipUnchanged || !record || record.format !== request.format) return false;
+    const issues = record.attachmentIssues;
     const expiredOnly = record.status === 'partial' && record.otherContentMissing !== true
-        && Boolean(record.attachmentIssues?.length)
-        && record.attachmentIssues!.every(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED' && issue.httpStatus === 404);
+        && issues !== undefined && issues.length > 0
+        && issues.every(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED' && issue.httpStatus === 404);
     return (record.status === 'ok' || expiredOnly) && comparable(record.chatTime)
         && comparable(updatedAt) && record.chatTime >= updatedAt;
 }
@@ -41,11 +42,12 @@ function isFresh(conversation: ReadonlyDomain): boolean {
     return conversation.detail.quality.status === 'complete' && comparable(conversation.detail.savedAt)
         && comparable(conversation.index.updatedAt) && conversation.detail.savedAt >= conversation.index.updatedAt;
 }
-interface PendingExport {
+type PendingContent = { format: 'json'; document?: never }
+    | { format: Exclude<ExportRequest['format'], 'json'>; document: DocumentAst };
+type PendingExport = PendingContent & {
     key: ConversationKey;
     account: Account;
     conversation: ReadonlyDomain;
-    document?: DocumentAst;
     prepared: PreparedResources;
     refreshFailed: boolean;
     fileIds: ReadonlySet<string>;
@@ -118,7 +120,7 @@ export async function runExport(request: ExportRequest, options: {
         }
     };
     const renderGroup = async (item: PendingExport, plan: ExportPathPlan): Promise<ExportGroup> => {
-        const { conversation, document, prepared, key } = item;
+        const { conversation, document, prepared, key, format } = item;
         let otherContentMissing = item.refreshFailed || conversation.detail.quality.status !== 'complete'
             || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
                 && conversation.detail.savedAt < conversation.index.updatedAt);
@@ -133,11 +135,11 @@ export async function runExport(request: ExportRequest, options: {
         const renderOptions = { locale, resourceFailures: failures };
         let partial = otherContentMissing || Object.keys(failures).length > 0;
         let content: string | Uint8Array;
-        switch (request.format) {
+        switch (format) {
             case 'json': content = serializeDomainJson(conversation, item.account, plan.resources); break;
-            case 'markdown': content = renderDocumentMarkdown(document!, plan.resources, renderOptions); break;
+            case 'markdown': content = renderDocumentMarkdown(document, plan.resources, renderOptions); break;
             case 'html': {
-                const html = renderDocumentHtml(document!, plan.resources, renderOptions);
+                const html = renderDocumentHtml(document, plan.resources, renderOptions);
                 for (const diagnostic of html.diagnostics) diagnose({ key, stage: 'html', ...diagnostic });
                 content = html.html;
                 otherContentMissing ||= html.diagnostics.some(diagnostic => diagnostic.code === 'FORMAT_CONTENT_OMITTED');
@@ -149,7 +151,7 @@ export async function runExport(request: ExportRequest, options: {
                     compiler = new TypstSandboxCompiler();
                     await mountRuntimeFonts(await resolveLocalFonts(), compiler);
                 }
-                const pdf = await compileDocumentPdf(document!, plan.resources, prepared, compiler,
+                const pdf = await compileDocumentPdf(document, plan.resources, prepared, compiler,
                     { signal, reportProgress() {} }, renderOptions);
                 content = pdf.pdfBytes;
                 for (const diagnostic of pdf.diagnostics) {
@@ -171,9 +173,10 @@ export async function runExport(request: ExportRequest, options: {
                 ...(partial ? { otherContentMissing } : {}),
                 ...(Object.keys(failures).length ? { attachmentIssues: Object.values(failures).map(failure => {
                     const asset = conversation.detail.assets.find(asset => asset.id === failure.resourceId);
+                    const sourceUri = asset?.sourceUri;
                     return { resourceId: failure.resourceId, name: asset?.name || failure.resourceId, code: failure.code,
                         ...(failure.httpStatus ? { httpStatus: failure.httpStatus } : {}),
-                        ...(/^https:\/\//i.test(asset?.sourceUri ?? '') ? { sourceUrl: asset!.sourceUri } : {}) };
+                        ...(sourceUri && /^https:\/\//i.test(sourceUri) ? { sourceUrl: sourceUri } : {}) };
                 }) } : {}),
                 ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) } };
         return group;
@@ -185,7 +188,7 @@ export async function runExport(request: ExportRequest, options: {
         locale = language ?? (typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
         const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
         if (request.delivery === 'folderWriter' && !directory) throw new Error('Export directory unavailable');
-        const folderPlanner = request.delivery === 'folderWriter' ? createExportPathPlanner(request.format) : undefined;
+        const folderPlanner = directory ? createExportPathPlanner(request.format) : undefined;
         const pending: PendingExport[] = [];
         for (const [index, key] of request.keys.entries()) {
             signal.throwIfAborted();
@@ -232,15 +235,17 @@ export async function runExport(request: ExportRequest, options: {
                 signal.throwIfAborted();
                 if (!conversation) throw new Error('No usable local Detail');
                 const prepare = async (snapshot: ReadonlyDomain): Promise<PendingExport> => {
-                    const document = request.format === 'json' ? undefined : composeDomainDocument(snapshot, account);
-                    const references = document && collectDocumentResources(document);
-                    const requiredIds = !request.includeAssets ? new Set<string>() : request.format === 'json'
-                        ? new Set(snapshot.detail.assets.map(asset => asset.id)) : references!.referencedIds;
+                    const view: PendingContent = request.format === 'json' ? { format: 'json' }
+                        : { format: request.format, document: composeDomainDocument(snapshot, account) };
+                    const references = view.format === 'json'
+                        ? { referencedIds: new Set(snapshot.detail.assets.map(asset => asset.id)), fileIds: new Set<string>() }
+                        : collectDocumentResources(view.document);
+                    const requiredIds = request.includeAssets ? references.referencedIds : new Set<string>();
                     // File nodes are exported as originals even for PDF; Image nodes may be embedded.
-                    const fileIds = references?.fileIds ?? new Set<string>();
+                    const fileIds = references.fileIds;
                     const prepared = await prepareExportResources(snapshot.detail.assets, requiredIds,
                         (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
-                    return { key, account, conversation: snapshot, document, prepared, fileIds, refreshFailed };
+                    return { ...view, key, account, conversation: snapshot, prepared, fileIds, refreshFailed };
                 };
                 let item = await prepare(conversation);
                 // Body timestamps do not establish whether signed resource URLs remain usable.
@@ -268,9 +273,9 @@ export async function runExport(request: ExportRequest, options: {
                     }
                 }
                 const { prepared, fileIds } = item;
-                if (folderPlanner) {
+                if (folderPlanner && directory) {
                     const group = await renderGroup(item, folderPlanner(conversation, prepared, fileIds));
-                    await writeToFolder(group.files, directory!);
+                    await writeToFolder(group.files, directory);
                     await finalize([group]);
                 } else pending.push(item);
             } catch (error) {
@@ -314,7 +319,10 @@ export async function runExport(request: ExportRequest, options: {
                 if (request.delivery === 'browserDownload') {
                     if (files.length !== 1) throw new Error('Browser delivery requires one final file');
                     await startBrowserDownload(files[0]);
-                } else await writeToFolder(files, directory!);
+                } else {
+                    if (!directory) throw new Error('Export directory unavailable');
+                    await writeToFolder(files, directory);
+                }
                 await finalize(groups);
             } catch (error) {
                 if (cancelled(error)) throw error;

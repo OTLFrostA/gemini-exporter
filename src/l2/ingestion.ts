@@ -4,10 +4,11 @@ import type { DomainConversationDetail, ConversationDetail } from './conversatio
 import { selectConversationDetail } from './conversationDetail.js';
 import { acceptDetailFacts, restoreDomainDetail } from './runtimeValidation.js';
 import CoverageAdmission from './coverageAdmission.js';
-import type { PageObservation } from './pageObservation.js';
+import type { PageObservationHead } from './pageObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
 import { getAccount, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
 import { conversationKey } from './conversationKey.js';
+import * as sameStoredFacts from './domainEquality.js';
 
 /** Runtime handles readiness and IPC; L2 reads and validates persisted Account facts directly. */
 async function readExistingAccount(accountId: Account['id']): Promise<Account | null> {
@@ -16,18 +17,6 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
     const account = readAccount(stored);
     if (account.id !== accountId) throw new TypeError('Account registry UUID mismatch');
     return account;
-}
-
-/** Domain values are JSON facts: object property insertion order is not a content change. */
-function sameStoredFacts(left: unknown, right: unknown): boolean {
-    if (left === right) return true;
-    if (Array.isArray(left)) return Array.isArray(right) && left.length === right.length
-        && left.every((item, i) => sameStoredFacts(item, right[i]));
-    if (!left || !right || typeof left !== 'object' || typeof right !== 'object' || Array.isArray(right)) return false;
-    const a = left as Record<string, unknown>, b = right as Record<string, unknown>;
-    const keys = Object.keys(a);
-    return keys.length === Object.keys(b).length
-        && keys.every(key => Object.hasOwn(b, key) && sameStoredFacts(a[key], b[key]));
 }
 
 /** Duplicate source rows merge in input order; Storage reads their current values under one transaction. */
@@ -45,7 +34,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
         entries.forEach((group, i) => {
             let merged = previous[i] ? restoreConversationIndex(previous[i]) : undefined;
             for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
-            if (merged && !sameStoredFacts(merged, previous[i])) changed.push(merged);
+            if (merged && !sameStoredFacts.index(merged, previous[i])) changed.push(merged);
         });
         return changed;
     });
@@ -53,7 +42,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
 
 export async function ingestIndexes(accountId: Account['id'],
     items: ReadonlyArray<{ conversationId: ConversationKey['conversationId']; fields: Omit<ConversationIndex, 'key'> }>,
-    page?: Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>): Promise<void> {
+    page?: PageObservationHead): Promise<void> {
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Index account does not exist');
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
@@ -83,14 +72,12 @@ export async function ingestDetail(accountId: Account['id'], conversationId: Con
         const acceptedIndex = mergeConversationIndex(existingIndex, index);
         const existing = oldDetail ? restoreDomainDetail(oldDetail) : null;
         const selected = selectConversationDetail(existing ? { detail: existing } : undefined, { detail: incoming }).detail;
-        const sameFacts = (a: DomainConversationDetail, b: DomainConversationDetail): boolean =>
-            sameStoredFacts(a.messages, b.messages) && sameStoredFacts(a.assets, b.assets)
-            && a.quality.status === b.quality.status;
+        const sameFacts = sameStoredFacts.material;
         const accepted = selected === incoming || (existing !== null && sameFacts(existing, incoming));
         const changed = !existing || (selected !== existing && !sameFacts(existing, selected));
         return {
-            ...(!sameStoredFacts(acceptedIndex, existingIndex) ? { index: acceptedIndex } : {}),
-            ...(!sameStoredFacts(selected, existing) ? { detail: selected } : {}),
+            ...(!sameStoredFacts.index(acceptedIndex, existingIndex) ? { index: acceptedIndex } : {}),
+            ...(!sameStoredFacts.detail(selected, existing) ? { detail: selected } : {}),
             result: { accepted, changed },
         };
     });

@@ -12,10 +12,7 @@ import { init as initMessageRouter } from '../src/runtime/content/messageRouter.
 // Prove that a valid ActiveClientContract WITHOUT abort() can be assigned
 // to window.__gemExporterActiveClient and ContentContext without type error.
 // --------------------------------------------------------------------------
-const clientWithoutAbort: ActiveClientContract = {
-    getAllConversations: async () => [],
-    getConversationDetail: async () => ({})
-};
+const clientWithoutAbort: ActiveClientContract = {};
 
 const _compileTimeCheck = () => {
     if (typeof window !== 'undefined') {

@@ -13,11 +13,11 @@ function valid(): DomainConversationWithDetail {
 test('parser validation and recovery validate without redundant JSON copies', () => {
     const input = valid();
     const json = JSON.stringify(input);
-    assert.equal(validateParserDomain(input), input);
+    assert.equal(validateParserDomain(input).detail, input.detail);
     const restored = restoreDomainSnapshot(input);
     assert.deepEqual(restored, input);
     assert.equal(restored.detail.messages, input.detail.messages);
-    assert.equal(JSON.stringify(restored), json);
+    assert.equal(JSON.stringify(input), json, 'validation leaves the producer graph untouched');
     assert.deepEqual(Object.getOwnPropertySymbols(restored), []);
     assert.equal(restored.detail.messages[0].citations, input.detail.messages[0].citations);
 });
@@ -61,7 +61,7 @@ test('both entry points share index identity and reference closure rules', () =>
     }
     const empty = valid();
     empty.detail.assets = []; empty.detail.messages = [];
-    assert.equal(validateParserDomain(empty), empty);
+    assert.equal(validateParserDomain(empty).detail, empty.detail);
     assert.deepEqual(restoreDomainSnapshot(empty), empty);
 });
 
@@ -131,7 +131,7 @@ test('parser and recovery reject nonintegral, out-of-range, and over-wide table 
         { type: 'table' as const, rows: [{ cells: [{ children: [], colSpan: 1000, rowSpan: 65534 }] }] },
     ]) {
         const value = withTable(table);
-        assert.equal(validateParserDomain(value), value);
+        assert.equal(validateParserDomain(value).detail, value.detail);
         assert.deepEqual(restoreDomainSnapshot(value), value);
     }
 });
@@ -152,4 +152,26 @@ test('Domain parser rejects unsafe or fractional savedAt timestamps', () => {
         assert.throws(() => validateParserDomain({ ...source, detail: { ...source.detail, savedAt } }), TypeError);
     }
     assert.equal(validateParserDomain({ ...source, detail: { ...source.detail, savedAt: 0 } }).detail.savedAt, 0);
+});
+
+
+test('snapshot recovery uses canonical Index output and preserves untouched Detail graphs', () => {
+    const source = valid();
+    const index = { ...source.index, createdAt: undefined, activityAt: undefined };
+    const raw = { ...source, index };
+    const restored = restoreDomainSnapshot(raw);
+    assert.equal(Object.hasOwn(restored.index, 'createdAt'), false);
+    assert.equal(Object.hasOwn(restored.index, 'activityAt'), false);
+    assert.equal(Object.hasOwn(raw.index, 'createdAt'), true, 'recovery does not mutate the transport');
+    assert.equal(restored.detail, source.detail);
+    assert.equal(restored.detail.messages, source.detail.messages);
+});
+
+test('canonicalization never launders extra undefined fields into a trusted graph', () => {
+    const source = valid();
+    for (const detail of [
+        { ...source.detail, unexpected: undefined },
+        { ...source.detail, messages: [{ ...source.detail.messages[0], unexpected: undefined }] },
+        { ...source.detail, messages: [{ ...source.detail.messages[0], content: [{ type: 'paragraph', children: [], unexpected: undefined }] }] },
+    ]) assert.throws(() => restoreDomainSnapshot({ index: source.index, detail }), TypeError);
 });

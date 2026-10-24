@@ -17,8 +17,9 @@ export async function prepareExportResources(
             if (!value.bytes.byteLength) throw new ResourceProcessingError('Empty resource');
             return { ...value, mediaType: value.mediaType ?? asset.mediaType, name: value.name ?? asset.name };
         }, signal) : missingResource(id, 'Asset metadata unavailable');
-        prepared.set(id, !result.ok && /^https:\/\//i.test(asset?.sourceUri ?? '')
-            ? { ...result, sourceUrl: asset!.sourceUri } : result);
+        const sourceUri = asset?.sourceUri;
+        prepared.set(id, !result.ok && sourceUri && /^https:\/\//i.test(sourceUri)
+            ? { ...result, sourceUrl: sourceUri } : result);
     }
     return prepared;
 }

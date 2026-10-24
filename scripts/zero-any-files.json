@@ -24,7 +24,7 @@
   "src/l4/format/shared/renderOptions.ts",
   "src/l4/format/shared/renderStrings.ts",
   "src/l4/format/typst/layout.ts",
-  "src/l2/content/unknownFallback.ts",
+  "src/l1/parsers/gemini/shared/unknownFallback.ts",
   "src/l1/resources/attachmentBytes.ts",
   "src/l4/format/resources/imageContent.ts",
   "src/shared/resources/resourceResult.ts",
@@ -131,5 +131,6 @@
   "src/runtime/capabilities/assetFetcher.ts",
   "src/shared/utils/moduleOverrides.ts",
   "src/l1/client/gemini/api/rpcClient.ts",
-  "src/l1/client/gemini/api/retryPolicy.ts"
+  "src/l1/client/gemini/api/retryPolicy.ts",
+  "src/l1/parsers/shared/time.ts"
 ]

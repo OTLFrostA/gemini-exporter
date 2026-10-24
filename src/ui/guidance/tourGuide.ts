@@ -1,14 +1,14 @@
 import { STEPS } from './tourSteps.js';
 import { text } from '../shared/settings.js';
-import { mountTourConnection } from './tourConnection.js';
+import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
-let mode: 'tour' | 'spotlight' | 'takeout' | null = null;
+let mode: 'tour' | 'spotlight' | 'takeout' | 'authorization' | null = null;
 let cleanupStep: (() => void) | undefined;
 let cleanupOverlay: (() => void) | undefined;
 let onDismiss: (() => void) | undefined;
 let relayout: (() => void) | undefined;
-let connectionReady = false;
+let authorizationReady = false;
 let onConnected: ((accountId: string) => Promise<void>) | undefined;
 
 export function consumeTourIntent(): boolean {
@@ -21,7 +21,7 @@ function destroy(): void {
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove(); root = null; mode = null; onDismiss = undefined; relayout = undefined;
-    connectionReady = false; onConnected = undefined;
+    authorizationReady = false; onConnected = undefined;
 }
 function close(): void { const callback = onDismiss; destroy(); callback?.(); }
 const finishTour = async (): Promise<void> => { destroy(); };
@@ -241,26 +241,42 @@ async function goToStep(index: number): Promise<void> {
     };
     cleanupStep = step.setupAction?.(advance);
     if (step.id === 'connect') {
-        connectionReady = false;
+        authorizationReady = false;
         nextButton.disabled = true;
-        const selectAccount = onConnected;
-        cleanupStep = mountTourConnection(popover, navFooter, async (accountId, shouldAdvance) => {
-            await selectAccount?.(accountId);
+        cleanupStep = mountAuthorization(popover, navFooter, ready => {
             if (mode !== 'tour' || STEPS[stepIndex] !== step || !popover.isConnected) return;
-            connectionReady = true;
-            nextButton.disabled = false;
-            if (shouldAdvance) advance();
+            authorizationReady = ready;
+            nextButton.disabled = !ready;
         });
     }
 }
 async function nextStep(): Promise<void> {
-    if (STEPS[stepIndex]?.id === 'connect' && !connectionReady) return;
+    if (STEPS[stepIndex]?.id === 'connect' && !authorizationReady) return;
     await goToStep(stepIndex + 1);
 }
 async function prevStep(): Promise<void> { await goToStep(stepIndex - 1); }
 async function startTour(connected?: (accountId: string) => Promise<void>): Promise<void> {
     if (modalOpen()) return;
     destroy(); mode = 'tour'; onConnected = connected; await goToStep(0);
+}
+
+function mountAuthorization(popover: HTMLElement, before: HTMLElement, ready?: (authorized: boolean) => void): () => void {
+    const host = document.createElement('div');
+    popover.insertBefore(host, before);
+    const stop = mountPlatformAuthorization(host, { ready, connected: onConnected });
+    return () => { stop(); host.remove(); };
+}
+
+/** Reopen the same authorization view without starting or advancing the tutorial. */
+export function showPlatformAuthorization(connected?: (accountId: string) => Promise<void>): void {
+    if (modalOpen()) return;
+    destroy(); mode = 'authorization'; onConnected = connected;
+    const step = STEPS[0];
+    const popover = overlay(null, step.title(), step.description(), false, [], 'bottom', text('Site access', '网站授权'));
+    const bar = footer(popover);
+    button(bar, text('Done', '完成'), close, 'platformAuthorizationDone', 'tour-nav-btn');
+    cleanupStep = mountAuthorization(popover, bar);
+    relayout?.();
 }
 
 function startFeatureSpotlight(version: string, stepId: string, dismissed: () => void): boolean {
@@ -347,5 +363,5 @@ function showTakeoutPrompt(
     relayout?.();
     return true;
 }
-export const TourGuide = { startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
+export const TourGuide = { showPlatformAuthorization, startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
     startFeatureSpotlight, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };
