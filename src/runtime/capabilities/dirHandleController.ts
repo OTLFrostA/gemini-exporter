@@ -4,11 +4,11 @@ import { getDirectoryHandle, setDirectoryHandle } from '../../l3a/storageService
 
 let current: DirectoryHandle | null = null;
 let pending: DirectoryHandle | null = null;
-export async function getStoredDirHandle(): Promise<DirectoryHandle | null> {
+async function getStoredDirHandle(): Promise<DirectoryHandle | null> {
     await ensureV2Ready();
     return await getDirectoryHandle() as DirectoryHandle | null;
 }
-export async function saveStoredDirHandle(handle: DirectoryHandle): Promise<boolean> {
+async function saveStoredDirHandle(handle: DirectoryHandle): Promise<boolean> {
     await ensureV2Ready();
     await setDirectoryHandle(handle);
     return true;
