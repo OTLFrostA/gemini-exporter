@@ -104,8 +104,6 @@ export interface ChatMessage {
     groundingCitationMarkers?: string[];
 }
 
-export type Message = ChatMessage;
-
 export interface Turn {
     id?: string;
     timestamp?: number | null;

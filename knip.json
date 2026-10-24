@@ -13,7 +13,18 @@
     "src/l4/format/pdf/sandbox/typstCompileEntry.ts!",
     "src/ui/shared/themeBootstrap.js!",
     "tests/**/*.test.ts",
-    "tests/**/*.spec.ts"
+    "tests/**/*.spec.ts",
+    "tests/**/*.types.ts",
+    "scripts/chatgpt_network_audit.cjs",
+    "scripts/framework/driver/authored_response.js",
+    "scripts/framework/markdown_evidence.mjs",
+    "scripts/framework/v2_probe.ts",
+    "scripts/release-prepare.js",
+    "scripts/test-l1.cjs",
+    "scripts/test-l3.cjs",
+    "scripts/test-ui.cjs",
+    "scripts/typecheck-l1.cjs",
+    "scripts/typecheck-v2-modules.cjs"
   ],
   "project": [
     "src/**/*.{ts,tsx,js}!",
