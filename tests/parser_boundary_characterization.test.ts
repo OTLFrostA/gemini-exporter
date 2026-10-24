@@ -210,13 +210,14 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     const raw = [[ID, 'r_AB12'], [1700000000, 500000000], [['Prompt']], model];
     const decoded = decodeTurn(raw);
     assert.ok(decoded);
-    assert.equal(decoded.raw, raw);
+    assert.equal(Object.hasOwn(decoded, 'raw'), false, 'Turn raw array is not an output field');
     assert.equal(decoded.timestamp, 1700000000500);
     assert.equal(decoded.userMessageId, 'r_AB12');
     assert.equal(decoded.fallbackTurnId, 'r_AB12');
     assert.equal(decoded.rawProviderRequestId, 'r_AB12');
     assert.equal(decoded.providerRequestId, 'ab12');
-    assert.equal(decoded.userPayload, raw[2]);
+    assert.equal(decoded.userText, 'Prompt');
+    assert.equal(decoded.rawUserPayload, raw[2]);
     assert.equal(decoded.candidateIndex, 1);
     assert.deepEqual(decoded.candidate, {
         id: 'rc_selected',
@@ -235,6 +236,19 @@ test('Turn decoding validates known fields once and honors the selected draft', 
         assert.equal(message.rawProviderRequestId, 'r_AB12');
         assert.equal(message.providerRequestId, 'r_AB12');
     }
+});
+
+test('Turn decoder owns text fallbacks without guessing unrelated candidate metadata', () => {
+    const fallbackCandidate = ['rc_fallback', { nested: [['Model fallback answer']] }];
+    const wire = [[ID, 'r_AB12'], null, [['User prompt']], [[fallbackCandidate]]];
+    const decoded = decodeTurn(wire);
+    assert.ok(decoded);
+    assert.equal(decoded.userText, 'User prompt');
+    assert.equal(decoded.candidate?.text, 'Model fallback answer');
+    assert.equal(decoded.candidate?.raw, fallbackCandidate, 'media decoders still get source evidence');
+
+    assert.equal(decodeTurn([[ID], null, ['Flat prompt'], null])?.userText, 'Flat prompt');
+    assert.equal(decodeTurn([[ID], null, { invalid: true }, null])?.userText, '');
 });
 
 test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw media evidence', () => {

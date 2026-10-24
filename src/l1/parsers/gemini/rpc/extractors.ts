@@ -139,11 +139,12 @@ export interface DecodedGeminiCandidate {
     raw: unknown;
 }
 
-/** Known fields read once from a Turn; malformed optional fields remain raw
- * evidence instead of causing the whole conversation to be rejected. */
+/** Known fields read once from a Turn. Specialized media/structured decoders
+ * retain their own raw evidence without treating it as validated fields. */
 export interface DecodedGeminiTurn {
-    raw: unknown[];
-    userPayload: unknown;
+    userText: string;
+    /** Only consumed by the user-image and user-file decoders. */
+    rawUserPayload: unknown;
     timestamp: number | null;
     userMessageId: string;
     fallbackTurnId: string;
@@ -453,6 +454,34 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             if (text !== null) return text;
         }
         return "";
+    }
+
+    /** User text is a Turn-level fact, shared by user messages and generation prompts. */
+    function extractUserText(userPayload: unknown): string {
+        if (!isUnknownArray(userPayload) || userPayload.length === 0) return "";
+        const first = userPayload[0];
+        if (typeof first === "string") return first;
+        if (isUnknownArray(first) && typeof first[0] === "string") return first[0];
+        return "";
+    }
+
+    /** Keep the original candidate fallback, but resolve it before returning
+     * typed Turn evidence instead of walking raw candidate data downstream. */
+    function extractModelResponseText(candidate: unknown): string {
+        const direct = extractCandidateText(candidate);
+        if (direct) return direct;
+        const textArr: string[] = [];
+        deepWalk(candidate, (node) => {
+            if (isUnknownArray(node)) {
+                if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 0
+                    && !node[0].startsWith("http") && !node[0].startsWith("rc_") && !node[0].startsWith("c_")) {
+                    if (node[0].trim().length > 2 && !textArr.includes(node[0])) {
+                        textArr.push(node[0]);
+                    }
+                }
+            }
+        });
+        return textArr.join("\n\n");
     }
 
     function safeStructureClean(str?: string | null): string {
@@ -775,6 +804,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         }
         const providerRequestId = rawProviderRequestId?.slice(2).toLowerCase();
 
+        const rawUserPayload = turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         const selectedId = isUnknownArray(modelPayload)
             ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.SELECTED_CANDIDATE_ID]
@@ -790,15 +820,15 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         const candidate: DecodedGeminiCandidate | null = candidateIndex < candidates.length
             ? {
                 id: typeof rawId === "string" ? rawId : "",
-                text: extractCandidateText(selected),
+                text: extractModelResponseText(selected),
                 body: slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY],
                 raw: selected
             }
             : null;
 
         return {
-            raw: turn,
-            userPayload: turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD],
+            userText: extractUserText(rawUserPayload),
+            rawUserPayload,
             timestamp: extractTurnTimestamp(turn),
             userMessageId,
             fallbackTurnId,
