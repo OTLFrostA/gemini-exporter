@@ -9,10 +9,10 @@ import type { DocumentAst, DisplayBlock } from '../../src/l3b/ast/ast.js';
  * All upstream dependencies are type-only: never execute L1/L2/L3b logic here.
  * These are INPUT fixtures, not surrogate parser/composer implementations.
  */
-export const V2_ACCOUNT_ID = '10000000-0000-4000-8000-000000000001';
+const V2_ACCOUNT_ID = '10000000-0000-4000-8000-000000000001';
 export const V2_SECOND_ACCOUNT_ID = '10000000-0000-4000-8000-000000000002';
 
-export function v2Key(conversationId = 'same123456', accountId = V2_ACCOUNT_ID): ConversationKey {
+function v2Key(conversationId = 'same123456', accountId = V2_ACCOUNT_ID): ConversationKey {
     return { accountId, conversationId };
 }
 export function v2Account(providerId = 'gemini', accountId = V2_ACCOUNT_ID): Account {

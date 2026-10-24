@@ -5,6 +5,6 @@
  * Powered exclusively by the MiTeX WASM engine and Typst scope (Phase T / PR 5).
  */
 
-export { convertMathWithMitex, initMitexWasm, isMitexReady, mitexConvertMath, resetMitexForTesting, simulateMitexInitFailureForTesting } from './mitex/index.js';
+export { convertMathWithMitex, initMitexWasm, isMitexReady, resetMitexForTesting, simulateMitexInitFailureForTesting } from './mitex/index.js';
 
 

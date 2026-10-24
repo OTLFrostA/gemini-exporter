@@ -686,7 +686,6 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
 export {
     collectImages,
     isInternalChipUrl,
-    getImageDedupKey,
     filterNewImages,
     extractImageEvidence,
     extractResponseImageEvidence,

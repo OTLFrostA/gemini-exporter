@@ -5,8 +5,8 @@ import type { StreamCoverage } from '../l2/streamCoverage.js';
 import type { DetailIngestResult } from '../l2/ingestion.js';
 import type { ExportRecord } from '../application/export/types.js';
 
-export const DATABASE_NAME = 'gemini_exporter_v2';
-export const DATABASE_VERSION = 1;
+const DATABASE_NAME = 'gemini_exporter_v2';
+const DATABASE_VERSION = 1;
 
 interface CoverageRow { accountId: string; streamId: string; value: StreamCoverage }
 interface ExportRow { accountId: string; conversationId: string; value: ExportRecord }
