@@ -222,6 +222,10 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     assert.deepEqual(decoded.candidate, {
         id: 'rc_selected',
         text: 'Selected answer',
+        thoughts: null,
+        citations: [],
+        sourceAttributions: [],
+        groundingCitationMarkers: [],
         body: [['Selected answer']],
         raw: candidates[1]
     });
@@ -236,6 +240,43 @@ test('Turn decoding validates known fields once and honors the selected draft', 
         assert.equal(message.rawProviderRequestId, 'r_AB12');
         assert.equal(message.providerRequestId, 'r_AB12');
     }
+});
+
+test('Turn Decoder only attributes selected Candidate thoughts, citations and grounding metadata', () => {
+    const wrongBody = [
+        ['Unselected draft'],
+        ['THOUGHT', 'Do not export'],
+        ['https://wrong.example/source', 'Wrong source'],
+        { '44': [[['[cite: 99]']]] },
+    ];
+    const source = ['https://selected.example/source', 'Selected source'];
+    const selectedBody = [
+        ['Selected answer'],
+        ['THOUGHT', 'Selected reasoning'],
+        source,
+        { '44': [[['[cite: 1]']]] },
+    ];
+    const sourceTable = [null, [[['cited span'], [1], [source], 'spp_selected']]];
+    const wrong = ['rc_wrong', wrongBody];
+    const selected = ['rc_selected', selectedBody, sourceTable];
+    const wire = [[ID, 'r_AB12'], null, [['Question']], [[wrong, selected], null, 'google', 'rc_selected']];
+    const decoded = decodeTurn(wire);
+    assert.ok(decoded?.candidate);
+    assert.equal(decoded.candidate.id, 'rc_selected');
+    assert.equal(decoded.candidate.thoughts, 'Selected reasoning');
+    assert.deepEqual(decoded.candidate.citations, [{ url: source[0], title: source[1] }]);
+    assert.deepEqual(decoded.candidate.sourceAttributions, [
+        { sourceId: 'spp_selected', sources: [{ url: source[0], title: source[1] }] },
+    ]);
+    assert.deepEqual(decoded.candidate.groundingCitationMarkers, ['[cite: 1]']);
+    assert.equal(JSON.stringify(decoded.candidate).includes('wrong.example'), false);
+
+    const malformed = decodeTurn([[ID], null, [], [[['rc_empty', null, { invalid: true }]]]]);
+    assert.ok(malformed?.candidate);
+    assert.equal(malformed.candidate.thoughts, null);
+    assert.deepEqual(malformed.candidate.citations, []);
+    assert.deepEqual(malformed.candidate.sourceAttributions, []);
+    assert.deepEqual(malformed.candidate.groundingCitationMarkers, []);
 });
 
 test('Turn decoder owns text fallbacks without guessing unrelated candidate metadata', () => {

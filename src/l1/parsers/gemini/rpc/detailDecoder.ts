@@ -1,5 +1,4 @@
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
-import { extractSourceAttributions } from './sourceAttributions.js';
 import { findListConversationMetadata } from './listMetadata.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
@@ -15,9 +14,6 @@ import {
     decodeTurn,
     safeStructureClean,
     robustFirstPayload,
-    extractThoughts,
-    extractCitations,
-    extractGroundingCitationMarkers,
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,
@@ -383,10 +379,7 @@ function parseCandidateResponse(
         }
     }
 
-    const thoughts = extractThoughts(candidateBlock);
-    const citations = extractCitations(candidateBlock);
-    const sourceAttributions = extractSourceAttributions(cand);
-    const groundingCitationMarkers = extractGroundingCitationMarkers(cand || candidateBlock);
+    const { thoughts, citations, sourceAttributions, groundingCitationMarkers } = candidate;
 
     if (responseText) {
         responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\s*/i, "");
