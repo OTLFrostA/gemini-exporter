@@ -117,7 +117,7 @@ test('Fetch: clone failure and signal aborted after headers do not complete', as
     assert.equal(aborted.complete().length, 0);
 });
 test('XHR: successful final frames on load notify once; loadend/reinjection/replay cannot duplicate', () => {
-    const harness = hookHarness(async () => new Response(''));
+    const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
     harness.inject(); assert.equal(harness.intervals(), 1);
     const xhr = new harness.Xhr();
     (xhr.open as Function)('POST', harness.url); xhr.responseText = geminiStreamGen('G_STREAM_ANSWERED_01'); xhr.send();
@@ -128,19 +128,19 @@ test('XHR: successful final frames on load notify once; loadend/reinjection/repl
     assert.equal(harness.complete().length, 2);
 });
 for (const event of ['abort', 'error', 'timeout', 'loadend']) test(`XHR: ${event} is request termination, never generation completion`, () => {
-    const harness = hookHarness(async () => new Response(''));
+    const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
     const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.responseText = geminiStreamGen('G_STREAM_ANSWERED_01'); xhr.send();
     xhr.emit(event); xhr.emit('loadend'); xhr.emit('load');
     assert.equal(harness.complete().length, 0);
     assert.equal((harness.win as any).__geminiIsStreaming, false);
 });
 for (const status of [0, 403, 503]) test(`XHR: status ${status} with load cannot complete`, () => {
-    const harness = hookHarness(async () => new Response(''));
+    const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
     const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.status = status; xhr.responseText = geminiStreamGen('G_STREAM_ANSWERED_01'); xhr.send(); xhr.emit('load'); xhr.emit('loadend');
     assert.equal(harness.complete().length, 0);
 });
 test('XHR: 200 without completion markers, oversized body and synchronous send failure cannot complete', () => {
-    const harness = hookHarness(async () => new Response(''));
+    const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
     for (const body of [geminiStreamGen('G_STREAM_UNANSWERED_01'), geminiStreamGen('G_STREAM_OVER_101_MIB_01')]) {
         const xhr = new harness.Xhr(); (xhr.open as Function)('POST', harness.url); xhr.responseText = body; xhr.send(); xhr.emit('load'); xhr.emit('loadend');
     }
