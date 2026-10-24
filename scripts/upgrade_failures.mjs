@@ -16,7 +16,8 @@ const offlineReasons = new Set([
   'net::ERR_INTERNET_DISCONNECTED',
 ]);
 
-function assertOfflineFailures(failedChats, expectedIds) {
+// Imported by tests/test_upgrade_profile.py through a Node subprocess; Knip cannot see this ESM consumer.
+export function assertOfflineFailures(failedChats, expectedIds) {
   assert.ok(Array.isArray(failedChats), 'Missing native failedChats evidence');
   assert.ok(expectedIds.length > 0 && new Set(expectedIds).size === expectedIds.length, 'Invalid offline targets');
   assert.equal(failedChats.length, expectedIds.length, 'Unexpected/missing offline failures');
@@ -27,7 +28,7 @@ function assertOfflineFailures(failedChats, expectedIds) {
   }
 }
 
-function assertExpectedOfflineFailure(error, expectedIds) {
+export function assertExpectedOfflineFailure(error, expectedIds) {
   if (!(error instanceof NativeExportFailure)) throw error;
   assertOfflineFailures(error.failedChats, expectedIds);
 }
