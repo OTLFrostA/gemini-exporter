@@ -2,7 +2,7 @@ import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../shared/ch
 import type { JsonValue } from "../../../../shared/utils/jsonTypes.js";
 
 export interface ImageAttachment {
-    /** JSON-serialized matched wire tuple; never an unvalidated runtime object. */
+    /** JSON-serialized matched wire tuple; never an unvalidated runtime value. */
     sourceEvidence?: { detectorKind: string; node: JsonValue };
     isGenerated?: boolean;
     providerRequestId?: string;
