@@ -1,10 +1,10 @@
-export interface AssetFetchRequest {
+interface AssetFetchRequest {
     url?: string;
     candidates?: string[];
     fileName?: string;
     preferBuffer?: boolean;
 }
-export interface AssetFetchResponse {
+interface AssetFetchResponse {
     success: boolean;
     dataUrl?: string;
     dataBuffer?: ArrayBuffer;
@@ -418,7 +418,7 @@ export async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: 
     }
 }
 
-export interface FetchedImageAsset {
+interface FetchedImageAsset {
     buffer: ArrayBuffer;
     mimeType: string;
     ext: string;
