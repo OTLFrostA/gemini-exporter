@@ -23,7 +23,7 @@ export interface GeminiDetailRequestOptions extends Omit<GeminiListRequestOption
     detailOnly?: boolean;
     altParams?: boolean;
 }
-interface GeminiPaginationListClient {
+export interface GeminiPaginationListClient {
     getConversationList(pageToken?: string | null, targetSid?: string | null,
         customFilter?: unknown, opts?: GeminiListRequestOptions): Promise<ListParseResult>;
 }
