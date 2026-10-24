@@ -1,6 +1,6 @@
 import type { ProviderConversationItem } from '../contracts.js';
 
-export interface ClaudeListParseResult { conversations: ProviderConversationItem[]; keys: Array<{ id: string; time: number }> }
+interface ClaudeListParseResult { conversations: ProviderConversationItem[]; keys: Array<{ id: string; time: number }> }
 
 export function claudeTimestamp(value: unknown): number | undefined {
     if (typeof value !== 'string' && typeof value !== 'number') return undefined;
