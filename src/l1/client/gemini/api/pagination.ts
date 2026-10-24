@@ -23,7 +23,7 @@ export interface GeminiDetailRequestOptions extends Omit<GeminiListRequestOption
     detailOnly?: boolean;
     altParams?: boolean;
 }
-export interface GeminiPaginationListClient {
+interface GeminiPaginationListClient {
     getConversationList(pageToken?: string | null, targetSid?: string | null,
         customFilter?: unknown, opts?: GeminiListRequestOptions): Promise<ListParseResult>;
 }
@@ -34,7 +34,7 @@ export interface GeminiPaginationDetailClient {
 export interface PaginatedDetailResult extends SourceConversationParseResult {
     transport: DetailParseResult['transport'];
 }
-export interface GeminiClientPaginationModule { getConversationDetail: typeof getConversationDetail }
+interface GeminiClientPaginationModule { getConversationDetail: typeof getConversationDetail }
 
 /** Empty messages are trustworthy only when the native Detail body explicitly contains empty turns. */
 function isExplicitlyEmptyDetail(page: DetailParseResult): boolean {
