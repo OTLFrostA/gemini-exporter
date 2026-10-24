@@ -9,18 +9,17 @@
     "storage",
     "unlimitedStorage"
   ],
-  "host_permissions": [
+  "host_permissions": [],
+  "optional_host_permissions": [
     "https://gemini.google.com/*",
     "https://*.googleusercontent.com/*",
     "https://*.usercontent.google.com/*",
     "https://drive.google.com/*",
     "https://lh3.google.com/*",
     "https://*.gstatic.com/*",
-    "https://images.openai.com/*"
-  ],
-  "optional_host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
+    "https://images.openai.com/*",
     "https://claude.ai/*"
   ],
   "icons": {
@@ -49,32 +48,6 @@
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
     "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval';"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://gemini.google.com/*"
-      ],
-      "css": [
-        "src/ui/badge/content.css"
-      ],
-      "js": [
-        "dist/content/content.js"
-      ],
-      "run_at": "document_start",
-      "all_frames": false
-    },
-    {
-      "matches": [
-        "https://gemini.google.com/*"
-      ],
-      "js": [
-        "dist/content/hook.js"
-      ],
-      "world": "MAIN",
-      "run_at": "document_start",
-      "all_frames": false
-    }
-  ],
   "web_accessible_resources": [
     {
       "resources": [

@@ -44,7 +44,7 @@ English/简体中文 interface · Dark/light theme · Export status and retry to
 
 **Have older conversations?** Import an original [Google Takeout](https://takeout.google.com/settings/takeout/custom/gemini) ZIP in the Workbench.
 
-**ChatGPT (experimental, source builds):** Open ChatGPT and log in, then click **Connect ChatGPT** in the Workbench and grant the optional site access. Select the ChatGPT account, sync its history, and export selected conversations. ChatGPT currently supports Workbench scanning and exports; popup export and Live Save remain Gemini features.
+**Platform permissions:** Gemini, ChatGPT and Claude each have a separate optional site-access group. In onboarding, choose **Connect** for the platform you want to use and grant its conversation and attachment sites. No platform access is required at installation; connecting one does not authorize the others. ChatGPT and Claude remain experimental in source builds.
 
 *Note:* **Sync All** updates the conversation list; **Export selected** creates backup files. Some expired source attachments may no longer be recoverable.
 

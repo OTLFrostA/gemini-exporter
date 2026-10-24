@@ -51,10 +51,13 @@ async function connectTourGemini(page: import('@playwright/test').Page) {
     await page.evaluate(({ accountId }) => {
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () =>
             [{ id: 999, active: true, url: 'https://gemini.google.com/app/fixture' }] });
+        Object.defineProperty(chrome.tabs, 'get', { configurable: true, value: async () =>
+            ({ id: 999, url: 'https://gemini.google.com/app/fixture' }) });
         Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true,
-            value: (_id: number, _message: unknown, respond: (value: unknown) => void) => {
+            value: (_id: number, _message: unknown, respond?: (value: unknown) => void) => {
                 const response = { ok: true, accountContext: { accountId, providerId: 'gemini' } };
-                respond(response);
+                if (respond) respond(response);
+                return Promise.resolve(response);
             } });
     }, { accountId });
     await page.getByRole('button', { name: 'Connect Gemini', exact: true }).click();

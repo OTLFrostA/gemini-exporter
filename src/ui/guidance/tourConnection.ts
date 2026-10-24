@@ -1,3 +1,6 @@
+import { preparePlatformTab, hasPlatformAccess } from '../../runtime/capabilities/platformInjection.js';
+import { requestGeminiConnection } from '../../runtime/capabilities/geminiConnection.js';
+import { PLATFORM_HOSTS, type SourcePlatform } from '../../shared/platformHosts.js';
 import { getAccount } from '../../runtime/api/accountRegistry.js';
 import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
 import { requestChatGPTConnection, discoverChatGPTAccounts } from '../../runtime/capabilities/chatgptDiscovery.js';
@@ -6,7 +9,7 @@ import type { Account } from '../../l2/accountRegistry.js';
 import { text } from '../shared/settings.js';
 
 interface Platform {
-    id: string;
+    id: SourcePlatform;
     name: string;
     url: string;
     urls: string[];
@@ -15,9 +18,9 @@ interface Platform {
     discover?: () => Promise<Account[]>;
 }
 const platforms: Platform[] = [
-    { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com/app', urls: ['https://gemini.google.com/*'], buttonId: 'tourBtnOpenGemini' },
-    { id: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com/', urls: ['https://chatgpt.com/*', 'https://chat.openai.com/*'], buttonId: 'tourBtnConnectChatGPT', request: requestChatGPTConnection, discover: discoverChatGPTAccounts },
-    { id: 'claude', name: 'Claude', url: 'https://claude.ai/', urls: ['https://claude.ai/*'], buttonId: 'tourBtnConnectClaude', request: requestClaudeConnection, discover: discoverClaudeAccounts },
+    { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com/app', urls: [...PLATFORM_HOSTS.gemini.pages], buttonId: 'tourBtnOpenGemini', request: requestGeminiConnection },
+    { id: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com/', urls: [...PLATFORM_HOSTS.chatgpt.pages], buttonId: 'tourBtnConnectChatGPT', request: requestChatGPTConnection, discover: discoverChatGPTAccounts },
+    { id: 'claude', name: 'Claude', url: 'https://claude.ai/', urls: [...PLATFORM_HOSTS.claude.pages], buttonId: 'tourBtnConnectClaude', request: requestClaudeConnection, discover: discoverClaudeAccounts },
 ];
 
 /** One initial check; subsequent source checks require a click or a return from sign-in. */
@@ -40,10 +43,12 @@ export function mountTourConnection(popover: HTMLElement, footer: HTMLElement,
         `Sign in to ${platform.name}, then return here. Click Connect again to retry.`,
         `请在 ${platform.name} 登录后返回这里；也可以再次点击连接重试。`));
     const verify = async (platform: Platform, id: string): Promise<string | null> => {
+        if (!await hasPlatformAccess(platform.id)) return null;
         const account = await getAccount(id);
         return account?.providerId === platform.id && account.providerAccountId !== 'default' ? account.id : null;
     };
     const tab = async (platform: Platform) => {
+        if (!await hasPlatformAccess(platform.id)) return undefined;
         const tabs = await chrome.tabs.query({ url: platform.urls });
         return tabs.find(item => item.active) ?? tabs[0];
     };
@@ -84,6 +89,7 @@ export function mountTourConnection(popover: HTMLElement, footer: HTMLElement,
                 }
                 if (!active) return;
                 const source = await tab(platform);
+                if (source?.id !== undefined) await preparePlatformTab(platform.id, source.id);
                 let id: string | null = null;
                 if (platform.discover && source) {
                     try {
@@ -105,7 +111,23 @@ export function mountTourConnection(popover: HTMLElement, footer: HTMLElement,
             });
         });
         buttons.push(button);
-        box.append(button);
+        const group = document.createElement('div');
+        group.className = 'tour-platform-permissions';
+        group.dataset.platform = platform.id;
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-label', `${platform.name} ${text('site permissions', '网站权限')}`);
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = text('Site access for conversations and attachments', '会话与附件的网站访问权限');
+        const sites = document.createElement('ul');
+        for (const origin of [...PLATFORM_HOSTS[platform.id].pages, ...PLATFORM_HOSTS[platform.id].attachments]) {
+            const site = document.createElement('li');
+            site.textContent = origin.replace('https://', '').replace('/*', '');
+            sites.append(site);
+        }
+        details.append(summary, sites);
+        group.append(button, details);
+        box.append(group);
     }
     const returned = () => {
         if (!active || busy || !awaitingReturn || document.hidden) return;

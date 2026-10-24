@@ -1,4 +1,4 @@
-import { syncClaudeContentScripts } from '../capabilities/claudeInjection.js';
+import { syncAllPlatformContentScripts } from '../capabilities/platformInjection.js';
 import { handleDomainIngestionMessage } from './domainStorageHandler.js';
 import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
@@ -9,16 +9,15 @@ import { listIndexes } from '../../l3a/storageService.js';
 import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
 import { updateSettings } from '../../application/settings/index.js';
-import { syncChatGPTContentScripts } from '../capabilities/chatgptInjection.js';
 
 initSessionAccessLevel();
 initLifecycleListeners();
 initUninstallUrl();
 initTabActionListeners();
-void syncClaudeContentScripts().catch(error => console.warn('[Claude injection]', error));
-void syncChatGPTContentScripts().catch(error => console.warn('[ChatGPT injection]', error));
-chrome.permissions?.onAdded?.addListener(() => { void syncClaudeContentScripts().catch(error => console.warn('[Claude injection]', error)); void syncChatGPTContentScripts().catch(error => console.warn('[ChatGPT injection]', error)); });
-chrome.permissions?.onRemoved?.addListener(() => { void syncClaudeContentScripts().catch(error => console.warn('[Claude injection]', error)); void syncChatGPTContentScripts().catch(error => console.warn('[ChatGPT injection]', error)); });
+const syncSourceAccess = () => { void syncAllPlatformContentScripts().catch(error => console.warn('[Platform injection]', error)); };
+syncSourceAccess();
+chrome.permissions?.onAdded?.addListener(syncSourceAccess);
+chrome.permissions?.onRemoved?.addListener(syncSourceAccess);
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     if (handleDomainIngestionMessage(message, sender, respond)) return true;
