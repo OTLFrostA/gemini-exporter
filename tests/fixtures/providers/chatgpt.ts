@@ -105,7 +105,7 @@ const fixtureMap = {
 };
 
 /** The native /backend-api/conversations JSON payload, including malformed test values. */
-export interface ChatGPTConversationsResponse {
+interface ChatGPTConversationsResponse {
     items?: unknown;
     total?: unknown;
     offset?: unknown;
