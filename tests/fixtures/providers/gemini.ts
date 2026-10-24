@@ -60,6 +60,9 @@ function e2eUuidList(id: string): string {
 }
 
 const fixtureMap = {
+    'G_E2E_ACCOUNT_REGISTRY_EMPTY_BATCH_01': () => '[]',
+    'G_PARSER_CONTRACT_MALFORMED_LIST_01': () => '[]',
+    'G_MESSAGE_BRIDGE_OVERSIZED_BODY_01': () => 'x'.repeat(3000001),
     'G_P1E_LEADING_DECOY_LIST_01': () => {
         const junkStr = JSON.stringify('just public_wifi talk');
         const listInnerStr = JSON.stringify([null, [['c_list0012345678', 'ListTitle', null, null, 5]], null]);
