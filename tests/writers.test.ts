@@ -85,8 +85,9 @@ test('zipWriter - exports, instantiation, and sanitization', () => {
 
 test('zipWriter - writeFile and generateBlob', async () => {
     const writer = new ZipWriter();
+    writer.MAX_SAFE_ZIP_BYTES = 11;
     writer.writeFile('test.txt', 'Hello world');
-    assert.strictEqual(writer.getTotalBytes(), 11);
+    assert.throws(() => writer.writeFile('overflow.txt', '!'), /上限/);
     let progressReported = null;
     const blob = await writer.generateBlob((pct: any) => {
         progressReported = pct;
@@ -99,7 +100,6 @@ test('zipWriter counts Blob bytes toward the safety limit', () => {
     const writer = new ZipWriter();
     writer.MAX_SAFE_ZIP_BYTES = 10;
     writer.writeFile('small.bin', new Blob([new Uint8Array(8)]));
-    assert.strictEqual(writer.getTotalBytes(), 8);
     assert.throws(() => writer.writeFile('large.bin', new Blob([new Uint8Array(3)])), /上限/);
 });
 

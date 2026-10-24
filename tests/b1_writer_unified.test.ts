@@ -26,9 +26,11 @@ test('B1 - 10 PNG resources pass through Packaging and writer with byte accounti
         resources: Object.fromEntries(assets.map((asset, i) => [asset.id, `assets/img${i}.png`])),
         externalResourceIds: required }, 'body', prepared);
     const writer = new ZipWriter();
+    writer.MAX_SAFE_ZIP_BYTES = 4 + 10 * bytes.byteLength;
     for (const file of files) writer.writeFile(file.fileName, file.content);
-    assert.equal(writer.getTotalBytes(), 4 + 10 * bytes.byteLength);
+    assert.throws(() => writer.writeFile('assets/overflow.bin', new Uint8Array([0])), /上限/);
     assert.equal(captured.size, 11);
+    assert.equal(captured.has('assets/overflow.bin'), false);
     for (const [path, entry] of captured) assert.equal(entry.options.compression, path.endsWith('.png') ? 'STORE' : 'DEFLATE');
 });
 test('B1 - 200MB limit rejects the 201st one-MB resource before writing it', () => {

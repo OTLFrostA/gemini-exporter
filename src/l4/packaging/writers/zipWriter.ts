@@ -3,11 +3,6 @@ import type { IExportWriter, WriteFileContent, WriteFileOptions } from '../../de
 import { assertExportPath } from '../exportPath.js';
 import { __resolveModule } from '../../../shared/utils/moduleOverrides.js';
 
-export interface ZipWriterClass {
-    new (): ZipWriter;
-    ZipWriter: typeof ZipWriter;
-}
-
 /**
  * Identify already-compressed binary media assets where DEFLATE provides 0% gain
  * but wastes massive CPU and memory.
@@ -37,8 +32,6 @@ class ZipWriter implements IExportWriter {
     folder: ZipInstance;
     totalBytes: number;
     MAX_SAFE_ZIP_BYTES: number;
-
-    static ZipWriter = ZipWriter;
 
     constructor() {
         const JSZipLib = (__resolveModule('JSZip', null)
@@ -94,10 +87,6 @@ class ZipWriter implements IExportWriter {
 
         this.folder.file(cleanPath, content, fileOpts);
         return cleanPath;
-    }
-
-    getTotalBytes(): number {
-        return this.totalBytes;
     }
 
     async generateBlob(onUpdate?: (pct: number) => void): Promise<Blob> {
