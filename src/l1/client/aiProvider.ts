@@ -5,8 +5,6 @@ import type { DomainAsset } from '../../l2/conversationDetail.js';
 import type { PageObservation } from '../../l2/pageObservation.js';
 import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
 
-export type { ProviderConversationItem } from '../parsers/contracts.js';
-
 export type PageEvidence = Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>;
 export interface CommittedListPage { page: number; totalObserved: number; scanHead?: PageEvidence }
 export type ListEnd = 'source_end' | 'provider_limit' | 'max_pages' | 'stopped';
