@@ -37,7 +37,7 @@ export const CrossWorldEvents = {
     LIVE_SAVE_TRIGGER: 'GEMINI_LIVE_SAVE_TRIGGER'
 } as const;
 
-export const EVENTS = CrossWorldEvents;
+const EVENTS = CrossWorldEvents;
 type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
 
 export type DetailErrorCategory =
@@ -62,14 +62,14 @@ export interface GeminiProtocolModule {
     classifyDetailError: (rawTextOrErr: unknown, status?: number) => DetailErrorCategory;
 }
 
-export const PROTOCOL_VERSION = '2026-09-07';
+const PROTOCOL_VERSION = '2026-09-07';
 
 // batchexecute wrapper: every payload row is ["wrb.fr", "<rpc>", "<json string>", ...]
-export const WRB = 'wrb.fr';
+const WRB = 'wrb.fr';
 
 // RPC endpoint names (compiled Google-side identifiers — rotate together
 // with WRB consumers when Google redeploys).
-export const RPCS: ProtocolRPCS = {
+const RPCS: ProtocolRPCS = {
     LIST: 'MaZiqc',        // conversation list (sidebar pagination)
     DETAIL: 'hNvQHb',      // conversation detail (turns payload)
     LEGACY_LIST: 'b7Lged', // legacy list payload shape still returned by detail calls
@@ -78,12 +78,12 @@ export const RPCS: ProtocolRPCS = {
 };
 
 // WIZ_global_data token key names.
-export const TOKENS: ProtocolTokens = {
+const TOKENS: ProtocolTokens = {
     AT: 'SNlM0e', // XSRF/at token
     BL: 'cfb2h'   // frontend build label key (the "bl" request param)
 };
 
-export const TOKEN_PATTERNS: ProtocolTokenPatterns = {
+const TOKEN_PATTERNS: ProtocolTokenPatterns = {
     atFromScript: /"SNlM0e"\s*:\s*"([^"]+)"/,
     atGenericFromScript: /"at"\s*:\s*"([^"]{20,})"/,
     blKeyFromScript: /"bl"\s*:\s*"([^"]+)"/,
@@ -95,7 +95,7 @@ export const TOKEN_PATTERNS: ProtocolTokenPatterns = {
 
 // Deletion sniffing: the deleted conversation id must be anchored to the
 // GzXR5e payload context (#194).
-export const DELETION_ANCHORS: RegExp[] = [
+const DELETION_ANCHORS: RegExp[] = [
     /["']GzXR5e["'][\s\S]{1,150}?c_([a-f0-9]{8,64})/i,
     /GzXR5e[\s\S]{1,150}?c_([a-f0-9]{8,64})/i
 ];
@@ -104,19 +104,19 @@ export const DELETION_ANCHORS: RegExp[] = [
 // then trigger HTTP 400 — TOKEN_PATTERNS.bl* extraction normally supplies
 // a fresh one; this is last-resort only. Keep in sync with the live
 // frontend when rotating protocol profiles.
-export const BL_FALLBACK = 'boq_assistant-bard-web-server_20260802.09_p1';
+const BL_FALLBACK = 'boq_assistant-bard-web-server_20260802.09_p1';
 
 // Conversation count limits. 500 is Google's sliding-window size: counts
 // reaching it trigger the Takeout guidance flow. SERVER_LIMIT_TEXT is the
 // (localized-ish) marker inside the server-side error message.
-export const LIMITS: ProtocolLimits = {
+const LIMITS: ProtocolLimits = {
     SLIDING_WINDOW: 500,
     SERVER_LIMIT_TEXT: '600条'
 };
 
 // Real frontends use an incrementing _reqid starting from a random base;
 // a pure Math.random() per request is a fingerprintable deviation.
-export function createReqidGenerator(): () => string {
+function createReqidGenerator(): () => string {
     let n = 100000 + Math.floor(Math.random() * 900000);
     return function nextReqid(): string {
         return String(n++);
