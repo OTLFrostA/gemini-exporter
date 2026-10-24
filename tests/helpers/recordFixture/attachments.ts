@@ -3,7 +3,6 @@ import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResear
 export * from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 interface GeminiParserAttachmentsModule {
     isInternalChipUrl: (u?: string | null) => boolean;
-    getImageDedupKey: (imageObj: Partial<ImageAttachment>) => string;
     filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
     extractImageEvidence: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
     extractResponseImageEvidence: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];

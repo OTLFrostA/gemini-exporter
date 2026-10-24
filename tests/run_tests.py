@@ -719,7 +719,7 @@ def test_storage_keys_and_constants_ssot():
     assert "putExportRecord" in exporter and "getExportRecord" in exporter
     assert "LAST_EXPORT_SESSION" not in exporter, "Export must not use persistent V1 sessions"
     idb = source("src/l3a/idb.ts")
-    assert "export const DATABASE_NAME" in idb and "export const DATABASE_VERSION" in idb, (
+    assert "const DATABASE_NAME" in idb and "const DATABASE_VERSION" in idb, (
         "L3a must own the active IndexedDB name and schema version")
     assert "indexedDB.open(DATABASE_NAME, DATABASE_VERSION)" in idb, (
         "IndexedDB must open with the canonical L3a configuration")

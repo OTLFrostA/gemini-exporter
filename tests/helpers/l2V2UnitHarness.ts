@@ -26,7 +26,7 @@ export const DEFAULT_ACCOUNT: Account = {
 export const accounts = new Map<string, Account>();
 export const indexes = new Map<string, DomainConversationIndex>();
 export const details = new Map<string, DomainConversationDetail>();
-export const coverage = new Map<string, StreamCoverage>();
+const coverage = new Map<string, StreamCoverage>();
 export const calls = {
     indexUpdates: [] as ConversationKey[][],
     detailUpdates: [] as ConversationKey[],
@@ -151,5 +151,5 @@ try {
 
 export const { ingestIndexes, ingestDetail, ingestDeletedConversation } = ingestion;
 export const { getOrCreateAccount } = admission;
-export const { recordPageCoverage, hasTrustedBoundary } = coverageAdmission;
+export const { recordPageCoverage } = coverageAdmission;
 resetL2UnitPorts();
