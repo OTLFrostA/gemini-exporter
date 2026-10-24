@@ -10,7 +10,9 @@ function stringifyLimited(value: unknown, depth: number): string {
     if (Array.isArray(value)) {
         return `[${value.map((v) => stringifyLimited(v, depth + 1)).join(', ')}]`;
     }
-    const entries: [string, unknown][] = Object.entries(value!);
+    // Object.entries(undefined) throws; preserve the existing unreadable fallback without a non-null assertion.
+    if (value === undefined) throw new TypeError('Cannot enumerate undefined provider content');
+    const entries: [string, unknown][] = Object.entries(value);
     entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}: ${stringifyLimited(v, depth + 1)}`).join(', ')}}`;
 }
