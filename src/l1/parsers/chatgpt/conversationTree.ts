@@ -200,7 +200,7 @@ export function processChatGPTMapping(
 }
 
 /** Text of a node for Domain conversion; non-text parts become empty. */
-export function chatGPTNodeText(node: ChatGPTConversationNode): string {
+function chatGPTNodeText(node: ChatGPTConversationNode): string {
     const content = node.message?.content;
     if (!content) return '';
     if (content.content_type === 'text') return Array.isArray(content.parts) ? content.parts.join('') : '';
