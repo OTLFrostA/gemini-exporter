@@ -1,4 +1,5 @@
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
+import { extractSourceAttributions, type GeminiSourceAttribution } from "./sourceAttributions.js";
 export interface JspbTurnSchema {
     ID_META: number;
     TIMESTAMP: number;
@@ -135,6 +136,12 @@ export interface TitleResult {
 export interface DecodedGeminiCandidate {
     id: string;
     text: string;
+    /** Source facts decoded once, before message assembly. */
+    thoughts: string | null;
+    citations: Citation[];
+    sourceAttributions: GeminiSourceAttribution[];
+    groundingCitationMarkers: string[];
+    /** Raw evidence is reserved for the media, document and structured decoders. */
     body: unknown;
     raw: unknown;
 }
@@ -817,11 +824,17 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         const selected = candidates[candidateIndex];
         const slots = isUnknownArray(selected) ? selected : null;
         const rawId = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+        const body = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
+        const candidateBlock = body || selected;
         const candidate: DecodedGeminiCandidate | null = candidateIndex < candidates.length
             ? {
                 id: typeof rawId === "string" ? rawId : "",
                 text: extractModelResponseText(selected),
-                body: slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY],
+                thoughts: extractThoughts(candidateBlock),
+                citations: extractCitations(candidateBlock),
+                sourceAttributions: extractSourceAttributions(selected),
+                groundingCitationMarkers: extractGroundingCitationMarkers(selected || candidateBlock),
+                body,
                 raw: selected
             }
             : null;
