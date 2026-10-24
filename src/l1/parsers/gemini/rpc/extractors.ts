@@ -1,5 +1,5 @@
 import { extractSourceAttributions, type GeminiSourceAttribution } from "./sourceAttributions.js";
-export interface JspbTurnSchema {
+interface JspbTurnSchema {
     ID_META: number;
     TIMESTAMP: number;
     USER_PAYLOAD: number;
@@ -7,7 +7,7 @@ export interface JspbTurnSchema {
     REQUEST_ID_SLOT: number;
 }
 
-export interface JspbModelPayloadSchema {
+interface JspbModelPayloadSchema {
     CANDIDATES: number;
     SEARCH_QUERIES: number;
     PROVIDER: number;
@@ -16,17 +16,17 @@ export interface JspbModelPayloadSchema {
     STRUCTURED_CONTENT?: number;
 }
 
-export interface JspbCandidateSchema {
+interface JspbCandidateSchema {
     ID: number;
     BODY: number;
     LANGUAGE_CODE: number;
 }
 
-export interface JspbCandidateBodySchema {
+interface JspbCandidateBodySchema {
     PARTS: number;
 }
 
-export interface JspbListItemSchema {
+interface JspbListItemSchema {
     ID: number;
     TITLE: number;
     TIMESTAMP: number;
@@ -40,7 +40,7 @@ export interface JspbListItemSchema {
  * Inner payload structure after batchexecute envelope unwrap.
  * Used by both parseList and parseDetail to locate turns, title, conv-id, and pagination token.
  */
-export interface JspbInnerSchema {
+interface JspbInnerSchema {
     /** Primary index for turns array (detail) or conversation list (list) */
     TURNS_OR_LIST_PRIMARY: number;
     /** Secondary index (fallback) for conversation list */
@@ -58,7 +58,7 @@ export interface JspbInnerSchema {
 /**
  * Simple inline image tuple: [url, width, height, token?]
  */
-export interface JspbInlineImageSchema {
+interface JspbInlineImageSchema {
     URL: number;
     WIDTH: number;
     HEIGHT: number;
@@ -69,7 +69,7 @@ export interface JspbInlineImageSchema {
  * Generated / uploaded media node (complex format):
  *   [?, ?, filename, url, ?, token, ..., mimeType, ..., ?, ?, ?, dimensions]
  */
-export interface JspbGeneratedImageSchema {
+interface JspbGeneratedImageSchema {
     FILENAME: number;
     URL: number;
     TOKEN: number;
@@ -81,7 +81,7 @@ export interface JspbGeneratedImageSchema {
 /**
  * Deep Research document metadata chip structure.
  */
-export interface JspbDeepResearchDocSchema {
+interface JspbDeepResearchDocSchema {
     CHIP_URL: number;     // item[0][0]
     ID: number;
     TITLE: number;
@@ -92,11 +92,11 @@ export interface JspbDeepResearchDocSchema {
 /**
  * BardErrorInfo position within the batchexecute envelope.
  */
-export interface JspbErrorInfoSchema {
+interface JspbErrorInfoSchema {
     ERROR_SLOT: number;
 }
 
-export interface GeminiJspbSchema {
+interface GeminiJspbSchema {
     TURN: JspbTurnSchema;
     MODEL_PAYLOAD: JspbModelPayloadSchema;
     CANDIDATE: JspbCandidateSchema;
@@ -157,7 +157,7 @@ export interface DecodedGeminiTurn {
     candidateIndex: number;
 }
 
-export interface GeminiParserExtractorsModule {
+interface GeminiParserExtractorsModule {
     GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
     RESEARCH_PROMPT_PREFIX_RE: RegExp;
     detectTurnSchemaDrift: (turn: unknown, convId?: string) => TurnDriftReport;
