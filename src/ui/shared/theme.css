@@ -7,8 +7,8 @@
 :root[data-theme-bootstrap] *::before,
 :root[data-theme-bootstrap] *::after { transition: none !important; }
 
-/* Light palette for extension Popup, Options and Tour.
-   Keep the existing dark rules untouched to preserve the original appearance. */
+/* Shared theme overrides for extension Popup, Options and Tour.
+   Dark and light palettes are independently scoped; the light design stays unchanged. */
 .theme-switch {
   flex: none;
   width: 30px;
@@ -140,3 +140,171 @@
 :root[data-theme="light"] .tour-footer { border-top-color: #e4e8f1; }
 :root[data-theme="light"] .tour-skip-btn:hover { color: #1e293b; }
 :root[data-theme="light"] .tour-action-hint { color: #4338ca; }
+
+
+/* Quiet charcoal dark theme. Keep all layout, spacing and light-theme styles intact.
+   Shared semantic tokens cover Workbench, Popup and onboarding surfaces. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12151b;
+  --card: #1b2028;
+  --card-inner: #232832;
+  --border: #303744;
+  --border-focus: #55617a;
+  --text: #edf0f7;
+  --muted: #a2acbe;
+  --accent: #7182e8;
+  --accent2: #92a0f2;
+  --ok: #8fd0b0;
+  --warn: #e4b77b;
+  --danger: #e6a0a6;
+  --text-muted: #a2acbe;
+  --destructive-text: #e6a0a6;
+  --destructive-border: #674b56;
+  --subtle-button-border: #394250;
+  --diagnostic-text: #aeb9fb;
+  --current-chat-accent: #aebafa;
+  --tour-bg: #20252e;
+  --tour-border: #38414e;
+  --tour-accent: #7182e8;
+  --tour-accent2: #7182e8;
+  --tour-text: #edf0f7;
+  --tour-muted: #a2acbe;
+}
+
+/* Flatten the former purple-to-cyan gradients into one restrained accent. */
+:root[data-theme="dark"] .primary,
+:root[data-theme="dark"] .tab-btn.active,
+:root[data-theme="dark"] .tour-action-btn:not(.secondary),
+:root[data-theme="dark"] .tour-nav-btn.primary {
+  background: #596bcf;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+}
+:root[data-theme="dark"] .primary:hover,
+:root[data-theme="dark"] .tour-action-btn:not(.secondary):hover,
+:root[data-theme="dark"] .tour-nav-btn.primary:hover {
+  background: #6476dc;
+  box-shadow: 0 3px 9px rgba(0, 0, 0, .2);
+  transform: none;
+}
+:root[data-theme="dark"] .bar,
+:root[data-theme="dark"] input[type=checkbox].toggle:checked {
+  background: #6476d8;
+}
+:root[data-theme="dark"] input[type=checkbox].toggle:not(:checked) {
+  background: #414958;
+}
+:root[data-theme="dark"] .ghost,
+:root[data-theme="dark"] .tour-action-btn.secondary,
+:root[data-theme="dark"] .tour-nav-btn {
+  background: #272e38;
+  border-color: #38414d;
+  color: var(--text);
+}
+:root[data-theme="dark"] .ghost:hover,
+:root[data-theme="dark"] .tour-action-btn.secondary:hover,
+:root[data-theme="dark"] .tour-nav-btn:hover {
+  background: #323a46;
+  border-color: var(--border-focus);
+}
+:root[data-theme="dark"] button.ghost:disabled {
+  background: #232832;
+  color: #828d9d;
+  border-color: #313947;
+}
+
+/* Use surface elevation rather than bright outlines for nested choices. */
+:root[data-theme="dark"] .card { border-color: #2c333e; }
+:root[data-theme="dark"] .label { color: #b1bacb; }
+:root[data-theme="dark"] .export-preferences,
+:root[data-theme="dark"] .delivery-card,
+:root[data-theme="dark"] .tab-group {
+  background: #222832;
+  border-color: #333c49;
+}
+:root[data-theme="dark"] .delivery-card:has(.delivery-choice input:checked) {
+  background: #29303c;
+  border-color: #4b5770;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+:root[data-theme="dark"] .page-select,
+:root[data-theme="dark"] select {
+  background: #292f3b;
+}
+:root[data-theme="dark"] .list {
+  background: #20252e;
+  border-color: #303744;
+}
+:root[data-theme="dark"] .item:hover,
+:root[data-theme="dark"] .feedback-card:hover {
+  background: #2d3541;
+}
+:root[data-theme="dark"] .feedback-card {
+  background: #222832;
+}
+:root[data-theme="dark"] .tab-btn:hover {
+  background: rgba(255, 255, 255, .055);
+}
+:root[data-theme="dark"] .progress { background: #323a46; }
+
+/* Keep badges and export states legible without neon success/failure blocks. */
+:root[data-theme="dark"] .badge {
+  background: #252c3b;
+  border-color: #36415a;
+  color: #b7c3ff;
+}
+:root[data-theme="dark"] .badge.inactive {
+  background: #252a33;
+  border-color: #35404d;
+  color: #9ca5b5;
+}
+:root[data-theme="dark"] #list .status-exported {
+  color: #a0d7b8;
+  border-color: #345b4b;
+  background: #21372d;
+}
+:root[data-theme="dark"] #list .status-updated,
+:root[data-theme="dark"] #list .status-unavailable {
+  color: #e6c38c;
+  border-color: #665536;
+  background: #373022;
+}
+:root[data-theme="dark"] #list .status-failed,
+:root[data-theme="dark"] #list .status-partial {
+  color: #edadb2;
+  border-color: #6c444d;
+  background: #3c292f;
+}
+
+/* The previous scrollbar blues stood out against otherwise neutral surfaces. */
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #444e5f; }
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #59657a; }
+:root[data-theme="dark"] #list::-webkit-scrollbar-track,
+:root[data-theme="dark"] .list::-webkit-scrollbar-track {
+  background: #20252e !important;
+}
+:root[data-theme="dark"] #list::-webkit-scrollbar-thumb,
+:root[data-theme="dark"] .list::-webkit-scrollbar-thumb {
+  background: #465165 !important;
+  border-color: #20252e !important;
+}
+:root[data-theme="dark"] #list::-webkit-scrollbar-thumb:hover,
+:root[data-theme="dark"] .list::-webkit-scrollbar-thumb:hover {
+  background: #5c6a81 !important;
+}
+
+/* Onboarding and release-notice surfaces follow the same dark palette. */
+:root[data-theme="dark"] .tour-content { color: #c0cad8; }
+:root[data-theme="dark"] .tour-action-box { background: #262d38; }
+:root[data-theme="dark"] .tour-title { color: var(--tour-text); }
+:root[data-theme="dark"] .tour-step-badge {
+  color: #b8c3fb;
+  background: #2e3550;
+  border-color: #454e79;
+}
+:root[data-theme="dark"] .tour-action-hint {
+  color: #b8c3fb;
+  background: #2a3147;
+  border-color: #48567c;
+}
