@@ -99,17 +99,9 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
         }
     }
 
-export {
-    GEMINI_API_URL,
-    getProtocol,
-    getApiUrl,
-    nextReqid,
-    generateFallbackSid,
-    postBatchexecute,
-    mergeAbortSignals
-};
+export { getApiUrl, postBatchexecute };
 
-export const GeminiClientRpcClient: GeminiClientRpcClientModule = {
+const GeminiClientRpcClient: GeminiClientRpcClientModule = {
     GEMINI_API_URL,
     getProtocol,
     getApiUrl,
