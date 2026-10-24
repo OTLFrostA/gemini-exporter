@@ -7,7 +7,7 @@ export { getCoverage } from '../l3a/storageService.js';
 export type ScanHead = PageObservationHead;
 
 /** Evaluate source evidence under Storage's current Coverage, publishing the cursor chain after commit. */
-export async function recordPageCoverage<T>(accountId: string, page: PageObservation<T>, canCommit?: () => boolean): Promise<void> {
+export async function recordPageCoverage(accountId: string, page: PageObservation, canCommit?: () => boolean): Promise<void> {
     if (!isAccountId(accountId) || page.accountId !== accountId) throw new TypeError('Coverage requires its Registry UUID');
     let accepted: CoverageSession | undefined;
     await updateCoverageAtomically(accountId, page.streamId, current => {

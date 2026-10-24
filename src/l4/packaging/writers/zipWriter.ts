@@ -27,6 +27,32 @@ interface ZipInstance {
 }
 type ZipConstructor = new () => ZipInstance;
 
+declare global {
+    interface WindowOrWorkerGlobalScope { JSZip?: ZipConstructor }
+    namespace NodeJS {
+        interface Require { (id: 'jszip'): ZipConstructor }
+    }
+}
+
+function isZipConstructor(value: unknown): value is ZipConstructor {
+    return typeof value === 'function';
+}
+
+function resolveJSZip(): ZipConstructor | null {
+    const override = __resolveModule<ZipConstructor | null>('JSZip', null);
+    if (override) return override;
+    if (typeof self !== 'undefined' && self.JSZip) return self.JSZip;
+    if (typeof require !== 'undefined') {
+        try {
+            const loaded: unknown = require('jszip');
+            return isZipConstructor(loaded) ? loaded : null;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
 class ZipWriter implements IExportWriter {
     zip: ZipInstance;
     folder: ZipInstance;
@@ -34,9 +60,7 @@ class ZipWriter implements IExportWriter {
     MAX_SAFE_ZIP_BYTES: number;
 
     constructor() {
-        const JSZipLib = (__resolveModule('JSZip', null)
-            || (typeof self !== 'undefined' ? (self as typeof self & { JSZip?: unknown }).JSZip : null)
-            || (typeof require !== 'undefined' ? (function() { try { return require('jszip'); } catch { return null; } })() : null)) as ZipConstructor | null;
+        const JSZipLib = resolveJSZip();
         if (!JSZipLib) {
             throw new Error('JSZip library is not available');
         }

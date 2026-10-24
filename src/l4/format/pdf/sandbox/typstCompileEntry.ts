@@ -10,8 +10,11 @@ import {
     HOST_TO_SANDBOX,
     SANDBOX_TO_HOST,
     checkMessageSource,
+    isSandboxBinaryEntry,
+    isSandboxFileEntry,
     parseProtocolMessage,
     sandboxExpectedHostOrigin,
+    type ParsedProtocolMessage,
 } from '../typst/sandboxProtocol.js';
 
 import themeTyp from '../../typst/templates/theme.typ';
@@ -71,7 +74,7 @@ function throwIfCancelled(job: CompileJob, jobId: string): void {
     }
 }
 
-async function handleInit(jobId: string, body: Record<string, unknown>): Promise<void> {
+async function handleInit(jobId: string, body: ParsedProtocolMessage['body']): Promise<void> {
     const wasm = body.wasm;
     if (!(wasm instanceof ArrayBuffer)) {
         throw new Error('init message must carry the WASM module as a transferred ArrayBuffer');
@@ -90,7 +93,7 @@ async function handleInit(jobId: string, body: Record<string, unknown>): Promise
     });
 }
 
-async function handleCompile(jobId: string, body: Record<string, unknown>): Promise<void> {
+async function handleCompile(jobId: string, body: ParsedProtocolMessage['body']): Promise<void> {
     const activeCompiler = compiler;
     const activeFontBuilder = fontBuilder;
     if (!activeCompiler || !activeFontBuilder) {
@@ -114,22 +117,20 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
         activeCompiler.addSource('/main.typ', MAIN_TYP);
         for (const file of files) {
             throwIfCancelled(job, jobId);
-            const entry = file as { path?: unknown; text?: unknown };
-            if (typeof entry.path !== 'string' || typeof entry.text !== 'string') {
+            if (!isSandboxFileEntry(file)) {
                 throw new Error('compile file entries must be {path, text} strings');
             }
-            activeCompiler.addSource(entry.path, entry.text);
+            activeCompiler.addSource(file.path, file.text);
         }
         reply(jobId, { type: SANDBOX_TO_HOST.PROGRESS, stage: 'sources', current: 1, total: 3 });
 
         for (const binary of binaries) {
             throwIfCancelled(job, jobId);
-            const entry = binary as { path?: unknown; buf?: unknown };
-            if (typeof entry.path !== 'string' || !(entry.buf instanceof ArrayBuffer)) {
+            if (!isSandboxBinaryEntry(binary)) {
                 throw new Error('compile binary entries must be {path, buf:ArrayBuffer}');
             }
-            const shadowPath = entry.path.startsWith('/') ? entry.path : `/${entry.path}`;
-            activeCompiler.mapShadow(shadowPath, new Uint8Array(entry.buf));
+            const shadowPath = binary.path.startsWith('/') ? binary.path : `/${binary.path}`;
+            activeCompiler.mapShadow(shadowPath, new Uint8Array(binary.buf));
             mappedPaths.push(shadowPath);
         }
 

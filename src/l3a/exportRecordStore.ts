@@ -4,16 +4,14 @@ import type { ExportRecord } from '../application/export/types.js';
 import { inStore, readOne, putOne } from './idb.js';
 import { conversationAddress } from './conversationStore.js';
 
-interface ExportRow { accountId: string; conversationId: string; value: ExportRecord }
 export async function getExportRecord(key: ConversationKey): Promise<ExportRecord | null> {
-    return (await readOne<ExportRow>('exportRecords', conversationAddress(key)))?.value ?? null;
+    return (await readOne('exportRecords', conversationAddress(key)))?.value ?? null;
 }
 export function listExportRecords(accountId: Account['id']): Promise<Record<string, ExportRecord>> {
-    return inStore<Record<string, ExportRecord>>('exportRecords', 'readonly', (store, done) => {
+    return inStore('exportRecords', 'readonly', (store, done) => {
         const request = store.getAll(IDBKeyRange.bound([accountId], [accountId, []]));
         request.onsuccess = () => {
-            const rows: ExportRow[] = request.result;
-            done(Object.fromEntries(rows.map(row => [row.conversationId, row.value])));
+            done(Object.fromEntries(request.result.map(row => [row.conversationId, row.value])));
         };
     });
 }

@@ -1,4 +1,4 @@
-import type { DisplayBlock, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
+import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
 import { visual } from '../shared/visualContract.js';
 import { blockText, inlineText, codeHeader, fileBadge, humanBytes, headerMetadata, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
@@ -74,7 +74,7 @@ export function renderDocumentTypstCore(
                 return { type: 'math', latex: node.source, ...(typst ? { typst } : {}), fallbackLabel: strings.mathFallback, layout };
             }
             case 'table': {
-                const cell = (entry: typeof node.rows[number][number]): TypstTableCell => ({ children: entry.children.map(inline), ...(entry.colSpan > 1 ? { colspan: entry.colSpan } : {}), ...(entry.rowSpan > 1 ? { rowspan: entry.rowSpan } : {}) });
+                const cell = (entry: DisplayCell): TypstTableCell => ({ children: entry.children.map(inline), ...(entry.colSpan > 1 ? { colspan: entry.colSpan } : {}), ...(entry.rowSpan > 1 ? { rowspan: entry.rowSpan } : {}) });
                 return { type: 'table', headers: node.headerRows.map(row => row.map(cell)), rows: node.rows.map(row => row.map(cell)), columnCount: node.columnAlignments.length, aligns: node.columnAlignments.map(align => align === 'default' ? 'left' : align), repeatHeader: true, ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout };
             }
             case 'image': return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout } : missing('image', node.alt, node.resourceId, node.caption);

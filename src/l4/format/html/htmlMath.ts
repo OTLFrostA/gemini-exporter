@@ -8,8 +8,7 @@ export interface RenderMathHtmlResult {
     diagnostic?: RenderDiagnostic;
 }
 
-function escapeHtml(text?: string | null): string {
-    if (!text || typeof text !== 'string') return '';
+function escapeHtml(text: string): string {
     return text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

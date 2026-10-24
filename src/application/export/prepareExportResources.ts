@@ -8,7 +8,7 @@ export async function prepareExportResources(
     acquire: (asset: DomainAsset, signal?: AbortSignal) => Promise<ResourceBytes>,
     signal?: AbortSignal,
 ): Promise<PreparedResources> {
-    const prepared = new Map<string, ResourceResult<ResourceBytes>>();
+    const prepared = new Map<string, ResourceResult>();
     for (const id of requiredIds) {
         signal?.throwIfAborted();
         const asset = assets.find(asset => asset.id === id);

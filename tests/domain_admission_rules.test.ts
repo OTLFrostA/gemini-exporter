@@ -4,9 +4,8 @@ import assert from 'node:assert/strict';
 import { selectConversationDetail } from '../src/l2/conversationDetail.js';
 import type { DomainConversationDetail } from '../src/l2/conversationDetail.js';
 
-function snapshot(status: DomainConversationDetail['quality']['status'], count: number, savedAt?: number) {
-    return { detail: { key: fixtureKey(), ...(savedAt !== undefined ? { savedAt } : {}), quality: { status }, assets: [], messages: Array.from({ length: count }, () => ({ role: 'user' as const, content: [] })) },
-        ...(savedAt !== undefined ? { savedAt } : {}) };
+function snapshot(status: DomainConversationDetail['quality']['status'], count: number, savedAt?: number): DomainConversationDetail {
+    return { key: fixtureKey(), ...(savedAt !== undefined ? { savedAt } : {}), quality: { status }, assets: [], messages: Array.from({ length: count }, () => ({ role: 'user' as const, content: [] })) };
 }
 
 test('L2 accepts a shorter complete snapshot and never prefers message count', () => {

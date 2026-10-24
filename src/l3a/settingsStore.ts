@@ -10,7 +10,7 @@ export async function getStoredSettings(): Promise<Partial<GlobalSettings>> {
     ]);
     // Honor the v1 one-time acknowledgement without replaying the tip after upgrading.
     return { ...(data[SETTINGS_KEY] ?? {}),
-        ...(legacy.gemini_suppress_direct_write_prompt ? { directWritePromptCompleted: true as const } : {}) };
+        ...(legacy.gemini_suppress_direct_write_prompt ? { directWritePromptCompleted: true } : {}) };
 }
 export async function patchStoredSettings(patch: Partial<GlobalSettings>): Promise<void> {
     await navigator.locks.request(SETTINGS_KEY, async () => {

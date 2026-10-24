@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CoverageSession, emptyStream } from '../src/l2/streamCoverage.js';
 import type { PageObservation } from '../src/l2/pageObservation.js';
-function page(times: number[], requestCursor: string | null = null, nextCursor: string | null = null): PageObservation<unknown> {
-    return { providerId: 'other-provider', accountId: 'a', streamId: 'activity', items: [], requestCursor, nextCursor,
+function page(times: number[], requestCursor: string | null = null, nextCursor: string | null = null): PageObservation {
+    return { providerId: 'other-provider', accountId: 'a', streamId: 'activity', requestCursor, nextCursor,
         requestKnown: true, requestedAt: 1, valid: true, ordered: true, keys: times.map(time => ({ id: 'id' + time, time })) };
 }
 test('partial and disconnected pages never establish a new trusted history boundary', () => {
@@ -93,10 +93,10 @@ test('replayed Coverage observations identify keys by ID and source time, not ob
     assert.deepEqual(s.observe(emptyStream(), tail), { range: { head: head.keys[0], tail: tail.keys[0] } });
 });
 
-test('Coverage caches only cursor evidence, never the source row payload', () => {
+test('Coverage caches only cursor evidence, never extra properties', () => {
     const s = new CoverageSession();
     const rows = [{ token: 'source-only-secret' }];
-    const observation: PageObservation<{ token: string }> = {
+    const observation = {
         ...page([100]), items: rows,
     };
     assert.deepEqual(s.observe(emptyStream(), observation), {
@@ -116,6 +116,5 @@ test('Coverage early-stop matching accepts evidence without source items', () =>
     const head = page([120, 110], null, 'bridge');
     s.observe(prior, head);
     s.observe(prior, page([105, 85], 'bridge', 'more'));
-    const { items: _items, ...evidence } = head;
-    assert.equal(s.connects(prior, evidence), true);
+    assert.equal(s.connects(prior, head), true);
 });

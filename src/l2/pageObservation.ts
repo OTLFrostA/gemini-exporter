@@ -18,10 +18,7 @@ export interface PageObservationEvidence {
     keys: readonly CoverageKey[];
 }
 
-/** The untrusted source items are separate from the trusted cursor evidence. */
-export interface PageObservation<T> extends PageObservationEvidence {
-    items: readonly T[];
-}
+export type PageObservation = PageObservationEvidence;
 
 /** Callback/scan boundary: no source payload or account identity duplication. */
 export type PageObservationHead = Omit<PageObservationEvidence, 'providerId' | 'accountId'>;

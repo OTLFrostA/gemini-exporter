@@ -6,8 +6,8 @@ import { getCoverage, recordPageCoverage, hasTrustedBoundary } from '../src/l2/c
 import type { PageObservation } from '../src/l2/pageObservation.js';
 const accountId = fixtureAccount().id;
 let time = 0;
-function page(cursor: string | null = null, next: string | null = null, values = [100, 70]): PageObservation<unknown> {
-    return { accountId, providerId: 'gemini', streamId: 'recent', items: [], requestCursor: cursor, nextCursor: next,
+function page(cursor: string | null = null, next: string | null = null, values = [100, 70]): PageObservation {
+    return { accountId, providerId: 'gemini', streamId: 'recent', requestCursor: cursor, nextCursor: next,
         requestedAt: ++time, requestKnown: true, valid: true, ordered: true, keys: values.map(t => ({ id: 'id' + t, time: t })) };
 }
 test('Coverage exposes only committed range and callers receive detached baselines', async () => {

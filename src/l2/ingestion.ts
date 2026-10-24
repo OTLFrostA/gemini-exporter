@@ -48,7 +48,7 @@ export async function ingestIndexes(accountId: Account['id'],
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
     await mergeIndexes(indexes);
     if (page && account.providerAccountId !== DEFAULT_ACCOUNT_KEY) await CoverageAdmission.recordPageCoverage(accountId, {
-        ...page, providerId: account.providerId, accountId, items: indexes,
+        ...page, providerId: account.providerId, accountId,
         valid: page.valid && page.keys.length === indexes.length
             && page.keys.every(key => indexes.some(index => index.key.conversationId === key.id)),
     });
@@ -71,7 +71,7 @@ export async function ingestDetail(accountId: Account['id'], conversationId: Con
         const existingIndex = oldIndex ? restoreConversationIndex(oldIndex) : undefined;
         const acceptedIndex = mergeConversationIndex(existingIndex, index);
         const existing = oldDetail ? restoreDomainDetail(oldDetail) : null;
-        const selected = selectConversationDetail(existing ? { detail: existing } : undefined, { detail: incoming }).detail;
+        const selected = selectConversationDetail(existing, incoming);
         const sameFacts = sameStoredFacts.material;
         const accepted = selected === incoming || (existing !== null && sameFacts(existing, incoming));
         const changed = !existing || (selected !== existing && !sameFacts(existing, selected));

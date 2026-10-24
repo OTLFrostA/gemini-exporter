@@ -18,17 +18,20 @@ function sameFields(a: DomainFact, b: DomainFact): boolean {
     return keys.length === Object.keys(b).length && keys.every(key => Object.hasOwn(b, key));
 }
 
-function sameArray<T>(a: readonly T[] | undefined, b: readonly T[] | undefined, equal: (a: T, b: T) => boolean): boolean {
+type ArrayElement = DomainMessage | DomainAsset | DomainCitation | BlockNode | InlineNode
+    | ListItem | TableRow | TableCell | TableColumn | string;
+
+function sameArray<T extends ArrayElement>(a: readonly T[] | undefined, b: readonly T[] | undefined, equal: (a: T, b: T) => boolean): boolean {
     if (a === b) return true;
     return a !== undefined && b !== undefined && a.length === b.length
         && a.every((value, i) => equal(value, b[i]));
 }
 
-function sameOptional<T>(a: T | undefined, b: T | undefined, equal: (a: T, b: T) => boolean): boolean {
+function sameOptional<T extends DomainGeneratedMediaIdentity | DomainDocumentMetadata>(a: T | undefined, b: T | undefined, equal: (a: T, b: T) => boolean): boolean {
     return a === b || (a !== undefined && b !== undefined && equal(a, b));
 }
 
-const identical = <T>(a: T, b: T): boolean => a === b;
+const sameString = (a: string, b: string): boolean => a === b;
 
 function sameKey(a: ConversationKey, b: ConversationKey): boolean {
     return a === b || (sameFields(a, b) && a.accountId === b.accountId && a.conversationId === b.conversationId);
@@ -106,7 +109,7 @@ function sameMessage(a: DomainMessage, b: DomainMessage): boolean {
         && a.timestamp === b.timestamp
         && sameArray(a.content, b.content, sameBlock)
         && sameArray(a.reasoning, b.reasoning, sameBlock)
-        && sameArray(a.attachmentIds, b.attachmentIds, identical)
+        && sameArray(a.attachmentIds, b.attachmentIds, sameString)
         && sameArray(a.citations, b.citations, sameCitation));
 }
 function sameGeneration(a: DomainGeneratedMediaIdentity, b: DomainGeneratedMediaIdentity): boolean {

@@ -7,7 +7,7 @@ import { visual } from '../shared/visualContract.js';
 import { GEM_HTML_CSS, GEM_HTML_SCRIPT } from './htmlTemplate.js';
 import { renderMathHtml } from './htmlMath.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
-import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../../l3b/ast/ast.js';
+import type { DisplayBlock, DisplayCell, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
 
 const CANONICAL_EXTRA_CSS = `
@@ -224,7 +224,7 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
 <button class="gem-copy-btn" onclick="copyCode(this)" title="${isEn ? 'Copy Code' : '复制代码'}">${COPY_SVG}<span class="copy-text">${isEn ? 'Copy' : '复制'}</span></button></div><pre><code class="language-${escapeHtml(node.language || 'text')}">${escapeHtml(node.code)}</code></pre></div>`;
             case 'math': return math(node.source, true);
             case 'table': {
-                const row = (cells: typeof node.rows[number], tag: 'th' | 'td') => `<tr>${cells.map(cell => `<${tag}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${node.columnAlignments[cell.column] && node.columnAlignments[cell.column] !== 'default' ? ` style="text-align:${node.columnAlignments[cell.column]}"` : ''}>${inlines(cell.children)}</${tag}>`).join('')}</tr>`;
+                const row = (cells: DisplayCell[], tag: 'th' | 'td') => `<tr>${cells.map(cell => `<${tag}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${node.columnAlignments[cell.column] && node.columnAlignments[cell.column] !== 'default' ? ` style="text-align:${node.columnAlignments[cell.column]}"` : ''}>${inlines(cell.children)}</${tag}>`).join('')}</tr>`;
                 const crossesHeaderBoundary = node.rows.length > 0 && node.headerRows.some((cells, index) =>
                     cells.some(cell => index + cell.rowSpan > node.headerRows.length));
                 const headerRows = node.headerRows.map(cells => row(cells, 'th')).join('');

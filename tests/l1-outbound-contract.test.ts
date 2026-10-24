@@ -15,7 +15,7 @@ import type { TakeoutParseResult } from '../src/l1/imports/takeout/importTakeout
 type Assert<T extends true> = T;
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Takeout = typeof import('../src/l1/imports/takeout/importTakeout.js').importTakeout;
-type FrozenPageEvidence = Omit<PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>;
+type FrozenPageEvidence = Omit<PageObservation, 'providerId' | 'accountId'>;
 
 type Contract = [
     Assert<Equal<PageEvidence, FrozenPageEvidence>>,
