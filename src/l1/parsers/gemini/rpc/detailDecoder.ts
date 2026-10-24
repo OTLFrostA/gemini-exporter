@@ -15,7 +15,6 @@ import {
     decodeTurn,
     safeStructureClean,
     robustFirstPayload,
-    deepWalk,
     extractThoughts,
     extractCitations,
     extractGroundingCitationMarkers,
@@ -67,14 +66,6 @@ function isUnknownArray(value: unknown): value is unknown[] {
 
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function extractUserTextFromPayload(userPayload: unknown): string {
-    if (!isUnknownArray(userPayload) || userPayload.length === 0) return "";
-    const first = userPayload[0];
-    if (typeof first === "string") return first;
-    if (isUnknownArray(first) && typeof first[0] === "string") return first[0];
-    return "";
 }
 
 function isTurn(turn: unknown): boolean {
@@ -214,8 +205,8 @@ function buildUserMessage(
     imageSeq: { value: number }
 ): GeminiMessageEvidence | null {
     const ts = turn.timestamp;
-    const userPayload = turn.userPayload;
-    const uText = extractUserTextFromPayload(userPayload);
+    const userPayload = turn.rawUserPayload;
+    const uText = turn.userText;
     const uImgs = filterNewImages(media.images(userPayload, imageSeq), dedupSet);
     const uFiles = extractUserFiles(userPayload).filter((f: UserFileAttachment) => {
         const key = f.id || f.sourceUrl || f.fileName;
@@ -304,26 +295,11 @@ function parseCandidateResponse(
     convId?: string
 ): GeminiMessageEvidence | null {
     const cand = candidate.raw;
-    const rawTurn = turn.raw;
     const ts = turn.timestamp;
     const candidateIndex = turn.candidateIndex;
     const candidateId = candidate.id;
     const candidateBlock = candidate.body || cand;
     let responseText = candidate.text;
-
-    if (!responseText) {
-        const textArr: string[] = [];
-        deepWalk(cand, (node: unknown) => {
-            if (isUnknownArray(node)) {
-                if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 0 && !node[0].startsWith("http") && !node[0].startsWith("rc_") && !node[0].startsWith("c_")) {
-                    if (node[0].trim().length > 2 && !textArr.includes(node[0])) {
-                        textArr.push(node[0]);
-                    }
-                }
-            }
-        });
-        responseText = textArr.join("\n\n");
-    }
 
     // decodeTurn already owns the Turn-level document slot and selection.
     const structuredExtraction = inspectStructuredContent({
@@ -420,7 +396,7 @@ function parseCandidateResponse(
     const rawRequestId = turn.rawProviderRequestId;
     const providerRequestId = media.sourceOnly ? rawRequestId : turn.providerRequestId;
     const generatedCount = candImages.filter(img => img.isGenerated).length;
-    const generationPrompt = extractUserTextFromPayload(turn.userPayload);
+    const generationPrompt = turn.userText;
     const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
         const isGen = !!img.isGenerated;
         const ordinal = isGen ? (img.imageOrdinal ?? (generatedCount === 1 ? 0 : undefined)) : undefined;
