@@ -10,6 +10,8 @@ import { robustFirstPayload, extractModelCandidates, decodeTurn, extractCandidat
 import { extractInnerPayload, extractNextPageToken } from '../src/l1/parsers/gemini/rpc/payload.js';
 import { extractImages, extractUserFiles, extractDocumentsMeta } from './helpers/recordFixture/attachments.js';
 import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { decodeGeminiUserResources, decodeGeminiCandidateResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
+import { extractImageEvidence, extractResponseImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 
 // Synthetic boundary probes based on existing gemini_parser/parse_observability
 // fixtures; they characterize current behavior, not new wire compatibility.
@@ -217,7 +219,7 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     assert.equal(decoded.rawProviderRequestId, 'r_AB12');
     assert.equal(decoded.providerRequestId, 'ab12');
     assert.equal(decoded.userText, 'Prompt');
-    assert.equal(decoded.rawUserPayload, raw[2]);
+    assert.equal(Object.hasOwn(decoded, 'rawUserPayload'), false, 'User wire evidence stays private to L1 resource decoders');
     assert.equal(decoded.candidateIndex, 1);
     assert.deepEqual(decoded.candidate, {
         id: 'rc_selected',
@@ -225,9 +227,7 @@ test('Turn decoding validates known fields once and honors the selected draft', 
         thoughts: null,
         citations: [],
         sourceAttributions: [],
-        groundingCitationMarkers: [],
-        body: [['Selected answer']],
-        raw: candidates[1]
+        groundingCitationMarkers: []
     });
 
     const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_SELECTED_DRAFT_01'));
@@ -286,7 +286,8 @@ test('Turn decoder owns text fallbacks without guessing unrelated candidate meta
     assert.ok(decoded);
     assert.equal(decoded.userText, 'User prompt');
     assert.equal(decoded.candidate?.text, 'Model fallback answer');
-    assert.equal(decoded.candidate?.raw, fallbackCandidate, 'media decoders still get source evidence');
+    assert.equal(Object.hasOwn(decoded.candidate ?? {}, 'raw'), false);
+    assert.equal(Object.hasOwn(decoded.candidate ?? {}, 'body'), false);
 
     assert.equal(decodeTurn([[ID], null, ['Flat prompt'], null])?.userText, 'Flat prompt');
     assert.equal(decodeTurn([[ID], null, { invalid: true }, null])?.userText, '');
@@ -311,7 +312,7 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     assert.equal(decodedPartial.candidateIndex, 0);
     assert.equal(decodedPartial.candidate?.id, '');
     assert.equal(decodedPartial.candidate?.text, 'Text without an ID');
-    assert.equal(decodedPartial.candidate?.raw, partialCandidate);
+    assert.equal(Object.hasOwn(decodedPartial.candidate ?? {}, 'raw'), false);
     assert.equal(decodeTurn([null, null, null, { malformed: true }])?.candidate, null);
 
     const rawDocument = [[[null]]];
@@ -319,7 +320,32 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     const modelPayload = withMedia[3];
     if (!Array.isArray(modelPayload)) throw new Error('fixture model payload must be array');
     modelPayload[12] = rawDocument;
-    assert.equal(decodeTurn(withMedia)?.rawAnswerDocument, rawDocument);
+    assert.equal(Object.hasOwn(decodeTurn(withMedia) ?? {}, 'rawAnswerDocument'), false);
+});
+
+test('Gemini resource decoder consumes raw Turn/Candidate wire slots but exports only typed evidence', () => {
+    const wireDocument = [[[Array.from({ length: 35 }, (_v, i) => i === 34 ? ['x^2'] : null)]]];
+    const wireCandidate = ['rc_boundary', [['Answer']]];
+    const modelPayload: unknown[] = [[wireCandidate]];
+    modelPayload[12] = wireDocument;
+    const rawTurn: unknown[] = [[ID, 'r_AB12'], null, [['Prompt']], modelPayload];
+    const decoded = decodeTurn(rawTurn);
+    assert.ok(decoded?.candidate);
+    const media = { sourceOnly: true, images: extractImageEvidence, responseImages: extractResponseImageEvidence };
+    const sequence = { value: 1 };
+    const userResources = decodeGeminiUserResources(rawTurn, media, sequence);
+    assert.deepEqual(userResources.images, []);
+    assert.deepEqual(userResources.files, []);
+    const result = decodeGeminiCandidateResources(
+        rawTurn, decoded.candidate, decoded.candidateIndex, rawTurn, media,
+        new Set(), new Set(), sequence, ID
+    );
+    assert.equal(result.structuredExtraction.status, 'decoded');
+    assert.equal(result.generatedFiles.length, 0);
+    assert.equal(result.documents.length, 0);
+    assert.equal(result.images.length, 0);
+    assert.equal(Object.hasOwn(result, 'raw'), false);
+    assert.equal(Object.hasOwn(result, 'body'), false);
 });
 
 test('thinking and citation helpers ignore malformed nodes, deduplicate URLs and preserve thought order', () => {

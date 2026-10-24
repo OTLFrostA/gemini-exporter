@@ -496,7 +496,7 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     // Primary candidate (candidateIndex = 0)
     const struct0 = inspectStructuredContent({
         candidate: multiCandTurn[3][0][0],
-        turnDocument: decodedTurn.rawAnswerDocument,
+        turnDocument: wirePsi,
         candidateIndex: 0
     });
     assert.strictEqual(struct0.status, 'decoded', 'Candidate 0 receives structured content from turn[3][12]');
@@ -506,7 +506,7 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     // Alternative candidate (candidateIndex = 1)
     const struct1 = inspectStructuredContent({
         candidate: multiCandTurn[3][0][1],
-        turnDocument: decodedTurn.rawAnswerDocument,
+        turnDocument: wirePsi,
         candidateIndex: 1
     });
     assert.strictEqual(struct1.status, 'candidate_unmatched', 'Candidate 1+ must NOT receive turn[3][12] without proven evidence');
@@ -575,18 +575,19 @@ test('Wire JSPB decoding in Gemini parser layer', () => {
     assert.strictEqual((decoded.children[2] as any).code, 'console.log(42);');
     assert.strictEqual((decoded.children[2] as any).info, 'typescript');
 
-    // The Turn decoder locates the source field before structured decoding.
+    // The Turn decoder exposes only typed facts; the structured decoder reads its own wire evidence.
+    const mockCandidate = ['rc_ans', [null, ['Answer text']]];
     const mockTurn = [
         'r_123',
         [1700000000, 0],
         [['User question']],
-        [[['rc_ans', [null, ['Answer text']]]], null, null, null, null, null, null, null, null, null, null, null, wirePayload],
+        [[mockCandidate], null, null, null, null, null, null, null, null, null, null, null, wirePayload],
     ];
     const decodedTurn = decodeTurn(mockTurn);
     assert.ok(decodedTurn);
     const extracted = inspectStructuredContent({
-        candidate: decodedTurn.candidate?.raw,
-        turnDocument: decodedTurn.rawAnswerDocument,
+        candidate: mockCandidate,
+        turnDocument: wirePayload,
         candidateIndex: decodedTurn.candidateIndex
     });
     assert.strictEqual(extracted.status, 'decoded', 'Extracted structured document from the decoded Turn evidence');
