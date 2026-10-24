@@ -80,6 +80,6 @@ interface GeminiParserAttachmentsModule {
 export function extractImages(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
     return source.collectImages(obj, seqRef, normalizeRawImage);
 }
-export const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages };
+const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages };
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;
 export default GeminiParserAttachments;
