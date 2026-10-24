@@ -15,7 +15,7 @@
 import { inlineMathMarkdown } from '../../../../shared/utils/markdownMath.js';
 import { LATEX_COMPAT_RULES } from '../../../../shared/utils/latexCompatibility.js';
 
-export interface CompatRuleMetadata {
+interface CompatRuleMetadata {
     /** Unique rule identifier, e.g. 'GM-MD-001' or 'GM-TEX-001' */
     readonly id: string;
     /** Relative path to minimal reproduction test fixture with real provenance */
@@ -28,12 +28,12 @@ export interface CompatRuleMetadata {
     readonly originalHash?: string;
 }
 
-export interface MarkdownCompatRule extends CompatRuleMetadata {
+interface MarkdownCompatRule extends CompatRuleMetadata {
     readonly domain: 'markdown';
     readonly transform: (source: string) => string;
 }
 
-export interface TexCompatRule extends CompatRuleMetadata {
+interface TexCompatRule extends CompatRuleMetadata {
     readonly domain: 'tex';
     readonly transform: (source: string) => string;
 }
