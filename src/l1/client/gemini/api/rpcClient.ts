@@ -3,7 +3,7 @@ import type { GeminiCredentials } from './credentialManager.js';
 
 const GEMINI_API_URL = "https://gemini.google.com/_/BardChatUi/data/batchexecute";
 
-export interface RpcRequestOptions {
+interface RpcRequestOptions {
     api: string;
     rpcids: string;
     fReq: string;
@@ -13,7 +13,7 @@ export interface RpcRequestOptions {
     signal?: AbortSignal | null;
 }
 
-export interface GeminiClientRpcClientModule {
+interface GeminiClientRpcClientModule {
     GEMINI_API_URL: string;
     getProtocol: () => GeminiProtocolModule;
     getApiUrl: (slot?: string | null) => string;
