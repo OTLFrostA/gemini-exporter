@@ -69,13 +69,13 @@ interface FrameStats {
     framesDestroyed: number;
 }
 
-export function freshFrameStats(): FrameStats {
+function freshFrameStats(): FrameStats {
     return { framesCreated: 0, listenersAttached: 0, listenersDetached: 0, framesDestroyed: 0 };
 }
 
 type MessageHandler = (event: { source: unknown; origin: string; data: unknown }) => void;
 
-export class RealWasmSandboxFrame {
+class RealWasmSandboxFrame {
     readonly contentWindow: object = {};
     private handler: MessageHandler | null = null;
     private compiler: any = null;
