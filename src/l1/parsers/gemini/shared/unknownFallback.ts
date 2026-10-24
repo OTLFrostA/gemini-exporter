@@ -1,3 +1,4 @@
+/** Untrusted Gemini source payload fallback belongs in L1, not the typed Domain layer. */
 const UNKNOWN_PAYLOAD_MAX_DEPTH = 4;
 const UNKNOWN_PAYLOAD_MAX_LENGTH = 2000;
 

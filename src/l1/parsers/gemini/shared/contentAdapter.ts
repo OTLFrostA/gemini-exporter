@@ -1,4 +1,4 @@
-import { formatUnknownPayload } from '../../../../l2/content/unknownFallback.js';
+import { formatUnknownPayload } from './unknownFallback.js';
 import type { BlockNode } from '../../../../l2/content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
 import type { ResourceEvidence as ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
