@@ -87,7 +87,7 @@ function coalesceInlines(nodes: any[]): any[] {
  * Normalizes an AST value by stripping only explicit ephemeral metadata and
  * applying minimal equivalence rules.
  */
-export function canonicalizeSemanticAst(val: any): any {
+function canonicalizeSemanticAst(val: any): any {
     if (val === null || val === undefined || typeof val !== 'object') {
         return val;
     }
