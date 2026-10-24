@@ -292,16 +292,6 @@ const pagination = GeminiClientPagination;
 
     }
 
-export {
-    GeminiAPIClient,
-    getApiUrl,
-    detectSlot,
-    resolveCred,
-    loadCredMap,
-    credentialManager,
-    retryPolicy,
-    rpcClient,
-    pagination
-};
+export { GeminiAPIClient };
 
 
