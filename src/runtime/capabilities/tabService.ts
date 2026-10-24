@@ -1,7 +1,6 @@
 import { getAccount } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
-import type { TabStatusResult } from '../types/utils.js';
 import { discoverChatGPTAccounts } from './chatgptDiscovery.js';
 import { discoverClaudeAccounts } from './claudeDiscovery.js';
 
@@ -88,10 +87,6 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     throw new Error(accounts.size ? 'Multiple provider accounts are connected. Select the account to scan.'
         : 'Open Gemini, ChatGPT or Claude and connect an account before scanning.');
 }
-export async function getGeminiTab(accountId?: string): Promise<chrome.tabs.Tab | null> {
-    if (!accountId) throw new TypeError('Tab routing requires an Account UUID');
-    return resolveAccountTab(accountId);
-}
 export async function sendToGeminiTab(message: unknown, accountId?: string, timeoutMs?: number): Promise<unknown> {
     if (!accountId) throw new TypeError('Tab routing requires an Account UUID');
     const tab = await resolveAccountTab(accountId);
@@ -99,25 +94,11 @@ export async function sendToGeminiTab(message: unknown, accountId?: string, time
     // The selected Content handler checks this UUID again immediately before execution.
     return sendTabMessage(tab.id!, { ...message, accountId }, timeoutMs);
 }
-export async function checkGeminiStatus(accountId?: string): Promise<TabStatusResult> {
-    try { return { status: 'CONNECTED', tab: await getGeminiTab(accountId) }; }
-    catch (error) { return { status: 'ERROR', tab: null, error: error instanceof Error ? error.message : String(error) }; }
-}
 export async function getAITab(providerId = 'gemini', accountId?: string): Promise<chrome.tabs.Tab | null> {
     if (!accountId || (await getAccount(accountId))?.providerId !== providerId) throw new Error('Provider/account mismatch');
-    return getGeminiTab(accountId);
+    return resolveAccountTab(accountId);
 }
 export async function sendToAITab(providerId: string, message: unknown, accountId?: string, timeoutMs?: number): Promise<unknown> {
     if (!accountId || (await getAccount(accountId))?.providerId !== providerId) throw new Error('Provider/account mismatch');
     return sendToGeminiTab(message, accountId, timeoutMs);
 }
-async function requestTabNavigation(message: { action: 'openGeminiPage' } | { action: 'reloadGeminiTab'; tabId?: number }): Promise<unknown> {
-    const response: unknown = await chrome.runtime.sendMessage(message);
-    if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true) {
-        throw new Error(response && typeof response === 'object' && 'error' in response
-            ? String(response.error) : 'Provider Tab navigation failed');
-    }
-    return response;
-}
-export function openGeminiPage(): Promise<unknown> { return requestTabNavigation({ action: 'openGeminiPage' }); }
-export function reloadGeminiTab(tabId?: number): Promise<unknown> { return requestTabNavigation({ action: 'reloadGeminiTab', tabId }); }

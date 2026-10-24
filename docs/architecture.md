@@ -234,7 +234,7 @@ graph TD
 | `src/l3a/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
 | `src/l3a/formatStore.ts` | Core: Storage | `FormatStore` | 校验并持久化用户的导出格式偏好设置与自定义模板参数。 | UI Settings, Popup | `chrome.storage.local` | `ST_Service` |
 | `src/shared/utils/pathUtils.ts` | Core: Utils | `sanitizeRelativePath`, `buildExportFileName`, `normId`, `AccountProfile` | 严格清洗相对路径与文件名，定义多账号用户画像契约，防范路径穿越 (Path Traversal) 漏洞。 | `fsWriter`, `zipWriter`, `exportOrchestrator`, `bootstrap` | 安全合法的文件名与路径 | `UT_Path` |
-| `src/runtime/capabilities/tabService.ts` | Core: Utils | `resolveAccountTab`, `getGeminiTab`, `sendToGeminiTab` | 严格按 Account UUID 验证目标标签页身份并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝跨账号投递。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
+| `src/runtime/capabilities/tabService.ts` | Core: Utils | `resolveAccountTab`, `getAITab`, `sendToGeminiTab` | 严格按 Account UUID 验证目标标签页身份并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝跨账号投递。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
 | `src/shared/utils/i18n.ts` | Core: Utils | `I18nClass`, `getI18n` | 中英双语轻量翻译引擎，支持动态语言切换与多级占位符替换。 | UI Views, Controllers, Tour | 国际化本地化字典 | `UT_I18n` |
 | `src/l1/parsers/shared/chipUtils.ts` | Core: Utils | `ChipUtils`, `isInternalChipUrl`, `stripInternalChipMarkdown` | 过滤并清洗 Gemini 内部提及 (User Mention / Model Tag) 产生的内部 Chip 标签。 | `attachments.ts`, `chatFormatter.ts` | 清洗后的 Markdown/文本 | `UT_Path` |
 | `src/shared/utils/constants.ts` | Shared: Utils | `STORAGE_KEYS`, `DIRECT_WRITE_THRESHOLD`, `FEEDBACK_URL`, `getExtensionVersion` | 跨模块存储键、UI 提示阈值、反馈入口及版本信息；导出格式以 Application 类型和当前 UI 为准。 | L1, Runtime, UI | 配置常量和版本信息 | `UT_SSoT` |
@@ -549,7 +549,7 @@ sequenceDiagram
   5. **凭据防偷调与严格隔离机制**：
      - `CredentialManager.resolveCred(slot)` 实行单向封闭解析，若目标 Slot 无可用凭据直接返回空 Token，**严禁跨槽位偷用其他账号的 Token**，彻底消除串号 403 风险；
   6. **严格槽位标签页定向路由机制**：
-     - `getGeminiTab(accountId)` 与 `sendToGeminiTab(msg, accountId)` 严格基于 Account UUID 验证目标页面身份；若目标账号的标签页未打开，**强制抛出明确错误**，绝不盲目回退到其他账号的标签页执行请求；
+     - `resolveAccountTab(accountId)` 与 `sendToGeminiTab(msg, accountId)` 严格基于 Account UUID 验证目标页面身份；若目标账号的标签页未打开，**强制抛出明确错误**，绝不盲目回退到其他账号的标签页执行请求；
   7. **空账号状态防劫持**：
      - `ConversationsStore.loadStore(slot)` 保证在切换到 0 条会话的新账号时，绝不自动跳回 `u0`；
   8. 监视如果包含 `Proto.RPCS.DELETE` 删除事件，精准提取被删除的会话 ID 并通知 Options 工作台无需刷新实时剔除该项，实现瞬态删除与本地存储的一致性同步。

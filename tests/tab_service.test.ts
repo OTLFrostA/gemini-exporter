@@ -48,7 +48,7 @@ function withChrome(t: { after: (fn: () => void) => void }, value: unknown) {
 test('Tab routing requires a registered real Account UUID, not a Gemini URL slot', async t => {
     withChrome(t, { runtime: {}, tabs: { query: async () => [{ id: 1 }] } });
     const route = router();
-    await assert.rejects(route.getGeminiTab(), /UUID/);
+    await assert.rejects(route.resolveAccountTab(''), /UUID/);
     await assert.rejects(route.resolveAccountTab('u0'), /UUID/);
     await assert.rejects(route.resolveAccountTab('https://gemini.google.com/u/0/app'), /UUID/);
     await assert.rejects(route.resolveAccountTab(B.replace(/.$/, 'x')), /UUID|supported|matches/);
@@ -73,7 +73,7 @@ test('Verified Provider + Account match wins over first tab or URL slot; active 
     const route = router();
     assert.equal((await route.resolveAccountTab(A)).id, 3);
     assert.deepEqual(probes, [3]); // matching active tab, no first-tab fallback
-    assert.equal((await route.getGeminiTab(A)).id, 3);
+    assert.equal((await route.getAITab('gemini', A))?.id, 3);
 });
 
 test('Ambiguous Scan target fails without guessing; explicit preference and a unique live UUID work', async t => {
@@ -153,17 +153,4 @@ test('Uninjected/closed tab errors are never successful delivery acknowledgement
     const route = router();
     await assert.rejects(route.sendTabMessage(12, { action: 'ping' }, 15), /no response/);
     await assert.rejects(route.resolveAccountTab(A), /No open Provider Tab/);
-    assert.equal((await route.checkGeminiStatus(A)).status, 'ERROR');
-});
-
-test('Explicit navigation requests only succeed after Background returned ok:true', async t => {
-    const seen: unknown[] = [];
-    withChrome(t, { runtime: { sendMessage: async (msg: any) => {
-        seen.push(msg);
-        return msg.action === 'openGeminiPage' ? { ok: true, tabId: 55 } : { ok: false, error: 'Wrong Tab' };
-    } } });
-    const route = router();
-    assert.deepEqual(await route.openGeminiPage(), { ok: true, tabId: 55 });
-    await assert.rejects(route.reloadGeminiTab(7), /Wrong Tab/);
-    assert.deepEqual(seen, [{ action: 'openGeminiPage' }, { action: 'reloadGeminiTab', tabId: 7 }]);
 });

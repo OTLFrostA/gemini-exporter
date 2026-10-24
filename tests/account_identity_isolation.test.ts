@@ -164,7 +164,7 @@ test('credentialManager - resolveCred prevents cross-account token theft', async
 // ---------------------------------------------------------------------------
 // 3. Strict Tab Routing Tests
 // ---------------------------------------------------------------------------
-test('tabService - getGeminiTab and sendToGeminiTab enforce strict slot matching', async () => {
+test('tabService - resolveAccountTab and sendToGeminiTab enforce strict slot matching', async () => {
     const origChrome = (global as any).chrome;
     try {
         const mockTabs = [
@@ -184,16 +184,16 @@ test('tabService - getGeminiTab and sendToGeminiTab enforce strict slot matching
 
         Object.assign(chrome, withRegistry(chrome));
         bindTabAccounts({101: '10000000-0000-4000-8000-000000000001', 102: '10000000-0000-4000-8000-000000000002'});
-        // getGeminiTab('10000000-0000-4000-8000-000000000001') returns tab 101
-        const tabU0 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000001');
+        // resolveAccountTab('10000000-0000-4000-8000-000000000001') returns tab 101
+        const tabU0 = await TabService.resolveAccountTab('10000000-0000-4000-8000-000000000001');
         assert.strictEqual(tabU0?.id, 101);
 
-        // getGeminiTab('10000000-0000-4000-8000-000000000002') returns tab 102
-        const tabU1 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000002');
+        // resolveAccountTab('10000000-0000-4000-8000-000000000002') returns tab 102
+        const tabU1 = await TabService.resolveAccountTab('10000000-0000-4000-8000-000000000002');
         assert.strictEqual(tabU1?.id, 102);
 
-        // getGeminiTab('10000000-0000-4000-8000-000000000003') returns null because no tab matches u2
-        await assert.rejects(TabService.getGeminiTab('10000000-0000-4000-8000-000000000003'), /No open Provider Tab matches this Account/);
+        // resolveAccountTab rejects when no tab matches this account
+        await assert.rejects(TabService.resolveAccountTab('10000000-0000-4000-8000-000000000003'), /No open Provider Tab matches this Account/);
 
         // sendToGeminiTab('10000000-0000-4000-8000-000000000002') sends message to tab 102
         const resU1 = await TabService.sendToGeminiTab({ action: 'ping' }, '10000000-0000-4000-8000-000000000002');

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { sendTabMessage, sendToGeminiTab, sendToAITab, checkGeminiStatus, openGeminiPage, reloadGeminiTab } from '../src/runtime/capabilities/tabService.js';
+import { sendTabMessage, sendToGeminiTab, sendToAITab, resolveAccountTab } from '../src/runtime/capabilities/tabService.js';
 import { startSync } from '../src/ui/options/controllers/syncController.js';
 import type { ScanResult } from '../src/application/sync/scanController.js';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -15,8 +15,7 @@ export type Contracts = [
     Assert<Equal<Awaited<ReturnType<typeof sendToAITab>>,unknown>>,
     Assert<Equal<Parameters<typeof sendToGeminiTab>[0],unknown>>,
     Assert<Equal<Awaited<ReturnType<typeof startSync>>,ScanResult>>,
-    Assert<Equal<Awaited<ReturnType<typeof openGeminiPage>>,unknown>>,
-    Assert<Equal<Awaited<ReturnType<typeof reloadGeminiTab>>,unknown>>
+    Assert<Equal<Awaited<ReturnType<typeof resolveAccountTab>>,chrome.tabs.Tab>>
 ];
 function replaceGlobal(key:string,value:unknown) {
     const previous=Object.getOwnPropertyDescriptor(globalThis,key);
@@ -69,13 +68,15 @@ test('Scan consumer uses typed local results and preserves committed diagnostics
         });assert.strictEqual(actual,result);assert.deepEqual(seen,[accountId,{pagesFetched:2,conversationsFetched:3}]);
     }
 });
-test('connection status requires an actual verified account binding, never a ping-only acknowledgement',async()=>{
+test('account resolution requires a verified provider binding, never a ping-only acknowledgement',async()=>{
     const env=indexStorage();const accountId='10000000-0000-4000-8000-000000000001';
     try {
         await putAccount({id:accountId,providerId:'gemini',providerAccountId:'10000000001'});
         for(const reply of [{ok:'true'},{ok:1},[],null,{ok:true,version:'test'}, {ok:true,accountContext:{accountId,providerId:'gemini'}}]) {
             Object.defineProperty(chrome,'tabs',{configurable:true,value:{query:async()=>[{id:1,active:true,url:'https://gemini.google.com/app'}],sendMessage(_id:number,_m:unknown,cb:(v:unknown)=>void){cb(reply);}}});
-            assert.equal((await checkGeminiStatus(accountId)).status,reply&&'accountContext' in reply?'CONNECTED':'ERROR');
+            const valid = reply !== null && typeof reply === 'object' && !Array.isArray(reply) && 'accountContext' in reply;
+            if (valid) assert.equal((await resolveAccountTab(accountId)).id,1);
+            else await assert.rejects(resolveAccountTab(accountId), /No open Provider Tab matches this Account/);
         }
     }finally{env.restore();}
 });

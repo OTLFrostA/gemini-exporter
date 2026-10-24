@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { putAccount } from '../src/l3a/storageService.js';
-import { resolveAccountTab, getGeminiTab, sendToGeminiTab, sendTabMessage, sendToAITab } from '../src/runtime/capabilities/tabService.js';
+import { resolveAccountTab, sendToGeminiTab, sendTabMessage, sendToAITab } from '../src/runtime/capabilities/tabService.js';
 
 useIndexStorage();
 const selected = fixtureAccount('gemini');
@@ -62,7 +62,7 @@ test('v2 Runtime fails closed when no tab has the requested Account UUID', async
             assert.equal(message.action, 'getAccountContext', 'no unverified business message is sent');
             reply({ ok: true, accountContext: { accountId: foreign, providerId: 'gemini', slot: 'u0' } });
         });
-    await assert.rejects(getGeminiTab(selected.id), /No open Provider Tab matches this Account/);
+    await assert.rejects(resolveAccountTab(selected.id), /No open Provider Tab matches this Account/);
     await assert.rejects(sendToGeminiTab({ action: 'fetchDetail' }, selected.id), /No open Provider Tab matches this Account/);
     assert.ok(calls.length >= 2);
     assert.ok(calls.every(call => call.message.action === 'getAccountContext'));
