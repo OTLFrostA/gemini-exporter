@@ -1,6 +1,6 @@
 import type { ConversationKey } from '../../../../l2/conversationKey.js';
 
-export interface GeminiDetailRequestContext { conversationId: ConversationKey['conversationId']; requestCursor: string | null }
+interface GeminiDetailRequestContext { conversationId: ConversationKey['conversationId']; requestCursor: string | null }
 
 /** Only a single, characterized detail call establishes a source cursor. */
 export function readGeminiDetailRequest(body: unknown): GeminiDetailRequestContext | null {
