@@ -74,12 +74,6 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npm ci || npm install
 
-      # Temporary one-off Knip report for export/dead-module cleanup; remove before merging.
-      - name: Knip scan (temporary)
-        if: steps.filter.outputs.only_scenarios != 'true'
-        run: |
-          npx --yes knip@5 --config knip.json --include files,exports,types --reporter compact --no-progress || true
-
       - name: Scoped zero-any gate
         if: steps.filter.outputs.only_scenarios != 'true'
         run: node scripts/check-zero-any.cjs
