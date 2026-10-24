@@ -175,10 +175,12 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     assert.strictEqual(attachments.isInternalChipUrl("https://googleusercontent.com/immersive_entry_chip/abc"), true);
     assert.strictEqual(attachments.isInternalChipUrl("https://example.com/normal.png"), false);
 
-    // 4. parseList: timestamp extraction
+    // 4. The production LIST row decoder owns timestamp interpretation.
     const mockItem = ["c_test", "Title", null, null, null, [1720000000, 500000000]];
-    const ts = parseListMod.extractListItemTimestamp(mockItem);
-    assert.strictEqual(ts, 1720000000500);
+    const decoded = parseListMod.decodeGeminiListRow(mockItem);
+    assert.strictEqual(decoded?.id, 'test');
+    assert.strictEqual(decoded?.updatedAt, 1720000000500);
+    assert.strictEqual(decoded?.orderTime, 1720000000500);
 
 
 });

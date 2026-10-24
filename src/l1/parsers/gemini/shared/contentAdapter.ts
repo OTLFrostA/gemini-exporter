@@ -45,7 +45,7 @@ export function parseGeminiPrompt(content: string): BlockNode[] {
     return [{ type: 'paragraph', children }];
 }
 
-export function cleanGeminiBody(text: string): string {
+function cleanGeminiBody(text: string): string {
     return stripInternalChipMarkdown(convertHtmlToMarkdown(text));
 }
 
