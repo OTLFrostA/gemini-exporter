@@ -21,7 +21,7 @@ type DeletedCall = Parameters<Ingest['ingestDeletedConversation']>;
 export const GEMINI_ACCOUNT: Account = {
     id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: '10000000001',
 };
-export const OTHER_ACCOUNT: Account = {
+const OTHER_ACCOUNT: Account = {
     id: '10000000-0000-4000-8000-000000000002', providerId: 'gemini', providerAccountId: '10000000002',
 };
 export const DEFAULT_ACCOUNT: Account = {
