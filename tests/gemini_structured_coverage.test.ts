@@ -72,14 +72,15 @@ test('unknown wire fields, absent payload, and uncorrelated candidate have disti
     const rawTurn: unknown[] = [null, null, null, Object.assign(Array(13).fill(null), { 12: report })];
     const turn = decodeTurn(rawTurn);
     assert.ok(turn);
+    assert.equal(Object.hasOwn(turn, 'rawAnswerDocument'), false);
     assert.equal(inspectStructuredContent({
-        candidate: undefined, turnDocument: turn.rawAnswerDocument, candidateIndex: 1
+        candidate: undefined, turnDocument: report, candidateIndex: 1
     }).status, 'candidate_unmatched');
     assert.equal(inspectStructuredContent({
-        candidate: undefined, turnDocument: turn.rawAnswerDocument, candidateIndex: 0
+        candidate: undefined, turnDocument: report, candidateIndex: 0
     }).status, 'decoded');
     assert.equal(inspectStructuredContent({
-        candidate: { structuredContent: { children: [] } }, turnDocument: turn.rawAnswerDocument, candidateIndex: 1
+        candidate: { structuredContent: { children: [] } }, turnDocument: report, candidateIndex: 1
     }).status, 'decoded');
     assert.equal(inspectStructuredContent({
         candidate: undefined, turnDocument: null, candidateIndex: 1
@@ -87,7 +88,7 @@ test('unknown wire fields, absent payload, and uncorrelated candidate have disti
     // An invalid candidate-local document must not silently fall back to a
     // valid Turn-level document from a different ownership slot.
     assert.deepEqual(inspectStructuredContent({
-        candidate: { structuredContent: { unsupported: true } }, turnDocument: turn.rawAnswerDocument, candidateIndex: 0
+        candidate: { structuredContent: { unsupported: true } }, turnDocument: report, candidateIndex: 0
     }), { status: 'decode_rejected', issue: { kind: 'payload' } });
 });
 
