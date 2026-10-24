@@ -113,7 +113,7 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
     updateStat(state);
 }
 
-export function updateStat(state: ConversationViewState): void {
+function updateStat(state: ConversationViewState): void {
     const total = state.indexes.length;
     document.getElementById('selectedStat')!.textContent =
         text(`${state.selected.size} of ${total} selected`, `已选 ${state.selected.size} / ${total}`);

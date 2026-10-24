@@ -5,7 +5,7 @@ export const stripHtmlTags = utilsStripHtmlTags;
 /**
  * Safely unescapes basic HTML entities in a single pass to prevent double-unescaping vulnerabilities.
  */
-export function unescapeHtmlEntities(str: string): string {
+function unescapeHtmlEntities(str: string): string {
     if (!str || typeof str !== 'string') return '';
     return str.replace(/&(?:amp|lt|gt|quot|#39);/g, (match) => {
         switch (match) {
@@ -19,7 +19,7 @@ export function unescapeHtmlEntities(str: string): string {
     });
 }
 
-export function parseTakeoutPrompt(block: string): { promptText: string; hasExplicitPrompt: boolean } {
+function parseTakeoutPrompt(block: string): { promptText: string; hasExplicitPrompt: boolean } {
     let promptText = '';
     let hasExplicitPrompt = false;
     const promptMatch = block.match(/(?:Prompted|已提示|提示|プロンプト|Demande|Preguntado)\s*([\s\S]*?)(?:<br\s*\/?>|\n)/i);

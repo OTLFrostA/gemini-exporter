@@ -52,11 +52,6 @@ function isUnknownArray(value: unknown): value is unknown[] {
     return Array.isArray(value);
 }
 
-/** Only the characterized conversation update slot is an activity/version fact. */
-function extractListItemTimestamp(item: unknown): number | null {
-    return Array.isArray(item) ? payloadToMs(item[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP]) : null;
-}
-
 /** Decode each source LIST row once, before producing indexes or page evidence. */
 export function decodeGeminiListRow(raw: unknown): DecodedGeminiListRow | null {
     if (!Array.isArray(raw)) return null;
@@ -176,7 +171,4 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
         }
     }
 
-export {
-    extractListItemTimestamp,
-    parseList
-};
+export { parseList };

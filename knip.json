@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/runtime/background/background.ts!",
+    "src/runtime/content/content.ts!",
+    "src/runtime/content/chatgptContent.ts!",
+    "src/runtime/content/claudeContent.ts!",
+    "src/l1/sniffer/gemini/hookCredentials.ts!",
+    "src/l1/sniffer/chatgpt/hook.ts!",
+    "src/l1/sniffer/claude/hook.ts!",
+    "src/ui/popup/popup.ts!",
+    "src/ui/options/options.ts!",
+    "src/l4/format/pdf/sandbox/typstCompileEntry.ts!",
+    "src/ui/shared/themeBootstrap.js!",
+    "tests/**/*.test.ts",
+    "tests/**/*.spec.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx,js}!",
+    "tests/**/*.{ts,tsx,js}",
+    "scripts/**/*.{cjs,mjs,js,ts}"
+  ]
+}

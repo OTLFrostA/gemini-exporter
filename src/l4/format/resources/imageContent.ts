@@ -140,7 +140,7 @@ function isSvgDocument(b: Uint8Array): boolean {
     return isXmlWs(c) || c === 0x3e || c === 0x2f || c === 0x3a;
 }
 
-export function normalizeMime(mimeType?: string): string | undefined {
+function normalizeMime(mimeType?: string): string | undefined {
     if (!mimeType) return undefined;
     const base = mimeType.split(';')[0].trim().toLowerCase();
     if (!base) return undefined;
@@ -149,7 +149,7 @@ export function normalizeMime(mimeType?: string): string | undefined {
     return base;
 }
 
-export function extFromName(name?: string): string | undefined {
+function extFromName(name?: string): string | undefined {
     if (!name) return undefined;
     const dot = name.lastIndexOf('.');
     if (dot < 0 || dot === name.length - 1) return undefined;

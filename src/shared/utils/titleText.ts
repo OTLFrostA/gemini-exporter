@@ -3,7 +3,7 @@ import { normId } from './pathUtils.js';
 /** Source text helpers without Application export-state or UI dependencies. */
 export const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-export function cleanZeroWidth(t: unknown): string {
+function cleanZeroWidth(t: unknown): string {
     return String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
 }
 
