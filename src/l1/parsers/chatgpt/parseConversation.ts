@@ -45,7 +45,7 @@ import { chatGPTTimestamp } from './timestamp.js';
 import { preprocessChatGPTMarkdown } from './markdownCompatibility.js';
 
 /** Image bytes resolved by the provider for one sediment pointer. */
-export interface ChatGPTParsedImage {
+interface ChatGPTParsedImage {
     pointer: string;
     assetId: string;
     dataBase64: string;
@@ -55,7 +55,7 @@ export interface ChatGPTParsedImage {
 }
 
 /** Uploaded-file bytes resolved by the provider (absent when undownloadable). */
-export interface ChatGPTParsedFile {
+interface ChatGPTParsedFile {
     id: string;
     name: string;
     mediaType?: string;
@@ -63,13 +63,13 @@ export interface ChatGPTParsedFile {
     dataBase64?: string;
 }
 
-export interface ChatGPTNodeAssets {
+interface ChatGPTNodeAssets {
     nodeId: string;
     images: ChatGPTParsedImage[];
     files: ChatGPTParsedFile[];
 }
 
-export interface ChatGPTParseInput {
+interface ChatGPTParseInput {
     account?: Account;
     conversation: ChatGPTApiConversationWithId;
     /** Pre-resolved downloads keyed by node id; missing entries mean no assets. */
