@@ -4,7 +4,7 @@ function isUnknownArray(value: unknown): value is unknown[] {
     return Array.isArray(value);
 }
 
-export interface DecodedCandidateArtifacts {
+interface DecodedCandidateArtifacts {
     generatedFiles: GeminiAttachmentEvidence[];
     nativeDocuments: GeminiDocumentEvidence[];
 }
