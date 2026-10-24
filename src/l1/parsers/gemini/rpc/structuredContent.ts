@@ -1,4 +1,5 @@
 import { extractImageEvidence } from "./sourceAttachments.js";
+import type { JsonValue } from "../../../../shared/utils/jsonTypes.js";
 
 export interface GeminiAnnotation {
     start: number;
@@ -71,10 +72,8 @@ export interface GeminiQuoteNode {
 
 export interface GeminiAttachmentNode {
     nodeType: 0;
-    Xj?: Array<{
-        attachmentType?: number;
-        [key: string]: unknown;
-    }>;
+    /** Preserve extensible provider attachment metadata, but only as validated JSON. */
+    Xj?: Array<Record<string, JsonValue>>;
 }
 
 export interface GeminiFileNode { nodeType: 24; id: string; title: string }
@@ -116,6 +115,15 @@ type DecodeIssues = GeminiStructuredDecodeIssue[];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Preserve nested image/chip evidence, never allow non-JSON runtime objects
+ * into the typed structured-document tree. */
+function isJsonValue(value: unknown): value is JsonValue {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (Array.isArray(value)) return value.every(isJsonValue);
+    return isRecord(value) && Object.values(value).every(isJsonValue);
 }
 
 export function decodeGeminiAnnotation(wa: unknown, issues?: DecodeIssues): GeminiAnnotation | null {
@@ -311,9 +319,11 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
                 const rawXj = node.Xj;
                 if (rawXj === undefined) return { nodeType: 0 };
                 if (!Array.isArray(rawXj)) return null;
-                const entries: unknown[] = rawXj;
-                const Xj = entries.filter(isRecord);
-                if (Xj.length !== rawXj.length) return null;
+                const Xj: Array<Record<string, JsonValue>> = [];
+                for (const entry of rawXj) {
+                    if (!isJsonValue(entry) || !isRecord(entry)) return null;
+                    Xj.push(entry);
+                }
                 return { nodeType: 0, Xj };
             case 15: {
                 if (!Array.isArray(node.children)) return null;
@@ -561,7 +571,9 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
             && typeof panel[1][0] === 'string'
             && /^https?:\/\/googleusercontent\.com\/image_generation_content\//.test(panel[1][0])
             && extractImageEvidence(panel[0]).some(image => image.isGenerated));
-        if (knownPanels) return { nodeType: 0, Xj: [{ generatedImagePayload: w[9] }] };
+        if (knownPanels && isJsonValue(w[9])) {
+            return { nodeType: 0, Xj: [{ generatedImagePayload: w[9] }] };
+        }
         return null;
     }
 
@@ -608,8 +620,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
             || !Number.isInteger(eventSlots[2])) return null;
         const eventIndex = eventSlots[2];
         if (typeof eventIndex !== 'number' || eventIndex < 1 || eventSlots[3] !== null) return null;
-        const allowedEventKinds: unknown[] = [0, 1];
-        if (!allowedEventKinds.includes(eventSlots[4])) return null;
+        if (eventSlots[4] !== 0 && eventSlots[4] !== 1) return null;
         return { nodeType: 1, code: eventSlots[0],
             info: `${eventSlots[1]}?${eventSlots[4] === 0 ? 'code_reference' : 'code_stdout'}&code_event_index=${eventIndex}` };
     }
