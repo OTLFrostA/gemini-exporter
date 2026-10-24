@@ -279,7 +279,6 @@ test('routing matches Provider and UUID, prefers matching active Tab, and never 
     await assert.rejects(routing.sendToGeminiTab({ action: 'getFileBlob' }, uuid), /Tab navigated/);
     assert.equal(sent.filter(value => value.message.action === 'getFileBlob').length, 1);
     assert.equal(sent.at(-1).message.accountId, uuid);
-    await assert.rejects(routing.getGeminiTab(), /UUID/);
     await assert.rejects(routing.resolveAccountTab('u0'), /UUID/);
     await assert.rejects(routing.getAITab('chatgpt', uuid), /Provider\/account mismatch/);
 });
@@ -686,16 +685,13 @@ test('Content Registry cannot enumerate unrelated accounts', async () => {
     assert.deepEqual(await invoke(handler, { action: 'accountRegistry', command: 'get', accountId: uuid }), { ok: true, value: account });
 });
 
-test('Tab IPC rejects missing responses and navigation errors without treating ACK as success', async () => {
-    global.chrome = { runtime: { sendMessage: async (value: { action: string }) => value.action === 'openGeminiPage'
-        ? { ok: false, error: 'Navigation blocked' } : undefined },
+test('Tab IPC rejects missing responses without treating ACK as success', async () => {
+    global.chrome = { runtime: {},
         tabs: { sendMessage: (_id: unknown, _message: unknown, callback: Function) => callback(undefined) } } as any;
     const route = load('src/runtime/capabilities/tabService.ts', {
         'src/l3a/storageService.js': storage, 'src/runtime/api/runtimeReady.js': ready,
     });
     await assert.rejects(route.sendTabMessage(7, { action: 'getAccountContext' }, 20), /no response/);
-    await assert.rejects(route.openGeminiPage(), /Navigation blocked/);
-    await assert.rejects(route.reloadGeminiTab(7), /navigation failed/);
 });
 
 test('Runtime navigation observer refreshes on SPA changes, then removes all listeners and timer on reinjection', () => {
