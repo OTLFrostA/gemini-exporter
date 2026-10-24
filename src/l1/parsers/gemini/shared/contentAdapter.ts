@@ -26,8 +26,10 @@ function normalizeGeminiMath(blocks: BlockNode[]): BlockNode[] {
         else if (node.type === 'table') {
             if (node.caption) inlines(node.caption);
             [...(node.headerRows ?? []), ...node.rows].forEach(row => row.cells.forEach(cell => inlines(cell.children)));
-        } else if ((node.type === 'image' && node.caption) || (node.type === 'file' && node.description)) {
-            inlines(node.type === 'image' ? node.caption! : node.description!);
+        } else if (node.type === 'image') {
+            if (node.caption) inlines(node.caption);
+        } else if (node.type === 'file') {
+            if (node.description) inlines(node.description);
         }
     });
     visit(blocks);
