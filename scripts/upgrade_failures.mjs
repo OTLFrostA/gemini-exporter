@@ -16,7 +16,7 @@ const offlineReasons = new Set([
   'net::ERR_INTERNET_DISCONNECTED',
 ]);
 
-export function assertOfflineFailures(failedChats, expectedIds) {
+function assertOfflineFailures(failedChats, expectedIds) {
   assert.ok(Array.isArray(failedChats), 'Missing native failedChats evidence');
   assert.ok(expectedIds.length > 0 && new Set(expectedIds).size === expectedIds.length, 'Invalid offline targets');
   assert.equal(failedChats.length, expectedIds.length, 'Unexpected/missing offline failures');
@@ -27,7 +27,7 @@ export function assertOfflineFailures(failedChats, expectedIds) {
   }
 }
 
-export function assertExpectedOfflineFailure(error, expectedIds) {
+function assertExpectedOfflineFailure(error, expectedIds) {
   if (!(error instanceof NativeExportFailure)) throw error;
   assertOfflineFailures(error.failedChats, expectedIds);
 }
