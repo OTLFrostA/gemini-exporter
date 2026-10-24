@@ -576,16 +576,17 @@ test('Wire JSPB decoding in Gemini parser layer', () => {
     assert.strictEqual((decoded.children[2] as any).info, 'typescript');
 
     // The Turn decoder exposes only typed facts; the structured decoder reads its own wire evidence.
+    const mockCandidate = ['rc_ans', [null, ['Answer text']]];
     const mockTurn = [
         'r_123',
         [1700000000, 0],
         [['User question']],
-        [[['rc_ans', [null, ['Answer text']]]], null, null, null, null, null, null, null, null, null, null, null, wirePayload],
+        [[mockCandidate], null, null, null, null, null, null, null, null, null, null, null, wirePayload],
     ];
     const decodedTurn = decodeTurn(mockTurn);
     assert.ok(decodedTurn);
     const extracted = inspectStructuredContent({
-        candidate: mockTurn[3][0][0],
+        candidate: mockCandidate,
         turnDocument: wirePayload,
         candidateIndex: decodedTurn.candidateIndex
     });
