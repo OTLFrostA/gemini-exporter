@@ -45,6 +45,13 @@ export interface DocSectionsResult {
     contentMatch?: "exact" | "substring";
 }
 
+/** Matched wire evidence and its provenance are separate from the source array.
+ * A substring match is heuristic; never mark it by mutating a captured RPC node. */
+export interface MatchedDocContent {
+    node: unknown[];
+    contentMatch?: "substring";
+}
+
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extractors.js";
 
 
@@ -582,10 +589,9 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         return out;
     }
 
-    function findDocContentById(root: unknown, docId: string): unknown {
+    function findDocContentById(root: unknown, docId: string): MatchedDocContent | null {
         if (!docId) return null;
-        let targetId = String(docId).replace(/^c_/, "");
-        type MatchedDocContent = unknown[] & { contentMatch?: "substring" };
+        const targetId = docId.replace(/^c_/, "");
         let matched: MatchedDocContent | null = null;
 
         deepWalk(root, (node) => {
@@ -608,7 +614,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                     let hasSections = node.some(x => isUnknownArray(x) && x.some(y => isUnknownArray(y) && typeof y[0] === "string" && y[0].length > 50));
                     let hasLongStr = node.some(x => typeof x === "string" && x.length > 200 && (x.includes("#") || x.includes("\n\n")));
                     if (hasSections || hasLongStr) {
-                        matched = node;
+                        matched = { node };
                         if (idMatch === "substring") matched.contentMatch = "substring";
                         return false;
                     }
@@ -618,19 +624,12 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         return matched;
     }
 
-    function parseDocSections(docContentArr: unknown): DocSectionsResult {
+    function parseDocSections(docContentArr: unknown, contentMatch?: "substring"): DocSectionsResult {
         let sections: string[] = [];
         let links: DocLink[] = [];
         let contentMarkdown = "";
-        // P1-9: 上游 heuristic 标记透传，不静默转成正常可信结果
-        const contentMatch = (
-            typeof docContentArr === "object" &&
-            docContentArr !== null &&
-            "contentMatch" in docContentArr &&
-            docContentArr.contentMatch === "substring"
-        )
-            ? "substring" as const
-            : void 0;
+        // P1-9: provenance is explicitly passed from the matcher, never read
+        // as an ad hoc property on the raw wire array.
         if (!isUnknownArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
 
         deepWalk(docContentArr, (node) => {

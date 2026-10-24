@@ -110,9 +110,9 @@ test('P1-9e: flat.length > 500 直接跳过', () => {
 
 test('P1-9f: findDocContentById 全等路径不标 contentMatch', () => {
     const real = ["docExact1", "## 真实标题\n\n" + "正文".repeat(100)];
-    const found: any = attachments.findDocContentById([real], "docExact1");
-    assert.strictEqual(found, real);
-    assert.strictEqual(found.contentMatch, undefined, '全等路径不应标记');
+    const found = attachments.findDocContentById([real], "docExact1");
+    assert.strictEqual(found?.node, real);
+    assert.strictEqual(found?.contentMatch, undefined, '全等路径不应标记');
 });
 
 test('P1-9g: findDocContentById includes 长元素（>=80）不再命中', () => {
@@ -125,16 +125,17 @@ test('P1-9g: findDocContentById includes 长元素（>=80）不再命中', () =>
 
 test('P1-9h: findDocContentById includes 短元素命中并标 substring', () => {
     const node = ["ab_docShort1_cd", "## 短文档标题\n\n" + "正文".repeat(100)];
-    const found: any = attachments.findDocContentById([node], "docShort1");
-    assert.strictEqual(found, node);
-    assert.strictEqual(found.contentMatch, 'substring');
+    const found = attachments.findDocContentById([node], "docShort1");
+    assert.strictEqual(found?.node, node);
+    assert.strictEqual(found?.contentMatch, 'substring');
+    assert.equal(Object.hasOwn(node, 'contentMatch'), false, 'raw source must not be mutated');
 });
 
-test('P1-9i: parseDocSections 透传上游 contentMatch 标记', () => {
-    const arr: any = [["Section Title", "https://example.com/doc"]];
-    arr.contentMatch = 'substring';
-    const res = attachments.parseDocSections(arr);
+test('P1-9i: parseDocSections explicitly propagates typed match provenance', () => {
+    const arr = [["Section Title", "https://example.com/doc"]];
+    const res = attachments.parseDocSections(arr, 'substring');
     assert.strictEqual(res.contentMatch, 'substring', '应透传上游标记');
+    assert.equal(Object.hasOwn(arr, 'contentMatch'), false);
     const clean = attachments.parseDocSections([["Section Title", "https://example.com/doc"]]);
     assert.strictEqual(clean.contentMatch, undefined);
 });
@@ -144,23 +145,37 @@ test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透
     const substringNode = ["prefix_docSubId_suffix", [[rawSection, "https://example.com/doc-link"]]];
     const root = [substringNode];
 
-    // 1. findDocContentById 通过 substring 规则命中并在数组上设置 contentMatch = 'substring'
-    const found: any = attachments.findDocContentById(root, "docSubId");
-    assert.strictEqual(found, substringNode, '应返回匹配的数组节点');
-    assert.strictEqual(found.contentMatch, 'substring', 'findDocContentById 应在数组上打上 substring 标记');
+    // 1. Matcher returns typed provenance without modifying the source array.
+    const found = attachments.findDocContentById(root, "docSubId");
+    assert.strictEqual(found?.node, substringNode, '应返回匹配的数组节点');
+    assert.strictEqual(found?.contentMatch, 'substring', 'substring 匹配必须标记为启发式');
+    assert.equal(Object.hasOwn(substringNode, 'contentMatch'), false, '原始 RPC 节点不得被修改');
 
-    // 2. parseDocSections 接收带有 property 的数组并正确透传 contentMatch
-    const res = attachments.parseDocSections(found);
-    assert.strictEqual(res.contentMatch, 'substring', 'parseDocSections 必须从 array-with-property 上完整透传 contentMatch');
+    // 2. Parsed sections receive provenance as a separate, typed value.
+    const res = attachments.parseDocSections(found?.node, found?.contentMatch);
+    assert.strictEqual(res.contentMatch, 'substring', 'parseDocSections 必须透传匹配依据');
     assert.ok(res.contentMarkdown.includes("这是一段用于测试文档段落的文字内容"), 'sections 内容应被正确解析为 markdown');
 
     // 3. 对照组：全等匹配节点不标记 contentMatch，经 parseDocSections 后 contentMatch 保持 undefined
     const exactNode = ["docExactId", [[rawSection, "https://example.com/doc-link"]]];
-    const exactFound: any = attachments.findDocContentById([exactNode], "docExactId");
-    assert.strictEqual(exactFound, exactNode);
-    assert.strictEqual(exactFound.contentMatch, undefined, '全等匹配不应带有 contentMatch 标记');
-    const exactRes = attachments.parseDocSections(exactFound);
+    const exactFound = attachments.findDocContentById([exactNode], "docExactId");
+    assert.strictEqual(exactFound?.node, exactNode);
+    assert.strictEqual(exactFound?.contentMatch, undefined, '全等匹配不应带有 contentMatch 标记');
+    const exactRes = attachments.parseDocSections(exactFound?.node, exactFound?.contentMatch);
     assert.strictEqual(exactRes.contentMatch, undefined, '全等匹配经 parseDocSections 不应带有 contentMatch');
+});
+
+test('matching content from a frozen RPC node preserves source bytes and heuristic provenance', () => {
+    const rawSection = '## A fixed, immutable document section. '.repeat(10);
+    const raw = Object.freeze(['prefix_docFrozen_suffix', Object.freeze([[rawSection]])]);
+    const source = Object.freeze([raw]);
+    const original = JSON.stringify(source);
+    const result = attachments.findDocContentById(source, 'docFrozen');
+    assert.strictEqual(result?.node, raw);
+    assert.strictEqual(result?.contentMatch, 'substring');
+    assert.strictEqual(attachments.parseDocSections(result?.node, result?.contentMatch).contentMatch, 'substring');
+    assert.strictEqual(JSON.stringify(source), original);
+    assert.equal(Object.hasOwn(raw, 'contentMatch'), false);
 });
 
 test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {

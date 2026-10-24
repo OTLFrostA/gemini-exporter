@@ -196,7 +196,8 @@ test('P1-072a: findDocContentById 不命中正文里仅"提到" ID 的节点', (
     const decoy = ["note", "本文引用了 doc99999 的观点\n\n" + "y".repeat(250)];
     const real = ["c_doc99999", "## 真实文档正文\n\n" + "正文".repeat(150)];
     const found = attachments.findDocContentById([decoy, real], "c_doc99999");
-    assert.strictEqual(found, real, '应返回精确匹配的节点而非提及 ID 的 decoy');
+    assert.strictEqual(found?.node, real, '应返回精确匹配的节点而非提及 ID 的 decoy');
+    assert.equal(found?.contentMatch, undefined);
 });
 
 test('P1-072b: findDocContentById 无匹配时返回 null', () => {
