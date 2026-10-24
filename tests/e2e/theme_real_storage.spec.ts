@@ -31,10 +31,10 @@ test('Options and Popup theme toggle persists, repaints, and synchronizes across
 
     await popupSwitch.click();
     await expect(popup.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(popup.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
+    await expect(popup.locator('body')).toHaveCSS('background-color', 'rgb(16, 16, 17)');
     await expect.poll(async () => (await storedSettings(options)).theme).toBe('dark');
     await expect(options.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(options.locator('body')).toHaveCSS('background-color', 'rgb(9, 10, 16)');
+    await expect(options.locator('body')).toHaveCSS('background-color', 'rgb(16, 16, 17)');
 
     await popup.reload();
     await expect(popup.locator('html')).toHaveAttribute('data-theme', 'dark');
