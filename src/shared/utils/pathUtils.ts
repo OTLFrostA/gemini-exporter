@@ -1,4 +1,4 @@
-export const RESERVED_ROUTES = new Set([
+const RESERVED_ROUTES = new Set([
     'download', 'settings', 'prompts', 'archive', 'trash', 'share',
     'activity', 'help', 'feedback', 'gems', 'explore', 'privacy', 'terms', 'updates', 'faq'
 ]);
