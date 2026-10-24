@@ -31,7 +31,7 @@ export interface ContentEventArgs {
 }
 
 export type ContentEvent = keyof ContentEventArgs;
-type ContentListeners = { [K in ContentEvent]?: Set<(...args: ContentEventArgs[K]) => void> };
+type ContentListeners = { [K in ContentEvent]: Set<(...args: ContentEventArgs[K]) => void> };
 
 
 export class ContentContext {
@@ -45,7 +45,12 @@ export class ContentContext {
     private _devMode = false;
     private _currentLang = 'zh';
     private _injected = false;
-    private _listeners: ContentListeners = {};
+    private readonly _listeners: ContentListeners = {
+        credentials: new Set(),
+        abort: new Set(),
+        langChange: new Set(),
+        devModeChange: new Set(),
+    };
 
     // Resolve the browser capability once at construction. Runtime methods
     // never need to re-check a global whose availability is fixed per context.
@@ -201,8 +206,7 @@ export class ContentContext {
     }
 
     public on<K extends ContentEvent>(event: K, listener: (...args: ContentEventArgs[K]) => void): () => void {
-        const set = this._listeners[event] ?? new Set<(...args: ContentEventArgs[K]) => void>();
-        this._listeners[event] = set;
+        const set = this._listeners[event];
         set.add(listener);
         return () => { set.delete(listener); };
     }
