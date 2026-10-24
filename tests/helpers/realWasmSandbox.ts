@@ -62,7 +62,7 @@ const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
 /** Must stay identical to MAIN_TYP in src/l4/format/pdf/sandbox/typstCompileEntry.ts. */
 const MAIN_TYP = '#import "document.typ": render-document\n#let payload = json("/payload.json")\n#render-document(payload)\n';
 
-export interface FrameStats {
+interface FrameStats {
     framesCreated: number;
     listenersAttached: number;
     listenersDetached: number;
