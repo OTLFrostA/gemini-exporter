@@ -131,8 +131,8 @@ export interface TitleResult {
     source: "rpc" | "sniff" | "default";
 }
 
-/** Selected candidate fields verified by the Turn decoder. The raw fields are
- * intentionally left for specialized image, file, and structured decoders. */
+/** Selected Candidate facts decoded at the Turn boundary. Raw media evidence
+ * stays private to Gemini resource decoders. */
 export interface DecodedGeminiCandidate {
     id: string;
     text: string;
@@ -141,17 +141,12 @@ export interface DecodedGeminiCandidate {
     citations: Citation[];
     sourceAttributions: GeminiSourceAttribution[];
     groundingCitationMarkers: string[];
-    /** Raw evidence is reserved for the media, document and structured decoders. */
-    body: unknown;
-    raw: unknown;
 }
 
-/** Known fields read once from a Turn. Specialized media/structured decoders
- * retain their own raw evidence without treating it as validated fields. */
+/** Known fields read once from a Turn. All returned fields are typed facts;
+ * wire slots are read only by specialized L1 resource decoders. */
 export interface DecodedGeminiTurn {
     userText: string;
-    /** Only consumed by the user-image and user-file decoders. */
-    rawUserPayload: unknown;
     timestamp: number | null;
     userMessageId: string;
     fallbackTurnId: string;
@@ -159,7 +154,6 @@ export interface DecodedGeminiTurn {
     rawProviderRequestId: string | undefined;
     /** Stable normalized request identity; raw token above retains its spelling. */
     providerRequestId: string | undefined;
-    rawAnswerDocument: unknown;
     candidate: DecodedGeminiCandidate | null;
     candidateIndex: number;
 }
@@ -833,22 +827,17 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
                 thoughts: extractThoughts(candidateBlock),
                 citations: extractCitations(candidateBlock),
                 sourceAttributions: extractSourceAttributions(selected),
-                groundingCitationMarkers: extractGroundingCitationMarkers(selected || candidateBlock),
-                body,
-                raw: selected
+                groundingCitationMarkers: extractGroundingCitationMarkers(selected || candidateBlock)
             }
             : null;
 
         return {
             userText: extractUserText(rawUserPayload),
-            rawUserPayload,
             timestamp: extractTurnTimestamp(turn),
             userMessageId,
             fallbackTurnId,
             rawProviderRequestId,
             providerRequestId,
-            rawAnswerDocument: isUnknownArray(modelPayload)
-                ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined,
             candidate,
             candidateIndex
         };
