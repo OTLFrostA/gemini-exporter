@@ -45,22 +45,24 @@ export const BUNDLED_FONT_PATHS: readonly string[] = [
     'src/l4/format/pdf/sandbox/fonts/NotoEmoji-Variable.ttf',
 ];
 
+export interface ProtocolMessageBody {
+    readonly wasm?: unknown;
+    readonly files?: unknown;
+    readonly binaries?: unknown;
+    readonly fonts?: unknown;
+    readonly initMs?: unknown;
+    readonly stage?: unknown;
+    readonly current?: unknown;
+    readonly total?: unknown;
+    readonly pdf?: unknown;
+    readonly diagnostics?: unknown;
+    readonly error?: unknown;
+}
+
 export interface ParsedProtocolMessage {
     type: string;
     jobId: string | null;
-    body: {
-        readonly wasm?: unknown;
-        readonly files?: unknown;
-        readonly binaries?: unknown;
-        readonly fonts?: unknown;
-        readonly initMs?: unknown;
-        readonly stage?: unknown;
-        readonly current?: unknown;
-        readonly total?: unknown;
-        readonly pdf?: unknown;
-        readonly diagnostics?: unknown;
-        readonly error?: unknown;
-    };
+    body: ProtocolMessageBody;
 }
 
 export type ParseResult =

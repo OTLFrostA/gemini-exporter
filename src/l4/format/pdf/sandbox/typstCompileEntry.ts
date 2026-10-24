@@ -14,7 +14,7 @@ import {
     isSandboxFileEntry,
     parseProtocolMessage,
     sandboxExpectedHostOrigin,
-    type ParsedProtocolMessage,
+    type ProtocolMessageBody,
 } from '../typst/sandboxProtocol.js';
 
 import themeTyp from '../../typst/templates/theme.typ';
@@ -74,7 +74,7 @@ function throwIfCancelled(job: CompileJob, jobId: string): void {
     }
 }
 
-async function handleInit(jobId: string, body: ParsedProtocolMessage['body']): Promise<void> {
+async function handleInit(jobId: string, body: ProtocolMessageBody): Promise<void> {
     const wasm = body.wasm;
     if (!(wasm instanceof ArrayBuffer)) {
         throw new Error('init message must carry the WASM module as a transferred ArrayBuffer');
@@ -93,7 +93,7 @@ async function handleInit(jobId: string, body: ParsedProtocolMessage['body']): P
     });
 }
 
-async function handleCompile(jobId: string, body: ParsedProtocolMessage['body']): Promise<void> {
+async function handleCompile(jobId: string, body: ProtocolMessageBody): Promise<void> {
     const activeCompiler = compiler;
     const activeFontBuilder = fontBuilder;
     if (!activeCompiler || !activeFontBuilder) {
