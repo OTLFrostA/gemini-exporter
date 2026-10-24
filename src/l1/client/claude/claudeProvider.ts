@@ -12,7 +12,7 @@ import { parseClaudeList } from '../../parsers/claude/parseList.js';
 import { parseClaudeConversation } from '../../parsers/claude/parseConversation.js';
 import { readClaudeSource } from './claudeSource.js';
 
-export interface ClaudeProviderDeps {
+interface ClaudeProviderDeps {
     apiGet?: (path: string, organizationId?: string) => Promise<unknown>;
     resources?: SourceResourceContext;
 }
