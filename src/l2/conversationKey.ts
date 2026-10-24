@@ -7,7 +7,10 @@ export function conversationKey(accountId: string, conversationId: string): Conv
 }
 export function readConversationKey(value: unknown): ConversationKey {
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => k !== 'accountId' && k !== 'conversationId')) throw new TypeError('Invalid conversation key');
-    const { accountId, conversationId } = value as ConversationKey;
+    // The source object is untrusted; read its fields before passing typed values to the constructor.
+    const accountId = 'accountId' in value ? value.accountId : undefined;
+    const conversationId = 'conversationId' in value ? value.conversationId : undefined;
+    if (typeof accountId !== 'string' || typeof conversationId !== 'string') throw new TypeError('Invalid conversation key');
     return conversationKey(accountId, conversationId);
 }
 export function sameConversationKey(a: Readonly<ConversationKey>, b: Readonly<ConversationKey>): boolean {
