@@ -6,6 +6,7 @@ import { streamGen } from './fixtures/providers/chatgptStream.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
+import { deleteGen as chatgptDeleteGen } from './fixtures/providers/chatgptDelete.js';
 import { chatGPTSidebarPage } from '../src/l1/sniffer/chatgpt/sidebar.js';
 
 const cid = '6acffdc5-c4d0-83e8-8e1b-ba60979a618a';
@@ -23,9 +24,13 @@ test('capture binds exact ChatGPT endpoints and rejects lookalikes, prepare and 
         ['https://chatgpt.com/backend-api/conversations', 'POST'],
         ['https://chatgpt.com/backend-api/conversations/invalid', 'GET'],
     ]) assert.equal(chatGPTRequest(url, method), null);
-    assert.equal(confirmedChatGPTDeletion({ is_visible: false }, { success: true }), true);
-    for (const pair of [[{ is_visible: true }, { success: true }], [{ is_visible: false }, { success: false }], [{ is_visible: false }, {}], [{ is_visible: false }, { success: 'true' }]])
-        assert.equal(confirmedChatGPTDeletion(...pair as [unknown, unknown]), false);
+    assert.equal(confirmedChatGPTDeletion({ is_visible: false }, chatgptDeleteGen('C_CAPTURE_PATCH_CONFIRMED_01')), true);
+    for (const [request, response] of [
+        [{ is_visible: true }, chatgptDeleteGen('C_CAPTURE_PATCH_VISIBLE_01')],
+        [{ is_visible: false }, chatgptDeleteGen('C_CAPTURE_PATCH_REJECTED_01')],
+        [{ is_visible: false }, chatgptDeleteGen('C_CAPTURE_PATCH_EMPTY_01')],
+        [{ is_visible: false }, chatgptDeleteGen('C_CAPTURE_PATCH_STRING_SUCCESS_01')],
+    ] as const) assert.equal(confirmedChatGPTDeletion(request, response), false);
 });
 
 test('MAIN capture never consumes the page response or exposes tokens, and rejects switched sessions', async t => {
@@ -140,8 +145,13 @@ test('MAIN emits on [DONE] even when the source stream remains open, without con
 test('native ChatGPT DELETE binds its exact id endpoint and requires explicit success', () => {
     assert.deepEqual(chatGPTRequest('https://chatgpt.com/backend-api/conversation/id/'+cid,'DELETE'),{kind:'delete',conversationId:cid,method:'DELETE'});
     assert.equal(chatGPTRequest('https://chatgpt.com/backend-api/conversation/'+cid,'DELETE'),null);
-    assert.equal(confirmedChatGPTDeletion(null,{success:true},'DELETE'),true);
-    for(const response of [null,{}, {success:false},{success:'true'}])assert.equal(confirmedChatGPTDeletion(null,response,'DELETE'),false);
+    assert.equal(confirmedChatGPTDeletion(null, chatgptDeleteGen('C_CAPTURE_DELETE_CONFIRMED_01'), 'DELETE'), true);
+    for (const key of [
+        'C_CAPTURE_DELETE_NULL_01',
+        'C_CAPTURE_DELETE_EMPTY_01',
+        'C_CAPTURE_DELETE_REJECTED_01',
+        'C_CAPTURE_DELETE_STRING_SUCCESS_01',
+    ] as const) assert.equal(confirmedChatGPTDeletion(null, chatgptDeleteGen(key), 'DELETE'), false);
 });
 
 test('SSR sidebar capture awaits native loader data, binds its workspace and strips unrelated fields', async () => {
