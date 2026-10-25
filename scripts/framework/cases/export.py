@@ -516,7 +516,7 @@ class StaleTabImageExportCase(FeatureTestCase):
                         const cb = item?.querySelector('input[type=checkbox]');
                         if (cb) {{
                             document.querySelector('.tour-popover button')?.click();
-                            document.getElementById('btnSelectNone')?.click();
+                            document.querySelectorAll('#list input[type=checkbox]:checked').forEach(input => input.click());
                             cb.checked = true;
                             cb.dispatchEvent(new Event('change', {{bubbles: true}}));
                             return true;
