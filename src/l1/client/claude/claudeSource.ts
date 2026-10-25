@@ -23,11 +23,11 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
             const results = await chrome.scripting.executeScript({
                 target: { tabId }, world: 'ISOLATED',
                 func: async (requestedPath: string, organization?: string) => {
-                    const getJson = async (resource: string) => {
+                    const getJson = async (resource: string): Promise<unknown> => {
                         const response = await fetch(resource, { credentials: 'include',
                             headers: { Accept: 'application/json' } });
                         if (!response.ok) throw new Error('Claude API HTTP ' + response.status);
-                        return response.json() as Promise<unknown>;
+                        return response.json();
                     };
                     if (organization) {
                         const cookieOrg = document.cookie.split(';').map(part => part.trim())
