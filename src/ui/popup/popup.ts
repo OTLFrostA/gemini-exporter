@@ -73,7 +73,7 @@ export async function initPopup(): Promise<void> {
     const stop = observeSettings(() => { void refresh().catch(e => { showError(e); }); });
     window.addEventListener('pagehide', () => { active = false; stop(); }, { once: true });
     el('btnOptions').addEventListener('click', () => {
-        void readActiveSource().then(source =>
+        void readActiveSource().catch(() => null).then(source =>
             chrome.runtime.sendMessage({ action: 'openOptions', accountId: source?.accountId ?? null }))
             .catch(showError);
     });
