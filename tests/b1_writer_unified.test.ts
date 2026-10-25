@@ -5,7 +5,7 @@ import { ZipWriter } from '../src/l4/packaging/writers/zipWriter.js';
 import { buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
-import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import type { WriteFileContent, WriteFileOptions } from '../src/l4/delivery/writers/writerInterface.js';
 
 const captured = new Map<string, { content: WriteFileContent; options: WriteFileOptions }>();
@@ -13,9 +13,9 @@ class MockJSZip {
     file(path: string, content: WriteFileContent, options: WriteFileOptions) { captured.set(path, { content, options }); }
     async generateAsync() { return new Blob(['mock-zip']); }
 }
-let previousJSZip: unknown;
-test.beforeEach(() => { previousJSZip = __getModuleOverride('JSZip'); captured.clear(); __setModuleOverride('JSZip', MockJSZip); });
-test.afterEach(() => { __setModuleOverride('JSZip', previousJSZip); });
+let previousJSZip: ReturnType<typeof __getZipConstructor>;
+test.beforeEach(() => { previousJSZip = __getZipConstructor(); captured.clear(); __setZipConstructor(MockJSZip); });
+test.afterEach(() => { __setZipConstructor(previousJSZip); });
 
 test('B1 - 10 PNG resources pass through Packaging and writer with byte accounting and STORE compression', async () => {
     const assets = Array.from({ length: 10 }, (_, i) => ({ id: `image-${i}`, kind: 'image' as const }));

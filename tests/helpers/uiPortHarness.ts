@@ -28,6 +28,7 @@ export const findAuthorizedAccount = async platforms => {
  return null;
 };
 export const observePlatformAccess = listener => {h.accessListener=listener;return ()=>{h.accessListener=null;};};
+export const SOURCE_PLATFORMS = ['gemini', 'chatgpt', 'claude'];
 export const PLATFORM_HOSTS = {
  gemini:{pages:['https://gemini.google.com/*'],attachments:['https://*.googleusercontent.com/*']},
  chatgpt:{pages:['https://chatgpt.com/*','https://chat.openai.com/*'],attachments:['https://images.openai.com/*']},

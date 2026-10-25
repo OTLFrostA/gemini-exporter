@@ -14,7 +14,6 @@ test.beforeEach(async () => {
         await putAccount({ id: '10000000-0000-4000-8000-00000000000' + suffix, providerId: 'gemini', providerAccountId: subject });
 });
 
-const { __setModuleOverride, __getModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
 
 const {
     extractEmailFromText,

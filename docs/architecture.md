@@ -242,7 +242,6 @@ graph TD
 | `src/runtime/environment.ts` | Core: Utils | `isLocalDevelopment` | 运行时环境感知，基于 URL 参数及调试标记判定是否处于开发者调试模式。 | UI 模块, `utils.ts` | 调试环境布尔标记 | `UT_SSoT` |
 | `src/shared/utils/errorText.ts` | Shared: Utils | `getErrorMessage` | 将捕获的错误规范化为可显示文本；实际消息发送由 `tabService.sendTabMessage` 等 Runtime 入口承担。 | L1, Runtime, HTML | 错误文本 | `UT_SSoT` |
 | `src/shared/utils/retryUtils.ts` | Core: Utils | `calculateBackoff`, `abortableSleep`, `BackoffOptions` | 纯退避重试与 AbortSignal 可中断延迟工具，消除 API Client 对导出引擎的反向依赖与循环引用。 | `retryPolicy.ts`, `rateLimiter.ts`, `assetPipeline.ts` | 延迟毫秒数与可中断休眠 | `UT_SSoT` |
-| `src/shared/utils/moduleOverrides.ts` | Core: Utils | `__setModuleOverride`, `__resolveModule` | 运行时模块重定向与轻量依赖注入容器，支持无头单元测试注入 Mock 实现。 | 全系统所有模块 | 动态依赖解析 | `UT_SSoT` |
 | `src/l1/protocol/gemini/protocol.ts` | Core: Protocol | `GeminiProtocol`, `CrossWorldEvents` | 定义 wire 级 RPC 标识符 (`RPCS.LIST`, `RPCS.DELETE`)、跨世界事件名与关键断言。 | `hookCredentials`, `messageBridge` | 协议契约常量 | `MAIN_Hook`, `CS_Bridge` |
 | `src/l1/protocol/gemini/events.ts` | Core: Protocol | `GeminiCredentialsPayload`, `GeminiStreamEvents` | 强类型事件 Payload 接口定义。 | 全协议层 | TypeScript 类型校验 | 契约层 |
 | `src/ui/options/options.ts` | UI: Options | `options.ts` (Entrypoint) | 工作台初始化编排器，挂载上下文并装配初始化子模块。 | 用户访问 `options.html` | UI 子模块协调 | `OPT_Main` |

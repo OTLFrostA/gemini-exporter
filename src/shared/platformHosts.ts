@@ -1,3 +1,6 @@
+export const SOURCE_PLATFORMS = ['gemini', 'chatgpt', 'grok', 'claude'] as const;
+export type SourcePlatform = typeof SOURCE_PLATFORMS[number];
+
 /** Site access is requested as one independent group per source platform. */
 export const PLATFORM_HOSTS = {
     gemini: {
@@ -11,8 +14,7 @@ export const PLATFORM_HOSTS = {
     },
     grok: { pages: ['https://grok.com/*'], attachments: ['https://assets.grok.com/*'] },
     claude: { pages: ['https://claude.ai/*'], attachments: [] },
-} as const;
-export type SourcePlatform = keyof typeof PLATFORM_HOSTS;
+} as const satisfies Record<SourcePlatform, { pages: readonly string[]; attachments: readonly string[] }>;
 export function platformOrigins(platform: SourcePlatform): string[] {
     return [...PLATFORM_HOSTS[platform].pages, ...PLATFORM_HOSTS[platform].attachments];
 }

@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const { FsWriter, ensureSubDir } = require('../src/l4/delivery/writers/fsWriter.js');
 const { sanitizeFileName } = require('../src/shared/utils/pathUtils.js');
 const { ZipWriter, isPrecompressedAsset } = require('../src/l4/packaging/writers/zipWriter.js');
-const { __setModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
+const { __setZipConstructor } = require('../src/l4/packaging/writers/zipWriter.js');
 
 // ---------------------------------------------------------------------------
 // FsWriter
@@ -60,7 +60,7 @@ test('fsWriter - sanitizeFileName and ensureSubDir nested resolution', async () 
 // ---------------------------------------------------------------------------
 test('zipWriter - exports, instantiation, and sanitization', () => {
     assert.ok(ZipWriter);
-    __setModuleOverride('JSZip', class MockJSZip {
+    __setZipConstructor(class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
         file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
@@ -158,7 +158,7 @@ test('zipWriter - isPrecompressedAsset identifies media vs text correctly', () =
 
 test('zipWriter - selective compression uses STORE for media and DEFLATE for text', () => {
     const recordedOpts: Record<string, any> = {};
-    __setModuleOverride('JSZip', class MockJSZip {
+    __setZipConstructor(class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
         file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
@@ -185,7 +185,7 @@ test('zipWriter - generateBlob uses generateInternalStream when available', asyn
     let internalStreamUsed = false;
     let asyncUsed = false;
 
-    __setModuleOverride('JSZip', class MockJSZipWithStream {
+    __setZipConstructor(class MockJSZipWithStream {
         file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }
         legacyFolder(_name: string) {
             return { file: (_path?: string, _content?: unknown, _options?: unknown) => {} };
@@ -221,7 +221,7 @@ test('zipWriter - passes (path, content, options) through to JSZip file()', () =
     let capturedContent: any = null;
     let capturedOpts: any = null;
 
-    __setModuleOverride('JSZip', class MockJSZip {
+    __setZipConstructor(class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
         file(path: string, content: unknown, options?: unknown) { return this.legacyFolder('').file(path, content, options); }

@@ -1,7 +1,6 @@
-import GeminiProtocol, { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
+import GeminiProtocol from "../../../protocol/gemini/protocol.js";
 import { detectSlotFromUrl } from "../../../../shared/utils/pathUtils.js";
 import { STORAGE_KEYS } from "../../../../shared/utils/constants.js";
-import { __resolveModule } from "../../../../shared/utils/moduleOverrides.js";
 import { getCredStorage, withCredMapLock } from "./credStorage.js";
 
 export interface GeminiCredentials {
@@ -38,10 +37,6 @@ export interface GeminiClientCredentialManagerModule {
     loadCredMap: () => Promise<RawCredentialMap>;
     resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null) => Promise<GeminiCredentials>;
     generateFallbackSid: () => string;
-}
-
-function getProtocol(): GeminiProtocolModule {
-    return __resolveModule('GeminiProtocol', GeminiProtocol);
 }
 
 const generateFallbackSid = (): string => String(Math.floor(Math.random() * 1e19));
@@ -100,7 +95,7 @@ function getBlFromPage(doc?: unknown): string | null {
         if (_blCache && Date.now() - _blCache.ts < CRED_CACHE_TTL && _blCache.len === htmlLen) {
             return _blCache.v;
         }
-        const P = getProtocol();
+        const P = GeminiProtocol;
         const html = getDocumentHtml(targetDoc);
         const m = html.match(P.TOKEN_PATTERNS.blCfb2hFromHtml) || html.match(P.TOKEN_PATTERNS.blAssistantFromHtml);
         let res: string | null = null;
@@ -135,7 +130,7 @@ function getAtFromPage(doc?: unknown): string {
         if (_atCache && Date.now() - _atCache.ts < CRED_CACHE_TTL && _atCache.len === htmlLen) {
             return _atCache.v;
         }
-        const P = getProtocol();
+        const P = GeminiProtocol;
         if (glob && isRecord(glob._WIZ_global_data)) {
             const v = glob._WIZ_global_data[P.TOKENS.AT];
             if (typeof v === "string" && v) {
@@ -269,7 +264,7 @@ async function resolveCredInner(
         const entry: GeminiCredentials = {
             sid,
             at: pageAt,
-            bl: pageBl || getProtocol().BL_FALLBACK,
+            bl: pageBl || GeminiProtocol.BL_FALLBACK,
             accountSlot: slot,
             lastUsed: Date.now()
         };
@@ -318,7 +313,7 @@ async function resolveCredInner(
         const storedAt = typeof stored.at === "string" ? stored.at : null;
         result = {
             ...stored,
-            bl: storedBl || pageBl || getProtocol().BL_FALLBACK,
+            bl: storedBl || pageBl || GeminiProtocol.BL_FALLBACK,
             at: storedAt || pageAt || ""
         };
     } else {
@@ -337,7 +332,7 @@ async function resolveCredInner(
             const bestAt = typeof best.at === "string" ? best.at : null;
             result = {
                 ...best,
-                bl: bestBl || pageBl || getProtocol().BL_FALLBACK,
+                bl: bestBl || pageBl || GeminiProtocol.BL_FALLBACK,
                 at: bestAt || (cur === normSlot(detectSlot()) ? pageAt : "") || ""
             };
         } else {
@@ -346,7 +341,7 @@ async function resolveCredInner(
                 sid: generateFallbackSid(),
                 at: isCurrentPageMatch ? (pageAt || "") : "",
                 accountSlot: cur,
-                bl: pageBl || getProtocol().BL_FALLBACK
+                bl: pageBl || GeminiProtocol.BL_FALLBACK
             };
         }
     }

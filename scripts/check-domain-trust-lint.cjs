@@ -14,7 +14,10 @@ function ownedTypeScriptFiles(relativeDir) {
 // architecture gate additionally rejects all casts and non-null assertions in these owners.
 const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
     .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout'])
-    .flatMap(ownedTypeScriptFiles);
+    .flatMap(ownedTypeScriptFiles)
+    .concat(['src/shared/platformHosts.ts', 'src/runtime/api/accountRegistry.ts', 'src/runtime/api/domainIngestion.ts',
+        'src/runtime/capabilities/platformAuthorization.ts', 'src/runtime/capabilities/platformInjection.ts',
+        'src/ui/shared/platformAuthorization.ts']);
 
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any',
     '-D', 'typescript/no-unsafe-assignment', '-D', 'typescript/no-unsafe-argument', '-D', 'typescript/no-unsafe-return',

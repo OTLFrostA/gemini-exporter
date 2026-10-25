@@ -18,7 +18,7 @@ import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
 import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
-import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 const JSZip = require('../lib/jszip.min.js');
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 
@@ -50,7 +50,7 @@ test('L1 → L2 → Composer → Format → Packaging keeps account, resource id
         const acquired = await provider.acquireResource(key, detail.assets[0]);
         assert.deepEqual(acquired.bytes, Uint8Array.from(atob(png), c => c.charCodeAt(0)));
         const prepared: PreparedResources = new Map([['diagram', { ok: true, resourceId: 'diagram', value: acquired }]]);
-        __setModuleOverride('JSZip', JSZip);
+        __setZipConstructor(JSZip);
         for (const format of ['markdown', 'html', 'json'] as const) {
             const [plan] = planExportPaths([{ conversation: domain, prepared, fileIds: format === 'json' ? new Set<string>() : collectDocumentResources(document).fileIds }], format);
             const content: string = format === 'markdown' ? renderDocumentMarkdown(document, plan.resources)

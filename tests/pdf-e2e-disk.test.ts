@@ -12,7 +12,7 @@ import { TypstSandboxCompiler } from '../src/l4/format/pdf/typst/typstSandboxCom
 import { runExport } from '../src/application/export/runExport.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
 import { getExportRecord } from '../src/l3a/storageService.js';
-import { __getModuleOverride, __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
 const JSZip = require('../lib/jszip.min.js');
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
@@ -197,7 +197,7 @@ test('e2e-disk: unified PDF Folder Writer creates a parseable physical file',asy
 });
 test('e2e-disk: Browser batch ZIP reopens from disk with three distinct parseable PDFs',async t=>{
     const h=v2ExportHost(t);compiler(t);const tmp=freshTempDir('pdf-e2e-disk-zip-');
-    const previous=__getModuleOverride('JSZip');__setModuleOverride('JSZip',JSZip);t.after(()=>__setModuleOverride('JSZip',previous));
+    const previous=__getZipConstructor();__setZipConstructor(JSZip);t.after(()=>__setZipConstructor(previous));
     try{
         const specs=[{suffix:'a',title:'E2E Batch Chat Alpha',marker:'UNIQUE-MARKER-ALPHA-7f3a'},
             {suffix:'b',title:'E2E Batch Chat Beta',marker:'UNIQUE-MARKER-BETA-9c1e'},

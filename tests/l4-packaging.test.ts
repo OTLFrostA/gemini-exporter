@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
-import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import { ZipWriter } from '../src/l4/packaging/writers/zipWriter.js';
 import { assertExportPath } from '../src/l4/packaging/exportPath.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
@@ -67,7 +67,7 @@ for (const format of ['markdown', 'html', 'json'] as const) {
         const resource = prepared.get('a')!;
         assert.ok(resource.ok);
         assert.equal(files[1].content, resource.value.bytes);
-        __setModuleOverride('JSZip', JSZip);
+        __setZipConstructor(JSZip);
         const [artifact] = await packageExportFiles([files], 'browserDownload');
         const zip = await JSZip.loadAsync(await (artifact.content as Blob).arrayBuffer());
         for (const file of files) assert.ok(zip.file(file.fileName), file.fileName);
@@ -86,7 +86,7 @@ test('Packaging rejects dangling external bindings before Delivery; Image-only P
     assert.equal(buildExportFiles('pdf', pdfPlan, new Uint8Array([1]), prepared).length, 1);
 });
 test('ZIP decision uses actual flattened files and delivery, never format or batch count', async () => {
-    __setModuleOverride('JSZip', JSZip);
+    __setZipConstructor(JSZip);
     const a = { fileName: 'a.pdf', mimeType: 'application/pdf', content: new Uint8Array([1]) };
     const b = { ...a, fileName: 'b.pdf' };
     assert.deepEqual(await packageExportFiles([[a]], 'browserDownload'), [a]);
@@ -97,19 +97,19 @@ test('ZIP decision uses actual flattened files and delivery, never format or bat
     await assert.rejects(packageExportFiles([[a, a]], 'folderWriter'), /Duplicate/);
 });
 test('ZIP writer rejects unsafe paths rather than rewriting renderer bindings', () => {
-    __setModuleOverride('JSZip', JSZip);
+    __setZipConstructor(JSZip);
     const writer = new ZipWriter();
     for (const path of ['', '/root', '../x', 'assets/%2e%2e/x', 'a\\b', 'CON', 'a//b', 'a/'.repeat(2), 'z'.repeat(90) + '.md']) {
         assert.throws(() => writer.writeFile(path, 'x'), /Unsafe|Noncanonical|Empty/);
     }
 });
 test('ZIP generation failures reject without producing a delivery artifact', async () => {
-    __setModuleOverride('JSZip', class { file() {} async generateAsync() { throw new Error('zip failed'); } });
+    __setZipConstructor(class { file() {} async generateAsync(): Promise<never> { throw new Error('zip failed'); } });
     await assert.rejects(packageExportFiles([[{ fileName: 'a.md', mimeType: 'text/markdown', content: 'body' }, { fileName: 'b.md', mimeType: 'text/markdown', content: 'second' }]], 'browserDownload'), /zip failed/);
 });
 
 test('Format references resolve to the same planned ZIP entries for Markdown and HTML', async () => {
-    __setModuleOverride('JSZip', JSZip);
+    __setZipConstructor(JSZip);
     const c = conversation();
     // L3b is outside L4; pass a v2 AST fixture directly to real format backends.
     const document = v2Document([

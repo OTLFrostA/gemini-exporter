@@ -1,9 +1,7 @@
 import { geminiResponse, type GeminiResponseEnvelope } from './responseEnvelope.js';
 import { findListConversationMetadata } from './listMetadata.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
-import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
 import { stripInternalChipMarkdown } from "../../shared/chipUtils.js";
-import { __resolveModule } from "../../../../shared/utils/moduleOverrides.js";
 import type { TurnDriftReport, TitleResult, DecodedGeminiTurn, DecodedGeminiCandidate } from "./extractors.js";
 import type { ImageAttachment, UserFileAttachment } from "./sourceAttachments.js";
 
@@ -26,8 +24,7 @@ import {
     isInternalChipUrl
 } from "./sourceAttachments.js";
 import GeminiProtocol from "../../../protocol/gemini/protocol.js";
-import { isDevMode } from "../../../../runtime/devMode.js";
-const GeminiUtils = { isDevMode };
+import { isDevMode as devModeEnabled } from "../../../../runtime/devMode.js";
 import { extractNextPageToken } from "./payload.js";
 import { resolveDetailTitle } from "../../../../shared/utils/titleText.js";
 import {
@@ -37,14 +34,6 @@ import {
     type DecodedGeminiUserResources,
     type DecodedGeminiCandidateResources,
 } from './turnResources.js';
-
-function getUtils(): typeof GeminiUtils {
-    return __resolveModule('GeminiUtils', GeminiUtils);
-}
-
-function getProtocol(): GeminiProtocolModule {
-    return __resolveModule('GeminiProtocol', GeminiProtocol);
-}
 
 const isTurnCache = new WeakMap<object, boolean>();
 
@@ -379,10 +368,9 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
     try {
         const response = geminiResponse(text);
         const top = response.scope(GeminiProtocol.RPCS.DETAIL);
-        const utils = getUtils();
-        const isDevMode = utils.isDevMode();
+        const isDevMode = devModeEnabled();
 
-        const protocol = getProtocol();
+        const protocol = GeminiProtocol;
         const wrb = protocol.WRB || "wrb.fr";
         const detailRpc = protocol.RPCS ? protocol.RPCS.DETAIL : "hNvQHb";
 
@@ -449,7 +437,6 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
         const nextToken = extractNextPageToken(inner, GEMINI_JSPB_SCHEMA.INNER.NEXT_TOKEN_CANDIDATES);
         const url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, "")}`;
 
-
         let cleanT = metaTitle || cleanTitle(titleObj.title || convId);
         const isReal = isRealTitle(cleanT, convId);
         let finalSource: TitleResult["source"] = metaTitle ? "rpc" : (isReal ? titleObj.source : "default");
@@ -498,7 +485,6 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
         throw new Error("detail parse fail: " + message);
     }
 }
-
 
 export { decodeGeminiDetail, isTurn, findTurnsDeep, DOC_TITLE_FALLBACK_RE };
 

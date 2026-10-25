@@ -16,7 +16,7 @@ import { scanAll } from '../src/application/sync/scanController.js';
 import { clearLocalExportRecords, clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { getSettings, updateSettings } from '../src/application/settings/index.js';
 import { getAccount, listAccounts } from '../src/runtime/api/accountRegistry.js';
-import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 const account = fixtureAccount();
@@ -54,7 +54,7 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
             recordsAtClick.push(storage.getExportRecord(key));
         } }; }
     } });
-    __setModuleOverride('JSZip', require('../lib/jszip.min.js'));
+    __setZipConstructor(require('../lib/jszip.min.js'));
     try {
         await storage.putAccount(account);
         const parsed = sourceDetail();

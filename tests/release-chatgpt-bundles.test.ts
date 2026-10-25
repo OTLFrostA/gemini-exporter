@@ -1,4 +1,4 @@
-import { PLATFORM_HOSTS, platformOrigins, type SourcePlatform } from '../src/shared/platformHosts.js';
+import { PLATFORM_HOSTS, platformOrigins, SOURCE_PLATFORMS, type SourcePlatform } from '../src/shared/platformHosts.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -12,7 +12,7 @@ test('physical release ZIP contains every source script and retains all optional
     execFileSync(process.execPath, ['build.js', '--pack'], { cwd: root, stdio: 'pipe' });
     const manifest = JSON.parse(execFileSync('unzip', ['-p', archive, 'manifest.json'],
         { cwd: root, encoding: 'utf8' })) as { host_permissions: string[]; optional_host_permissions: string[] };
-    for (const host of (Object.keys(PLATFORM_HOSTS) as SourcePlatform[]).flatMap(platformOrigins)) {
+    for (const host of SOURCE_PLATFORMS.flatMap(platformOrigins)) {
         assert.ok(manifest.optional_host_permissions.includes(host));
         assert.ok(!manifest.host_permissions.includes(host));
     }

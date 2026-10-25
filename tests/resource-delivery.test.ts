@@ -22,7 +22,7 @@ import { planExportPaths, buildExportFiles } from '../src/l4/packaging/index.js'
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';
 import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
 import { attemptResource, missingResource } from '../src/shared/resources/resourceResult.js';
-import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import type { DomainAsset } from '../src/l2/conversationDetail.js';
 
 const JSZip = require('../lib/jszip.min.js');
@@ -51,9 +51,9 @@ async function seed(id: string, assets: DomainAsset[] = [
     }, { title: 'Resources ' + id, titleSource: 'provider', updatedAt: 100 });
 }
 function useZip(t: TestContext) {
-    const old = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', JSZip);
-    t.after(() => __setModuleOverride('JSZip', old));
+    const old = __getZipConstructor();
+    __setZipConstructor(JSZip);
+    t.after(() => __setZipConstructor(old));
 }
 async function zipContents(blob: Blob) {
     const zip = await JSZip.loadAsync(await blob.arrayBuffer());

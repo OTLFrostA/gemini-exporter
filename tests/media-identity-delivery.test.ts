@@ -21,16 +21,16 @@ import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown
 import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
 import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { startBrowserDownload } from '../src/l4/delivery/index.js';
-import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const account = fixtureAccount('gemini');
 const key = { accountId: account.id, conversationId: mediaChatId };
 const JSZip = require('../lib/jszip.min.js');
 
 function useZip(t: TestContext): void {
-    const previous = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', JSZip);
-    t.after(() => __setModuleOverride('JSZip', previous));
+    const previous = __getZipConstructor();
+    __setZipConstructor(JSZip);
+    t.after(() => __setZipConstructor(previous));
 }
 
 for (const [label, options] of [

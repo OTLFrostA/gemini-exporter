@@ -12,7 +12,7 @@ import { getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
-import { __getModuleOverride, __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import { makeTestExportProvider } from './helpers/makeTestWorker.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { v2ExportHost, exportKey, exportRequest, seedExportConversation } from './helpers/v2ExportHost.js';
@@ -51,16 +51,16 @@ test('failed Browser Download start does not replace a previous ExportRecord and
 
 test('ZIP writer error while staging multiple conversations fails all Keys before any delivery', async t => {
     const host = v2ExportHost(t);
-    const previous = __getModuleOverride('JSZip');
+    const previous = __getZipConstructor();
     const attempted: string[] = [];
-    __setModuleOverride('JSZip', class {
+    __setZipConstructor(class {
         file(path: string) {
             attempted.push(path);
             if (attempted.length === 2) throw new Error('Second staged Markdown failed');
         }
-        async generateAsync() { throw new Error('ZIP should not generate after a file failure'); }
+        async generateAsync(): Promise<never> { throw new Error('ZIP should not generate after a file failure'); }
     });
-    t.after(() => __setModuleOverride('JSZip', previous));
+    t.after(() => __setZipConstructor(previous));
     await seedExportConversation('staged-one');
     await seedExportConversation('staged-two');
 
@@ -73,7 +73,7 @@ test('ZIP writer error while staging multiple conversations fails all Keys befor
     assert.equal(await getExportRecord(exportKey('staged-one')), null);
     assert.equal(await getExportRecord(exportKey('staged-two')), null);
 
-    __setModuleOverride('JSZip', JSZip);
+    __setZipConstructor(JSZip);
     const retried = await runExport(exportRequest(['staged-one', 'staged-two']));
     assert.equal(retried.exported, 2);
     assert.deepEqual(retried.failed, []);

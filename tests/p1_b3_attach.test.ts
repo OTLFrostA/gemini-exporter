@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { runExport } from '../src/application/export/runExport.js';
 import { getExportRecord } from '../src/l3a/storageService.js';
 import { v2ExportHost, exportKey, exportRequest, seedExportConversation } from './helpers/v2ExportHost.js';
-import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import { handleGetImageBlob } from '../src/runtime/capabilities/assetFetcher.js';
 const JSZip = require('../lib/jszip.min.js');
 
@@ -11,9 +11,9 @@ const JSZip = require('../lib/jszip.min.js');
 // a removed ExportOrchestrator ProgressReporter. Assert actual v2 delivery too.
 test('P1-023: v2 multi-chat export progress stays ordered and each delivered key gets a Record', async t => {
     const host = v2ExportHost(t);
-    const previousZip = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', JSZip);
-    t.after(() => __setModuleOverride('JSZip', previousZip));
+    const previousZip = __getZipConstructor();
+    __setZipConstructor(JSZip);
+    t.after(() => __setZipConstructor(previousZip));
     const ids = ['progress-a', 'progress-b', 'progress-c', 'progress-d'];
     for (const id of ids) await seedExportConversation(id);
     const updates: Array<{ current: number; total: number; id: string }> = [];

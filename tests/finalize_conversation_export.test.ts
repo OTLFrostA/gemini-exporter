@@ -17,7 +17,7 @@ import { readConversation } from '../src/l2/readConversation.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type { AIProvider } from '../src/l1/client/aiProvider.js';
 import type { ExportDiagnostic, ExportRecord } from '../src/application/export/types.js';
-import { __getModuleOverride, __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const account = fixtureAccount('gemini');
 const old: ExportRecord = { exportedAt: 90, format: 'markdown', status: 'ok', chatTime: 90 };
@@ -165,9 +165,9 @@ test('Export completion never creates a catalog row from a standalone ExportReco
 
 test('batch completion stores records per key and Skip consumes only delivered versions', async t => {
     const host = v2ExportHost(t);
-    const previousZip = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', require('../lib/jszip.min.js'));
-    t.after(() => __setModuleOverride('JSZip', previousZip));
+    const previousZip = __getZipConstructor();
+    __setZipConstructor(require('../lib/jszip.min.js'));
+    t.after(() => __setZipConstructor(previousZip));
     await seedExportConversation('completion-batch-1');
     await seedExportConversation('completion-batch-2');
     const ids = ['completion-batch-1', 'completion-batch-2'];

@@ -1,7 +1,6 @@
 
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from '../../delivery/writers/writerInterface.js';
 import { assertExportPath } from '../exportPath.js';
-import { __resolveModule } from '../../../shared/utils/moduleOverrides.js';
 
 /**
  * Identify already-compressed binary media assets where DEFLATE provides 0% gain
@@ -12,20 +11,25 @@ export function isPrecompressedAsset(path: string): boolean {
     return /\.(png|jpe?g|webp|gif|bmp|mp3|mp4|m4a|wav|ogg|zip|gz|tar|pdf)$/i.test(path);
 }
 
-
-
-/** Size probes are optional on the shared string/binary content contract. */
-type ZipContent = WriteFileContent & { byteLength?: number; length?: number };
-
 /** Only the JSZip operations used by this writer. */
 interface ZipInstance {
-    file(path: string, content: ZipContent | null | undefined, options?: WriteFileOptions): unknown;
+    file(path: string, content: WriteFileContent | null | undefined, options?: WriteFileOptions): void;
     generateInternalStream?(options: { type: 'blob' }): {
         accumulate(onUpdate: (meta: { percent: number }) => void): Promise<Blob>;
     };
     generateAsync(options: { type: 'blob' }, onUpdate?: (meta: { percent: number }) => void): Promise<Blob>;
 }
-type ZipConstructor = new () => ZipInstance;
+export type ZipConstructor = new () => ZipInstance;
+
+let testConstructor: ZipConstructor | undefined;
+const isProduction = () => typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+/** The only injected dependency is JSZip, with the same contract as the writer. */
+export function __setZipConstructor(value: ZipConstructor | undefined): void {
+    if (!isProduction()) testConstructor = value;
+}
+export function __getZipConstructor(): ZipConstructor | undefined {
+    return isProduction() ? undefined : testConstructor;
+}
 
 declare global {
     interface WindowOrWorkerGlobalScope { JSZip?: ZipConstructor }
@@ -39,7 +43,7 @@ function isZipConstructor(value: unknown): value is ZipConstructor {
 }
 
 function resolveJSZip(): ZipConstructor | null {
-    const override = __resolveModule<ZipConstructor | null>('JSZip', null);
+    const override = __getZipConstructor();
     if (override) return override;
     if (typeof self !== 'undefined' && self.JSZip) return self.JSZip;
     if (typeof require !== 'undefined') {
@@ -76,7 +80,7 @@ class ZipWriter implements IExportWriter {
         return path;
     }
 
-    writeFile(relativePath: string, content?: ZipContent | null, options?: WriteFileOptions): string {
+    writeFile(relativePath: string, content?: WriteFileContent | null, options?: WriteFileOptions): string {
         // Single supported form: (relativePath, content, options?).
         // The legacy (subDirPath, fileName, content) overload was retired:
         // it had zero production callers.
@@ -85,13 +89,11 @@ class ZipWriter implements IExportWriter {
 
         if (content) {
             if (typeof content === 'string') {
-                this.totalBytes += content.length * (opts && opts.base64 ? 0.75 : 1);
-            } else if (typeof Blob !== 'undefined' && content instanceof Blob) {
+                this.totalBytes += content.length * (opts.base64 ? 0.75 : 1);
+            } else if (content instanceof Blob) {
                 this.totalBytes += content.size;
-            } else if (content.byteLength) {
+            } else {
                 this.totalBytes += content.byteLength;
-            } else if (content.length) {
-                this.totalBytes += content.length;
             }
         }
         if (this.totalBytes > this.MAX_SAFE_ZIP_BYTES) {
@@ -120,14 +122,12 @@ class ZipWriter implements IExportWriter {
         // Phase B (B1): 不再传全局 compression / compressionOptions 硬压——
         // 各文件的 STORE/DEFLATE（含 level 6）已在 writeFile 时按文件级设定，
         // 这里透传文件级设置即可。
-        if (typeof this.zip.generateInternalStream === 'function') {
+        if (this.zip.generateInternalStream) {
             try {
                 return await this.zip.generateInternalStream({
                     type: 'blob'
                 }).accumulate((meta: { percent: number }) => {
-                    if (onUpdate && typeof onUpdate === 'function') {
-                        onUpdate(meta.percent);
-                    }
+                    onUpdate?.(meta.percent);
                 });
             } catch (streamErr) {
                 console.warn('[ZipWriter] generateInternalStream failed, falling back to generateAsync:', streamErr);
@@ -137,9 +137,7 @@ class ZipWriter implements IExportWriter {
         return await this.zip.generateAsync({
             type: 'blob'
         }, (meta: { percent: number }) => {
-            if (onUpdate && typeof onUpdate === 'function') {
-                onUpdate(meta.percent);
-            }
+            onUpdate?.(meta.percent);
         });
     }
 }
