@@ -244,11 +244,10 @@
   #moreActionsMenu .menu-account-note{display:block;margin:-2px 10px 6px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   #moreActionsMenu .menu-divider{height:1px;background:var(--border);margin:6px 4px;}
   #localDataControls{display:flex;flex-direction:column;gap:0;}
-  .conversation-selection{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;min-height:26px;margin:0 1px 4px;padding:0 3px;color:var(--muted);}
+  .conversation-selection{display:flex;align-items:center;gap:9px;flex:none;min-height:26px;margin:0 1px 4px;padding:0 9px;color:var(--muted);}
   .conversation-selection .stat{font-size:11px;}
-  .selection-actions{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);}
-  .selection-action{height:24px;padding:2px 5px;background:transparent;border:0;border-radius:5px;color:var(--muted);font-size:11px;font-weight:500;}
-  .selection-action:hover{background:var(--card-inner);color:var(--text);}
+  .conversation-selection #btnSelectAll{width:14px;height:14px;margin:0;flex:none;cursor:pointer;accent-color:var(--accent);}
+  .conversation-selection #btnSelectAll:disabled{cursor:default;opacity:.45;}
   #list{border:0;border-radius:0;background:transparent;padding:2px 0;}
   @media(max-width:1100px){
     .conversation-toolbar{gap:5px;}
@@ -434,12 +433,8 @@
       <input type="file" id="takeoutFileInput" accept=".zip" hidden>
     </div>
     <div class="conversation-selection">
+      <input id="btnSelectAll" type="checkbox" aria-label="全选当前可见会话">
       <span id="selectedStat" class="stat"></span>
-      <div class="selection-actions">
-        <button id="btnSelectAll" type="button" class="selection-action" data-i18n="selectAll">全选</button>
-        <span aria-hidden="true">·</span>
-        <button id="btnSelectNone" type="button" class="selection-action" data-i18n="selectNone">全不选</button>
-      </div>
     </div>
     <div id="list" class="list" style="flex:1; margin:0; overflow-y:auto; padding-right:4px;"></div>
   </div>
