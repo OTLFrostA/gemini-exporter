@@ -2,14 +2,14 @@ import { test, expect, seedRegistryAccounts } from './fixtures';
 import { readFile } from 'node:fs/promises';
 import { openOptions, seedConversations, openPopup, storedSettings } from './uiFixture';
 test.beforeEach(async({context,extensionId})=>{void extensionId;await seedRegistryAccounts(context);});
-test('Popup renders current bilingual labels and four format controls with durable v2 Settings',async({context,extensionId})=>{
+test('Popup renders current bilingual labels and five format controls with durable v2 Settings',async({context,extensionId})=>{
     const options=await openOptions(context,extensionId);await seedConversations(options,[{id:'a',title:'Current title'}]);const page=await openPopup(context,extensionId);
-    await expect(page.locator('#currentChatTitle')).toHaveText('Current title');await expect(page.locator('[data-format]')).toHaveCount(4);
+    await expect(page.locator('#currentChatTitle')).toHaveText('Current title');await expect(page.locator('[data-format]')).toHaveCount(5);
     await expect(page.locator('#btnCurrent')).toHaveText('📥 Export Current Conversation');await expect(page.locator('#btnOptions')).toBeVisible();
     await options.locator('#langToggle').uncheck();await expect(page.locator('#btnCurrent')).toHaveText('📥 导出当前对话');
     await options.locator('#langToggle').check();await expect(page.locator('#btnCurrent')).toHaveText('📥 Export Current Conversation');
     await page.locator('[data-format="json"]').click();await expect(page.locator('[data-format="json"]')).toHaveAttribute('aria-pressed','true');await expect.poll(async()=> (await storedSettings(page)).defaultFormat).toBe('json');
-    for(const enabled of [true,false]) {await options.locator('#devToggle').setChecked(enabled);await expect(page.locator('[data-format]')).toHaveCount(4);await expect(page.locator('[data-format="json_raw"],[data-format="json_openai"]')).toHaveCount(0);}
+    for(const enabled of [true,false]) {await options.locator('#devToggle').setChecked(enabled);await expect(page.locator('[data-format]')).toHaveCount(5);await expect(page.locator('[data-format="json_raw"],[data-format="json_openai"]')).toHaveCount(0);}
     await expect(page.locator('#chatSlotBadge,#historyTotalSynced,#btnCopyMarkdown,#btnScreenshot,#previewModal')).toHaveCount(0);
 });
 test('Popup and Options synchronize format in both directions and consume the same language setting',async({context,extensionId})=>{
