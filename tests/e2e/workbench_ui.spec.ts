@@ -7,7 +7,10 @@ test('workbench list preserves explicit selection across row clicks, search and 
     await expect(page.locator('#list input:checked')).toHaveCount(0);
     await page.locator('#btnSelectAll').click();await expect(page.locator('#list input:checked')).toHaveCount(3);await expect(page.locator('#selectedStat')).toHaveText('3 of 3 selected');
     await page.locator('#btnSelectAll').click();await expect(page.locator('#list input:checked')).toHaveCount(0);
-    const row=page.locator('[data-chat-id="chat_002"]');await row.locator('.chat-title').click();await expect(row.locator('input')).toBeChecked();await row.locator('.chat-title').click();await expect(row.locator('input')).not.toBeChecked();
+    const row=page.locator('[data-chat-id="chat_002"]');await row.locator('.chat-title').click();await expect(row.locator('input')).toBeChecked();
+    await expect(page.locator('#btnSelectAll')).toHaveJSProperty('indeterminate',true);
+    await row.locator('.chat-title').click();await expect(row.locator('input')).not.toBeChecked();
+    await expect(page.locator('#btnSelectAll')).toHaveJSProperty('indeterminate',false);
     await page.locator('#chatSearchInput').fill('量子');await expect(page.locator('#list .item')).toHaveCount(1);await page.locator('#btnSelectAll').click();await expect(page.locator('#selectedStat')).toHaveText('1 of 3 selected');
     await page.locator('#chatSearchInput').fill('');await expect(page.locator('#list .item')).toHaveCount(3);
     for(const language of ['zh','en']) {await page.locator('#langToggle').setChecked(language==='en');await expect(page.locator('#btnSelectAll')).toHaveAttribute('aria-label',language==='zh'?'全选当前可见会话':'Select all visible conversations');await expect(page.locator('[data-chat-id="chat_001"] input')).toBeChecked();}
