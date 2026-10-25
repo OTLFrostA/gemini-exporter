@@ -15,7 +15,6 @@ interface Window {
     __gemExporterAborted?: boolean;
     __gemExporterActiveClient?: import('../content/contentContext.js').ActiveClientContract | null;
     __gemExporterContentContext?: import('../content/contentContext.js').ContentContext;
-    __gemExporterDeepScanPromise?: Promise<void> | null;
     __gemExporterInjected?: boolean;
     __gemExporterDevMode?: boolean;
     __gemExporterVerboseLog?: boolean;
@@ -27,10 +26,6 @@ interface Window {
     __gemExporterExtractedBl?: string;
     __gemExporterCleanups?: Array<() => void>;
     __gemExporterHistoryHooked?: boolean;
-    __gemExporterSyncInterval?: unknown;
-    __gemExporterTitleObserver?: unknown;
-    __gemExporterDebounceTimer?: unknown;
-    __gemExporterUrlWatcher?: unknown;
     __gemExporterBl?: string | null;
     __geminiAt?: string;
     _WIZ_global_data?: Record<string, string>;

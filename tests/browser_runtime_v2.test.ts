@@ -707,7 +707,6 @@ test('Runtime navigation observer refreshes on SPA changes, then removes all lis
     let navigations = 0;
     const observer = load('src/runtime/content/pageObserver.ts', {
         'src/runtime/content/cleanupRegistry.js': { registerCleanup: (fn: () => void) => { dispose = fn; return () => {}; } },
-        'src/runtime/content/contentContext.js': { contentContext: { clearTimer() {} } },
     });
     observer.hookHistoryEvents(() => navigations++);
     global.location.href = 'https://gemini.google.com/app/b';

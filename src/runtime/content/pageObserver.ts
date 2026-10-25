@@ -1,4 +1,3 @@
-import { contentContext } from './contentContext.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
 let __lastObservedUrl = typeof location !== 'undefined' ? location.href : '';
@@ -23,27 +22,7 @@ function removeHistoryListeners(): void {
 }
 
 export function cleanup(): void {
-    contentContext.clearTimer('syncInterval');
-    contentContext.clearTimer('titleObserver');
-    contentContext.clearTimer('debounceTimer');
-
-    if (typeof window !== 'undefined') {
-        const w = window;
-        w.__gemExporterUrlWatcher = null;
-        w.__gemExporterSyncInterval = null;
-        w.__gemExporterTitleObserver = null;
-        w.__gemExporterDebounceTimer = null;
-        removeHistoryListeners();
-    }
-}
-
-export function debouncedSync(syncCallback?: () => void, delay = 350): void {
-    const timer = setTimeout(() => {
-        contentContext.clearTimer('debounceTimer');
-        if (contentContext.getDeepScanPromise()) return;
-        if (typeof syncCallback === 'function') syncCallback();
-    }, delay);
-    contentContext.registerTimer('debounceTimer', timer, () => clearTimeout(timer));
+    removeHistoryListeners();
 }
 
 export function hookHistoryEvents(onUrlChanged: () => void): void {
@@ -80,52 +59,4 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
     registerCleanup(removeHistoryListeners);
 }
 
-export function observeTitleChanges(onTitleChanged: () => void): void {
-    if (typeof document === 'undefined') return;
-    try {
-        const titleEl = document.querySelector('title');
-        if (titleEl) {
-            const observer = new MutationObserver(() => {
-                onTitleChanged();
-            });
-            observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
-            contentContext.registerTimer('titleObserver', observer, () => observer.disconnect());
-        }
-    } catch (e) {
-        if (contentContext.isDevMode()) console.debug('[GemExporter:pageObserver]', e);
-    }
-}
-
-export function startPeriodicSync(syncCallback?: () => void, intervalMs = 15000): void {
-    if (typeof window === 'undefined') return;
-    contentContext.clearTimer('syncInterval');
-    const syncInterval = setInterval(() => {
-        if (contentContext.getDeepScanPromise()) return;
-        if (typeof syncCallback === 'function') syncCallback();
-    }, intervalMs);
-    contentContext.registerTimer('syncInterval', syncInterval, () => clearInterval(syncInterval));
-}
-
-export function init({ onSync }: { onSync?: () => void } = {}): { cleanup: () => void; debouncedSync: typeof debouncedSync } {
-    cleanup();
-
-    const triggerSync = (delay = 350) => debouncedSync(onSync, delay);
-
-    hookHistoryEvents(() => triggerSync(400));
-    observeTitleChanges(() => triggerSync(500));
-    startPeriodicSync(onSync, 15000);
-
-    return {
-        cleanup,
-        debouncedSync
-    };
-}
-
-export const PageObserver = {
-    init,
-    cleanup,
-    debouncedSync,
-    hookHistoryEvents,
-    observeTitleChanges,
-    startPeriodicSync
-};
+export const PageObserver = { cleanup, hookHistoryEvents };
