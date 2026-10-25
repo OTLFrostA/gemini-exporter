@@ -26,11 +26,13 @@ export function parseNativeTool(name: string, input: Record<string, unknown> | n
             blocks.push({ type: 'code', code: input.command, language: 'bash' });
         }
     } else if (name === 'senduserfile') {
-        if (!Array.isArray(input?.files) || !input.files.length || input.files.some(path => typeof path !== 'string'))
+        const files = input?.files;
+        if (!Array.isArray(files) || !files.length
+            || !files.every((path): path is string => typeof path === 'string'))
             issues.push('Missing delivered file paths');
         else {
-            if (typeof input.caption === 'string') blocks.push(...markdown(input.caption));
-            for (const path of input.files) blocks.push(plain('Delivered file: ' + String(path).split('/').at(-1)));
+            if (typeof input?.caption === 'string') blocks.push(...markdown(input.caption));
+            for (const path of files) blocks.push(plain('Delivered file: ' + path.split('/').at(-1)));
         }
     } else if (name.startsWith('mcpclaudedocs')) {
         const operation = name.slice('mcpclaudedocs'.length);
