@@ -1,3 +1,4 @@
+import { hasGrokAccess } from '../../l1/client/grok/grokSource.js';
 import { hasClaudeAccess } from '../../l1/client/claude/claudeSource.js';
 import { getAccount } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
@@ -9,13 +10,13 @@ export function assertExtensionSender(sender: chrome.runtime.MessageSender): voi
 export function assertContentSender(sender: chrome.runtime.MessageSender): URL {
     assertExtensionSender(sender);
     const url = sender.url && new URL(sender.url);
-    if (sender.tab?.id === undefined || !url || !['https://gemini.google.com', 'https://chatgpt.com', 'https://chat.openai.com', 'https://claude.ai'].includes(url.origin)
+    if (sender.tab?.id === undefined || !url || !['https://gemini.google.com', 'https://chatgpt.com', 'https://chat.openai.com', 'https://claude.ai', 'https://grok.com'].includes(url.origin)
         || (sender.frameId !== undefined && sender.frameId !== 0)) throw new Error('Unsupported Provider Content sender');
     return url;
 }
-export function contentProviderId(sender: chrome.runtime.MessageSender): 'gemini' | 'chatgpt' | 'claude' {
+export function contentProviderId(sender: chrome.runtime.MessageSender): 'gemini' | 'chatgpt' | 'claude' | 'grok' {
     const hostname = assertContentSender(sender).hostname;
-    return hostname === 'gemini.google.com' ? 'gemini' : hostname === 'claude.ai' ? 'claude' : 'chatgpt';
+    return hostname === 'grok.com' ? 'grok' : hostname === 'gemini.google.com' ? 'gemini' : hostname === 'claude.ai' ? 'claude' : 'chatgpt';
 }
 export async function requireContentAccount(sender: chrome.runtime.MessageSender, accountId: unknown) {
     const senderProvider = contentProviderId(sender);
@@ -23,6 +24,7 @@ export async function requireContentAccount(sender: chrome.runtime.MessageSender
     const account = await getAccount(accountId);
     if (!account || account.providerId !== senderProvider) throw new Error('Content Account/Provider mismatch');
     if (account.providerId === 'chatgpt' && !await hasChatGPTAccess()) throw new Error('ChatGPT site access revoked');
+    if (account.providerId === 'grok' && !await hasGrokAccess()) throw new Error('Grok site access revoked');
     if (account.providerId === 'claude' && !await hasClaudeAccess()) throw new Error('Claude site access revoked');
     return account;
 }
@@ -47,6 +49,7 @@ export async function requireCurrentContentAccount(sender: chrome.runtime.Messag
     if (result.ok !== true || context.providerId !== account.providerId || context.accountId !== account.id) {
         throw new Error('Requested Account does not match the sending Tab');
     }
+    if (account.providerId === 'grok' && !await hasGrokAccess()) throw new Error('Grok site access revoked');
     if (account.providerId === 'claude' && !await hasClaudeAccess()) throw new Error('Claude site access revoked');
     return account;
 }

@@ -62,6 +62,7 @@ async function connectTourGemini(page: import('@playwright/test').Page) {
     }, { accountId });
     await page.getByRole('checkbox', { name: 'ChatGPT', exact: true }).uncheck();
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();
     await page.getByRole('button', { name: 'Authorize', exact: true }).click();
     await expect(page.locator('#tourNextBtn')).toBeEnabled();
     await page.locator('#tourNextBtn').click();

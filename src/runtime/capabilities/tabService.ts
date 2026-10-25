@@ -2,6 +2,7 @@ import { getAccount } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
 import { discoverChatGPTAccounts } from './chatgptDiscovery.js';
+import { discoverGrokAccounts } from './grokDiscovery.js';
 import { discoverClaudeAccounts } from './claudeDiscovery.js';
 
 export async function sendTabMessage(tabId: number, message: unknown, timeout = 25000): Promise<unknown> {
@@ -44,8 +45,8 @@ export async function resolveAccountTab(accountId: string): Promise<chrome.tabs.
     if (!isAccountId(accountId)) throw new TypeError('Tab routing requires an Account UUID');
     await ensureV2Ready();
     const account = await getAccount(accountId);
-    if (!account || !['gemini', 'chatgpt', 'claude'].includes(account.providerId)) throw new Error('Account has no supported Content Script');
-    const tabs = await chrome.tabs.query({ url: account.providerId === 'chatgpt'
+    if (!account || !['gemini', 'chatgpt', 'claude', 'grok'].includes(account.providerId)) throw new Error('Account has no supported Content Script');
+    const tabs = await chrome.tabs.query({ url: account.providerId === 'grok' ? 'https://grok.com/*' : account.providerId === 'chatgpt'
         ? ['https://chatgpt.com/*', 'https://chat.openai.com/*'] : account.providerId === 'claude' ? 'https://claude.ai/*' : 'https://gemini.google.com/*' });
     tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active));
     for (const tab of tabs) {
@@ -84,12 +85,16 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     } catch (error) {
         if (preferred?.providerId === 'claude') throw error;
     }
+    try {
+        for (const account of await discoverGrokAccounts()) accounts.add(account.id);
+    } catch (error) { if (preferred?.providerId === 'grok') throw error; }
+    if (preferred?.providerId === 'grok' && !accounts.has(preferred.id)) throw new Error('Open Grok, log in and connect the selected account before scanning.');
     if (preferredAccountId && accounts.has(preferredAccountId)) return preferredAccountId;
     if (preferred?.providerId === 'chatgpt') throw new Error('Open ChatGPT, log in and connect the selected account before scanning.');
     if (preferred?.providerId === 'claude') throw new Error('Open Claude, log in and connect the selected account before scanning.');
     if (accounts.size === 1) return [...accounts][0];
     throw new Error(accounts.size ? 'Multiple provider accounts are connected. Select the account to scan.'
-        : 'Open Gemini, ChatGPT or Claude and connect an account before scanning.');
+        : 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.');
 }
 export async function sendToGeminiTab(message: unknown, accountId?: string, timeoutMs?: number): Promise<unknown> {
     if (!accountId) throw new TypeError('Tab routing requires an Account UUID');

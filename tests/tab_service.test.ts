@@ -31,6 +31,7 @@ function router(stubs: Record<string, unknown> = {}) {
     return load({
         'src/l3a/storageService.js': { getAccount: async (id: string) => accounts[id] ?? null },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
+        'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
         'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} },
         ...stubs,

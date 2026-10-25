@@ -8,8 +8,8 @@ test('scan connection guidance follows the workbench language', async ({ context
         await expect(page.locator('html')).toHaveAttribute('lang', language === 'zh' ? 'zh-CN' : 'en');
         await page.locator('#btnSyncAll').click();
         await expect(page.locator('#status')).toHaveText(language === 'zh'
-            ? '请打开 Gemini、ChatGPT 或 Claude 并登录，再通过“新手引导”连接后同步会话。'
-            : 'Open Gemini, ChatGPT or Claude and connect an account before scanning.');
+            ? '请打开 Gemini、ChatGPT、Claude 或 Grok 并登录，再通过“新手引导”连接后同步会话。'
+            : 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.');
         await expect(page.locator('#btnSyncAll')).toBeEnabled();
         await page.screenshot({ path: `tests/output/visual_audit/tier3_fixed_scan_guidance_${language}.png` });
     }

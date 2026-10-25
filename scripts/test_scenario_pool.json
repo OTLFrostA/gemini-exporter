@@ -1,47 +1,5 @@
 [
   {
-    "id": "optics_thin_lens_depth_of_field",
-    "title": "Optics: thin-lens imaging and depth-of-field assumptions",
-    "domain": "optics_thin_lens_depth_of_field",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original educational ray diagram for a thin converging lens, showing an object beyond twice the focal length, the inverted image, optical axis and three principal rays. Label all distances as synthetic teaching values, not measurements.",
-      "Derive the thin-lens equation and signed transverse magnification in LaTeX. State the sign convention and paraxial assumptions; calculate the image position for a 50 mm focal length and a 200 mm object distance.",
-      "Write complete runnable standard-library Python computing image distance and magnification. Validate units and inputs; test an object at infinity by a large-distance limit, an object at the focal plane, a virtual image and uniform scaling of all distances.",
-      "Provide a Markdown table varying object distance and aperture for hypothetical settings. Distinguish image distance, magnification, geometrical blur and diffraction; identify which values require an explicit circle-of-confusion criterion.",
-      "Write a reproducibility report relating the diagram, equations and numerical results. Explain aberrations and where the thin-lens approximation fails, and include a Chinese-English glossary with a small counterexample to confusing depth of field with depth of focus."
-    ]
-  },
-  {
-    "id": "queueing_mm1_stationary_latency",
-    "title": "Queueing: M/M/1 stationary delay and overload boundaries",
-    "domain": "queueing_mm1_stationary_latency",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Model a hypothetical single-server service desk as an M/M/1 queue. Specify arrival and service units and independence assumptions; use a synthetic example of 8 arrivals and 10 completed services per hour, clearly labeled as not observed data.",
-      "Derive the stationary queue-length distribution from detailed balance in LaTeX. Prove the normalization condition and explain why a stationary probability distribution fails when arrival rate reaches service rate.",
-      "Derive mean number in system, waiting time in system and waiting time before service using Little's law. Compute the synthetic example with units and distinguish service time from total response time.",
-      "Derive the stationary tail probability for total response time and compute a 95th-percentile value. State exactly which delay variable has an atom at zero and which does not.",
-      "Write complete runnable standard-library Python for a seeded discrete-event simulation with a warm-up interval and a fixed observation window. Track completed and censored jobs separately and avoid pretending that unfinished jobs have zero latency.",
-      "Add executable tests for event ordering, nonnegative waiting times, reproducibility and conservation of arrivals minus departures. Explain why finite simulation estimates must not be asserted exactly equal to stationary formulas.",
-      "Provide a Markdown table comparing synthetic utilization levels of 0.2, 0.5, 0.8, 0.95 and 1.05 at fixed service rate. Report stationary metrics only where they exist; include a transient finite-horizon interpretation for overload.",
-      "Write a final audit report joining equations, code and assumptions. Construct a bursty non-Poisson counterexample where equal mean arrival rate does not justify M/M/1 percentile claims, and give a Chinese-English glossary."
-    ]
-  },
-  {
     "id": "optics_polarization_malus_stack",
     "title": "Polarization: ideal polarizer stacks and angular sensitivity",
     "domain": "optics_polarization_malus",
@@ -413,6 +371,48 @@
       "Implement a table-driven parser returning a trace of stack, remaining input and chosen production. Show successful nested input and invalid-token failures, and state an explicit bounded-trace policy for malformed grammars.",
       "Introduce a deliberate conflicting production and a left-recursive example. Confirm that the analyzer reports a concrete conflict rather than selecting one production silently; independently validate accepted short strings with a bounded exhaustive derivation oracle.",
       "Produce a detailed English-Chinese report with runnable code, exact grammar, parsing table and ASCII parse tree. Separate grammar-analysis guarantees from bounded empirical checks and state the computational costs."
+    ]
+  },
+  {
+    "id": "mechanics_coupled_oscillator_normal_modes",
+    "title": "Coupled oscillators: normal modes and energy exchange",
+    "domain": "mechanics_coupled_oscillators",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original teaching schematic of two equal carts joined by springs between fixed walls. Label masses, spring constants and signed displacements using synthetic values; distinguish the equilibrium configuration from a displaced snapshot.",
+      "Derive the mass and stiffness matrices and normal-mode frequencies in LaTeX for equal masses and three equal springs. State the small-displacement assumptions and verify both eigenvectors directly.",
+      "Write complete standard-library Python computing displacement from initial conditions using the analytic normal modes. Test initial displacement and velocity, conservation of energy and the uncoupled limit without hiding singular cases.",
+      "Provide a Markdown table of synthetic times, both displacements, velocities and total energy. Explain the distinction between oscillation frequency and the energy-exchange envelope.",
+      "Write a bilingual reproducibility report linking the schematic, formulas and code. Give an unequal-mass counterexample to using the symmetric eigenvectors, and explain how damping changes the energy check."
+    ]
+  },
+  {
+    "id": "statistics_beta_binomial_predictive_calibration",
+    "title": "Beta-binomial prediction: posterior and predictive uncertainty",
+    "domain": "statistics_beta_binomial_prediction",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Use a hypothetical binary inspection dataset with 7 successes and 3 failures and a Beta(2,2) prior. Clearly distinguish synthetic observations, the unknown success probability and future observations.",
+      "Derive the normalized posterior density in LaTeX, including the beta function. Compute posterior mean and variance and contrast them with the maximum likelihood estimate.",
+      "Derive the posterior predictive distribution for the number of successes in the next five trials. Prove normalization using a finite sum identity and state the conditional independence assumption.",
+      "Explain the law of total variance for the predictive count and calculate its components. Contrast it with plugging the posterior mean into a binomial model.",
+      "Write complete runnable standard-library Python evaluating beta-binomial probabilities with lgamma for numerical stability. Validate integer counts and positive hyperparameters and return a normalized probability vector.",
+      "Add executable tests for normalization, symmetry under swapping success and failure, zero future trials and agreement with exact rational arithmetic in a small case.",
+      "Provide a Markdown table of predictive probabilities and a comparison across weak, concentrated and asymmetric priors. Label all numbers as synthetic and distinguish credible intervals from frequentist coverage claims.",
+      "Write a bilingual audit report connecting the equations, tests and table. Construct a dependent-trials counterexample where the beta-binomial assumptions fail and discuss a possible model check without inventing real data."
     ]
   }
 ]

@@ -20,7 +20,9 @@
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://images.openai.com/*",
-    "https://claude.ai/*"
+    "https://claude.ai/*",
+    "https://grok.com/*",
+    "https://assets.grok.com/*"
   ],
   "icons": {
     "16": "icons/icon16.png",

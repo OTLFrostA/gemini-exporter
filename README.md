@@ -44,7 +44,7 @@ English/简体中文 interface · Dark/light theme · Export status and retry to
 
 **Have older conversations?** Import an original [Google Takeout](https://takeout.google.com/settings/takeout/custom/gemini) ZIP in the Workbench.
 
-**Platform permissions:** Gemini, ChatGPT and Claude each have a separate optional site-access group. In onboarding or **Site access**, select the platforms you want to use (all are selected by default), then click **Authorize**. Chrome requests only the selected platforms’ conversation and attachment sites in one prompt. No platform access is required at installation; connecting one does not authorize the others. ChatGPT and Claude remain experimental in source builds.
+**Platform permissions:** Gemini, ChatGPT, Claude and Grok each have a separate optional site-access group. In onboarding or **Site access**, select the platforms you want to use (all are selected by default), then click **Authorize**. Chrome requests only the selected platforms’ conversation and attachment sites in one prompt. No platform access is required at installation; connecting one does not authorize the others. ChatGPT, Claude and Grok remain experimental in source builds. Grok reuses the MIT-licensed Loominary parser for citation cards and image/file attachments, with the existing renderers handling text, tables, code, math and exposed reasoning. Images visible in the open conversation are captured with exact message ownership. Unavailable attachments, unsupported tools and ambiguous branches are reported as partial. Keep a signed-in grok.com tab open for synchronization and export.
 
 *Note:* **Sync All** updates the conversation list; **Export selected** creates backup files. Some expired source attachments may no longer be recoverable.
 

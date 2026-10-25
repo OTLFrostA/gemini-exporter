@@ -15,7 +15,7 @@ export async function readActiveKey(): Promise<ConversationKey | null> {
     if (tab?.id === undefined || !tab.url) return null;
     const origin = new URL(tab.url).origin;
     const expectedProvider = origin === 'https://gemini.google.com' ? 'gemini'
-        : ['https://chatgpt.com', 'https://chat.openai.com'].includes(origin) ? 'chatgpt' : origin === 'https://claude.ai' ? 'claude' : null;
+        : ['https://chatgpt.com', 'https://chat.openai.com'].includes(origin) ? 'chatgpt' : origin === 'https://grok.com' ? 'grok' : origin === 'https://claude.ai' ? 'claude' : null;
     if (!expectedProvider) return null;
     const raw = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
     if (!raw || typeof raw !== 'object') return null;

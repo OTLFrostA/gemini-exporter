@@ -3,7 +3,7 @@ import { activatePlatformAccess, findAuthorizedAccount, hasPlatformAccess,
     observePlatformAccess, requestPlatformAuthorization } from '../../runtime/capabilities/platformAuthorization.js';
 import { text } from './settings.js';
 
-const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude' };
+const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok' };
 const platforms = Object.keys(PLATFORM_HOSTS) as SourcePlatform[];
 
 /** Shared by onboarding and the standalone site-access dialog. Selection never revokes access. */

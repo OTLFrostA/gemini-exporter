@@ -13,7 +13,7 @@ contexts. List reads and rendering run asynchronously; scan progress callbacks o
 progress. Producers never wait for UI reads, and observer failures cannot fail a commit.
 
 Installation Tour consumes `?startTour=1` immediately; it has no persistent flag.
-Its first step offers Gemini, ChatGPT and Claude. Next stays disabled until a live
+Its first step offers Gemini, ChatGPT, Claude and Grok. Next stays disabled until a live
 source resolves to a verified registered account, which becomes the workbench selection.
 Platform connection actions live in this step, accessible again through Tutorial.
 An existing connection enables Next without skipping the platform choices.

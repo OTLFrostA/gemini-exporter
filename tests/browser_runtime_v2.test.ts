@@ -13,11 +13,14 @@ const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.goo
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
     const ports = { 'src/application/conversations/refreshConversation.js': { refreshConversation: () => assert.fail('Unexpected source refresh') }, 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
+        'src/l1/client/grok/grokSource.js': { hasGrokAccess: async () => true },
         'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => true },
+        'src/l1/client/grok/accountObservation.js': { observeGrokAccount: async () => null },
         'src/l1/client/claude/accountObservation.js': { observeClaudeAccount: async () => null },
         'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
         'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
+        'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
@@ -175,6 +178,7 @@ test('Claude Content is isolated from Gemini, requires a current site grant and 
     const gpt = { ...account, providerId: 'claude', providerAccountId: otherUuid };
     const guard = load('src/runtime/background/contentSender.ts', {
         'src/l3a/storageService.js': { getAccount: async () => gpt },
+        'src/l1/client/grok/grokSource.js': { hasGrokAccess: async () => true },
         'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => granted },
     });
     const from = { ...sender, url: 'https://claude.ai/chat/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' };

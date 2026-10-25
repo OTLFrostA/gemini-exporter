@@ -61,7 +61,7 @@ test('connection error clears when committed conversations become visible withou
     const page = await openOptions(context, extensionId);
     await page.locator('#btnSyncAll').click();
     const status = page.locator('#status');
-    await expect(status).toContainText('Open Gemini, ChatGPT or Claude and connect');
+    await expect(status).toContainText('Open Gemini, ChatGPT, Claude or Grok and connect');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await attachLoggedInGemini(context);
     // Model the real passive commit after Gemini attaches; do not reload Options.
@@ -73,27 +73,27 @@ test('connection error clears when committed conversations become visible withou
     }, accountId);
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#syncCount')).toContainText('1 indexed');
-    await expect(status).not.toContainText('Open Gemini, ChatGPT or Claude and connect', { timeout: 2000 });
+    await expect(status).not.toContainText('Open Gemini, ChatGPT, Claude or Grok and connect', { timeout: 2000 });
 });
 
 test('opening logged-in Gemini after Options allows scanning without reloading either page', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await expect(page.locator('#list .item')).toHaveCount(0);
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('#status')).toContainText('Open Gemini, ChatGPT or Claude and connect');
+    await expect(page.locator('#status')).toContainText('Open Gemini, ChatGPT, Claude or Grok and connect');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     // Badge presence is an observable content-script readiness signal, not a sleep.
     await attachLoggedInGemini(context);
     await page.locator('#btnSyncAll').click();
     await expect(page.locator('[data-chat-id="0000000000000452"]')).toContainText('Captured conversation 0452');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
-    await expect(page.locator('#status')).not.toContainText('Open Gemini, ChatGPT or Claude and connect');
+    await expect(page.locator('#status')).not.toContainText('Open Gemini, ChatGPT, Claude or Grok and connect');
 });
 
 test('local records alone do not dismiss missing Gemini source guidance', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('#status')).toContainText('Open Gemini, ChatGPT or Claude and connect');
+    await expect(page.locator('#status')).toContainText('Open Gemini, ChatGPT, Claude or Grok and connect');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await page.evaluate(async accountId => {
         await Reflect.get(globalThis, 'uiFixture').ingestDetail(accountId, 'offline', {
@@ -102,7 +102,7 @@ test('local records alone do not dismiss missing Gemini source guidance', async 
         window.dispatchEvent(new Event('focus'));
     }, accountId);
     await expect(page.locator('#list .item')).toHaveCount(1);
-    await expect(page.locator('#status')).toContainText('Open Gemini, ChatGPT or Claude and connect');
+    await expect(page.locator('#status')).toContainText('Open Gemini, ChatGPT, Claude or Grok and connect');
 });
 
 test('characterization: search hides a selected row but export still includes that row', async ({ context, extensionId }, info) => {

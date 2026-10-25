@@ -4,6 +4,7 @@ import { PLATFORM_HOSTS, type SourcePlatform } from '../../shared/platformHosts.
 const files = {
     gemini: ['dist/content/hook.js', 'dist/content/content.js'],
     chatgpt: ['dist/content/chatgpt-hook.js', 'dist/content/chatgpt-content.js'],
+    grok: ['dist/content/grok-hook.js', 'dist/content/grok-content.js'],
     claude: ['dist/content/claude-hook.js', 'dist/content/claude-content.js'],
 } as const;
 const pending = new Map<SourcePlatform, Promise<void>>();

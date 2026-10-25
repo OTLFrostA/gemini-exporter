@@ -100,9 +100,9 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
         const provider = state.accounts.find(account => account.id === state.accountId)?.providerId;
         const chatgpt = provider === 'chatgpt';
         const claude = provider === 'claude';
-        open.href = (claude ? 'https://claude.ai/chat/' : chatgpt ? 'https://chatgpt.com/c/' : 'https://gemini.google.com/app/') + encodeURIComponent(id);
+        open.href = (provider === 'grok' ? 'https://grok.com/c/' : claude ? 'https://claude.ai/chat/' : chatgpt ? 'https://chatgpt.com/c/' : 'https://gemini.google.com/app/') + encodeURIComponent(id);
         open.target = '_blank'; open.rel = 'noopener noreferrer'; open.className = 'open-link';
-        open.title = claude ? text('Open in Claude', '在 Claude 中打开')
+        open.title = provider === 'grok' ? text('Open in Grok', '在 Grok 中打开') : claude ? text('Open in Claude', '在 Claude 中打开')
             : chatgpt ? text('Open in ChatGPT', '在 ChatGPT 中打开') : text('Open in Gemini', '在 Gemini 中打开');
         open.textContent = '↗';
         open.setAttribute('aria-label', open.title);
