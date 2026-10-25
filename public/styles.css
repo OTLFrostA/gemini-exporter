@@ -74,11 +74,11 @@ h1 span { color: #bcb2fd; background: linear-gradient(100deg, #b5bcff, #e0c7ff 5
 .hero-preview figcaption { font-size: 11px; color: #8f95a9; padding-top: 14px; }
 .hero-preview figcaption span { color: #beb4fb; margin-left: 5px; }
 
-.benefits { padding-top: 115px; }
-.benefits-heading { text-align: center; margin-bottom: 37px; }
+.benefits { padding-top: 96px; }
+.benefits-heading { text-align: center; margin-bottom: 27px; }
 .kicker { color: #c5b4ff; font-size: 10px; font-weight: 760; letter-spacing: 1.9px; }
-.benefits h2 { margin-top: 14px; font-size: clamp(32px, 4.1vw, 54px); font-weight: 690; letter-spacing: -.064em; line-height: 1.15; }
-.benefits h2 span { color: #9296b0; }
+.benefits h2 { font-size: 11px; font-weight: 760; letter-spacing: 1.9px; line-height: 1.4; text-transform: uppercase; color: #c5b4ff; }
+
 .benefit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
 .benefit { display: flex; flex-direction: column; min-width: 0; min-height: 340px; padding: 28px 28px 24px; border: 1px solid var(--border); background: linear-gradient(155deg, #191b2a 0%, #10121a 100%); border-radius: 15px; }
 .benefit:nth-child(2) { background: linear-gradient(155deg, #1a1c2a, #11151e); }
