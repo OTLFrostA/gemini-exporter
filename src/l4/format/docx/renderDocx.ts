@@ -183,9 +183,6 @@ export async function renderDocumentDocx(
             + '<w:tblGrid>' + Array.from({ length: width }, () => '<w:gridCol w:w="' + twips + '"/>').join('') + '</w:tblGrid>'
             + cells + '</w:tbl>';
     }
-    function renderTable(node: Extract<DisplayBlock, { type: 'table' }>): string {
-        return table(node);
-    }
     function blocks(nodes: readonly DisplayBlock[], depth = 0, quoted = false): string {
         return nodes.map(node => block(node, depth, quoted)).join('');
     }
@@ -205,7 +202,7 @@ export async function renderDocumentDocx(
             case 'code': return (node.code.replace(/\r\n?/g, '\n').split('\n')).map(line => paragraph(textRun(line, { code: true }), 'Code')).join('');
             case 'math': return paragraph(textRun(strings.mathFallback, { italic: true }))
                 + paragraph(textRun(node.source, { code: true }), 'Code');
-            case 'table': return renderTable(node);
+            case 'table': return table(node);
             case 'image': return paragraph(image(node.resourceId, node.alt))
                 + (node.caption ? paragraph(inlines(node.caption), 'Caption') : '');
             case 'file': return paragraph(textRun((locale === 'zh' ? '附件：' : 'Attachment: ') + node.label
