@@ -1,0 +1,77 @@
+name: Tri-state Selection Visual Preview (Temporary)
+
+on:
+  push:
+    branches: [ui/compact-conversation-toolbar-20261024]
+    paths: ['.github/workflows/preview-tristate-selection.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Check types and build
+        run: |
+          npm run type-check
+          npm run build
+      - name: Capture native checkbox states in real extension
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/e2e/readme_screenshots.spec.ts')
+          s = p.read_text()
+          marker = '    // Third image: Chinese UI for the bilingual README/store listing.'
+          assert s.count(marker) == 1
+          sample = '''
+              // Normal screenshot above depicts the fully selected state.
+              await expect(page.locator('#btnSelectAll')).toBeChecked();
+              await page.locator('#list [data-chat-id="notes"] input').uncheck();
+              await expect(page.locator('#btnSelectAll')).toHaveJSProperty('indeterminate', true);
+              await page.screenshot({
+                  path: path.join(output, 'selection_mixed.png'), animations: 'disabled'
+              });
+              await page.locator('#btnSelectAll').click(); // mixed -> all
+              await expect(page.locator('#btnSelectAll')).toBeChecked();
+              await page.locator('#btnSelectAll').click(); // all -> none
+              await expect(page.locator('#btnSelectAll')).not.toBeChecked();
+              await expect(page.locator('#btnSelectAll')).toHaveJSProperty('indeterminate', false);
+              await page.screenshot({
+                  path: path.join(output, 'selection_none.png'), animations: 'disabled'
+              });
+              await page.locator('#btnSelectAll').click(); // restore all for next capture
+
+          '''
+          p.write_text(s.replace(marker, sample + marker))
+          PY
+      - name: Playwright real-extension smoke and image capture
+        env:
+          CAPTURE_README_SCREENSHOTS: '1'
+        run: xvfb-run --auto-servernum npx playwright test tests/e2e/readme_screenshots.spec.ts tests/e2e/workbench_ui.spec.ts --workers=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tri-state-real-chromium
+          path: |
+            store_assets/selection_*.png
+            store_assets/screenshot_2_1280x800.png
+      - name: Save anonymous screenshot references for review
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ui-snapshots/compact-toolbar-2026-10-24
+          cp store_assets/screenshot_2_1280x800.png ui-snapshots/compact-toolbar-2026-10-24/dark.png
+          cp store_assets/selection_mixed.png ui-snapshots/compact-toolbar-2026-10-24/dark-partial.png
+          cp store_assets/selection_none.png ui-snapshots/compact-toolbar-2026-10-24/dark-none.png
+          git add ui-snapshots/compact-toolbar-2026-10-24/
+          git commit -m "test(visual): compare full, partial and empty selection"
+          git push origin HEAD:ui/compact-conversation-toolbar-20261024
