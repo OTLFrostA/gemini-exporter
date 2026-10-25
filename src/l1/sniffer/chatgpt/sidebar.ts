@@ -11,18 +11,21 @@ export async function chatGPTSidebarPage(history: unknown, identity: () => Promi
     const before = await identity();
     if (!before || JSON.parse(before)[1] !== history.accountId) return null;
     const page: unknown = await history.chats;
-    if (!record(page) || !Array.isArray(page.items) || page.items.length > 100
-        || page.items.some(item => !record(item) || !chatGPTConversationId(item.id))) return null;
-    const responseBody = { items: page.items.map(item => {
-        const row = item as Record<string, unknown>;
-        return { id: row.id, title: row.title, create_time: row.create_time, update_time: row.update_time };
-    }), total: page.total, offset: page.offset, limit: page.limit };
+    if (!record(page)) return null;
+    const items: unknown = page.items;
+    if (!Array.isArray(items) || items.length > 100
+        || !items.every((item): item is Record<string, unknown> & { id: string } =>
+            record(item) && chatGPTConversationId(item.id))) return null;
+    const responseBody = { items: items.map(item => ({
+        id: item.id, title: item.title, create_time: item.create_time, update_time: item.update_time,
+    })), total: page.total, offset: page.offset, limit: page.limit };
     if (await identity() !== before) return null;
     return { requestIdentity: before, responseBody };
 }
 
+type SidebarCapturePayload = NonNullable<Awaited<ReturnType<typeof chatGPTSidebarPage>>> & { kind: 'sidebar'; url: string };
 export function installChatGPTSidebarCapture(identity: () => Promise<string | null>,
-    emit: (payload: object) => void): void {
+    emit: (payload: SidebarCapturePayload) => void): void {
     let attempts = 0;
     const timer = setInterval(() => {
         if (++attempts > 240) { clearInterval(timer); return; }
