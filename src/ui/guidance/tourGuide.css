@@ -302,7 +302,7 @@
 .platform-permission-list[hidden], .platform-permission-row[hidden], .platform-permission-hint[hidden] { display: none; }
 .platform-permission-list legend { font-size: 11px; color: var(--tour-muted); margin-left: 10px; padding: 0 4px; }
 .platform-permission-row { padding: 10px 12px; }
-.platform-permission-row + .platform-permission-row { border-top: 1px solid var(--tour-border); }
+.platform-permission-row:not([hidden]) ~ .platform-permission-row:not([hidden]) { border-top: 1px solid var(--tour-border); }
 .platform-permission-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .platform-permission-choice { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; font-weight: 600; }
 .platform-permission-choice input { width: 16px; height: 16px; margin: 0; accent-color: var(--tour-accent); }
