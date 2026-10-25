@@ -51,7 +51,10 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     }
     // Upstream owns citation-card conversion, attachment schemas and display text.
     // Clone because its normalizer sorts source responses in place.
-    const normalized: unknown = normalizeGrokResponses(structuredClone(graph.responseNodes), compatibleGrokBodies(payload, warn));
+    const compatible = compatibleGrokBodies(payload, warn);
+    // Normalize source TeX before upstream inserts escaped Markdown citation titles.
+    for (const row of compatible.responses) if (typeof row.message === 'string') row.message = preprocessGrokMarkdown(row.message);
+    const normalized: unknown = normalizeGrokResponses(structuredClone(graph.responseNodes), compatible);
     if (!Array.isArray(normalized)) throw new TypeError('Invalid upstream Grok normalization');
     const normalizedById = new Map(normalized.map(value => { const row = grokObject(value); return [row.responseId, row] as const; }));
     const upstream: unknown = extractGrokData({ conversationId: requestedId, title: meta.title,
@@ -87,8 +90,7 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
             warn('grok.citation.unresolved', 'A Grok inline card has no resolved source');
         const ctx = { diagnostics, sourceRef: { ...sourceRef, providerMessageId: id },
             resolveImage: (ref: string, alt: string) => resources.image(ref, alt, id) };
-        // Grok emits TeX delimiters alongside ordinary Markdown.
-        const markdown = preprocessGrokMarkdown(adapted.display_text);
+        const markdown = adapted.display_text;
         const timestamp = grokTimestamp(response.createTime);
         const reasoning = Array.isArray(response.steps) ? response.steps.flatMap(value => {
             const step = grokObject(value);
