@@ -200,7 +200,7 @@ test('zero-account Takeout creates the first Gemini default only after ZIP selec
     assert.deepEqual(await read(page, 'imports'), [A]);
     assert.equal((await read(page, 'events')).filter((value: string) => value === 'create').length, 1);
     assert.equal((await read(page, 'accounts')).length, 1);
-    assert.equal(await page.locator('#accountName').textContent(), 'default');
+    await page.waitForFunction(() => document.querySelector('#accountIdSelect option:checked')?.textContent === 'Gemini · default');
     assert.deepEqual((await read(page, 'patches')).at(-1), { takeoutPromptCompleted: true });
 });
 
