@@ -6,15 +6,16 @@ import { hasChatGPTAccess } from '../../l1/client/chatgpt/chatgptAccess.js';
 export function assertExtensionSender(sender: chrome.runtime.MessageSender): void {
     if (sender.id !== chrome.runtime.id) throw new Error('Foreign extension sender');
 }
-export function assertContentSender(sender: chrome.runtime.MessageSender): void {
+export function assertContentSender(sender: chrome.runtime.MessageSender): URL {
     assertExtensionSender(sender);
     const url = sender.url && new URL(sender.url);
     if (sender.tab?.id === undefined || !url || !['https://gemini.google.com', 'https://chatgpt.com', 'https://chat.openai.com', 'https://claude.ai'].includes(url.origin)
         || (sender.frameId !== undefined && sender.frameId !== 0)) throw new Error('Unsupported Provider Content sender');
+    return url;
 }
 export function contentProviderId(sender: chrome.runtime.MessageSender): 'gemini' | 'chatgpt' | 'claude' {
-    assertContentSender(sender);
-    return new URL(sender.url!).hostname === 'gemini.google.com' ? 'gemini' : new URL(sender.url!).hostname === 'claude.ai' ? 'claude' : 'chatgpt';
+    const hostname = assertContentSender(sender).hostname;
+    return hostname === 'gemini.google.com' ? 'gemini' : hostname === 'claude.ai' ? 'claude' : 'chatgpt';
 }
 export async function requireContentAccount(sender: chrome.runtime.MessageSender, accountId: unknown) {
     assertContentSender(sender);

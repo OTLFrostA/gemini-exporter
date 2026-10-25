@@ -7,7 +7,7 @@ async function ingest(operation: 'indexes' | 'detail' | 'deleted', parameters: R
     if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true) {
         throw new Error(response && typeof response === 'object' && 'error' in response ? String(response.error) : 'Domain ingestion unavailable');
     }
-    return response as DomainIngestAck;
+    return response;
 }
 const inExtension = () => typeof location !== 'undefined' && location.protocol === 'chrome-extension:';
 export const ingestIndexes: typeof domain.ingestIndexes = async (accountId, items, page) => {

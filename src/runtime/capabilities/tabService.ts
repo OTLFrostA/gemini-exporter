@@ -28,10 +28,16 @@ export async function sendTabMessage(tabId: number, message: unknown, timeout = 
         }
     });
 }
+function readBoundContext(response: unknown) {
+    if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
+        || !('accountContext' in response)) return null;
+    const context = response.accountContext;
+    if (!context || typeof context !== 'object' || !('accountId' in context) || !('providerId' in context)) return null;
+    return context;
+}
 function matches(response: unknown, accountId: string, providerId: string): boolean {
-    if (!response || typeof response !== 'object') return false;
-    const value = response as { ok?: unknown; accountContext?: { accountId?: unknown; providerId?: unknown } };
-    return value.ok === true && value.accountContext?.accountId === accountId && value.accountContext.providerId === providerId;
+    const context = readBoundContext(response);
+    return context !== null && context.accountId === accountId && context.providerId === providerId;
 }
 /** Route only through a Content document bound to the selected provider Account. */
 export async function resolveAccountTab(accountId: string): Promise<chrome.tabs.Tab> {
@@ -58,13 +64,11 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     for (const tab of tabs) {
         if (tab.id === undefined) continue;
         try {
-            const response = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
-            if (!response || typeof response !== 'object' || !('accountContext' in response)) continue;
-            const context = response.accountContext;
-            if (!context || typeof context !== 'object' || !('accountId' in context) || !isAccountId(context.accountId)) continue;
+            const context = readBoundContext(await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000));
+            if (!context || !isAccountId(context.accountId)) continue;
             const account = await getAccount(context.accountId);
             if (account?.providerId === 'gemini' && account.providerAccountId !== 'default'
-                && matches(response, account.id, 'gemini')) accounts.add(account.id);
+                && context.providerId === 'gemini' && account.id === context.accountId) accounts.add(account.id);
         } catch { /* Unavailable Content is not a scan source. */ }
     }
     const preferred = preferredAccountId ? await getAccount(preferredAccountId) : null;
