@@ -155,3 +155,23 @@ test('Uninjected/closed tab errors are never successful delivery acknowledgement
     await assert.rejects(route.sendTabMessage(12, { action: 'ping' }, 15), /no response/);
     await assert.rejects(route.resolveAccountTab(A), /No open Provider Tab/);
 });
+
+test('An unavailable selected Gemini account cannot fall back to another Gemini or Grok account', async t => {
+    const grok = { id: B, providerId: 'grok', providerAccountId: 'grok-user' };
+    let otherGemini = false;
+    let discoveries = 0;
+    withChrome(t, { runtime: { lastError: null }, tabs: {
+        query: async () => [{ id: 1 }],
+        sendMessage: (_: number, __: unknown, callback: (reply: unknown) => void) => callback({
+            ok: true, accountContext: otherGemini ? { accountId: B, providerId: 'gemini' } : null,
+        }),
+    } });
+    const route = router({ 'src/runtime/capabilities/grokDiscovery.js': {
+        discoverGrokAccounts: async () => { discoveries++; return [grok]; },
+    } });
+    await assert.rejects(route.resolveScanTarget(A), /Open Gemini/);
+    assert.equal(discoveries, 0, 'a selected Gemini scan must not discover or switch to another platform');
+    otherGemini = true;
+    await assert.rejects(route.resolveScanTarget(A), /Open Gemini/);
+    assert.equal(discoveries, 0);
+});

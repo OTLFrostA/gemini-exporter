@@ -1,5 +1,5 @@
-import { test, expect } from './fixtures';
-import { openOptions } from './uiFixture';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+import { openOptions, accountId } from './uiFixture';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 const wire = JSON.parse(readFileSync(path.resolve(__dirname, '../fixtures/providers/grokDetail.json'), 'utf8'));
@@ -59,4 +59,21 @@ for (const allow of [true, false]) test(`Grok site authorization ${allow ? 'conn
     await expect(page.locator('#list .open-link')).toHaveAttribute('aria-label', 'Open in Grok');
     await expect(page.locator('#btnImportTakeout')).toBeDisabled();
     expect(await page.evaluate(() => Reflect.get(window, 'grokHttpCalls'))).toContain('/rest/app-chat/conversations?pageSize=60');
+});
+
+test('an unavailable selected Gemini account stays selected while Grok is connected', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await grokBoundary(page, true);
+    await page.locator('#btnTourGuide').click();
+    for (const name of ['Gemini', 'ChatGPT', 'Claude']) await page.getByRole('checkbox', { name, exact: true }).uncheck();
+    await page.locator('#btnAuthorizePlatforms').click();
+    await expect(page.locator('#tourNextBtn')).toBeEnabled();
+    await page.locator('#tourNextBtn').click();
+    await page.locator('#tourSkipBtn').click();
+    await page.locator('#accountIdSelect').selectOption(accountId);
+    await page.locator('#btnSyncAll').click();
+    await expect(page.locator('#status')).toContainText('Open Gemini, log in and refresh the page before scanning.');
+    await expect(page.locator('#accountIdSelect')).toHaveValue(accountId);
+    expect((await page.evaluate(() => Reflect.get(window, 'grokHttpCalls'))).some((path: string) => path.includes('pageSize=60'))).toBe(false);
 });
