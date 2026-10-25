@@ -14,18 +14,23 @@ function object(value: unknown): Record<string, unknown> | null {
 function uuid(value: unknown): value is string {
     return typeof value === 'string' && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value);
 }
+/** Fields remain untrusted except the UUID proven at the source boundary. */
+type IdentifiedClaudeMessage = Record<string, unknown> & { uuid: string };
+function identifiedClaudeMessage(value: unknown): value is IdentifiedClaudeMessage {
+    const node = object(value);
+    return node !== null && uuid(node.uuid);
+}
 function paragraph(text: string): BlockNode { return { type: 'paragraph', children: [{ type: 'text', text }] }; }
 function markdown(text: string, id: string, ctx: MarkdownParseContext): BlockNode[] {
     return text.trim() ? parseMarkdownToBlocks(text, id, ctx) : [];
 }
-interface Branch { messages: Record<string, unknown>[]; quality: 'complete' | 'partial' | 'unknown' }
+interface Branch { messages: IdentifiedClaudeMessage[]; quality: 'complete' | 'partial' | 'unknown' }
 function currentBranch(data: Record<string, unknown>): Branch {
     if (!Array.isArray(data.chat_messages)) throw new TypeError('Claude detail has no chat_messages');
-    const byId = new Map<string, Record<string, unknown>>();
+    const byId = new Map<string, IdentifiedClaudeMessage>();
     for (const value of data.chat_messages) {
-        const node = object(value);
-        if (!node || !uuid(node.uuid)) throw new TypeError('Invalid Claude message tree');
-        byId.set(node.uuid, node);
+        if (!identifiedClaudeMessage(value)) throw new TypeError('Invalid Claude message tree');
+        byId.set(value.uuid, value);
     }
     if (byId.size !== data.chat_messages.length) throw new TypeError('Duplicate Claude message UUID');
     if (!uuid(data.current_leaf_message_uuid) || !byId.has(data.current_leaf_message_uuid)) {
@@ -33,7 +38,7 @@ function currentBranch(data: Record<string, unknown>): Branch {
         return { messages: [...byId.values()]
             .sort((a, b) => Number(a.index ?? 0) - Number(b.index ?? 0)), quality: 'unknown' };
     }
-    const result: Record<string, unknown>[] = [], visited = new Set<string>();
+    const result: IdentifiedClaudeMessage[] = [], visited = new Set<string>();
     let id: string | null = data.current_leaf_message_uuid;
     let quality: Branch['quality'] = 'complete';
     while (id) {
@@ -41,16 +46,16 @@ function currentBranch(data: Record<string, unknown>): Branch {
         if (visited.has(id) || !node) { quality = 'partial'; break; }
         visited.add(id);
         result.push(node);
-        const parent: unknown = node.parent_message_uuid;
+        const parent = node.parent_message_uuid;
         if (parent == null || parent === '00000000-0000-4000-8000-000000000000') break;
         if (!uuid(parent)) { quality = 'partial'; break; }
         id = parent;
     }
     return { messages: result.reverse(), quality };
 }
-function contentOf(message: Record<string, unknown>, ctx: MarkdownParseContext, tools: ToolState, assets: DomainAsset[]):
+function contentOf(message: IdentifiedClaudeMessage, ctx: MarkdownParseContext, tools: ToolState, assets: DomainAsset[]):
     { content: BlockNode[]; reasoning: BlockNode[]; incomplete: boolean } {
-    const id = String(message.uuid);
+    const id = message.uuid;
     const content: BlockNode[] = [], reasoning: BlockNode[] = [];
     let incomplete = message.truncated === true || ['user_canceled', 'error', 'max_tokens', 'tool_use', 'pause_turn', 'model_context_window_exceeded'].includes(String(message.stop_reason));
     const missing = (code: string, message: string) => {
@@ -133,12 +138,12 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
     for (const message of branch.messages) {
         if (message.sender !== 'human' && message.sender !== 'assistant') continue;
         const rendered = contentOf(message, { ...ctx,
-            sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } }, tools, assets);
+            sourceRef: { ...ctx.sourceRef, providerMessageId: message.uuid } }, tools, assets);
         if (rendered.incomplete) partial = true;
         const timestamp = claudeTimestamp(message.created_at);
         const model = typeof message.model === 'string' && message.model.trim() ? message.model : sourceModel;
         messages.push({
-            id: String(message.uuid), role: message.sender === 'human' ? 'user' : 'assistant',
+            id: message.uuid, role: message.sender === 'human' ? 'user' : 'assistant',
             content: rendered.content,
             ...(rendered.reasoning.length ? { reasoning: rendered.reasoning } : {}),
             ...(timestamp !== undefined ? { timestamp } : {}),
