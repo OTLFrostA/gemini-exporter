@@ -30,7 +30,8 @@ export function parseClaudeList(raw: unknown): ClaudeListParseResult {
         return { id, ...(title ? { title, titleSource: 'provider' as const } : {}),
             ...(createdAt !== undefined ? { createdAt } : {}), updatedAt };
     });
-    // The source returns one collection; normalize its activity ordering before coverage admission.
+    // Coverage must use wire order; sorting only normalizes the Domain list.
+    const keys = conversations.map(item => ({ id: item.id, time: item.updatedAt }));
     conversations.sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
-    return { conversations, keys: conversations.map(item => ({ id: item.id, time: item.updatedAt })) };
+    return { conversations, keys };
 }

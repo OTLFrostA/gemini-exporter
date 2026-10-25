@@ -47,7 +47,8 @@ const leaf = '55555555-5555-4555-8555-555555555555';
 test('Claude collection returns sorted Domain list facts with source timestamps', () => {
     const result = parseClaudeList(claudeListGen('CL_L1_SOURCE_PARSE_SORTED_01').data);
     assert.deepEqual(result.conversations.map(c => c.id), [c2, c1]);
-    assert.equal(result.keys[0].time, Date.parse('2026-10-03T00:00:00Z'));
+    assert.deepEqual(result.keys.map(key => key.id), [c1, c2]); // unsorted source order
+    assert.equal(result.keys[0].time, Date.parse('2026-10-02T00:00:00Z'));
     assert.equal(result.conversations[0].titleSource, 'provider');
     assert.equal('key' in result.conversations[0], false);
     assert.throws(() => parseClaudeList(claudeListGen('CL_L1_SOURCE_PARSE_DUPLICATE_01').data), /duplicate/);

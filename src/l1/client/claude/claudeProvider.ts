@@ -70,10 +70,8 @@ export class ClaudeProvider implements AIProvider {
             const sourceEnd = raw.has_more === false;
             const valid = count <= 100 && (sourceEnd || count === 100)
                 && !('search_incomplete' in raw && raw.search_incomplete === true);
-            // Sorting each page cannot prove its remote ordering. Inspect the wire
-            // sequence independently before admitting any Coverage evidence.
-            const wire = raw.data as Record<string, unknown>[];
-            const times = wire.map(row => parseClaudeList([row]).keys[0]);
+            // Parser keys retain wire order for Coverage evidence.
+            const times = parsed.keys;
             const ordered = valid && times.every((key, i) => !seen.has(key.id)
                 && key.time <= (i ? times[i - 1].time : lastTime));
             const evidence = { streamId: options.streamId, requestCursor: page === 1 ? null : String(offset),
