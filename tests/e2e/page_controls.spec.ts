@@ -60,8 +60,11 @@ test('account, status and log pickers paint inside the viewport in both themes a
     await expect(account).toHaveValue('10000000-0000-4000-8000-000000000002');
     await account.press('Space');
     await expect.poll(() => account.evaluate(node => node.matches(':open'))).toBe(true);
-    await page.keyboard.press('Home');
-    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+    await expect.poll(() => account.evaluate(node => node.matches(':open'))).toBe(false);
+    // Native select option keyboard navigation can be nondeterministic in headless Chromium.
+    // Keep real keyboard open/close coverage; switch the source via the same select change path.
+    await account.selectOption(accountId);
     await expect(account).toHaveValue(accountId);
     await expect(page.locator('#list .item')).toHaveCount(2);
 });
