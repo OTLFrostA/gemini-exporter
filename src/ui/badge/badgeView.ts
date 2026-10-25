@@ -85,7 +85,8 @@ function showLiveSaveErrorImpl(id: string): void {
 function ensureBadgeImpl(): HTMLElement | null {
     if (typeof document === 'undefined') return null;
     if (badge) { if (!badge.isConnected) (document.body || document.documentElement).append(badge); return badge; }
-    badge = document.createElement('div'); badge.id = 'geminiExportBadge'; alive = true;
+    const element = document.createElement('div');
+    badge = element; badge.id = 'geminiExportBadge'; alive = true;
     badge.setAttribute('role', 'button'); badge.tabIndex = 0;
     // Restore main's styled badge and pulse; keep v2 identity/count/drag lifecycle.
     // The stylesheet is already injected by manifest.json. Inline styles here previously overrode it.
@@ -96,8 +97,8 @@ function ensureBadgeImpl(): HTMLElement | null {
     badge.addEventListener('pointerdown', event => {
         if (event.button !== 0) return;
         dragging = true; moved = false; startX = event.clientX; startY = event.clientY;
-        const rect = badge!.getBoundingClientRect(); left = rect.left; top = rect.top;
-        badge!.setPointerCapture(event.pointerId);
+        const rect = element.getBoundingClientRect(); left = rect.left; top = rect.top;
+        element.setPointerCapture(event.pointerId);
     });
     badge.addEventListener('pointermove', event => {
         if (!dragging || Math.hypot(event.clientX - startX, event.clientY - startY) < 4 && !moved) return;
@@ -105,9 +106,9 @@ function ensureBadgeImpl(): HTMLElement | null {
     });
     badge.addEventListener('pointerup', event => {
         if (!dragging) return; dragging = false;
-        badge!.releasePointerCapture(event.pointerId);
+        element.releasePointerCapture(event.pointerId);
         if (moved) {
-            const rect = badge!.getBoundingClientRect();
+            const rect = element.getBoundingClientRect();
             void chrome.runtime.sendMessage({ action: 'updateBadgePosition',
                 position: { left: Math.round(rect.left), top: Math.round(rect.top) } })
                 .then(reply => { if (!reply?.ok) throw new Error(reply?.error ?? 'Badge position update failed'); })
