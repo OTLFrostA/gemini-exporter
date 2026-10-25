@@ -103,17 +103,9 @@ h2 span { color: #8b90a5; }
 .feature-icon { width: 37px; height: 37px; display: grid; place-items: center; border: 1px solid rgba(164,157,238,.15); border-radius: 10px; font-size: 19px; color: #c0b7f8; background: rgba(143,130,231,.085); }
 .feature-label { color: #6c7187; font-size: 10px; letter-spacing: 1.3px; font-weight: 740; }
 .feature-featured { background: linear-gradient(150deg, rgba(33,30,56,.83), rgba(14,17,26,.98)); }
-.mock-conversations { margin-top: 23px; width: 93%; max-width: 435px; border: 1px solid #303146; border-radius: 10px 10px 0 0; background: rgba(12,15,24,.92); box-shadow: 0 20px 45px rgba(0,0,0,.15); padding: 5px 13px; position: relative; bottom: -10px; }
-.mock-row { display: flex; align-items: center; gap: 11px; height: 40px; border-bottom: 1px solid #242836; }
-.mock-row .checked { color: #0e1020; background: #b9b2ff; border-radius: 4px; width: 15px; height: 15px; display: grid; place-items: center; font-size: 10px; font-style: normal; }
-.mock-lines { display: grid; gap: 5px; width: 60%; }
-.mock-lines em { height: 5px; background: #51546d; border-radius: 3px; width: 78%; }
-.mock-lines em:last-child { background: #35384b; width: 48%; }
-.mock-row:nth-child(2) .mock-lines em:first-child { width: 90%; }
-.mock-row:nth-child(3) .mock-lines em:first-child { width: 67%; }
-.mock-row b { margin-left: auto; font-size: 10px; color: #86c99e; font-weight: 520; }
-.mock-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 10px; color: #8389a0; height: 43px; }
-.mock-footer strong { font-weight: 640; color: #cabfff; }
+.popup-preview { margin: 24px 0 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.popup-preview img { display: block; width: min(100%, 300px); height: auto; border: 1px solid rgba(183,185,233,.27); border-radius: 13px; box-shadow: 0 20px 40px rgba(0,0,0,.28); }
+.popup-preview figcaption { text-align: center; color: #939bb4; font-size: 11px; line-height: 1.5; max-width: 320px; }
 .format-card { background: linear-gradient(150deg, rgba(23,29,49,.86), rgba(14,17,26,.98)); }
 .format-pills { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 388px; margin-top: 38px; }
 .format-pill { display: flex; align-items: center; gap: 11px; background: rgba(12,16,27,.85); border-radius: 11px; border: 1px solid #292d40; color: #bdc1d0; padding: 11px 12px; font-size: 12px; }

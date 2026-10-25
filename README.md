@@ -30,6 +30,6 @@ Push website-only updates to `website`; Cloudflare Pages automatically deploys t
 
 ## Content and privacy
 
-The screenshots in `public/assets/` are real anonymized screenshots from the browser-extension repository, copied here to avoid live cross-origin requests. The website does not load analytics, external scripts, or third-party fonts.
+The screenshots in `public/assets/` come from real desktop Chrome captures of the extension using a test/staging account. They contain synced test-account conversation titles, not anonymized fixture data. No conversation bodies or email addresses appear. The images are copied locally, avoiding cross-origin requests. See `main:docs/product-screenshots.md` for capture provenance. The dark image shows local-folder delivery selected, but Live Save is off and no folder has been authorized. The website does not load analytics, external scripts, or third-party fonts.
 
 Keep marketing claims aligned with the published Chrome Web Store release. Gemini is published; ChatGPT, Claude, and Grok may be experimental in source builds and must not be presented as published support before verification.
