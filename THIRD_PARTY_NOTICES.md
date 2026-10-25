@@ -357,6 +357,13 @@ THE SOFTWARE.
 
 
 
+### 8. docx.js (local Word export)
+
+- **Component**: `docx` v9.14.0, bundled into the extension's local export UI.
+- **Source**: <https://github.com/dolanmiu/docx>
+- **License**: MIT; copyright (c) 2016 Dolan.
+- **License text**: The standard MIT permission/warranty terms are reproduced above in Section 1. Upstream license: <https://github.com/dolanmiu/docx/blob/9.14.0/LICENSE>.
+- **Bundled dependencies**: `hash.js` (MIT), `jszip` (MIT/GPLv3 dual license; MIT option), `nanoid` (MIT), and their MIT-licensed transitive dependencies. Exact versions are locked in `package-lock.json`. JSZip and Pako license notices also appear above.
 
 ---
 
