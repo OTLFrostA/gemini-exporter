@@ -252,9 +252,11 @@ export async function initWorkbench(): Promise<void> {
         if (id !== state.accountId) { lastRequest = null; failed = []; dismissedFailures = false; }
         state.selectAccount(id); render(); await refresh();
     };
-    const perform = async (kind: Action, task: () => Promise<void>, cancellable = false) => {
+    const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>, cancellable = false) => {
         if (busy) return;
-        busy = true; action = kind; controller = cancellable ? new AbortController() : null;
+        busy = true; action = kind;
+        const taskController = new AbortController();
+        controller = cancellable ? taskController : null;
         // Never show the previous operation's percent or label at the start of a new run.
         currentStatus = null; currentProgress = null;
         el('bar').style.width = '0%';
@@ -264,7 +266,7 @@ export async function initWorkbench(): Promise<void> {
         el('status').textContent = '';
         el('status').style.display = 'block';
         render();
-        try { await task(); }
+        try { await task(taskController.signal); }
         catch (error) {
             statusError(error);
             if (kind === 'scan' && error instanceof Error &&
@@ -277,7 +279,7 @@ export async function initWorkbench(): Promise<void> {
             busy = false; action = null; controller = null; render();
         }
     };
-    const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async () => {
+    const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async (signal) => {
         lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
         const run: ExportRunDiagnostic = { startedAt: Date.now(), request: lastRequest,
             items: [], diagnostics: [], droppedDiagnostics: 0 };
@@ -294,7 +296,7 @@ export async function initWorkbench(): Promise<void> {
                 throw new Error('Authorize a folder first');
             const processed = new Set<string>();
             let saved = 0;
-            const result = await runExport(request, { signal: controller!.signal,
+            const result = await runExport(request, { signal,
                 onDiagnostic: diagnostic => {
                     if (run.diagnostics.length >= 10000) { run.droppedDiagnostics++; return; }
                     run.diagnostics.push({ ...diagnostic, at: Date.now(), title: titleFor(diagnostic.key) });
@@ -338,9 +340,8 @@ export async function initWorkbench(): Promise<void> {
             throw error;
         } finally { run.finishedAt = Date.now(); }
      }, true);
-    const scan = (forceFull = false) => perform('scan', async () => {
+    const scan = (forceFull = false) => perform('scan', async (signal) => {
         const startedAt = Date.now();
-        const signal = controller!.signal;
         status(() => text('Resolving conversation source…', '正在确认会话来源…'));
         const slowHint = el('scanSlowHint');
         const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
