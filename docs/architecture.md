@@ -620,7 +620,7 @@ sequenceDiagram
 4. **沙箱式网络拦截安全隔离 (Sandboxed Interceptor Guard)**：
    `hookCredentials.ts` 必须保证在主世界中的运行处于绝对安全的只读沙箱。拦截器内所有参数嗅探与字符串正则均包裹于 `try...catch` 中，遇到畸形参数时静默降级，严禁因插件逻辑异常影响 Google 原生网页的正常功能。
 5. **事件驱动的并发工作池 (`AsyncQueue`) 与可中断轮询边界**：
-   所有批量导出与下载均通过 `AsyncQueue` 任务队列驱动，结合 `RateLimiter` 指数退避状态机，智能规避 Google 接口的 HTTP 429 访问受限。`setInterval` 轮询仅允许**可中断、生命周期受控**的形式：① 内容脚本 15s 同步轮询（`pageObserver.startPeriodicSync`，经 `contentContext` 注册清理函数）；② `retryPolicy.interruptibleSleep` 的 50ms abort 标志轮询（仅无 `AbortSignal` 时的兜底，任务完成后自动清理）；③ 后台 `keepAlive` 20s Service Worker 保活心跳（`startKeepAlive` 返回清理函数，扫描/导出结束时停止）；④ 新手向导 `tourGuide` 的短时 UI 等待轮询（tour 结束时 `clearInterval`）。禁止无清理函数、无中断路径的野轮询。
+   所有批量导出与下载均通过 `AsyncQueue` 任务队列驱动，结合 `RateLimiter` 指数退避状态机，智能规避 Google 接口的 HTTP 429 访问受限。`setInterval` 轮询仅允许**可中断、生命周期受控**的形式：① 内容脚本 1s URL 变化检测（`pageObserver.hookHistoryEvents`，仅比较 `location.href`，重注入时清理监听器和定时器）；② `retryPolicy.interruptibleSleep` 的 50ms abort 标志轮询（仅无 `AbortSignal` 时的兜底，任务完成后自动清理）；③ 后台 `keepAlive` 20s Service Worker 保活心跳（`startKeepAlive` 返回清理函数，扫描/导出结束时停止）；④ 新手向导 `tourGuide` 的短时 UI 等待轮询（tour 结束时 `clearInterval`）。禁止无清理函数、无中断路径的野轮询。
 6. **MV3 Service Worker 保活机制 (Keepalive Resilience)**：
    在耗时较长的大批量扫描或附件打包过程中，定期向后台派发轻量保活心跳，彻底解决 Chromium 浏览器可能在后台静默终止 Service Worker 导致导出任务异常中断的问题。
 7. **两级存储架构与配额安全隔离 (Two-Tier Storage & Quota Isolation)**：

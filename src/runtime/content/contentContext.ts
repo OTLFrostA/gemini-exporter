@@ -15,12 +15,9 @@ export interface ActiveClientContract {
 /** A content script has a stable Window. Tests can inject a small mirror or null. */
 type ContentWindowMirror = Pick<Window,
     '__gemExporterContentContext' | '__gemExporterAborted' | '__gemExporterActiveClient'
-    | '__gemExporterDeepScanPromise' | '__gemExporterInjected' | '__gemExporterDevMode'
+    | '__gemExporterInjected' | '__gemExporterDevMode'
     | '__gemExporterExtractedAt' | '__gemExporterExtractedBl' | '__geminiAt'
-    | '__gemExporterSyncInterval' | '__gemExporterTitleObserver' | '__gemExporterDebounceTimer'
 >;
-
-type TimerHandle = number | ReturnType<typeof setTimeout> | MutationObserver | AbortController;
 
 /** The event name selects the exact listener argument tuple. */
 interface ContentEventArgs {
@@ -38,10 +35,7 @@ export class ContentContext {
     private _aborted = false;
     private _cancelledAt = 0;
     private _activeClient: ActiveClientContract | null = null;
-    // Legacy scan indicator; callers observe only pending vs. absent.
-    private _deepScanPromise: Promise<void> | null = null;
     private _credentials: GeminiCredentials | null = null;
-    private _timers = new Map<string, { handle: TimerHandle; cleanup: () => void }>();
     private _devMode = false;
     private _currentLang = 'zh';
     private _injected = false;
@@ -64,7 +58,6 @@ export class ContentContext {
         w.__gemExporterContentContext = this;
         w.__gemExporterAborted = this._aborted;
         w.__gemExporterActiveClient = this._activeClient;
-        w.__gemExporterDeepScanPromise = this._deepScanPromise;
         w.__gemExporterInjected = this._injected;
         w.__gemExporterDevMode = this._devMode;
     }
@@ -106,17 +99,6 @@ export class ContentContext {
         }
     }
 
-    public getDeepScanPromise(): Promise<void> | null {
-        return this._deepScanPromise;
-    }
-
-    public setDeepScanPromise(p: Promise<void> | null): void {
-        this._deepScanPromise = p;
-        if (this._devMode && this._window) {
-            this._window.__gemExporterDeepScanPromise = p;
-        }
-    }
-
     public setCredentials(creds: Partial<GeminiCredentials> | null): void {
         if (!creds) {
             this._credentials = null;
@@ -131,41 +113,6 @@ export class ContentContext {
             }
         }
         this.emit('credentials', this._credentials);
-    }
-
-    /** Timer owners know how to clean up their own handles at registration. */
-    public registerTimer(key: string, handle: TimerHandle, cleanup: () => void): void {
-        this.clearTimer(key);
-        this._timers.set(key, { handle, cleanup });
-        if (this._window) {
-            if (key === 'syncInterval') this._window.__gemExporterSyncInterval = handle;
-            else if (key === 'titleObserver') this._window.__gemExporterTitleObserver = handle;
-            else if (key === 'debounceTimer') this._window.__gemExporterDebounceTimer = handle;
-        }
-    }
-
-    public getTimer(key: string): TimerHandle | undefined {
-        return this._timers.get(key)?.handle;
-    }
-
-    public clearTimer(key: string): void {
-        const registered = this._timers.get(key);
-        if (registered) {
-            this._timers.delete(key);
-            try { registered.cleanup(); } catch { /* best-effort cleanup */ }
-        }
-        if (this._window) {
-            if (key === 'syncInterval') this._window.__gemExporterSyncInterval = null;
-            else if (key === 'titleObserver') this._window.__gemExporterTitleObserver = null;
-            else if (key === 'debounceTimer') this._window.__gemExporterDebounceTimer = null;
-        }
-    }
-
-    public clearAllTimers(): void {
-        for (const key of Array.from(this._timers.keys())) {
-            this.clearTimer(key);
-        }
-        this._timers.clear();
     }
 
     public isDevMode(): boolean {

@@ -400,7 +400,6 @@ def test_content_badge_flicker_prevention():
 
     badge = read("src/ui/badge/badgeView.ts")
     content = read("src/runtime/content/content.ts")
-    observer = read("src/runtime/content/pageObserver.ts")
     ingestion = read("src/l2/ingestion.ts")
 
     assert "label.textContent" in badge and "count === null" in badge, "Badge must render local Index count safely"
@@ -411,7 +410,6 @@ def test_content_badge_flicker_prevention():
     assert "BadgeView.ensureBadge" in content and "BadgeView.refreshAccount" in content, "Content must delegate Badge lifecycle"
     assert "hookHistoryEvents" in content, "Content handles location changes through PageObserver"
     assert "MessageBridge.init" in content, "Passive Sniffer admission must remain separate from Badge"
-    assert "getDeepScanPromise" in observer, "Debounce must avoid overlapping active scans"
     assert "sameStoredFacts" in ingestion and "mergeIndexes" in ingestion, "L2 must skip unchanged Index facts"
     assert "syncEngine" not in content and "geminiIndexCapture" not in content, "Removed scan facades must not return"
     print("  ✓ V2 Badge lifetime, account isolation, stable CSS and passive Index separation verified")
