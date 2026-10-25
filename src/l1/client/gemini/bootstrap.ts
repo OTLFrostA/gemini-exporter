@@ -189,17 +189,6 @@ export async function saveCredentials(map: Record<string, BootstrapCredential>, 
     }
 }
 
-// Credential read-modify-write cycles are serialized through one chain: the
-// module top-level call, the DOMContentLoaded/load hooks and the MAIN-world
-// postMessage listener can all fire back-to-back on page load, and
-// unsynchronized load→save cycles would overwrite each other's map entries.
-let _credOpChain: Promise<unknown> = Promise.resolve();
-function runSerializedCredOp<T>(op: () => Promise<T>): Promise<T> {
-    const run = _credOpChain.then(() => withCredMapLock(op), () => withCredMapLock(op));
-    _credOpChain = run.then(() => undefined, () => undefined);
-    return run;
-}
-
 async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
     try {
         if (!isExtAlive()) return null;
@@ -270,8 +259,9 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
     return null;
 }
 
+/** One shared credential-map queue protects bootstrap hooks, messages and API writers. */
 export function ensureCreds(): Promise<BootstrapCredential | null> {
-    return runSerializedCredOp(ensureCredsOnce);
+    return withCredMapLock(ensureCredsOnce);
 }
 
 export function initBootstrap(): void {
@@ -311,7 +301,7 @@ export function initBootstrap(): void {
             if (!isExtAlive()) return;
             // Queued behind any in-flight ensureCreds so concurrent load→save
             // cycles cannot overwrite each other's map entries.
-            void runSerializedCredOp(async () => {
+            void withCredMapLock(async () => {
                 try {
                     const p = parseGeminiCredential('payload' in data ? data.payload : undefined);
                     const slot = p.accountSlot === 'default' ? 'u0' : p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'u0';

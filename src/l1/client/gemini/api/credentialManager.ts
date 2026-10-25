@@ -222,18 +222,11 @@ async function loadCredMap(): Promise<RawCredentialMap> {
     }
 }
 
-let _resolveChain: Promise<unknown> = Promise.resolve();
-function runSerializedResolve<T>(op: () => Promise<T>): Promise<T> {
-    const run = _resolveChain.then(op, op);
-    _resolveChain = run.then(() => undefined, () => undefined);
-    return run;
-}
-
 async function resolveCred(
     targetSidOrSlot?: string | null,
     overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null
 ): Promise<GeminiCredentials> {
-    return runSerializedResolve(() => withCredMapLock(() => resolveCredInner(targetSidOrSlot, overrides)));
+    return withCredMapLock(() => resolveCredInner(targetSidOrSlot, overrides));
 }
 
 async function resolveCredInner(
