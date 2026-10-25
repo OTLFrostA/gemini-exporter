@@ -1,3 +1,4 @@
+import { elementById as el, requiredElement as control } from '../shared/elements.js';
 import { exportSummary } from '../shared/exportSummary.js';
 import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
@@ -7,7 +8,7 @@ import { updateSettings, type GlobalSettings } from '../../application/settings/
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
 import { runExport } from '../options/controllers/exportController.js';
-import { readSettings, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
+import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
 
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
 export async function readActiveKey(): Promise<ConversationKey | null> {
@@ -27,8 +28,7 @@ export async function readActiveKey(): Promise<ConversationKey | null> {
 }
 
 export async function initPopup(): Promise<void> {
-    const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-    const button = el<HTMLButtonElement>('btnCurrent');
+    const button = control('button', 'btnCurrent');
     const status = el('status');
     let currentStatus: (() => string) | null = null;
     const showStatus = (message: () => string) => { currentStatus = message; status.textContent = message(); };
@@ -39,13 +39,13 @@ export async function initPopup(): Promise<void> {
     let identityLoaded = false;
     let busy = false, active = true;
     let themeSaving = false;
-    const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-format]')];
-    const formatName: Record<string, string> = { markdown: 'Markdown', html: 'HTML', pdf: 'PDF', json: 'JSON' };
+    const buttons = [...document.getElementsByTagName('button')].filter(button => button.dataset.format !== undefined);
+    const formatName: Record<GlobalSettings['defaultFormat'], string> = { markdown: 'Markdown', html: 'HTML', pdf: 'PDF', json: 'JSON' };
     const render = () => {
         labelPage();
-        labelThemeToggle(el<HTMLButtonElement>('btnThemeToggle'), settings);
+        labelThemeToggle(control('button', 'btnThemeToggle'), settings);
         // Appearance is independent of exporting or updating another preference.
-        el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || themeSaving;
+        control('button', 'btnThemeToggle').disabled = !settings || themeSaving;
         if (identityLoaded) el('currentChatTitle').textContent = indexTitle || (key
             ? text('Current conversation', '当前对话')
             : text('No current supported conversation', '当前没有受支持的对话'));
@@ -57,7 +57,7 @@ export async function initPopup(): Promise<void> {
             btn.setAttribute('aria-pressed', String(current));
         }
         if (settings) {
-            el('activeFormatLabel').textContent = formatName[settings.defaultFormat] || settings.defaultFormat;
+            el('activeFormatLabel').textContent = formatName[settings.defaultFormat];
         }
         if (currentStatus) status.textContent = currentStatus();
     };
@@ -73,7 +73,7 @@ export async function initPopup(): Promise<void> {
             settings = prior; useSettings(prior); showError(e);
         }).finally(() => { busy = false; render(); });
     };
-    el<HTMLButtonElement>('btnThemeToggle').addEventListener('click', () => {
+    control('button', 'btnThemeToggle').addEventListener('click', () => {
         if (!settings || themeSaving) return;
         const previousTheme = settings.theme;
         const theme = previousTheme === 'light' ? 'dark' : 'light';
@@ -89,7 +89,8 @@ export async function initPopup(): Promise<void> {
             .finally(() => { themeSaving = false; render(); });
     });
     for (const btn of buttons) btn.addEventListener('click', () => {
-        changeSettings({ defaultFormat: btn.dataset.format as GlobalSettings['defaultFormat'] });
+        const format = EXPORT_FORMATS.find(value => value === btn.dataset.format);
+        if (format) changeSettings({ defaultFormat: format });
     });
     button.addEventListener('click', () => {
         if (busy || !key || !settings) return;

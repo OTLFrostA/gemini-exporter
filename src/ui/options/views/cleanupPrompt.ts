@@ -1,16 +1,17 @@
+import { elementById, requiredElement } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
 let pending = false;
 
 /** Page-owned confirmation; Escape and Cancel leave every local record intact. */
 export function confirmCleanup(scanRecords: boolean, accountName: string): Promise<boolean> {
-    const modal = document.getElementById('cleanupModal') as HTMLDialogElement | null;
+    const modal = document.getElementsByTagName('dialog').namedItem('cleanupModal');
     if (!modal || pending || document.querySelector('dialog[open], [aria-modal="true"]')) return Promise.resolve(false);
-    const title = document.getElementById('cleanupPromptTitle')!;
-    const description = document.getElementById('cleanupPromptText')!;
-    const account = document.getElementById('cleanupPromptAccount')!;
-    const cancel = document.getElementById('btnCleanupCancel') as HTMLButtonElement;
-    const confirm = document.getElementById('btnCleanupConfirm') as HTMLButtonElement;
+    const title = elementById('cleanupPromptTitle');
+    const description = elementById('cleanupPromptText');
+    const account = elementById('cleanupPromptAccount');
+    const cancel = requiredElement('button', 'btnCleanupCancel');
+    const confirm = requiredElement('button', 'btnCleanupConfirm');
     title.textContent = scanRecords ? text('Clear scan records?', '清除扫描记录？') : text('Clear export records?', '清除导出记录？');
     description.textContent = scanRecords
         ? text('Clear all local conversations, scan coverage and export records for this account? Downloaded files and other accounts stay. Sync again to rebuild the list.', '清空当前账号的全部本地对话、扫描覆盖和导出记录？保留已下载文件及其他账号的数据。之后需要重新同步会话。')
