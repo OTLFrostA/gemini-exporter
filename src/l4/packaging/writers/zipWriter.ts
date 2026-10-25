@@ -33,28 +33,6 @@ export function __getZipConstructor(): ZipConstructor | undefined {
 
 declare global {
     interface WindowOrWorkerGlobalScope { JSZip?: ZipConstructor }
-    namespace NodeJS {
-        interface Require { (id: 'jszip'): ZipConstructor }
-    }
-}
-
-function isZipConstructor(value: unknown): value is ZipConstructor {
-    return typeof value === 'function';
-}
-
-function resolveJSZip(): ZipConstructor | null {
-    const override = __getZipConstructor();
-    if (override) return override;
-    if (typeof self !== 'undefined' && self.JSZip) return self.JSZip;
-    if (typeof require !== 'undefined') {
-        try {
-            const loaded: unknown = require('jszip');
-            return isZipConstructor(loaded) ? loaded : null;
-        } catch {
-            return null;
-        }
-    }
-    return null;
 }
 
 class ZipWriter implements IExportWriter {
@@ -64,7 +42,7 @@ class ZipWriter implements IExportWriter {
     MAX_SAFE_ZIP_BYTES: number;
 
     constructor() {
-        const JSZipLib = resolveJSZip();
+        const JSZipLib = __getZipConstructor() ?? (typeof self !== 'undefined' ? self.JSZip : undefined);
         if (!JSZipLib) {
             throw new Error('JSZip library is not available');
         }
