@@ -142,8 +142,8 @@ export interface DecodedGeminiCandidate {
     groundingCitationMarkers: string[];
 }
 
-/** Known fields read once from a Turn. All returned fields are typed facts;
- * wire slots are read only by specialized L1 resource decoders. */
+/** Known fields read once from a Turn. Selected wire evidence stays within
+ * the L1 decoder and is consumed by specialized resource decoders. */
 export interface DecodedGeminiTurn {
     userText: string;
     timestamp: number | null;
@@ -155,6 +155,8 @@ export interface DecodedGeminiTurn {
     providerRequestId: string | undefined;
     candidate: DecodedGeminiCandidate | null;
     candidateIndex: number;
+    /** Selected once here; resource decoders must not relocate the candidate. */
+    candidateSource: unknown;
 }
 
 interface GeminiParserExtractorsModule {
@@ -823,7 +825,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             rawProviderRequestId,
             providerRequestId,
             candidate,
-            candidateIndex
+            candidateIndex,
+            candidateSource: selected
         };
     }
 

@@ -5,7 +5,7 @@ interface GeminiParserAttachmentsModule {
     isInternalChipUrl: (u?: string | null) => boolean;
     filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
     extractImageEvidence: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
-    extractResponseImageEvidence: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];
+    extractResponseImageEvidence: typeof source.extractResponseImageEvidence;
     extractImages: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
     extractUserFiles: (turnUserArr: unknown) => UserFileAttachment[];
     extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];

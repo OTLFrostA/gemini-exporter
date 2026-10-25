@@ -17,6 +17,12 @@ export interface ImageAttachment {
     mimeType?: string;
 }
 
+export interface GeminiResponseImageEvidence {
+    images: ImageAttachment[];
+    /** Body-local images retain their own order and token deduplication. */
+    structuredImages: ImageAttachment[];
+}
+
 export interface UserFileAttachment {
     sourceUrl: string;
     fileName: string;
@@ -288,57 +294,64 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         };
     }
 
-    function collectImages(obj: unknown, seqRef?: { value: number }, normalize: (raw: RawImageCandidate, counter: { value: number }) => ImageAttachment = sourceImage): ImageAttachment[] {
-        const images: ImageAttachment[] = [];
-        const seenKeys = new Set<string>();
+    /** One response may expose the same wire tuple through body and metadata
+     * roots. Reuse its decoded evidence while each list keeps its own order,
+     * token preference and visibility rules. The reader lives for one extraction. */
+    function createImageEvidenceReader(): (node: object) => RawImageCandidate | null {
+        const evidence = new WeakMap<object, RawImageCandidate | null>();
         const warnedHosts = new Set<string>();
-        const counter = seqRef && typeof seqRef.value === "number" ? seqRef : { value: 1 };
-
-        deepWalk(obj, (node) => {
-            if (!node || typeof node !== "object") return;
-
+        return node => {
+            if (evidence.has(node)) return evidence.get(node) ?? null;
+            evidence.set(node, null);
             for (const detector of IMAGE_DETECTORS) {
                 const raw = detector(node, GEMINI_JSPB_SCHEMA);
                 if (!raw) continue;
-
-                if (isInternalChipUrl(raw.sourceUrl)) {
-                    return;
-                }
-
+                if (isInternalChipUrl(raw.sourceUrl)) return null;
                 if (!isGoogleMediaHost(raw.sourceUrl)) {
                     warnWhitelistDropOnce(warnedHosts, raw.sourceUrl, raw.detectorKind);
-                    return;
+                    return null;
                 }
-
-                // Keep the matched media tuple (not the conversation body) for failed
-                // attachment diagnostics, so false detections can be reproduced.
-                // JSON.stringify normalizes raw wire metadata into a JSON-only
-                // diagnostic snapshot, so its parsed value satisfies JsonValue.
+                // Retain a bounded JSON-only snapshot of the matched tuple.
                 const evidenceJson = JSON.stringify(node);
                 raw.evidenceNode = evidenceJson.length <= 12000
                     ? JSON.parse(evidenceJson)
                     : { truncated: true, preview: evidenceJson.slice(0, 12000) };
-                const img = normalize(raw, counter);
-                if (img.token) {
-                    const existingIdx = images.findIndex(existing => existing.token === img.token);
-                    if (existingIdx !== -1) {
-                        if (img.isGenerated && !images[existingIdx].isGenerated) {
-                            const oldKey = getImageDedupKey(images[existingIdx]);
-                            seenKeys.delete(oldKey);
-                            const newKey = getImageDedupKey(img);
-                            seenKeys.add(newKey);
-                            images[existingIdx] = img;
-                        }
-                        return;
-                    }
-                }
+                evidence.set(node, raw);
+                return raw;
+            }
+            return null;
+        };
+    }
 
-                const key = getImageDedupKey(img);
-                if (!seenKeys.has(key)) {
-                    seenKeys.add(key);
-                    images.push(img);
+    function collectImages(obj: unknown, seqRef?: { value: number }, normalize: (raw: RawImageCandidate, counter: { value: number }) => ImageAttachment = sourceImage,
+        readEvidence = createImageEvidenceReader()): ImageAttachment[] {
+        const images: ImageAttachment[] = [];
+        const seenKeys = new Set<string>();
+        const counter = seqRef && typeof seqRef.value === "number" ? seqRef : { value: 1 };
+
+        deepWalk(obj, (node) => {
+            if (!node || typeof node !== "object") return;
+            const raw = readEvidence(node);
+            if (!raw) return;
+            const img = normalize(raw, counter);
+            if (img.token) {
+                const existingIdx = images.findIndex(existing => existing.token === img.token);
+                if (existingIdx !== -1) {
+                    if (img.isGenerated && !images[existingIdx].isGenerated) {
+                        const oldKey = getImageDedupKey(images[existingIdx]);
+                        seenKeys.delete(oldKey);
+                        const newKey = getImageDedupKey(img);
+                        seenKeys.add(newKey);
+                        images[existingIdx] = img;
+                    }
+                    return;
                 }
-                return;
+            }
+
+            const key = getImageDedupKey(img);
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                images.push(img);
             }
         });
         return images;
@@ -347,8 +360,13 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
     function extractImageEvidence(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
         return collectImages(obj, seqRef);
     }
-    function extractResponseImageEvidence(candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }): ImageAttachment[] {
-        return responseImages(candidate, visibleMedia, text, seqRef, extractImageEvidence);
+    function extractResponseImageEvidence(candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }, structuredContent?: unknown): GeminiResponseImageEvidence {
+        const readEvidence = createImageEvidenceReader();
+        const reader: typeof extractImageEvidence = (root, sequence) => collectImages(root, sequence, sourceImage, readEvidence);
+        return {
+            images: responseImages(candidate, visibleMedia, text, seqRef, reader),
+            structuredImages: structuredContent ? reader(structuredContent) : [],
+        };
     }
     function responseImages(candidate: unknown, visibleMedia: unknown, text: string, seqRef: { value: number } | undefined, reader: typeof extractImageEvidence): ImageAttachment[] {
         const visibleKeys = new Set(reader(visibleMedia).map(getImageDedupKey));

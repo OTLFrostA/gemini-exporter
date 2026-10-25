@@ -1,4 +1,4 @@
-import { GEMINI_JSPB_SCHEMA, extractModelCandidates, type DecodedGeminiCandidate } from './extractors.js';
+import { GEMINI_JSPB_SCHEMA } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence } from './detailEvidence.js';
 import {
@@ -36,6 +36,7 @@ export interface DecodedGeminiUserResources {
 export interface DecodedGeminiCandidateResources {
     images: ImageAttachment[];
     filteredImages: ImageAttachment[];
+    structuredImages: ImageAttachment[];
     generatedFiles: GeminiAttachmentEvidence[];
     documents: GeminiDocumentEvidence[];
     structuredExtraction: GeminiStructuredExtraction;
@@ -63,8 +64,9 @@ export function decodeGeminiUserResources(
  * raw media/document slots and never re-select a Candidate themselves. */
 export function decodeGeminiCandidateResources(
     rawTurn: unknown,
-    candidate: DecodedGeminiCandidate,
+    cand: unknown,
     candidateIndex: number,
+    responseText: string,
     inner: unknown,
     media: DetailMediaReader,
     dedupSet: Set<string>,
@@ -72,20 +74,20 @@ export function decodeGeminiCandidateResources(
     imageSeq: { value: number },
     convId?: string
 ): DecodedGeminiCandidateResources {
-    const cand = extractModelCandidates(rawTurn)[candidateIndex];
     const answerBody = wireArray(cand) ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] : undefined;
     const candidateBlock = answerBody || cand;
     const modelPayload = wireArray(rawTurn) ? rawTurn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
     const turnDocument = wireArray(modelPayload)
         ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined;
-    const responseText = candidate.text;
     // Preserve the established ownership, fallback and ordering rules.
     const structuredExtraction = inspectStructuredContent({
         candidate: cand, turnDocument, candidateIndex
     });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
-    const candImages = media.responseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
+    const { images: candImages, structuredImages } = media.responseImages(
+        cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq, structuredContent
+    );
     const filteredImages = filterNewImages(candImages, dedupSet);
 
     const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId);
@@ -165,6 +167,7 @@ export function decodeGeminiCandidateResources(
     return {
         images: candImages,
         filteredImages,
+        structuredImages,
         generatedFiles,
         documents: docDetails,
         structuredExtraction,

@@ -58,6 +58,8 @@ export interface GeminiMessageEvidence {
     attachments?: GeminiAttachmentEvidence[];
     attachmentCount: number;
     messageCount: number;
+    /** Unfiltered body-local images, decoded with the response image evidence. */
+    structuredImages?: ImageAttachment[];
     structuredContent?: GeminiStructuredDocument;
     structuredExtraction?: GeminiStructuredExtraction;
     groundingCitationMarkers?: string[];

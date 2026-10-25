@@ -2,7 +2,7 @@ import { formatUnknownPayload } from './unknownFallback.js';
 import type { BlockNode } from '../../../../l2/content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
 import type { ResourceEvidence as ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
-import { extractImageEvidence } from '../rpc/sourceAttachments.js';
+import type { ImageAttachment } from '../rpc/sourceAttachments.js';
 import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
 import { preprocessGeminiMarkdown, normalizeGeminiTexAliases } from './markdownCompatibility.js';
@@ -99,10 +99,9 @@ export function parseGeminiBody(
     return [{ type: 'unknown', sourceType: 'message-content', text: visible.text }];
 }
 
-/** Collect structured resource evidence; the input adapter resolves overlap with legacy lists. */
-export function structuredBodyAttachments(message: { structuredContent?: unknown }, readImages: typeof extractImageEvidence = extractImageEvidence): ResourceEvidence[] {
-    if (!message.structuredContent) return [];
-    return readImages(message.structuredContent).map(image => ({
+/** Adapt body-local facts already decoded by the resource pipeline. */
+export function structuredBodyAttachments(message: { structuredImages?: ImageAttachment[] }): ResourceEvidence[] {
+    return (message.structuredImages ?? []).map(image => ({
         ...image, type: 'image', src: image.sourceUrl,
         name: image.fileName ?? image.title, title: image.fileName ?? image.title,
     }));

@@ -283,7 +283,7 @@ function parseCandidateResponse(
     const ts = turn.timestamp;
     const candidateId = candidate.id;
     let responseText = candidate.text;
-    const { images: candImages, filteredImages, generatedFiles, documents: docDetails, structuredExtraction } = resources;
+    const { images: candImages, filteredImages, generatedFiles, documents: docDetails, structuredExtraction, structuredImages } = resources;
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
 
     const { thoughts, citations, sourceAttributions, groundingCitationMarkers } = candidate;
@@ -373,6 +373,7 @@ function parseCandidateResponse(
         messageCount: 1,
         ...(structuredContent ? { structuredContent } : {}),
         structuredExtraction,
+        structuredImages,
         ...(sourceAttributions.length ? { sourceAttributions } : {}),
         ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {})
     };
@@ -444,7 +445,7 @@ function decodeDetailEvidence(text: string | GeminiResponseEnvelope, targetConvI
             // and the historical primary-draft fallback in one place.
             if (turn.candidate) {
                 const resources = decodeGeminiCandidateResources(
-                    rawTurn, turn.candidate, turn.candidateIndex,
+                    rawTurn, turn.candidateSource, turn.candidateIndex, turn.candidate.text,
                     inner, media, dedupSet, docDedupSet, imageSeq, convId
                 );
                 const modelMsg = parseCandidateResponse(turn.candidate, turn, resources, media, convId);
