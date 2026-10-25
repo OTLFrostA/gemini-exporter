@@ -126,7 +126,7 @@ class ExtensionActions:
             cdp.close()
 
     @staticmethod
-    def verify_onboarding_tour(port: int = 9222, ext_id: Optional[str] = None, timeout: int = 15,
+    def verify_onboarding_tour(port: int = 9222, ext_id: Optional[str] = None, timeout: int = 120,
                                provider_id: str = 'gemini') -> bool:
         """Drive the real installation Tour and verify URL consumption, without stored flags."""
         if provider_id not in ('gemini', 'chatgpt', 'claude'):
@@ -144,7 +144,11 @@ class ExtensionActions:
         try:
             shown = False
             connection_attempted = False
-            for _ in range(60):
+            # Chrome's native optional-host prompt needs a real user grant.
+            # Bound the entire Tour by the supplied timeout, including that wait.
+            for _ in range(timeout * 4):
+                if time.monotonic() >= deadline:
+                    break
                 state = cdp.eval("""(() => {
                     const popover = document.querySelector('.tour-popover');
                     if (!popover) return {active:false, url:location.href};

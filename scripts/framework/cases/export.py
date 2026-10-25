@@ -433,20 +433,48 @@ class StaleTabImageExportCase(FeatureTestCase):
             ctx.env.setup_download_behavior(ctx.output_dir)
             cdp_opt = ctx.connect_options()
             try:
+                # Uninstall revokes optional origins: tabs.query({url}) cannot
+                # see Gemini until a new, real Chrome permission grant. Request
+                # access without the Tour's activatePlatformAccess, which would
+                # inject the deliberately receiver-less stale document as well.
+                granted = cdp_opt.eval("""chrome.permissions.request({origins: [
+                    'https://gemini.google.com/*', 'https://*.googleusercontent.com/*',
+                    'https://*.usercontent.google.com/*', 'https://drive.google.com/*',
+                    'https://lh3.google.com/*', 'https://*.gstatic.com/*'
+                ]})""", await_promise=True, user_gesture=True, timeout=120)
+                if granted is not True:
+                    return False, "重装后 Gemini 站点权限未获授权", {"permissionGranted": granted}
                 setup = cdp_opt.eval(f"""(async () => {{
                     const staleId = {stale_id};
+                    // Permission resolution and the background onAdded handler
+                    // race; do not navigate the fresh document before registration.
+                    const ids = ['gemini-source-main', 'gemini-source-content'];
+                    let registered = [];
+                    for (let i = 0; i < 80; i++) {{
+                        registered = await chrome.scripting.getRegisteredContentScripts({{ids}});
+                        if (registered.length === ids.length) break;
+                        await new Promise(resolve => setTimeout(resolve, 250));
+                    }}
+                    if (registered.length !== ids.length) return {{error: 'Gemini scripts not registered', registered}};
                     const tabs = await chrome.tabs.query({{url: 'https://gemini.google.com/*'}});
                     const fresh = tabs.filter(tab => tab.id !== staleId && !tab.url?.includes('/glic'));
-                    if (!fresh.length) return {{error: 'no second Gemini tab'}};
+                    if (!fresh.length) return {{error: 'no second Gemini tab',
+                        permissions: await chrome.permissions.getAll(), tabs}};
                     for (const tab of fresh) await chrome.tabs.reload(tab.id);
-                    await new Promise(resolve => setTimeout(resolve, 3000));
                     const probe = id => new Promise(resolve => chrome.tabs.sendMessage(id, {{action: 'ping'}}, reply =>
                         resolve({{reply, error: chrome.runtime.lastError?.message || ''}})));
+                    let good;
+                    for (let i = 0; i < 80; i++) {{
+                        good = await probe(fresh[0].id);
+                        if (good.reply?.ok) break;
+                        await new Promise(resolve => setTimeout(resolve, 250));
+                    }}
                     const stale = await probe(staleId);
-                    const good = await probe(fresh[0].id);
                     await chrome.tabs.update(staleId, {{active: true}});
                     return {{stale, good, staleId, freshId: fresh[0].id}};
-                }})()""", await_promise=True, timeout=30) or {}
+                }})()""", await_promise=True, timeout=50) or {}
+                if setup.get("error"):
+                    return False, f"旧标签页场景准备失败: {setup['error']}", setup
                 if "Receiving end does not exist" not in setup.get("stale", {}).get("error", ""):
                     return False, f"旧标签页未保持无接收端状态: {setup}", setup
                 if not setup.get("good", {}).get("reply", {}).get("ok"):

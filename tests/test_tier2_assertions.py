@@ -42,6 +42,19 @@ EVIDENCE = [{'prompt': 'Explain **pressure** and mass_balance.', 'response': REP
 
 
 class OnboardingConnectionContracts(unittest.TestCase):
+    def test_native_permission_prompt_can_take_longer_than_fifteen_seconds(self):
+        cdp = MagicMock()
+        cdp.eval.side_effect = [
+            {'active': True, 'needsConnection': True, 'ready': True}, True,
+            {'active': True}, {'active': False, 'url': 'chrome-extension://test/src/ui/options/options.html'},
+        ]
+        with patch('scripts.framework.actions.get_tabs', return_value=[{
+            'url': 'chrome-extension://test/src/ui/options/options.html', 'webSocketDebuggerUrl': 'ws://options'}]), \
+             patch('scripts.framework.actions.CDPConnection', return_value=cdp), \
+             patch('scripts.framework.actions.time.monotonic', side_effect=[0, 0, 0, 20, 21]), \
+             patch('scripts.framework.actions.time.sleep'):
+            self.assertTrue(CDPActions.verify_onboarding_tour(ext_id='test'))
+
     def test_tour_uses_the_selected_platform_connection_once_then_completes(self):
         for provider in ['gemini', 'chatgpt', 'claude']:
             with self.subTest(provider=provider):
@@ -148,7 +161,7 @@ class StaleTabHistoryTests(unittest.TestCase):
                      'good': {'reply': {'ok': True}}, 'freshId': 8}
         # If the row is still absent after sync, the original target assertion
         # must fail; the export action must never be used to fake success.
-        cdp.eval.side_effect = [7, receivers, None, after_scan or receivers, False, None]
+        cdp.eval.side_effect = [7, True, receivers, None, after_scan or receivers, False, None]
         with patch('scripts.framework.cases.export.select_source_account') as select, \
              patch('scripts.framework.cases.export.wait_for_prior_scan') as prior, \
              patch('scripts.framework.cases.export.clear_scan_records') as reset, \
@@ -161,6 +174,34 @@ class StaleTabHistoryTests(unittest.TestCase):
             sync.assert_called_once_with(cdp)
             export.assert_not_called()
         return result
+
+    def test_denied_permission_stops_before_url_discovery_or_export(self):
+        ctx = MagicMock()
+        ctx.shared_data = {'golden_image_evidence': [{'fixture': True}]}
+        ctx.env.reinstall_extension.return_value = 'fixture'
+        cdp = ctx.connect_options.return_value
+        cdp.eval.side_effect = [7, False, None]
+        with patch.object(CDPActions, 'trigger_export_zip') as export:
+            ok, message, _ = StaleTabImageExportCase().execute(ctx)
+            self.assertFalse(ok)
+            self.assertIn('站点权限未获授权', message)
+            request = cdp.eval.call_args_list[1]
+            self.assertIn('chrome.permissions.request', request.args[0])
+            self.assertTrue(request.kwargs['user_gesture'])
+            export.assert_not_called()
+
+    def test_missing_second_tab_is_a_setup_failure_after_a_real_grant(self):
+        ctx = MagicMock()
+        ctx.shared_data = {'golden_image_evidence': [{'fixture': True}]}
+        ctx.env.reinstall_extension.return_value = 'fixture'
+        cdp = ctx.connect_options.return_value
+        cdp.eval.side_effect = [7, True, {'error': 'no second Gemini tab', 'tabs': []}, None]
+        with patch.object(CDPActions, 'trigger_deep_scan') as scan:
+            ok, message, details = StaleTabImageExportCase().execute(ctx)
+            self.assertFalse(ok)
+            self.assertIn('场景准备失败', message)
+            self.assertEqual(details['tabs'], [])
+            scan.assert_not_called()
 
     def test_recent_page_without_older_target_requires_real_sync_and_still_fails_if_target_absent(self):
         ok, message, details = self.run_case(scan_evidence())
