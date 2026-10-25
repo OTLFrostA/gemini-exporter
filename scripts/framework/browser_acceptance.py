@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from scripts.cdp_client import CDPConnection, get_tabs
-from scripts.framework.actions import CDPActions
+from scripts.framework.actions import CDPActions, remove_product_extensions
 from scripts.framework.v2_probe import snapshot
 from scripts.framework.live_utils import wait_for
 
@@ -10,29 +10,8 @@ from scripts.framework.live_utils import wait_for
 class BrowserAcceptance:
     def clean_install(self):
         """Replace only this product's unpacked install, keeping one enabled copy."""
-        entries = self.browser.call('Extensions.getExtensions').get('result', {}).get('extensions')
-        if not isinstance(entries, list):
-            raise ValueError('Cannot establish the installed extension inventory')
-        own = []
-        manifest = json.loads((self.root/'manifest.json').read_text())
-        for entry in entries:
-            path = Path(entry['path'])/'manifest.json'
-            if path.is_file():
-                candidate = json.loads(path.read_text())
-                if (candidate.get('name') == manifest['name'] and
-                    candidate.get('background') == manifest['background']):
-                    own.append(entry)
-        for entry in own:
-            for tab in get_tabs(self.port):
-                if tab.get('url', '').startswith(f"chrome-extension://{entry['id']}/") and tab.get('type') == 'page':
-                    self.browser.call('Target.closeTarget', {'targetId': tab['id']})
-            result = self.browser.call('Extensions.uninstall', {'id': entry['id']})
-            if result.get('error'):
-                raise ValueError(result['error'])
-        after = self.browser.call('Extensions.getExtensions')['result']['extensions']
-        if any(entry['id'] in {e['id'] for e in own} for entry in after):
-            raise ValueError('Prior product extension still installed')
-        self.report['installation'] = {'removedCopies': len(own), 'clean': True}
+        removed = remove_product_extensions(self.browser, self.root, self.port)
+        self.report['installation'] = {'removedCopies': removed, 'clean': True}
 
     def fresh_options(self):
         url = f'chrome-extension://{self.ext_id}/src/ui/options/options.html'

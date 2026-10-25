@@ -99,6 +99,33 @@ def temporary_required_permissions(repo_path):
         manifest_path.write_bytes(original)
 
 
+def remove_product_extensions(browser, repo_path, port):
+    """Remove this product's unpacked copies, including missing old worktrees."""
+    manifest = json.loads((Path(repo_path) / 'manifest.json').read_text())
+    names = {manifest['name']}
+    if manifest['name'].startswith('__MSG_') and manifest['name'].endswith('__'):
+        key = manifest['name'][6:-2]
+        for locale in (Path(repo_path) / '_locales').glob('*/messages.json'):
+            message = json.loads(locale.read_text()).get(key, {}).get('message')
+            if isinstance(message, str):
+                names.add(message)
+    entries = browser.call('Extensions.getExtensions').get('result', {}).get('extensions')
+    if not isinstance(entries, list):
+        raise ValueError('Cannot establish the installed extension inventory')
+    own = [entry for entry in entries if entry.get('name') in names]
+    for entry in own:
+        for tab in get_tabs(port):
+            if tab.get('type') == 'page' and tab.get('url', '').startswith(f"chrome-extension://{entry['id']}/"):
+                browser.call('Target.closeTarget', {'targetId': tab['id']})
+        result = browser.call('Extensions.uninstall', {'id': entry['id']})
+        if result.get('error'):
+            raise ValueError(result['error'])
+    after = browser.call('Extensions.getExtensions').get('result', {}).get('extensions')
+    if not isinstance(after, list) or any(entry.get('name') in names for entry in after):
+        raise ValueError('Prior product extension still installed or inventory unavailable')
+    return len(own)
+
+
 class ExtensionActions:
     """
     Universal Chrome Extension Options Page & Management Automation Primitives.
@@ -129,12 +156,8 @@ class ExtensionActions:
                 if not old_ext_id:
                     print(f"❌ 无法确认工作区扩展身份，停止重装: {identity}")
                     return None
-                print(f"   🗑️ 正在通过 CDP Extensions.uninstall 卸载工作区扩展 ({old_ext_id})...")
-                removed = cdp.call("Extensions.uninstall", {"id": old_ext_id})
-                if "error" in removed:
-                    print(f"❌ 工作区扩展卸载失败，停止重装: {removed}")
-                    return None
-                time.sleep(0.5)
+                removed = remove_product_extensions(cdp, repo_path, port)
+                print(f"   🗑️ 已清理 {removed} 个同产品测试副本")
 
                 print(f"   📦 正在通过 CDP Extensions.loadUnpacked 安装扩展: {repo_path}...")
                 res = cdp.call("Extensions.loadUnpacked", {"path": repo_path})

@@ -1,47 +1,5 @@
 [
   {
-    "id": "astronomy_transit_chord_limb_darkening",
-    "title": "Exoplanet transits: chord geometry and inference limits",
-    "domain": "astronomy_transit_geometry",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original fictional astronomy teaching illustration of an exoplanet crossing a star, with a sky-plane transit chord, impact parameter and a schematic light curve. Label schematic quantities and distinguish synthetic geometry from measured telescope data.",
-      "Derive the uniform-brightness small-planet transit depth and duration for a circular orbit in LaTeX. State the inclination convention, impact parameter, stellar radius, planet radius, and validity limits; keep all units consistent.",
-      "Write runnable standard-library Python evaluating circle-overlap area and normalized flux for arbitrary projected separation, including no overlap, full containment, tangency and zero radius. Include independent symmetry and monotonicity tests.",
-      "Build a Markdown table for five projected separations using a stated radius ratio, and compare the exact uniform-disc model with the small-planet approximation. Explain how limb darkening biases a naive radius inference.",
-      "Produce a detailed English-Chinese technical report combining the code, mathematical derivation and a contact-point ASCII diagram. Discuss grazing transits, orbital eccentricity and parameter degeneracies; distinguish executed results from analytic claims."
-    ]
-  },
-  {
-    "id": "graph_theory_bipartite_vertex_cover_certificate",
-    "title": "Bipartite matching: augmenting paths and dual certificates",
-    "domain": "graph_theory_matching_vertex_cover",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a nontrivial bipartite scheduling instance with six workers and seven tasks, including an isolated vertex and a greedy matching trap. State exact edge lists and the objective, without solving it yet.",
-      "Derive the alternating-path characterization of maximum matching and explain why a maximal matching is insufficient. Express the augmenting-path invariant in LaTeX and give a concrete greedy counterexample from this instance.",
-      "Write complete runnable standard-library Python for deterministic augmenting-path bipartite matching, validating vertex partitions, duplicate edges and endpoints. Include empty, disconnected and isolated-vertex cases.",
-      "Implement an independent exhaustive matching oracle for small instances and property tests comparing cardinalities. Bound enumeration size and clearly separate empirical coverage from proof of correctness.",
-      "Derive Konig's theorem constructively: obtain a minimum vertex cover from alternating reachability after maximum matching. State the starting set, traversal directions and the equality certificate in LaTeX.",
-      "Provide a Markdown table listing each matched pair, unmatched vertices, alternating reachable sets and the minimum vertex cover. Verify every input edge is covered and that cover size equals matching size.",
-      "Analyze worst-case time and space, then compare the simple algorithm with Hopcroft-Karp. Explain which structural assumptions fail for nonbipartite graphs and supply a smallest odd-cycle counterexample.",
-      "Produce a detailed bilingual technical report with runnable code, exact input, an ASCII alternating-path diagram and the matching/cover dual certificate. Flag all assumptions and distinguish computed output from unexecuted examples."
-    ]
-  },
-  {
     "id": "fluid_capillary_rise_contact_angle_hysteresis",
     "title": "Capillary rise: pressure balance and contact-angle uncertainty",
     "domain": "fluid_mechanics_capillarity",
@@ -413,6 +371,48 @@
       "Analyze degeneracy for collinear correspondences and points mapped near the line at infinity. Give explicit counterexamples and define failure criteria without silently replacing denominators.",
       "Add a fifth correspondence as an independent validation point and perturb one observation. Explain why exact four-point fitting alone does not validate noisy measurements, using a Markdown residual table.",
       "Deliver runnable regression tests for inverse mapping, scale invariance, normalization and degenerate inputs. State justified tolerances and explain the limits of the exact linear model."
+    ]
+  },
+  {
+    "id": "materials_binary_phase_lever_rule_mass_balance",
+    "title": "Binary alloy phase diagrams: lever rule and mass conservation",
+    "domain": "materials_phase_equilibrium",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original teaching illustration of a fictional binary alloy phase diagram with a two-phase region, a horizontal tie line, endpoint compositions and an overall alloy composition. Clearly mark it as schematic synthetic data, not a measured material.",
+      "Derive the lever rule from solute and total-mass conservation in LaTeX. Distinguish mass fractions from mole fractions and explain the assumptions of a fixed-temperature tie line.",
+      "Write runnable standard-library Python computing phase fractions for arbitrary ordered endpoint compositions. Reject inconsistent units, out-of-range compositions and zero-width tie lines; include independent conservation checks and limiting cases.",
+      "Build a Markdown table for five overall compositions on a stated synthetic tie line. Reconstruct overall composition from each computed pair of phase fractions and discuss numerical behavior near endpoints.",
+      "Combine the derivation, code and a labeled ASCII tie line into a detailed English-Chinese report. Explain why phase composition and phase amount differ, and why the simple rule cannot infer kinetics or a real diagram from a schematic."
+    ]
+  },
+  {
+    "id": "control_discrete_lyapunov_stability_certificate",
+    "title": "Discrete control: Lyapunov stability and independent numerical certificates",
+    "domain": "control_discrete_lyapunov",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Analyze a two-dimensional discrete linear system x[k+1]=A x[k]. Use the uploaded attachment only as a schema example and define your own explicit stable rational matrix A with nonzero off-diagonal entries; state all assumptions and distinguish asymptotic from one-step Euclidean contraction.",
+      "Derive the discrete Lyapunov equation A^T P A-P=-I in LaTeX, expand its independent scalar equations for symmetric P, and explain the positive-definite condition.",
+      "Write runnable standard-library Python solving those scalar equations using Fraction arithmetic and Gaussian elimination with pivoting. Do not use external numerical packages or silently assume invertibility.",
+      "Independently verify symmetry, positive definiteness using principal minors, and exact residual zero. Give a Markdown table of all certificate quantities for the chosen matrix.",
+      "Derive a bound on decay in the P norm and explain the relationship to the Euclidean norm through extremal eigenvalues. Clearly identify whether each bound is exact or conservative.",
+      "Provide a counterexample with transient Euclidean growth despite asymptotic stability. Compute a short trajectory and compare squared Euclidean and Lyapunov energies in a Markdown table.",
+      "Explain what fails for eigenvalues on or outside the unit circle, including a defective Jordan block. Add meaningful tests that reject invalid certificates rather than merely comparing output with the same solver.",
+      "Produce a complete reproducible English-Chinese report integrating the code, exact rational certificate, trajectory table and an ASCII energy-flow diagram. Distinguish analytically verified facts from unexecuted numerical claims."
     ]
   }
 ]
