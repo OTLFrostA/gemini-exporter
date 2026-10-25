@@ -216,3 +216,17 @@ test('Grok UUID file metadata resolves through asset keys instead of invented UR
     assert.equal(parsed.conversation.detail.assets.length, 1);
     assert.equal(parsed.conversation.detail.assets[0].sourceUri, 'https://assets.grok.com/users/example/report.csv');
 });
+
+test('upstream citation titles preserve literal backslashes and brackets without Markdown injection', () => {
+    const f = fixture(), title = String.raw`source \[literal](https://untrusted.example)`;
+    Object.assign(f.bodies.responses[1], {
+        message: '<grok:render card_id="quoted">citation</grok:render>',
+        cardAttachmentsJson: [JSON.stringify({ cardType: 'citation_card', id: 'quoted', url: 'https://example.com/source' })],
+        webSearchResults: [{ url: 'https://example.com/source', title }],
+    });
+    const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+    const content = parsed.conversation.detail.messages[1].content;
+    assert.deepEqual(content, [{ type: 'paragraph', children: [{ type: 'link',
+        href: 'https://example.com/source', children: [{ type: 'text', text: title }] }] }]);
+    assert.equal(parsed.conversation.detail.messages[1].citations?.[0].title, title);
+});

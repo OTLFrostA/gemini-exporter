@@ -11,6 +11,7 @@ plus shims for date presentation and unused configuration. No upstream UI/storag
 runtime is imported. Source timestamps remain raw until the Domain boundary.
 
 Local adaptations:
+- Escape backslashes as well as brackets in citation titles before Markdown conversion.
 - The shared composer renders attachment IDs once; omit upstream display placeholders.
 - Normalize responses without discarding partial messages or model/reasoning fields.
 - Carry adapter-provided generation metadata and accept URL-only captured images; binary acquisition is task-owned in this project.

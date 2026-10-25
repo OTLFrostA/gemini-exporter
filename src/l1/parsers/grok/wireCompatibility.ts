@@ -3,7 +3,7 @@ import { grokObject, grokUuid } from './source.js';
 /** Bridge current Grok asset metadata to Loominary's existing attachment schema. */
 export function compatibleGrokBodies(payload: Record<string, unknown>, warn: (code: string, message: string) => void) {
     if (!Array.isArray(payload.responses)) throw new TypeError('Invalid Grok bodies');
-    return { ...payload, responses: payload.responses.map(value => {
+    return { ...payload, responses: payload.responses.map((value): Record<string, unknown> => {
         const row = structuredClone(grokObject(value));
         const images: Record<string, unknown>[] = [], files: Record<string, unknown>[] = [];
         const seen = new Set<string>(), resolvedIds = new Set<string>();
