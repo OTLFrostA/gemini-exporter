@@ -1,8 +1,7 @@
-import { hasPlatformAccess, requestPlatformAccess } from '../platformAccess.js';
+import { hasPlatformAccess } from '../platformAccess.js';
 import { PLATFORM_HOSTS } from '../../../shared/platformHosts.js';
 export const CLAUDE_ORIGIN = PLATFORM_HOSTS.claude.pages[0];
 export function hasClaudeAccess(): Promise<boolean> { return hasPlatformAccess('claude'); }
-export function requestClaudeAccess(): Promise<boolean> { return requestPlatformAccess('claude'); }
 const allowedPath = /^\/api\/organizations(?:\/[\da-f-]{36}\/chat_conversations(?:\/[\da-f-]{36})?(?:\?tree=true&rendering_mode=messages&render_all_tools=true)?)?$/i;
 
 /**

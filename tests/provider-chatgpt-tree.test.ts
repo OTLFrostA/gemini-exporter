@@ -31,8 +31,8 @@ import { preprocessChatGPTMarkdown } from '../src/l1/parsers/chatgpt/markdownCom
 import {
     ensureChatGPTRegistered,
     hasChatGPTAccess,
-    requestChatGPTAccess,
 } from '../src/l1/client/chatgpt/chatgptAccess.js';
+import { requestPlatformsAccess } from '../src/l1/client/platformAccess.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
@@ -555,13 +555,13 @@ test('ChatGPT list refuses source_end when pagination, ordering or completeness 
     }
 });
 
-test('optional access helper never prompts and registers only on grant', async () => {
+test('ChatGPT registry stays inert until the unified platform authorization grants access', async () => {
     const holder = globalThis as unknown as { chrome?: unknown };
     const previous: unknown = holder.chrome;
     try {
         holder.chrome = undefined;
         assert.equal(await hasChatGPTAccess(), false);
-        assert.equal(await requestChatGPTAccess(), false);
+        assert.equal(await requestPlatformsAccess(['chatgpt']), false);
         assert.equal(await ensureChatGPTRegistered(), false);
         let granted = false;
         holder.chrome = {
@@ -574,7 +574,7 @@ test('optional access helper never prompts and registers only on grant', async (
             },
         };
         assert.equal(await hasChatGPTAccess(), false);
-        assert.equal(await requestChatGPTAccess(), true);
+        assert.equal(await requestPlatformsAccess(['chatgpt']), true);
         assert.equal(await hasChatGPTAccess(), true);
         assert.equal(await ensureChatGPTRegistered(), true);
     } finally {

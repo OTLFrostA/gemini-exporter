@@ -93,7 +93,6 @@ function setup(t: { after: (fn: () => void) => void }, overrides: {
             initUninstallUrl: () => effects.push('initUninstall'),
         },
         'src/runtime/background/tabAction.js': { initTabActionListeners: () => effects.push('initTabAction') },
-        'src/runtime/capabilities/chatgptInjection.js': { syncChatGPTContentScripts: async () => {} },
         'src/runtime/background/readiness.js': { ensureV2Ready: overrides.ready || (async () => {}) },
         'src/runtime/background/contentSender.js': security,
         'src/l3a/storageService.js': { listIndexes: async (id: string) => {

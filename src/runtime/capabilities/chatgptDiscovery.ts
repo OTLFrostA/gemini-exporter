@@ -1,15 +1,8 @@
 import { getOrCreateAccount } from '../api/accountRegistry.js';
-import { hasChatGPTAccess, ensureChatGPTRegistered, requestChatGPTAccess } from '../../l1/client/chatgpt/chatgptAccess.js';
+import { hasChatGPTAccess, ensureChatGPTRegistered } from '../../l1/client/chatgpt/chatgptAccess.js';
 import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
 import type { Account } from '../../l2/accountRegistry.js';
-import { syncChatGPTContentScripts } from './chatgptInjection.js';
-
-/** Called directly by the Connect button, preserving its user gesture. */
-export async function requestChatGPTConnection(): Promise<boolean> {
-    const granted = await requestChatGPTAccess();
-    if (granted) await syncChatGPTContentScripts();
-    return granted;
-}
+import { syncPlatformContentScripts } from './platformInjection.js';
 
 /** Optional host access is granted explicitly in Options; discovery never prompts. */
 export async function discoverChatGPTAccounts(): Promise<Account[]> {
@@ -23,7 +16,7 @@ export async function discoverChatGPTAccounts(): Promise<Account[]> {
     if (!observation || !session || typeof session !== 'object'
         || !('accessToken' in session) || typeof session.accessToken !== 'string' || !session.accessToken) return [];
     await ensureChatGPTRegistered();
-    await syncChatGPTContentScripts();
+    await syncPlatformContentScripts('chatgpt');
     return [await getOrCreateAccount(observation.providerId, observation.providerAccountId,
         observation.email, observation.displayName)];
 }

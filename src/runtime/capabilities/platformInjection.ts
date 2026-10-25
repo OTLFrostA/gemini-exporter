@@ -1,5 +1,4 @@
 import { hasPlatformAccess } from '../../l1/client/platformAccess.js';
-export { hasPlatformAccess };
 import { PLATFORM_HOSTS, type SourcePlatform } from '../../shared/platformHosts.js';
 
 const files = {
