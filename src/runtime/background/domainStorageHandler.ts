@@ -1,7 +1,7 @@
 import { notifyDomainChanged } from '../api/domainChanges.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../l2/ingestion.js';
 import { ensureV2Ready } from './readiness.js';
-import { object, requireContentAccount, assertContentSender } from './contentSender.js';
+import { object, requireContentContext, assertContentSender } from './contentSender.js';
 
 /** Only L2 admission crosses this boundary; there is no direct Storage write port. */
 export function handleDomainIngestionMessage(message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void): boolean {
@@ -11,7 +11,7 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
             assertContentSender(sender);
             await ensureV2Ready();
             const request = object(message);
-            const account = await requireContentAccount(sender, request.accountId);
+            const { account } = await requireContentContext(sender, request.accountId);
             if (request.operation === 'indexes') {
                 if (!Array.isArray(request.items)) throw new TypeError('Expected Index items');
                 for (const item of request.items) {

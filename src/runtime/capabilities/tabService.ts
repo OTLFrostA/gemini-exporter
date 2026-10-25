@@ -5,6 +5,9 @@ import { discoverChatGPTAccounts } from './chatgptDiscovery.js';
 import { discoverGrokAccounts } from './grokDiscovery.js';
 import { discoverClaudeAccounts } from './claudeDiscovery.js';
 
+/** A routed Content tab has a concrete ID, including the valid ID zero. */
+export interface AccountTab extends chrome.tabs.Tab { id: number }
+
 export async function sendTabMessage(tabId: number, message: unknown, timeout = 25000): Promise<unknown> {
     return new Promise((resolve, reject) => {
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -41,7 +44,7 @@ function matches(response: unknown, accountId: string, providerId: string): bool
     return context !== null && context.accountId === accountId && context.providerId === providerId;
 }
 /** Route only through a Content document bound to the selected provider Account. */
-export async function resolveAccountTab(accountId: string): Promise<chrome.tabs.Tab> {
+export async function resolveAccountTab(accountId: string): Promise<AccountTab> {
     if (!isAccountId(accountId)) throw new TypeError('Tab routing requires an Account UUID');
     await ensureV2Ready();
     const account = await getAccount(accountId);
@@ -50,9 +53,10 @@ export async function resolveAccountTab(accountId: string): Promise<chrome.tabs.
         ? ['https://chatgpt.com/*', 'https://chat.openai.com/*'] : account.providerId === 'claude' ? 'https://claude.ai/*' : 'https://gemini.google.com/*' });
     tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active));
     for (const tab of tabs) {
-        if (tab.id === undefined) continue;
+        const id = tab.id;
+        if (id === undefined) continue;
         try {
-            if (matches(await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000), accountId, account.providerId)) return tab;
+            if (matches(await sendTabMessage(id, { action: 'getAccountContext' }, 3000), accountId, account.providerId)) return { ...tab, id };
         } catch { /* Closed, navigating or uninjected tabs cannot be execution targets. */ }
     }
     throw new Error('No open Provider Tab matches this Account');
@@ -104,9 +108,9 @@ export async function sendToGeminiTab(message: unknown, accountId?: string, time
     const tab = await resolveAccountTab(accountId);
     if (!message || typeof message !== 'object' || Array.isArray(message)) throw new TypeError('Expected Provider message');
     // The selected Content handler checks this UUID again immediately before execution.
-    return sendTabMessage(tab.id!, { ...message, accountId }, timeoutMs);
+    return sendTabMessage(tab.id, { ...message, accountId }, timeoutMs);
 }
-export async function getAITab(providerId = 'gemini', accountId?: string): Promise<chrome.tabs.Tab | null> {
+export async function getAITab(providerId = 'gemini', accountId?: string): Promise<AccountTab> {
     if (!accountId || (await getAccount(accountId))?.providerId !== providerId) throw new Error('Provider/account mismatch');
     return resolveAccountTab(accountId);
 }

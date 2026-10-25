@@ -14,9 +14,10 @@ export async function readClaudeFile(organization: string, file: string, signal?
     signal?.throwIfAborted();
     if (!await hasClaudeAccess()) throw new Error('Claude host permission unavailable');
     const tabs = await chrome.tabs.query({ url: [CLAUDE_ORIGIN] });
-    const tab = tabs.filter(t => t.id !== undefined).sort((a, b) => Number(!!b.active) - Number(!!a.active))[0];
-    if (!tab) throw new Error('Open Claude to acquire attachments');
-    const results = await chrome.scripting.executeScript({ target: { tabId: tab.id! }, world: 'ISOLATED',
+    const [tabId] = tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active))
+        .flatMap(tab => tab.id === undefined ? [] : [tab.id]);
+    if (tabId === undefined) throw new Error('Open Claude to acquire attachments');
+    const results = await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED',
         args: [organization, file], func: async (org: string, id: string) => {
             const active = () => document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('lastActiveOrg='))?.slice(14);
             if (active() !== org) throw new Error('Claude attachment account changed');

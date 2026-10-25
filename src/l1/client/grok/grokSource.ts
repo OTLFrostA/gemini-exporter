@@ -13,12 +13,13 @@ export function validGrokRead(path: string, body?: { responseIds: string[] }): b
 export async function readGrokSource(path: string, expectedUser?: string, body?: { responseIds: string[] }): Promise<unknown> {
     if (!validGrokRead(path, body) || expectedUser !== undefined && !grokUuid(expectedUser)) throw new TypeError('Invalid Grok API read');
     if (!await hasGrokAccess()) throw new Error('Grok host permission unavailable');
-    const tabs = (await chrome.tabs.query({ url: ['https://grok.com/*'] })).filter(tab => tab.id !== undefined)
-        .sort((a, b) => Number(!!b.active) - Number(!!a.active));
+    const tabs = (await chrome.tabs.query({ url: ['https://grok.com/*'] }))
+        .sort((a, b) => Number(!!b.active) - Number(!!a.active))
+        .flatMap(tab => tab.id === undefined ? [] : [tab.id]);
     let failure: unknown = new Error('Open Grok and log in before continuing');
-    for (const tab of tabs) {
+    for (const tabId of tabs) {
         try {
-            const results = await chrome.scripting.executeScript({ target: { tabId: tab.id! }, world: 'ISOLATED',
+            const results = await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED',
                 func: async (resource: string, owner: string | null, payload: { responseIds: string[] } | null) => {
                     const get = async (path: string, body?: { responseIds: string[] }): Promise<unknown> => {
                         const r = await fetch(path, { credentials: 'include', headers: { 'Content-Type': 'application/json' },

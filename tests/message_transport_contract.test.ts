@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { sendTabMessage, sendToGeminiTab, sendToAITab, resolveAccountTab } from '../src/runtime/capabilities/tabService.js';
+import { sendTabMessage, sendToGeminiTab, sendToAITab, resolveAccountTab, type AccountTab } from '../src/runtime/capabilities/tabService.js';
 import { startSync } from '../src/ui/options/controllers/syncController.js';
 import type { ScanResult } from '../src/application/sync/scanController.js';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -15,7 +15,8 @@ export type Contracts = [
     Assert<Equal<Awaited<ReturnType<typeof sendToAITab>>,unknown>>,
     Assert<Equal<Parameters<typeof sendToGeminiTab>[0],unknown>>,
     Assert<Equal<Awaited<ReturnType<typeof startSync>>,ScanResult>>,
-    Assert<Equal<Awaited<ReturnType<typeof resolveAccountTab>>,chrome.tabs.Tab>>
+    Assert<Equal<Awaited<ReturnType<typeof resolveAccountTab>>,AccountTab>>,
+    Assert<Equal<Awaited<ReturnType<typeof resolveAccountTab>>['id'],number>>
 ];
 function replaceGlobal(key:string,value:unknown) {
     const previous=Object.getOwnPropertyDescriptor(globalThis,key);

@@ -2,7 +2,7 @@ import { hasGrokAccess } from '../../l1/client/grok/grokSource.js';
 import { hasClaudeAccess } from '../../l1/client/claude/claudeSource.js';
 import { getOrCreateAccount } from '../../l2/accountAdmission.js';
 import { ensureV2Ready } from './readiness.js';
-import { requireContentAccount, contentProviderId } from './contentSender.js';
+import { requireContentContext, contentProviderId } from './contentSender.js';
 import { hasChatGPTAccess } from '../../l1/client/chatgpt/chatgptAccess.js';
 
 export function handleAccountRegistryMessage(message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void): boolean {
@@ -17,7 +17,8 @@ export function handleAccountRegistryMessage(message: unknown, sender: chrome.ru
             // must never enumerate other signed-in accounts across the IPC boundary.
             if (message.command === 'list') throw new Error('Account listing requires an Extension page');
             if (message.command === 'get' && 'accountId' in message && typeof message.accountId === 'string') {
-                respond({ ok: true, value: await requireContentAccount(sender, message.accountId) }); return;
+                const { account } = await requireContentContext(sender, message.accountId);
+                respond({ ok: true, value: account }); return;
             }
             if (message.command !== 'getOrCreate' || !('providerId' in message) || typeof message.providerId !== 'string'
                 || !('providerAccountId' in message) || typeof message.providerAccountId !== 'string') throw new TypeError('Invalid account registry command');

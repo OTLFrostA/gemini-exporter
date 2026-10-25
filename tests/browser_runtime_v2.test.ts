@@ -125,7 +125,7 @@ test('Background deletion awaits L2 commit, rejects default identity and propaga
     const denied = load('src/runtime/background/domainStorageHandler.ts', {
         'src/runtime/background/readiness.js': ready,
         'src/runtime/background/contentSender.js': { assertContentSender() {}, object: (value: unknown) => value,
-            requireContentAccount: async () => ({ ...account, providerAccountId: 'default' }) },
+            requireContentContext: async () => ({ account: { ...account, providerAccountId: 'default' }, tabId: 7 }) },
         'src/l2/ingestion.js': { ingestDeletedConversation: () => assert.fail('default cannot delete') },
     }).handleDomainIngestionMessage;
     assert.equal((await invoke(denied, { action: 'domainIngest', operation: 'deleted', accountId: uuid, conversationId: 'abcdef123456' })).ok, false);
@@ -151,7 +151,7 @@ test('ingestion rejects foreign, unsupported, subframe and malformed requests', 
 test('provider mismatch is rejected before L2 admission', async () => {
     global.chrome = chromeBase() as any;
     const guard = load('src/runtime/background/contentSender.ts', { 'src/l3a/storageService.js': { getAccount: async () => ({ ...account, providerId: 'chatgpt' }) } });
-    await assert.rejects(guard.requireContentAccount(sender, uuid), /mismatch/);
+    await assert.rejects(guard.requireContentContext(sender, uuid), /mismatch/);
 });
 
 test('ChatGPT Content is isolated from Gemini, requires a current site grant and matches its document Account', async () => {
@@ -163,10 +163,10 @@ test('ChatGPT Content is isolated from Gemini, requires a current site grant and
         'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => granted },
     });
     const from = { ...sender, url: 'https://chatgpt.com/c/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' };
-    assert.deepEqual(await guard.requireContentAccount(from, uuid), gpt);
-    await assert.rejects(guard.requireContentAccount(sender, uuid), /mismatch/);
+    assert.deepEqual(await guard.requireContentContext(from, uuid), { account: gpt, tabId: 7 });
+    await assert.rejects(guard.requireContentContext(sender, uuid), /mismatch/);
     granted = false;
-    await assert.rejects(guard.requireContentAccount(from, uuid), /revoked/);
+    await assert.rejects(guard.requireContentContext(from, uuid), /revoked/);
     granted = true;
     Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, _options: unknown, reply: Function) => reply({ ok: true, accountContext: { accountId: otherUuid, providerId: 'chatgpt' } }));
     await assert.rejects(guard.requireCurrentContentAccount(from, uuid), /sending Tab/);
@@ -182,10 +182,10 @@ test('Claude Content is isolated from Gemini, requires a current site grant and 
         'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => granted },
     });
     const from = { ...sender, url: 'https://claude.ai/chat/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' };
-    assert.deepEqual(await guard.requireContentAccount(from, uuid), gpt);
-    await assert.rejects(guard.requireContentAccount(sender, uuid), /mismatch/);
+    assert.deepEqual(await guard.requireContentContext(from, uuid), { account: gpt, tabId: 7 });
+    await assert.rejects(guard.requireContentContext(sender, uuid), /mismatch/);
     granted = false;
-    await assert.rejects(guard.requireContentAccount(from, uuid), /revoked/);
+    await assert.rejects(guard.requireContentContext(from, uuid), /revoked/);
     granted = true;
     Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, _options: unknown, reply: Function) => reply({ ok: true, accountContext: { accountId: otherUuid, providerId: 'claude' } }));
     await assert.rejects(guard.requireCurrentContentAccount(from, uuid), /sending Tab/);
@@ -558,7 +558,7 @@ test('active Content Account validation targets the sending document and rejects
         callback({ ok: true, accountContext: { accountId: '87654321-4321-4321-8321-cba987654321', providerId: 'gemini' } });
     }) as any;
     // Historical passive evidence keeps request-time ownership and does not consult the current Tab.
-    assert.equal((await guard.requireContentAccount(sender, uuid)).id, uuid);
+    assert.equal((await guard.requireContentContext(sender, uuid)).account.id, uuid);
     assert.equal(checks, 0);
     await assert.rejects(guard.requireCurrentContentAccount({ ...sender, documentId: 'source-document' }, uuid), /sending Tab/);
     assert.equal(checks, 1);
@@ -566,6 +566,24 @@ test('active Content Account validation targets the sending document and rejects
         Reflect.set(chrome.runtime, 'lastError', { message: 'Document closed' }); callback(); Reflect.deleteProperty(global.chrome.runtime, 'lastError');
     }) as any;
     await assert.rejects(guard.requireCurrentContentAccount(sender, uuid), /Document closed/);
+});
+
+test('Content sender validation retains a concrete zero Tab ID and rejects missing IDs before storage', async () => {
+    global.chrome = chromeBase() as any;
+    let reads = 0;
+    const guard = load('src/runtime/background/contentSender.ts', {
+        'src/l3a/storageService.js': { getAccount: async () => { reads++; return account; } },
+    });
+    Reflect.set(chrome.tabs, 'sendMessage', (id: number, _message: unknown, options: unknown, reply: (value: unknown) => void) => {
+        assert.equal(id, 0);
+        assert.deepEqual(options, { frameId: 0, documentId: 'zero-document' });
+        reply({ ok: true, accountContext: { accountId: uuid, providerId: 'gemini' } });
+    });
+    const zeroSender = { ...sender, tab: { id: 0 }, documentId: 'zero-document' };
+    assert.deepEqual(guard.assertContentSender(zeroSender), { tabId: 0, providerId: 'gemini' });
+    assert.equal((await guard.requireCurrentContentAccount(zeroSender, uuid)).id, uuid);
+    await assert.rejects(guard.requireCurrentContentAccount({ ...sender, tab: {} }, uuid), /Unsupported/);
+    assert.equal(reads, 1);
 });
 
 test('both active Background ports reject a different current Account before Export or Index query', async () => {
