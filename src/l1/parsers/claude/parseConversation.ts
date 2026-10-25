@@ -138,7 +138,7 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
     for (const message of branch.messages) {
         if (message.sender !== 'human' && message.sender !== 'assistant') continue;
         const rendered = contentOf(message, { ...ctx,
-            sourceRef: { ...ctx.sourceRef, providerMessageId: String(message.uuid) } }, tools, assets);
+            sourceRef: { ...ctx.sourceRef, providerMessageId: message.uuid } }, tools, assets);
         if (rendered.incomplete) partial = true;
         const timestamp = claudeTimestamp(message.created_at);
         const model = typeof message.model === 'string' && message.model.trim() ? message.model : sourceModel;
