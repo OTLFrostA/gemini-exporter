@@ -177,6 +177,19 @@ test('L1 passive observed detail chain shares active source assembly', async () 
     assert.ok(stored); assert.equal(stored.quality.status, 'complete');
     assert.equal(stored.messages.length, 4);
 });
+test('L1 receiver re-init cannot complete a Detail chain from the previous receiver lifetime', async () => {
+    await handleWindowMessage(sourceEvent(detailWire('G_L1_CONTRACT_DETAIL_NEWER_01'), {
+        detailRequest: { conversationId: 'source_chat_123', requestCursor: null },
+    }));
+    init({});
+    await handleWindowMessage(sourceEvent(detailWire('G_L1_CONTRACT_DETAIL_OLDER_01'), {
+        detailRequest: { conversationId: 'source_chat_123', requestCursor: 'tC_NEXT_PAGE_123456789' },
+    }));
+    const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
+    assert.ok(stored);
+    assert.notEqual(stored.quality.status, 'complete', 'a new receiver has no evidence of a complete source chain');
+});
+
 test('L1 passive Live Save is driven only by committed Detail changed, not duplicate capture', async () => {
     const changed: string[] = [];
     const resources = createSourceResourceContext();

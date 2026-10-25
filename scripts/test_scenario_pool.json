@@ -1,47 +1,5 @@
 [
   {
-    "id": "fluid_capillary_rise_contact_angle_hysteresis",
-    "title": "Capillary rise: pressure balance and contact-angle uncertainty",
-    "domain": "fluid_mechanics_capillarity",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational illustration of a fictional capillary-rise experiment: a narrow glass tube, liquid reservoir, meniscus, contact angle and height scale. Clearly mark the illustration as schematic, not measured evidence.",
-      "Derive Jurin's law in LaTeX from hydrostatic and Laplace pressure balance. Define the contact-angle convention, dimensional units and the assumptions about tube size, evaporation and equilibrium.",
-      "Write runnable standard-library Python estimating rise height for water-like and oil-like fictional liquids, with input validation for radius, density, surface tension and angle. Test zero angle, ninety degrees and negative rise.",
-      "Build a Markdown table comparing five tube radii, predicted rise, Bond number and sensitivity to a stated contact-angle uncertainty. Distinguish derived numbers from executed output and discuss when the approximation fails.",
-      "Write a detailed bilingual English-Chinese laboratory audit with an aligned ASCII diagram, an uncertainty budget and a counterexample involving contact-angle hysteresis. Explain why a single observed height does not uniquely determine surface tension."
-    ]
-  },
-  {
-    "id": "database_serializability_precedence_graph_cycles",
-    "title": "Database schedules: conflict serializability and cycle certificates",
-    "domain": "database_transaction_serializability",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define conflict serializability for a finite read-write transaction schedule. Specify what counts as a conflict and derive why an acyclic precedence graph admits a serial ordering; distinguish this from strictness and recoverability.",
-      "Write standard-library Python parsing transaction operations and constructing a precedence graph with an explicit operation-pair witness for every edge. Reject malformed operations and duplicate operation identifiers.",
-      "Implement a topological-order certificate or an explicit directed-cycle certificate. Include isolated transactions, self operations and multiple conflicting operations between the same pair.",
-      "Create a Markdown table of at least six schedules covering serial, interleaved serializable, cyclic, dirty-read, recoverable and nonrecoverable cases. Explain which conclusions require commit/abort markers.",
-      "Write an independent exhaustive serial-order oracle for tiny schedules. Compare its conflict-order constraints with your graph algorithm over enumerated schedules without mistaking a bounded test for a universal proof.",
-      "Derive time and space complexity in LaTeX for both a simple quadratic graph builder and a version using per-item access history. Draw an aligned ASCII diagram showing one witnessed cycle.",
-      "Give counterexamples separating conflict serializability, view serializability and strictness, including a blind-write example. Clearly identify the assumptions needed for each claim.",
-      "Write a detailed bilingual English-Chinese engineering audit with complete runnable code, deterministic tests, certificate validation and the limits of inferring database isolation guarantees from observed finite schedules."
-    ]
-  },
-  {
     "id": "optics_thin_lens_depth_of_field",
     "title": "Optics: thin-lens imaging and depth-of-field assumptions",
     "domain": "optics_thin_lens_depth_of_field",
@@ -413,6 +371,48 @@
       "Provide a counterexample with transient Euclidean growth despite asymptotic stability. Compute a short trajectory and compare squared Euclidean and Lyapunov energies in a Markdown table.",
       "Explain what fails for eigenvalues on or outside the unit circle, including a defective Jordan block. Add meaningful tests that reject invalid certificates rather than merely comparing output with the same solver.",
       "Produce a complete reproducible English-Chinese report integrating the code, exact rational certificate, trajectory table and an ASCII energy-flow diagram. Distinguish analytically verified facts from unexecuted numerical claims."
+    ]
+  },
+  {
+    "id": "circuits_rc_step_energy_balance",
+    "title": "RC transients: step response and energy accounting",
+    "domain": "electrical_rc_transients",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational schematic of an ideal series RC charging circuit with a DC source, switch, reference current and capacitor-voltage polarity, plus a qualitative voltage-time plot. Use clearly labeled fictional values and state that the drawing is schematic.",
+      "Derive the charging solution for arbitrary initial capacitor voltage using Kirchhoff laws in LaTeX. State sign conventions, continuity at switching and the limits of the ideal model.",
+      "Write runnable standard-library Python evaluating voltage, current and energies at arbitrary nonnegative times with stable exponential functions. Independently check dimensions, initial values and asymptotic behavior.",
+      "Provide a Markdown table at five dimensionless times for a stated numerical example. Verify source work equals resistor dissipation plus capacitor-energy change and explain how initial stored energy affects signs.",
+      "Produce a reproducible English-Chinese report integrating the code, derivation, energy table and ASCII circuit. Discuss ideal instantaneous switching, negative initial voltage and the difference between analytic verification and executed numerical results."
+    ]
+  },
+  {
+    "id": "compilers_ll1_nullable_first_follow_certificate",
+    "title": "Predictive parsing: nullable, FIRST, FOLLOW and LL(1) conflict witnesses",
+    "domain": "compiler_predictive_parsing",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a nontrivial context-free grammar for a small expression language with optional argument lists and nested parentheses. State the terminals, nonterminals, start symbol and epsilon notation explicitly; the uploaded attachment is only an input-format example.",
+      "Derive monotone fixed-point algorithms for nullable and FIRST sets. Give invariants and termination arguments with finite-set notation in LaTeX, including indirect nullable chains.",
+      "Write runnable standard-library Python implementing grammar validation, nullable and FIRST. Reject undefined nonterminals and ambiguous epsilon encodings; include independent hand-worked small cases.",
+      "Derive and implement FOLLOW sets including suffix FIRST propagation and nullable-suffix dependencies. Explain why one left-to-right pass is insufficient.",
+      "Construct the predictive parsing table and output a Markdown table of nullable, FIRST and FOLLOW sets. Distinguish FIRST/FIRST from FIRST/FOLLOW conflicts with concrete witness productions.",
+      "Implement a table-driven parser returning a trace of stack, remaining input and chosen production. Show successful nested input and invalid-token failures, and state an explicit bounded-trace policy for malformed grammars.",
+      "Introduce a deliberate conflicting production and a left-recursive example. Confirm that the analyzer reports a concrete conflict rather than selecting one production silently; independently validate accepted short strings with a bounded exhaustive derivation oracle.",
+      "Produce a detailed English-Chinese report with runnable code, exact grammar, parsing table and ASCII parse tree. Separate grammar-analysis guarantees from bounded empirical checks and state the computational costs."
     ]
   }
 ]

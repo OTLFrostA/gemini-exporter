@@ -41,6 +41,12 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
         `const schema={providerId:v=>true,id:v=>true,title:v=>true,timestamp:v=>true,messages:v=>true,assets:v=>true};`,
         `requestNativeDetail(()=>Promise.resolve(pageEvent.data));`,
         `callDomainBroker('get', raw);`,
+        `import {parseGeminiResponse as decode} from './rpc';decode(text);`,
+        `import * as rpc from './rpc';const decode=rpc.parseGeminiResponse;decode(text);`,
+        `export {parseGeminiCapturedSource as decode} from './capture';`,
+        `rpc['parseGeminiRpcConversation'](text, context);`,
+        `import * as list from '../l1/parsers/gemini/rpc/parseList.js';`,
+        `export * from '../l1/parsers/gemini/rpc/parseList.js';`,
     ];
     const adapterCases = ['function adapt(v:unknown){}', 'function adapt<T>(v:T){}', 'const v=typeof raw;', 'const v=raw as string;', 'const v=raw!;'];
     const virtual = new Map(cases.map((source, index) => [resolve(root, `tests/arch/__domain_probe_${index}.ts`), source]));
@@ -54,7 +60,7 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
         for (const [path, source] of virtual) {
             const ast = snapshot.getDefaultProjectForFile(path)!.program.getSourceFile(path)!;
             if (adapterProbes.some(([probe]) => probe === path)) {
-                for (const owner of ['l1/parsers/gemini/shared/contentAdapter.ts', 'l1/parsers/gemini/shared/structuredContentAdapter.ts'])
+                for (const owner of ['l1/parsers/gemini/shared/contentAdapter.ts', 'l1/parsers/gemini/shared/structuredContentAdapter.ts', 'l1/sniffer/gemini/captureReceiver.ts'])
                     assert.ok(trustBoundaryViolations(ast, owner).length > 0, `${owner}: ${source}`);
                 continue;
             }

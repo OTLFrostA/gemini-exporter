@@ -1,7 +1,8 @@
+import { posix } from 'node:path';
 import { SignatureKind, type Checker } from 'typescript/unstable/sync';
 import { type Node, type SourceFile, isIdentifier, isPropertyAccessExpression, isElementAccessExpression,
     isStringLiteral, isParenthesizedExpression, isNonNullExpression, isImportSpecifier, isExportSpecifier, isVariableDeclaration, isBindingElement,
-    SyntaxKind, isTypeOfExpression, isTypeParameterDeclaration, isTypeAliasDeclaration, isCallExpression, isAsExpression, isTypeAssertion, isTypePredicateNode,
+    isImportDeclaration, isExportDeclaration, isNamedImports, isNamedExports, SyntaxKind, isTypeOfExpression, isTypeParameterDeclaration, isTypeAliasDeclaration, isCallExpression, isAsExpression, isTypeAssertion, isTypePredicateNode,
     isFunctionDeclaration, isReturnStatement, isObjectLiteralExpression, isPropertyAssignment, isArrowFunction, isFunctionExpression } from 'typescript/unstable/ast';
 
 const parsedGeminiAdapters = new Set(['l1/parsers/gemini/shared/contentAdapter.ts', 'l1/parsers/gemini/shared/structuredContentAdapter.ts']);
@@ -11,6 +12,9 @@ const parserOwners = new Set(['l1/parsers/gemini/rpc/parseConversation.ts',
     'l1/parsers/gemini/takeout/parseConversation.ts', 'l1/parsers/gemini/rpc/mergePages.ts', 'l1/parsers/chatgpt/parseConversation.ts']);
 // Source builders finalize new graphs; only the repository restores disk/write snapshots.
 const entries = new Map<string, Set<string>>([
+    ['parseGeminiCapturedSource', new Set(['l1/sniffer/gemini/messageBridge.ts'])],
+    ['parseGeminiResponse', new Set(['l1/client/gemini/geminiClient.ts', 'l1/parsers/gemini/capturedSource.ts'])],
+    ['parseGeminiRpcConversation', new Set(['l1/parsers/gemini/rpc/parseResponse.ts'])],
     ['assertSchema', new Set([validator])], ['assertDomainClosure', new Set([validator])],
     ['validateParserDomain', new Set([...parserOwners, 'l2/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['l2/readConversation.ts'])],
     ['restoreDomainDetail', new Set(['l2/ingestion.ts'])],
@@ -69,6 +73,25 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
         if (name === 'assertDomainClosure' && owner !== validator) report(node, 'Closure belongs only to the shared validator');
     };
     for (const node of nodes) {
+        if ((isImportDeclaration(node) || isExportDeclaration(node)) && node.moduleSpecifier && isStringLiteral(node.moduleSpecifier)
+            && posix.normalize(posix.join(posix.dirname(owner), node.moduleSpecifier.text)).replace(/\.js$/, '.ts') === 'l1/parsers/gemini/rpc/parseList.ts'
+            && owner !== 'l1/parsers/gemini/rpc/parseResponse.ts') {
+            const typeOnly = isImportDeclaration(node)
+                ? node.importClause?.phaseModifier === SyntaxKind.TypeKeyword || (node.importClause?.namedBindings && isNamedImports(node.importClause.namedBindings)
+                    && node.importClause.namedBindings.elements.every(binding => binding.isTypeOnly))
+                : node.isTypeOnly || (node.exportClause && isNamedExports(node.exportClause)
+                    && node.exportClause.elements.every(binding => binding.isTypeOnly));
+            const bindings = isImportDeclaration(node) ? node.importClause?.namedBindings : node.exportClause;
+            const helpersOnly = !(isImportDeclaration(node) && node.importClause?.name) && bindings
+                && (isNamedImports(bindings) || isNamedExports(bindings))
+                && bindings.elements.every(binding => binding.isTypeOnly || !['parseList', 'default'].includes((binding.propertyName ?? binding.name).text));
+            if (!typeOnly && !helpersOnly) report(node, 'Gemini LIST wire parser belongs behind parseResponse');
+        }
+        if (owner === 'l1/sniffer/gemini/captureReceiver.ts' && (node.kind === SyntaxKind.UnknownKeyword
+            || node.kind === SyntaxKind.AnyKeyword || node.kind === SyntaxKind.ObjectKeyword || isTypeParameterDeclaration(node)
+            || (isTypeOfExpression(node) && !(isIdentifier(node.expression) && ['document', 'location'].includes(node.expression.text))))) {
+            report(node, 'capture receivers consume decoded source contracts; raw probing belongs to ingress parsers');
+        }
         if (parsedGeminiAdapters.has(owner) && (node.kind === SyntaxKind.UnknownKeyword || node.kind === SyntaxKind.AnyKeyword
             || node.kind === SyntaxKind.ObjectKeyword || isTypeOfExpression(node) || isTypeParameterDeclaration(node))) {
             report(node, 'parsed Gemini adapters consume concrete source facts without re-probing raw input');
