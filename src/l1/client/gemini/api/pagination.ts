@@ -23,9 +23,12 @@ export interface GeminiDetailRequestOptions extends Omit<GeminiListRequestOption
     detailOnly?: boolean;
     altParams?: boolean;
 }
+// Gemini LIST RPC accepts only the known Recent/Pinned stream selector tuple.
+export type GeminiListFilter = readonly [0 | 1, null, 1];
+
 export interface GeminiPaginationListClient {
     getConversationList(pageToken?: string | null, targetSid?: string | null,
-        customFilter?: unknown, opts?: GeminiListRequestOptions): Promise<ListParseResult>;
+        customFilter?: GeminiListFilter, opts?: GeminiListRequestOptions): Promise<ListParseResult>;
 }
 export interface GeminiPaginationDetailClient {
     fetchConversationPage(conversationId: string, pageToken?: string | null,
