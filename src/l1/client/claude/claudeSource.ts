@@ -14,13 +14,14 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
         && !/^[\da-f-]{36}$/i.test(expectedOrganization)) throw new TypeError('Invalid Claude API request');
     if (!await hasClaudeAccess()) throw new Error('Claude host permission unavailable');
     const tabs = await chrome.tabs.query({ url: [CLAUDE_ORIGIN] });
-    const ordered = tabs.filter(tab => tab.id !== undefined).sort((a, b) => Number(!!b.active) - Number(!!a.active));
+    const ordered = tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active))
+        .flatMap(tab => tab.id === undefined ? [] : [tab.id]);
     if (!ordered.length) throw new Error('Open Claude and log in before continuing');
     let lastError: unknown;
-    for (const tab of ordered) {
+    for (const tabId of ordered) {
         try {
             const results = await chrome.scripting.executeScript({
-                target: { tabId: tab.id! }, world: 'ISOLATED',
+                target: { tabId }, world: 'ISOLATED',
                 func: async (requestedPath: string, organization?: string) => {
                     const getJson = async (resource: string) => {
                         const response = await fetch(resource, { credentials: 'include',

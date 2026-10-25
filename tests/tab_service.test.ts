@@ -77,6 +77,19 @@ test('Verified Provider + Account match wins over first tab or URL slot; active 
     assert.equal((await route.getAITab('gemini', A))?.id, 3);
 });
 
+test('Routing skips ID-less tabs and retains the valid zero ID through execution', async t => {
+    const sent: Array<{ id: number; action: string }> = [];
+    withChrome(t, { runtime: { lastError: null }, tabs: {
+        query: async () => [{ active: true }, { id: 0, active: false }],
+        sendMessage: (id: number, message: { action: string }, callback: (value: unknown) => void) => {
+            sent.push({ id, action: message.action });
+            callback({ ok: true, accountContext: { accountId: A, providerId: 'gemini' } });
+        },
+    } });
+    await router().sendToGeminiTab({ action: 'export' }, A);
+    assert.deepEqual(sent, [{ id: 0, action: 'getAccountContext' }, { id: 0, action: 'export' }]);
+});
+
 test('Ambiguous Scan target fails without guessing; explicit preference and a unique live UUID work', async t => {
     let accepted: Record<number, string | null> = { 1: A, 2: B, 3: A };
     withChrome(t, { runtime: { lastError: null }, tabs: {
