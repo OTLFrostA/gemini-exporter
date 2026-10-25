@@ -172,7 +172,7 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     await live.check();
     await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
 
-    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect.poll(async () => (await read(page, 'exports'))[0]?.delivery).toBe('folderWriter');
     await browser.check();
@@ -186,7 +186,7 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     await expect.poll(async () => (await read(page, 'settings')).enabledDisk).toBe(true);
     expect(await read(page, 'events')).toContain('picker');
 
-    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect.poll(async () => (await read(page, 'exports'))[1]?.delivery).toBe('browserDownload');
 
