@@ -126,6 +126,7 @@ test('i18n - Takeout status uses localized outcome and switches without rewritin
     await page.locator('#langToggle').setChecked(false);
     await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
     const chooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#btnMoreActions').click();
     await page.locator('#btnImportTakeout').click();
     const chooser = await chooserPromise;
     await chooser.setFiles({ name: 'Takeout.zip', mimeType: 'application/zip', buffer: Buffer.from('fixture') });
