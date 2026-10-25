@@ -1,5 +1,5 @@
 import { extractAttachmentInlineBytes } from '../../../resources/attachmentBytes.js';
-import type { ResourceEvidence } from './resourceEvidence.js';
+import { copyDefinedField, type ResourceEvidence } from './resourceEvidence.js';
 import { normalizeTimestamp } from '../time.js';
 import { sameGenerationEvent } from './generationEvent.js';
 
@@ -7,7 +7,7 @@ import { sameGenerationEvent } from './generationEvent.js';
 export interface SourceAttachmentInput extends Omit<Partial<ResourceEvidence>, 'generation' | 'createdAt'> {
     generation?: Omit<NonNullable<ResourceEvidence['generation']>, 'time'> & { time?: number | null };
     createdAt?: number | string | null;
-    token?: unknown;
+    token?: string;
     dataBuffer?: ArrayBuffer | ArrayBufferView | number[];
 }
 export interface SourceAttachmentLists {
@@ -39,7 +39,7 @@ function portableBytes(value: SourceAttachmentInput['dataBuffer']): string | und
 function copyAttachment(input: SourceAttachmentInput, defaultType: string): ResourceEvidence {
     const result: ResourceEvidence = { type: input.type || defaultType };
     for (const field of attachmentFields) {
-        if (input[field] !== undefined) Object.assign(result, { [field]: input[field] });
+        copyDefinedField(result, input, field, true);
     }
     const createdAt = normalizeTimestamp(input.createdAt);
     if (createdAt !== undefined) result.createdAt = createdAt;
@@ -74,7 +74,7 @@ export function normalizedSourceReference(ref: string): string {
 }
 function references(input: ResourceEvidence, semanticOnly = false, normalize = normalizedResourceReference): Set<string> {
     return new Set([...(semanticOnly && !/^https?:\/\//i.test(input.localName ?? '') ? [] : [input.localName]), input.url, input.sourceUrl, input.resolvedUrl, input.src, input.chipUrl]
-        .filter((ref): ref is string => typeof ref === 'string' && !!ref)
+        .filter((ref): ref is string => !!ref)
         .map(normalize));
 }
 function imageOrdinal(input: ResourceEvidence): number | undefined {
@@ -119,37 +119,36 @@ function fingerprint(attachment: ResourceEvidence): string | undefined {
     const type = ['file', 'doc', 'code'].includes(attachment.type) ? 'file' : attachment.type;
     return stableValue({ ...attachment, type });
 }
-function mergeMetadata(target: ResourceEvidence, source: ResourceEvidence, preferGenerated: boolean): void {
-    for (const [key, value] of Object.entries(source)) {
-        if (['generation', 'sections', 'links', 'candidates'].includes(key)) continue;
-        if (value !== undefined && (preferGenerated || Reflect.get(target, key) === undefined || Reflect.get(target, key) === '')) {
-            Object.assign(target, { [key]: value });
-        }
+/** Preserve each collection's element type and the existing occurrence-based merge. */
+function mergeValues<T>(existing: readonly T[] = [], source: readonly T[]): T[] {
+    const values = [...existing];
+    const counts = new Map<string, number>();
+    values.forEach(value => {
+        const key = stableValue(value);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    const incoming = new Map<string, number>();
+    for (const value of source) {
+        const key = stableValue(value), count = (incoming.get(key) ?? 0) + 1;
+        incoming.set(key, count);
+        if (count > (counts.get(key) ?? 0)) values.push(value);
     }
+    return values;
+}
+function mergeMetadata(target: ResourceEvidence, source: ResourceEvidence, preferGenerated: boolean): void {
+    for (const key of ['type', ...attachmentFields, 'createdAt'] as const) copyDefinedField(target, source, key, preferGenerated);
     if (source.isGenerated) target.isGenerated = true;
     if (source.generation) {
         const merged = { ...(target.generation ?? source.generation) };
-        for (const [key, value] of Object.entries(source.generation)) {
-            if (value !== undefined && Reflect.get(merged, key) === undefined) Object.assign(merged, { [key]: value });
+        // Generation fields fill only absent values; an authored empty prompt is retained.
+        for (const key of ['chatId', 'providerRequestId', 'time', 'prompt', 'generationOrdinal', 'imageCount', 'imageOrdinal', 'turnId'] as const) {
+            if (merged[key] === undefined) copyDefinedField(merged, source.generation, key, true);
         }
         target.generation = merged;
     }
-    for (const field of ['sections', 'links', 'candidates'] as const) {
-        if (!source[field]) continue;
-        const values = [...(target[field] ?? [])];
-        const counts = new Map<string, number>();
-        values.forEach(value => {
-            const key = stableValue(value);
-            counts.set(key, (counts.get(key) ?? 0) + 1);
-        });
-        const incoming = new Map<string, number>();
-        for (const value of source[field]) {
-            const key = stableValue(value), count = (incoming.get(key) ?? 0) + 1;
-            incoming.set(key, count);
-            if (count > (counts.get(key) ?? 0)) values.push(value);
-        }
-        Object.assign(target, { [field]: values });
-    }
+    if (source.sections) target.sections = mergeValues(target.sections, source.sections);
+    if (source.links) target.links = mergeValues(target.links, source.links);
+    if (source.candidates) target.candidates = mergeValues(target.candidates, source.candidates);
 }
 
 interface ResolvedAttachment {
@@ -188,7 +187,7 @@ export function resolveSourceAttachmentGroups(groups: readonly SourceAttachmentG
                 const attachment = copyAttachment(raw, listIndex === 1 || listIndex === 3 ? 'image' : 'file');
                 const refs = references(attachment, options.semanticOnly, normalize);
                 const lookupRefs = references(attachment, false, normalize);
-                const token = typeof raw.token === 'string' && raw.token ? raw.token : undefined;
+                const token = raw.token || undefined;
                 const docId = attachment.type !== 'image' && attachment.id ? attachment.id : undefined;
                 const alias = !refs.size && !token && !docId ? fingerprint(options.semanticOnly ? { type: attachment.type, fileName: attachment.fileName || attachment.name || attachment.title, contentMarkdown: attachment.contentMarkdown } : attachment) : undefined;
                 const matches = resolved.filter(record => {

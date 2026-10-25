@@ -35,26 +35,23 @@ export function extractAttachmentInlineBytes(a: AttachmentByteInput): Uint8Array
         if (buf instanceof Uint8Array) {
             return buf.byteLength > 0 ? buf : null;
         }
-        if (typeof ArrayBuffer !== 'undefined' && buf instanceof ArrayBuffer) {
+        if (buf instanceof ArrayBuffer) {
             return buf.byteLength > 0 ? new Uint8Array(buf) : null;
         }
-        if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(buf)) {
-            const view = buf as ArrayBufferView;
-            return view.byteLength > 0
-                ? new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
+        if (ArrayBuffer.isView(buf)) {
+            return buf.byteLength > 0
+                ? new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
                 : null;
         }
         if (Array.isArray(buf) && buf.length > 0) {
             return new Uint8Array(buf);
         }
     }
-    const rawB64 = typeof a.dataBase64 === 'string' && a.dataBase64
-        ? a.dataBase64
-        : (typeof a.blobBase64 === 'string' && a.blobBase64 ? a.blobBase64 : '');
+    const rawB64 = a.dataBase64 || a.blobBase64;
     if (rawB64) {
         return decodeBase64Payload(rawB64);
     }
-    if (typeof a.contentMarkdown === 'string') {
+    if (a.contentMarkdown !== undefined) {
         const mdText = a.contentMarkdown.trim();
         if (mdText.length > 0) {
             return new TextEncoder().encode(mdText);

@@ -1,7 +1,7 @@
 import { isDurableSourceUri } from '../../../../l2/sourceUri.js';
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../../resources/resourceAcquisition.js';
-import type { DomainAsset, DomainAssetKind, DomainMessage } from '../../../../l2/conversationDetail.js';
-import type { ResourceEvidence } from './resourceEvidence.js';
+import type { DomainAsset, DomainAssetKind, DomainMessage, DomainGeneratedMediaIdentity } from '../../../../l2/conversationDetail.js';
+import { copyDefinedField, type ResourceEvidence } from './resourceEvidence.js';
 import { normalizedSourceReference, normalizedResourceReference, resolveSourceAttachmentGroups, type SourceAttachmentGroup } from './resolveResources.js';
 import { mapContentAssetReferences } from '../../../../l2/content/assetReferences.js';
 
@@ -59,14 +59,13 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
         ...(record.id !== undefined ? { id: record.id } : {}),
         ...(contentMarkdown ? { contentMarkdown } : {}),
     };
-    const generation = {
-        ...Object.fromEntries(['providerRequestId', 'time', 'prompt', 'generationOrdinal', 'imageCount', 'imageOrdinal'].flatMap(key => {
-            const value = record.generation ? Reflect.get(record.generation, key) as unknown : undefined;
-            return value !== undefined ? [[key, value]] : [];
-        })),
-        ...(!record.generation?.providerRequestId && record.providerRequestId ? { providerRequestId: record.providerRequestId } : {}),
-        ...(record.generation?.imageOrdinal === undefined && record.imageOrdinal !== undefined ? { imageOrdinal: record.imageOrdinal } : {}),
-    };
+    const generation: DomainGeneratedMediaIdentity = {};
+    if (record.generation) {
+        for (const field of ['providerRequestId', 'time', 'prompt', 'generationOrdinal', 'imageCount', 'imageOrdinal'] as const)
+            copyDefinedField(generation, record.generation, field, true);
+    }
+    if (!generation.providerRequestId && record.providerRequestId) generation.providerRequestId = record.providerRequestId;
+    if (generation.imageOrdinal === undefined && record.imageOrdinal !== undefined) generation.imageOrdinal = record.imageOrdinal;
     return { id, kind, ...(name ? { name } : {}),
         ...(mediaType ? { mediaType } : {}),
         ...(record.size !== undefined ? { byteLength: record.size } : {}),
@@ -79,12 +78,13 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
 function acquisitionHint(record: ResourceEvidence): ResourceAcquisitionHint {
     const fields = ['url', 'sourceUrl', 'resolvedUrl', 'src', 'localName', 'fileName', 'name', 'title',
         'mimeType', 'mime', 'providerRequestId', 'imageOrdinal'] as const;
-    return {
+    const hint: ResourceAcquisitionHint = {
         ...(record.dataBase64 || record.blobBase64 ? { dataBase64: record.dataBase64 || record.blobBase64 } : {}),
-        ...Object.fromEntries(fields.flatMap(field => record[field] !== undefined ? [[field, record[field]]] : [])),
         ...(record.candidates ? { candidates: [...record.candidates] } : {}),
         ...(record.generation ? { generation: { ...record.generation } } : {}),
     };
+    for (const field of fields) copyDefinedField(hint, record, field, true);
+    return hint;
 }
 
 /** Close every body/reasoning reference over one conversation resource registry before Domain. */
