@@ -170,5 +170,9 @@ test('SSR sidebar capture awaits native loader data, binds its workspace and str
     assert.equal(await chatGPTSidebarPage(history, async () => null), null);
     assert.equal(await chatGPTSidebarPage({ accountId: 'workspace', chats: Promise.resolve({ ...page,
         items: [{ id: 'invalid' }] }) }, identity), null);
+    assert.equal(await chatGPTSidebarPage({ accountId: 'workspace', chats: Promise.resolve({ ...page,
+        items: [null] }) }, identity), null);
+    assert.equal(await chatGPTSidebarPage({ accountId: 'workspace', chats: Promise.resolve({ ...page,
+        items: [123] }) }, identity), null);
     assert.equal(await chatGPTSidebarPage({ chats: page }, identity), null);
 });
