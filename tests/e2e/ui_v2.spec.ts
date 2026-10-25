@@ -1,6 +1,48 @@
 import { test, expect } from '@playwright/test';
 import { mount, read, A, B } from '../helpers/uiPortHarness';
 
+test('Popup Options navigation follows a verified account even without an open conversation', async ({ page }) => {
+    await mount(page, 'popup', {
+        contextReply: { ok: true, accountContext: { accountId: B, providerId: 'gemini' }, conversationId: null },
+    });
+    await expect(page.locator('#btnCurrent')).toBeDisabled();
+    await page.locator('#btnOptions').click();
+    await expect.poll(async () => read(page, 'messages')).toContainEqual({ action: 'openOptions', accountId: B });
+});
+
+test('Popup still opens Options without source selection when account context is unavailable', async ({ page }) => {
+    await mount(page, 'popup', { noContext: true });
+    await page.locator('#btnOptions').click();
+    await expect.poll(async () => read(page, 'messages'))
+        .toContainEqual({ action: 'openOptions', accountId: null });
+});
+
+test('Content Badge passes its current account when opening Options', async ({ page }) => {
+    await mount(page, 'badge', { source: B });
+    await page.locator('#geminiExportBadge').click();
+    await expect.poll(async () => read(page, 'messages')).toContainEqual({ action: 'openOptions', accountId: B });
+});
+
+test('Options applies a one-time source handoff on load and reuse, but not while exporting', async ({ page }) => {
+    await mount(page, 'options', { initialOpenOptionsAccountId: B, holdExport: true });
+    const selector = page.locator('#accountIdSelect');
+    await expect(selector).toHaveValue(B);
+    await expect.poll(async () => page.evaluate(() => chrome.storage.session.get('openOptionsAccountId')))
+        .toEqual({ openOptionsAccountId: null });
+
+    await page.evaluate(id => Reflect.get(window, 'harness').openOptionsFor(id), A);
+    await expect(selector).toHaveValue(A);
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
+
+    await page.evaluate(id => Reflect.get(window, 'harness').openOptionsFor(id), B);
+    await expect(selector).toHaveValue(A);
+    await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await expect(selector).toHaveValue(A);
+});
+
 test('UI v2: Popup four formats use one request, preserve enabledDisk, include assets and never skip', async ({ page }) => {
     await mount(page, 'popup');
     // Product contract: the dark card/tabs layout survives the v2 service migration with the new Linear-inspired palette.
