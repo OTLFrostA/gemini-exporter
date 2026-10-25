@@ -93,7 +93,9 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         list.hidden = !remaining;
         authorize.hidden = !remaining;
         hint.hidden = !remaining;
-        status.textContent = remaining ? status.textContent : text('All supported platforms are authorized.', '所有支持的平台均已授权。');
+        const completeText = text('All supported platforms are authorized.', '所有支持的平台均已授权。');
+        if (!remaining) status.textContent = completeText;
+        else if (status.textContent === completeText) status.textContent = '';
         updateButton();
         options.ready?.(!busy && authorized.length > 0);
         if (!busy && !remaining) options.allAuthorized?.();
