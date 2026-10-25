@@ -9,6 +9,8 @@ const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'Chat
 export function mountPlatformAuthorization(host: HTMLElement, options: {
     ready?: (authorized: boolean) => void;
     connected?: (accountId: string) => Promise<void>;
+    selectedPlatforms?: readonly SourcePlatform[];
+    granted?: (platforms: readonly SourcePlatform[]) => void;
 } = {}): () => void {
     let active = true;
     let busy = false;
@@ -37,7 +39,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.value = platform;
-        input.checked = true;
+        input.checked = options.selectedPlatforms ? options.selectedPlatforms.includes(platform) : true;
         input.addEventListener('change', updateButton);
         const name = document.createElement('span');
         name.textContent = names[platform];
@@ -105,6 +107,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
             status.textContent = activated
                 ? text('Selected platforms authorized. Sign in on their websites when needed.', '所选平台已授权。需要时请在对应网站登录。')
                 : text('Access granted. Reload the platform page to activate it.', '权限已授予。请刷新平台页面以启用。');
+            options.granted?.(selected);
             // Account endpoints may be slow or rate limited. Their result never holds the authorization UI open.
             if (options.connected) void findAuthorizedAccount(selected).then(async accountId => {
                 if (active && accountId) await options.connected?.(accountId);
