@@ -1,3 +1,4 @@
+import { elementById, requiredElement } from '../../shared/elements.js';
 import { attachmentFailure, attachmentIssueText } from '../../shared/exportSummary.js';
 import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
 import { indexActivityTime } from '../../../l2/conversationIndex.js';
@@ -31,7 +32,7 @@ function date(value: number | undefined): string {
 }
 
 export function renderList(state: ConversationViewState, disabled: boolean, preparedKeys?: ReadonlySet<string>, failedKeys?: ReadonlySet<string>): void {
-    const list = document.getElementById('list')!;
+    const list = elementById('list');
     list.replaceChildren();
     for (const index of state.visible()) {
         const id = index.key.conversationId;
@@ -116,7 +117,7 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
 function updateStat(state: ConversationViewState): void {
     const visible = state.visible();
     const selectedVisible = visible.filter(row => state.selected.has(row.key.conversationId)).length;
-    const selectAll = document.getElementById('btnSelectAll') as HTMLInputElement;
+    const selectAll = requiredElement('input', 'btnSelectAll');
     selectAll.checked = visible.length > 0 && selectedVisible === visible.length;
     selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
     selectAll.disabled = visible.length === 0 || document.body.dataset.busy === 'true';
@@ -126,8 +127,8 @@ function updateStat(state: ConversationViewState): void {
     selectAll.setAttribute('aria-label', label);
     selectAll.title = label;
     const total = state.indexes.length;
-    document.getElementById('selectedStat')!.textContent =
+    elementById('selectedStat').textContent =
         text(`${state.selected.size} of ${total} selected`, `已选 ${state.selected.size} / ${total}`);
-    const button = document.getElementById('btnExport') as HTMLButtonElement;
+    const button = requiredElement('button', 'btnExport');
     button.disabled = !state.selected.size || document.body.dataset.busy === 'true';
 }

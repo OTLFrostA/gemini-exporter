@@ -1,3 +1,4 @@
+import { elementById as el, requiredElement as control } from '../shared/elements.js';
 import { observeDomainChanges } from '../../runtime/api/domainChanges.js';
 import { exportSummary } from '../shared/exportSummary.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
@@ -12,7 +13,7 @@ import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 import { renderList } from './views/listView.js';
-import { readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
+import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
 import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constants.js';
@@ -60,11 +61,10 @@ export async function initWorkbench(): Promise<void> {
     const exportRuns: ExportRunDiagnostic[] = [];
     let droppedExportRuns = 0;
     const scanRuns: { startedAt: number; finishedAt: number; accountId: string | null; forceFull: boolean; result: ScanResult }[] = [];
-    const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
     const renderLog = () => {
-        const level = el<HTMLSelectElement>('logLevel').value;
-        const query = el<HTMLInputElement>('logFilter').value.trim().toLowerCase();
+        const level = control('select', 'logLevel').value;
+        const query = control('input', 'logFilter').value.trim().toLowerCase();
         const rows = log.filter(entry => {
             if (level === 'error' && entry.level !== 'error') return false;
             if (level === 'warn' && entry.level === 'info') return false;
@@ -81,10 +81,10 @@ export async function initWorkbench(): Promise<void> {
         const displayed = resolveUiMessage(message);
         // Only one of the progress label and final/status line is visible at a time.
         el('progText').textContent = '';
-        el<HTMLElement>('progText').style.display = 'none';
-        el<HTMLElement>('scanSlowHint').style.display = 'none';
+        el('progText').style.display = 'none';
+        el('scanSlowHint').style.display = 'none';
         el('status').textContent = displayed;
-        el<HTMLElement>('status').style.display = 'block';
+        el('status').style.display = 'block';
         // Log entries keep their event-time message; language changes only re-render the status.
         log.push({ at: Date.now(), level, message: rawLogMessage ?? displayed });
         if (log.length > 400) log.shift();
@@ -97,17 +97,17 @@ export async function initWorkbench(): Promise<void> {
         currentProgress = message;
         const displayed = resolveUiMessage(message);
         el('progText').textContent = displayed;
-        el<HTMLElement>('progText').style.display = 'block';
+        el('progText').style.display = 'block';
         // Preserve the existing status contract for callers/tests, but do not show it twice.
         el('status').textContent = displayed;
-        el<HTMLElement>('status').style.display = 'none';
+        el('status').style.display = 'none';
         // Scan has no known total; Export counts settled items and Takeout reports a percentage.
         if ((action === 'export' || action === 'takeout') && percent !== undefined && Number.isFinite(percent)) {
-            el<HTMLElement>('bar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
+            el('bar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
         }
     };
     const showFailures = () => {
-        const card = el<HTMLElement>('exportFailureCard');
+        const card = el('exportFailureCard');
         card.style.display = failed.length && !dismissedFailures ? 'block' : 'none';
         const container = el('exportFailureList');
         container.replaceChildren();
@@ -123,12 +123,12 @@ export async function initWorkbench(): Promise<void> {
     const render = () => {
         labelPage();
         el('btnPlatformPermissions').textContent = text('Site access', '网站授权');
-        const moreButton = el<HTMLButtonElement>('btnMoreActions');
+        const moreButton = control('button', 'btnMoreActions');
         moreButton.setAttribute('aria-label', text('More actions', '更多操作'));
         moreButton.title = text('More actions', '更多操作');
         moreButton.disabled = busy || !settings;
         if (moreButton.disabled) {
-            el<HTMLElement>('moreActionsMenu').hidden = true;
+            el('moreActionsMenu').hidden = true;
             moreButton.setAttribute('aria-expanded', 'false');
         }
         if (currentStatus !== null) el('status').textContent = resolveUiMessage(currentStatus);
@@ -140,17 +140,19 @@ export async function initWorkbench(): Promise<void> {
         el('scanSlowHint').textContent = text(
             'As conversation history grows, Gemini scans may take significantly longer.',
             '随着对话历史增加，Gemini 的扫描时间可能会显著变长。');
-        labelThemeToggle(el<HTMLButtonElement>('btnThemeToggle'), settings);
-        el<HTMLButtonElement>('btnThemeToggle').disabled = !settings || themeSaving;
+        labelThemeToggle(control('button', 'btnThemeToggle'), settings);
+        control('button', 'btnThemeToggle').disabled = !settings || themeSaving;
         document.body.dataset.busy = String(busy);
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
-        const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
-            'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan',
-            'chatSearchInput','chatFilterSelect','btnSelectAll',
-            'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide','btnPlatformPermissions'];
-        for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
+        const controls = [
+            ['select', ['accountIdSelect', 'format', 'chatFilterSelect']],
+            ['input', ['skipExported', 'includeAssets', 'liveSaveDiskToggle', 'chatSearchInput', 'btnSelectAll']],
+            ['button', ['btnSetDir', 'btnExport', 'btnRetryFailed', 'btnClearExported', 'btnClearScan',
+                'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnTourGuide', 'btnPlatformPermissions']],
+        ] as const;
+        for (const [tag, ids] of controls) for (const id of ids) control(tag, id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
-            el<HTMLInputElement>(id).disabled = !settings || presentationSaving;
+            control('input', id).disabled = !settings || presentationSaving;
         el('delivery').setAttribute('aria-label', text('Export to', '导出到'));
         el('exportOptionsLock').hidden = !(busy && action === 'export');
         el('exportOptionsLock').textContent = text('Exporting — options are locked', '导出中，选项已锁定');
@@ -160,7 +162,7 @@ export async function initWorkbench(): Promise<void> {
             radio.disabled = busy || !settings;
         }
         el('localFolderControls').classList.toggle('is-disabled', !folderSelected);
-        const selector = el<HTMLSelectElement>('accountIdSelect');
+        const selector = control('select', 'accountIdSelect');
         selector.setAttribute('aria-label', text('Account', '账户'));
         el('chatSearchInput').setAttribute('aria-label', text('Search title or ID', '搜索标题或 ID'));
         selector.replaceChildren();
@@ -177,7 +179,7 @@ export async function initWorkbench(): Promise<void> {
         const account = state.accounts.find(a => a.id === state.accountId);
         const name = account?.displayName || account?.email || account?.providerAccountId || text('No local account', '暂无本地账户');
         el('accountName').textContent = state.accounts.length ? '' : text('Connect a platform', '请先连接平台');
-        el<HTMLElement>('accountName').style.display = state.accounts.length ? 'none' : 'inline-flex';
+        el('accountName').style.display = state.accounts.length ? 'none' : 'inline-flex';
         el('takeoutAccountName').textContent = state.accountId
             ? account?.providerId === 'gemini' ? `→ ${name}` : text('Select Gemini', '请选择 Gemini')
             : text('First import', '首次导入');
@@ -185,19 +187,19 @@ export async function initWorkbench(): Promise<void> {
         selector.title = name;
         el('ver').textContent = chrome.runtime.getManifest().version;
         if (settings) {
-            el<HTMLSelectElement>('format').value = settings.defaultFormat;
-            el<HTMLInputElement>('skipExported').checked = settings.skipExported;
-            el<HTMLInputElement>('includeAssets').checked = settings.includeAssets;
-            el<HTMLInputElement>('devToggle').checked = settings.developerMode;
+            control('select', 'format').value = settings.defaultFormat;
+            control('input', 'skipExported').checked = settings.skipExported;
+            control('input', 'includeAssets').checked = settings.includeAssets;
+            control('input', 'devToggle').checked = settings.developerMode;
             const en = !document.documentElement.lang.startsWith('zh');
-            el<HTMLInputElement>('langToggle').checked = en;
-            el<HTMLElement>('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
-            el<HTMLElement>('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
+            control('input', 'langToggle').checked = en;
+            el('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
+            el('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
             // Changing the export destination or format pauses Live Save without forgetting intent.
-            el<HTMLInputElement>('liveSaveDiskToggle').checked = settings.enabledDisk;
-            el<HTMLInputElement>('liveSaveDiskToggle').disabled =
+            control('input', 'liveSaveDiskToggle').checked = settings.enabledDisk;
+            control('input', 'liveSaveDiskToggle').disabled =
                 busy || !folderSelected || settings.defaultFormat !== 'markdown' || !directoryAvailable;
-            const liveStatus = el<HTMLElement>('liveSaveStatus');
+            const liveStatus = el('liveSaveStatus');
             liveStatus.hidden = !settings.enabledDisk;
             liveStatus.textContent = isLiveSaveEffective(settings, directoryAvailable)
                 ? text('Live Save active', '实时保存已开启')
@@ -208,7 +210,7 @@ export async function initWorkbench(): Promise<void> {
                         : text('Paused: authorize a folder to resume', '已暂停 · 请选择或重新授权文件夹');
         }
         // The folder picker and Live Save share a handle and depend on folder delivery.
-        el<HTMLButtonElement>('btnSetDir').disabled = busy || !folderSelected;
+        control('button', 'btnSetDir').disabled = busy || !folderSelected;
         const handle = Directory.getDirHandle();
         const pending = Directory.getPendingPermissionHandle();
         const folderName = handle?.name || pending?.name;
@@ -218,19 +220,19 @@ export async function initWorkbench(): Promise<void> {
             ? text('Authorized', '已授权')
             : pending ? text('Permission needs renewal', '需要重新授权')
                 : text('Not authorized', '尚未授权');
-        el<HTMLButtonElement>('btnSetDir').textContent = pending
+        control('button', 'btnSetDir').textContent = pending
             ? text('Reauthorize', '重新授权')
             : handle ? text('Change', '更换') : text('Choose folder', '选择文件夹');
-        el<HTMLButtonElement>('btnImportTakeout').disabled = busy || !settings ||
+        control('button', 'btnImportTakeout').disabled = busy || !settings ||
             !!(state.accountId && account?.providerId !== 'gemini');
-        for (const id of ['btnClearExported', 'btnClearScan']) el<HTMLButtonElement>(id).disabled = busy || !state.accountId;
-        el<HTMLButtonElement>('btnForceFullScan').disabled = busy || !settings?.developerMode;
-        el<HTMLElement>('btnCancel').style.display = action === 'export' && !!controller ? 'inline-flex' : 'none';
-        el<HTMLElement>('btnStopScan').style.display = action === 'scan' && !!controller ? 'inline-flex' : 'none';
-        el<HTMLElement>('progWrap').style.display = busy && (action === 'scan' || action === 'export' || action === 'takeout') ? 'block' : 'none';
-        el<HTMLElement>('progWrap').classList.toggle('indeterminate', action === 'scan');
+        for (const id of ['btnClearExported', 'btnClearScan']) control('button', id).disabled = busy || !state.accountId;
+        control('button', 'btnForceFullScan').disabled = busy || !settings?.developerMode;
+        el('btnCancel').style.display = action === 'export' && !!controller ? 'inline-flex' : 'none';
+        el('btnStopScan').style.display = action === 'scan' && !!controller ? 'inline-flex' : 'none';
+        el('progWrap').style.display = busy && (action === 'scan' || action === 'export' || action === 'takeout') ? 'block' : 'none';
+        el('progWrap').classList.toggle('indeterminate', action === 'scan');
         renderConversations();
-        el<HTMLButtonElement>('btnExport').disabled ||= !settings || folderSuggestionPending;
+        control('button', 'btnExport').disabled ||= !settings || folderSuggestionPending;
         showFailures();
     };
     const refresh = async () => {
@@ -254,12 +256,12 @@ export async function initWorkbench(): Promise<void> {
         busy = true; action = kind; controller = cancellable ? new AbortController() : null;
         // Never show the previous operation's percent or label at the start of a new run.
         currentStatus = null; currentProgress = null;
-        el<HTMLElement>('bar').style.width = '0%';
+        el('bar').style.width = '0%';
         el('progText').textContent = '';
-        el<HTMLElement>('progText').style.display = 'none';
-        el<HTMLElement>('scanSlowHint').style.display = 'none';
+        el('progText').style.display = 'none';
+        el('scanSlowHint').style.display = 'none';
         el('status').textContent = '';
-        el<HTMLElement>('status').style.display = 'block';
+        el('status').style.display = 'block';
         render();
         try { await task(); }
         catch (error) {
@@ -327,7 +329,7 @@ export async function initWorkbench(): Promise<void> {
             });
             run.result = result;
             preparedExportKeys.clear();
-            el<HTMLElement>('bar').style.width = '100%';
+            el('bar').style.width = '100%';
             failed = [...result.failed];
             status(() => exportSummary(result), failed.length || result.aborted || result.partial ? 'warn' : 'info');
         } catch (error) {
@@ -339,7 +341,7 @@ export async function initWorkbench(): Promise<void> {
         const startedAt = Date.now();
         const signal = controller!.signal;
         status(() => text('Resolving conversation source…', '正在确认会话来源…'));
-        const slowHint = el<HTMLElement>('scanSlowHint');
+        const slowHint = el('scanSlowHint');
         const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
             onTarget: select, onProgress: p => {
                 if (!busy || signal.aborted) return;
@@ -378,8 +380,8 @@ export async function initWorkbench(): Promise<void> {
             }
         }
     }, true);
-    const moreActionsButton = el<HTMLButtonElement>('btnMoreActions');
-    const moreActionsMenu = el<HTMLElement>('moreActionsMenu');
+    const moreActionsButton = control('button', 'btnMoreActions');
+    const moreActionsMenu = el('moreActionsMenu');
     const closeMoreActions = () => {
         moreActionsMenu.hidden = true;
         moreActionsButton.setAttribute('aria-expanded', 'false');
@@ -395,7 +397,7 @@ export async function initWorkbench(): Promise<void> {
             moreActionsButton.focus();
         }
     });
-    el<HTMLDialogElement>('cleanupModal').addEventListener('close', () => {
+    control('dialog', 'cleanupModal').addEventListener('close', () => {
         if (moreActionsMenu.hidden) moreActionsButton.focus();
     });
     document.addEventListener('pointerdown', event => {
@@ -487,7 +489,7 @@ export async function initWorkbench(): Promise<void> {
             catch (error) { settings = previous; throw error; }
         });
     });
-    const fileInput = el<HTMLInputElement>('takeoutFileInput');
+    const fileInput = control('input', 'takeoutFileInput');
     el('btnImportTakeout').addEventListener('click', () => { if (!busy) fileInput.click(); });
     const importFile = (file: File) => perform('takeout', async () => {
         status(() => text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…'));
@@ -502,7 +504,7 @@ export async function initWorkbench(): Promise<void> {
     el('btnImportTakeout').addEventListener('dragover', event => event.preventDefault());
     el('btnImportTakeout').addEventListener('drop', event => {
         event.preventDefault();
-        const file = (event as DragEvent).dataTransfer?.files[0];
+        const file = event.dataTransfer?.files[0];
         if (file && !busy) void importFile(file);
     });
     for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const)
@@ -519,36 +521,45 @@ export async function initWorkbench(): Promise<void> {
                 status(() => text('Records cleared', '记录已清除'));
             });
         });
-    el<HTMLSelectElement>('accountIdSelect').addEventListener('change', () => {
+    control('select', 'accountIdSelect').addEventListener('change', () => {
         if (busy) { render(); return; }
-        void select(el<HTMLSelectElement>('accountIdSelect').value).catch(e => statusError(e));
+        void select(control('select', 'accountIdSelect').value).catch(e => statusError(e));
     });
-    el<HTMLInputElement>('chatSearchInput').addEventListener('input', () => {
-        state.search = el<HTMLInputElement>('chatSearchInput').value; renderConversations();
+    control('input', 'chatSearchInput').addEventListener('input', () => {
+        state.search = control('input', 'chatSearchInput').value; renderConversations();
     });
-    el<HTMLSelectElement>('chatFilterSelect').addEventListener('change', () => {
-        state.filter = el<HTMLSelectElement>('chatFilterSelect').value; renderConversations();
+    control('select', 'chatFilterSelect').addEventListener('change', () => {
+        state.filter = control('select', 'chatFilterSelect').value; renderConversations();
     });
-    el<HTMLInputElement>('btnSelectAll').addEventListener('change', () => {
+    control('input', 'btnSelectAll').addEventListener('change', () => {
         if (busy) return;
-        if (el<HTMLInputElement>('btnSelectAll').checked) state.selectVisible();
+        if (control('input', 'btnSelectAll').checked) state.selectVisible();
         else state.selected.clear();
         renderConversations();
     });
-    const settingControls = { format: 'defaultFormat', skipExported: 'skipExported',
-        includeAssets: 'includeAssets', liveSaveDiskToggle: 'enabledDisk' } as const;
-    for (const [id, field] of Object.entries(settingControls)) el<HTMLInputElement>(id).addEventListener('change', () => {
-        const input = el<HTMLInputElement>(id);
+    const changeControlSetting = (input: HTMLInputElement | HTMLSelectElement, patch: Partial<GlobalSettings>) => {
         // A disabled Live Save switch must never mutate persisted intent.
         if (busy || input.disabled) { render(); return; }
-        const value = input.type === 'checkbox' ? input.checked : input.value;
-        const prior = settings; settings = { ...settings, [field]: value };
+        const prior = settings; settings = { ...settings, ...patch };
         void perform('cleanup', async () => {
-            try { await updateSettings({ [field]: value }); settings = await readSettings(); }
+            try { await updateSettings(patch); settings = await readSettings(); }
             catch (error) { settings = prior; throw error; }
         });
+    };
+    const formatControl = control('select', 'format');
+    formatControl.addEventListener('change', () => {
+        const format = EXPORT_FORMATS.find(value => value === formatControl.value);
+        if (format) changeControlSetting(formatControl, { defaultFormat: format });
     });
-    el<HTMLButtonElement>('btnThemeToggle').addEventListener('click', () => {
+    const checkboxSettings: readonly (readonly [HTMLInputElement, 'skipExported' | 'includeAssets' | 'enabledDisk'])[] = [
+        [control('input', 'skipExported'), 'skipExported'],
+        [control('input', 'includeAssets'), 'includeAssets'],
+        [control('input', 'liveSaveDiskToggle'), 'enabledDisk'],
+    ];
+    for (const [input, field] of checkboxSettings) input.addEventListener('change', () => {
+        changeControlSetting(input, { [field]: input.checked });
+    });
+    control('button', 'btnThemeToggle').addEventListener('click', () => {
         if (!settings || themeSaving) return;
         const previous = settings;
         const theme = settings.theme === 'light' ? 'dark' : 'light';
@@ -570,11 +581,11 @@ export async function initWorkbench(): Promise<void> {
         catch (error) { settings = prior; useSettings(prior); statusError(error); }
         finally { presentationSaving = false; render(); }
     };
-    el<HTMLInputElement>('devToggle').addEventListener('change', () => {
-        void savePresentation({ developerMode: el<HTMLInputElement>('devToggle').checked });
+    control('input', 'devToggle').addEventListener('change', () => {
+        void savePresentation({ developerMode: control('input', 'devToggle').checked });
     });
-    el<HTMLInputElement>('langToggle').addEventListener('change', () => {
-        void savePresentation({ language: el<HTMLInputElement>('langToggle').checked ? 'en' : 'zh' });
+    control('input', 'langToggle').addEventListener('change', () => {
+        void savePresentation({ language: control('input', 'langToggle').checked ? 'en' : 'zh' });
     });
     el('logFilter').addEventListener('input', renderLog);
     el('logLevel').addEventListener('change', renderLog);

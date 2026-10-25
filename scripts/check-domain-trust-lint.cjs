@@ -17,7 +17,10 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
     .flatMap(ownedTypeScriptFiles)
     .concat(['src/shared/platformHosts.ts', 'src/runtime/api/accountRegistry.ts', 'src/runtime/api/domainIngestion.ts',
         'src/runtime/capabilities/platformAuthorization.ts', 'src/runtime/capabilities/platformInjection.ts',
-        'src/ui/shared/platformAuthorization.ts', 'src/l1/resources/attachmentBytes.ts']);
+        'src/ui/shared/platformAuthorization.ts', 'src/l1/resources/attachmentBytes.ts',
+        'src/ui/shared/elements.ts', 'src/ui/shared/settings.ts', 'src/ui/options/options.ts',
+        'src/ui/popup/popup.ts', 'src/ui/options/views/cleanupPrompt.ts',
+        'src/ui/options/views/directWritePrompt.ts', 'src/ui/options/views/listView.ts']);
 
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any',
     '-D', 'typescript/no-unsafe-assignment', '-D', 'typescript/no-unsafe-argument', '-D', 'typescript/no-unsafe-return',

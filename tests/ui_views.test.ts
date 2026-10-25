@@ -26,6 +26,27 @@ const rows = [
 ];
 const records = { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100 } } };
 
+test('format and checkbox settings persist their own value types', async () => {
+    await open({ settings: { developerMode: true } });
+    await page.locator('#format').selectOption('json');
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    await page.locator('#skipExported').uncheck();
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    await page.locator('#includeAssets').uncheck();
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    assert.deepEqual(await read(page, 'patches'), [
+        { defaultFormat: 'json' }, { skipExported: false }, { includeAssets: false },
+    ]);
+    await page.evaluate(() => {
+        const select = document.getElementsByTagName('select').namedItem('format');
+        if (!select) throw new Error('Missing format select');
+        select.add(new Option('Invalid', 'unsupported'));
+        select.value = 'unsupported';
+        select.dispatchEvent(new Event('change'));
+    });
+    assert.equal((await read(page, 'patches')).length, 3);
+});
+
 test('account picker stays visible for one or many trusted accounts', async () => {
     await open(); assert.equal(await page.locator('#accountIdSelect').isVisible(), true);
     assert.deepEqual(await page.locator('#accountIdSelect option').evaluateAll(items => items.map(i => (i as HTMLOptionElement).value)), [A, B]);

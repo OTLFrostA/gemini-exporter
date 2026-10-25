@@ -1,14 +1,15 @@
+import { elementById, requiredElement } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
 /** A suggestion, not a gate: show once and let either export destination proceed. */
 export function showDirectWritePrompt(count: number, onFolder: () => void, onBrowser: () => void): boolean {
-    const modal = document.getElementById('directWriteModal') as HTMLDialogElement | null;
+    const modal = document.getElementsByTagName('dialog').namedItem('directWriteModal');
     if (!modal || modal.open || document.querySelector('dialog[open], [aria-modal="true"]')) return false;
-    const title = document.getElementById('directWritePromptTitle')!;
-    const description = document.getElementById('directWritePromptText')!;
-    const folder = document.getElementById('btnModalSwitchFolder') as HTMLButtonElement;
-    const browser = document.getElementById('btnModalContinueZip') as HTMLButtonElement;
-    const dismiss = document.getElementById('btnDirectWriteClose') as HTMLButtonElement;
+    const title = elementById('directWritePromptTitle');
+    const description = elementById('directWritePromptText');
+    const folder = requiredElement('button', 'btnModalSwitchFolder');
+    const browser = requiredElement('button', 'btnModalContinueZip');
+    const dismiss = requiredElement('button', 'btnDirectWriteClose');
 
     title.textContent = text('💡 Large batch export tip', '💡 大批量导出建议');
     description.textContent = text(
