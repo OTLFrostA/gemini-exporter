@@ -11,6 +11,7 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
     await page.evaluate(({ allow, list, session }) => {
         let granted = false;
         const query = chrome.tabs.query.bind(chrome.tabs);
+        const nativeContains = chrome.permissions.contains.bind(chrome.permissions);
         // The source tab and permission grant are simulated in this HTTP-boundary test.
         Object.defineProperty(chrome.tabs, 'get', { configurable: true, value: async () =>
             ({ id: 99, url: 'https://chatgpt.com/' }) });
@@ -20,7 +21,9 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
             value: async () => scripts });
         Object.defineProperty(chrome.scripting, 'registerContentScripts', { configurable: true,
             value: async (items: chrome.scripting.RegisteredContentScript[]) => { scripts.push(...items); } });
-        Object.defineProperty(chrome.permissions, 'contains', { configurable: true, value: async () => granted });
+        Object.defineProperty(chrome.permissions, 'contains', { configurable: true,
+            value: async ({ origins }: { origins: string[] }) =>
+                origins.includes('https://chatgpt.com/*') ? granted : nativeContains({ origins }) });
         Object.defineProperty(chrome.permissions, 'request', { configurable: true, value: async () => { granted = allow; return granted; } });
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async (options: chrome.tabs.QueryInfo) =>
             Array.isArray(options.url) && options.url.includes('https://chatgpt.com/*')
@@ -43,8 +46,9 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
     await source(page, true);
     await expect(page.locator('header #btnConnectChatGPT, header #btnConnectClaude')).toHaveCount(0);
     await page.locator('#btnTourGuide').click();
-    await page.getByRole('checkbox', { name: 'Gemini', exact: true }).uncheck();
+    await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toHaveCount(0);
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();
     await page.locator('#btnAuthorizePlatforms').click();
     await expect(page.locator('#tourNextBtn')).toBeEnabled();
     await page.locator('#tourNextBtn').click();
@@ -74,8 +78,9 @@ test('Declining ChatGPT site access leaves the registry and history untouched', 
     const page = await openOptions(context, extensionId);
     await source(page, false);
     await page.locator('#btnTourGuide').click();
-    await page.getByRole('checkbox', { name: 'Gemini', exact: true }).uncheck();
+    await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toHaveCount(0);
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
+    await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();
     await page.locator('#btnAuthorizePlatforms').click();
     await expect(page.locator('.tour-popover [role=status]')).toContainText('Access was not granted');
     await expect(page.locator('#tourNextBtn')).toBeDisabled();
