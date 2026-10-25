@@ -7,7 +7,6 @@ export function closeSourceCitations(message: DomainMessage, markers?: readonly 
     const citations: DomainCitation[] = [...web];
     const grounding = new Map<string, { citation: { id: string }; displayLabel: string }[]>();
     for (const raw of markers ?? []) {
-        if (typeof raw !== 'string') continue;
         const marker = raw.trim();
         // A combined marker such as [cite:1,2] names one citation per number,
         // in order; duplicates within the marker collapse to a single entry.
