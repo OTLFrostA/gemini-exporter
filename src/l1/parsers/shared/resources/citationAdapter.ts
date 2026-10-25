@@ -26,8 +26,8 @@ export function linkCitationMarkers(
                     let targets: { citationId: string; label: string }[] | undefined;
 
                     if (isCite) {
-                        if (!hasGrounding) continue;
-                        const entries = groundingMap!.get(matchedStr) ?? groundingMap!.get(matchedStr.toLowerCase().replace(/\s+/g, ' '));
+                        if (!groundingMap?.size) continue;
+                        const entries = groundingMap.get(matchedStr) ?? groundingMap.get(matchedStr.toLowerCase().replace(/\s+/g, ' '));
                         if (!entries?.length) continue;
                         targets = entries.map(entry => ({ citationId: entry.citation.id, label: entry.displayLabel }));
                     } else {
@@ -64,7 +64,7 @@ export function linkCitationMarkers(
         switch (b.type) {
             case 'paragraph':
             case 'heading':
-                (b as { children: InlineNode[] }).children = walkInline((b as { children: InlineNode[] }).children);
+                b.children = walkInline(b.children);
                 break;
             case 'quote':
                 b.blocks.forEach(walkBlock);

@@ -36,9 +36,9 @@ export function parseDil(source: string): DilNode[] {
             // Treat Markdown code and math as opaque, including component-like
             // strings, braces, comparison signs and XML inside code examples.
             const tail = source.slice(at);
-            const fence = /^(?:`{3,}|~{3,})[^\n]*\n/.exec(tail);
+            const fence = /^((?:`{3,}|~{3,})[`~]*)[^\n]*\n/.exec(tail);
             if (fence && (at === 0 || source[at - 1] === '\n')) {
-                const run = /^[`~]+/.exec(fence[0])![0];
+                const run = fence[1];
                 const end = new RegExp('^' + run[0] + '{' + run.length + ',}[ \\t]*$', 'm').exec(tail.slice(fence[0].length));
                 if (end) { at += fence[0].length + end.index + end[0].length; continue; }
             }

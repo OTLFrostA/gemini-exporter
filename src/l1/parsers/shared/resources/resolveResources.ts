@@ -193,12 +193,13 @@ export function resolveSourceAttachmentGroups(groups: readonly SourceAttachmentG
                 const alias = !refs.size && !token && !docId ? fingerprint(options.semanticOnly ? { type: attachment.type, fileName: attachment.fileName || attachment.name || attachment.title, contentMarkdown: attachment.contentMarkdown } : attachment) : undefined;
                 const matches = resolved.filter(record => {
                     if (identityConflict(record.attachment, attachment)) return false;
+                    const aliasOrigins = alias === undefined ? undefined : record.aliases.get(alias);
                     return [...refs].some(ref => record.refs.has(ref))
                         || (token !== undefined && record.tokens.has(token))
                         || (docId !== undefined && record.documentIds.has(docId))
                         || (!options.sourceReferences && sameGeneration(record.attachment, attachment))
-                        || (alias !== undefined && record.aliases.has(alias) && !record.aliases.get(alias)!.has(origin)
-                            && [...record.aliases.get(alias)!].some(value => Math.floor(value / 4) === groupIndex && value !== origin));
+                        || (aliasOrigins !== undefined && !aliasOrigins.has(origin)
+                            && [...aliasOrigins].some(value => Math.floor(value / 4) === groupIndex && value !== origin));
                 });
                 // An untagged alias cannot bridge two explicitly different resources.
                 const ambiguous = matches.some((record, index) => matches.slice(index + 1)

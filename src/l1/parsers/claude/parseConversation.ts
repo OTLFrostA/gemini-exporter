@@ -21,22 +21,25 @@ function markdown(text: string, id: string, ctx: MarkdownParseContext): BlockNod
 interface Branch { messages: Record<string, unknown>[]; quality: 'complete' | 'partial' | 'unknown' }
 function currentBranch(data: Record<string, unknown>): Branch {
     if (!Array.isArray(data.chat_messages)) throw new TypeError('Claude detail has no chat_messages');
-    const nodes = data.chat_messages.map(object);
-    if (nodes.some(node => !node || !uuid(node.uuid))) throw new TypeError('Invalid Claude message tree');
-    const byId = new Map(nodes.map(node => [node!.uuid as string, node!]));
-    if (byId.size !== nodes.length) throw new TypeError('Duplicate Claude message UUID');
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const value of data.chat_messages) {
+        const node = object(value);
+        if (!node || !uuid(node.uuid)) throw new TypeError('Invalid Claude message tree');
+        byId.set(node.uuid, node);
+    }
+    if (byId.size !== data.chat_messages.length) throw new TypeError('Duplicate Claude message UUID');
     if (!uuid(data.current_leaf_message_uuid) || !byId.has(data.current_leaf_message_uuid)) {
         // Never silently call a guessed branch complete.
-        return { messages: nodes.filter((n): n is Record<string, unknown> => !!n)
+        return { messages: [...byId.values()]
             .sort((a, b) => Number(a.index ?? 0) - Number(b.index ?? 0)), quality: 'unknown' };
     }
     const result: Record<string, unknown>[] = [], visited = new Set<string>();
     let id: string | null = data.current_leaf_message_uuid;
     let quality: Branch['quality'] = 'complete';
     while (id) {
-        if (visited.has(id) || !byId.has(id)) { quality = 'partial'; break; }
+        const node = byId.get(id);
+        if (visited.has(id) || !node) { quality = 'partial'; break; }
         visited.add(id);
-        const node = byId.get(id)!;
         result.push(node);
         const parent: unknown = node.parent_message_uuid;
         if (parent == null || parent === '00000000-0000-4000-8000-000000000000') break;
