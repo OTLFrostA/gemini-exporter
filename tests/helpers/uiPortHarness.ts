@@ -165,6 +165,7 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
         if (w.harness.directoryName) w.harness.directory = directory();
         w.showDirectoryPicker = async () => { w.harness.events.push('picker'); if (w.harness.cancelPicker) throw new DOMException('Picker cancelled', 'AbortError'); return directory(); };
         const listeners = new Set<(...args: unknown[]) => void>();
+        const session = { openOptionsAccountId: w.harness.initialOpenOptionsAccountId ?? null };
         w.harness.fireSettingsChange = (area = 'local') => { for (const listener of listeners) listener({}, area); };
         const messageListeners = new Set<(...args: unknown[]) => void>();
         w.harness.fireRuntimeMessage = (message: unknown, sender = { id: 'ui-test-extension' }) => { for (const listener of messageListeners) listener(message, sender); };
@@ -175,7 +176,23 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
                 const patterns=Array.isArray(options.url)?options.url:[options.url];
                 return tabs.filter((tab:{url?:string})=>!tab.url||patterns.some(pattern=>tab.url?.startsWith(pattern.replace('*',''))));
             },sendMessage:async()=>{w.harness.events.push('context');if ('contextReply' in w.harness) return w.harness.contextReply;return w.harness.noContext?{ok:false}:{ok:true,accountContext:{accountId:A,providerId:'gemini'},conversationId:'a'};},create:async(options: { url?: string })=>{w.harness.events.push('open');(w.harness.openedUrls??=[]).push(options?.url);},update:async()=>{w.harness.events.push('activate');},reload:async()=>{w.harness.events.push('reload');}},
-            storage:{onChanged:{addListener:(listener: (...args: unknown[]) => void)=>listeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>listeners.delete(listener)}}};
+            storage:{
+                session:{
+                    get:async()=>({...session}),
+                    set:async(patch: {openOptionsAccountId:string|null})=>{
+                        const oldValue=session.openOptionsAccountId;
+                        session.openOptionsAccountId=patch.openOptionsAccountId;
+                        for(const listener of listeners)listener({openOptionsAccountId:{oldValue,newValue:patch.openOptionsAccountId}},'session');
+                    },
+                    remove:async()=>{
+                        const oldValue=session.openOptionsAccountId;
+                        session.openOptionsAccountId=null;
+                        for(const listener of listeners)listener({openOptionsAccountId:{oldValue,newValue:null}},'session');
+                    },
+                },
+                onChanged:{addListener:(listener: (...args: unknown[]) => void)=>listeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>listeners.delete(listener)}
+            }};
+        w.harness.openOptionsFor = (id: string | null) => w.chrome.storage.session.set({openOptionsAccountId:id});
     }, { A, B, patch });
     await page.goto('https://ui.test/' + query);
     // This isolated UI harness strips the real HTML scripts, including themeBootstrap.js.

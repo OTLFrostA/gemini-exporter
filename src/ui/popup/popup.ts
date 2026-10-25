@@ -25,18 +25,26 @@ export function platformForTabUrl(url: string | undefined): SourcePlatform | nul
 }
 
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
-export async function readActiveKey(activeTab?: chrome.tabs.Tab): Promise<ConversationKey | null> {
+async function readActiveSource(activeTab?: chrome.tabs.Tab): Promise<{ accountId: string; conversationId: string | null } | null> {
     const tab = activeTab ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
     if (tab?.id === undefined) return null;
     const expectedProvider = platformForTabUrl(tab.url);
     if (!expectedProvider) return null;
-    const raw = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
-    if (!raw || typeof raw !== 'object') return null;
-    const response = raw as { ok?: unknown; accountContext?: { accountId?: unknown; providerId?: unknown }; conversationId?: unknown };
-    if (response.ok !== true || !isAccountId(response.accountContext?.accountId)
-        || response.accountContext?.providerId !== expectedProvider || typeof response.conversationId !== 'string' || !response.conversationId)
+    const response: unknown = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
+    if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
+        || !('accountContext' in response) || !response.accountContext || typeof response.accountContext !== 'object')
         return null;
-    return { accountId: response.accountContext.accountId, conversationId: response.conversationId };
+    const context = response.accountContext;
+    if (!('accountId' in context) || !isAccountId(context.accountId)
+        || !('providerId' in context) || context.providerId !== expectedProvider) return null;
+    const conversationId = 'conversationId' in response && typeof response.conversationId === 'string'
+        ? response.conversationId : null;
+    return { accountId: context.accountId, conversationId };
+}
+
+export async function readActiveKey(activeTab?: chrome.tabs.Tab): Promise<ConversationKey | null> {
+    const source = await readActiveSource(activeTab);
+    return source?.conversationId ? { accountId: source.accountId, conversationId: source.conversationId } : null;
 }
 
 export async function initPopup(): Promise<void> {
@@ -82,7 +90,11 @@ export async function initPopup(): Promise<void> {
     const refresh = async () => { settings = await readSettings(); if (active) render(); };
     const stop = observeSettings(() => { void refresh().catch(e => { showError(e); }); });
     window.addEventListener('pagehide', () => { active = false; stop(); stopPermission?.(); }, { once: true });
-    el('btnOptions').addEventListener('click', () => { void chrome.runtime.openOptionsPage(); });
+    el('btnOptions').addEventListener('click', () => {
+        void readActiveSource().catch(() => null).then(source =>
+            chrome.runtime.sendMessage({ action: 'openOptions', accountId: source?.accountId ?? null }))
+            .catch(showError);
+    });
     const changeSettings = (patch: Partial<GlobalSettings>) => {
         if (busy) return;
         const prior = settings;

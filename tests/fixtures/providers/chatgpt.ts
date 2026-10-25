@@ -11,6 +11,12 @@ function list(items: unknown[], metadata: Omit<NativeListPage, 'items'> = {}): N
     return { items, ...metadata };
 }
 
+function rollingTotalPage(offset: number, count: number, total: number): NativeListPage {
+    return list(Array.from({ length: count }, (_, i) => ({
+        id: `rolling-${offset + i}`, create_time: 1, update_time: 1000 - offset - i,
+    })), { total, limit: 100, offset });
+}
+
 
 
 // One unique key per consuming List test call site. Values preserve the old data.
@@ -73,6 +79,11 @@ const fixtureMap = {
         })), { total: 102, limit: 100, offset },
     ))(100),
     'C_PROVIDER_CHATGPT_TREE_07': () => list([], { total: 0, limit: 100, offset: 0 }),
+    'C_PROVIDER_CHATGPT_TREE_ROLLING_0': () => rollingTotalPage(0, 100, 101),
+    'C_PROVIDER_CHATGPT_TREE_ROLLING_100': () => rollingTotalPage(100, 100, 201),
+    'C_PROVIDER_CHATGPT_TREE_ROLLING_END': () => rollingTotalPage(200, 3, 203),
+    'C_PROVIDER_CHATGPT_TREE_ROLLING_EMPTY_END': () => rollingTotalPage(200, 0, 200),
+    'C_PROVIDER_CHATGPT_TREE_ROLLING_FULL_END': () => rollingTotalPage(200, 100, 300),
     'C_PROVIDER_CHATGPT_TREE_08_0': () => list([{ id: 'missing-time', title: 'Missing time' }],
             { total: 1, limit: 100, offset: 0, has_missing_conversations: false }),
     'C_PROVIDER_CHATGPT_TREE_08_1': () => list([{ id: 'missing-row', title: 'Incomplete', update_time: 2 }],

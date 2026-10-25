@@ -135,7 +135,6 @@ export class ChatGPTProvider implements AIProvider {
         options.signal?.throwIfAborted();
         const account = await this.context(options.accountId);
         let totalObserved = 0;
-        let expectedTotal: number | undefined;
         let sentHead = false;
         const seen = new Set<string>();
         let lastTime = Infinity;
@@ -155,9 +154,10 @@ export class ChatGPTProvider implements AIProvider {
                 // offset and page size still prove exhaustion; an explicit
                 // missing-conversations warning must continue to reject it.
                 && result.hasMissingConversations !== true
-                && count <= 100 && (sourceEnd || count === 100)
-                && (expectedTotal === undefined || expectedTotal === result.total);
-            expectedTotal ??= result.total;
+                && count <= 100 && (sourceEnd || count === 100);
+            // ChatGPT can report offset + count + 1 as a lower bound while
+            // more rows exist (101, 201, ...), rather than a stable total.
+            // Validate each page's metadata; only equality proves source end.
             const keys = result.conversations.flatMap(item => item.updatedAt === undefined
                 ? [] : [{ id: item.id, time: item.updatedAt }]);
             // A trustworthy source chain cannot repeat an ID or move forward

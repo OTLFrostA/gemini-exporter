@@ -51,6 +51,9 @@ function setup(t: { after: (fn: () => void) => void }, overrides: {
             onMessage: { addListener: (listener: Function) => { listeners.push(listener); } },
             openOptionsPage: async () => { effects.push('openOptions'); },
         },
+        storage: { session: { set: async (value: { openOptionsAccountId: string | null }) => {
+            effects.push('handoff:' + (value.openOptionsAccountId ?? 'none'));
+        } } },
         tabs: {
             create: async ({ url }: { url: string }) => {
                 assert.equal(url, 'https://gemini.google.com/app');
@@ -96,7 +99,8 @@ function setup(t: { after: (fn: () => void) => void }, overrides: {
         'src/runtime/background/tabAction.js': { initTabActionListeners: () => effects.push('initTabAction') },
         'src/runtime/background/readiness.js': { ensureV2Ready: overrides.ready || (async () => {}) },
         'src/runtime/background/contentSender.js': security,
-        'src/l3a/storageService.js': { listIndexes: async (id: string) => {
+        'src/l3a/storageService.js': { getAccount: async (id: string) => id === A ? account : null,
+            listIndexes: async (id: string) => {
             indexQueries.push(id);
             return overrides.indexes ? overrides.indexes(id) : v2IndexFixtures(id);
         } },
@@ -202,7 +206,23 @@ test('Explicit user navigation never starts Sync/Export or reloads unrelated pag
     assert.deepEqual((await dispatch({ action: 'openGeminiPage' })).result, { ok: true, tabId: 80 });
     assert.match((await dispatch({ action: 'reloadGeminiTab', tabId: 7 })).result.error, /Not a Gemini Tab/);
     assert.deepEqual((await dispatch({ action: 'reloadGeminiTab', tabId: 80 })).result, { ok: true });
-    assert.deepEqual(effects.slice(4), ['openOptions', 'openGemini', 'reload:80']);
+    assert.deepEqual(effects.slice(4), ['handoff:none', 'openOptions', 'openGemini', 'reload:80']);
+});
+
+test('Options navigation hands off only a verified current source account', async t => {
+    const { dispatch, changeAccount, effects } = setup(t);
+    assert.deepEqual((await dispatch({ action: 'openOptions', accountId: A })).result, { ok: true });
+    assert.deepEqual(effects.slice(-2), ['handoff:' + A, 'openOptions']);
+    changeAccount(B);
+    // A changed source opens Options normally, without selecting the stale account.
+    assert.deepEqual((await dispatch({ action: 'openOptions', accountId: A })).result, { ok: true });
+    assert.deepEqual(effects.slice(-2), ['handoff:none', 'openOptions']);
+    const popup = { id: 'ext', url: 'chrome-extension://ext/src/ui/popup/popup.html' };
+    assert.deepEqual((await dispatch({ action: 'openOptions', accountId: A }, popup)).result, { ok: true });
+    assert.deepEqual(effects.slice(-2), ['handoff:' + A, 'openOptions']);
+    assert.deepEqual((await dispatch({ action: 'openOptions', accountId: B }, popup)).result, { ok: true });
+    assert.deepEqual(effects.slice(-2), ['handoff:none', 'openOptions']);
+    assert.equal((await dispatch({ action: 'openOptions', accountId: 'not-a-uuid' }, popup)).result.ok, false);
 });
 
 test('Unexpected/foreign callers fail closed without touching data', async t => {
