@@ -29,6 +29,7 @@ test('format picker is page-rendered and supports pointer, keyboard and dismissa
 
     await select.press('Space');
     await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     await expect(select).toHaveValue('json');
     await expect.poll(async () => (await storedSettings(page)).defaultFormat).toBe('json');
