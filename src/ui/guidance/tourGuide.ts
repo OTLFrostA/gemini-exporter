@@ -1,6 +1,8 @@
 import { STEPS } from './tourSteps.js';
 import { text } from '../shared/settings.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
+import { SOURCE_PLATFORMS } from '../../shared/platformHosts.js';
+import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
 let mode: 'tour' | 'spotlight' | 'takeout' | 'authorization' | null = null;
@@ -9,6 +11,7 @@ let cleanupOverlay: (() => void) | undefined;
 let onDismiss: (() => void) | undefined;
 let relayout: (() => void) | undefined;
 let authorizationReady = false;
+let skipAuthorizationStep = false;
 let onConnected: ((accountId: string) => Promise<void>) | undefined;
 
 export function consumeTourIntent(): boolean {
@@ -21,7 +24,7 @@ function destroy(): void {
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove(); root = null; mode = null; onDismiss = undefined; relayout = undefined;
-    authorizationReady = false; onConnected = undefined;
+    authorizationReady = false; skipAuthorizationStep = false; onConnected = undefined;
 }
 function close(): void { const callback = onDismiss; destroy(); callback?.(); }
 const finishTour = async (): Promise<void> => { destroy(); };
@@ -215,7 +218,7 @@ function footer(popover: HTMLElement): HTMLElement {
 async function goToStep(index: number): Promise<void> {
     if (mode !== 'tour') return;
     if (index >= STEPS.length) { destroy(); return; }
-    stepIndex = Math.max(0, index);
+    stepIndex = Math.max(skipAuthorizationStep ? 1 : 0, index);
     const step = STEPS[stepIndex];
     const relatedId = step.id === 'live_save' ? 'btnSetDir' : step.id === 'select' ? 'btnSelectAll' : undefined;
     const related = relatedId
@@ -228,7 +231,7 @@ async function goToStep(index: number): Promise<void> {
     const nav = document.createElement('div');
     nav.className = 'tour-nav-btns';
     navFooter.append(nav);
-    if (stepIndex) button(nav, text('Back', '上一步'), () => { void prevStep(); },
+    if (stepIndex > (skipAuthorizationStep ? 1 : 0)) button(nav, text('Back', '上一步'), () => { void prevStep(); },
         'tourPrevBtn', 'tour-nav-btn');
     const nextButton = button(nav, stepIndex === STEPS.length - 1 ? text('Start using', '开始使用') : text('Next', '下一步'),
         () => { void nextStep(); }, 'tourNextBtn', 'tour-nav-btn primary');
@@ -248,6 +251,10 @@ async function goToStep(index: number): Promise<void> {
             if (mode !== 'tour' || STEPS[stepIndex] !== step || !popover.isConnected) return;
             authorizationReady = ready;
             nextButton.disabled = !ready;
+        }, () => {
+            if (mode !== 'tour' || STEPS[stepIndex] !== step || !popover.isConnected) return;
+            skipAuthorizationStep = true;
+            void goToStep(1);
         });
     }
 }
@@ -258,13 +265,20 @@ async function nextStep(): Promise<void> {
 async function prevStep(): Promise<void> { await goToStep(stepIndex - 1); }
 async function startTour(connected?: (accountId: string) => Promise<void>): Promise<void> {
     if (modalOpen()) return;
-    destroy(); mode = 'tour'; onConnected = connected; await goToStep(0);
+    destroy(); mode = 'tour'; onConnected = connected;
+    const granted = await Promise.all(SOURCE_PLATFORMS.map(hasPlatformAccess));
+    if (mode !== 'tour') return;
+    skipAuthorizationStep = granted.every(Boolean);
+    await goToStep(skipAuthorizationStep ? 1 : 0);
 }
 
-function mountAuthorization(popover: HTMLElement, before: HTMLElement, ready?: (authorized: boolean) => void): () => void {
+function mountAuthorization(
+    popover: HTMLElement, before: HTMLElement,
+    ready?: (authorized: boolean) => void, allAuthorized?: () => void,
+): () => void {
     const host = document.createElement('div');
     popover.insertBefore(host, before);
-    const stop = mountPlatformAuthorization(host, { ready, connected: onConnected });
+    const stop = mountPlatformAuthorization(host, { ready, allAuthorized, connected: onConnected });
     return () => { stop(); host.remove(); };
 }
 
