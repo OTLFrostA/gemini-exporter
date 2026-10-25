@@ -160,21 +160,16 @@ test('ChatGPTProvider checkReadiness reports logged-out session', async () => {
     assert.equal(seenCredentials, 'include');
 });
 
-test('ChatGPTProvider refuses a truthy non-string session token before contacting backend-api', async () => {
+test('ChatGPTProvider rejects non-string Session tokens before an authorized request', async () => {
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['invalid-token-user', 'invalid-token-workspace']));
-    const requestedUrls: string[] = [];
+    const requests: string[] = [];
     const provider = new ChatGPTProvider({ fetchFn: async url => {
-        requestedUrls.push(url);
-        if (url.endsWith('/api/auth/session')) {
-            return new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_INVALID_TOKEN_01')));
-        }
-        throw new Error('Invalid Session must not reach backend-api');
+        requests.push(url);
+        return new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_INVALID_TOKEN_01')));
     } });
     assert.equal((await provider.checkReadiness(account.id)).ready, false);
-    await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent' }),
-        /has no accessToken/);
-    assert.equal(requestedUrls.length, 2);
-    assert.ok(requestedUrls.every(url => url.endsWith('/api/auth/session')));
+    await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent' }), /has no accessToken/);
+    assert.deepEqual(requests, Array(2).fill('https://chatgpt.com/api/auth/session'));
 });
 
 test('tool image nodes are kept and their sediment pointers collected', () => {
