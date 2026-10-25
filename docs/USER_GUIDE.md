@@ -4,6 +4,12 @@
 
 Gemini Exporter saves supported Google Gemini conversations locally. It does **not** provide hosted backup or cloud synchronization.
 
+## Connect a platform
+
+Open **Site access** in the Workbench, select the platforms you need, and click **Authorize**. Only platforms still needing permission appear; already authorized platforms are hidden. Unchecking a platform does not revoke its existing access. To revoke access, use Chrome’s extension settings. After authorization, sign in on the source website and select its account in the Workbench.
+
+![Platform site-access selection](../store_assets/screenshot_site_access_1280x800.png)
+
 ## Export formats and delivery
 
 | Format | Typical use |
@@ -33,6 +39,8 @@ Choose either **Browser download** or **Save to local folder** in the Workbench.
 **Sync is not a file backup.** It discovers/updates accessible conversation records; **Export selected** creates files. Previously saved local conversations are not removed merely because a later scan cannot find them.
 
 **Skip exported** is designed to skip only a fully completed, matching-format export when the known source has not changed. Re-export a chat when its contents have changed or when you want a different format.
+
+![Workbench with synced Gemini conversations](../store_assets/screenshot_1_1280x800.png)
 
 ## Live Save
 
@@ -64,7 +72,7 @@ Takeout can supplement what Gemini exposes to an online scan. It cannot guarante
 
 **Why does PDF ask to access local fonts?** The local PDF renderer may request Chrome's Local Font Access permission to use installed fonts, especially for non-Latin scripts. Your document is compiled locally.
 
-**Can I back up ChatGPT, Claude, or Grok?** Source builds include experimental ChatGPT and Claude support. In onboarding or Site access, select Gemini, ChatGPT and/or Claude (all selected by default), then click Authorize. Chrome requests the selected platforms’ optional conversation and attachment sites together. Sign in on the platform websites, then select an account, sync and export. Each platform is authorized independently. Grok is not implemented.
+**Can I back up ChatGPT, Claude, or Grok?** Source builds include experimental ChatGPT, Claude and Grok support. Authorize the platforms you need through onboarding or Site access. Chrome requests only the selected platforms’ conversation and attachment sites. Sign in on the platform websites, then select an account, sync and export. Keep a signed-in grok.com tab open for Grok synchronization and export. Missing attachments, unsupported tools and ambiguous branches may produce partial exports.
 
 **What happens to ChatGPT questionnaires and interactive cards?** Exports preserve the provider's full Markdown fallback. Dynamic syntax alone does not mark that textual export incomplete. For loop-generated forms, literal question/option data is also recovered from arrays referenced by the template, without running component code. A dynamic component without a usable fallback remains incomplete because literal recovery cannot establish full text coverage. Buttons become labels; exports do not reproduce interactive state, submit forms or run ChatGPT actions. Selected answers and calculated results are preserved when they are present in the source fallback or subsequent conversation messages.
 

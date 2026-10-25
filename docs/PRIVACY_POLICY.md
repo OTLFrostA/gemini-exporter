@@ -1,6 +1,6 @@
 # Privacy Policy for Gemini Exporter
 
-**Last Updated: October 21, 2026**
+**Last Updated: October 25, 2026**
 
 <p align="left">
   <b>English</b> | <a href="#隐私权政策-中文版">简体中文</a>
@@ -12,9 +12,9 @@ Gemini Exporter ("we", "our", or "the Extension") is committed to protecting you
 
 ## 1. Single Purpose & Overview
 
-Gemini Exporter is an open-source, client-side browser extension designed for a single dedicated purpose: **to allow users to export and back up their own personal Google Gemini conversation history into local files (Markdown, JSON, TXT, PDF, or ZIP archives) on their computer.**
+Gemini Exporter is an open-source, client-side browser extension designed for a single dedicated purpose: **to allow users to export and back up their own personal Google Gemini conversation history into local files (Markdown, HTML, PDF, or JSON, with automatic ZIP packaging for multi-file browser downloads) on their computer.**
 
-All platform site access is optional and grouped separately for Gemini, ChatGPT and Claude. In onboarding or **Site access**, select the platforms you want to use and click **Authorize**; only the selected platforms’ conversation and attachment sites are requested together. Source builds include experimental ChatGPT and Claude adapters. Each uses your existing login directly, without a developer-operated intermediary.
+All platform site access is optional and grouped separately for Gemini, ChatGPT, Claude and Grok. In onboarding or **Site access**, select the platforms you want to use and click **Authorize**; only the selected platforms’ conversation and attachment sites are requested together. Source builds include experimental ChatGPT, Claude and Grok adapters. Each uses your existing login directly, without a developer-operated intermediary.
 
 ---
 
@@ -37,6 +37,7 @@ The Extension requests minimal permissions strictly necessary to perform its adv
 | **`scripting`** | Registers and activates source scripts only for platforms with granted site access. |
 | **Gemini optional sites (`gemini.google.com`, `*.googleusercontent.com`, `*.usercontent.google.com`, `drive.google.com`, `lh3.google.com`, `*.gstatic.com`)** | Requested together when Gemini is selected for authorization to read conversations and download their attachments. |
 | **ChatGPT optional sites (`chatgpt.com`, `chat.openai.com`, `images.openai.com`)** | Requested together when ChatGPT is selected for authorization to identify the signed-in user/workspace and read conversations and images. |
+| **Grok optional sites (`grok.com`, `assets.grok.com`)** | Requested together when Grok is selected for authorization to read conversations and download attachments. |
 | **Claude optional site (`claude.ai`)** | Requested when Claude is selected for authorization to identify the current organization and read conversations and attachments. |
 
 No platform has mandatory host access or automatically injected source scripts at installation. Connecting one platform does not authorize another. No platform password or session token is saved in the local conversation database.
@@ -56,6 +57,7 @@ A small bundled math font (`NewCMMath-Regular.otf`, GUST Font License) ships wit
 - **Google Gemini (optional)**: After site access is granted, the extension interacts directly with `gemini.google.com` to display your existing conversations. It does not send your data to any other third party.
 - **ChatGPT (optional)**: After site access is granted, the extension contacts ChatGPT directly using your existing login. Conversation processing and exported files remain local, without a developer-operated intermediary.
 - **Claude (optional)**: After site access is granted, the extension reads conversations and attachments directly from `claude.ai` using your existing login. Processing and exports remain local.
+- **Grok (optional)**: After site access is granted, the extension reads conversations and available attachments directly from Grok using your existing login. Processing and exports remain local.
 - **Open-Source Libraries**: We use [JSZip](https://stuk.github.io/jszip/) (client-side JavaScript library) to compress files into `.zip` archives directly within your browser, and the Typst compiler WebAssembly + JS glue (`@myriaddreamin/typst.ts` ecosystem, Apache-2.0) to compile PDFs locally. The bundled NewCMMath font is under the GUST Font License. No external network requests are made by these components.
 
 ---
@@ -87,14 +89,14 @@ If you have questions, concerns, or bug reports regarding this Privacy Policy, p
 
 <h2 id="隐私权政策-中文版">隐私权政策 (中文版)</h2>
 
-**最近更新日期：2026 年 9 月**
+**最近更新日期：2026 年 10 月 25 日**
 
 Gemini Exporter（以下简称“本扩展”）深知用户隐私的重要性。本隐私政策旨在向您说明本扩展如何处理与保护您的数据。
 
 ### 1. 单一用途声明
-Gemini Exporter 是一款纯本地运行的开源浏览器扩展，仅用于实现单一核心功能：**允许用户将自己在 Google Gemini (gemini.google.com) 中的历史对话记录导出并备份为本地文件（Markdown、JSON、TXT、PDF 或 ZIP 压缩包）。**
+Gemini Exporter 是一款纯本地运行的开源浏览器扩展，仅用于实现单一核心功能：**允许用户将自己在 Google Gemini (gemini.google.com) 中的历史对话记录导出并备份为本地文件（Markdown、HTML、PDF 或 JSON；浏览器多文件下载自动打包 ZIP）。**
 
-Gemini、ChatGPT、Claude 的网站访问权限均为可选项，按平台独立申请。在新手引导或“网站授权”中勾选所需平台并点击“授权”后，一次申请所选平台会话与附件网站的访问权限。源码版包含实验性的 ChatGPT 和 Claude 适配器，通过现有登录会话直接读取您请求的数据，不经过开发者中转服务器。
+Gemini、ChatGPT、Claude、Grok 的网站访问权限均为可选项，按平台独立申请。在新手引导或“网站授权”中勾选所需平台并点击“授权”后，一次申请所选平台会话与附件网站的访问权限。源码版包含实验性的 ChatGPT、Claude 和 Grok 适配器，通过现有登录会话直接读取您请求的数据，不经过开发者中转服务器。
 
 ### 2. 零数据收集与 100% 客户端沙箱运行
 - **绝无外部服务器**：本扩展不设立、不连接任何外部后端服务器、中转节点或数据收集 API。
@@ -108,6 +110,7 @@ Gemini、ChatGPT、Claude 的网站访问权限均为可选项，按平台独立
 - **`scripting`**：仅为已授权平台注册、激活来源脚本。
 - **Gemini 可选网站权限**：`gemini.google.com`、`*.googleusercontent.com`、`*.usercontent.google.com`、`drive.google.com`、`lh3.google.com`、`*.gstatic.com`，勾选 Gemini 并授权时一组申请，用于读取会话和附件。
 - **ChatGPT 可选网站权限**：`chatgpt.com`、`chat.openai.com`、`images.openai.com`，勾选 ChatGPT 并授权时一组申请，用于确认用户/工作区并读取会话和图片。
+- **Grok 可选网站权限**：`grok.com`、`assets.grok.com`，勾选 Grok 并授权时一组申请，用于读取会话和可获取的附件。
 - **Claude 可选网站权限**：`claude.ai`，勾选 Claude 并授权时申请，用于确认组织并读取会话和附件。
 
 安装时不强制授予任何平台的网站访问权，也不自动注入来源脚本。连接一个平台不会授权其他平台。平台密码和会话令牌不会写入本地会话数据库。

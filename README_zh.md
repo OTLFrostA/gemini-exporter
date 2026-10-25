@@ -28,11 +28,11 @@
 
 ## 📸 产品截图
 
-![Gemini Exporter v2 中文工作台，展示示例对话](./store_assets/screenshot_3_1280x800.png)
+![Gemini Exporter v2 中文工作台，展示实际同步的 Gemini 对话](./store_assets/screenshot_3_1280x800.png)
 
-[深色模式及实时保存](./store_assets/screenshot_2_1280x800.png) · [快捷导出弹窗](./store_assets/screenshot_popup_v2.png)
+[深色模式与本地文件夹设置](./store_assets/screenshot_2_1280x800.png) · [快捷导出弹窗](./store_assets/screenshot_popup_v2.png) · [网站授权](./store_assets/screenshot_site_access_1280x800.png)
 
-*截图来自实际运行的 v2 扩展，所有对话均为匿名示例数据。*
+*截图于 2026 年 10 月 25 日通过 9222 端口的真实 Chrome 拍摄，使用当前源码构建及实际同步的 Gemini 对话。详见[截图记录](./docs/product-screenshots.md)。*
 
 ## 🚀 三步开始
 

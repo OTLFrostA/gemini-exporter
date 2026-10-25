@@ -28,11 +28,11 @@ English/简体中文 interface · Dark/light theme · Export status and retry to
 
 ## 📸 Preview
 
-![Gemini Exporter v2 workbench with demo conversations](./store_assets/screenshot_1_1280x800.png)
+![Gemini Exporter v2 workbench with synced Gemini conversations](./store_assets/screenshot_1_1280x800.png)
 
-[Dark-mode workbench & Live Save](./store_assets/screenshot_2_1280x800.png) · [Quick-export popup](./store_assets/screenshot_popup_v2.png)
+[Dark-mode workbench & local-folder settings](./store_assets/screenshot_2_1280x800.png) · [Quick-export popup](./store_assets/screenshot_popup_v2.png) · [Site access](./store_assets/screenshot_site_access_1280x800.png)
 
-*Screenshots were captured from the actual v2 extension with anonymous example conversations.*
+*Captured on October 25, 2026 from the current source build in real Chrome on port 9222, using synced Gemini conversations. See [capture details](./docs/product-screenshots.md).*
 
 ## 🚀 Get started
 
@@ -50,7 +50,7 @@ English/简体中文 interface · Dark/light theme · Export status and retry to
 
 ## 🔒 Privacy first
 
-Your exports are processed on your device, not on a developer-operated server. The extension uses your existing browser sessions to retrieve requested conversations and resources from Google Gemini, or from ChatGPT after you grant optional site access.
+Your exports are processed on your device, not on a developer-operated server. The extension uses your existing browser sessions to retrieve requested conversations and resources from Google Gemini, or experimental ChatGPT, Claude and Grok sources after you grant their optional site access.
 
 ## 🛠️ Build from source
 
