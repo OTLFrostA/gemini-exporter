@@ -4,18 +4,20 @@ import type { PreparedResources } from '../../shared/resources/resourceResult.js
 import type { ExportArtifact } from '../artifacts.js';
 import { buildExportFileName, sanitizeFileName, shortScope } from '../../shared/utils/pathUtils.js';
 import { ZipWriter } from './writers/zipWriter.js';
+import { docxImageType } from '../format/docx/imageType.js';
 import { assertExportPath } from './exportPath.js';
 
-export type ExportFormat = 'markdown' | 'html' | 'json' | 'pdf';
+export type ExportFormat = 'markdown' | 'html' | 'json' | 'pdf' | 'docx';
 export type ExportDelivery = 'browserDownload' | 'folderWriter';
 export type ExportPathPlan = Readonly<{
     fileName: string;
     resources: ResourceBindings;
     externalResourceIds: ReadonlySet<string>;
 }>;
-const extensions: Readonly<Record<ExportFormat, string>> = { markdown: 'md', html: 'html', json: 'json', pdf: 'pdf' };
+const extensions: Readonly<Record<ExportFormat, string>> = { markdown: 'md', html: 'html', json: 'json', pdf: 'pdf', docx: 'docx' };
 const mimeTypes: Readonly<Record<ExportFormat, string>> = { markdown: 'text/markdown; charset=utf-8', html: 'text/html; charset=utf-8',
-    json: 'application/json; charset=utf-8', pdf: 'application/pdf' };
+    json: 'application/json; charset=utf-8', pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
 const resourceExtensions: Readonly<Record<string, string>> = {
     'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp',
     'image/svg+xml': 'svg', 'application/pdf': 'pdf', 'text/plain': 'txt',
@@ -54,7 +56,9 @@ export function createExportPathPlanner(format: ExportFormat):
             const baseName = sanitizeFileName(asset.name || asset.id);
             const name = asset.name && /\.[^.]+$/.test(baseName) ? baseName : `${baseName}.${extension}`;
             resources[asset.id] = reserve(asset.kind === 'image' ? 'assets/' : 'files/', shortScope(id) + name);
-            if (format !== 'pdf' || fileIds.has(asset.id)) externalResourceIds.add(asset.id);
+            const embeddedDocxImage = format === 'docx' && asset.kind === 'image'
+                && docxImageType(mediaType, result.value.bytes) !== undefined;
+            if ((format !== 'pdf' && !embeddedDocxImage) || fileIds.has(asset.id)) externalResourceIds.add(asset.id);
         }
         return { fileName, resources, externalResourceIds };
     };
