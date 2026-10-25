@@ -30,11 +30,7 @@ export function calculateBackoff(retryCount: number, options?: BackoffOptions): 
     const jitter = options?.jitterMs ?? 1000;
     const delay = initial * Math.pow(2, retryCount) + Math.floor(Math.random() * jitter);
     const capped = Math.min(max, delay);
-    const retryAfterMs = options?.retryAfterMs;
-    if (typeof retryAfterMs === 'number' && retryAfterMs > 0) {
-        return Math.max(capped, retryAfterMs);
-    }
-    return capped;
+    return Math.max(capped, options?.retryAfterMs || 0);
 }
 
 /**
