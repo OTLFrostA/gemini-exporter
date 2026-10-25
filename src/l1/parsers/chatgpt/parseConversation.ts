@@ -84,7 +84,7 @@ function parseBody(text: string, nodeId: string, ctx: MarkdownParseContext): Blo
 function reasoningOfThinking(thinking: ChatGPTThinking, nodeId: string, ctx: MarkdownParseContext): BlockNode[] {
     const blocks: BlockNode[] = [];
     const head: string[] = [];
-    if (typeof thinking.durationSeconds === 'number') head.push(`思考用时约 ${thinking.durationSeconds} 秒`);
+    if (thinking.durationSeconds !== undefined) head.push(`思考用时约 ${thinking.durationSeconds} 秒`);
     if (thinking.activities.length > 0) head.push(thinking.activities.join(' / '));
     if (head.length > 0) {
         blocks.push({ type: 'paragraph', children: [{ type: 'text', text: `【思考过程】${head.join('；')}` }] });

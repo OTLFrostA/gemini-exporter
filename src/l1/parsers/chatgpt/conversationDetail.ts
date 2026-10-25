@@ -69,10 +69,10 @@ export function collectChatGPTThinking(
                 thinking = emptyThinking();
             } else if (ct === 'reasoning_recap') {
                 const duration = message.metadata?.finished_duration_sec;
-                if (typeof duration === 'number') {
+                if (duration !== undefined) {
                     thinking.durationSeconds = duration;
                 } else {
-                    const raw = typeof message.content.content === 'string' ? message.content.content : '';
+                    const raw = message.content.content ?? '';
                     const match = raw.match(/(\d+)/);
                     if (match?.[1]) thinking.durationSeconds = Number.parseInt(match[1], 10);
                 }
@@ -147,7 +147,7 @@ export function uploadedFilesOfChatGPTNode(node: ChatGPTConversationNode): ChatG
             id: a.id,
             name: a.name,
             ...(a.mime_type ? { mediaType: a.mime_type } : {}),
-            ...(typeof a.size === 'number' && Number.isFinite(a.size) ? { byteLength: Math.round(a.size) } : {}),
+            ...(a.size !== undefined && Number.isFinite(a.size) ? { byteLength: Math.round(a.size) } : {}),
         });
     }
     return out;
