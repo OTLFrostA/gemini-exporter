@@ -12,8 +12,9 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
     await page.locator('#btnSelectNone').click();await page.locator('[data-chat-id="metadata_only"] input').check();await page.locator('#btnExport').click();await expect(page.locator('#status')).toContainText('failed: 1');
     const {exposeUIStorage}=await import('./uiFixture');await exposeUIStorage(page);
     await page.locator('#devToggle').check();
+    await page.locator('#btnMoreActions').click();
     await expect(page.locator('#btnClearExported')).toBeVisible();
     await page.locator('#btnClearExported').click();await page.locator('#btnCleanupCancel').click();expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').getExportRecord({accountId:id,conversationId:'archive_local'}),accountId)).toBeTruthy();
-    await page.locator('#btnClearExported').click();await page.locator('#btnCleanupConfirm').click();await expect(page.locator('#status')).toHaveText('Records cleared');expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'archive_local'}),accountId)).toBeTruthy();
+    await page.locator('#btnMoreActions').click(); await page.locator('#btnClearExported').click();await page.locator('#btnCleanupConfirm').click();await expect(page.locator('#status')).toHaveText('Records cleared');expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'archive_local'}),accountId)).toBeTruthy();
     await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').ingestDeletedConversation(id,'archive_local'),accountId);expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'archive_local'}),accountId)).toBeNull();expect(await readFile((await file.path())!)).toEqual(bytes);
 });
