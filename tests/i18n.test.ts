@@ -54,7 +54,7 @@ test('i18n - inline language attributes are not duplicated within a source eleme
 test('i18n - current labels recover when switching back from Chinese to English', async () => {
     await open(); await page.locator('#langToggle').setChecked(false); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
     await page.locator('#langToggle').setChecked(true); await page.waitForFunction(() => document.documentElement.lang === 'en');
-    assert.equal(await page.locator('#btnSyncAll').textContent(), 'Sync All'); assert.equal(await page.locator('#btnSelectAll').textContent(), 'All');
+    assert.equal(await page.locator('#btnSyncAll').textContent(), 'Sync All'); assert.equal(await page.locator('#btnSelectAll').getAttribute('aria-label'), 'Select all visible conversations');
 });
 test('i18n - labelPage translates descendants as text without interpreting translation markup', async () => {
     await open(); const result = await page.evaluate(() => {
