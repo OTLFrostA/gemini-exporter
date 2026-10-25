@@ -2,6 +2,10 @@ import { elementById as el, requiredElement as control } from '../shared/element
 import { exportSummary } from '../shared/exportSummary.js';
 import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
+import { PLATFORM_HOSTS, SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
+import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
+import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
+import { STEPS } from '../guidance/tourSteps.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 import { getIndex } from '../../l3a/storageService.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
@@ -10,13 +14,21 @@ import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontPro
 import { runExport } from '../options/controllers/exportController.js';
 import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
 
+/** Only the explicitly opened Popup inspects its active tab; URLs never establish Account identity. */
+export function platformForTabUrl(url: string | undefined): SourcePlatform | null {
+    if (!url) return null;
+    try {
+        const origin = new URL(url).origin;
+        return SOURCE_PLATFORMS.find(platform =>
+            PLATFORM_HOSTS[platform].pages.some(page => new URL(page).origin === origin)) ?? null;
+    } catch { return null; }
+}
+
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
-export async function readActiveKey(): Promise<ConversationKey | null> {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id === undefined || !tab.url) return null;
-    const origin = new URL(tab.url).origin;
-    const expectedProvider = origin === 'https://gemini.google.com' ? 'gemini'
-        : ['https://chatgpt.com', 'https://chat.openai.com'].includes(origin) ? 'chatgpt' : origin === 'https://grok.com' ? 'grok' : origin === 'https://claude.ai' ? 'claude' : null;
+export async function readActiveKey(activeTab?: chrome.tabs.Tab): Promise<ConversationKey | null> {
+    const tab = activeTab ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+    if (tab?.id === undefined) return null;
+    const expectedProvider = platformForTabUrl(tab.url);
     if (!expectedProvider) return null;
     const raw = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
     if (!raw || typeof raw !== 'object') return null;
@@ -39,10 +51,16 @@ export async function initPopup(): Promise<void> {
     let identityLoaded = false;
     let busy = false, active = true;
     let themeSaving = false;
+    let permissionPlatform: SourcePlatform | null = null;
+    let stopPermission: (() => void) | null = null;
     const buttons = [...document.getElementsByTagName('button')].filter(button => button.dataset.format !== undefined);
     const formatName: Record<GlobalSettings['defaultFormat'], string> = { markdown: 'Markdown', html: 'HTML', pdf: 'PDF', json: 'JSON' };
     const render = () => {
         labelPage();
+        if (permissionPlatform) {
+            el('popupPermissionTitle').textContent = STEPS[0].title();
+            el('popupPermissionDescription').textContent = STEPS[0].description();
+        }
         labelThemeToggle(control('button', 'btnThemeToggle'), settings);
         // Appearance is independent of exporting or updating another preference.
         control('button', 'btnThemeToggle').disabled = !settings || themeSaving;
@@ -63,7 +81,7 @@ export async function initPopup(): Promise<void> {
     };
     const refresh = async () => { settings = await readSettings(); if (active) render(); };
     const stop = observeSettings(() => { void refresh().catch(e => { showError(e); }); });
-    window.addEventListener('pagehide', () => { active = false; stop(); }, { once: true });
+    window.addEventListener('pagehide', () => { active = false; stop(); stopPermission?.(); }, { once: true });
     el('btnOptions').addEventListener('click', () => { void chrome.runtime.openOptionsPage(); });
     const changeSettings = (patch: Partial<GlobalSettings>) => {
         if (busy) return;
@@ -114,16 +132,50 @@ export async function initPopup(): Promise<void> {
                 if (active) { busy = false; render(); }
             });
     });
+    const showCurrentConversation = async (tab?: chrome.tabs.Tab) => {
+        permissionPlatform = null;
+        stopPermission?.();
+        stopPermission = null;
+        key = null;
+        indexTitle = null;
+        try {
+            key = await readActiveKey(tab);
+            const index = key ? await getIndex(key) : null;
+            indexTitle = index?.title || null;
+            if (!key) showStatus(() => text('Open a supported conversation first', '请先打开受支持的对话'));
+        } catch (error) {
+            showError(error);
+        }
+        if (!active) return;
+        identityLoaded = true;
+        el('popupPermission').hidden = true;
+        el('popupMain').hidden = false;
+        render();
+    };
     render();
     try {
         await ensureV2Ready();
         await refresh();
-        key = await readActiveKey();
-        const index = key ? await getIndex(key) : null;
-        indexTitle = index?.title || null;
-        identityLoaded = true;
-        if (!key) showStatus(() => text('Open a supported conversation first', '请先打开受支持的对话'));
-    } catch (error) { showError(error); }
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const platform = platformForTabUrl(tab?.url);
+        if (platform && !await hasPlatformAccess(platform)) {
+            permissionPlatform = platform;
+            el('popupMain').hidden = true;
+            el('popupPermission').hidden = false;
+            stopPermission = mountPlatformAuthorization(el('popupPermissionControls'), {
+                selectedPlatforms: [platform],
+                granted: selected => {
+                    if (selected.includes(platform)) void showCurrentConversation(tab);
+                },
+            });
+        } else {
+            await showCurrentConversation(tab);
+        }
+    } catch (error) {
+        el('popupPermission').hidden = true;
+        el('popupMain').hidden = false;
+        showError(error);
+    }
     render();
 }
 if (typeof document !== 'undefined') {
