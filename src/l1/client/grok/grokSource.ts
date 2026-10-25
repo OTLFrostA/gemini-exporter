@@ -25,7 +25,7 @@ export async function readGrokSource(path: string, expectedUser?: string, body?:
                         const r = await fetch(path, { credentials: 'include', headers: { 'Content-Type': 'application/json' },
                             ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
                         if (!r.ok) throw new Error('Grok API HTTP ' + r.status);
-                        return r.json() as Promise<unknown>;
+                        return r.json();
                     };
                     const verify = async () => {
                         const user = await get('/rest/auth/get-user');
