@@ -8,7 +8,7 @@ function __handleLocationChange(): void {
     if (typeof location === 'undefined') return;
     if (location.href !== __lastObservedUrl) {
         __lastObservedUrl = location.href;
-        if (typeof __historyUrlCallback === 'function') __historyUrlCallback();
+        __historyUrlCallback?.();
     }
 }
 
