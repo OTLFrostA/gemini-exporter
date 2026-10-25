@@ -66,6 +66,50 @@ test('account, status and log pickers paint inside the viewport in both themes a
     await expect(page.locator('#list .item')).toHaveCount(2);
 });
 
+test('compact conversation toolbar keeps source, search, filter and overflow actions accessible', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'toolbar-chat' }]);
+
+    const source = page.locator('#accountIdSelect');
+    const more = page.locator('#btnMoreActions');
+    const menu = page.locator('#moreActionsMenu');
+    await expect(source).toBeVisible();
+    await expect(source.locator('option').first()).toContainText('Gemini · ');
+    await expect(page.locator('#btnImportTakeout')).toBeHidden();
+    await expect(page.locator('#btnClearScan')).toBeHidden();
+
+    for (const width of [1280, 1024]) {
+        await page.setViewportSize({ width, height: 800 });
+        const aligned = await page.evaluate(() => {
+            const selectors = ['#btnSyncAll', '#accountIdSelect', '.conversation-search',
+                '#chatFilterSelect', '#btnMoreActions'];
+            const rects = selectors.map(selector => document.querySelector(selector)!.getBoundingClientRect());
+            const toolbar = document.querySelector('.conversation-toolbar')!.getBoundingClientRect();
+            return rects.every(rect => Math.abs(rect.top - toolbar.top) <= 2 && rect.right <= toolbar.right + 1)
+                && rects.every((rect, i) => i === 0 || rect.left >= rects[i - 1]!.right);
+        });
+        expect(aligned, 'all controls must fit in one ordered row').toBe(true);
+    }
+
+    await more.click();
+    await expect(menu).toBeVisible();
+    await expect(more).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#btnImportTakeout')).toBeVisible();
+    await expect(page.locator('#btnClearScan')).toBeVisible();
+    await expect(page.locator('#btnClearExported')).toBeHidden();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(more).toBeFocused();
+    await more.click();
+    await page.locator('#chatSearchInput').click();
+    await expect(menu).toBeHidden();
+
+    await page.locator('#chatFilterSelect').selectOption('no_record');
+    await expect(page.locator('#chatFilterSelect')).toHaveValue('no_record');
+    await expect(page.locator('#list .item')).toHaveCount(1);
+});
+
 test('cleanup confirmation is screenshot-visible, traps focus, cancels safely and works in Chinese', async ({ context, extensionId }) => {
     await seedRegistryAccounts(context);
     const page = await openOptions(context, extensionId);
