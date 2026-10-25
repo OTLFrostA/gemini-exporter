@@ -390,7 +390,13 @@ export async function initWorkbench(): Promise<void> {
         moreActionsButton.setAttribute('aria-expanded', String(!moreActionsMenu.hidden));
     });
     moreActionsMenu.addEventListener('click', event => {
-        if (event.target instanceof Element && event.target.closest('button')) closeMoreActions();
+        if (event.target instanceof Element && event.target.closest('button')) {
+            closeMoreActions();
+            moreActionsButton.focus();
+        }
+    });
+    el<HTMLDialogElement>('cleanupModal').addEventListener('close', () => {
+        if (moreActionsMenu.hidden) moreActionsButton.focus();
     });
     document.addEventListener('pointerdown', event => {
         if (event.target instanceof Node && !moreActionsButton.parentElement?.contains(event.target))
