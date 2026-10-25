@@ -187,7 +187,7 @@ function getAtFromPage(doc?: unknown): string {
 
 function detectSlot(urlOrPath?: string | null): string | null {
     try {
-        let path = typeof urlOrPath === "string" ? urlOrPath : "";
+        let path = urlOrPath ?? "";
         if (!path) {
             const glob = getGlobalObject();
             if (glob && isRecord(glob.location) && typeof glob.location.pathname === "string") {
@@ -258,8 +258,7 @@ async function resolveCredInner(
     const firstAt = vals[0]?.at;
     if ((!vals.length || !firstAt) && pageAt) {
         const slot = requestedSlot || detectSlot() || "default";
-        const rawFirstSid = vals[0]?.sid;
-        const firstSid = (typeof rawFirstSid === "string" || typeof rawFirstSid === "number") ? rawFirstSid : null;
+        const firstSid = vals[0]?.sid ?? null;
         const sid = firstSid || ("page_" + Date.now());
         const entry: GeminiCredentials = {
             sid,
@@ -291,12 +290,7 @@ async function resolveCredInner(
         }
     } else if (pageBl) {
         const curSlot = normSlot(requestedSlot || detectSlot());
-        const target = vals.find(v => {
-            const rawBl = v.bl;
-            const hasBl = typeof rawBl === "string" && rawBl.length > 0;
-            const rawSlot = typeof v.accountSlot === "string" ? v.accountSlot : undefined;
-            return !hasBl && normSlot(rawSlot) === curSlot;
-        });
+        const target = vals.find(v => !v.bl && normSlot(v.accountSlot) === curSlot);
         if (target) {
             target.bl = pageBl;
             try {
@@ -309,31 +303,23 @@ async function resolveCredInner(
     let result: GeminiCredentials;
     if (targetSid && isStoredCredential(map[targetSid])) {
         const stored = map[targetSid];
-        const storedBl = typeof stored.bl === "string" ? stored.bl : null;
-        const storedAt = typeof stored.at === "string" ? stored.at : null;
         result = {
             ...stored,
-            bl: storedBl || pageBl || GeminiProtocol.BL_FALLBACK,
-            at: storedAt || pageAt || ""
+            bl: stored.bl || pageBl || GeminiProtocol.BL_FALLBACK,
+            at: stored.at || pageAt || ""
         };
     } else {
         const cur = normSlot(requestedSlot || detectSlot());
-        const f = vals.filter(v => {
-            const rawSlot = typeof v.accountSlot === "string" ? v.accountSlot : undefined;
-            return normSlot(rawSlot) === cur;
-        });
+        const f = vals.filter(v => normSlot(v.accountSlot) === cur);
         // CRITICAL SECURITY FIX: Do NOT fall back to `vals` when `f` is empty!
         // Borrowing other accounts' credentials causes silent cross-account token pollution.
-        const arr = f;
-        arr.sort((a, b) => (Number(b.lastUsed) || 0) - (Number(a.lastUsed) || 0));
-        if (arr[0]) {
-            const best = arr[0];
-            const bestBl = typeof best.bl === "string" ? best.bl : null;
-            const bestAt = typeof best.at === "string" ? best.at : null;
+        f.sort((a, b) => (Number(b.lastUsed) || 0) - (Number(a.lastUsed) || 0));
+        if (f[0]) {
+            const best = f[0];
             result = {
                 ...best,
-                bl: bestBl || pageBl || GeminiProtocol.BL_FALLBACK,
-                at: bestAt || (cur === normSlot(detectSlot()) ? pageAt : "") || ""
+                bl: best.bl || pageBl || GeminiProtocol.BL_FALLBACK,
+                at: best.at || (cur === normSlot(detectSlot()) ? pageAt : "") || ""
             };
         } else {
             const isCurrentPageMatch = cur === normSlot(detectSlot());
