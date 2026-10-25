@@ -19,6 +19,7 @@ test('clearing export records preserves bodies and skip preference, then explici
     const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'one'}],{one:{exportedAt:200,chatTime:100,format:'markdown',status:'ok'}});
     await expect(page.locator('#btnClearExported')).toBeHidden();
     await page.locator('#devToggle').check();
+    await page.locator('#btnMoreActions').click();
     await expect(page.locator('#btnClearExported')).toBeVisible();
     const before=await storedSettings(page);await page.locator('#btnClearExported').click();await page.locator('#btnCleanupConfirm').click();await expect(page.locator('#status')).toHaveText('Records cleared');
     expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId)).toEqual({});expect((await storedSettings(page)).skipExported).toBe(before.skipExported);
