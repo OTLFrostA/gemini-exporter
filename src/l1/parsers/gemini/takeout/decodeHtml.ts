@@ -6,7 +6,7 @@ export const stripHtmlTags = utilsStripHtmlTags;
  * Safely unescapes basic HTML entities in a single pass to prevent double-unescaping vulnerabilities.
  */
 function unescapeHtmlEntities(str: string): string {
-    if (!str || typeof str !== 'string') return '';
+    if (!str) return '';
     return str.replace(/&(?:amp|lt|gt|quot|#39);/g, (match) => {
         switch (match) {
             case '&amp;': return '&';
