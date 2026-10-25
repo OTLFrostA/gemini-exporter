@@ -166,10 +166,7 @@ test('ChatGPTProvider refuses a truthy non-string session token before contactin
     const provider = new ChatGPTProvider({ fetchFn: async url => {
         requestedUrls.push(url);
         if (url.endsWith('/api/auth/session')) {
-            return new Response(JSON.stringify({
-                accessToken: { bearer: 'not-a-string' },
-                user: { id: 'invalid-token-user' }, account: { id: 'invalid-token-workspace' },
-            }));
+            return new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_INVALID_TOKEN_01')));
         }
         throw new Error('Invalid Session must not reach backend-api');
     } });
