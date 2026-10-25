@@ -25,7 +25,7 @@ export async function readSettings(): Promise<GlobalSettings> {
     const settings = await getSettings(); useSettings(settings); return settings;
 }
 export function observeSettings(refresh: () => void): () => void {
-    const listener = (_changes: unknown, area: string) => { if (area === 'local') refresh(); };
+    const listener = (_changes: { [key: string]: chrome.storage.StorageChange }, area: string) => { if (area === 'local') refresh(); };
     chrome.storage.onChanged.addListener(listener);
     return () => chrome.storage.onChanged.removeListener(listener);
 }
@@ -62,24 +62,24 @@ export function errorText(error: unknown): string {
 /** Translate static UI nodes only; dynamic titles, messages, paths and logs are rendered by their views. */
 export function labelPage(): void {
     document.querySelectorAll<HTMLElement>('[data-en][data-zh], [data-ui-en][data-ui-zh]').forEach(el => {
-        el.textContent = text(el.dataset.en ?? el.dataset.uiEn!, el.dataset.zh ?? el.dataset.uiZh!);
+        el.textContent = text(el.dataset.en ?? el.dataset.uiEn ?? '', el.dataset.zh ?? el.dataset.uiZh ?? '');
     });
     const copy = UI_COPY[language === 'zh' ? 'zh' : 'en'];
     for (const el of document.querySelectorAll<HTMLElement>('[data-i18n]')) {
         if (el.id === 'currentChatTitle' || el.id === 'chatTurnBadge' || el.id === 'dirLabel' || el.id === 'log') continue;
-        const label = copy[el.dataset.i18n!];
+        const label = copy[el.dataset.i18n ?? ''];
         if (label) el.textContent = label;
     }
     for (const el of document.querySelectorAll<HTMLElement>('[data-i18n-title]')) {
-        const label = copy[el.dataset.i18nTitle!];
+        const label = copy[el.dataset.i18nTitle ?? ''];
         if (label) el.title = label;
     }
     for (const el of document.querySelectorAll<HTMLInputElement>('[data-i18n-placeholder]')) {
-        const label = copy[el.dataset.i18nPlaceholder!];
+        const label = copy[el.dataset.i18nPlaceholder ?? ''];
         if (label) el.placeholder = label;
     }
     for (const el of document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]')) {
-        const label = copy[el.dataset.i18nAriaLabel!];
+        const label = copy[el.dataset.i18nAriaLabel ?? ''];
         if (label) el.setAttribute('aria-label', label);
     }
 }
