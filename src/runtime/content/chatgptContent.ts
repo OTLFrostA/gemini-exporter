@@ -47,8 +47,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
 });
 
 let queue = Promise.resolve();
-window.addEventListener('message', event => {
-    if (event.source !== window || event.origin !== location.origin || event.data?.type !== CHATGPT_SOURCE_EVENT) return;
+window.addEventListener('message', (event: MessageEvent<unknown>) => {
+    if (event.source !== window || event.origin !== location.origin || !event.data || typeof event.data !== 'object'
+        || !('type' in event.data) || event.data.type !== CHATGPT_SOURCE_EVENT || !('payload' in event.data)) return;
     const raw: unknown = event.data.payload;
     queue = queue.catch(() => {}).then(async () => {
         if (!raw || typeof raw !== 'object' || !('url' in raw) || typeof raw.url !== 'string'

@@ -54,3 +54,11 @@ memory views only when required by its native write contract.
 Compile-time `typeof`, native capability detection, and validation of actual
 external input are not interchangeable with unchecked casts. Generated third-party
 WASM declarations under `vendor/` are excluded from the owned-source zero-any gate.
+
+## Runtime Content transport
+
+Content page events use `MessageEvent<unknown>` and validate the envelope before
+passing payloads to source decoders. Live Save replies are decoded at the Chrome
+message boundary before becoming `ExportResult`; invalid replies use error
+feedback. The type-aware unsafe-flow gate includes all Runtime Content files.
+See [the Content audit](content-message-type-audit.md) for scope and remaining debt.

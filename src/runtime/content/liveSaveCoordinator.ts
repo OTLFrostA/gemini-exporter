@@ -1,3 +1,4 @@
+import { readLiveSaveResponse } from './liveSaveResponse.js';
 import { getAccountContext } from './accountContext.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
 import type { ExportResult } from '../../application/export/types.js';
@@ -20,9 +21,8 @@ export async function executeLiveSave(value: ConversationKey, refreshDetail = fa
     // A late passive Detail result from an old account must not start a new active export.
     if (!stillCurrent()) return null;
     try {
-        const response = await chrome.runtime.sendMessage({ action: 'runLiveSave', key, ...(refreshDetail ? { refreshDetail: true } : {}) });
-        if (!response || response.ok !== true) throw new Error(response?.error || 'Live Save unavailable');
-        const result: ExportResult | null = response.result;
+        const response: unknown = await chrome.runtime.sendMessage({ action: 'runLiveSave', key, ...(refreshDetail ? { refreshDetail: true } : {}) });
+        const result = readLiveSaveResponse(response);
         if (current === instance && feedback === badge && stillCurrent() && result) {
             feedback?.showLiveSaveResult?.(result, key.accountId);
         }
