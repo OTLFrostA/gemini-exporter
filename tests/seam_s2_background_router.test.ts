@@ -214,12 +214,14 @@ test('Options navigation hands off only a verified current source account', asyn
     assert.deepEqual((await dispatch({ action: 'openOptions', accountId: A })).result, { ok: true });
     assert.deepEqual(effects.slice(-2), ['handoff:' + A, 'openOptions']);
     changeAccount(B);
-    assert.equal((await dispatch({ action: 'openOptions', accountId: A })).result.ok, false);
-    assert.deepEqual(effects.slice(-2), ['handoff:' + A, 'openOptions']);
+    // A changed source opens Options normally, without selecting the stale account.
+    assert.deepEqual((await dispatch({ action: 'openOptions', accountId: A })).result, { ok: true });
+    assert.deepEqual(effects.slice(-2), ['handoff:none', 'openOptions']);
     const popup = { id: 'ext', url: 'chrome-extension://ext/src/ui/popup/popup.html' };
     assert.deepEqual((await dispatch({ action: 'openOptions', accountId: A }, popup)).result, { ok: true });
     assert.deepEqual(effects.slice(-2), ['handoff:' + A, 'openOptions']);
-    assert.equal((await dispatch({ action: 'openOptions', accountId: B }, popup)).result.ok, false);
+    assert.deepEqual((await dispatch({ action: 'openOptions', accountId: B }, popup)).result, { ok: true });
+    assert.deepEqual(effects.slice(-2), ['handoff:none', 'openOptions']);
     assert.equal((await dispatch({ action: 'openOptions', accountId: 'not-a-uuid' }, popup)).result.ok, false);
 });
 
