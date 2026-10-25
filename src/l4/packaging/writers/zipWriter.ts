@@ -8,7 +8,7 @@ import { assertExportPath } from '../exportPath.js';
  */
 export function isPrecompressedAsset(path: string): boolean {
     if (!path) return false;
-    return /\.(png|jpe?g|webp|gif|bmp|mp3|mp4|m4a|wav|ogg|zip|gz|tar|pdf)$/i.test(path);
+    return /\.(png|jpe?g|webp|gif|bmp|mp3|mp4|m4a|wav|ogg|zip|docx|gz|tar|pdf)$/i.test(path);
 }
 
 /** Only the JSZip operations used by this writer. */
