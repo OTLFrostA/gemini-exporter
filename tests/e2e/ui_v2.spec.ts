@@ -43,25 +43,25 @@ test('Options applies a one-time source handoff on load and reuse, but not while
     await expect(selector).toHaveValue(A);
 });
 
-test('UI v2: Popup four formats use one request, preserve enabledDisk, include assets and never skip', async ({ page }) => {
+test('UI v2: Popup five formats use one request, preserve enabledDisk, include assets and never skip', async ({ page }) => {
     await mount(page, 'popup');
     // Product contract: the dark card/tabs layout survives the v2 service migration with the new Linear-inspired palette.
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(16, 16, 17)');
     await expect(page.locator('#chatInfoCard')).toBeVisible();
-    await expect(page.locator('#formatTabs .tab-btn')).toHaveCount(4);
+    await expect(page.locator('#formatTabs .tab-btn')).toHaveCount(5);
     for (const hiddenOfProductScope of ['#countBadge', '#chatTurnBadge', '#langToggle', '#progWrap', '#format']) {
         await expect(page.locator(hiddenOfProductScope)).toHaveCount(0);
     }
     await expect(page.locator('#btnCurrent')).toBeEnabled();
-    await expect(page.locator('button')).toHaveCount(7);
+    await expect(page.locator('button')).toHaveCount(8);
     await expect(page.locator('#currentChatTitle')).toHaveText('<img src=x onerror=alert(1)>');
-    for (const format of ['markdown','html','json','pdf']) {
+    for (const format of ['markdown','html','json','docx','pdf']) {
         await page.locator(`[data-format="${format}"]`).click();
         await expect(page.locator(`[data-format="${format}"]`)).toHaveAttribute('aria-pressed','true');
         await page.locator('#btnCurrent').click();
         await expect(page.locator('#status')).toHaveText('Download initiated');
     }
-    const requests = await read(page,'exports'); expect(requests.map((r: any)=>r.format)).toEqual(['markdown','html','json','pdf']);
+    const requests = await read(page,'exports'); expect(requests.map((r: any)=>r.format)).toEqual(['markdown','html','json','docx','pdf']);
     for (const request of requests) expect(request).toEqual({keys:[{accountId:A,conversationId:'a'}],format:request.format,delivery:'browserDownload',includeAssets:true,skipUnchanged:false});
     expect((await read(page,'settings')).enabledDisk).toBe(true);
     expect((await read(page,'events')).slice(-3)).toEqual(['fonts','context','export']);
