@@ -17,7 +17,8 @@ export async function repairSourceVersions(): Promise<void> {
                 await updateConversationAtomically(index.key, (oldIndex, oldDetail) => {
                     const { updatedAt: _version, ...retainedIndex } = oldIndex ?? index;
                     // Message timestamps remain source facts and may still supply a display date.
-                    const dates = oldDetail?.messages.flatMap(message => Number.isSafeInteger(message.timestamp) ? [message.timestamp!] : []) ?? [];
+                    const dates = oldDetail?.messages.map(message => message.timestamp)
+                        .filter((timestamp): timestamp is number => Number.isSafeInteger(timestamp)) ?? [];
                     if (retainedIndex.activityAt === undefined && dates.length) retainedIndex.activityAt = Math.max(...dates);
                     const retainedDetail = oldDetail ? (({ savedAt: _savedAt, ...body }) => body)(oldDetail) : undefined;
                     return { index: retainedIndex, ...(retainedDetail ? { detail: retainedDetail } : {}), result: undefined };
