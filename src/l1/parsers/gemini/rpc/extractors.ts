@@ -356,7 +356,7 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         }
 
         if (warnings.length > 0) {
-            const isDev = (typeof globalThis !== "undefined" && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog))
+            const isDev = (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog)
                 || (typeof window !== "undefined" && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
             if (isDev) {
                 console.warn("[Gemini Exporter][Schema Drift Warning] Detected %d schema drift(s) in conv %s:", warnings.length, convId || "unknown", warnings);
