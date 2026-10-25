@@ -4,7 +4,7 @@ import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExpo
 import { v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
-import { ZipWriter } from '../src/l4/packaging/writers/zipWriter.js';
+import { ZipWriter, isPrecompressedAsset } from '../src/l4/packaging/writers/zipWriter.js';
 import { assertExportPath } from '../src/l4/packaging/exportPath.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
@@ -85,6 +85,10 @@ test('Packaging rejects dangling external bindings before Delivery; Image-only P
     assert.equal(pdfPlan.externalResourceIds.size, 0, 'PDF without AST File references embeds images only');
     assert.equal(buildExportFiles('pdf', pdfPlan, new Uint8Array([1]), prepared).length, 1);
 });
+test('DOCX files are already compressed for batch ZIP packaging', () => {
+    assert.equal(isPrecompressedAsset('conversation.docx'), true);
+});
+
 test('ZIP decision uses actual flattened files and delivery, never format or batch count', async () => {
     __setZipConstructor(JSZip);
     const a = { fileName: 'a.pdf', mimeType: 'application/pdf', content: new Uint8Array([1]) };
