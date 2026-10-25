@@ -1,7 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
-import { transformSync } from 'esbuild';
 import * as protocol from '../../src/l1/protocol/gemini/protocol.js';
 import { geminiAccountObservation } from '../../src/l1/client/gemini/accountObservation.js';
 import { readGeminiListRequest } from '../../src/l1/parsers/gemini/rpc/listRequest.js';
@@ -19,9 +16,7 @@ export function createHookSandbox(sniffProfile?: typeof sniffUserProfileFromDom)
         async fetch(_input?: unknown, _init?: RequestInit) { return new Response(win.__nextResponseText); },
     };
     class MockXhr { open(_method: string, _url: string) {} send(_body?: string) {} addEventListener() {} }
-    const source = fs.readFileSync(path.resolve('src/l1/sniffer/gemini/hookCredentials.ts'), 'utf8')
-        .replace(/import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*\s,]+)\s*from\s*['"][^'"]+['"];?\s*/g, '');
-    const script = transformSync(source, { loader: 'ts', format: 'iife' }).code;
+    const script = require('./bundleGeminiHook.cjs')();
     vm.runInNewContext(script, { window: win,
         location: { origin: 'https://gemini.google.com', href: 'https://gemini.google.com/app', pathname: '/app' },
         document: { querySelectorAll: () => [], addEventListener() {} },

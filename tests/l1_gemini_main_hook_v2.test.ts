@@ -2,17 +2,11 @@
 // Runtime tests mock the L1 bootstrap/MessageBridge v2 contracts instead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import path from 'node:path';
 import { streamGen as geminiStreamGen } from './fixtures/providers/geminiStream.js';
-const root = path.resolve(__dirname, '..');
 
 test('MAIN hook reinjection returns before wrapping fetch or adding timers/listeners', () => {
-    const fs = require('node:fs');
-    const esbuild = require('esbuild');
     const vm = require('node:vm');
-    const source = fs.readFileSync(path.join(root, 'src/l1/sniffer/gemini/hookCredentials.ts'), 'utf8')
-        .replace(/import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*\s,]+)\s*from\s*['"][^'"]+['"];?\s*/g, '');
-    const script = esbuild.transformSync(source, { loader: 'ts', format: 'iife' }).code;
+    const script = require('./helpers/bundleGeminiHook.cjs')();
     const window = { __gemExporterHookInstalled: true, fetch: () => {} };
     const original = window.fetch;
     vm.runInNewContext(script, { window });
@@ -23,7 +17,7 @@ test('MAIN hook reinjection returns before wrapping fetch or adding timers/liste
 // Completion requires an answered candidate and a complete response, not HTTP status.
 // The fixture has no cloud-history persistence token. Application acquires Detail.
 function hookHarness(fetcher: Function) {
-    const fs = require('node:fs'), esbuild = require('esbuild'), vm = require('node:vm');
+    const vm = require('node:vm');
     const protocol = require('../src/l1/protocol/gemini/protocol.js');
     const messages: any[] = [];
     let intervals = 0;
@@ -39,9 +33,7 @@ function hookHarness(fetcher: Function) {
         setInterval: () => { intervals++; return 1; },
     });
     const location = { href: 'https://gemini.google.com/app/abcdef123456', pathname: '/app/abcdef123456', origin: 'https://gemini.google.com' };
-    const source = fs.readFileSync(path.join(root, 'src/l1/sniffer/gemini/hookCredentials.ts'), 'utf8')
-        .replace(/import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*\s,]+)\s*from\s*['"][^'"]+['"];?\s*/g, '');
-    const script = esbuild.transformSync(source, { loader: 'ts', format: 'iife' }).code;
+    const script = require('./helpers/bundleGeminiHook.cjs')();
     const context = vm.createContext({ window: win, location, document: new EventTarget(),
         console, Event, URL, URLSearchParams, Request, Response, TextEncoder, TextDecoder, Uint8Array,
         XMLHttpRequest: Xhr, GeminiProtocol: protocol, CrossWorldEvents: protocol.CrossWorldEvents,
@@ -201,4 +193,39 @@ for (const transport of ['Fetch', 'XHR']) test(`${transport}: cumulative stream 
     }
     assert.equal(harness.complete().length, 1);
     assert.equal(harness.complete()[0].payload.id, 'abcdef123456');
+});
+
+
+for (const transport of ['fetch', 'xhr']) test(`${transport}: endpoint dispatch rejects foreign hosts and misleading query parameters`, async () => {
+    const wire = geminiStreamGen('G_STREAM_ANSWERED_01');
+    const harness = hookHarness(async () => new Response(wire));
+    for (const url of [
+        harness.url.replace('gemini.google.com', 'example.com'),
+        'https://gemini.google.com/telemetry?next=/StreamGenerate',
+        'https://gemini.google.com/telemetry?next=/batchexecute',
+    ]) {
+        if (transport === 'fetch') {
+            await (await harness.win.fetch(url)).text(); await settleHook();
+        } else {
+            const xhr = new harness.Xhr(); (xhr.open as Function)('POST', url);
+            xhr.responseText = wire; xhr.send(); xhr.emit('load');
+        }
+    }
+    assert.equal(harness.messages.filter(message => message.type !== 'GEMINI_ACCOUNT_OBSERVED').length, 0);
+});
+
+for (const transport of ['fetch', 'xhr']) test(`${transport}: identical stream frames go only to the selected endpoint handler`, async () => {
+    const wire = geminiStreamGen('G_STREAM_ANSWERED_01');
+    const harness = hookHarness(async () => new Response(wire));
+    const batchUrl = 'https://gemini.google.com/_/BardChatUi/data/batchexecute';
+    for (const url of [batchUrl, harness.url]) {
+        if (transport === 'fetch') {
+            await (await harness.win.fetch(url)).text(); await settleHook();
+        } else {
+            const xhr = new harness.Xhr(); (xhr.open as Function)('POST', url);
+            xhr.responseText = wire; xhr.send(); xhr.emit('load'); xhr.emit('loadend');
+        }
+        assert.equal(harness.complete().length, url === batchUrl ? 0 : 1);
+    }
+    assert.equal(harness.messages.filter(message => message.type === 'GEMINI_NETWORK_BATCHEXECUTE').length, 0);
 });
