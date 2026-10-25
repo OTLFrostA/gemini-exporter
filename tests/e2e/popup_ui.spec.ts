@@ -19,6 +19,20 @@ test('Popup and Options synchronize format in both directions and consume the sa
     await options.locator('#langToggle').uncheck();await expect(popup.locator('#btnCurrent')).toHaveText('📥 导出当前对话');
     await popup.reload();await expect(popup.locator('[data-format="html"]')).toHaveAttribute('aria-pressed','true');await expect(popup.locator('#btnCurrent')).toHaveText('📥 导出当前对话');
 });
+test('Popup DOCX export downloads a Word archive locally', async ({ context, extensionId }) => {
+    const options = await openOptions(context, extensionId);
+    await seedConversations(options, [{ id: 'a', body: 'A Word export in Chromium' }]);
+    const popup = await openPopup(context, extensionId);
+    await popup.locator('[data-format="docx"]').click();
+    const pending = popup.waitForEvent('download');
+    await popup.locator('#btnCurrent').click();
+    const file = await pending;
+    expect(file.suggestedFilename()).toMatch(/\.docx$/);
+    const bytes = await readFile((await file.path())!);
+    expect(bytes.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+    await expect(popup.locator('#status')).toHaveText('Download initiated');
+});
+
 test('Popup rejects malformed current context without download and allows retry after a transport failure',async({context,extensionId})=>{
     const options=await openOptions(context,extensionId);await seedConversations(options,[{id:'a'}]);const popup=await openPopup(context,extensionId);await expect(popup.locator('#btnCurrent')).toBeEnabled();
     await popup.evaluate(()=>{Object.defineProperty(chrome.tabs,'sendMessage',{configurable:true,value:()=>{throw new Error('Injected context failure');}});});
