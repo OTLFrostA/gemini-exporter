@@ -22,15 +22,18 @@ function object(value: unknown): Record<string, unknown> {
 export function readAccountParameters(value: unknown): Omit<Account, 'id'> {
     const raw = object(value);
     const fields = ['providerId', 'providerAccountId', 'email', 'displayName'];
-    if (Object.keys(raw).some(key => !fields.includes(key)) || typeof raw.providerId !== 'string' || !raw.providerId
-        || typeof raw.providerAccountId !== 'string' || !raw.providerAccountId
-        || fields.some(key => raw[key] !== undefined && (typeof raw[key] !== 'string' || !raw[key] || raw[key] !== raw[key].trim()))) {
+    const { providerId, providerAccountId, email, displayName } = raw;
+    if (Object.keys(raw).some(key => !fields.includes(key))
+        || typeof providerId !== 'string' || !providerId || providerId !== providerId.trim()
+        || typeof providerAccountId !== 'string' || !providerAccountId || providerAccountId !== providerAccountId.trim()
+        || (email !== undefined && (typeof email !== 'string' || !email || email !== email.trim()))
+        || (displayName !== undefined && (typeof displayName !== 'string' || !displayName || displayName !== displayName.trim()))) {
         throw new TypeError('Invalid account parameters');
     }
-    return { providerId: raw.providerId, providerAccountId: raw.providerAccountId,
-        ...(raw.providerAccountId === DEFAULT_ACCOUNT_KEY ? {} : {
-            ...(typeof raw.email === 'string' ? { email: raw.email } : {}),
-            ...(typeof raw.displayName === 'string' ? { displayName: raw.displayName } : {}) }) };
+    return { providerId, providerAccountId,
+        ...(providerAccountId === DEFAULT_ACCOUNT_KEY ? {} : {
+            ...(email !== undefined ? { email } : {}),
+            ...(displayName !== undefined ? { displayName } : {}) }) };
 }
 export function readAccount(value: unknown): Account {
     const { id, ...parameters } = object(value);
