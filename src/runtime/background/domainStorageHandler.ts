@@ -26,10 +26,7 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                 object(request.detail);
                 if (request.indexFields !== undefined) object(request.indexFields);
                 const result = await ingestDetail(account.id, request.conversationId, request.detail as Parameters<typeof ingestDetail>[2], request.indexFields as Parameters<typeof ingestDetail>[3]);
-                if (!result || typeof result !== 'object' || typeof result.accepted !== 'boolean'
-                    || typeof result.changed !== 'boolean' || (!result.accepted && result.changed)) {
-                    throw new TypeError('Invalid committed Detail ingestion result');
-                }
+                if (!result.accepted && result.changed) throw new TypeError('Invalid committed Detail ingestion result');
                 notifyDomainChanged(account.id);
                 respond({ ok: true, result: { accepted: result.accepted, changed: result.changed } });
                 return;
