@@ -18,7 +18,6 @@ Gemini Exporter runs locally in your browser and supports exporting conversation
 ![Gemini Exporter workbench](https://raw.githubusercontent.com/OTLFrostA/gemini-exporter/main/store_assets/screenshot_1_1280x800.png)
 
 - [User guide](./USER_GUIDE.html) · [中文使用指南](./USER_GUIDE_zh.html)
-- [Screenshot capture details](./product-screenshots.html)
 
 ## Privacy
 

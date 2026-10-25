@@ -60,10 +60,11 @@ required permissions used for local staging must never enter a store package.
 
 ## Product screenshots
 
-Current README and store screenshot assets were captured in real Chrome on port
-9222. See [capture provenance, dimensions and refresh steps](./product-screenshots.md).
-The dark workbench image shows local-folder settings before folder authorization;
-it does not demonstrate active Live Save.
+README/store screenshots in `store_assets/` were captured on October 25, 2026
+from version 2.0.0 in real Chrome on port 9222, using synced Gemini conversations.
+Workbench and Site access images are 1280 × 800; the actual action popup is
+360 × 296. The dark image shows local-folder settings before folder authorization,
+with Live Save off. Capture Site access before granting optional platform access.
 
 ## 🏷️ Title & Promotional Assets Policy Compliance (Red Nickel Prevention)
 
