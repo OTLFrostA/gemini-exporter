@@ -59,7 +59,7 @@ const stylesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     + '<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/>'
     + '<w:pPr><w:spacing w:after="300"/></w:pPr><w:rPr><w:sz w:val="19"/><w:color w:val="64748B"/></w:rPr></w:style>'
     + '<w:style w:type="paragraph" w:styleId="Role"><w:name w:val="Role"/>'
-    + '<w:pPr><w:spacing w:before="260" w:after="100" w:keepNext="1"/></w:pPr>'
+    + '<w:pPr><w:spacing w:before="260" w:after="100"/><w:keepNext/></w:pPr>'
     + '<w:rPr><w:b/><w:sz w:val="25"/><w:color w:val="3158A3"/></w:rPr></w:style>'
     + [1, 2, 3].map(level => '<w:style w:type="paragraph" w:styleId="Heading' + level + '"><w:name w:val="Heading ' + level + '"/>'
         + '<w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="200" w:after="100"/><w:keepNext/></w:pPr>'
@@ -181,7 +181,7 @@ export async function renderDocumentDocx(
             + '<w:tblCellMar><w:top w:w="95" w:type="dxa"/><w:bottom w:w="95" w:type="dxa"/>'
             + '<w:left w:w="125" w:type="dxa"/><w:right w:w="125" w:type="dxa"/></w:tblCellMar></w:tblPr>'
             + '<w:tblGrid>' + Array.from({ length: width }, () => '<w:gridCol w:w="' + twips + '"/>').join('') + '</w:tblGrid>'
-            + tableRows.length ? '' : '';
+            + cells + '</w:tbl>';
     }
     function renderTable(node: Extract<DisplayBlock, { type: 'table' }>): string {
         return table(node);
