@@ -34,11 +34,13 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
                 if (request.accountId != null) {
                     if (!isAccountId(request.accountId)) throw new TypeError('Expected Account UUID');
                     await ensureV2Ready();
-                    const account = sender.tab
-                        ? await requireCurrentContentAccount(sender, request.accountId)
-                        : await getAccount(request.accountId);
-                    if (!account) throw new Error('Source account is not registered');
-                    accountId = account.id;
+                    if (sender.tab) {
+                        // A tab can navigate during the click; never select its stale account.
+                        try { accountId = (await requireCurrentContentAccount(sender, request.accountId)).id; }
+                        catch { accountId = null; }
+                    } else {
+                        accountId = (await getAccount(request.accountId))?.id ?? null;
+                    }
                 }
                 // Session-only handoff works for both newly opened and already open Options tabs.
                 await chrome.storage.session.set({ openOptionsAccountId: accountId });
