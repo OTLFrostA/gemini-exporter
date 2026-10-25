@@ -159,7 +159,8 @@ test('Slow account discovery does not block authorization and closing discards i
     await page.locator('#btnAuthorizePlatforms').click();
     await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishDiscovery === 'function');
     await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
-    assert.equal(await page.locator('#btnAuthorizePlatforms').isEnabled(), true);
+    // The only selected platform was just authorized and is now hidden; no ungranted selection remains.
+    assert.equal(await page.locator('#btnAuthorizePlatforms').isEnabled(), false);
     await page.keyboard.press('Escape');
     await page.evaluate(({ B }) => Reflect.get(window, 'harness').finishDiscovery(B), { B });
     assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
