@@ -32,7 +32,7 @@ English/简体中文 interface · Dark/light theme · Export status and retry to
 
 [Dark-mode workbench & local-folder settings](./store_assets/screenshot_2_1280x800.png) · [Quick-export popup](./store_assets/screenshot_popup_v2.png) · [Site access](./store_assets/screenshot_site_access_1280x800.png)
 
-*Captured on October 25, 2026 from the current source build in real Chrome on port 9222, using synced Gemini conversations. See [capture details](./docs/product-screenshots.md).*
+*Captured on October 25, 2026 from the current source build in real Chrome on port 9222, using synced Gemini conversations.*
 
 ## 🚀 Get started
 
