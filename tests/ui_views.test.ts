@@ -69,6 +69,35 @@ test('list select all and deselect all operate on current view selection', async
     assert.equal(await page.locator('#list input:checked').count(), 2);
     await page.locator('#btnSelectAll').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
 });
+test('select-all checkbox displays none, mixed and all for the visible rows', async () => {
+    await open({ indexes: rows });
+    const all = page.locator('#btnSelectAll');
+    await page.locator('#list .item').first().waitFor();
+    assert.equal(await all.isChecked(), false);
+    assert.equal(await all.evaluate((input: HTMLInputElement) => input.indeterminate), false);
+
+    await page.locator('[data-chat-id=one] input').check();
+    assert.equal(await all.isChecked(), false);
+    assert.equal(await all.evaluate((input: HTMLInputElement) => input.indeterminate), true);
+    await all.click();
+    assert.equal(await all.isChecked(), true);
+    assert.equal(await page.locator('#list input:checked').count(), 2);
+    await all.click();
+    assert.equal(await page.locator('#list input:checked').count(), 0);
+    assert.equal(await all.evaluate((input: HTMLInputElement) => input.indeterminate), false);
+
+    await page.locator('#chatSearchInput').fill('Alpha');
+    await all.click();
+    assert.equal(await all.isChecked(), true);
+    assert.equal(await page.locator('#selectedStat').textContent(), '1 of 2 selected');
+    await page.locator('#chatSearchInput').fill('');
+    assert.equal(await all.isChecked(), false);
+    assert.equal(await all.evaluate((input: HTMLInputElement) => input.indeterminate), true);
+    await all.click();
+    assert.equal(await all.isChecked(), true);
+    await all.click();
+    assert.equal(await page.locator('#list input:checked').count(), 0);
+});
 test('list history refresh displays the latest persisted record after focus', async () => {
     await open({ indexes: rows }); await page.locator('#list .item').first().waitFor();
     await page.evaluate(({ A }) => { Reflect.get(window, 'harness').records = { [A]: { one: { status: 'ok', format: 'json', exportedAt: 200 } } }; window.dispatchEvent(new Event('focus')); }, { A });
