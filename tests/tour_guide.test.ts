@@ -34,6 +34,35 @@ async function choose(platforms: string[]) {
     }
 }
 
+test('Tour starts at Scan when all platform permissions are already granted', async () => {
+    await open({ geminiAccess: true, chatgptAccess: true, grokAccess: true, claudeAccess: true });
+    await start();
+    await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
+    assert.equal(await page.locator('#btnAuthorizePlatforms').count(), 0);
+    assert.equal(await page.locator('#tourPrevBtn').count(), 0);
+    await page.locator('#tourNextBtn').click();
+    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Select conversations');
+    await page.locator('#tourPrevBtn').click();
+    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Scan conversations');
+    assert.equal(await page.locator('#tourPrevBtn').count(), 0);
+    assert.deepEqual(await read(page, 'connectionRequests'), []);
+});
+
+test('Authorization choices show only missing platforms and never request a granted one', async () => {
+    await open({ geminiAccess: true, chatgptAccess: false, grokAccess: true, claudeAccess: false });
+    await start();
+    await page.locator('.platform-permission-row[data-platform="chatgpt"]').waitFor({ state: 'visible' });
+    for (const provider of ['gemini', 'grok']) {
+        assert.equal(await page.locator('.platform-permission-row[data-platform="' + provider + '"]').isVisible(), false);
+    }
+    for (const provider of ['chatgpt', 'claude'])
+        assert.equal(await page.locator('.platform-permission-row[data-platform="' + provider + '"] input').isChecked(), true);
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.locator('.platform-permission-row[data-platform="chatgpt"]').waitFor({ state: 'hidden' });
+    assert.deepEqual(await read(page, 'connectionRequests'), [[['chatgpt', 'claude'], true]]);
+    await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
+});
+
 test('Authorization shows one button above a default-selected platform list without opening websites', async () => {
     await open({ geminiAccess: false }); await start();
     for (const name of ['Gemini', 'ChatGPT', 'Grok', 'Claude'])
