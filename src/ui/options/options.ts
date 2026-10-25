@@ -146,7 +146,7 @@ export async function initWorkbench(): Promise<void> {
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
             'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan',
-            'chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
+            'chatSearchInput','chatFilterSelect','btnSelectAll',
             'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide','btnPlatformPermissions'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
@@ -529,8 +529,12 @@ export async function initWorkbench(): Promise<void> {
     el<HTMLSelectElement>('chatFilterSelect').addEventListener('change', () => {
         state.filter = el<HTMLSelectElement>('chatFilterSelect').value; renderConversations();
     });
-    el('btnSelectAll').addEventListener('click', () => { state.selectVisible(); renderConversations(); });
-    el('btnSelectNone').addEventListener('click', () => { state.selected.clear(); renderConversations(); });
+    el<HTMLInputElement>('btnSelectAll').addEventListener('change', () => {
+        if (busy) return;
+        if (el<HTMLInputElement>('btnSelectAll').checked) state.selectVisible();
+        else state.selected.clear();
+        renderConversations();
+    });
     const settingControls = { format: 'defaultFormat', skipExported: 'skipExported',
         includeAssets: 'includeAssets', liveSaveDiskToggle: 'enabledDisk' } as const;
     for (const [id, field] of Object.entries(settingControls)) el<HTMLInputElement>(id).addEventListener('change', () => {
