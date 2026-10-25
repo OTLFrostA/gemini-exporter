@@ -21,8 +21,6 @@ import {
     isRealTitle
 } from "./extractors.js";
 import {
-    extractImageEvidence,
-    extractResponseImageEvidence,
     filterNewImages,
     isInternalChipUrl
 } from "./sourceAttachments.js";
@@ -35,7 +33,6 @@ import {
     decodeGeminiUserResources,
     decodeGeminiCandidateResources,
     DOC_TITLE_FALLBACK_RE,
-    type DetailMediaReader,
     type DecodedGeminiUserResources,
     type DecodedGeminiCandidateResources,
 } from './turnResources.js';
@@ -190,7 +187,6 @@ function extractTurnsFromInner(
 function buildUserMessage(
     turn: DecodedGeminiTurn,
     resources: DecodedGeminiUserResources,
-    media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>
 ): GeminiMessageEvidence | null {
@@ -255,12 +251,11 @@ function buildUserMessage(
     }
 
     const rawRequestId = turn.rawProviderRequestId;
-    const userRequestId = media.sourceOnly ? rawRequestId : turn.providerRequestId;
 
     return {
-        id: media.sourceOnly ? (rawRequestId ?? "") : userMsgId,
+        id: rawRequestId ?? "",
         role: "user",
-        providerRequestId: userRequestId || void 0,
+        providerRequestId: rawRequestId || void 0,
         rawProviderRequestId: rawRequestId,
         turnId: userMsgId || void 0,
         content: uText,
@@ -277,7 +272,6 @@ function parseCandidateResponse(
     candidate: DecodedGeminiCandidate,
     turn: DecodedGeminiTurn,
     resources: DecodedGeminiCandidateResources,
-    media: DetailMediaReader,
     convId?: string
 ): GeminiMessageEvidence | null {
     const ts = turn.timestamp;
@@ -294,7 +288,6 @@ function parseCandidateResponse(
     }
 
     const rawRequestId = turn.rawProviderRequestId;
-    const providerRequestId = media.sourceOnly ? rawRequestId : turn.providerRequestId;
     const generatedCount = candImages.filter(img => img.isGenerated).length;
     const generationPrompt = turn.userText;
     const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
@@ -303,12 +296,12 @@ function parseCandidateResponse(
         return {
             ...img,
             type: "image",
-            providerRequestId: isGen ? providerRequestId : undefined,
+            providerRequestId: isGen ? rawRequestId : undefined,
             imageOrdinal: ordinal,
             ...(isGen ? {
                 generation: {
                     chatId: String(convId || '').replace(/^c_/, ''),
-                    providerRequestId,
+                    providerRequestId: rawRequestId,
                     imageOrdinal: ordinal,
                     generationOrdinal: 0,
                     imageCount: generatedCount,
@@ -357,10 +350,10 @@ function parseCandidateResponse(
     const fallbackTurnId = turn.fallbackTurnId;
 
     return {
-        id: media.sourceOnly ? candidateId : (candidateId || fallbackTurnId || ""),
+        id: candidateId,
         role: "model",
         content: responseText || "",
-        providerRequestId: providerRequestId || void 0,
+        providerRequestId: rawRequestId || void 0,
         rawProviderRequestId: rawRequestId,
         turnId: fallbackTurnId || void 0,
         thoughts: thoughts || void 0,
@@ -380,11 +373,7 @@ function parseCandidateResponse(
 }
 
 /** Source facts only: no archive destinations, unique names or synthetic image filenames. */
-function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?: string, overrides: unknown = {}): GeminiDetailEvidence {
-    return decodeDetailEvidence(text, targetConvId, overrides, { sourceOnly: true, images: extractImageEvidence, responseImages: extractResponseImageEvidence });
-}
-
-function decodeDetailEvidence(text: string | GeminiResponseEnvelope, targetConvId: string | undefined, _overrides: unknown, media: DetailMediaReader): GeminiDetailEvidence {
+function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?: string): GeminiDetailEvidence {
     try {
         const response = geminiResponse(text);
         const top = response.scope(GeminiProtocol.RPCS.DETAIL);
@@ -424,7 +413,6 @@ function decodeDetailEvidence(text: string | GeminiResponseEnvelope, targetConvI
         const allMsgs: GeminiMessageEvidence[] = [];
         const dedupSet = new Set<string>();
         const docDedupSet = new Set<string>();
-        const imageSeq = { value: 1 };
         const rev = [...turns].reverse();
 
         for (const rawTurn of rev) {
@@ -437,18 +425,17 @@ function decodeDetailEvidence(text: string | GeminiResponseEnvelope, targetConvI
             const turn = decodeTurn(rawTurn);
             if (!turn) continue;
 
-            const userResources = decodeGeminiUserResources(rawTurn, media, imageSeq);
-            const userMsg = buildUserMessage(turn, userResources, media, dedupSet, docDedupSet);
+            const userResources = decodeGeminiUserResources(rawTurn);
+            const userMsg = buildUserMessage(turn, userResources, dedupSet, docDedupSet);
             if (userMsg) allMsgs.push(userMsg);
 
             // hNvQHb may contain drafts; decodeTurn preserves the selected ID
             // and the historical primary-draft fallback in one place.
             if (turn.candidate) {
                 const resources = decodeGeminiCandidateResources(
-                    rawTurn, turn.candidateSource, turn.candidateIndex, turn.candidate.text,
-                    inner, media, dedupSet, docDedupSet, imageSeq, convId
+                    rawTurn, turn, inner, dedupSet, docDedupSet, convId
                 );
-                const modelMsg = parseCandidateResponse(turn.candidate, turn, resources, media, convId);
+                const modelMsg = parseCandidateResponse(turn.candidate, turn, resources, convId);
                 if (modelMsg) allMsgs.push(modelMsg);
             }
         }

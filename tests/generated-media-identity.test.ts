@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 const fs = require('node:fs');
 const path = require('node:path');
 import { parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
+import { decodeTurn, GEMINI_JSPB_SCHEMA } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 
 const id = '1bd028d5c5b0c0e2';
@@ -92,9 +93,7 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
 });
 
 test('regression: decodeTurn verifies request identity only in documented slots', () => {
-    const { decodeTurn } = require('../src/l1/parsers/gemini/rpc/extractors.js');
-    const extractTurnRequestId = (turn: unknown): string | undefined => decodeTurn(turn)?.providerRequestId;
-    const { GEMINI_JSPB_SCHEMA } = require('../src/l1/parsers/gemini/rpc/extractors.js');
+    const extractTurnRequestId = (turn: unknown): string | undefined => decodeTurn(turn)?.rawProviderRequestId;
 
     // Verify schema constant
     assert.equal(GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT, 1, 'REQUEST_ID_SLOT must be index 1 in ID_META');
@@ -106,7 +105,7 @@ test('regression: decodeTurn verifies request identity only in documented slots'
         [["user text"]],
         [[["rc_model_1", ["model text"]]]]
     ];
-    assert.equal(extractTurnRequestId(turnStandard), '1c81efe352c9ef8a', 'Extract from standard slot 1');
+    assert.equal(extractTurnRequestId(turnStandard), 'r_1c81efe352c9ef8a', 'Extract from standard slot 1');
 
     // Case 2: Standalone slot 0 when convId is absent
     const turnStandalone = [
@@ -115,14 +114,14 @@ test('regression: decodeTurn verifies request identity only in documented slots'
         [["user text"]],
         [[["rc_model_1", ["model text"]]]]
     ];
-    assert.equal(extractTurnRequestId(turnStandalone), '2b3c4d5e6f7a8b9c', 'Extract from slot 0 when convId is absent');
+    assert.equal(extractTurnRequestId(turnStandalone), 'r_2b3c4d5e6f7a8b9c', 'Extract from slot 0 when convId is absent');
 
     // Case 3: Direct string idMeta
     const turnStringId = [
         "r_9988776655443322",
         [1725302200, 0]
     ];
-    assert.equal(extractTurnRequestId(turnStringId), '9988776655443322', 'Extract from direct string idMeta');
+    assert.equal(extractTurnRequestId(turnStringId), 'r_9988776655443322', 'Extract from direct string idMeta');
 
     // Case 4: Non-schema slot (e.g. slot 2) must NOT be matched via .find() heuristic (returns undefined)
     const turnUnconfirmedSlot = [
@@ -145,13 +144,9 @@ test('regression: decodeTurn verifies request identity only in documented slots'
     ];
     assert.equal(extractTurnRequestId(turnNoR), undefined, 'Return undefined when no r_ present');
 
-    // The raw evidence must retain original case. Normalization belongs to
-    // the Turn boundary, not to the message and generated-image consumers.
+    // Request identity remains exactly as captured for messages and generated images.
     const mixedCase = [["c_conv123", "r_AbC-09"], [1725302200, 0]];
-    assert.deepEqual(
-        [decodeTurn(mixedCase)?.rawProviderRequestId, decodeTurn(mixedCase)?.providerRequestId],
-        ['r_AbC-09', 'abc-09']
-    );
+    assert.equal(decodeTurn(mixedCase)?.rawProviderRequestId, 'r_AbC-09');
     assert.equal(decodeTurn(turnUnconfirmedSlot)?.rawProviderRequestId, undefined);
     assert.equal(decodeTurn(turnWithRInTimestamp)?.rawProviderRequestId, undefined);
 });

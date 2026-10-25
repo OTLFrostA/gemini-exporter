@@ -12,7 +12,7 @@ import { extractImages, extractUserFiles, extractDocumentsMeta } from './helpers
 import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { decodeGeminiUserResources, decodeGeminiCandidateResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
 import { structuredBodyAttachments } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
-import { extractImageEvidence, extractResponseImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+import { extractResponseImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 
 // Synthetic boundary probes based on existing gemini_parser/parse_observability
 // fixtures; they characterize current behavior, not new wire compatibility.
@@ -218,7 +218,6 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     assert.equal(decoded.userMessageId, 'r_AB12');
     assert.equal(decoded.fallbackTurnId, 'r_AB12');
     assert.equal(decoded.rawProviderRequestId, 'r_AB12');
-    assert.equal(decoded.providerRequestId, 'ab12');
     assert.equal(decoded.userText, 'Prompt');
     assert.equal(Object.hasOwn(decoded, 'rawUserPayload'), false, 'User wire evidence stays private to L1 resource decoders');
     assert.equal(decoded.candidateIndex, 1);
@@ -312,7 +311,6 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     assert.ok(decodedPartial);
     assert.equal(decodedPartial.timestamp, null);
     assert.equal(decodedPartial.rawProviderRequestId, undefined);
-    assert.equal(decodedPartial.providerRequestId, undefined);
     assert.equal(decodedPartial.candidateIndex, 0);
     assert.equal(decodedPartial.candidate?.id, '');
     assert.equal(decodedPartial.candidate?.text, 'Text without an ID');
@@ -336,14 +334,11 @@ test('Gemini resource decoder consumes raw Turn/Candidate wire slots but exports
     const rawTurn: unknown[] = [[ID, 'r_AB12'], null, [['Prompt']], modelPayload];
     const decoded = decodeTurn(rawTurn);
     assert.ok(decoded?.candidate);
-    const media = { sourceOnly: true, images: extractImageEvidence, responseImages: extractResponseImageEvidence };
-    const sequence = { value: 1 };
-    const userResources = decodeGeminiUserResources(rawTurn, media, sequence);
+    const userResources = decodeGeminiUserResources(rawTurn);
     assert.deepEqual(userResources.images, []);
     assert.deepEqual(userResources.files, []);
     const result = decodeGeminiCandidateResources(
-        rawTurn, decoded.candidateSource, decoded.candidateIndex, decoded.candidate.text, rawTurn, media,
-        new Set(), new Set(), sequence, ID
+        rawTurn, decoded, rawTurn, new Set(), new Set(), ID
     );
     assert.equal(result.structuredExtraction.status, 'decoded');
     assert.equal(result.generatedFiles.length, 0);
@@ -443,7 +438,7 @@ test('response images decode shared wire evidence once and refresh it for the ne
     const body = [inline, generated];
     const candidate = ['rc_images', body];
     const structuredContent = { children: [{ nodeType: 0, Xj: [{ generatedImagePayload: [generated] }] }] };
-    const evidence = extractResponseImageEvidence(candidate, [body, structuredContent], '', undefined, structuredContent);
+    const evidence = extractResponseImageEvidence(candidate, [body, structuredContent], '', structuredContent);
     const { images } = evidence;
     assert.equal(snapshots, 1, 'overlapping roots must share the decoded diagnostic snapshot');
     assert.equal(images.length, 1);

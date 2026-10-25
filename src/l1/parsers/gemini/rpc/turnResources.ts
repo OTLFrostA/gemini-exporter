@@ -1,4 +1,4 @@
-import { GEMINI_JSPB_SCHEMA } from './extractors.js';
+import { GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence } from './detailEvidence.js';
 import {
@@ -22,12 +22,6 @@ import { shortId } from '../../../../shared/utils/pathUtils.js';
 
 /** Central Gemini resource decoder: untrusted wire slots stop here.
  * Message composition only receives validated and normalized source evidence. */
-export interface DetailMediaReader {
-    sourceOnly?: boolean;
-    images: typeof extractImageEvidence;
-    responseImages: typeof extractResponseImageEvidence;
-}
-
 export interface DecodedGeminiUserResources {
     images: ImageAttachment[];
     files: UserFileAttachment[];
@@ -50,12 +44,12 @@ function wireArray(value: unknown): value is unknown[] {
 
 /** Media decoding uses the same Turn payload that decodeTurn validated as text. */
 export function decodeGeminiUserResources(
-    rawTurn: unknown, media: DetailMediaReader, imageSeq: { value: number }
+    rawTurn: unknown
 ): DecodedGeminiUserResources {
     const rawUserPayload = wireArray(rawTurn)
         ? rawTurn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD] : undefined;
     return {
-        images: media.images(rawUserPayload, imageSeq),
+        images: extractImageEvidence(rawUserPayload),
         files: extractUserFiles(rawUserPayload),
     };
 }
@@ -64,16 +58,13 @@ export function decodeGeminiUserResources(
  * raw media/document slots and never re-select a Candidate themselves. */
 export function decodeGeminiCandidateResources(
     rawTurn: unknown,
-    cand: unknown,
-    candidateIndex: number,
-    responseText: string,
+    turn: DecodedGeminiTurn,
     inner: unknown,
-    media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
-    imageSeq: { value: number },
     convId?: string
 ): DecodedGeminiCandidateResources {
+    const { candidateSource: cand, candidateIndex } = turn;
     const answerBody = wireArray(cand) ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] : undefined;
     const candidateBlock = answerBody || cand;
     const modelPayload = wireArray(rawTurn) ? rawTurn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
@@ -85,8 +76,8 @@ export function decodeGeminiCandidateResources(
     });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
-    const { images: candImages, structuredImages } = media.responseImages(
-        cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq, structuredContent
+    const { images: candImages, structuredImages } = extractResponseImageEvidence(
+        cand, [answerBody, rawAnswerDocument, structuredContent], turn.candidate?.text ?? "", structuredContent
     );
     const filteredImages = filterNewImages(candImages, dedupSet);
 
@@ -150,7 +141,7 @@ export function decodeGeminiCandidateResources(
                     id: metaItem.id,
                     title: docTitle,
                     createdAt: metaItem.createdAt,
-                    chipUrl: media.sourceOnly ? (metaItem.chipUrl ?? "") : "",
+                    chipUrl: metaItem.chipUrl ?? "",
                     sections: [...parsedPrimary.sections, ...parsedAlt.sections],
                     links: [...parsedPrimary.links, ...parsedAlt.links],
                     contentMarkdown: cleanMd,

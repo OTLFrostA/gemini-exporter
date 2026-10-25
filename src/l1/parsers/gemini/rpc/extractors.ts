@@ -151,8 +151,6 @@ export interface DecodedGeminiTurn {
     fallbackTurnId: string;
     /** Only the confirmed request-ID slots yield provider identity. */
     rawProviderRequestId: string | undefined;
-    /** Stable normalized request identity; raw token above retains its spelling. */
-    providerRequestId: string | undefined;
     candidate: DecodedGeminiCandidate | null;
     candidateIndex: number;
     /** Selected once here; resource decoders must not relocate the candidate. */
@@ -789,7 +787,6 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         } else if (typeof idMeta === "string" && idMeta.startsWith("r_")) {
             rawProviderRequestId = idMeta;
         }
-        const providerRequestId = rawProviderRequestId?.slice(2).toLowerCase();
 
         const rawUserPayload = turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
@@ -823,7 +820,6 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             userMessageId,
             fallbackTurnId,
             rawProviderRequestId,
-            providerRequestId,
             candidate,
             candidateIndex,
             candidateSource: selected
