@@ -89,7 +89,8 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     };
     const selected = activities.filter(activity => activity.conversationIds.includes(id));
     // Source date orders activity events; ties and absent dates retain source order.
-    const dated = selected.filter(a => a.timestamp !== null).sort((a, b) => a.timestamp! - b.timestamp! || a.blockIndex - b.blockIndex);
+    const dated = selected.flatMap(activity => activity.timestamp === null ? [] : [{ activity, timestamp: activity.timestamp }])
+        .sort((a, b) => a.timestamp - b.timestamp || a.activity.blockIndex - b.activity.blockIndex).map(item => item.activity);
     let dateIndex = 0;
     const ordered = selected.map(activity => activity.timestamp === null ? activity : dated[dateIndex++]);
     let generationOrdinal = 0;
@@ -105,7 +106,8 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
             unowned.push(attachmentOf(ref));
             diagnostics.push({ severity: 'warning', code: 'TAKEOUT_UNBOUND_RESOURCE', message: `Source does not identify which message owns archive resource: ${ref.uri}` });
         }
-        for (const role of ['user', 'assistant'] as const) {
+        const roles: DomainMessage['role'][] = ['user', 'assistant'];
+        for (const role of roles) {
             const content = role === 'user' ? (activity.hasExplicitPrompt ? activity.promptText : '') : activity.responseHtml;
             const references = activity.media.filter(media => media.owner === role);
             if (!content && !references.length) {

@@ -1,3 +1,4 @@
+import { createDocumentReader } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 import type { GeminiMessageEvidence } from '../src/l1/parsers/gemini/rpc/detailEvidence.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -344,7 +345,7 @@ test('Gemini resource decoder consumes raw Turn/Candidate wire slots but exports
     assert.deepEqual(userResources.images, []);
     assert.deepEqual(userResources.files, []);
     const result = decodeGeminiCandidateResources(
-        decoded.candidate, rawTurn, new Set(), new Set(), ID
+        decoded.candidate, createDocumentReader(rawTurn), new Set(), new Set(), ID
     );
     assert.equal(result.structuredExtraction.status, 'decoded');
     assert.equal(result.generatedFiles.length, 0);

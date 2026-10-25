@@ -15,6 +15,13 @@
 import { inlineMathMarkdown } from '../../../../shared/utils/markdownMath.js';
 import { LATEX_COMPAT_RULES } from '../../../../shared/utils/latexCompatibility.js';
 
+/** Read the delimiter run already identified by the caller. */
+function delimiterRun(source: string, start: number): string {
+    let end = start + 1;
+    while (source[end] === source[start]) end++;
+    return source.slice(start, end);
+}
+
 interface CompatRuleMetadata {
     /** Unique rule identifier, e.g. 'GM-MD-001' or 'GM-TEX-001' */
     readonly id: string;
@@ -181,7 +188,7 @@ export function normalizeTableMathPipes(source: string): string {
         for (let i = 0; i < line.length; i++) {
             if (line[i] === '\\') { i++; continue; }
             if (line[i] === '`') {
-                const run = /^`+/.exec(line.slice(i))![0];
+                const run = delimiterRun(line, i);
                 if (!code) code = run; else if (code === run) code = '';
                 i += run.length - 1; continue;
             }
@@ -252,7 +259,7 @@ export function normalizeEscapedDollarMath(source: string): string {
         const protectedEnd = protectedRanges.get(i);
         if (protectedEnd !== undefined) { result += source.slice(i, protectedEnd); i = protectedEnd; continue; }
         if (source[i] === '`') {
-            const run = /^`+/.exec(source.slice(i))![0];
+            const run = delimiterRun(source, i);
             let end = i + run.length;
             while ((end = source.indexOf(run, end)) >= 0) {
                 if (source[end - 1] !== '`' && source[end + run.length] !== '`') break;
@@ -261,7 +268,7 @@ export function normalizeEscapedDollarMath(source: string): string {
             if (end >= 0) { result += source.slice(i, end + run.length); i = end + run.length; continue; }
         }
         if (source[i] === '$' && source[i + 1] === '$') {
-            const run = /^\$+/.exec(source.slice(i))![0];
+            const run = delimiterRun(source, i);
             const end = source.indexOf(run, i + run.length);
             if (end >= 0) { result += source.slice(i, end + run.length); i = end + run.length; continue; }
         }

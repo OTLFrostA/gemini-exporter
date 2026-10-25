@@ -5,6 +5,7 @@ import { type Node, type SourceFile, isIdentifier, isPropertyAccessExpression, i
     isFunctionDeclaration, isReturnStatement, isObjectLiteralExpression, isPropertyAssignment, isArrowFunction, isFunctionExpression } from 'typescript/unstable/ast';
 
 const parsedGeminiAdapters = new Set(['l1/parsers/gemini/shared/contentAdapter.ts', 'l1/parsers/gemini/shared/structuredContentAdapter.ts']);
+const geminiDecoders = /^l1\/(?:(?:parsers|sniffer|client)\/gemini\/|imports\/takeout\/)/;
 const validator = 'l2/runtimeValidation.ts';
 const parserOwners = new Set(['l1/parsers/gemini/rpc/parseConversation.ts',
     'l1/parsers/gemini/takeout/parseConversation.ts', 'l1/parsers/gemini/rpc/mergePages.ts', 'l1/parsers/chatgpt/parseConversation.ts']);
@@ -72,7 +73,7 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
             || node.kind === SyntaxKind.ObjectKeyword || isTypeOfExpression(node) || isTypeParameterDeclaration(node))) {
             report(node, 'parsed Gemini adapters consume concrete source facts without re-probing raw input');
         }
-        if ((/^(?:l2|l3a|l3b|application|l4)\//.test(owner) || parsedGeminiAdapters.has(owner))
+        if ((/^(?:l2|l3a|l3b|application|l4)\//.test(owner) || parsedGeminiAdapters.has(owner) || geminiDecoders.test(owner))
             && (isAsExpression(node) || isTypeAssertion(node) || isNonNullExpression(node))) {
             report(node, 'typed business layers must narrow or construct values without assertions');
         }

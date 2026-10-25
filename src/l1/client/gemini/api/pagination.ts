@@ -63,9 +63,10 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
     let first = pages[0];
     if (!first) throw new Error('no data');
     const inner = first.transport.decodedPayload;
+    const metadata: unknown = Array.isArray(inner) && Array.isArray(inner[2]) ? inner[2][0] : null;
     const metadataOnly = !pages.some(page => page.conversation.detail.messages.length) && Array.isArray(inner)
         && inner[0] === null && inner[1] === null && Array.isArray(inner[2])
-        && typeof inner[2][0]?.[0] === 'string' && inner[2][0][0].startsWith('c_');
+        && Array.isArray(metadata) && typeof metadata[0] === 'string' && metadata[0].startsWith('c_');
     if (metadataOnly) {
         try {
             const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true, account, signal });

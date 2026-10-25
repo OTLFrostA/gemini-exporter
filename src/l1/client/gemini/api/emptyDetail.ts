@@ -16,7 +16,7 @@ export function hasConfirmedEmptyTurns(page: DetailParseResult, conversationId: 
             || turn[0].length !== 2 || payloadToMs(turn[4]) === null
             || typeof turn[0][1] !== 'string' || !turn[0][1].startsWith('r_')
             || JSON.stringify(turn[2]) !== '[[""]]') return false;
-        const model = turn[3];
+        const model: unknown = turn[3];
         if (!Array.isArray(model) || !Array.isArray(model[0]) || !model[0].length) return false;
         if (!turn.every((value, index) => [0, 2, 3, 4].includes(index) || absent(value))) return false;
         if (!model.every((value, index) => index === 0 || absent(value)

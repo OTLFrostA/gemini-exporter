@@ -6,27 +6,40 @@ type TakeoutArchiveReader = (bytes: GeminiTakeoutZipRaw) => Promise<unknown>;
 interface GeminiTakeoutZipContext extends GeminiTakeoutParseContext {
     readArchive?: TakeoutArchiveReader;
     activityPath?: string;
+    onArchiveReady?: () => void;
     onProgress?: (completed: number, total: number) => void;
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 async function defaultArchiveReader(bytes: GeminiTakeoutZipRaw): Promise<unknown> {
-    const loader: unknown = (globalThis as { JSZip?: unknown }).JSZip;
-    if ((!isRecord(loader) && typeof loader !== 'function') || typeof (loader as { loadAsync?: unknown }).loadAsync !== 'function') throw new TypeError('Takeout ZIP requires an archive reader');
-    return (loader as { loadAsync: TakeoutArchiveReader }).loadAsync(bytes);
+    const loader: unknown = Reflect.get(globalThis, 'JSZip');
+    if ((!isRecord(loader) && typeof loader !== 'function') || !('loadAsync' in loader) || typeof loader.loadAsync !== 'function') throw new TypeError('Takeout ZIP requires an archive reader');
+    const archive: unknown = await Reflect.apply(loader.loadAsync, loader, [bytes]);
+    return archive;
 }
 async function decodeArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZipContext): Promise<GeminiTakeoutRaw> {
     if (context.providerId !== 'gemini') throw new TypeError('Gemini Takeout parser requires providerId gemini');
-    validateZipFile(bytes);
-    const archive = await (context.readArchive ?? defaultArchiveReader)(bytes);
+    const suppliedArchive = 'files' in bytes;
+    if (!suppliedArchive) validateZipFile(bytes);
+    const archive = suppliedArchive ? bytes : await (context.readArchive ?? defaultArchiveReader)(bytes);
     if (!isRecord(archive) || !isRecord(archive.files)) throw new TypeError('Invalid Takeout archive inventory');
     validateZipEntries(archive);
     const files: Record<string, TakeoutSourceFile> = {};
     for (const [path, entry] of Object.entries(archive.files)) {
         if (!isRecord(entry) || (entry.dir !== undefined && typeof entry.dir !== 'boolean')) continue;
-        files[path] = entry as TakeoutSourceFile;
+        const read = entry.async;
+        const data = isRecord(entry._data) ? entry._data : null;
+        files[path] = {
+            ...(typeof entry.dir === 'boolean' ? { dir: entry.dir } : {}),
+            ...(data && typeof data.uncompressedSize === 'number' ? { _data: { uncompressedSize: data.uncompressedSize } } : {}),
+            ...(typeof read === 'function' ? { async: async (type: string): Promise<unknown> => {
+                const value: unknown = await Reflect.apply(read, entry, [type]);
+                return value;
+            } } : {}),
+        };
     }
+    context.onArchiveReady?.();
     const candidates = Object.keys(files).filter(path => !files[path].dir && /(?:My\s?Activity|我的活动).*\.html$/i.test(path));
     const gemini = candidates.filter(path => /(?:^|\/)(?:Gemini(?: Apps)?|Bard)\//i.test(path));
     const supported = gemini.length ? gemini : candidates;

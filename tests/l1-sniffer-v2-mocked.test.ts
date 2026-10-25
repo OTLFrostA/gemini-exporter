@@ -1,4 +1,4 @@
-import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
+import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
 import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import test, { beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,7 +55,7 @@ test('Sniffer submits list facts and request-bound page evidence without Applica
     assert.equal(ports.indexes[0].page?.requestKnown, true);
     assert.equal(ports.indexes[0].page?.valid, true);
     assert.equal(ports.indexes[0].page?.ordered, true);
-    assert.equal(ports.indexes[0].page?.nextCursor, readGeminiListRequest(geminiListPage(1).requestBody)!.requestCursor);
+    assert.equal(ports.indexes[0].page?.nextCursor, parseGeminiRequest(geminiListPage(1).requestBody).list!.requestCursor);
     assert.equal(ports.indexes[0].page?.keys.length, GEMINI_LIST_CAPTURE.firstPageRows);
     assert.deepEqual(ports.indexes[0].page?.keys[0], { id: GEMINI_LIST_CAPTURE.first.id, time: GEMINI_LIST_CAPTURE.first.updatedAt });
 });

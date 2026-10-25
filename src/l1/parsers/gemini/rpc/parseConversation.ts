@@ -1,6 +1,6 @@
 import { GeminiResponseEnvelope } from './responseEnvelope.js';
 import { hideGeminiFileCitations } from '../shared/fileCitations.js';
-import type { SourceGeneratedMediaIdentity } from '../../shared/resources/generationEvent.js';
+import type { GeminiAttachmentEvidence } from './detailEvidence.js';
 import { closeGeminiCodeCitations } from '../shared/codeCitations.js';
 import type { GeminiStructuredNode } from './structuredContent.js';
 import { contentQuality } from '../../qualityEvidence.js';
@@ -117,7 +117,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     });
     const resources = closeDomainResources('gemini', messages, evidence.messages.map(message => {
         // These resources were explicitly extracted from this turn; preserve its original token.
-        const sourceGeneration = <T extends { isGenerated?: boolean; providerRequestId?: string; generation?: SourceGeneratedMediaIdentity }>(asset: T): T =>
+        const sourceGeneration = <T extends GeminiAttachmentEvidence | NonNullable<GeminiMessageEvidence['images']>[number]>(asset: T): T =>
             asset.isGenerated && message.rawProviderRequestId ? { ...asset, providerRequestId: message.rawProviderRequestId,
                 ...(asset.generation ? { generation: { ...asset.generation, providerRequestId: message.rawProviderRequestId } } : {}) } : asset;
         return { input: { ...message, images: message.images?.map(sourceGeneration), attachments: message.attachments?.map(sourceGeneration) }, bodyAttachments: structuredBodyAttachments(message) };
@@ -127,7 +127,11 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     const updatedAt = evidence.updatedAt;
     // Gemini may retain the last answer version while later user turns have empty answers.
     // Message dates are activity facts, not evidence that pagination lost content.
-    const versionMismatch = updatedAt !== null && messages.some(message => message.timestamp !== undefined && message.timestamp > updatedAt);
+    const newerMessages = messages.flatMap(message => {
+        const timestamp = message.timestamp;
+        return updatedAt !== null && timestamp !== undefined && timestamp > updatedAt
+            ? [{ id: message.id ?? null, role: message.role, timestamp }] : [];
+    });
     const metadata = evidence.metadataConversation;
     const conversation = {
         index: parseIndexMetadata({ providerId: 'gemini',
@@ -139,18 +143,16 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }),
             assets: resources.assets, messages: resources.messages },
     };
+    const diagnostics: Diagnostic[] = (evidence.schemaDrift ?? []).map(message => ({ severity: 'warning', code: 'GEMINI_SCHEMA_DRIFT', message }));
+    if (rejected) diagnostics.push({ severity: 'warning', code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` });
+    if (newerMessages.length) diagnostics.push({ severity: 'info', code: 'CONVERSATION_VERSION_MISMATCH', message: 'Detail contains activity newer than its metadata version',
+        details: { sourceVersion: updatedAt, newerMessages } });
+    diagnostics.push(...contentDiagnostics);
     return {
         evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds },
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
         conversationId: normId(evidence.id), conversation, acquisitionHints: resources.acquisitionHints,
-        diagnostics: [
-            ...(evidence.schemaDrift ?? []).map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })),
-            ...(rejected ? [{ severity: 'warning' as const, code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` }] : []),
-            ...(versionMismatch ? [{ severity: 'info' as const, code: 'CONVERSATION_VERSION_MISMATCH', message: 'Detail contains activity newer than its metadata version',
-                details: { sourceVersion: updatedAt, newerMessages: messages.filter(message => message.timestamp !== undefined && message.timestamp > updatedAt!)
-                    .map(message => ({ id: message.id ?? null, role: message.role, timestamp: message.timestamp! })) } }] : []),
-            ...contentDiagnostics,
-        ],
+        diagnostics,
         transport: {
             nextPageToken: evidence.nextPageToken,
             ...(evidence._raw !== undefined ? { decodedPayload: evidence._raw } : {}),

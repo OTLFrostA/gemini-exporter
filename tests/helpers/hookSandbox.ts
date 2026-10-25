@@ -1,8 +1,7 @@
 import vm from 'node:vm';
 import * as protocol from '../../src/l1/protocol/gemini/protocol.js';
 import { geminiAccountObservation } from '../../src/l1/client/gemini/accountObservation.js';
-import { readGeminiListRequest } from '../../src/l1/parsers/gemini/rpc/listRequest.js';
-import { readGeminiDetailRequest } from '../../src/l1/parsers/gemini/rpc/detailRequest.js';
+import { parseGeminiRequest } from '../../src/l1/parsers/gemini/rpc/request.js';
 import { parseConfirmedGeminiDeletion } from '../../src/l1/parsers/gemini/rpc/parseDeletion.js';
 import type { sniffUserProfileFromDom } from '../../src/l1/parsers/gemini/dom/accountSniffer.js';
 
@@ -23,7 +22,7 @@ export function createHookSandbox(sniffProfile?: typeof sniffUserProfileFromDom)
         console, URL, URLSearchParams, Request, Response, TextEncoder, TextDecoder, Uint8Array, XMLHttpRequest: MockXhr,
         GeminiProtocol: protocol.GeminiProtocol, CrossWorldEvents: protocol.CrossWorldEvents,
         sniffUserProfileFromDom: sniffProfile ?? (() => ({ gaiaId: '10000000001' })),
-        geminiAccountObservation, readGeminiListRequest, readGeminiDetailRequest, parseConfirmedGeminiDeletion,
+        geminiAccountObservation, parseGeminiRequest, parseConfirmedGeminiDeletion,
     });
     posted.length = 0;
     return { posted, win, Xhr: MockXhr };

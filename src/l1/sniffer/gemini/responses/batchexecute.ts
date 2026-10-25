@@ -1,6 +1,5 @@
 import { GeminiProtocol, CrossWorldEvents } from '../../../protocol/gemini/protocol.js';
-import { readGeminiDetailRequest } from '../../../parsers/gemini/rpc/detailRequest.js';
-import { readGeminiListRequest } from '../../../parsers/gemini/rpc/listRequest.js';
+import { parseGeminiRequest } from '../../../parsers/gemini/rpc/request.js';
 import { parseConfirmedGeminiDeletion } from '../../../parsers/gemini/rpc/parseDeletion.js';
 import type { GeminiConversationDeletedPayload, GeminiNetworkBatchexecutePayload } from '../../../protocol/gemini/events.js';
 import type { GeminiCaptureContext, GeminiResponseHandler } from './router.js';
@@ -14,10 +13,11 @@ export function batchexecuteHandler(context: GeminiCaptureContext): GeminiRespon
         captureLimit: 3 * 1024 * 1024,
         start() {},
         complete(body, text, truncated, successful) {
+            const request = parseGeminiRequest(body);
             const { slot, url, requestAccountObservation, requestedAt } = context;
             if (successful && !truncated && requestAccountObservation
                 && requestAccountObservation.providerAccountId !== 'default') {
-                const id = parseConfirmedGeminiDeletion(body, text);
+                const id = parseConfirmedGeminiDeletion(request, text);
                 if (id) {
                     const payload: GeminiConversationDeletedPayload = {
                         id, slot, requestAccountObservation, url, requestBody: body, responseText: text,
@@ -27,8 +27,8 @@ export function batchexecuteHandler(context: GeminiCaptureContext): GeminiRespon
             }
             // Only relay supported RPC bodies, rather than every wrb.fr response.
             if (!text.includes(GeminiProtocol.RPCS.LIST) && !text.includes(GeminiProtocol.RPCS.DETAIL)) return;
-            const listRequest = readGeminiListRequest(body);
-            const detailRequest = readGeminiDetailRequest(body);
+            const listRequest = request.list;
+            const detailRequest = request.detail;
             const payload: GeminiNetworkBatchexecutePayload = {
                 text: text.slice(0, 3000000),
                 ...(listRequest ? { listRequest } : {}),

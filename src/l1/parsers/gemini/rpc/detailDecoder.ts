@@ -21,6 +21,7 @@ import {
     isRealTitle
 } from "./extractors.js";
 import {
+    createDocumentReader,
     filterNewImages,
     isInternalChipUrl
 } from "./sourceAttachments.js";
@@ -415,6 +416,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
         const dedupSet = new Set<string>();
         const docDedupSet = new Set<string>();
         const rev = [...turns].reverse();
+        const documents = createDocumentReader(inner);
 
         for (const rawTurn of rev) {
             const drift: TurnDriftReport = detectTurnSchemaDrift(rawTurn, convId);
@@ -434,7 +436,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
             // and the historical primary-draft fallback in one place.
             if (turn.candidate) {
                 const resources = decodeGeminiCandidateResources(
-                    turn.candidate, inner, dedupSet, docDedupSet, convId
+                    turn.candidate, documents, dedupSet, docDedupSet, convId
                 );
                 const modelMsg = parseCandidateResponse(turn.candidate, turn, resources, convId);
                 if (modelMsg) allMsgs.push(modelMsg);
@@ -492,9 +494,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
             _debug
         };
     } catch (e: unknown) {
-        // Non-Error throws remain unvalidated diagnostic evidence. Keep the legacy
-        // property read (including its behavior for null/undefined), not String(e).
-        const message = e instanceof Error ? e.message : (e as { message?: unknown }).message;
+        const message = e instanceof Error ? e.message : String(e);
         throw new Error("detail parse fail: " + message);
     }
 }

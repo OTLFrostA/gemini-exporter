@@ -1,88 +1,5 @@
 [
   {
-    "id": "robotics_planar_arm_jacobian_singularity",
-    "domain": "robotics_kinematics",
-    "title": "Planar robot: inverse kinematics and singularity certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a two-link planar robot with links 0.7 and 0.5 metres. Derive its forward kinematics and analytic Jacobian in LaTeX; explain coordinates and angle units in English and Chinese.",
-      "Derive both inverse-kinematic branches for target (0.6,0.5) metres. Show a Markdown table of angles, reconstructed positions, residuals and Jacobian determinants; distinguish unreachable and singular targets.",
-      "Implement forward and inverse kinematics in standard-library Python, including numerical domain clamps with justified tolerances. Supply runnable assertions for both branches, boundary targets and an unreachable point.",
-      "Derive the velocity inverse and damped least-squares alternative. Compare both near straight-arm singularity using a reproducible Python experiment and a Markdown table; explain why small Cartesian residual does not imply bounded joint velocity.",
-      "Produce a complete reproducible kinematics audit combining Python tests, LaTeX derivations, angle-wrap conventions and bilingual conclusions. Include counterexamples for sign errors, branch loss and unit confusion."
-    ]
-  },
-  {
-    "id": "reliability_common_cause_fault_tree",
-    "domain": "reliability_fault_tree",
-    "title": "Redundant systems: common-cause failures and exact reliability",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a two-channel redundant safety system with individual failure probability p and a common-cause probability q. Derive the exact system failure probability under explicitly stated conditional-independence assumptions, in LaTeX and bilingual prose.",
-      "Compare an independent model and a common-cause model for p=0.02, q=0.003. Show a Markdown probability table with joint outcomes, normalization and an explanation of which marginal probabilities change.",
-      "Implement exact state enumeration with Python fractions.Fraction. Include runnable checks of probability mass, q=0, q=1 and p=0 or 1, and avoid counting common-cause outcomes twice.",
-      "Extend the system to two-out-of-three voting. Derive the binomial expression conditional on no common cause, enumerate all states and cross-check formula against exact code.",
-      "Derive partial sensitivities with respect to p and q for both architectures. Make a Markdown comparison table and explain when adding redundancy provides little improvement.",
-      "Construct a counterexample showing why observed pairwise failure correlation does not uniquely identify a common-cause model. Provide two normalized joint distributions with the same chosen marginal statistics but different higher-order events.",
-      "Add deterministic Monte Carlo as a secondary check with a fixed seed, Wilson confidence intervals and sample-size justification. Explain why sampling agreement is weaker than exact enumeration.",
-      "Package a reproducible reliability report with complete Python tests, exact fractions, LaTeX identities and a Markdown decision table. Distinguish structural assumptions, measured quantities and unsupported causal conclusions."
-    ]
-  },
-  {
-    "id": "astronomy_transit_chord_limb_darkening",
-    "title": "Exoplanet transits: chord geometry and inference limits",
-    "domain": "astronomy_transit_geometry",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original fictional astronomy teaching illustration of an exoplanet crossing a star, with a sky-plane transit chord, impact parameter and a schematic light curve. Label schematic quantities and distinguish synthetic geometry from measured telescope data.",
-      "Derive the uniform-brightness small-planet transit depth and duration for a circular orbit in LaTeX. State the inclination convention, impact parameter, stellar radius, planet radius, and validity limits; keep all units consistent.",
-      "Write runnable standard-library Python evaluating circle-overlap area and normalized flux for arbitrary projected separation, including no overlap, full containment, tangency and zero radius. Include independent symmetry and monotonicity tests.",
-      "Build a Markdown table for five projected separations using a stated radius ratio, and compare the exact uniform-disc model with the small-planet approximation. Explain how limb darkening biases a naive radius inference.",
-      "Produce a detailed English-Chinese technical report combining the code, mathematical derivation and a contact-point ASCII diagram. Discuss grazing transits, orbital eccentricity and parameter degeneracies; distinguish executed results from analytic claims."
-    ]
-  },
-  {
-    "id": "graph_theory_bipartite_vertex_cover_certificate",
-    "title": "Bipartite matching: augmenting paths and dual certificates",
-    "domain": "graph_theory_matching_vertex_cover",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a nontrivial bipartite scheduling instance with six workers and seven tasks, including an isolated vertex and a greedy matching trap. State exact edge lists and the objective, without solving it yet.",
-      "Derive the alternating-path characterization of maximum matching and explain why a maximal matching is insufficient. Express the augmenting-path invariant in LaTeX and give a concrete greedy counterexample from this instance.",
-      "Write complete runnable standard-library Python for deterministic augmenting-path bipartite matching, validating vertex partitions, duplicate edges and endpoints. Include empty, disconnected and isolated-vertex cases.",
-      "Implement an independent exhaustive matching oracle for small instances and property tests comparing cardinalities. Bound enumeration size and clearly separate empirical coverage from proof of correctness.",
-      "Derive Konig's theorem constructively: obtain a minimum vertex cover from alternating reachability after maximum matching. State the starting set, traversal directions and the equality certificate in LaTeX.",
-      "Provide a Markdown table listing each matched pair, unmatched vertices, alternating reachable sets and the minimum vertex cover. Verify every input edge is covered and that cover size equals matching size.",
-      "Analyze worst-case time and space, then compare the simple algorithm with Hopcroft-Karp. Explain which structural assumptions fail for nonbipartite graphs and supply a smallest odd-cycle counterexample.",
-      "Produce a detailed bilingual technical report with runnable code, exact input, an ASCII alternating-path diagram and the matching/cover dual certificate. Flag all assumptions and distinguish computed output from unexecuted examples."
-    ]
-  },
-  {
     "id": "fluid_capillary_rise_contact_angle_hysteresis",
     "title": "Capillary rise: pressure balance and contact-angle uncertainty",
     "domain": "fluid_mechanics_capillarity",
@@ -413,6 +330,89 @@
       "Analyze equal initial temperatures, a vanishing amount of one component and the identical-gas case. Explain the Gibbs paradox and why relabeling a gas must not produce a physical mixing entropy.",
       "Extend the audit to maximum useful work relative to an environment at a stated temperature. Separate exergy destruction from actual extracted work, with LaTeX relations and a Markdown comparison table.",
       "Deliver runnable regression tests and a reproducible final audit. Use two independent entropy calculations, justified numerical tolerances and explicit limitations of the ideal-gas and constant-heat-capacity assumptions."
+    ]
+  },
+  {
+    "id": "signal_processing_aliasing_phase_recovery",
+    "domain": "signal_processing_sampling_aliasing",
+    "title": "Sampling aliasing: frequency equivalence and phase recovery",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a real sinusoid sampled uniformly at a stated rate. Choose two different continuous-time frequencies giving exactly the same discrete samples. State units, phase conventions and a bilingual glossary.",
+      "Derive the full alias-frequency equivalence class with LaTeX equations. Explain the distinction between frequency folding and phase inversion, and provide a Markdown table of representative aliases.",
+      "Implement a standard-library Python numerical experiment comparing the two sampled signals. Quantify maximum absolute sample error and explain the effect of floating-point roundoff.",
+      "Design a second sampling-rate experiment that disambiguates the two chosen frequencies under a stated finite prior frequency bound. Show the calculation and prove uniqueness within that bound.",
+      "Deliver reproducible regression tests for zero frequency, the Nyquist frequency, phase inversion and two-rate disambiguation. Summarize assumptions, numerical tolerances and the limitations of finite noiseless samples."
+    ]
+  },
+  {
+    "id": "projective_geometry_homography_normalization",
+    "domain": "projective_geometry_homography",
+    "title": "Planar homography: normalization and reprojection certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Specify four noncollinear source and target planar point correspondences with a known invertible projective homography. State coordinate conventions, units and a bilingual glossary.",
+      "Derive the homogeneous point mapping and linear constraints for all homography coefficients using LaTeX. Explain scale ambiguity and give a Markdown correspondence table.",
+      "Choose a scale convention and solve the eight independent equations for the concrete example. Explain what happens when the chosen scale coefficient is zero.",
+      "Implement a standard-library Python linear solver with pivoting for the example. Print per-point reprojection residuals and verify the result against the independently supplied homography.",
+      "Derive coordinate centering and scale normalization. Demonstrate how to denormalize the estimated transform and compare coefficient scale with geometric reprojection error.",
+      "Analyze degeneracy for collinear correspondences and points mapped near the line at infinity. Give explicit counterexamples and define failure criteria without silently replacing denominators.",
+      "Add a fifth correspondence as an independent validation point and perturb one observation. Explain why exact four-point fitting alone does not validate noisy measurements, using a Markdown residual table.",
+      "Deliver runnable regression tests for inverse mapping, scale invariance, normalization and degenerate inputs. State justified tolerances and explain the limits of the exact linear model."
+    ]
+  },
+  {
+    "id": "materials_binary_phase_lever_rule_mass_balance",
+    "title": "Binary alloy phase diagrams: lever rule and mass conservation",
+    "domain": "materials_phase_equilibrium",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original teaching illustration of a fictional binary alloy phase diagram with a two-phase region, a horizontal tie line, endpoint compositions and an overall alloy composition. Clearly mark it as schematic synthetic data, not a measured material.",
+      "Derive the lever rule from solute and total-mass conservation in LaTeX. Distinguish mass fractions from mole fractions and explain the assumptions of a fixed-temperature tie line.",
+      "Write runnable standard-library Python computing phase fractions for arbitrary ordered endpoint compositions. Reject inconsistent units, out-of-range compositions and zero-width tie lines; include independent conservation checks and limiting cases.",
+      "Build a Markdown table for five overall compositions on a stated synthetic tie line. Reconstruct overall composition from each computed pair of phase fractions and discuss numerical behavior near endpoints.",
+      "Combine the derivation, code and a labeled ASCII tie line into a detailed English-Chinese report. Explain why phase composition and phase amount differ, and why the simple rule cannot infer kinetics or a real diagram from a schematic."
+    ]
+  },
+  {
+    "id": "control_discrete_lyapunov_stability_certificate",
+    "title": "Discrete control: Lyapunov stability and independent numerical certificates",
+    "domain": "control_discrete_lyapunov",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Analyze a two-dimensional discrete linear system x[k+1]=A x[k]. Use the uploaded attachment only as a schema example and define your own explicit stable rational matrix A with nonzero off-diagonal entries; state all assumptions and distinguish asymptotic from one-step Euclidean contraction.",
+      "Derive the discrete Lyapunov equation A^T P A-P=-I in LaTeX, expand its independent scalar equations for symmetric P, and explain the positive-definite condition.",
+      "Write runnable standard-library Python solving those scalar equations using Fraction arithmetic and Gaussian elimination with pivoting. Do not use external numerical packages or silently assume invertibility.",
+      "Independently verify symmetry, positive definiteness using principal minors, and exact residual zero. Give a Markdown table of all certificate quantities for the chosen matrix.",
+      "Derive a bound on decay in the P norm and explain the relationship to the Euclidean norm through extremal eigenvalues. Clearly identify whether each bound is exact or conservative.",
+      "Provide a counterexample with transient Euclidean growth despite asymptotic stability. Compute a short trajectory and compare squared Euclidean and Lyapunov energies in a Markdown table.",
+      "Explain what fails for eigenvalues on or outside the unit circle, including a defective Jordan block. Add meaningful tests that reject invalid certificates rather than merely comparing output with the same solver.",
+      "Produce a complete reproducible English-Chinese report integrating the code, exact rational certificate, trajectory table and an ASCII energy-flow diagram. Distinguish analytically verified facts from unexecuted numerical claims."
     ]
   }
 ]

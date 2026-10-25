@@ -1,7 +1,7 @@
 # Gemini L1 响应分层
 
-本次边界是把采集与接口处理分开。处理器内部的重复解析、跨 MAIN/ISOLATED
-信任边界的复核、入库及后续工作流不属于此次改动。
+采集与接口处理分开，解析器内部按请求上下文和资源证据进一步收拢。
+MAIN/ISOLATED 各自验证收到的证据；入库及后续工作流保持独立职责。
 
 | 职责 | 唯一入口 | 负责内容 |
 | --- | --- | --- |
@@ -20,3 +20,16 @@ batchexecute 是多个 RPC 的传输容器，所以还保留 RPC ID 级分发。
 
 账号发现与请求凭据采集保留原来的独立生命周期。此次没有接管 ChatGPT、Claude
 或 Takeout 的入口，也没有新增统一所有平台的抽象框架。
+
+## Gemini 内部解析契约
+
+- `rpc/request.ts` 一次解码 `f.req`，由各 RPC 的参数 decoder 产出 LIST、DETAIL、DELETE 的具体请求事实；同类 RPC 重复时不建立唯一身份。已删除分别读取请求 batch 的两个 reader。
+- `batchexecute` 处理器复用同一个请求结果；删除回执进入 ISOLATED 时重新校验原始请求和响应，不能信任页面传来的确认标志。
+- `sourceAttachments.createDocumentReader` 由每份 DETAIL 响应拥有，第一次文档查询才扫描响应树。所有 Turn 共用候选证据，按节点复用解析结果；资源组装只消费段落、链接和匹配依据。
+- 文档保留源顺序、短 ID 子串匹配的启发式标记、标题唯一性和无归属拒绝规则，不把全文提及误认为身份。
+- storage/MAIN 凭据使用同一字段 decoder；未验证字段不能通过断言进入 bootstrap。接口路由的 runtime 消息也先按 unknown 校验。
+- Gemini parser、client、sniffer 和 Takeout IO 目录全部受禁止断言/非空断言的 Compiler AST 门禁和 type-aware unsafe-flow lint 约束。
+
+Takeout ZIP 的加载、库存校验和 entry 方法适配统一归 `imports/takeout/readArchive.ts`；导入器只消费解析结果并报告进度，不再二次加载或校验归档。
+
+外部 wire、DOM、storage 和消息边界仍接收 `unknown`；专用媒体/结构化内容 decoder 也需要验证尚未识别的原始槽位。身份缓存的 object key 与串行操作中保持输入输出关系的泛型不代表业务载荷类型逃逸。它们不要求已解析的内容适配器或 L2 再猜测源响应形状。

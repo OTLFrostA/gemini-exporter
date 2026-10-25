@@ -293,13 +293,17 @@ class InpageBadgeTests(unittest.TestCase):
         ctx.connect_gemini.return_value.close.assert_called_once()
 
 
+@patch("scripts.framework.actions.get_tabs", return_value=[])
 class TestWorkspaceReinstall(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.repo_path = self.directory.name
         self.manifest_path = Path(self.repo_path) / 'manifest.json'
-        self.original = b'{ "permissions": ["storage"], "optional_permissions": ["storage", "tabs"], "host_permissions": ["https://existing.test/*"], "optional_host_permissions": ["https://gemini.google.com/*", "https://chatgpt.com/*", "https://claude.ai/*"] }\n'
+        self.original = b'{ "name": "__MSG_extName__", "permissions": ["storage"], "optional_permissions": ["storage", "tabs"], "host_permissions": ["https://existing.test/*"], "optional_host_permissions": ["https://gemini.google.com/*", "https://chatgpt.com/*", "https://claude.ai/*"] }\n'
+        locale = Path(self.repo_path) / '_locales' / 'zh_CN'
+        locale.mkdir(parents=True)
+        (locale / 'messages.json').write_text('{"extName":{"message":"Gemini Exporter"}}')
         self.manifest_path.write_bytes(self.original)
 
     def tearDown(self):
@@ -310,41 +314,60 @@ class TestWorkspaceReinstall(unittest.TestCase):
     @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
     @patch("scripts.framework.actions.CDPConnection")
     @patch("scripts.framework.actions.get_extension_id", return_value="unrelated-extension")
-    def test_reinstall_only_uninstalls_the_id_returned_for_workspace(self, discover, connection, ws, sleep, build):
+    def test_reinstall_removes_old_worktree_copies_and_preserves_other_products(self, discover, connection, ws, sleep, build, tabs):
         from scripts.framework.actions import CDPActions
         client = connection.return_value
-        def respond(method, params):
+        installed = [
+            {'id': 'workspace-id', 'name': 'Gemini Exporter', 'path': self.repo_path},
+            {'id': 'stale-id', 'name': 'Gemini Exporter', 'path': '/missing/worktree'},
+            {'id': 'unrelated-extension', 'name': 'Other product', 'path': '/elsewhere'},
+        ]
+        def respond(method, params=None):
             manifest = json.loads(self.manifest_path.read_bytes())
             self.assertNotIn('optional_permissions', manifest)
             self.assertNotIn('optional_host_permissions', manifest)
             self.assertEqual(manifest['permissions'], ['storage', 'tabs'])
             self.assertEqual(manifest['host_permissions'], ['https://existing.test/*',
                 'https://gemini.google.com/*', 'https://chatgpt.com/*', 'https://claude.ai/*'])
+            if method == 'Extensions.getExtensions':
+                return {'result': {'extensions': list(installed)}}
+            if method == 'Extensions.uninstall':
+                installed[:] = [entry for entry in installed if entry['id'] != params['id']]
+                return {'result': {}}
             return {"result": {"id": "workspace-id"}}
         client.call.side_effect = respond
         self.assertEqual(CDPActions.reinstall_extension(repo_path=self.repo_path), "workspace-id")
-        self.assertEqual(client.call.call_args_list[1].args, ("Extensions.uninstall", {"id": "workspace-id"}))
+        self.assertEqual([call.args[1]['id'] for call in client.call.call_args_list
+                          if call.args[0] == 'Extensions.uninstall'], ['workspace-id', 'stale-id'])
+        self.assertEqual([entry['id'] for entry in installed], ['unrelated-extension'])
         discover.assert_not_called()
         client.close.assert_called_once()
 
     @patch("subprocess.run")
     @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
     @patch("scripts.framework.actions.CDPConnection")
-    def test_missing_identity_or_uninstall_failure_never_claims_clean_install(self, connection, ws, build):
+    def test_missing_identity_or_uninstall_failure_never_claims_clean_install(self, connection, ws, build, tabs):
         from scripts.framework.actions import CDPActions
         for responses in ([{"error": {"message": "unsupported"}}],
-                          [{"result": {"id": "workspace-id"}}, {"error": {"message": "uninstall failed"}}]):
+                          [{"result": {"id": "workspace-id"}}, {"error": {"message": "inventory failed"}}],
+                          [{"result": {"id": "workspace-id"}},
+                           {"result": {"extensions": [{"id": "workspace-id", "name": "Gemini Exporter"}]}},
+                           {"error": {"message": "uninstall failed"}}]):
             client = connection.return_value
             client.reset_mock()
             client.call.side_effect = responses
-            self.assertIsNone(CDPActions.reinstall_extension(repo_path=self.repo_path))
+            if len(responses) == 1:
+                self.assertIsNone(CDPActions.reinstall_extension(repo_path=self.repo_path))
+            else:
+                with self.assertRaises(ValueError):
+                    CDPActions.reinstall_extension(repo_path=self.repo_path)
             self.assertEqual(client.call.call_count, len(responses))
             client.close.assert_called_once()
 
     @patch("subprocess.run")
     @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
     @patch("scripts.framework.actions.CDPConnection")
-    def test_exception_during_install_restores_manifest(self, connection, ws, build):
+    def test_exception_during_install_restores_manifest(self, connection, ws, build, tabs):
         from scripts.framework.actions import CDPActions
         connection.return_value.call.side_effect = RuntimeError('CDP disconnected')
         with self.assertRaisesRegex(RuntimeError, 'CDP disconnected'):

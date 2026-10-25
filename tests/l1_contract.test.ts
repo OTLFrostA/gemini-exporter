@@ -1,4 +1,4 @@
-import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
+import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
 import { geminiListPage, geminiListPages, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { ingestIndexes } from '../src/runtime/api/domainIngestion.js';
@@ -12,7 +12,6 @@ import { GeminiProvider, defaultGeminiProvider } from '../src/l1/client/gemini/g
 import type { GeminiProviderClient } from '../src/l1/client/gemini/geminiContracts.js';
 import type { CommittedListPage } from '../src/l1/client/aiProvider.js';
 import { parseList, type ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
-import { readGeminiDetailRequest } from '../src/l1/parsers/gemini/rpc/detailRequest.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { getConversationDetail } from '../src/l1/client/gemini/api/pagination.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
@@ -71,7 +70,7 @@ test('L1 list commits the captured 23-page chain before callbacks and emits only
     assert.equal('items' in progress[0], false);
     assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range !== null, true);
     assert.deepEqual(requests.map(request => (request as { cursor: unknown }).cursor),
-        pages.map(page => readGeminiListRequest(page.requestBody)!.requestCursor));
+        pages.map(page => parseGeminiRequest(page.requestBody).list!.requestCursor));
 });
 test('L1 callback stop never overrides a real source terminal', async () => {
     assert.equal(await provider([parseList(geminiListPage(22).responseBody)]).listConversations({ ...options(), onPageCommitted: async () => true }), 'source_end');
@@ -132,24 +131,24 @@ test('L1 unknown Bard errors cannot become a history-window terminal', () => {
     }
 });
 test('L1 detail request decoding accepts only the actual RPC layout', () => {
-    assert.deepEqual(readGeminiDetailRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_VALID_01')), {
+    assert.deepEqual(parseGeminiRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_VALID_01')).detail, {
         conversationId: 'source_chat_123', requestCursor: 'tC_NEXT_PAGE_123456789',
     });
-    assert.equal(readGeminiDetailRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_TRUNCATED_01')), null);
-    assert.equal(readGeminiDetailRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_GARBAGE_01')), null);
+    assert.equal(parseGeminiRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_TRUNCATED_01')).detail, null);
+    assert.equal(parseGeminiRequest(geminiDetailRequestGen('G_L1_DETAIL_REQUEST_GARBAGE_01')).detail, null);
 });
 test('L1 passive list commits the captured chain including its nonempty terminal', async () => {
     for (const page of geminiListPages()) {
-        await handleWindowMessage(sourceEvent(page.responseBody, { listRequest: readGeminiListRequest(page.requestBody) }));
+        await handleWindowMessage(sourceEvent(page.responseBody, { listRequest: parseGeminiRequest(page.requestBody).list }));
     }
     assert.equal((await getConversations(ACCOUNT_UUID)).length, GEMINI_LIST_CAPTURE.totalRows);
     assert.ok((await getCoverage(ACCOUNT_UUID, 'recent'))?.range);
 });
 test('L1 passive empty continuation still commits a natural terminal without deleting Index facts', async () => {
     const first = geminiListPage();
-    await handleWindowMessage(sourceEvent(first.responseBody, { listRequest: readGeminiListRequest(first.requestBody) }));
+    await handleWindowMessage(sourceEvent(first.responseBody, { listRequest: parseGeminiRequest(first.requestBody).list }));
     await handleWindowMessage(sourceEvent(geminiListGen('G_PAGE_OBSERVATION_06'), {
-        listRequest: readGeminiListRequest(geminiListPage(1).requestBody),
+        listRequest: parseGeminiRequest(geminiListPage(1).requestBody).list,
     }));
     assert.equal((await getConversations(ACCOUNT_UUID)).length, GEMINI_LIST_CAPTURE.firstPageRows);
     assert.ok((await getCoverage(ACCOUNT_UUID, 'recent'))?.range);

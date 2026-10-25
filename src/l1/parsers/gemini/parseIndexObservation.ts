@@ -11,7 +11,13 @@ export interface GeminiIndexObservationInput {
 }
 export function parseGeminiIndexObservation(value: unknown, source: GeminiIndexObservationSource): { conversationId: string; fields: Omit<DomainConversationIndex, 'key'> } {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid Gemini index observation');
-    const row = value as Record<string, unknown>;
+    const row = {
+        id: 'id' in value ? value.id : undefined,
+        title: 'title' in value ? value.title : undefined,
+        titleSource: 'titleSource' in value ? value.titleSource : undefined,
+        createdAt: 'createdAt' in value ? value.createdAt : undefined,
+        updatedAt: 'updatedAt' in value ? value.updatedAt : undefined,
+    };
     if (typeof row.id !== 'string') throw new TypeError('Index observation has no identity');
     const id = normId(row.id);
     if (!id || id === 'unknown' || isReservedRoute(id)) throw new TypeError('Invalid conversation identity');

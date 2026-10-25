@@ -210,8 +210,6 @@ function createHookSandbox(sniffProfile?: typeof import('../src/l1/parsers/gemin
         URL, URLSearchParams, Request, XMLHttpRequest: MockXhr,
         sniffUserProfileFromDom: sniffProfile ?? require('../src/l1/parsers/gemini/dom/accountSniffer.js').sniffUserProfileFromDom,
         geminiAccountObservation: require('../src/l1/client/gemini/accountObservation.js').geminiAccountObservation,
-        readGeminiDetailRequest: require('../src/l1/parsers/gemini/rpc/detailRequest.js').readGeminiDetailRequest,
-        readGeminiListRequest: require('../src/l1/parsers/gemini/rpc/listRequest.js').readGeminiListRequest
     };
     vm.createContext(sandbox);
     vm.runInContext(protocolCode, sandbox, { filename: 'protocol.js' });
