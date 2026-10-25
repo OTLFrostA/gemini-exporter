@@ -361,6 +361,7 @@ test('UI v2: authorization uses one selected-platform action and closing never p
         await expect(page.getByRole('checkbox',{name:platform,exact:true})).toBeChecked();
     await page.getByRole('checkbox',{name:'ChatGPT',exact:true}).uncheck();
     await page.getByRole('checkbox',{name:'Claude',exact:true}).uncheck();
+    await page.getByRole('checkbox',{name:'Grok',exact:true}).uncheck();
     await page.getByRole('button',{name:'Authorize',exact:true}).click();
     await expect(page.locator('#tourNextBtn')).toBeEnabled();
     expect(await read(page,'connectionRequests')).toEqual([[['gemini'],true]]);
