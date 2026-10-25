@@ -83,7 +83,8 @@ test('Declining ChatGPT site access leaves the registry and history untouched', 
     await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();
     await page.locator('#btnAuthorizePlatforms').click();
     await expect(page.locator('.tour-popover [role=status]')).toContainText('Access was not granted');
-    await expect(page.locator('#tourNextBtn')).toBeDisabled();
+    // Gemini remains authorized, so a rejected ChatGPT request does not block tutorial progress.
+    await expect(page.locator('#tourNextBtn')).toBeEnabled();
     await page.locator('#tourSkipBtn').click();
     expect(await page.evaluate(async () => (await Reflect.get(window, 'uiFixture').listAccounts())
         .filter((a: { providerId: string }) => a.providerId === 'chatgpt'))).toEqual([]);
