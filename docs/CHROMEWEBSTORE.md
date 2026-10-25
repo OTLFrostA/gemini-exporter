@@ -24,17 +24,29 @@ Chrome Web Store enforces a strict single-purpose policy requiring explicit just
 
 | Permission | Justification / Usage in Extension |
 | :--- | :--- |
-| **`storage`** | Stores user configuration settings (selected export format, toggle states) and local conversation index metadata (`gemini_conversations`, `exportedIds`) to enable fast incremental sync across sessions without re-querying all conversations. |
+| **`storage`** | Stores user configuration settings (selected export format, toggle states) and local conversation records and export history to enable fast incremental sync across sessions without re-querying all conversations. |
+| **`scripting`** | Registers and activates source scripts for platforms whose optional site access has been granted. |
+| **`activeTab`** | Lets the explicitly opened popup inspect the current tab to identify the conversation to export. |
 | **`unlimitedStorage`** | Required to persist conversation lists and metadata indexes for power users who have hundreds or thousands of Gemini conversations in their local browser sandbox. |
 
 ---
 
 ## 🌐 Host Permissions Justification
 
-| Host Pattern | Justification / Usage |
-| :--- | :--- |
-| **`https://gemini.google.com/*`** | Core target host. Required to inspect the conversation DOM, establish messaging with Gemini web app, and synchronize user-initiated chat exports. |
-| **`https://*.googleusercontent.com/*`** | Required to fetch user-uploaded attachments (PDFs, docs) and AI-generated image blobs displayed within conversation turns for offline packaging. |
+All platform hosts are **optional** in the release manifest. Onboarding and
+**Site access** request the conversation and attachment sites only for selected
+platforms. Already authorized platforms are hidden from the request list;
+unchecking a choice does not revoke previously granted access.
+
+| Platform | Optional host patterns | Justification |
+| :--- | :--- | :--- |
+| **Gemini** | `gemini.google.com`, `*.googleusercontent.com`, `*.usercontent.google.com`, `drive.google.com`, `lh3.google.com`, `*.gstatic.com` | Read requested conversations and retrieve associated images/files directly from Google. |
+| **ChatGPT (experimental)** | `chatgpt.com`, `chat.openai.com`, `images.openai.com` | Identify the signed-in account/workspace and retrieve requested conversations and images. |
+| **Claude (experimental)** | `claude.ai` | Identify the current organization and retrieve requested conversations and attachments. |
+| **Grok (experimental)** | `grok.com`, `assets.grok.com` | Retrieve requested conversations and available attachments using the signed-in Grok tab. |
+
+Use the release `manifest.json` as the authoritative permission list; temporary
+required permissions used for local staging must never enter a store package.
 
 ---
 
@@ -45,6 +57,13 @@ Chrome Web Store enforces a strict single-purpose policy requiring explicit just
 - **No Credential Harvesting**: Never reads, stores, or transmits Google account passwords or authentication Cookies.
 
 ---
+
+## Product screenshots
+
+Current README and store screenshot assets were captured in real Chrome on port
+9222. See [capture provenance, dimensions and refresh steps](./product-screenshots.md).
+The dark workbench image shows local-folder settings before folder authorization;
+it does not demonstrate active Live Save.
 
 ## 🏷️ Title & Promotional Assets Policy Compliance (Red Nickel Prevention)
 
