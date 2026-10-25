@@ -80,7 +80,7 @@ class ClaudeLiveRunner(BrowserAcceptance):
     def prepare_extension(self):
         """Required Claude permission applies only to this ignored local install copy."""
         self.extension_root = self.root
-        if os.environ.get('TIER2_CLAUDE_REQUIRED_HOSTS') != '1':
+        if os.environ.get('TIER2_CLAUDE_REQUIRED_HOSTS') == '0':
             self.report['testInstallMode'] = 'optional-claude-hosts'
             return
         target = self.root/'temp/tier2-claude-required-hosts'

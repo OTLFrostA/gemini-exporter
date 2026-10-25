@@ -10,6 +10,8 @@ import time
 import json
 import base64
 import urllib.request
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List
 
 import sys
@@ -78,6 +80,25 @@ _SHARED_PIPELINE_EXECUTOR = SerialActionExecutor()
 
 
 
+@contextmanager
+def temporary_required_permissions(repo_path):
+    """Pregrant local Tier 2/3 permissions; always restore the exact source bytes."""
+    manifest_path = Path(repo_path) / 'manifest.json'
+    original = manifest_path.read_bytes()
+    manifest = json.loads(original)
+    for optional, required in (('optional_permissions', 'permissions'),
+                               ('optional_host_permissions', 'host_permissions')):
+        values = manifest.pop(optional, [])
+        if values:
+            manifest[required] = list(dict.fromkeys(manifest.get(required, []) + values))
+    try:
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        print('   🔐 Tier 2/3 临时使用 required 权限；加载后恢复源 manifest')
+        yield
+    finally:
+        manifest_path.write_bytes(original)
+
+
 class ExtensionActions:
     """
     Universal Chrome Extension Options Page & Management Automation Primitives.
@@ -100,28 +121,29 @@ class ExtensionActions:
 
         cdp = CDPConnection(browser_ws)
         try:
-            # Chrome's workspace load result is authoritative, even when the
-            # worker is asleep or another extension has similarly named pages.
-            identity = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
-            old_ext_id = identity.get("result", {}).get("id")
-            if not old_ext_id:
-                print(f"❌ 无法确认工作区扩展身份，停止重装: {identity}")
-                return None
-            print(f"   🗑️ 正在通过 CDP Extensions.uninstall 卸载工作区扩展 ({old_ext_id})...")
-            removed = cdp.call("Extensions.uninstall", {"id": old_ext_id})
-            if "error" in removed:
-                print(f"❌ 工作区扩展卸载失败，停止重装: {removed}")
-                return None
-            time.sleep(0.5)
+            with temporary_required_permissions(repo_path):
+                # Chrome's workspace load result is authoritative, even when the
+                # worker is asleep or another extension has similarly named pages.
+                identity = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
+                old_ext_id = identity.get("result", {}).get("id")
+                if not old_ext_id:
+                    print(f"❌ 无法确认工作区扩展身份，停止重装: {identity}")
+                    return None
+                print(f"   🗑️ 正在通过 CDP Extensions.uninstall 卸载工作区扩展 ({old_ext_id})...")
+                removed = cdp.call("Extensions.uninstall", {"id": old_ext_id})
+                if "error" in removed:
+                    print(f"❌ 工作区扩展卸载失败，停止重装: {removed}")
+                    return None
+                time.sleep(0.5)
 
-            print(f"   📦 正在通过 CDP Extensions.loadUnpacked 安装扩展: {repo_path}...")
-            res = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
-            new_ext_id = res.get("result", {}).get("id")
-            if not new_ext_id:
-                print(f"❌ 扩展安装失败，CDP 返回: {res}")
-                return None
-            print(f"   ✅ 扩展安装成功！新 Extension ID: {new_ext_id}")
-            return new_ext_id
+                print(f"   📦 正在通过 CDP Extensions.loadUnpacked 安装扩展: {repo_path}...")
+                res = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
+                new_ext_id = res.get("result", {}).get("id")
+                if not new_ext_id:
+                    print(f"❌ 扩展安装失败，CDP 返回: {res}")
+                    return None
+                print(f"   ✅ 扩展安装成功！新 Extension ID: {new_ext_id}")
+                return new_ext_id
         finally:
             cdp.close()
 

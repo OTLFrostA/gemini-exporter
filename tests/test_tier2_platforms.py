@@ -95,10 +95,10 @@ class PlatformsTest(unittest.TestCase):
                 (root/name).mkdir()
                 (root/name/'asset').write_text('first-build')
             runtime = SimpleNamespace(root=root, report={})
-            with patch.dict('os.environ', {'TIER2_CHATGPT_REQUIRED_HOSTS': '1'}):
+            with patch.dict('os.environ', {}, clear=True):
                 ChatGPTAcceptance.prepare_extension(runtime)
                 staged = json.loads((runtime.extension_root/'manifest.json').read_text())
-                for host in ('https://chatgpt.com/*', 'https://chat.openai.com/*'):
+                for host in ('https://chatgpt.com/*', 'https://chat.openai.com/*', 'https://images.openai.com/*'):
                     self.assertIn(host, staged['host_permissions'])
                     self.assertNotIn(host, staged['optional_host_permissions'])
                 self.assertEqual((root/'manifest.json').read_text(), source)
@@ -107,7 +107,7 @@ class PlatformsTest(unittest.TestCase):
                 ChatGPTAcceptance.prepare_extension(runtime)
                 self.assertFalse((runtime.extension_root/'stale').exists())
                 self.assertEqual((runtime.extension_root/'dist/asset').read_text(), 'second-build')
-            with patch.dict('os.environ', {'TIER2_CHATGPT_REQUIRED_HOSTS': ''}):
+            with patch.dict('os.environ', {'TIER2_CHATGPT_REQUIRED_HOSTS': '0'}):
                 ChatGPTAcceptance.prepare_extension(runtime)
             self.assertEqual(runtime.extension_root, root)
             self.assertEqual((root/'manifest.json').read_text(), source)

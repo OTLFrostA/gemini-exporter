@@ -355,7 +355,7 @@ class ClaudeTier2Tests(unittest.TestCase):
                 (root/name/'asset').write_text('first')
             runner = self.runner(root/'output')
             runner.root = root
-            with patch.dict('os.environ', {'TIER2_CLAUDE_REQUIRED_HOSTS': '1'}):
+            with patch.dict('os.environ', {}, clear=True):
                 runner.prepare_extension()
                 staged = json.loads((runner.extension_root/'manifest.json').read_text())
                 self.assertIn('https://claude.ai/*', staged['host_permissions'])
