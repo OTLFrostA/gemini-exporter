@@ -15,7 +15,6 @@ interface Window {
     __gemExporterAborted?: boolean;
     __gemExporterActiveClient?: import('../content/contentContext.js').ActiveClientContract | null;
     __gemExporterContentContext?: import('../content/contentContext.js').ContentContext;
-    __gemExporterInjected?: boolean;
     __gemExporterDevMode?: boolean;
     __gemExporterVerboseLog?: boolean;
     __gemExporterLogAll?: boolean;
