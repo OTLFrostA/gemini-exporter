@@ -268,7 +268,7 @@ function mountAuthorization(popover: HTMLElement, before: HTMLElement, ready?: (
 }
 
 /** Reopen the same authorization view without starting or advancing the tutorial. */
-export function showPlatformAuthorization(connected?: (accountId: string) => Promise<void>): void {
+function showPlatformAuthorization(connected?: (accountId: string) => Promise<void>): void {
     if (modalOpen()) return;
     destroy(); mode = 'authorization'; onConnected = connected;
     const step = STEPS[0];

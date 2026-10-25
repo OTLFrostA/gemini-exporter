@@ -209,10 +209,6 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
     return paths;
 }
 
-export interface RuntimeFontConsumer {
-    setRuntimeFonts?(fonts: readonly Uint8Array[]): void;
-}
-
 export class TypstSandboxCompiler implements IPdfCompiler {
     readonly name = 'typst-wasm-sandbox';
 

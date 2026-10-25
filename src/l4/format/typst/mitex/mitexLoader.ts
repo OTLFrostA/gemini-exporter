@@ -67,18 +67,9 @@ function getWasmPathInNode(): string {
         throw new Error('Node.js modules node:path and node:fs are not available in current environment.');
     }
 
-    // Try relative to current file
-    const candidatePaths = [
-        path.join(__dirname, 'vendor', 'mitex_wasm_bg.wasm'),
-        path.join(__dirname, '..', 'src', 'core', 'renderers', 'typst', 'mitex', 'vendor', 'mitex_wasm_bg.wasm'),
-        path.join(process.cwd(), 'src', 'core', 'renderers', 'typst', 'mitex', 'vendor', 'mitex_wasm_bg.wasm'),
-    ];
-
-    for (const p of candidatePaths) {
-        if (fs.existsSync(p)) return p;
-    }
-
-    throw new Error(`MiTeX WASM binary not found in candidate paths: ${candidatePaths.join(', ')}`);
+    const wasmPath = path.join(__dirname, 'vendor', 'mitex_wasm_bg.wasm');
+    if (fs.existsSync(wasmPath)) return wasmPath;
+    throw new Error(`MiTeX WASM binary not found at ${wasmPath}`);
 }
 
 function initNodeSync(): void {
