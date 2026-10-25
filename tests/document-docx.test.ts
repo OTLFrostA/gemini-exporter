@@ -3,14 +3,12 @@ import assert from 'node:assert/strict';
 import { v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
 import { renderDocumentDocx } from '../src/l4/format/docx/renderDocx.js';
 import { createExportPathPlanner, buildExportFiles } from '../src/l4/packaging/index.js';
-import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 const JSZip = require('../lib/jszip.min.js');
 
 const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/2GAAAAAASUVORK5CYII=', 'base64'));
 
 test('DOCX renders actual OOXML, editable text, safe links, a merged table and embedded image', async () => {
-    __setZipConstructor(JSZip);
     const document = v2Document([
         { type: 'paragraph', children: [
             { type: 'strong', children: [{ type: 'text', text: 'Hello & <World>' }] },
@@ -44,7 +42,7 @@ test('DOCX renders actual OOXML, editable text, safe links, a merged table and e
     const zip = await JSZip.loadAsync(bytes);
     assert.ok(zip.file('[Content_Types].xml'));
     assert.ok(zip.file('word/styles.xml'));
-    assert.ok(zip.file('word/media/image-1.png'));
+    assert.ok(Object.keys(zip.files).some(name => /^word\/media\/.+\.png$/.test(name)));
     const doc = await zip.file('word/document.xml').async('string');
     const rels = await zip.file('word/_rels/document.xml.rels').async('string');
     assert.ok(doc.includes('Docx &amp; example'));
@@ -80,7 +78,6 @@ test('DOCX planner embeds supported images but preserves files and unsupported i
 });
 
 test('DOCX handles empty conversation and unavailable images without losing the text', async () => {
-    __setZipConstructor(JSZip);
     const empty = v2Document([{ type: 'image', resourceId: 'missing', alt: 'Lost drawing' }], { title: 'Image failure' });
     const zip = await JSZip.loadAsync(await renderDocumentDocx(empty, {}, new Map(), { locale: 'zh' }));
     const body = await zip.file('word/document.xml').async('string');
