@@ -1,3 +1,4 @@
+import { decodeGeminiStructuredPayload as decodeBody } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
@@ -34,7 +35,7 @@ for (const structured of [
     { children: [] },
 ]) {
     test(`malformed or unsupported structured input preserves its full Markdown fallback: ${JSON.stringify(structured)}`, () => {
-        assert.deepEqual(parseGeminiBody('# Visible\n\n**answer**', structured), [
+        assert.deepEqual(parseGeminiBody('# Visible\n\n**answer**', decodeBody(structured) ?? undefined), [
             { type: 'heading', level: 1, children: [{ type: 'text', text: 'Visible' }] },
             { type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'answer' }] }] },
         ]);

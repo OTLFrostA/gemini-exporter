@@ -35,17 +35,12 @@ export function convertGeminiInlines(
     annotations?: GeminiAnnotation[],
     sources: GeminiSourceCitations = new Map(),
 ): InlineNode[] | null {
-    if (annotations !== undefined && !Array.isArray(annotations)) return null;
     if (!annotations || annotations.length === 0) {
         return textWithSoftBreaks(text);
     }
 
     // Validate annotations integrity and bounds
     for (const a of annotations) {
-        if (!a || typeof a !== 'object') return null;
-        if (typeof a.start !== 'number' || typeof a.end !== 'number' || (typeof a.type !== 'number' && a.type !== 'source')) {
-            return null;
-        }
         if (!Number.isInteger(a.start) || !Number.isInteger(a.end) || a.start < 0 || a.end > text.length || a.start > a.end) {
             return null;
         }
@@ -178,22 +173,17 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
     const inlines: InlineNode[] = [];
     for (let i = 0; i < children.length; i++) {
         const child = children[i];
-        if (!child || typeof child !== 'object' || !('nodeType' in child)) {
-            return null;
-        }
         if (child.nodeType === 18) {
-            if (typeof child.text !== 'string' || child.jJ && child.jJ > 0) return null;
+            if (child.jJ && child.jJ > 0) return null;
             const converted = convertGeminiInlines(child.text, child.annotations, sources);
             if (converted === null) return null;
             inlines.push(...converted);
         } else if (child.nodeType === 'paragraph' || child.nodeType === 'citationGroup') {
-            if (!Array.isArray(child.children)) return null;
-            if (child.nodeType === 'citationGroup' && (!child.children.length || child.children.some(node => node?.nodeType !== 'citation'))) return null;
             const converted = convertCellChildren(child.children, sources);
             if (converted === null) return null;
             inlines.push(...converted);
         } else if (child.nodeType === 'citation') {
-            if (!Number.isSafeInteger(child.number) || child.number < 1 || typeof child.title !== 'string' || !child.title) return null;
+            if (!Number.isSafeInteger(child.number) || child.number < 1 || !child.title) return null;
             const citationId = `grounding-${child.number}`;
             if (!sources.get(citationId)?.some(citation => citation.id === citationId)) return null;
             // Native uploaded-file chips are hidden in the authored webpage text.
@@ -202,7 +192,6 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
         } else if (child.nodeType === 12) {
             // Native display math can occur inside a table cell. Preserve its
             // source instead of falling back and reinterpreting other cell text.
-            if (typeof child.FTa !== 'string') return null;
             inlines.push({ type: 'inlineMath', source: child.FTa });
         } else if (child.nodeType === 13) {
             inlines.push({ type: 'lineBreak', kind: 'hard' });
@@ -215,31 +204,12 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
 }
 
 export function geminiStructuredToContent(
-    doc: unknown,
+    doc: GeminiStructuredDocument,
     sources: GeminiSourceCitations = new Map(),
 ): BlockNode[] | null {
-    if (!doc || typeof doc !== 'object') return null;
-
-    let nodes: GeminiStructuredNode[];
-    if (Array.isArray((doc as GeminiStructuredDocument).children)) {
-        nodes = (doc as GeminiStructuredDocument).children;
-    } else if (Array.isArray(doc)) {
-        nodes = doc as GeminiStructuredNode[];
-    } else {
-        return null;
-    }
-
-    if (nodes.length === 0) {
-        return [];
-    }
-
     const blocks: BlockNode[] = [];
 
-    for (const node of nodes) {
-        if (!node || typeof node !== 'object' || !('nodeType' in node)) {
-            return null;
-        }
-
+    for (const node of doc.children) {
         switch (node.nodeType) {
             case 'citation':
             case 'citationGroup': {
@@ -251,7 +221,6 @@ export function geminiStructuredToContent(
                 break;
             }
             case 'paragraph': {
-                if (!Array.isArray(node.children)) return null;
                 const children = convertCellChildren(node.children, sources);
                 if (children === null) return null;
                 blocks.push({ type: 'paragraph', children });
@@ -259,14 +228,14 @@ export function geminiStructuredToContent(
             }
             case 18: {
                 // Text / Heading / Paragraph
-                if (typeof node.text !== 'string') return null;
                 const inlines = convertGeminiInlines(node.text, node.annotations, sources);
                 if (inlines === null) return null;
 
-                if (node.jJ && node.jJ >= 1 && node.jJ <= 6) {
+                const level = node.jJ;
+                if (level === 1 || level === 2 || level === 3 || level === 4 || level === 5 || level === 6) {
                     blocks.push({
                         type: 'heading',
-                        level: node.jJ as 1 | 2 | 3 | 4 | 5 | 6,
+                        level,
                         children: inlines,
                     });
                 } else {
@@ -280,7 +249,6 @@ export function geminiStructuredToContent(
 
             case 12: {
                 // Display Math
-                if (typeof node.FTa !== 'string') return null;
                 blocks.push({
                     type: 'math',
                     source: node.FTa,
@@ -290,7 +258,6 @@ export function geminiStructuredToContent(
 
             case 1: {
                 // Code block
-                if (typeof node.code !== 'string') return null;
                 blocks.push({
                     type: 'code',
                     code: node.code,
@@ -310,10 +277,8 @@ export function geminiStructuredToContent(
             case 20:
             case 14: {
                 // Unordered (20) or Ordered (14) list
-                if (!Array.isArray(node.items)) return null;
                 const items: ListItem[] = [];
                 for (const item of node.items) {
-                    if (!item || !Array.isArray(item.children)) return null;
                     const itemBlocks = geminiStructuredToContent(
                         { children: item.children }, sources,
                     );
@@ -323,7 +288,7 @@ export function geminiStructuredToContent(
                 blocks.push({
                     type: 'list',
                     ordered: node.nodeType === 14,
-                    ...(node.nodeType === 14 ? { start: typeof node.VHa === 'number' ? node.VHa : 1 } : {}),
+                    ...(node.nodeType === 14 ? { start: node.VHa ?? 1 } : {}),
                     items,
                 });
                 break;
@@ -331,7 +296,6 @@ export function geminiStructuredToContent(
 
             case 15: {
                 // Blockquote
-                if (!Array.isArray(node.children)) return null;
                 const quoteBlocks = geminiStructuredToContent(
                     { children: node.children }, sources,
                 );
@@ -345,19 +309,16 @@ export function geminiStructuredToContent(
 
             case 17: {
                 // Table
-                if (!Array.isArray(node.rows)) return null;
                 const tableRows: TableRow[] = [];
                 for (const row of node.rows) {
-                    if (!row || !Array.isArray(row.cells)) return null;
                     const cells: TableCell[] = [];
                     for (const cell of row.cells) {
-                        if (!cell || !Array.isArray(cell.children)) return null;
                         const cellInlines = convertCellChildren(cell.children, sources);
                         if (cellInlines === null) return null;
                         cells.push({
                             children: cellInlines,
-                            ...(typeof cell.colSpan === 'number' && cell.colSpan > 1 ? { colSpan: cell.colSpan } : {}),
-                            ...(typeof cell.rowSpan === 'number' && cell.rowSpan > 1 ? { rowSpan: cell.rowSpan } : {}),
+                            ...(cell.colSpan !== undefined && cell.colSpan > 1 ? { colSpan: cell.colSpan } : {}),
+                            ...(cell.rowSpan !== undefined && cell.rowSpan > 1 ? { rowSpan: cell.rowSpan } : {}),
                         });
                     }
                     tableRows.push({ cells });
@@ -373,7 +334,6 @@ export function geminiStructuredToContent(
             }
 
             case 24: {
-                if (typeof node.id !== 'string' || !node.id || typeof node.title !== 'string') return null;
                 blocks.push({ type: 'file', assetId: node.id, label: node.title });
                 break;
             }

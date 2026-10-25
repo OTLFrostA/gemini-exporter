@@ -1,3 +1,5 @@
+import { formatUnknownPayload } from '../../../src/l1/parsers/gemini/shared/unknownFallback.js';
+import { decodeGeminiStructuredPayload } from '../../../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { semanticTitleSource } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
 import { contentQuality, type ContentQuality } from '../../../src/l1/parsers/qualityEvidence.js';
 import { parseIndexMetadata } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
@@ -154,7 +156,13 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
     const providerId = options.providerId;
     const parseContent = (body: unknown, structured?: unknown): BlockNode[] => {
         const context = { diagnostics: parserDiagnostics, sourceRef: { providerId, locator: 'content' } };
-        return providerId === 'gemini' || typeof body !== 'string' ? parseGeminiBody(body, structured, context) : parseImportedBody(body, context);
+        if (typeof body === 'string') return providerId === 'gemini'
+            ? parseGeminiBody(body, decodeGeminiStructuredPayload(structured) ?? undefined, context) : parseImportedBody(body, context);
+        if (body == null) return [];
+        const visible = formatUnknownPayload(body);
+        parserDiagnostics.push({ id: 'unknown-content:content', severity: 'warning', code: 'UNKNOWN_MESSAGE_CONTENT',
+            message: 'message content was not a string; preserved as unknown block', sourceRef: context.sourceRef, details: { truncated: visible.truncated } });
+        return [{ type: 'unknown', sourceType: 'message-content', text: visible.text }];
     };
     const parseReasoning = providerId === 'gemini'
         ? (body: string) => parseSourceReasoning(body, { diagnostics: parserDiagnostics, sourceRef: { providerId, locator: 'reasoning' } })

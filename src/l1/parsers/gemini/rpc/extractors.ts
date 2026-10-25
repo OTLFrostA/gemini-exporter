@@ -133,6 +133,11 @@ export interface TitleResult {
 /** Selected Candidate facts decoded at the Turn boundary. Raw media evidence
  * stays private to Gemini resource decoders. */
 export interface DecodedGeminiCandidate {
+    /** Selected wire context; only the resource decoder interprets these remaining slots. */
+    source: unknown;
+    body: unknown;
+    turnDocument: unknown;
+    index: number;
     id: string;
     text: string;
     /** Source facts decoded once, before message assembly. */
@@ -142,8 +147,8 @@ export interface DecodedGeminiCandidate {
     groundingCitationMarkers: string[];
 }
 
-/** Known fields read once from a Turn. All returned fields are typed facts;
- * wire slots are read only by specialized L1 resource decoders. */
+/** Known fields read once from a Turn. Selected wire evidence stays within
+ * the L1 decoder and is consumed by specialized resource decoders. */
 export interface DecodedGeminiTurn {
     userText: string;
     timestamp: number | null;
@@ -151,10 +156,7 @@ export interface DecodedGeminiTurn {
     fallbackTurnId: string;
     /** Only the confirmed request-ID slots yield provider identity. */
     rawProviderRequestId: string | undefined;
-    /** Stable normalized request identity; raw token above retains its spelling. */
-    providerRequestId: string | undefined;
     candidate: DecodedGeminiCandidate | null;
-    candidateIndex: number;
 }
 
 interface GeminiParserExtractorsModule {
@@ -470,7 +472,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
     }
 
     function safeStructureClean(str?: string | null): string {
-        if (!str || typeof str !== "string") return "";
+        if (!str) return "";
         let out = "";
         let inString = false;
         let escape = false;
@@ -501,7 +503,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
     }
 
     function robustFirstPayload(text?: string | null): unknown[] | null {
-        if (!text || typeof text !== "string") return null;
+        if (!text) return null;
 
         let trimmed = text.trim();
         if (trimmed.startsWith(")]}'")) {
@@ -787,7 +789,6 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         } else if (typeof idMeta === "string" && idMeta.startsWith("r_")) {
             rawProviderRequestId = idMeta;
         }
-        const providerRequestId = rawProviderRequestId?.slice(2).toLowerCase();
 
         const rawUserPayload = turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
@@ -806,6 +807,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         const candidateBlock = body || selected;
         const candidate: DecodedGeminiCandidate | null = candidateIndex < candidates.length
             ? {
+                source: selected, body, index: candidateIndex,
+                turnDocument: isUnknownArray(modelPayload) ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined,
                 id: typeof rawId === "string" ? rawId : "",
                 text: extractModelResponseText(selected),
                 thoughts: extractThoughts(candidateBlock),
@@ -821,9 +824,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             userMessageId,
             fallbackTurnId,
             rawProviderRequestId,
-            providerRequestId,
-            candidate,
-            candidateIndex
+            candidate
         };
     }
 

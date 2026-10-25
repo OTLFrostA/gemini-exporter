@@ -40,17 +40,17 @@ test('real wire answer image survives while unrelated search metadata is exclude
 });
 
 test('direct image URLs in Markdown survive without structured answer data', () => {
-    const images = extractResponseImages([searchResult], [], `![diagram](${searchUrl})`);
+    const { images } = extractResponseImages([searchResult], [], `![diagram](${searchUrl})`);
     assert.equal(images.length, 1);
 });
 
 test('plain image-agent placeholders do not prove an image was rendered', () => {
-    assert.equal(extractResponseImages([searchResult], [], '<Image src="image_agent_tag_example" />').length, 0);
+    assert.equal(extractResponseImages([searchResult], [], '<Image src="image_agent_tag_example" />').images.length, 0);
 });
 
 test('uploaded image tuples remain supported outside search-result metadata', () => {
     const upload = ['https://lh3.googleusercontent.com/upload.png', 640, 480];
-    assert.equal(extractResponseImages([upload], [], 'Answer').length, 1);
+    assert.equal(extractResponseImages([upload], [], 'Answer').images.length, 1);
 });
 
 test('unselected candidates are omitted without losing the primary answer image', () => {

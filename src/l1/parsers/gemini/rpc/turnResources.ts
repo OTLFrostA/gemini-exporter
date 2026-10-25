@@ -1,4 +1,4 @@
-import { GEMINI_JSPB_SCHEMA, extractModelCandidates, type DecodedGeminiCandidate } from './extractors.js';
+import { GEMINI_JSPB_SCHEMA, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence } from './detailEvidence.js';
 import {
@@ -22,12 +22,6 @@ import { shortId } from '../../../../shared/utils/pathUtils.js';
 
 /** Central Gemini resource decoder: untrusted wire slots stop here.
  * Message composition only receives validated and normalized source evidence. */
-export interface DetailMediaReader {
-    sourceOnly?: boolean;
-    images: typeof extractImageEvidence;
-    responseImages: typeof extractResponseImageEvidence;
-}
-
 export interface DecodedGeminiUserResources {
     images: ImageAttachment[];
     files: UserFileAttachment[];
@@ -36,6 +30,7 @@ export interface DecodedGeminiUserResources {
 export interface DecodedGeminiCandidateResources {
     images: ImageAttachment[];
     filteredImages: ImageAttachment[];
+    structuredImages: ImageAttachment[];
     generatedFiles: GeminiAttachmentEvidence[];
     documents: GeminiDocumentEvidence[];
     structuredExtraction: GeminiStructuredExtraction;
@@ -49,12 +44,12 @@ function wireArray(value: unknown): value is unknown[] {
 
 /** Media decoding uses the same Turn payload that decodeTurn validated as text. */
 export function decodeGeminiUserResources(
-    rawTurn: unknown, media: DetailMediaReader, imageSeq: { value: number }
+    rawTurn: unknown
 ): DecodedGeminiUserResources {
     const rawUserPayload = wireArray(rawTurn)
         ? rawTurn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD] : undefined;
     return {
-        images: media.images(rawUserPayload, imageSeq),
+        images: extractImageEvidence(rawUserPayload),
         files: extractUserFiles(rawUserPayload),
     };
 }
@@ -62,30 +57,23 @@ export function decodeGeminiUserResources(
 /** decodeTurn selects the draft; specialized decoders see only that draft's
  * raw media/document slots and never re-select a Candidate themselves. */
 export function decodeGeminiCandidateResources(
-    rawTurn: unknown,
     candidate: DecodedGeminiCandidate,
-    candidateIndex: number,
     inner: unknown,
-    media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
-    imageSeq: { value: number },
     convId?: string
 ): DecodedGeminiCandidateResources {
-    const cand = extractModelCandidates(rawTurn)[candidateIndex];
-    const answerBody = wireArray(cand) ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] : undefined;
+    const { source: cand, index: candidateIndex, body: answerBody, turnDocument } = candidate;
     const candidateBlock = answerBody || cand;
-    const modelPayload = wireArray(rawTurn) ? rawTurn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
-    const turnDocument = wireArray(modelPayload)
-        ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined;
-    const responseText = candidate.text;
     // Preserve the established ownership, fallback and ordering rules.
     const structuredExtraction = inspectStructuredContent({
         candidate: cand, turnDocument, candidateIndex
     });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
-    const candImages = media.responseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
+    const { images: candImages, structuredImages } = extractResponseImageEvidence(
+        cand, [answerBody, rawAnswerDocument, structuredContent], candidate.text, structuredContent
+    );
     const filteredImages = filterNewImages(candImages, dedupSet);
 
     const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId);
@@ -148,7 +136,7 @@ export function decodeGeminiCandidateResources(
                     id: metaItem.id,
                     title: docTitle,
                     createdAt: metaItem.createdAt,
-                    chipUrl: media.sourceOnly ? (metaItem.chipUrl ?? "") : "",
+                    chipUrl: metaItem.chipUrl ?? "",
                     sections: [...parsedPrimary.sections, ...parsedAlt.sections],
                     links: [...parsedPrimary.links, ...parsedAlt.links],
                     contentMarkdown: cleanMd,
@@ -165,6 +153,7 @@ export function decodeGeminiCandidateResources(
     return {
         images: candImages,
         filteredImages,
+        structuredImages,
         generatedFiles,
         documents: docDetails,
         structuredExtraction,

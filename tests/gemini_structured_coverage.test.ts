@@ -1,3 +1,4 @@
+import type { GeminiStructuredDocument } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -111,7 +112,7 @@ test('unknown wire fields, absent payload, and uncorrelated candidate have disti
 
 test('adapter rejection remains visible and preserves complete Markdown body', () => {
     const diagnostics: Diagnostic[] = [];
-    const malformed = { children: [{ nodeType: 18, text: 'abc', annotations: [{ start: 0, end: 99, type: 7 }] }] };
+    const malformed: GeminiStructuredDocument = { children: [{ nodeType: 18, text: 'abc', annotations: [{ start: 0, end: 99, type: 7 }] }] };
     const content = parseGeminiBody(fallback, malformed, { diagnostics, sourceRef: { providerId: 'gemini', providerMessageId: 'rc_bad' } });
     assert.ok(JSON.stringify(content).includes(fallback));
     assert.deepEqual(diagnostics[0].details, { reason: 'adapter_rejected' });

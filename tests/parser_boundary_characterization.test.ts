@@ -1,3 +1,4 @@
+import type { GeminiMessageEvidence } from '../src/l1/parsers/gemini/rpc/detailEvidence.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -11,7 +12,8 @@ import { extractInnerPayload, extractNextPageToken } from '../src/l1/parsers/gem
 import { extractImages, extractUserFiles, extractDocumentsMeta } from './helpers/recordFixture/attachments.js';
 import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { decodeGeminiUserResources, decodeGeminiCandidateResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
-import { extractImageEvidence, extractResponseImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+import { structuredBodyAttachments } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
+import { extractResponseImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 
 // Synthetic boundary probes based on existing gemini_parser/parse_observability
 // fixtures; they characterize current behavior, not new wire compatibility.
@@ -196,11 +198,14 @@ test('known behavior: rejected turn with a user payload still emits a user messa
 });
 
 test('candidate extraction accepts the compact layout without scanning telemetry as variants', () => {
-    const compact = [[ID], null, [], [['rc_compact', 'Compact answer'], 'google', 'S', 6]];
+    const compactCandidate = ['rc_compact', 'Compact answer'];
+    const compact = [[ID], null, [], [compactCandidate, 'google', 'S', 6]];
     assert.deepEqual(extractModelCandidates(compact), [['rc_compact', 'Compact answer']]);
     assert.equal(extractCandidateText(['rc_parts', [['Part one', [' + part two'], null, 42], 'en']]), 'Part one + part two');
     for (const candidate of [null, [], ['rc_wrong', { wrong: true }]]) assert.equal(extractCandidateText(candidate), '');
 });
+
+const imagesAreRequired: {} extends Pick<GeminiMessageEvidence, 'structuredImages'> ? false : true = true;
 
 test('Turn decoding validates known fields once and honors the selected draft', () => {
     const candidates = [
@@ -216,11 +221,11 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     assert.equal(decoded.userMessageId, 'r_AB12');
     assert.equal(decoded.fallbackTurnId, 'r_AB12');
     assert.equal(decoded.rawProviderRequestId, 'r_AB12');
-    assert.equal(decoded.providerRequestId, 'ab12');
     assert.equal(decoded.userText, 'Prompt');
     assert.equal(Object.hasOwn(decoded, 'rawUserPayload'), false, 'User wire evidence stays private to L1 resource decoders');
-    assert.equal(decoded.candidateIndex, 1);
+    assert.equal(decoded.candidate?.index, 1);
     assert.deepEqual(decoded.candidate, {
+        source: candidates[1], body: candidates[1][1], index: 1, turnDocument: undefined,
         id: 'rc_selected',
         text: 'Selected answer',
         thoughts: null,
@@ -229,7 +234,9 @@ test('Turn decoding validates known fields once and honors the selected draft', 
         groundingCitationMarkers: []
     });
 
+    assert.equal(imagesAreRequired, true);
     const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_SELECTED_DRAFT_01'));
+    assert.ok(parsed.messages.every(message => Array.isArray(message.structuredImages)));
     const modelMessages = parsed.messages.filter(m => m.role === 'model');
     assert.equal(modelMessages.length, 1);
     assert.equal(modelMessages[0].content, 'Selected answer');
@@ -262,6 +269,7 @@ test('Turn Decoder only attributes selected Candidate thoughts, citations and gr
     const decoded = decodeTurn(wire);
     assert.ok(decoded?.candidate);
     assert.equal(decoded.candidate.id, 'rc_selected');
+    assert.equal(decoded.candidate?.source, selected);
     assert.equal(decoded.candidate.thoughts, 'Selected reasoning');
     assert.deepEqual(decoded.candidate.citations, [{ url: source[0], title: source[1] }]);
     assert.deepEqual(decoded.candidate.sourceAttributions, [
@@ -286,7 +294,7 @@ test('Turn decoder owns text fallbacks without guessing unrelated candidate meta
     assert.equal(decoded.userText, 'User prompt');
     assert.equal(decoded.candidate?.text, 'Model fallback answer');
     assert.equal(Object.hasOwn(decoded.candidate ?? {}, 'raw'), false);
-    assert.equal(Object.hasOwn(decoded.candidate ?? {}, 'body'), false);
+    assert.equal(decoded.candidate?.body, fallbackCandidate[1]);
 
     assert.equal(decodeTurn([[ID], null, ['Flat prompt'], null])?.userText, 'Flat prompt');
     assert.equal(decodeTurn([[ID], null, { invalid: true }, null])?.userText, '');
@@ -294,12 +302,14 @@ test('Turn decoder owns text fallbacks without guessing unrelated candidate meta
 
 test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw media evidence', () => {
     assert.equal(decodeTurn(null), null);
-    const compact = [[ID], null, [], [['rc_compact', 'Compact answer'], 'google', 'S', 6]];
+    const compactCandidate = ['rc_compact', 'Compact answer'];
+    const compact = [[ID], null, [], [compactCandidate, 'google', 'S', 6]];
     const single = decodeTurn(compact);
     assert.ok(single);
-    assert.equal(single.candidateIndex, 0);
+    assert.equal(single.candidate?.index, 0);
     assert.equal(single.candidate?.id, 'rc_compact');
     assert.equal(single.candidate?.text, 'Compact answer');
+    assert.equal(single.candidate?.source, compactCandidate);
 
     const partialCandidate = [null, [['Text without an ID']]];
     const partial = [[ID], null, [['Prompt']], [[partialCandidate, ['rc_other', [['Other answer']]]]]];
@@ -307,10 +317,10 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     assert.ok(decodedPartial);
     assert.equal(decodedPartial.timestamp, null);
     assert.equal(decodedPartial.rawProviderRequestId, undefined);
-    assert.equal(decodedPartial.providerRequestId, undefined);
-    assert.equal(decodedPartial.candidateIndex, 0);
+    assert.equal(decodedPartial.candidate?.index, 0);
     assert.equal(decodedPartial.candidate?.id, '');
     assert.equal(decodedPartial.candidate?.text, 'Text without an ID');
+    assert.equal(decodedPartial.candidate?.source, partialCandidate);
     assert.equal(Object.hasOwn(decodedPartial.candidate ?? {}, 'raw'), false);
     assert.equal(decodeTurn([null, null, null, { malformed: true }])?.candidate, null);
 
@@ -330,14 +340,11 @@ test('Gemini resource decoder consumes raw Turn/Candidate wire slots but exports
     const rawTurn: unknown[] = [[ID, 'r_AB12'], null, [['Prompt']], modelPayload];
     const decoded = decodeTurn(rawTurn);
     assert.ok(decoded?.candidate);
-    const media = { sourceOnly: true, images: extractImageEvidence, responseImages: extractResponseImageEvidence };
-    const sequence = { value: 1 };
-    const userResources = decodeGeminiUserResources(rawTurn, media, sequence);
+    const userResources = decodeGeminiUserResources(rawTurn);
     assert.deepEqual(userResources.images, []);
     assert.deepEqual(userResources.files, []);
     const result = decodeGeminiCandidateResources(
-        rawTurn, decoded.candidate, decoded.candidateIndex, rawTurn, media,
-        new Set(), new Set(), sequence, ID
+        decoded.candidate, rawTurn, new Set(), new Set(), ID
     );
     assert.equal(result.structuredExtraction.status, 'decoded');
     assert.equal(result.generatedFiles.length, 0);
@@ -418,4 +425,46 @@ test('known behavior: a malformed image tuple is eligible for generic user-file 
         id: 'wrong-width', thumbnailUrl: undefined
     }]);
     assert.deepEqual(extractDocumentsMeta(raw), []);
+});
+
+
+test('response images decode shared wire evidence once and refresh it for the next response', () => {
+    const generated: unknown[] = Array(16).fill(null);
+    generated[2] = 'generated.png';
+    generated[3] = 'https://lh3.googleusercontent.com/generated';
+    generated[5] = 'same-image-token';
+    generated[11] = 'image/png';
+    generated[15] = [512, 512, 1000];
+    let snapshots = 0;
+    Object.defineProperty(generated, 'toJSON', { value: () => {
+        snapshots++;
+        return Array.from(generated);
+    } });
+    const inline = ['https://lh3.googleusercontent.com/preview', 512, 512, 'same-image-token'];
+    const body = [inline, generated];
+    const candidate = ['rc_images', body];
+    const structuredContent = { children: [{ nodeType: 0, Xj: [{ generatedImagePayload: [generated] }] }] };
+    const evidence = extractResponseImageEvidence(candidate, [body, structuredContent], '', structuredContent);
+    const { images } = evidence;
+    assert.equal(snapshots, 1, 'overlapping roots must share the decoded diagnostic snapshot');
+    assert.equal(images.length, 1);
+    assert.equal(images[0].isGenerated, true);
+    assert.equal(structuredBodyAttachments(evidence)[0].src, generated[3]);
+    assert.equal(snapshots, 1, 'resource adaptation consumes decoded facts without scanning the structured tree');
+    assert.equal(images[0].sourceUrl, generated[3], 'generated source supersedes the inline preview');
+    generated[3] = 'https://lh3.googleusercontent.com/updated';
+    const updated = extractResponseImageEvidence(candidate, [body, generated], '');
+    assert.equal(snapshots, 2, 'evidence belongs to one response extraction');
+    assert.equal(updated.images[0].sourceUrl, generated[3]);
+});
+
+test('response image evidence reuse preserves visible, inline and metadata-only search image rules', () => {
+    const visible = { attachmentType: 36, Kc: 'https://lh3.googleusercontent.com/visible' };
+    const inline = { attachmentType: 36, Kc: 'https://lh3.googleusercontent.com/inline' };
+    const hidden = { attachmentType: 36, Kc: 'https://lh3.googleusercontent.com/metadata-only' };
+    const body = [visible];
+    const candidate = ['rc_search', body, [{ ...visible }, inline, hidden]];
+    assert.deepEqual(extractResponseImageEvidence(candidate, [body], '').images.map(image => image.sourceUrl), [visible.Kc]);
+    assert.deepEqual(extractResponseImageEvidence(candidate, [body], `![inline](${inline.Kc})`).images.map(image => image.sourceUrl),
+        [visible.Kc, inline.Kc]);
 });

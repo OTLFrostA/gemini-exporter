@@ -4,8 +4,8 @@ export * from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 interface GeminiParserAttachmentsModule {
     isInternalChipUrl: (u?: string | null) => boolean;
     filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
-    extractImageEvidence: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
-    extractResponseImageEvidence: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];
+    extractImageEvidence: (obj: unknown) => ImageAttachment[];
+    extractResponseImageEvidence: typeof source.extractResponseImageEvidence;
     extractImages: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
     extractUserFiles: (turnUserArr: unknown) => UserFileAttachment[];
     extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
@@ -77,7 +77,8 @@ interface GeminiParserAttachmentsModule {
 
 
 export function extractImages(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
-    return source.collectImages(obj, seqRef, normalizeRawImage);
+    const counter = seqRef ?? { value: 1 };
+    return source.collectImages(obj, raw => normalizeRawImage(raw, counter));
 }
 const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages };
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;

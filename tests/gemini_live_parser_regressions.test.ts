@@ -1,3 +1,4 @@
+import type { GeminiStructuredDocument } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -25,7 +26,7 @@ test('display math splits a list paragraph and retains trailing authored prose',
 test('Gemini code preserves its final physical newline, indentation and blank lines', () => {
     for (const code of ['if x:\n    run()\n', 'run()\n\n']) {
         const raw = '```python\n' + code + '```';
-        const native = { children: [{ nodeType: 1, code, info: 'python' }] };
+        const native: GeminiStructuredDocument = { children: [{ nodeType: 1, code, info: 'python' }] };
         assert.deepEqual(parseGeminiBody(raw), parseGeminiBody(raw, native));
     }
     assert.equal(parseGeminiBody('```python\nrun()')[0].type === 'code' && (parseGeminiBody('```python\nrun()')[0] as {code: string}).code, 'run()');
@@ -35,7 +36,7 @@ test('Gemini code preserves its final physical newline, indentation and blank li
 
 test('evidence-backed exact bar aliases normalize only parsed math, preserving norm distinction', () => {
     const fixture = JSON.parse(readFileSync(GM_TEX_003_BAR_ALIASES.evidence, 'utf8'));
-    const native = { children: [{ nodeType: 12, FTa: fixture.structured }] };
+    const native: GeminiStructuredDocument = { children: [{ nodeType: 12, FTa: fixture.structured }] };
     assert.deepEqual(parseGeminiBody('$$' + fixture.markdown + '$$'), parseGeminiBody('', native));
     assert.equal(GM_TEX_003_BAR_ALIASES.transform('\\Vert{}x\\Vert{} + \\vert{}y\\vert{}'), '\\|x\\| + |y|');
     assert.equal(GM_TEX_003_BAR_ALIASES.transform('\\\\Vert{}'), '\\\\Vert{}');

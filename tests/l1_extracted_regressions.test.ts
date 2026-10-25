@@ -1,3 +1,4 @@
+import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 const fs = require('fs') as typeof import('node:fs');
@@ -39,7 +40,7 @@ for (const structured of [
     { children: [] },
 ]) {
     test(`malformed or unsupported structured input preserves its full Markdown fallback: ${JSON.stringify(structured)}`, () => {
-        assert.deepEqual(parseGeminiBody('# Visible\n\n**answer**', structured as never), [
+        assert.deepEqual(parseGeminiBody('# Visible\n\n**answer**', decodeGeminiStructuredPayload(structured) ?? undefined), [
             { type: 'heading', level: 1, children: [{ type: 'text', text: 'Visible' }] },
             { type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'answer' }] }] },
         ]);

@@ -42,7 +42,10 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
         `requestNativeDetail(()=>Promise.resolve(pageEvent.data));`,
         `callDomainBroker('get', raw);`,
     ];
+    const adapterCases = ['function adapt(v:unknown){}', 'function adapt<T>(v:T){}', 'const v=typeof raw;', 'const v=raw as string;', 'const v=raw!;'];
     const virtual = new Map(cases.map((source, index) => [resolve(root, `tests/arch/__domain_probe_${index}.ts`), source]));
+    const adapterProbes = adapterCases.map((source, index) => [resolve(root, `tests/arch/__adapter_probe_${index}.ts`), source] as const);
+    for (const [path, source] of adapterProbes) virtual.set(path, source);
     const quiet = resolve(root, 'tests/arch/__domain_probe_quiet.ts');
     virtual.set(quiet, `// assertDomainClosure(raw);\nconst text='raw as TrustedDomain'; /* function f(v:unknown):v is TrustedDomain{} */`);
     const api = new API({ cwd: root, fs: { readFile: path => virtual.get(path), fileExists: path => virtual.has(path) ? true : undefined } });
@@ -50,6 +53,11 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
         const snapshot = api.updateSnapshot({ openFiles: [...virtual.keys()] });
         for (const [path, source] of virtual) {
             const ast = snapshot.getDefaultProjectForFile(path)!.program.getSourceFile(path)!;
+            if (adapterProbes.some(([probe]) => probe === path)) {
+                for (const owner of ['l1/parsers/gemini/shared/contentAdapter.ts', 'l1/parsers/gemini/shared/structuredContentAdapter.ts'])
+                    assert.ok(trustBoundaryViolations(ast, owner).length > 0, `${owner}: ${source}`);
+                continue;
+            }
             for (const owner of ['l2/probe.ts', 'l3a/probe.ts', 'l3b/probe.ts', 'application/probe.ts', 'l4/probe.ts']) {
                 const issues = trustBoundaryViolations(ast, owner);
                 if (path === quiet) assert.deepEqual(issues, []);
