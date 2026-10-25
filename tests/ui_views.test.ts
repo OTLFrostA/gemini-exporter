@@ -67,7 +67,7 @@ test('new or updated conversations remain unselected until explicitly selected',
 test('list select all and deselect all operate on current view selection', async () => {
     await open({ indexes: rows }); await page.locator('#btnSelectAll').click();
     assert.equal(await page.locator('#list input:checked').count(), 2);
-    await page.locator('#btnSelectNone').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
+    await page.locator('#btnSelectAll').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
 });
 test('list history refresh displays the latest persisted record after focus', async () => {
     await open({ indexes: rows }); await page.locator('#list .item').first().waitFor();
@@ -114,7 +114,8 @@ test('select visible selects only matching rows and clearing selection leaves hi
     await open({ indexes: rows }); await page.locator('#chatSearchInput').fill('Alpha'); await page.locator('#btnSelectAll').click();
     await page.locator('#chatSearchInput').fill('');
     assert.equal(await page.locator('[data-chat-id=one] input').isChecked(), true); assert.equal(await page.locator('[data-chat-id=two] input').isChecked(), false);
-    await page.locator('#btnSelectNone').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnSelectAll').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
 });
 test('Select All replaces hidden selections with currently visible conversation keys', async () => {
     await open({ indexes: rows, records }); await page.locator('#list [data-chat-id=one] input').check();
