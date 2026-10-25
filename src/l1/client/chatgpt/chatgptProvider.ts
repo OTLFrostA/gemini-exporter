@@ -52,10 +52,7 @@ export class ChatGPTProvider implements AIProvider {
     private readonly resources?: SourceResourceContext;
 
     constructor(deps?: ChatGPTProviderDeps) {
-        const globalFetch = typeof globalThis.fetch === 'function'
-            ? globalThis.fetch.bind(globalThis) : undefined;
-        this.fetchFn = deps?.fetchFn ?? globalFetch
-            ?? (() => Promise.reject(new Error('fetch unavailable')));
+        this.fetchFn = deps?.fetchFn ?? globalThis.fetch.bind(globalThis);
         this.origin = deps?.origin ?? 'https://chatgpt.com';
         this.resources = deps?.resources;
     }
