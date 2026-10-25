@@ -76,14 +76,16 @@ export function parseToolUse(block: Record<string, unknown>, state: ToolState,
         blocks.push(link('Artifact', input.url));
     } else if (name === 'artifact') {
         const path = input?.file_path;
-        const content = typeof path === 'string' ? state.files.get(path) : undefined;
-        if (typeof content === 'string' && input?.edits === undefined) {
-            blocks.push(...fileBlocks('Artifact', path as string, content));
-            if (typeof input?.description === 'string') blocks.push(plain(input.description));
-        } else {
-            if (typeof path === 'string') state.files.delete(path);
-            issues.push('Published artifact content is unavailable or uses unsupported edits');
-        }
+        if (typeof path === 'string') {
+            const content = state.files.get(path);
+            if (content !== undefined && input?.edits === undefined) {
+                blocks.push(...fileBlocks('Artifact', path, content));
+                if (typeof input?.description === 'string') blocks.push(plain(input.description));
+            } else {
+                state.files.delete(path);
+                issues.push('Published artifact content is unavailable or uses unsupported edits');
+            }
+        } else issues.push('Published artifact content is unavailable or uses unsupported edits');
     } else if (name === 'askuserquestion') {
         if (!Array.isArray(input?.questions) || !input.questions.length) issues.push('Missing questionnaire questions');
         else for (const raw of input.questions) {

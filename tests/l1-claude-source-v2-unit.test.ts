@@ -8,6 +8,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseClaudeList } from '../src/l1/parsers/claude/parseList.js';
 import { parseClaudeConversation } from '../src/l1/parsers/claude/parseConversation.js';
+import { parseNativeTool } from '../src/l1/parsers/claude/parseNativeTools.js';
+import { parseToolUse } from '../src/l1/parsers/claude/parseTools.js';
 import { readClaudeSource } from '../src/l1/client/claude/claudeSource.js';
 import { organizationsGen as claudeOrganizationsGen } from './fixtures/providers/claudeOrganizations.js';
 import { listGen as claudeListGen } from './fixtures/providers/claudeList.js';
@@ -308,4 +310,20 @@ test('Claude shell operations invalidate retained Artifact bytes and duplicate m
     assert.equal(parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_SHELL_INVALIDATES_ARTIFACT_01'), c1)
         .conversation.detail.quality.status, 'partial');
     assert.throws(() => parseClaudeConversation(claudeDetailGen('CL_L1_SOURCE_DUPLICATE_MESSAGE_UUID_01'), c1), /Duplicate/);
+});
+
+test('Claude tool file paths stay narrow through delivery and Artifact publication', () => {
+    const valid = parseNativeTool('senduserfile', { files: ['/home/claude/result.py'] }, () => []);
+    assert.deepEqual(valid?.issues, []);
+    assert.ok(JSON.stringify(valid?.blocks).includes('Delivered file: result.py'));
+    const invalid = parseNativeTool('senduserfile', { files: ['/home/claude/result.py', 7] }, () => []);
+    assert.deepEqual(invalid?.issues, ['Missing delivered file paths']);
+
+    const state = { files: new Map([['/home/claude/result.py', 'print(1)']]), artifactPaths: new Set<string>() };
+    const published = parseToolUse({ name: 'Artifact', input: { file_path: '/home/claude/result.py' } }, state);
+    assert.deepEqual(published.issues, []);
+    assert.ok(published.blocks.some(block => block.type === 'code' && block.code === 'print(1)'));
+    const denied = parseToolUse({ name: 'Artifact', input: { file_path: '/home/claude/result.py', edits: [] } }, state);
+    assert.deepEqual(denied.issues, ['Published artifact content is unavailable or uses unsupported edits']);
+    assert.equal(state.files.has('/home/claude/result.py'), false);
 });
