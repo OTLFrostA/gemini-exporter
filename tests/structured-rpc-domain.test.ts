@@ -588,7 +588,7 @@ test('Wire JSPB decoding in Gemini parser layer', () => {
     const extracted = inspectStructuredContent({
         candidate: mockCandidate,
         turnDocument: wirePayload,
-        candidateIndex: decodedTurn.candidateIndex
+        candidateIndex: decodedTurn.candidate.index
     });
     assert.strictEqual(extracted.status, 'decoded', 'Extracted structured document from the decoded Turn evidence');
     if (extracted.status !== 'decoded') throw new Error('Expected decoded structured turn');
