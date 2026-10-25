@@ -72,7 +72,7 @@ test('connection error clears when committed conversations become visible withou
         window.dispatchEvent(new Event('focus'));
     }, accountId);
     await expect(page.locator('#list .item')).toHaveCount(1);
-    await expect(page.locator('#syncCount')).toContainText('1 indexed');
+    await expect(page.locator('#selectedStat')).toHaveText('0 of 1 selected');
     await expect(status).not.toContainText('Open Gemini, ChatGPT, Claude or Grok and connect', { timeout: 2000 });
 });
 
