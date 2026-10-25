@@ -285,6 +285,11 @@ test('routing rejects matching UUID from wrong Provider and uninjected Tabs', as
     global.chrome = { runtime: {}, tabs: { query: async () => [{ id: 1 }], sendMessage: (_: unknown, __: unknown, cb: Function) => cb({ ok: true, accountContext: { accountId: uuid, providerId: 'chatgpt' } }) } } as any;
     const routing = load('src/runtime/capabilities/tabService.ts', { 'src/l3a/storageService.js': storage, 'src/runtime/api/runtimeReady.js': ready });
     await assert.rejects(routing.resolveAccountTab(uuid), /No open/);
+    for (const accountContext of [null, 'invalid', { accountId: uuid }, { accountId: uuid, providerId: 'chatgpt' }]) {
+        Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, reply: (value: unknown) => void) =>
+            reply({ ok: true, accountContext }));
+        await assert.rejects(routing.resolveAccountTab(uuid), /No open/);
+    }
 });
 
 test('readiness shares one pending upgrade and retries failures', async () => {
