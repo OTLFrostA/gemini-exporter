@@ -491,6 +491,16 @@ class StaleTabImageExportCase(FeatureTestCase):
                 scan_ok, message = assert_scan_result(scan)
                 setup['historyScan'] = scan
                 if not scan_ok:
+                    # Preserve the real reason and post-failure tab state before finalization closes tabs.
+                    setup['accountRouteFailure'] = cdp_opt.eval("""(async () => ({
+                        log: document.querySelector('#log')?.textContent || '',
+                        tabs: await Promise.all((await chrome.tabs.query({})).filter(tab => tab.url &&
+                            ['gemini.google.com', 'www.google.com'].includes(new URL(tab.url).hostname))
+                            .map(async tab => ({id: tab.id, path: new URL(tab.url).origin + new URL(tab.url).pathname,
+                                status: tab.status, discarded: tab.discarded,
+                                probe: await chrome.tabs.sendMessage(tab.id, {action: 'getAccountContext'})
+                                    .catch(error => ({error: String(error)}))})))
+                    }))()""", await_promise=True, timeout=15)
                     return False, f"重装后历史同步未完成: {message}", setup
                 # Sync must not repair/reload the deliberately receiver-less tab.
                 after_scan = cdp_opt.eval(f"""(async () => {{

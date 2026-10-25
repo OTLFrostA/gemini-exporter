@@ -74,7 +74,10 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     }
     const preferred = preferredAccountId ? await getAccount(preferredAccountId) : null;
     // A selected Gemini source needs no ChatGPT network access.
-    if (preferred?.providerId === 'gemini' && accounts.has(preferred.id)) return preferred.id;
+    if (preferred?.providerId === 'gemini') {
+        if (accounts.has(preferred.id)) return preferred.id;
+        throw new Error('Open Gemini, log in and refresh the page before scanning.');
+    }
     try {
         for (const account of await discoverChatGPTAccounts()) accounts.add(account.id);
     } catch (error) {

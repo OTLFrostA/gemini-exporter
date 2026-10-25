@@ -22,18 +22,24 @@ async function resolveRoute(accountId: string): Promise<string> {
         const context = await resolveCurrentAccount();
         if (context?.accountId === accountId) return context.slot;
     } else if (typeof chrome !== 'undefined' && chrome.tabs) {
+        const failures: string[] = [];
         const tabs = await chrome.tabs.query({ url: ['https://gemini.google.com/*'] });
         for (const tab of tabs) {
             if (tab.id === undefined) continue;
             try {
                 const response: unknown = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
                 if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
-                    || !('accountContext' in response)) continue;
+                    || !('accountContext' in response)) {
+                    failures.push(`tab ${tab.id}: ${response && typeof response === 'object' && 'error' in response ? String(response.error) : 'invalid reply'}`);
+                    continue;
+                }
                 const context = response.accountContext;
                 if (context && typeof context === 'object' && 'accountId' in context && context.accountId === accountId
                     && 'slot' in context && typeof context.slot === 'string' && /^u\d+$/.test(context.slot)) return context.slot;
-            } catch { /* A tab without a content script is not a route. */ }
+                failures.push(`tab ${tab.id}: ${context === null ? 'unknown account' : 'account or slot mismatch'}`);
+            } catch (error) { failures.push(`tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`); }
         }
+        throw new Error('No verified Gemini account route: ' + (failures.join('; ') || 'no Gemini tabs'));
     }
     throw new Error('No verified Gemini account route');
 }

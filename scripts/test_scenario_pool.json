@@ -1,88 +1,5 @@
 [
   {
-    "id": "optics_polarization_malus_stack",
-    "title": "Polarization: ideal polarizer stacks and angular sensitivity",
-    "domain": "optics_polarization_malus",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of unpolarized light passing through three ideal linear polarizers with synthetic orientations. Label light propagation, each transmission axis and normalized intensity. State that this is a teaching diagram, not an optical measurement.",
-      "Derive Malus law and the intensity for a stack in LaTeX, including the first unpolarized transmission factor. Explain why inserting a 45 degree polarizer between crossed polarizers increases ideal transmission.",
-      "Write complete standard-library Python for normalized transmission through arbitrary polarizer orientations. Validate finite angles, support degrees and radians, and test periodicity, crossed axes, and parallel axes.",
-      "Provide a Markdown table comparing synthetic angle stacks, normalized output and angular sensitivity. Independently calculate the 0/45/90 degree example and distinguish relative transmission from absolute optical power.",
-      "Write a bilingual reproducibility report connecting the schematic, equations, code and tests. Discuss finite extinction ratio, wavelength, depolarization and what calibration would be needed for real measurements."
-    ]
-  },
-  {
-    "id": "numerics_bracketed_bisection_audit",
-    "title": "Numerics: bracketed root finding with certified intervals",
-    "domain": "numerics_bisection_certified_intervals",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic scalar root-finding problem on a closed interval with a continuous monotone function. Choose nontrivial numerical values and explicitly separate the mathematical model from empirical data.",
-      "Derive the bisection invariant and interval-width convergence bound in LaTeX. Explain the roles of continuity, endpoint roots and sign changes, and why a small residual alone is not a position certificate.",
-      "Write complete runnable standard-library Python implementing bisection with input validation, endpoint handling, finite evaluation checks and both iteration and interval-width stopping criteria.",
-      "Add deterministic tests for an endpoint root, reversed bounds, no sign change, nonfinite values and iteration exhaustion. Check that every recorded interval contains a known synthetic root.",
-      "Derive the number of iterations needed for a chosen absolute root error. Distinguish midpoint rounding, residual tolerance and interval tolerance with consistent units.",
-      "Create a Markdown table of iteration number, bracket endpoints, midpoint, residual and certified error bound for the synthetic example. Independently cross-check two rows.",
-      "Compare bisection with Newton iteration on a poorly conditioned synthetic function. Give runnable code and explain the difference between speed, bracketing guarantees and sensitivity without claiming universal superiority.",
-      "Write a detailed bilingual reproducibility report linking assumptions, invariants, implementation, tests and the table. Discuss discontinuities, multiple roots, finite precision and limitations of the certificate."
-    ]
-  },
-  {
-    "id": "number_theory_generalized_crt_consistency",
-    "title": "Generalized CRT: compatibility certificates and non-coprime schedules",
-    "domain": "number_theory_generalized_crt",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Three maintenance timers require t ≡ 2 (mod 6), t ≡ 5 (mod 9), and t ≡ 5 (mod 15). Derive the generalized Chinese remainder compatibility rule, solve this system step by step using exact integer arithmetic, and report a Markdown table of each residue check. Write the merged congruence in LaTeX; explain why the period is an lcm rather than a product.",
-      "Implement a Python function merge_congruence(a, m, b, n) using extended Euclid. Accept positive non-coprime moduli, normalize negative residues, and return either the least nonnegative residue and modulus or an explicit incompatibility certificate. Include runnable tests for the preceding timers, modulus one, redundant congruences and an inconsistent pair. Do not enumerate possible times.",
-      "Extend this to merge an arbitrary sequence. Prove the accumulator invariant and distinguish mathematical order independence from the wording of a first-failure certificate. Give a Markdown comparison table for multiple permutations of the original constraints and show exact gcd/lcm intermediates.",
-      "A fourth timer requires t ≡ 1 (mod 4), and each timer has a validity window: 100 ≤ t ≤ 1000. Derive the first and last valid timestamps and their count without scanning the interval. Add property tests against bounded brute force for small moduli; document the inclusive endpoints and integer rounding formulas in LaTeX.",
-      "Audit the implementation against very large integer moduli, negative residues and inconsistent zero-offset schedules. Provide a compact final module with a command-line example, deterministic randomized tests, a complexity discussion in terms of bit length, and a Markdown table showing which invalid inputs raise errors versus yield incompatibility certificates."
-    ]
-  },
-  {
-    "id": "geodesy_wgs84_ecef_enu_roundtrip",
-    "title": "Geodesy: WGS84 ECEF and local ENU with pole-safe inverse transforms",
-    "domain": "geodesy_wgs84_coordinate_transforms",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Build a WGS84 geodesy calculation from latitude 37.4275 degrees, longitude -122.1697 degrees and ellipsoidal height 30 m. Starting from a=6378137 m and inverse flattening 298.257223563, derive eccentricity, prime-vertical radius and the geodetic-to-ECEF equations in LaTeX. Give a Markdown table with units and computed ECEF coordinates, distinguishing ellipsoidal height from orthometric height.",
-      "Write dependency-free Python geodetic_to_ecef with explicit degrees/radians and finite-input validation. Add exact landmark tests at the equator, north/south poles and ±180 degrees longitude. Include numeric output and document which boundary representations refer to the same point.",
-      "Derive a numerically stable ECEF-to-geodetic inverse suitable near the poles. Explain the stopping condition, maximum iterations, failure behavior and longitude convention. Supply runnable Python and a Markdown table comparing inverse errors at the reference point, equator and poles. Treat the Earth center as an explicit domain case.",
-      "Construct the local east-north-up rotation matrix at the reference site and prove its orthonormality and handedness. Convert ECEF displacements to ENU and back without confusing points and vectors. Include tests using each local unit vector and show the matrices and residuals.",
-      "A nearby receiver is at latitude 37.4280 degrees, longitude -122.1689 degrees and ellipsoidal height 42 m. Compute its ECEF offset, local ENU coordinates, horizontal distance and elevation angle relative to the reference. Show a Markdown table with rounded display values while retaining full precision internally.",
-      "Compare the local tangent-plane horizontal distance with a short-distance curvature estimate. Derive the meridional and prime-vertical radii and use them to estimate north/east components from small latitude/longitude changes. Quantify errors and explain why a fixed degrees-to-meters factor fails globally.",
-      "Develop deterministic property tests spanning poles, antimeridian, negative heights and orbital altitudes. Check forward-inverse round trips and ENU norm preservation with clearly separated angular and linear tolerances. Include adversarial inputs and explain undefined longitude at an exact pole without hiding it inside an oversized tolerance.",
-      "Package the transforms as a final small Python module and executable test suite. Provide an API table covering units, longitude normalization, singularities and exceptions, then give a reproducible command-line example for the two receivers. State the limits of a static ellipsoid when tectonic epoch, geoid height or Earth orientation matters."
-    ]
-  },
-  {
     "id": "acoustics_rectangular_room_modes_inverse",
     "title": "Room acoustics: mode frequencies and inverse dimension estimates",
     "domain": "acoustics_room_eigenmodes",
@@ -413,6 +330,90 @@
       "Add executable tests for normalization, symmetry under swapping success and failure, zero future trials and agreement with exact rational arithmetic in a small case.",
       "Provide a Markdown table of predictive probabilities and a comparison across weak, concentrated and asymmetric priors. Label all numbers as synthetic and distinguish credible intervals from frequentist coverage claims.",
       "Write a bilingual audit report connecting the equations, tests and table. Construct a dependent-trials counterexample where the beta-binomial assumptions fail and discuss a possible model check without inventing real data."
+    ]
+  },
+  {
+    "id": "fluids_plane_couette_poiseuille_superposition",
+    "title": "Viscous flow: Couette-Poiseuille superposition and reversal",
+    "domain": "fluids_viscous_channel_flow",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original educational cross-section of viscous flow between two parallel plates with a moving upper plate and a constant pressure gradient. Label synthetic dimensions, velocity direction and boundary conditions; mark the sketch as a model, not experimental data.",
+      "Derive the steady incompressible Couette-Poiseuille velocity profile and volumetric flow per unit width in LaTeX. Define pressure-gradient sign conventions and identify the no-slip assumptions.",
+      "Write complete standard-library Python evaluating velocity and shear stress. Validate units and finite inputs, and test stationary plates, zero pressure gradient, both boundaries and linear superposition.",
+      "Provide a Markdown table for synthetic assisting and opposing pressure gradients. Locate any reverse-flow region analytically and compare with sampled numerical values; distinguish zero net flux from zero local velocity.",
+      "Write a bilingual audit connecting the diagram, formula and code. Derive viscous dissipation per unit area and explain why entrance effects, turbulence and non-Newtonian fluids fall outside the model."
+    ]
+  },
+  {
+    "id": "discrete_mobius_inversion_divisor_sums",
+    "title": "Divisor sums: Mobius inversion and exact integer certificates",
+    "domain": "number_theory_mobius_inversion",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Introduce the divisor-sum relation F(n)=sum over d dividing n of f(d), using a small synthetic integer sequence. State the domain and distinguish divisors from multiples.",
+      "Define the Mobius function in LaTeX and prove that its divisor sum is one for n=1 and zero otherwise. Handle repeated prime factors explicitly.",
+      "Derive Mobius inversion with a complete finite-sum rearrangement proof and no unstated analytic convergence assumptions.",
+      "Work through exact inversion for a synthetic sequence on n=1 through 12, showing prime, prime-power and square-free composite cases.",
+      "Write complete runnable standard-library Python computing a Mobius sieve and divisor sums with exact integers. Validate positive integer inputs and document time and memory complexity.",
+      "Add executable tests comparing a direct divisor implementation with the sieve, checking inversion round trips for signed integer sequences and handling n=1.",
+      "Provide a Markdown table with n, prime factorization, Mobius value, F(n) and reconstructed f(n). Explain why an arbitrary floating-point tolerance cannot certify an integer identity.",
+      "Write a bilingual reproducibility report connecting proof, table and code. Give a counterexample to replacing divisors by all smaller integers and distinguish arithmetic Mobius inversion from the similarly named geometric transformation."
+    ]
+  },
+  {
+    "id": "heat_composite_wall_contact_resistance",
+    "title": "Heat transfer: composite wall and contact resistance",
+    "domain": "heat_composite_wall_resistance",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original educational cross-section of a two-layer wall with convection on both sides and a thermal contact resistance between layers. Label all synthetic dimensions, temperatures and heat-flow direction; identify the sketch as a teaching model.",
+      "Derive the steady one-dimensional resistance network and interface temperatures in LaTeX. Distinguish per-area resistance from total resistance and state constant-conductivity assumptions.",
+      "Write runnable standard-library Python computing heat flux and temperatures. Validate physical units and positive layer thickness and conductivity; test equal boundary temperatures, zero contact resistance and area scaling.",
+      "Provide a Markdown table of synthetic contact resistance and convection coefficients with heat flux and interface temperatures. Independently verify the energy balance and distinguish temperature jumps from gradients.",
+      "Write a bilingual verification report connecting the diagram, equations and tests. Give a transient or radiative counterexample where the steady linear network is insufficient, and explain how it changes the model."
+    ]
+  },
+  {
+    "id": "optimization_assignment_primal_dual_certificate",
+    "title": "Assignment optimization: primal-dual optimality certificates",
+    "domain": "optimization_assignment_duality",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Present a synthetic three-worker three-task assignment problem with a complete integer cost matrix. Specify exactly-one constraints and distinguish forbidden edges from large finite penalties.",
+      "Write the linear programming primal and dual in LaTeX. Derive weak duality by summing constraints and explain why a feasible dual gives a lower bound.",
+      "Enumerate all six assignments for the synthetic matrix, compute their exact costs and identify every optimum without claiming uniqueness prematurely.",
+      "Construct a feasible dual solution attaining the optimum and verify every inequality and complementary slackness condition explicitly.",
+      "Write complete runnable standard-library Python enumerating assignments and checking an optimality certificate with exact integers. Validate rectangular and malformed inputs rather than silently truncating them.",
+      "Add executable tests for cost shifting, row and column permutations, negative costs and tied optima. Include an invalid certificate that must be rejected.",
+      "Provide a Markdown table of each assignment, primal cost, dual bound and gap. Explain why checking only the chosen edges is insufficient to establish dual feasibility.",
+      "Write a bilingual reproducibility report linking the proof, certificate, table and tests. Give a fractional-capacity variant and explain which integrality argument no longer applies without additional structure."
     ]
   }
 ]
