@@ -41,7 +41,19 @@ input[type=checkbox].toggle::after{
 }
 input[type=checkbox].toggle:checked{background:linear-gradient(135deg,var(--accent),var(--accent2))}
 input[type=checkbox].toggle:checked::after{transform:translateX(12px);background:white}
+/* Reuse the tutorial's platform selector without a modal or a second toolbar. */
+#popupMain[hidden],#popupPermission[hidden]{display:none}
+#popupPermission{margin-bottom:0}
+#popupPermission h2{margin:0 0 6px;font-size:15px;font-weight:700}
+#popupPermission p.popup-permission-description{margin:0 0 8px;color:var(--muted);font-size:12px;line-height:1.5}
+#popupPermission .platform-authorization{margin:8px 0 0;gap:9px}
+#popupPermission .platform-permission-row{padding:8px 10px}
+#popupPermission .platform-permission-list{border-color:var(--border)}
+#popupPermission .platform-permission-list legend{color:var(--muted)}
+#popupPermission .platform-permission-state,#popupPermission .platform-permission-hint,#popupPermission .platform-permission-row details{color:var(--muted)}
+#popupPermission .platform-permission-state[data-authorized="true"]{color:var(--ok)}
 </style>
+<link rel="stylesheet" href="/src/ui/guidance/tourGuide.css">
 <link rel="stylesheet" href="/src/ui/shared/theme.css">
 <script src="/src/ui/shared/themeBootstrap.js"></script>
 </head>
@@ -53,6 +65,12 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   <button id="btnThemeToggle" type="button" class="ghost theme-switch" aria-label="切换到浅色模式" title="切换到浅色模式">☀</button>
 </div>
 
+<section id="popupPermission" class="card" hidden aria-labelledby="popupPermissionTitle">
+  <h2 id="popupPermissionTitle"></h2>
+  <p id="popupPermissionDescription" class="popup-permission-description"></p>
+  <div id="popupPermissionControls"></div>
+</section>
+<div id="popupMain" hidden>
 <!-- Card 1: Active Chat Awareness -->
 <div id="chatInfoCard" class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -84,6 +102,7 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   </div>
 
   <p id="status" class="log" role="status" aria-live="polite" style="margin:6px 0 0;min-height:15px;"></p>
+</div>
 </div>
 
 <script src="/lib/jszip.min.js"></script>
