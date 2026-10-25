@@ -9,6 +9,9 @@ const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'Chat
 export function mountPlatformAuthorization(host: HTMLElement, options: {
     ready?: (authorized: boolean) => void;
     connected?: (accountId: string) => Promise<void>;
+    selectedPlatforms?: readonly SourcePlatform[];
+    granted?: (platforms: readonly SourcePlatform[]) => void;
+    allAuthorized?: () => void;
 } = {}): () => void {
     let active = true;
     let busy = false;
@@ -24,9 +27,10 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     const list = document.createElement('fieldset');
     list.className = 'platform-permission-list';
     const legend = document.createElement('legend');
-    legend.textContent = text('Supported platforms', '支持的平台');
+    legend.textContent = text('Platforms needing access', '尚未授权的平台');
     list.append(legend);
-    const selection = () => rows.filter(row => row.input.checked).map(row => row.platform);
+    // A granted platform is never a selectable request target, even during refresh.
+    const selection = () => rows.filter(row => !row.row.hidden && row.input.checked).map(row => row.platform);
     const updateButton = () => { authorize.disabled = busy || !selection().length; };
     const rows = platforms.map(platform => {
         const row = document.createElement('div');
@@ -37,7 +41,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.value = platform;
-        input.checked = true;
+        input.checked = options.selectedPlatforms ? options.selectedPlatforms.includes(platform) : true;
         input.addEventListener('change', updateButton);
         const name = document.createElement('span');
         name.textContent = names[platform];
@@ -59,28 +63,42 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         details.append(summary, sites);
         row.append(heading, details);
         list.append(row);
-        return { platform, input, state };
+        return { platform, row, input, state };
     });
     const hint = document.createElement('p');
     hint.className = 'platform-permission-hint';
-    hint.textContent = text('Only selected platforms are requested. Unchecking does not revoke existing access.',
-        '仅申请所选平台的权限。取消勾选不会撤销已有授权。');
+    hint.textContent = text('Only unconnected platforms are shown. Select which ones to authorize.',
+        '仅显示尚未授权的平台，请选择需要授权的平台。');
     const status = document.createElement('div');
     status.className = 'tour-status-indicator';
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
     box.append(authorize, list, hint, status);
     host.append(box);
+    // Avoid flashing already-granted choices before the first async permission read.
+    list.hidden = true;
+    authorize.hidden = true;
+    hint.hidden = true;
     const refresh = async () => {
         const current = ++revision;
         const granted = await Promise.all(platforms.map(hasPlatformAccess));
         if (!active || current !== revision) return;
         authorized = platforms.filter((_, index) => granted[index]);
-        for (const { platform, state } of rows) {
-            state.textContent = authorized.includes(platform) ? text('Authorized', '已授权') : text('Not authorized', '未授权');
-            state.dataset.authorized = String(authorized.includes(platform));
+        for (const { platform, row, state } of rows) {
+            row.hidden = authorized.includes(platform);
+            state.textContent = text('Not authorized', '未授权');
+            state.dataset.authorized = 'false';
         }
+        const remaining = authorized.length < platforms.length;
+        list.hidden = !remaining;
+        authorize.hidden = !remaining;
+        hint.hidden = !remaining;
+        const completeText = text('All supported platforms are authorized.', '所有支持的平台均已授权。');
+        if (!remaining) status.textContent = completeText;
+        else if (status.textContent === completeText) status.textContent = '';
+        updateButton();
         options.ready?.(!busy && authorized.length > 0);
+        if (!busy && !remaining) options.allAuthorized?.();
     };
     authorize.addEventListener('click', () => {
         const selected = selection();
@@ -105,6 +123,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
             status.textContent = activated
                 ? text('Selected platforms authorized. Sign in on their websites when needed.', '所选平台已授权。需要时请在对应网站登录。')
                 : text('Access granted. Reload the platform page to activate it.', '权限已授予。请刷新平台页面以启用。');
+            options.granted?.(selected);
             // Account endpoints may be slow or rate limited. Their result never holds the authorization UI open.
             if (options.connected) void findAuthorizedAccount(selected).then(async accountId => {
                 if (active && accountId) await options.connected?.(accountId);
