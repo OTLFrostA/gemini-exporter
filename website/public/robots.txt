@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://otlfrosta.com/sitemap.xml
