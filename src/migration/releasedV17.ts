@@ -2,7 +2,7 @@ import { getOrCreateAccount } from '../l2/accountAdmission.js';
 import { conversationKey } from '../l2/conversationKey.js';
 import { restoreConversationIndex } from '../l2/conversationIndex.js';
 import type { DomainConversationIndex } from '../l2/conversationIndex.js';
-import type { ExportRecord, ExportFormat } from '../application/export/types.js';
+import type { ExportRecord } from '../application/export/types.js';
 import { listAccounts, getIndex, putIndexes, getExportRecord, putExportRecord } from '../l3a/storageService.js';
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -15,12 +15,12 @@ function time(value: unknown): number | undefined {
     return Number.isSafeInteger(n) && Math.abs(n) <= 8.64e15 ? n : undefined;
 }
 function exportRecord(value: unknown): ExportRecord | undefined {
-    if (!object(value) || !['ok', 'partial'].includes(String(value.status))) return;
+    if (!object(value) || (value.status !== 'ok' && value.status !== 'partial')) return;
     const format = value.format === 'md' ? 'markdown' : value.format === 'json_native' ? 'json' : value.format;
-    if (!['markdown', 'html', 'pdf', 'json'].includes(String(format))) return;
+    if (format !== 'markdown' && format !== 'html' && format !== 'pdf' && format !== 'json') return;
     const exportedAt = time(value.exportedAt);
     if (exportedAt === undefined) return;
-    return { exportedAt, format: format as ExportFormat,
+    return { exportedAt, format,
         status: value.status === 'partial' || value.hasFailedAssets === true || value.truncated === true
             || value.isTruncated === true || !!value.truncateReason ? 'partial' : 'ok' };
 }
@@ -66,7 +66,8 @@ export async function upgradeReleasedV17(initial: Record<string, unknown>): Prom
             if (await getIndex(key)) continue;
             const title = string(row.title);
             const titleSource = row.titleSource === 'user' ? 'user'
-                : ['rpc', 'dom', 'provider'].includes(String(row.titleSource)) ? 'provider' : 'derived';
+                : row.titleSource === 'rpc' || row.titleSource === 'dom' || row.titleSource === 'provider'
+                ? 'provider' : 'derived';
             const createdAt = time(row.createdAt);
             indexes.push(restoreConversationIndex({ key, ...(title ? { title, titleSource } : {}),
                 ...(createdAt === undefined ? {} : { createdAt }) }));
