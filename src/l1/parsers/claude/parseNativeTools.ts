@@ -39,11 +39,12 @@ export function parseNativeTool(name: string, input: Record<string, unknown> | n
             if (!Array.isArray(ops) || !ops.length) issues.push('Missing Docs edits');
             else for (const raw of ops) {
                 const op = record(raw), replacement = record(op?.with), from = record(replacement?.from);
-                if (!['replace', 'insert'].includes(String(op?.op)) || replacement?.as !== 'markdown'
+                const action = String(op?.op);
+                if (!['replace', 'insert'].includes(action) || replacement?.as !== 'markdown'
                     || from?.kind !== 'inline' || typeof from.content !== 'string') {
                     issues.push('Unsupported Docs edit'); continue;
                 }
-                blocks.push(plain('Document edit (' + op!.op + ')'), ...markdown(from.content));
+                blocks.push(plain('Document edit (' + action + ')'), ...markdown(from.content));
             }
         } else if (operation === 'batch') {
             const doc = record(record(record(input?.container)?.create)?.doc);
