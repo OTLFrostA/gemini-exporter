@@ -46,7 +46,7 @@ function currentBranch(data: Record<string, unknown>): Branch {
         if (visited.has(id) || !node) { quality = 'partial'; break; }
         visited.add(id);
         result.push(node);
-        const parent: unknown = node.parent_message_uuid;
+        const parent = node.parent_message_uuid;
         if (parent == null || parent === '00000000-0000-4000-8000-000000000000') break;
         if (!uuid(parent)) { quality = 'partial'; break; }
         id = parent;
