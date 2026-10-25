@@ -177,7 +177,8 @@ async function importTakeout(page, slot) {
 async function exportZip(page, slot, format, label, selected = [...ids(slot), takeoutId(slot)], skip = false) {
   await page.locator('#format').selectOption(format);
   await page.locator('#skipExported').setChecked(skip);
-  await page.locator('#btnSelectNone').click();
+  await page.locator('#btnSelectAll').check();
+  await page.locator('#btnSelectAll').uncheck();
   for (const id of selected) await page.locator(`[data-chat-id="${id}"] input[type="checkbox"]`).check();
   const downloadPending = page.waitForEvent('download', { timeout: 120000 });
   const failurePending = page.locator('#exportFailureList').waitFor({ state: 'visible', timeout: 120000 })
@@ -337,7 +338,8 @@ try {
     failDetail = true; const page = await options('u0'); await sync(page, 'u0');
     const before = await page.evaluate(() => chrome.storage.local.get('exportedIds'));
     await page.locator('#format').selectOption('markdown'); await page.locator('#skipExported').uncheck();
-    await page.locator('#btnSelectNone').click();
+    await page.locator('#btnSelectAll').check();
+  await page.locator('#btnSelectAll').uncheck();
     await page.locator(`[data-chat-id="${failedId}"] input[type="checkbox"]`).check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#exportFailureList')).toBeVisible({ timeout: 90000 });

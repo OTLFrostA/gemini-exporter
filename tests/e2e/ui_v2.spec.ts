@@ -172,7 +172,7 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     await live.check();
     await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
 
-    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect.poll(async () => (await read(page, 'exports'))[0]?.delivery).toBe('folderWriter');
     await browser.check();
@@ -186,7 +186,7 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     await expect.poll(async () => (await read(page, 'settings')).enabledDisk).toBe(true);
     expect(await read(page, 'events')).toContain('picker');
 
-    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect.poll(async () => (await read(page, 'exports'))[1]?.delivery).toBe('browserDownload');
 
@@ -274,13 +274,14 @@ test('UI v2: settings preserve Live Save intent while scan reset clears local co
     await expect(page.locator('#liveSaveStatus')).toContainText('Paused');
     await page.locator('#format').selectOption('markdown');
     await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled(); await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
-    await page.locator('#btnClearScan').click(); await page.locator('#btnCleanupConfirm').click();
+    await page.locator('#btnMoreActions').click(); await page.locator('#btnClearScan').click(); await page.locator('#btnCleanupConfirm').click();
     await expect(page.locator('#status')).toHaveText('Records cleared'); expect(await read(page,'clears')).toEqual([['scan',A]]);
     await expect(page.locator('#list .item')).toHaveCount(0); expect((await read(page,'settings')).enabledDisk).toBe(true);
 });
 test('UI v2: Takeout file input directly imports into current account and reports partial', async ({ page }) => {
     await mount(page,'options'); await page.locator('#accountIdSelect').selectOption(B);
     const chooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#btnMoreActions').click();
     await page.locator('#btnImportTakeout').click();
     const chooser = await chooserPromise;
     await chooser.setFiles({name:'Takeout.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')});

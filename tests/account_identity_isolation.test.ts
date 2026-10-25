@@ -231,14 +231,13 @@ test('Options renders account display names or email fallbacks and preserves the
             { id: B, providerId: 'gemini', providerAccountId: 'two', email: 'lisi@gmail.com' },
         ] });
         await page.locator('#list .item').waitFor();
-        assert.deepEqual(await page.locator('#accountIdSelect option').allTextContents(), ['张三', 'lisi@gmail.com']);
+        assert.deepEqual(await page.locator('#accountIdSelect option').allTextContents(), ['Gemini · 张三', 'Gemini · lisi@gmail.com']);
         assert.deepEqual(await page.locator('#accountIdSelect option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value)), [A, B]);
         assert.equal(await page.locator('#accountIdSelect').isVisible(), true);
         await page.locator('#accountIdSelect').selectOption(B);
-        // Options §8: multiple accounts are named by the selected option;
-        // the standalone account name is used only without the switcher.
+        // The source selector labels every option with its provider.
         await page.waitForFunction(() => document.querySelector('#list .item')?.textContent?.includes('B chat'));
-        assert.equal(await page.locator('#accountIdSelect option:checked').textContent(), 'lisi@gmail.com');
+        assert.equal(await page.locator('#accountIdSelect option:checked').textContent(), 'Gemini · lisi@gmail.com');
         assert.equal(await page.locator('#accountIdSelect').getAttribute('title'), 'lisi@gmail.com');
         assert.equal(await page.locator('#accountName').textContent(), '');
         assert.equal(await page.locator('#accountIdSelect').inputValue(), B);

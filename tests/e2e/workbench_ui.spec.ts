@@ -6,11 +6,14 @@ test('workbench list preserves explicit selection across row clicks, search and 
     await seedConversations(page,[{id:'chat_001',title:'量子计算的基本原理'},{id:'chat_002',title:'AI 架构与设计模式'},{id:'chat_003',title:'Python 性能优化指南'}],{chat_001:{exportedAt:200,format:'markdown',status:'ok',chatTime:100}});
     await expect(page.locator('#list input:checked')).toHaveCount(0);
     await page.locator('#btnSelectAll').click();await expect(page.locator('#list input:checked')).toHaveCount(3);await expect(page.locator('#selectedStat')).toHaveText('3 of 3 selected');
-    await page.locator('#btnSelectNone').click();await expect(page.locator('#list input:checked')).toHaveCount(0);
-    const row=page.locator('[data-chat-id="chat_002"]');await row.locator('.chat-title').click();await expect(row.locator('input')).toBeChecked();await row.locator('.chat-title').click();await expect(row.locator('input')).not.toBeChecked();
+    await page.locator('#btnSelectAll').click();await expect(page.locator('#list input:checked')).toHaveCount(0);
+    const row=page.locator('[data-chat-id="chat_002"]');await row.locator('.chat-title').click();await expect(row.locator('input')).toBeChecked();
+    await expect(page.locator('#btnSelectAll')).toHaveJSProperty('indeterminate',true);
+    await row.locator('.chat-title').click();await expect(row.locator('input')).not.toBeChecked();
+    await expect(page.locator('#btnSelectAll')).toHaveJSProperty('indeterminate',false);
     await page.locator('#chatSearchInput').fill('量子');await expect(page.locator('#list .item')).toHaveCount(1);await page.locator('#btnSelectAll').click();await expect(page.locator('#selectedStat')).toHaveText('1 of 3 selected');
     await page.locator('#chatSearchInput').fill('');await expect(page.locator('#list .item')).toHaveCount(3);
-    for(const language of ['zh','en']) {await page.locator('#langToggle').setChecked(language==='en');await expect(page.locator('#btnSelectAll')).toHaveText(language==='zh'?'全选':'All');await expect(page.locator('[data-chat-id="chat_001"] input')).toBeChecked();}
+    for(const language of ['zh','en']) {await page.locator('#langToggle').setChecked(language==='en');await expect(page.locator('#btnSelectAll')).toHaveAttribute('aria-label',language==='zh'?'全选当前可见会话':'Select all visible conversations');await expect(page.locator('[data-chat-id="chat_001"] input')).toBeChecked();}
     await expect(page.locator('#feedbackBox')).toHaveAttribute('href','https://tally.so/r/Y56ZBB');await expect(page.locator('#feedbackBox')).toHaveAttribute('target','_blank');await expect(page.locator('#feedbackBox')).toContainText('Got questions or suggestions?');
     await expect(page.locator('#btnSelectUpdated,#btnSelectUnexported,#btnFeedback')).toHaveCount(0);
 });

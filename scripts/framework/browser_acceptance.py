@@ -22,7 +22,7 @@ class BrowserAcceptance:
         return CDPConnection(target['webSocketDebuggerUrl'])
 
     def select_ids(self, ids):
-        self.options.eval('''(()=>{document.getElementById('btnSelectNone').click();
+        self.options.eval('''(()=>{const all=document.getElementById('btnSelectAll');if(!all.checked)all.click();all.click();
             const wanted=new Set('''+json.dumps(ids)+''');
             for(const item of document.querySelectorAll('#list .item')) {
                 const c=item.querySelector('input[type=checkbox]');

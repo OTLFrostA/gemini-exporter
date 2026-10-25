@@ -123,6 +123,14 @@ export async function initWorkbench(): Promise<void> {
     const render = () => {
         labelPage();
         el('btnPlatformPermissions').textContent = text('Site access', '网站授权');
+        const moreButton = el<HTMLButtonElement>('btnMoreActions');
+        moreButton.setAttribute('aria-label', text('More actions', '更多操作'));
+        moreButton.title = text('More actions', '更多操作');
+        moreButton.disabled = busy || !settings;
+        if (moreButton.disabled) {
+            el<HTMLElement>('moreActionsMenu').hidden = true;
+            moreButton.setAttribute('aria-expanded', 'false');
+        }
         if (currentStatus !== null) el('status').textContent = resolveUiMessage(currentStatus);
         if (currentProgress !== null) {
             const displayed = resolveUiMessage(currentProgress);
@@ -138,7 +146,7 @@ export async function initWorkbench(): Promise<void> {
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
         const ids = ['accountIdSelect','format','skipExported','includeAssets','liveSaveDiskToggle',
             'btnSetDir','btnExport','btnRetryFailed','btnClearExported','btnClearScan',
-            'chatSearchInput','chatFilterSelect','btnSelectAll','btnSelectNone',
+            'chatSearchInput','chatFilterSelect','btnSelectAll',
             'btnSyncAll','btnForceFullScan','btnImportTakeout','btnTourGuide','btnPlatformPermissions'];
         for (const id of ids) el<HTMLInputElement>(id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
@@ -159,21 +167,23 @@ export async function initWorkbench(): Promise<void> {
         for (const account of state.accounts) {
             const option = document.createElement('option');
             option.value = account.id;
-            option.textContent = `${account.providerId === 'chatgpt' ? 'ChatGPT · ' : account.providerId === 'grok' ? 'Grok · ' : account.providerId === 'claude' ? 'Claude · ' : ''}${account.displayName || account.email || `${account.providerId} · ${account.providerAccountId}`}`;
+            const provider = account.providerId === 'chatgpt' ? 'ChatGPT' : account.providerId === 'grok' ? 'Grok'
+                : account.providerId === 'claude' ? 'Claude' : 'Gemini';
+            option.textContent = `${provider} · ${account.displayName || account.email || account.providerAccountId}`;
             selector.append(option);
         }
         selector.value = state.accountId ?? '';
-        selector.style.display = state.accounts.length < 2 ? 'none' : 'inline-flex';
+        selector.style.display = state.accounts.length ? 'inline-flex' : 'none';
         const account = state.accounts.find(a => a.id === state.accountId);
         const name = account?.displayName || account?.email || account?.providerAccountId || text('No local account', '暂无本地账户');
-        el('accountName').textContent = state.accounts.length < 2 ? `${account?.providerId === 'chatgpt' ? 'ChatGPT · ' : account?.providerId === 'grok' ? 'Grok · ' : account?.providerId === 'claude' ? 'Claude · ' : ''}${name}` : '';
+        el('accountName').textContent = state.accounts.length ? '' : text('Connect a platform', '请先连接平台');
+        el<HTMLElement>('accountName').style.display = state.accounts.length ? 'none' : 'inline-flex';
         el('takeoutAccountName').textContent = state.accountId
             ? account?.providerId === 'gemini' ? `→ ${name}` : text('Select Gemini', '请选择 Gemini')
             : text('First import', '首次导入');
         el('takeoutAccountName').title = state.accountId ? name : text('Creates a default Gemini account after choosing a ZIP', '选定 ZIP 后创建 Gemini 默认账户');
         selector.title = name;
         el('ver').textContent = chrome.runtime.getManifest().version;
-        el('syncCount').textContent = text(`${state.indexes.length} indexed`, `已收录 ${state.indexes.length} 条`);
         if (settings) {
             el<HTMLSelectElement>('format').value = settings.defaultFormat;
             el<HTMLInputElement>('skipExported').checked = settings.skipExported;
@@ -368,6 +378,36 @@ export async function initWorkbench(): Promise<void> {
             }
         }
     }, true);
+    const moreActionsButton = el<HTMLButtonElement>('btnMoreActions');
+    const moreActionsMenu = el<HTMLElement>('moreActionsMenu');
+    const closeMoreActions = () => {
+        moreActionsMenu.hidden = true;
+        moreActionsButton.setAttribute('aria-expanded', 'false');
+    };
+    moreActionsButton.addEventListener('click', () => {
+        if (busy || !settings) return;
+        moreActionsMenu.hidden = !moreActionsMenu.hidden;
+        moreActionsButton.setAttribute('aria-expanded', String(!moreActionsMenu.hidden));
+    });
+    moreActionsMenu.addEventListener('click', event => {
+        if (event.target instanceof Element && event.target.closest('button')) {
+            closeMoreActions();
+            moreActionsButton.focus();
+        }
+    });
+    el<HTMLDialogElement>('cleanupModal').addEventListener('close', () => {
+        if (moreActionsMenu.hidden) moreActionsButton.focus();
+    });
+    document.addEventListener('pointerdown', event => {
+        if (event.target instanceof Node && !moreActionsButton.parentElement?.contains(event.target))
+            closeMoreActions();
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !moreActionsMenu.hidden) {
+            closeMoreActions();
+            moreActionsButton.focus();
+        }
+    });
     el('btnSyncAll').addEventListener('click', () => { void scan(); });
     el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scan(true); });
     const cancel = () => { controller?.abort(); status(() => text('Cancelling…', '正在取消…'), 'warn'); };
@@ -489,8 +529,12 @@ export async function initWorkbench(): Promise<void> {
     el<HTMLSelectElement>('chatFilterSelect').addEventListener('change', () => {
         state.filter = el<HTMLSelectElement>('chatFilterSelect').value; renderConversations();
     });
-    el('btnSelectAll').addEventListener('click', () => { state.selectVisible(); renderConversations(); });
-    el('btnSelectNone').addEventListener('click', () => { state.selected.clear(); renderConversations(); });
+    el<HTMLInputElement>('btnSelectAll').addEventListener('change', () => {
+        if (busy) return;
+        if (el<HTMLInputElement>('btnSelectAll').checked) state.selectVisible();
+        else state.selected.clear();
+        renderConversations();
+    });
     const settingControls = { format: 'defaultFormat', skipExported: 'skipExported',
         includeAssets: 'includeAssets', liveSaveDiskToggle: 'enabledDisk' } as const;
     for (const [id, field] of Object.entries(settingControls)) el<HTMLInputElement>(id).addEventListener('change', () => {

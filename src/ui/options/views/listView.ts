@@ -114,6 +114,17 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
 }
 
 function updateStat(state: ConversationViewState): void {
+    const visible = state.visible();
+    const selectedVisible = visible.filter(row => state.selected.has(row.key.conversationId)).length;
+    const selectAll = document.getElementById('btnSelectAll') as HTMLInputElement;
+    selectAll.checked = visible.length > 0 && selectedVisible === visible.length;
+    selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
+    selectAll.disabled = visible.length === 0 || document.body.dataset.busy === 'true';
+    const label = selectAll.checked
+        ? text('Clear selection', '清空选择')
+        : text('Select all visible conversations', '全选当前可见会话');
+    selectAll.setAttribute('aria-label', label);
+    selectAll.title = label;
     const total = state.indexes.length;
     document.getElementById('selectedStat')!.textContent =
         text(`${state.selected.size} of ${total} selected`, `已选 ${state.selected.size} / ${total}`);

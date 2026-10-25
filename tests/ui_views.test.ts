@@ -8,8 +8,7 @@ afterEach(async () => { await page?.close(); });
 after(async () => { await browser?.close(); });
 async function open(patch: Record<string, unknown> = {}) {
     page = await browser.newPage(); await mount(page, 'options', patch);
-    // Multi-account v2 blanks #accountName; zero-account first imports have
-    // no selector options either. Wait for the actual ready state in each case.
+    // Wait for the account list, or for the no-account first-import state.
     await page.waitForFunction(() => {
         const harness = Reflect.get(window, 'harness');
         const count = harness?.accounts?.length ?? 0;
@@ -27,11 +26,12 @@ const rows = [
 ];
 const records = { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100 } } };
 
-test('account view displays multiple trusted UUIDs and hides the selector for a single account', async () => {
+test('account picker stays visible for one or many trusted accounts', async () => {
     await open(); assert.equal(await page.locator('#accountIdSelect').isVisible(), true);
     assert.deepEqual(await page.locator('#accountIdSelect option').evaluateAll(items => items.map(i => (i as HTMLOptionElement).value)), [A, B]);
     await page.close(); await open({ accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'only' }] });
-    assert.equal(await page.locator('#accountIdSelect').isVisible(), false); assert.equal(await page.locator('#accountName').textContent(), 'only');
+    assert.equal(await page.locator('#accountIdSelect').isVisible(), true);
+    assert.equal(await page.locator('#accountIdSelect option:checked').textContent(), 'Gemini · only');
 });
 test('badge view creates one real DOM badge and displays account-scoped count', async () => {
     page = await browser.newPage(); await mount(page, 'badge');
@@ -67,7 +67,36 @@ test('new or updated conversations remain unselected until explicitly selected',
 test('list select all and deselect all operate on current view selection', async () => {
     await open({ indexes: rows }); await page.locator('#btnSelectAll').click();
     assert.equal(await page.locator('#list input:checked').count(), 2);
-    await page.locator('#btnSelectNone').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
+    await page.locator('#btnSelectAll').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
+});
+test('select-all checkbox displays none, mixed and all for the visible rows', async () => {
+    await open({ indexes: rows });
+    const all = page.locator('#btnSelectAll');
+    await page.locator('#list .item').first().waitFor();
+    assert.equal(await all.isChecked(), false);
+    assert.equal(await all.evaluate((input: HTMLInputElement) => input.indeterminate), false);
+
+    await page.locator('[data-chat-id=one] input').check();
+    assert.equal(await all.isChecked(), false);
+    assert.equal(await all.evaluate((input: HTMLInputElement) => input.indeterminate), true);
+    await all.click();
+    assert.equal(await all.isChecked(), true);
+    assert.equal(await page.locator('#list input:checked').count(), 2);
+    await all.click();
+    assert.equal(await page.locator('#list input:checked').count(), 0);
+    assert.equal(await all.evaluate((input: HTMLInputElement) => input.indeterminate), false);
+
+    await page.locator('#chatSearchInput').fill('Alpha');
+    await all.click();
+    assert.equal(await all.isChecked(), true);
+    assert.equal(await page.locator('#selectedStat').textContent(), '1 of 2 selected');
+    await page.locator('#chatSearchInput').fill('');
+    assert.equal(await all.isChecked(), false);
+    assert.equal(await all.evaluate((input: HTMLInputElement) => input.indeterminate), true);
+    await all.click();
+    assert.equal(await all.isChecked(), true);
+    await all.click();
+    assert.equal(await page.locator('#list input:checked').count(), 0);
 });
 test('list history refresh displays the latest persisted record after focus', async () => {
     await open({ indexes: rows }); await page.locator('#list .item').first().waitFor();
@@ -114,7 +143,8 @@ test('select visible selects only matching rows and clearing selection leaves hi
     await open({ indexes: rows }); await page.locator('#chatSearchInput').fill('Alpha'); await page.locator('#btnSelectAll').click();
     await page.locator('#chatSearchInput').fill('');
     assert.equal(await page.locator('[data-chat-id=one] input').isChecked(), true); assert.equal(await page.locator('[data-chat-id=two] input').isChecked(), false);
-    await page.locator('#btnSelectNone').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnSelectAll').click(); assert.equal(await page.locator('#list input:checked').count(), 0);
 });
 test('Select All replaces hidden selections with currently visible conversation keys', async () => {
     await open({ indexes: rows, records }); await page.locator('#list [data-chat-id=one] input').check();
@@ -161,6 +191,7 @@ test('zero-account Takeout creates the first Gemini default only after ZIP selec
     assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
     assert.equal((await read(page, 'events')).includes('create'), false);
     const chooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#btnMoreActions').click();
     await page.locator('#btnImportTakeout').click();
     const chooser = await chooserPromise;
     assert.equal((await read(page, 'events')).includes('create'), false, 'Opening the picker must not create an account');
@@ -169,7 +200,7 @@ test('zero-account Takeout creates the first Gemini default only after ZIP selec
     assert.deepEqual(await read(page, 'imports'), [A]);
     assert.equal((await read(page, 'events')).filter((value: string) => value === 'create').length, 1);
     assert.equal((await read(page, 'accounts')).length, 1);
-    assert.equal(await page.locator('#accountName').textContent(), 'default');
+    await page.waitForFunction(() => document.querySelector('#accountIdSelect option:checked')?.textContent === 'Gemini · default');
     assert.deepEqual((await read(page, 'patches')).at(-1), { takeoutPromptCompleted: true });
 });
 

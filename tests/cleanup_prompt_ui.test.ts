@@ -11,11 +11,13 @@ after(async () => { await browser?.close(); });
 test('reentrant cleanup cannot stack dialogs, and cancel followed by confirm clears only once', async () => {
     page = await browser.newPage();
     await mount(page, 'options');
+    await page.locator('#btnMoreActions').click();
     await page.locator('#btnClearScan').click();
     await page.locator('#btnClearScan').dispatchEvent('click');
     assert.equal(await page.locator('dialog[open]').count(), 1);
     await page.locator('#btnCleanupCancel').click();
     assert.deepEqual(await read(page, 'clears'), []);
+    await page.locator('#btnMoreActions').click();
     await page.locator('#btnClearScan').click();
     await page.locator('#btnCleanupConfirm').click();
     await page.waitForFunction(() => Reflect.get(window, 'harness').clears.length === 1);
@@ -25,6 +27,7 @@ test('reentrant cleanup cannot stack dialogs, and cancel followed by confirm cle
 test('a confirmation for a previous account cannot clear either account after switching', async () => {
     page = await browser.newPage();
     await mount(page, 'options');
+    await page.locator('#btnMoreActions').click();
     await page.locator('#btnClearScan').click();
     // Simulate account state changing from outside the inert modal background.
     await page.locator('#accountIdSelect').evaluate((node, accountId) => {
