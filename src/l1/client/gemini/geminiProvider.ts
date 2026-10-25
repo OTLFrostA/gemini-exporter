@@ -26,9 +26,12 @@ async function resolveRoute(accountId: string): Promise<string> {
         for (const tab of tabs) {
             if (tab.id === undefined) continue;
             try {
-                const response = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
-                if (response?.ok && response.accountContext?.accountId === accountId
-                    && /^u\d+$/.test(response.accountContext.slot)) return response.accountContext.slot;
+                const response: unknown = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
+                if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
+                    || !('accountContext' in response)) continue;
+                const context = response.accountContext;
+                if (context && typeof context === 'object' && 'accountId' in context && context.accountId === accountId
+                    && 'slot' in context && typeof context.slot === 'string' && /^u\d+$/.test(context.slot)) return context.slot;
             } catch { /* A tab without a content script is not a route. */ }
         }
     }

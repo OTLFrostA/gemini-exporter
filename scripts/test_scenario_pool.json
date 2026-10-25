@@ -1,46 +1,5 @@
 [
   {
-    "id": "robotics_planar_arm_jacobian_singularity",
-    "domain": "robotics_kinematics",
-    "title": "Planar robot: inverse kinematics and singularity certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a two-link planar robot with links 0.7 and 0.5 metres. Derive its forward kinematics and analytic Jacobian in LaTeX; explain coordinates and angle units in English and Chinese.",
-      "Derive both inverse-kinematic branches for target (0.6,0.5) metres. Show a Markdown table of angles, reconstructed positions, residuals and Jacobian determinants; distinguish unreachable and singular targets.",
-      "Implement forward and inverse kinematics in standard-library Python, including numerical domain clamps with justified tolerances. Supply runnable assertions for both branches, boundary targets and an unreachable point.",
-      "Derive the velocity inverse and damped least-squares alternative. Compare both near straight-arm singularity using a reproducible Python experiment and a Markdown table; explain why small Cartesian residual does not imply bounded joint velocity.",
-      "Produce a complete reproducible kinematics audit combining Python tests, LaTeX derivations, angle-wrap conventions and bilingual conclusions. Include counterexamples for sign errors, branch loss and unit confusion."
-    ]
-  },
-  {
-    "id": "reliability_common_cause_fault_tree",
-    "domain": "reliability_fault_tree",
-    "title": "Redundant systems: common-cause failures and exact reliability",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a two-channel redundant safety system with individual failure probability p and a common-cause probability q. Derive the exact system failure probability under explicitly stated conditional-independence assumptions, in LaTeX and bilingual prose.",
-      "Compare an independent model and a common-cause model for p=0.02, q=0.003. Show a Markdown probability table with joint outcomes, normalization and an explanation of which marginal probabilities change.",
-      "Implement exact state enumeration with Python fractions.Fraction. Include runnable checks of probability mass, q=0, q=1 and p=0 or 1, and avoid counting common-cause outcomes twice.",
-      "Extend the system to two-out-of-three voting. Derive the binomial expression conditional on no common cause, enumerate all states and cross-check formula against exact code.",
-      "Derive partial sensitivities with respect to p and q for both architectures. Make a Markdown comparison table and explain when adding redundancy provides little improvement.",
-      "Construct a counterexample showing why observed pairwise failure correlation does not uniquely identify a common-cause model. Provide two normalized joint distributions with the same chosen marginal statistics but different higher-order events.",
-      "Add deterministic Monte Carlo as a secondary check with a fixed seed, Wilson confidence intervals and sample-size justification. Explain why sampling agreement is weaker than exact enumeration.",
-      "Package a reproducible reliability report with complete Python tests, exact fractions, LaTeX identities and a Markdown decision table. Distinguish structural assumptions, measured quantities and unsupported causal conclusions."
-    ]
-  },
-  {
     "id": "astronomy_transit_chord_limb_darkening",
     "title": "Exoplanet transits: chord geometry and inference limits",
     "domain": "astronomy_transit_geometry",
@@ -413,6 +372,47 @@
       "Analyze equal initial temperatures, a vanishing amount of one component and the identical-gas case. Explain the Gibbs paradox and why relabeling a gas must not produce a physical mixing entropy.",
       "Extend the audit to maximum useful work relative to an environment at a stated temperature. Separate exergy destruction from actual extracted work, with LaTeX relations and a Markdown comparison table.",
       "Deliver runnable regression tests and a reproducible final audit. Use two independent entropy calculations, justified numerical tolerances and explicit limitations of the ideal-gas and constant-heat-capacity assumptions."
+    ]
+  },
+  {
+    "id": "signal_processing_aliasing_phase_recovery",
+    "domain": "signal_processing_sampling_aliasing",
+    "title": "Sampling aliasing: frequency equivalence and phase recovery",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a real sinusoid sampled uniformly at a stated rate. Choose two different continuous-time frequencies giving exactly the same discrete samples. State units, phase conventions and a bilingual glossary.",
+      "Derive the full alias-frequency equivalence class with LaTeX equations. Explain the distinction between frequency folding and phase inversion, and provide a Markdown table of representative aliases.",
+      "Implement a standard-library Python numerical experiment comparing the two sampled signals. Quantify maximum absolute sample error and explain the effect of floating-point roundoff.",
+      "Design a second sampling-rate experiment that disambiguates the two chosen frequencies under a stated finite prior frequency bound. Show the calculation and prove uniqueness within that bound.",
+      "Deliver reproducible regression tests for zero frequency, the Nyquist frequency, phase inversion and two-rate disambiguation. Summarize assumptions, numerical tolerances and the limitations of finite noiseless samples."
+    ]
+  },
+  {
+    "id": "projective_geometry_homography_normalization",
+    "domain": "projective_geometry_homography",
+    "title": "Planar homography: normalization and reprojection certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Specify four noncollinear source and target planar point correspondences with a known invertible projective homography. State coordinate conventions, units and a bilingual glossary.",
+      "Derive the homogeneous point mapping and linear constraints for all homography coefficients using LaTeX. Explain scale ambiguity and give a Markdown correspondence table.",
+      "Choose a scale convention and solve the eight independent equations for the concrete example. Explain what happens when the chosen scale coefficient is zero.",
+      "Implement a standard-library Python linear solver with pivoting for the example. Print per-point reprojection residuals and verify the result against the independently supplied homography.",
+      "Derive coordinate centering and scale normalization. Demonstrate how to denormalize the estimated transform and compare coefficient scale with geometric reprojection error.",
+      "Analyze degeneracy for collinear correspondences and points mapped near the line at infinity. Give explicit counterexamples and define failure criteria without silently replacing denominators.",
+      "Add a fifth correspondence as an independent validation point and perturb one observation. Explain why exact four-point fitting alone does not validate noisy measurements, using a Markdown residual table.",
+      "Deliver runnable regression tests for inverse mapping, scale invariance, normalization and degenerate inputs. State justified tolerances and explain the limits of the exact linear model."
     ]
   }
 ]

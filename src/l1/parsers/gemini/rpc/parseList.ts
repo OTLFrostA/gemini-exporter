@@ -166,9 +166,7 @@ function isConfirmedListLimit(top: unknown, wrb: string, listRpc: string): boole
                 _raw: inner
             };
         } catch (e: unknown) {
-            // Non-Error throws remain unvalidated diagnostic evidence. Keep the legacy
-            // property read (including its behavior for null/undefined), not String(e).
-            const message = e instanceof Error ? e.message : (e as { message?: unknown }).message;
+                const message = e instanceof Error ? e.message : String(e);
             console.error("[Gemini Exporter] parseList exception:", message, "raw text snippet:", text ? text.slice(0, 300) : "empty");
             throw new Error("列表解析失败: " + message);
         }

@@ -1,3 +1,4 @@
+import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { IDBObjectStore } from 'fake-indexeddb';
@@ -107,12 +108,12 @@ test('Detail 1167 must belong to target hNvQHb RPC, not a simultaneous list or a
 
 test('L1 delete parsing needs a matching acknowledged DELETE RPC, not the outgoing request alone', () => {
     const requestBody = geminiDeleteRequestGen('G_L1_VERIFIED_DELETE_REQUEST_01');
-    assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiDeleteGen('G_L1_VERIFIED_DELETE_ACK_01')), conversationId);
-    assert.equal(parseConfirmedGeminiDeletion(requestBody, ''), null);
-    assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiListGen('G_L1_VERIFIED_LIST_FALSE_DELETE_01')), null);
-    assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiDeleteGen('G_L1_VERIFIED_DELETE_OTHER_ACK_01')), null);
-    assert.equal(parseConfirmedGeminiDeletion(requestBody, '["BardErrorInfo",1167]'), null);
-    assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiDeleteGen('G_L1_VERIFIED_DELETE_LIMIT_01')), null);
+    assert.equal(parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), geminiDeleteGen('G_L1_VERIFIED_DELETE_ACK_01')), conversationId);
+    assert.equal(parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), ''), null);
+    assert.equal(parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), geminiListGen('G_L1_VERIFIED_LIST_FALSE_DELETE_01')), null);
+    assert.equal(parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), geminiDeleteGen('G_L1_VERIFIED_DELETE_OTHER_ACK_01')), null);
+    assert.equal(parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), '["BardErrorInfo",1167]'), null);
+    assert.equal(parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), geminiDeleteGen('G_L1_VERIFIED_DELETE_LIMIT_01')), null);
 });
 
 test('Gemini list limit requires LIST-specific 1096 plus a bound Recent continuation', () => {
@@ -164,7 +165,7 @@ test('Metadata-only Detail with a transient retry failure cannot be admitted as 
 test('Tier 2 captured native void DELETE acknowledgement removes only the request-bound local key', async () => {
     const requestBody = geminiDeleteRequestGen('G_NATIVE_CAPTURE_DELETE_REQUEST_01');
     const responseText = geminiDeleteGen('G_NATIVE_CAPTURE_DELETE_RESPONSE_01');
-    const id = parseConfirmedGeminiDeletion(requestBody, responseText);
+    const id = parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), responseText);
     assert.equal(id, conversationId);
     const env = indexStorage();
     try {
@@ -176,8 +177,8 @@ test('Tier 2 captured native void DELETE acknowledgement removes only the reques
     for (const key of ['G_NATIVE_CAPTURE_DELETE_MALFORMED_NULL_01',
         'G_NATIVE_CAPTURE_DELETE_MALFORMED_ARRAY_01', 'G_NATIVE_CAPTURE_DELETE_MALFORMED_FALSE_01',
         'G_NATIVE_CAPTURE_DELETE_MALFORMED_OTHER_01'] as const) {
-        assert.equal(parseConfirmedGeminiDeletion(requestBody, geminiDeleteGen(key)), null);
+        assert.equal(parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), geminiDeleteGen(key)), null);
     }
-    assert.equal(parseConfirmedGeminiDeletion(
-        geminiDeleteRequestGen('G_NATIVE_CAPTURE_DELETE_DUPLICATE_REQUEST_01'), responseText), null);
+    assert.equal(parseConfirmedGeminiDeletion(parseGeminiRequest(
+        geminiDeleteRequestGen('G_NATIVE_CAPTURE_DELETE_DUPLICATE_REQUEST_01')), responseText), null);
 });

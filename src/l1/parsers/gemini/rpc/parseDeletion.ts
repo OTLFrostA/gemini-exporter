@@ -1,3 +1,4 @@
+import type { GeminiRequestContext } from './request.js';
 import { geminiResponse, type GeminiResponseEnvelope } from './responseEnvelope.js';
 import { GeminiProtocol } from '../../../protocol/gemini/protocol.js';
 
@@ -9,20 +10,10 @@ export function isConfirmedGeminiDetailNotFound(responseText: string | GeminiRes
 }
 
 /** Only a request-bound DELETE RPC with a matching positive response may delete local facts. */
-export function parseConfirmedGeminiDeletion(requestBody: string, responseText: string | GeminiResponseEnvelope): string | null {
+export function parseConfirmedGeminiDeletion(request: GeminiRequestContext, responseText: string | GeminiResponseEnvelope): string | null {
     try {
-        const raw = new URLSearchParams(requestBody).get('f.req');
-        if (!raw) return null;
-        const batch: unknown = JSON.parse(raw);
-        if (!Array.isArray(batch) || !Array.isArray(batch[0])) return null;
-        const calls = batch[0] as unknown[];
-        const deletes = calls.filter(call => Array.isArray(call)
-            && call[0] === GeminiProtocol.RPCS.DELETE && typeof call[1] === 'string');
-        if (deletes.length !== 1) return null;
-        const argumentsJson: unknown = JSON.parse((deletes[0] as string[])[1]);
-        const ids = JSON.stringify(argumentsJson).match(/c_[a-f0-9]{8,64}/gi);
-        if (!ids || ids.length !== 1) return null;
-        const sourceId = ids[0].toLowerCase();
+        const sourceId = request.deletionId;
+        if (!sourceId) return null;
 
         const response = geminiResponse(responseText);
         const replies = response.rows(GeminiProtocol.RPCS.DELETE);

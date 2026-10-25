@@ -109,12 +109,6 @@ interface GeminiJspbSchema {
     ERROR_INFO: JspbErrorInfoSchema;
 }
 
-/** Optional runtime flags; their truthiness is observed without validation. */
-interface ParserDebugFlags {
-    __gemExporterDevMode?: unknown;
-    __gemExporterVerboseLog?: unknown;
-}
-
 export interface TurnDriftReport {
     isDrifted: boolean;
     warnings: string[];
@@ -185,7 +179,7 @@ interface GeminiParserExtractorsModule {
 import { normId } from "../../../../shared/utils/pathUtils.js";
 import { isRealTitle, cleanTitle } from "../../../../shared/utils/titleText.js";
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../../../shared/utils/titleText.js";
-import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.js";
+import { payloadToMs, extractCandidateValue } from "./payload.js";
 
 /**
  * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
@@ -362,8 +356,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         }
 
         if (warnings.length > 0) {
-            const isDev = (typeof globalThis !== "undefined" && ((globalThis as typeof globalThis & ParserDebugFlags).__gemExporterDevMode || (globalThis as typeof globalThis & ParserDebugFlags).__gemExporterVerboseLog))
-                || (typeof window !== "undefined" && ((window as Window & ParserDebugFlags).__gemExporterDevMode || (window as Window & ParserDebugFlags).__gemExporterVerboseLog));
+            const isDev = (typeof globalThis !== "undefined" && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog))
+                || (typeof window !== "undefined" && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
             if (isDev) {
                 console.warn("[Gemini Exporter][Schema Drift Warning] Detected %d schema drift(s) in conv %s:", warnings.length, convId || "unknown", warnings);
             }

@@ -17,10 +17,10 @@ export interface InnerPayloadDiscoveryResult {
 /** Provider-native Unix timestamps become finite safe integer milliseconds, truncating sub-ms precision. */
 export function payloadToMs(val: unknown): number | null {
     let ms: number | null = null;
-    if (Array.isArray(val) && Number.isSafeInteger(val[0]) && val[0] > 1e9) {
-        const sec = val[0] as number;
-        const nano = val[1] === undefined ? 0 : val[1];
-        if (!Number.isSafeInteger(nano) || nano < 0 || nano >= 1e9) return null;
+    if (Array.isArray(val) && typeof val[0] === 'number' && Number.isSafeInteger(val[0]) && val[0] > 1e9) {
+        const sec = val[0];
+        const nano: unknown = val[1] === undefined ? 0 : val[1];
+        if (typeof nano !== 'number' || !Number.isSafeInteger(nano) || nano < 0 || nano >= 1e9) return null;
         // Truncate the fraction before adding the epoch to avoid floating-point
         // rounding of a nanosecond value just below the next millisecond.
         ms = sec > 1e11 ? sec : sec * 1000 + Math.trunc(nano / 1e6);
@@ -46,7 +46,7 @@ export function extractInnerPayload(
     if (Array.isArray(top)) {
         if (rpcList.length > 0) {
             for (const item of top) {
-                if (Array.isArray(item) && item[0] === wrb && rpcList.includes(item[1]) && typeof item[2] === "string") {
+                if (Array.isArray(item) && item[0] === wrb && typeof item[1] === 'string' && rpcList.includes(item[1]) && typeof item[2] === "string") {
                     innerStr = item[2];
                     isStandardWrb = true;
                     break;
@@ -104,7 +104,7 @@ export function extractInnerPayload(
     };
 }
 
-export function extractCandidateValue<T>(
+export function extractCandidateValue<T extends string | number>(
     arr: unknown,
     candidateIndices: number[],
     transform: (val: unknown, index: number) => T | null
@@ -119,31 +119,17 @@ export function extractCandidateValue<T>(
     return null;
 }
 
-export function extractWithScan<T>(
-    arr: unknown,
-    candidateIndices: number[],
-    transform: (val: unknown, index: number) => T | null,
-    scanAll: boolean = true
-): T | null {
-    const candidateResult = extractCandidateValue(arr, candidateIndices, transform);
-    if (candidateResult !== null) return candidateResult;
-
-    if (scanAll && Array.isArray(arr)) {
-        for (let i = 0; i < arr.length; i++) {
-            const res = transform(arr[i], i);
-            if (res !== null && res !== undefined) return res;
-        }
-    }
-    return null;
-}
-
 export function extractNextPageToken(
     inner: unknown,
     candidates: number[] = [1, 2, 3]
 ): string | null {
-    return extractWithScan(
-        inner,
-        candidates,
-        val => (typeof val === "string" && val.startsWith("tC") ? val : null)
-    );
+    const token = (value: unknown): string | null => typeof value === 'string' && value.startsWith('tC') ? value : null;
+    const preferred = extractCandidateValue(inner, candidates, token);
+    if (preferred !== null || !Array.isArray(inner)) return preferred;
+    for (let i = 0; i < inner.length; i++) {
+        if (candidates.includes(i)) continue;
+        const value = token(inner[i]);
+        if (value !== null) return value;
+    }
+    return null;
 }

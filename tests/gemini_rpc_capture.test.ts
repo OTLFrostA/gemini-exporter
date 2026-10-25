@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import { geminiRpcPacket, GEMINI_DETAIL_CAPTURE as expected } from './fixtures/providers/geminiRpcCapture.js';
 import { editCapturedRpc } from './fixtures/providers/geminiCaptureWire.js';
 import { geminiListPage, geminiListRow, geminiListVariant } from './fixtures/providers/geminiListCapture.js';
-import { readGeminiDetailRequest } from '../src/l1/parsers/gemini/rpc/detailRequest.js';
-import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
+import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
@@ -13,7 +12,7 @@ import { assertDomainClosure } from '../src/l2/closure.js';
 test('captured Detail request binds all seven chronological turns to one conversation', () => {
     const packet = geminiRpcPacket('detail');
     assert.equal(packet.status, 200);
-    assert.deepEqual(readGeminiDetailRequest(packet.requestBody), { conversationId: expected.conversationId, requestCursor: null });
+    assert.deepEqual(parseGeminiRequest(packet.requestBody).detail, { conversationId: expected.conversationId, requestCursor: null });
     const evidence = decodeGeminiDetail(packet.responseBody);
     assert.equal(evidence.messages.length, 14);
     assert.equal(evidence.messages[0].rawProviderRequestId, expected.firstRequestId);
@@ -30,7 +29,7 @@ test('captured Detail request binds all seven chronological turns to one convers
 test('captured empty Pinned response is valid source end for its own request stream', () => {
     const packet = geminiRpcPacket('pinned');
     assert.equal(packet.status, 200);
-    assert.deepEqual(readGeminiListRequest(packet.requestBody), { streamId: 'pinned', requestCursor: null });
+    assert.deepEqual(parseGeminiRequest(packet.requestBody).list, { streamId: 'pinned', requestCursor: null });
     const parsed = parseList(packet.responseBody);
     assert.deepEqual(parsed.conversations, []);
     assert.equal(parsed.pageEvidence.valid, true);

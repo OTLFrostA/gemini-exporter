@@ -142,7 +142,7 @@ const pagination = GeminiClientPagination;
                 }
 
                 const retryCount = (opts && opts._retryCount) || 0;
-                const maxRetries = (opts && opts.maxRetries) !== undefined ? opts!.maxRetries : 3;
+                const maxRetries = opts?.maxRetries ?? 3;
                 const retry429 = retryPolicy.handleHttp429 ? await retryPolicy.handleHttp429({
                     resp,
                     retryCount,
@@ -234,7 +234,7 @@ const pagination = GeminiClientPagination;
                 }
 
                 const retryCount = (opts && opts._retryCount) || 0;
-                const maxRetries = (opts && opts.maxRetries) !== undefined ? opts!.maxRetries : 3;
+                const maxRetries = opts?.maxRetries ?? 3;
                 const retry429 = retryPolicy.handleHttp429 ? await retryPolicy.handleHttp429({
                     resp,
                     retryCount,

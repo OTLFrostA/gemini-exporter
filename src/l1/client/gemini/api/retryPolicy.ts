@@ -75,10 +75,8 @@ interface GeminiClientRetryPolicyModule {
                     if (loadMapFn && getStorageFn) {
                         let map = await loadMapFn();
                         const entry = cred?.sid && map[cred.sid];
-                        if (entry && typeof entry === 'object') {
-                            const saved = entry as Record<string, unknown>;
-                            if (freshAt) saved.at = freshAt;
-                            if (freshBl) saved.bl = freshBl;
+                        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+                            map[String(cred?.sid)] = { ...entry, ...(freshAt ? { at: freshAt } : {}), ...(freshBl ? { bl: freshBl } : {}) };
                             const storage = getStorageFn();
                             if (storage) {
                                 await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
@@ -121,8 +119,8 @@ interface GeminiClientRetryPolicyModule {
                         console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面 at 已轮换，刷新凭证后保留（不删除）`);
                         const map = await loadMapFn();
                         const entry = map[cred.sid];
-                        if (entry && typeof entry === 'object') {
-                            (entry as Record<string, unknown>).at = freshAt;
+                        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+                            map[String(cred.sid)] = { ...entry, at: freshAt };
                             const storage = getStorageFn();
                             if (storage) {
                                 await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });

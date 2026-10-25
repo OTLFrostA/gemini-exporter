@@ -1,4 +1,4 @@
-import { readGeminiListRequest } from '../../src/l1/parsers/gemini/rpc/listRequest.js';
+import { parseGeminiRequest } from '../../src/l1/parsers/gemini/rpc/request.js';
 import { geminiListPages, GEMINI_LIST_CAPTURE } from '../fixtures/providers/geminiListCapture.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { execFileSync } from 'node:child_process';
@@ -84,8 +84,8 @@ test('Tier 2 scan observer sees real UI → Application → Recent RPC completio
     await page.route('**/batchexecute*', async route => {
         const packet = pages[next++];
         expect(packet, 'scan must not request past the captured terminal').toBeDefined();
-        expect(readGeminiListRequest(route.request().postData())?.requestCursor)
-            .toBe(readGeminiListRequest(packet.requestBody)?.requestCursor);
+        expect(parseGeminiRequest(route.request().postData()).list?.requestCursor)
+            .toBe(parseGeminiRequest(packet.requestBody).list?.requestCursor);
         await route.fulfill({contentType:'application/json',body:packet.responseBody});
     });
     expect(await page.evaluate(scanObserver)).toEqual({clicked:true});

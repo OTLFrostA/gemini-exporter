@@ -1,3 +1,4 @@
+import { parseGeminiCredential, type GeminiStoredCredential } from '../../parsers/gemini/credentials.js';
 import { CrossWorldEvents, GeminiProtocol, type GeminiProtocolModule } from '../../protocol/gemini/protocol.js';
 import type { GeminiCredentialsPayload } from '../../protocol/gemini/events.js';
 import { STORAGE_KEYS } from '../../../shared/utils/constants.js';
@@ -33,7 +34,7 @@ function isDev(): boolean {
     return false;
 }
 
-type BootstrapCredential = Partial<GeminiCredentialsPayload> & { accountId?: string; email?: string; name?: string };
+type BootstrapCredential = GeminiStoredCredential;
 
 function updateContextCreds(creds: BootstrapCredential): void {
     if (typeof window !== 'undefined') {
@@ -157,8 +158,8 @@ export async function loadCredentialsMap(): Promise<Record<string, BootstrapCred
         }
     }
     const saved = mapObj[SK_CRED_MAP];
-    return saved && typeof saved === 'object' && !Array.isArray(saved)
-        ? saved as Record<string, BootstrapCredential> : {};
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+    return Object.fromEntries(Object.keys(saved).map(sid => [sid, parseGeminiCredential(Reflect.get(saved, sid))]));
 }
 
 export async function saveCredentials(map: Record<string, BootstrapCredential>, cred?: Partial<GeminiCredentialsPayload>): Promise<void> {
@@ -289,12 +290,14 @@ export function initBootstrap(): void {
     // same-window page scripts can forge this message indistinguishably
     // (event.source === window is true for them too), so treat the payload as
     // untrusted: an empty `at` must never clobber the stored credential.
-    const receive = (e: MessageEvent) => {
+    const receive = (e: MessageEvent<unknown>) => {
         if (e.source !== window) return;
         if (typeof location !== 'undefined' && e.origin !== location.origin) return;
-        if (e.data?.type === CrossWorldEvents.ACCOUNT_OBSERVED) {
+        const data = e.data;
+        if (!data || typeof data !== 'object' || !('type' in data)) return;
+        if (data.type === CrossWorldEvents.ACCOUNT_OBSERVED) {
             if (!isExtAlive()) return;
-            const payload: unknown = e.data.payload;
+            const payload = 'payload' in data ? data.payload : undefined;
             if (!payload || typeof payload !== 'object' || !('observation' in payload) || !('slot' in payload) || typeof payload.slot !== 'string') return;
             if ('requestId' in payload) return; // The requesting resolver owns this reply.
             // The same-window payload is untrusted and is validated before Registry access.
@@ -304,13 +307,13 @@ export function initBootstrap(): void {
             } catch (error) { if (isDev()) console.debug('[Gemini Exporter] Invalid account observation', error); }
             return;
         }
-        if (e.data && e.data.type === (CrossWorldEvents?.CREDENTIALS || 'GEMINI_CREDENTIALS')) {
+        if (data && data.type === (CrossWorldEvents?.CREDENTIALS || 'GEMINI_CREDENTIALS')) {
             if (!isExtAlive()) return;
             // Queued behind any in-flight ensureCreds so concurrent load→save
             // cycles cannot overwrite each other's map entries.
             void runSerializedCredOp(async () => {
                 try {
-                    const p = (e.data.payload || {}) as Partial<GeminiCredentialsPayload>;
+                    const p = parseGeminiCredential('payload' in data ? data.payload : undefined);
                     const slot = p.accountSlot === 'default' ? 'u0' : p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'u0';
                     // Queued credentials can belong to the previous Gaia even
                     // when slot/email stayed the same. Refresh before binding.

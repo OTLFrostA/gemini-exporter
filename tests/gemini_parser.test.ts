@@ -1,4 +1,4 @@
-import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
+import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
 import { geminiListPage, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
@@ -47,7 +47,7 @@ test('gemini_parser - parseList with valid batchexecute RPC text', () => {
     assert.strictEqual(res.conversations.length, GEMINI_LIST_CAPTURE.firstPageRows);
     assert.strictEqual(res.conversations[0].id, GEMINI_LIST_CAPTURE.first.id);
     assert.strictEqual(res.conversations[0].title, GEMINI_LIST_CAPTURE.first.title);
-    assert.strictEqual(res.nextPageToken, readGeminiListRequest(geminiListPage(1).requestBody)!.requestCursor);
+    assert.strictEqual(res.nextPageToken, parseGeminiRequest(geminiListPage(1).requestBody).list!.requestCursor);
 });
 
 test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extracts official RPC title', () => {

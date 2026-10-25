@@ -3,8 +3,7 @@ import type { Account } from '../../../l2/accountRegistry.js';
 import type { SourceResourceContext } from '../../resources/sourceResources.js';
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
 import { ingestDetail } from '../../../l2/ingestion.js';
-import * as ZipBombGuard from '../../parsers/shared/archive/zipBombGuard.js';
-import { parseGeminiTakeoutZipArchive, readTakeoutBytes, type GeminiTakeoutZipRaw } from './readArchive.js';
+import { parseGeminiTakeoutZipArchive, readTakeoutBytes } from './readArchive.js';
 import { TakeoutParseError } from '../../../shared/types/errors.js';
 
 export interface TakeoutParseResult { imported: number; status: 'ok' | 'partial' }
@@ -15,22 +14,10 @@ export async function importTakeout(file: File, accountId: Account['id'], onProg
     const account = await getAccount(accountId);
     if (!account || account.providerId !== 'gemini') throw new TypeError('Takeout requires an existing Gemini account');
     onProgress?.(15);
-    ZipBombGuard.validateZipFile(file);
-    const suppliedArchive = file !== null && typeof file === 'object' && 'files' in file;
-    const bytes = suppliedArchive ? new Uint8Array() : file as GeminiTakeoutZipRaw;
-    const loader: unknown = (globalThis as { JSZip?: unknown }).JSZip;
-    const readArchive = async (): Promise<unknown> => {
-        if (suppliedArchive) return file;
-        if (!loader || (typeof loader !== 'object' && typeof loader !== 'function') || typeof (loader as { loadAsync?: unknown }).loadAsync !== 'function') throw new TypeError('JSZip 库未加载，无法解析 ZIP');
-        return (loader as { loadAsync: (raw: GeminiTakeoutZipRaw) => Promise<unknown> }).loadAsync(bytes);
-    };
-    const results = await parseGeminiTakeoutZipArchive(bytes, { account, providerId: 'gemini', onProgress: (completed, total) => onProgress?.(70 + Math.floor(completed / total * 18)), readArchive: async () => {
-        const archive = await readArchive();
-        ZipBombGuard.validateZipEntries(archive);
-        onProgress?.(40);
-        onProgress?.(70);
-        return archive;
-    } }).catch((error: unknown) => {
+    const results = await parseGeminiTakeoutZipArchive(file, { account, providerId: 'gemini',
+        onProgress: (completed, total) => onProgress?.(70 + Math.floor(completed / total * 18)),
+        onArchiveReady: () => { onProgress?.(40); onProgress?.(70); },
+    }).catch((error: unknown) => {
         if (error instanceof TakeoutParseError) throw error;
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes('no recognized conversation identities') || message.includes('Unsupported Takeout')) throw new TakeoutParseError('Unsupported Takeout structure', true, 'MyActivity.html');

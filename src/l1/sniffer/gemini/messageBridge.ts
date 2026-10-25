@@ -1,3 +1,4 @@
+import { parseGeminiRequest } from '../../parsers/gemini/rpc/request.js';
 import { parseConfirmedGeminiDeletion } from '../../parsers/gemini/rpc/parseDeletion.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { SourceResourceContext } from '../../resources/sourceResources.js';
@@ -12,7 +13,7 @@ import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObse
 import { parseGeminiDomIndex } from '../../parsers/gemini/dom/parseIndex.js';
 import { isDevMode } from '../../../runtime/devMode.js';
 import type { ListParseResult } from '../../parsers/gemini/rpc/parseList.js';
-import type { GeminiListRequestContext } from '../../parsers/gemini/rpc/listRequest.js';
+import type { GeminiListRequestContext } from '../../parsers/gemini/rpc/request.js';
 import { CrossWorldEvents } from '../../protocol/gemini/protocol.js';
 import { extractConversationIdFromUrl, normId } from '../../../shared/utils/pathUtils.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
@@ -114,7 +115,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
             const source = new URL(url);
             if (source.protocol !== 'https:' || !['gemini.google.com', 'bard.google.com'].includes(source.hostname)
                 || !source.pathname.endsWith('/batchexecute')) return;
-            confirmedDeletion = parseConfirmedGeminiDeletion(requestBody, responseText);
+            confirmedDeletion = parseConfirmedGeminiDeletion(parseGeminiRequest(requestBody), responseText);
             if (confirmedDeletion !== id) return;
         } else if (raw.type === CrossWorldEvents.STREAM_START || raw.type === CrossWorldEvents.STREAM_COMPLETE) {
             // Unknown Stream signals by themselves are not proof of persistable content.
@@ -132,7 +133,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
                 const parsed = parsedList;
                 const context = listRequest;
                 const page = geminiListObservation(parsed, context, account.id, truncated, requestedAt);
-                const evidenceKey = capturedIdentity && typeof capturedIdentity === 'object'
+                const evidenceKey: unknown = capturedIdentity && typeof capturedIdentity === 'object'
                     ? Reflect.get(capturedIdentity, 'providerAccountId') : null;
                 const trustedIdentity = typeof evidenceKey === 'string' && evidenceKey !== 'default'
                     && evidenceKey === account.providerAccountId;
@@ -158,7 +159,10 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
                     const startsAtHead = request.requestCursor === null || pages.length > 1;
                     complete = startsAtHead && native.transport.nextPageToken === null && pages.some(page => page.conversation.detail.messages.length > 0);
                     if (startsAtHead && native.transport.nextPageToken && !pages.slice(0, -1).some(page => page.transport.nextPageToken === native.transport.nextPageToken)) {
-                        if (chains.size >= 50) chains.delete(chains.keys().next().value!);
+                        if (chains.size >= 50) {
+                            const oldest = chains.keys().next();
+                            if (!oldest.done) chains.delete(oldest.value);
+                        }
                         chains.set(key, { pages, next: native.transport.nextPageToken, requestedAt });
                     } else chains.delete(key);
                 } else chains.delete(key);
@@ -174,7 +178,7 @@ async function processWindowMessage(event: MessageEvent, earlier: readonly Promi
         const id = field('id');
         if (id !== null && id !== undefined && (typeof id !== 'string' || !/^[\w-]{1,128}$/.test(id))) return;
         if (raw.type === CrossWorldEvents.CONVERSATION_DELETED) {
-            const evidenceKey = capturedIdentity && typeof capturedIdentity === 'object'
+            const evidenceKey: unknown = capturedIdentity && typeof capturedIdentity === 'object'
                 ? Reflect.get(capturedIdentity, 'providerAccountId') : null;
             if (typeof id !== 'string' || confirmedDeletion !== id || account.providerAccountId === 'default'
                 || evidenceKey !== account.providerAccountId) return;

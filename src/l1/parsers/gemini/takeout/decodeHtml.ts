@@ -190,7 +190,7 @@ function decodeActivityBlock(block: string, index: number): TakeoutActivityEvide
     for (const match of block.matchAll(/(?:src|href)=["']([^#"'>]+?)["']/gi)) {
         const uri = unescapeHtmlEntities(match[1]).trim();
         if (/^(?:https?:|\/\/|javascript:|mailto:|data:)/i.test(uri) || /\.html?$/i.test(uri)) continue;
-        const position = match.index!;
+        const position = match.index;
         const inPromptCell = hasExplicitPrompt && cellOffset >= 0 && position >= cellOffset && position < responseStart;
         const inAttachedSection = /Attached\s+\d+\s+files?/i.test(block.slice(0, position)) && position < responseStart;
         const inResponse = start !== -1 && cellOffset >= 0 && position >= responseStart && position < cellEnd;

@@ -6,14 +6,11 @@ import {
     extractResponseImageEvidence,
     extractUserFiles,
     extractDocumentsMeta,
-    findDocContentById,
-    parseDocSections,
-    findDocMarkdownByClues,
+    type GeminiDocumentReader,
     filterNewImages,
     type ImageAttachment,
     type UserFileAttachment,
     type DeepResearchDocMeta,
-    type DocSectionsResult,
 } from './sourceAttachments.js';
 import { inspectStructuredContent, type GeminiStructuredExtraction } from './structuredContent.js';
 import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
@@ -58,7 +55,7 @@ export function decodeGeminiUserResources(
  * raw media/document slots and never re-select a Candidate themselves. */
 export function decodeGeminiCandidateResources(
     candidate: DecodedGeminiCandidate,
-    inner: unknown,
+    documents: GeminiDocumentReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     convId?: string
@@ -103,13 +100,9 @@ export function decodeGeminiCandidateResources(
     if (docs.length) {
         try {
             for (const metaItem of docs) {
-                const primary = findDocContentById(inner, metaItem.id);
-                const alt = metaItem.contentId ? findDocContentById(inner, metaItem.contentId) : null;
-                const parsedPrimary = parseDocSections(primary?.node, primary?.contentMatch);
-                const parsedAlt: Partial<DocSectionsResult> & Pick<DocSectionsResult, "sections" | "links"> = alt
-                    ? parseDocSections(alt.node, alt.contentMatch)
-                    : { sections: [], links: [], contentMarkdown: void 0 };
-                const md = parsedPrimary.contentMarkdown || parsedAlt.contentMarkdown || findDocMarkdownByClues(inner, metaItem);
+                const parsedPrimary = documents.byId(metaItem.id);
+                const parsedAlt = metaItem.contentId && metaItem.contentId !== metaItem.id ? documents.byId(metaItem.contentId) : null;
+                const md = parsedPrimary?.contentMarkdown || parsedAlt?.contentMarkdown || documents.byTitle(metaItem);
                 const cleanMd = md ? stripInternalChipMarkdown(md).trim() : "";
                 if (!cleanMd) continue;
 
@@ -137,8 +130,8 @@ export function decodeGeminiCandidateResources(
                     title: docTitle,
                     createdAt: metaItem.createdAt,
                     chipUrl: metaItem.chipUrl ?? "",
-                    sections: [...parsedPrimary.sections, ...parsedAlt.sections],
-                    links: [...parsedPrimary.links, ...parsedAlt.links],
+                    sections: [...(parsedPrimary?.sections ?? []), ...(parsedAlt?.sections ?? [])],
+                    links: [...(parsedPrimary?.links ?? []), ...(parsedAlt?.links ?? [])],
                     contentMarkdown: cleanMd,
                     url: "",
                     type: "file",

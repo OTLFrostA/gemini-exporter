@@ -1,5 +1,4 @@
-import type { GeminiListRequestContext } from '../../parsers/gemini/rpc/listRequest.js';
-import type { GeminiDetailRequestContext } from '../../parsers/gemini/rpc/detailRequest.js';
+import type { GeminiListRequestContext, GeminiDetailRequestContext } from '../../parsers/gemini/rpc/request.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 export interface GeminiCredentialsPayload {
     at: string;

@@ -38,7 +38,7 @@ function hookHarness(fetcher: Function) {
         console, Event, URL, URLSearchParams, Request, Response, TextEncoder, TextDecoder, Uint8Array,
         XMLHttpRequest: Xhr, GeminiProtocol: protocol, CrossWorldEvents: protocol.CrossWorldEvents,
         sniffUserProfileFromDom: () => ({}), geminiAccountObservation: () => ({ providerId: 'gemini', providerAccountId: 'gaia' }),
-        readGeminiListRequest: () => null, readGeminiDetailRequest: () => null,
+
     });
     const inject = () => vm.runInContext(script, context);
     inject();

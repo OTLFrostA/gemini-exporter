@@ -51,13 +51,6 @@ export interface DocSectionsResult {
     contentMatch?: "exact" | "substring";
 }
 
-/** Matched wire evidence and its provenance are separate from the source array.
- * A substring match is heuristic; never mark it by mutating a captured RPC node. */
-export interface MatchedDocContent {
-    node: unknown[];
-    contentMatch?: "substring";
-}
-
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extractors.js";
 
 
@@ -601,40 +594,68 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         return out;
     }
 
-    function findDocContentById(root: unknown, docId: string): MatchedDocContent | null {
-        if (!docId) return null;
-        const targetId = docId.replace(/^c_/, "");
-        let matched: MatchedDocContent | null = null;
-
-        deepWalk(root, (node) => {
-            if (matched) return false;
-            if (isUnknownArray(node)) {
-                let idMatch: "exact" | "substring" | null = null;
-                for (let elem of node) {
-                    if (typeof elem !== "string") continue;
-                    if (elem === docId || elem === targetId) {
-                        idMatch = "exact";
-                        break;
-                    }
-                    // P1-9: substring 兜底只允许短元素（<80），长正文里"提到" ID 不算命中
-                    if (elem.length < 80 && (elem.includes(docId) || elem.includes(targetId))) {
-                        idMatch = "substring";
-                        break;
-                    }
-                }
-                if (idMatch) {
-                    let hasSections = node.some(x => isUnknownArray(x) && x.some(y => isUnknownArray(y) && typeof y[0] === "string" && y[0].length > 50));
-                    let hasLongStr = node.some(x => typeof x === "string" && x.length > 200 && (x.includes("#") || x.includes("\n\n")));
-                    if (hasSections || hasLongStr) {
-                        matched = { node };
-                        if (idMatch === "substring") matched.contentMatch = "substring";
-                        return false;
-                    }
-                }
+/** One lazy response scan shared by every Turn. Raw nodes never leave this decoder. */
+export interface GeminiDocumentReader {
+    byId(id: string): DocSectionsResult | null;
+    byTitle(meta: DeepResearchDocMeta): string;
+}
+export function createDocumentReader(root: unknown): GeminiDocumentReader {
+    const candidates: { node: unknown[]; identifiers: string[] }[] = [];
+    const markdown = new Map<string, Set<string>>();
+    const parsed = new Map<unknown[], DocSectionsResult>();
+    const matches = new Map<string, DocSectionsResult | null>();
+    let indexed = false;
+    function index() {
+        if (indexed) return;
+        indexed = true;
+        deepWalk(root, node => {
+            if (!isUnknownArray(node)) return;
+            const strings = node.filter((value): value is string => typeof value === 'string');
+            const hasSections = node.some(x => isUnknownArray(x) && x.some(y => isUnknownArray(y) && typeof y[0] === 'string' && y[0].length > 50));
+            const hasLongStr = strings.some(value => value.length > 200 && (value.includes('#') || value.includes('\n\n')));
+            if (hasSections || hasLongStr) candidates.push({ node, identifiers: strings });
+            for (const text of strings) {
+                if (text.length <= 200 || !(text.includes('# ') || text.includes('\n\n'))
+                    || text.includes('immersive_entry_chip') || text.includes('BardErrorInfo')) continue;
+                const heading = /^\s*#{1,6}[ \t]+([^\r\n]+)/.exec(text);
+                const title = heading?.[1].replace(/[ \t]+#+[ \t]*$/, '').trim();
+                if (!title) continue;
+                const values = markdown.get(title) ?? new Set<string>();
+                values.add(text);
+                markdown.set(title, values);
             }
         });
-        return matched;
     }
+    return {
+        byId(id) {
+            if (!id) return null;
+            index();
+            if (matches.has(id)) return matches.get(id) ?? null;
+            const target = id.replace(/^c_/, '');
+            for (const { node, identifiers } of candidates) {
+                // Preserve source order, including the established short substring fallback.
+                const value = identifiers.find(value => value === id || value === target
+                    || value.length < 80 && (value.includes(id) || value.includes(target)));
+                if (value === undefined) continue;
+                let sections = parsed.get(node);
+                if (!sections) { sections = parseDocSections(node); parsed.set(node, sections); }
+                const result: DocSectionsResult = { ...sections,
+                    ...(value !== id && value !== target ? { contentMatch: 'substring' } : {}) };
+                matches.set(id, result);
+                return result;
+            }
+            matches.set(id, null);
+            return null;
+        },
+        byTitle(meta) {
+            const title = meta.title.trim();
+            if (!title || title === 'Document') return '';
+            index();
+            const values = markdown.get(title);
+            return values?.size === 1 ? [...values][0] : '';
+        },
+    };
+}
 
     function parseDocSections(docContentArr: unknown, contentMatch?: "substring"): DocSectionsResult {
         let sections: string[] = [];
@@ -669,31 +690,6 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         };
     }
 
-    function findDocMarkdownByClues(root: unknown, metaItem?: DeepResearchDocMeta | null): string {
-        // Unattributed markdown must not be attached to a nearby document simply because it is long.
-        const title = metaItem?.title?.trim();
-        if (!title || title === "Document") return "";
-        const candidates: string[] = [];
-
-        deepWalk(root, (node) => {
-            if (isUnknownArray(node)) {
-                for (let elem of node) {
-                    if (typeof elem === "string" && elem.length > 200 && (elem.includes("# ") || elem.includes("## ") || elem.includes("\n\n"))) {
-                        if (!elem.includes("immersive_entry_chip") && !elem.includes("BardErrorInfo")) {
-                            candidates.push(elem);
-                        }
-                    }
-                }
-            }
-        });
-        // The first document heading must match the source title, and the match must be unique.
-        // A mention in the body (or a longest-document guess) is not identity evidence.
-        const matches = [...new Set(candidates)].filter(candidate => {
-            const heading = /^\s*#{1,6}[ \t]+([^\r\n]+)/.exec(candidate);
-            return heading?.[1].replace(/[ \t]+#+[ \t]*$/, "").trim() === title;
-        });
-        return matches.length === 1 ? matches[0] : "";
-    }
 
 export {
     collectImages,
@@ -703,9 +699,7 @@ export {
     extractResponseImageEvidence,
     extractUserFiles,
     extractDocumentsMeta,
-    findDocContentById,
     parseDocSections,
-    findDocMarkdownByClues,
     itemMatchesFilename,
     extractFileNameFromUrl
 };

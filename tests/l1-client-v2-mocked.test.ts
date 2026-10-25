@@ -1,4 +1,4 @@
-import { readGeminiListRequest } from '../src/l1/parsers/gemini/rpc/listRequest.js';
+import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
 import { geminiListPage, geminiListPages, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -81,7 +81,7 @@ test('Gemini provider-limit is conveyed as a committed empty request-bound page,
     assert.deepEqual(ports.indexes[1].items, []);
     assert.deepEqual(ports.indexes[1].page?.keys, []);
     assert.equal(ports.indexes[1].page?.terminal, 'provider_limit');
-    assert.equal(ports.indexes[1].page?.requestCursor, readGeminiListRequest(geminiListPage(1).requestBody)!.requestCursor);
+    assert.equal(ports.indexes[1].page?.requestCursor, parseGeminiRequest(geminiListPage(1).requestBody).list!.requestCursor);
 });
 
 test('failed L2 Index commit prevents Client progress and next-page acquisition', async () => {

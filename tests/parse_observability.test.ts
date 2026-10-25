@@ -110,8 +110,8 @@ test('P1-9e: flat.length > 500 直接跳过', () => {
 
 test('P1-9f: findDocContentById 全等路径不标 contentMatch', () => {
     const real = ["docExact1", "## 真实标题\n\n" + "正文".repeat(100)];
-    const found = attachments.findDocContentById([real], "docExact1");
-    assert.strictEqual(found?.node, real);
+    const found = attachments.createDocumentReader([real]).byId("docExact1");
+    assert.ok(found);
     assert.strictEqual(found?.contentMatch, undefined, '全等路径不应标记');
 });
 
@@ -119,14 +119,14 @@ test('P1-9g: findDocContentById includes 长元素（>=80）不再命中', () =>
     const elem = "n".repeat(40) + "docLong1" + "m".repeat(40); // 88 字符，确实包含 docId
     assert.strictEqual(elem.length, 88);
     assert.ok(elem.includes("docLong1"));
-    const found = attachments.findDocContentById([[elem]], "docLong1");
+    const found = attachments.createDocumentReader([[elem]]).byId("docLong1");
     assert.strictEqual(found, null, '>=80 字符的 includes 元素不应命中');
 });
 
 test('P1-9h: findDocContentById includes 短元素命中并标 substring', () => {
     const node = ["ab_docShort1_cd", "## 短文档标题\n\n" + "正文".repeat(100)];
-    const found = attachments.findDocContentById([node], "docShort1");
-    assert.strictEqual(found?.node, node);
+    const found = attachments.createDocumentReader([node]).byId("docShort1");
+    assert.ok(found);
     assert.strictEqual(found?.contentMatch, 'substring');
     assert.equal(Object.hasOwn(node, 'contentMatch'), false, 'raw source must not be mutated');
 });
@@ -146,22 +146,22 @@ test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透
     const root = [substringNode];
 
     // 1. Matcher returns typed provenance without modifying the source array.
-    const found = attachments.findDocContentById(root, "docSubId");
-    assert.strictEqual(found?.node, substringNode, '应返回匹配的数组节点');
+    const found = attachments.createDocumentReader(root).byId("docSubId");
+    assert.ok(found);
     assert.strictEqual(found?.contentMatch, 'substring', 'substring 匹配必须标记为启发式');
     assert.equal(Object.hasOwn(substringNode, 'contentMatch'), false, '原始 RPC 节点不得被修改');
 
     // 2. Parsed sections receive provenance as a separate, typed value.
-    const res = attachments.parseDocSections(found?.node, found?.contentMatch);
+    const res = found;
     assert.strictEqual(res.contentMatch, 'substring', 'parseDocSections 必须透传匹配依据');
     assert.ok(res.contentMarkdown.includes("这是一段用于测试文档段落的文字内容"), 'sections 内容应被正确解析为 markdown');
 
     // 3. 对照组：全等匹配节点不标记 contentMatch，经 parseDocSections 后 contentMatch 保持 undefined
     const exactNode = ["docExactId", [[rawSection, "https://example.com/doc-link"]]];
-    const exactFound = attachments.findDocContentById([exactNode], "docExactId");
-    assert.strictEqual(exactFound?.node, exactNode);
+    const exactFound = attachments.createDocumentReader([exactNode]).byId("docExactId");
+    assert.ok(exactFound);
     assert.strictEqual(exactFound?.contentMatch, undefined, '全等匹配不应带有 contentMatch 标记');
-    const exactRes = attachments.parseDocSections(exactFound?.node, exactFound?.contentMatch);
+    const exactRes = exactFound;
     assert.strictEqual(exactRes.contentMatch, undefined, '全等匹配经 parseDocSections 不应带有 contentMatch');
 });
 
@@ -170,10 +170,10 @@ test('matching content from a frozen RPC node preserves source bytes and heurist
     const raw = Object.freeze(['prefix_docFrozen_suffix', Object.freeze([[rawSection]])]);
     const source = Object.freeze([raw]);
     const original = JSON.stringify(source);
-    const result = attachments.findDocContentById(source, 'docFrozen');
-    assert.strictEqual(result?.node, raw);
+    const result = attachments.createDocumentReader(source).byId('docFrozen');
+    assert.ok(result);
     assert.strictEqual(result?.contentMatch, 'substring');
-    assert.strictEqual(attachments.parseDocSections(result?.node, result?.contentMatch).contentMatch, 'substring');
+    assert.strictEqual(result.contentMatch, 'substring');
     assert.strictEqual(JSON.stringify(source), original);
     assert.equal(Object.hasOwn(raw, 'contentMatch'), false);
 });
@@ -209,8 +209,8 @@ test('LP-03: only a unique first-heading match can bind an unattributed Research
     const matching = '# Target Research Report\n\n' + 'Matched body '.repeat(40);
     const longerOther = '# Unrelated Research Report\n\n' + 'Unrelated body '.repeat(100);
     const meta = { id: 'doc-target', title: 'Target Research Report' };
-    assert.equal(attachments.findDocMarkdownByClues([longerOther, matching], meta), matching);
-    assert.equal(attachments.findDocMarkdownByClues([matching, matching], meta), matching, 'repeated same source is not ambiguous');
+    assert.equal(attachments.createDocumentReader([longerOther, matching]).byTitle(meta), matching);
+    assert.equal(attachments.createDocumentReader([matching, matching]).byTitle(meta), matching, 'repeated same source is not ambiguous');
 });
 
 test('LP-03: missing, mentioned-only or ambiguous title must not claim an unrelated document', () => {
@@ -218,10 +218,10 @@ test('LP-03: missing, mentioned-only or ambiguous title must not claim an unrela
     const target = '# Target Research Report\n\n' + 'Target body '.repeat(40);
     const otherTarget = '## Target Research Report\n\n' + 'Different body '.repeat(45);
     const meta = { id: 'doc-target', title: 'Target Research Report' };
-    assert.equal(attachments.findDocMarkdownByClues([unrelated], meta), '', 'body mention is not a document heading');
-    assert.equal(attachments.findDocMarkdownByClues([unrelated, target, otherTarget], meta), '', 'multiple distinct heading matches are ambiguous');
-    assert.equal(attachments.findDocMarkdownByClues([unrelated], { ...meta, title: '' }), '', 'untitled document cannot guess');
-    assert.equal(attachments.findDocMarkdownByClues([unrelated], { ...meta, title: 'Document' }), '', 'placeholder title cannot guess');
+    assert.equal(attachments.createDocumentReader([unrelated]).byTitle(meta), '', 'body mention is not a document heading');
+    assert.equal(attachments.createDocumentReader([unrelated, target, otherTarget]).byTitle(meta), '', 'multiple distinct heading matches are ambiguous');
+    assert.equal(attachments.createDocumentReader([unrelated]).byTitle({ ...meta, title: '' }), '', 'untitled document cannot guess');
+    assert.equal(attachments.createDocumentReader([unrelated]).byTitle({ ...meta, title: 'Document' }), '', 'placeholder title cannot guess');
 });
 
 test('LP-03: Detail decoding leaves unmatched deep research content unattached', () => {

@@ -10,7 +10,6 @@ export interface GeminiCredentials {
     bl: string;
     accountSlot?: string | null;
     lastUsed?: number | string | null;
-    [key: string]: unknown;
 }
 
 // Persisted entries may be partial or malformed. Keep them intact on writeback.
