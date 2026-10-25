@@ -1,7 +1,7 @@
 import { abortableSleep, calculateBackoff } from '../../../shared/utils/retryUtils.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
-import { chatgptAccountObservation } from './accountObservation.js';
+import { readChatGPTSession } from './accountObservation.js';
 import { readConversationKey, type ConversationKey } from '../../../l2/conversationKey.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
@@ -20,9 +20,6 @@ import type {
     ProviderListOptions,
     ProviderReadiness,
 } from '../aiProvider.js';
-import type {
-    ChatGPTApiSession,
-} from '../../parsers/chatgpt/chatgptTypes.js';
 import { CHATGPT_HOSTS, chatGPTApiBase } from '../../parsers/chatgpt/chatgptTypes.js';
 import { parseChatGPTConversation } from '../../parsers/chatgpt/parseConversation.js';
 import { decodeChatGPTDetail } from '../../parsers/chatgpt/decodeDetail.js';
@@ -55,10 +52,10 @@ export class ChatGPTProvider implements AIProvider {
     private readonly resources?: SourceResourceContext;
 
     constructor(deps?: ChatGPTProviderDeps) {
-        const globalFetch = globalThis.fetch as unknown as ChatGPTFetch | undefined;
-        this.fetchFn =
-            deps?.fetchFn
-            ?? (globalFetch ? globalFetch.bind(globalThis) : (() => Promise.reject(new Error('fetch unavailable'))));
+        const globalFetch = typeof globalThis.fetch === 'function'
+            ? globalThis.fetch.bind(globalThis) : undefined;
+        this.fetchFn = deps?.fetchFn ?? globalFetch
+            ?? (() => Promise.reject(new Error('fetch unavailable')));
         this.origin = deps?.origin ?? 'https://chatgpt.com';
         this.resources = deps?.resources;
     }
@@ -78,7 +75,7 @@ export class ChatGPTProvider implements AIProvider {
         if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
         return account;
     }
-    private async authedGet<T>(path: string, account: Account, signal?: AbortSignal): Promise<T> {
+    private async authedGet(path: string, account: Account, signal?: AbortSignal): Promise<unknown> {
         for (let attempt = 0; ; attempt++) {
             // Account-scoped cooldown also applies to another request on this
             // provider. A cancelled export must not erase the server deadline.
@@ -92,10 +89,9 @@ export class ChatGPTProvider implements AIProvider {
             // change while the export is waiting.
             const sessionResponse = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
             if (!sessionResponse.ok) throw new Error(`ChatGPT session failed: ${sessionResponse.status}`);
-            const session = await sessionResponse.json() as ChatGPTApiSession;
-            const observed = chatgptAccountObservation(session);
+            const rawSession: unknown = await sessionResponse.json();
+            const { accessToken: token, observation: observed } = readChatGPTSession(rawSession);
             if (observed ? observed.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') throw new TypeError('ChatGPT request account mismatch');
-            const token = session.accessToken;
             if (!token) throw new Error('ChatGPT session has no accessToken');
             const res = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
                 credentials: 'include', signal,
@@ -111,7 +107,8 @@ export class ChatGPTProvider implements AIProvider {
                 if (attempt < 3) continue;
             }
             if (!res.ok) throw new Error(`HTTP ${res.status}: ChatGPT API ${path} failed`);
-            return (await res.json()) as T;
+            const raw: unknown = await res.json();
+            return raw;
         }
     }
 
@@ -122,11 +119,12 @@ export class ChatGPTProvider implements AIProvider {
                 credentials: 'include',
             });
             if (!res.ok) return { ready: false, error: `ChatGPT session HTTP ${res.status}` };
-            const session = (await res.json()) as ChatGPTApiSession;
-            if (!session.accessToken) {
+            const rawSession: unknown = await res.json();
+            const { accessToken, accountName } = readChatGPTSession(rawSession);
+            if (!accessToken) {
                 return { ready: false, error: 'ChatGPT 未登录：/api/auth/session 无 accessToken' };
             }
-            return { ready: true, accountName: session.user?.email ?? session.user?.name };
+            return { ready: true, ...(accountName ? { accountName } : {}) };
         } catch (e: unknown) {
             return { ready: false, error: e instanceof Error ? e.message : 'ChatGPT readiness 检查失败' };
         }
@@ -145,7 +143,7 @@ export class ChatGPTProvider implements AIProvider {
             options.signal?.throwIfAborted();
             const offset = (page - 1) * 100;
             const requestedAt = Date.now();
-            const result = parseChatGPTList(await this.authedGet<unknown>(`/conversations?offset=${offset}&limit=100`, account, options.signal));
+            const result = parseChatGPTList(await this.authedGet(`/conversations?offset=${offset}&limit=100`, account, options.signal));
             options.signal?.throwIfAborted();
             const count = result.conversations.length;
             const sourceEnd = result.total !== undefined && offset + count === result.total;
@@ -200,7 +198,7 @@ export class ChatGPTProvider implements AIProvider {
     }
     async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal): Promise<void> {
         const account = await this.context(accountId);
-        const raw = await this.authedGet<unknown>(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
+        const raw = await this.authedGet(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
         const conversation = decodeChatGPTDetail(raw, conversationId);
         const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
         signal?.throwIfAborted();
@@ -218,7 +216,7 @@ export class ChatGPTProvider implements AIProvider {
         const remote = async () => {
             const fileId = asset.sourceUri?.startsWith('file-download:') ? asset.sourceUri.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
             if (!fileId) return acquireSourceResource(asset, signal);
-            const exchange = parseFileDownloadPayload(await this.authedGet<unknown>(buildFileDownloadPath(fileId), account, signal));
+            const exchange = parseFileDownloadPayload(await this.authedGet(buildFileDownloadPath(fileId), account, signal));
             if (!exchange) throw new Error('ChatGPT resource locator unavailable');
             const response = await this.fetchFn(exchange.downloadUrl, { signal });
             if (!response.ok) throw new ResourceHttpError(response.status);

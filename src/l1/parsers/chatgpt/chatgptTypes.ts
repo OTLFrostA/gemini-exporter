@@ -79,12 +79,6 @@ export interface ChatGPTApiConversation {
 
 export type ChatGPTApiConversationWithId = ChatGPTApiConversation & { id: string };
 
-export interface ChatGPTApiSession {
-    accessToken: string;
-    expires: string;
-    user?: { email?: string; name?: string; id?: string };
-}
-
 /** Backend endpoint table. Mirrors pionxzh constants: origin -> backend-api. */
 export function chatGPTApiBase(origin: string): string {
     if (origin === 'https://chatgpt.com' || origin === 'https://chat.openai.com') {

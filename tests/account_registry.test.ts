@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readAccount, readAccountParameters, readAccountRegistry, findAccount } from '../src/l2/accountRegistry.js';
 import { geminiAccountObservation } from '../src/l1/client/gemini/accountObservation.js';
-import { chatgptAccountObservation } from '../src/l1/client/chatgpt/accountObservation.js';
+import { chatgptAccountObservation, readChatGPTSession } from '../src/l1/client/chatgpt/accountObservation.js';
 import { resolveCurrentAccount, resolveRequestAccount, getAccountContext, invalidateAccountContext } from '../src/runtime/content/accountContext.js';
 import { accountRuntime, ACCOUNT_UUID, OTHER_ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 const alice = { id: ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com' };
@@ -50,6 +50,21 @@ test('ChatGPT user/workspace tuple isolates subjects and keeps email mutable', (
     assert.notEqual(chatgptAccountObservation({ user: { id: 'a:b' }, account: { id: 'c' } })?.providerAccountId,
         chatgptAccountObservation({ user: { id: 'a' }, account: { id: 'b:c' } })?.providerAccountId);
 });
+test('ChatGPT Session decoding refuses truthy non-string tokens without losing valid identity evidence', () => {
+    const decoded = readChatGPTSession({
+        accessToken: { bearer: 'not-a-token' },
+        user: { id: 'subject', email: 42, name: '  Display  ' },
+        account: { id: 'workspace' },
+    });
+    assert.deepEqual(decoded, {
+        accessToken: null,
+        accountName: 'Display',
+        observation: { providerId: 'chatgpt', providerAccountId: '["subject","workspace"]', displayName: 'Display' },
+    });
+    assert.equal(readChatGPTSession({ accessToken: '   ' }).accessToken, null);
+    assert.equal(readChatGPTSession({ accessToken: 'opaque-token' }).accessToken, 'opaque-token');
+});
+
 test('concurrent Gaia discovery reuses UUID; Gaia loss clears context without allocating a default', async () => {
     const runtime = accountRuntime();
     try {

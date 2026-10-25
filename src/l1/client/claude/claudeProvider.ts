@@ -37,16 +37,16 @@ export class ClaudeProvider implements AIProvider {
             throw new TypeError('Claude account mismatch');
         return account;
     }
-    private async get<T>(path: string, account: Account, signal?: AbortSignal): Promise<T> {
+    private async get(path: string, account: Account, signal?: AbortSignal): Promise<unknown> {
         signal?.throwIfAborted();
         const result = await this.apiGet(path, account.providerAccountId);
         signal?.throwIfAborted();
-        return result as T;
+        return result;
     }
     async checkReadiness(accountId: string): Promise<ProviderReadiness> {
         try {
             const account = await this.account(accountId);
-            const raw = await this.get<unknown>('/api/organizations', account);
+            const raw = await this.get('/api/organizations', account);
             if (!Array.isArray(raw) || !raw.some(o => o && typeof o === 'object' && o.uuid === account.providerAccountId))
                 return { ready: false, error: 'Claude organization/account unavailable' };
             return { ready: true, accountName: account.displayName };
@@ -61,7 +61,7 @@ export class ClaudeProvider implements AIProvider {
         let lastTime = Infinity, totalObserved = 0;
         for (let page = 1; page <= 100; page++) {
             const offset = (page - 1) * 100, requestedAt = Date.now();
-            const raw = await this.get<unknown>('/api/organizations/' + account.providerAccountId
+            const raw = await this.get('/api/organizations/' + account.providerAccountId
                 + '/chat_conversations_v2?limit=100&offset=' + offset + '&consistency=strong', account, options.signal);
             if (!raw || typeof raw !== 'object' || !('data' in raw) || !('has_more' in raw)
                 || typeof raw.has_more !== 'boolean') throw new TypeError('Invalid Claude paginated list');
