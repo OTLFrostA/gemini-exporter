@@ -61,7 +61,6 @@ export class ChatGPTProvider implements AIProvider {
     }
 
     matchesUrl(url: string): boolean {
-        if (!url || typeof url !== 'string') return false;
         try {
             const host = new URL(url).hostname;
             return CHATGPT_HOSTS.includes(host);
