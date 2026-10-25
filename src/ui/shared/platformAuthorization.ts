@@ -27,7 +27,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     const list = document.createElement('fieldset');
     list.className = 'platform-permission-list';
     const legend = document.createElement('legend');
-    legend.textContent = text('Supported platforms', '支持的平台');
+    legend.textContent = text('Platforms needing access', '尚未授权的平台');
     list.append(legend);
     // A granted platform is never a selectable request target, even during refresh.
     const selection = () => rows.filter(row => !row.row.hidden && row.input.checked).map(row => row.platform);
@@ -67,8 +67,8 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     });
     const hint = document.createElement('p');
     hint.className = 'platform-permission-hint';
-    hint.textContent = text('Only selected platforms are requested. Unchecking does not revoke existing access.',
-        '仅申请所选平台的权限。取消勾选不会撤销已有授权。');
+    hint.textContent = text('Only unconnected platforms are shown. Select which ones to authorize.',
+        '仅显示尚未授权的平台，请选择需要授权的平台。');
     const status = document.createElement('div');
     status.className = 'tour-status-indicator';
     status.setAttribute('role', 'status');
