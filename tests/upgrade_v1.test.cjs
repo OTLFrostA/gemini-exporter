@@ -223,6 +223,33 @@ test('invalid optional export times are omitted, invalid exportedAt records reje
     });
 });
 
+test('released 1.7 rejects coercible legacy fields while preserving supported format aliases', async () => {
+    data = {
+        [marker]: true,
+        gemini_account_slots: { u0: { email: 'one@example.com' } },
+        gemini_conversations: [
+            { id: 'coerced-title', title: 'Untrusted title source', titleSource: ['rpc'] },
+            { id: 'valid-title', title: 'Known title source', titleSource: 'rpc' },
+        ],
+        exportedIds: {
+            invalidStatus: { status: ['ok'], format: 'pdf', exportedAt: 1000 },
+            invalidFormat: { status: 'ok', format: ['pdf'], exportedAt: 1000 },
+            aliasMarkdown: { status: 'ok', format: 'md', exportedAt: 1000 },
+            aliasJson: { status: 'ok', format: 'json_native', exportedAt: 1000 },
+            validPartial: { status: 'partial', format: 'html', exportedAt: 1000 },
+        },
+    };
+    await ensureUpgraded();
+    const [account] = await storage.listAccounts();
+    assert.deepEqual(await storage.listExportRecords(account.id), {
+        aliasMarkdown: { exportedAt: 1000, format: 'markdown', status: 'ok' },
+        aliasJson: { exportedAt: 1000, format: 'json', status: 'ok' },
+        validPartial: { exportedAt: 1000, format: 'html', status: 'partial' },
+    });
+    assert.equal((await storage.getIndex({ accountId: account.id, conversationId: 'coerced-title' })).titleSource, 'derived');
+    assert.equal((await storage.getIndex({ accountId: account.id, conversationId: 'valid-title' })).titleSource, 'provider');
+});
+
 for (const initialized of [false, true]) test(`released 1.7 slot lists migrate even with initialized=${initialized}`, async () => {
     const old = {
         gemini_account_slots: {
