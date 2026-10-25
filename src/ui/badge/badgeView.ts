@@ -116,7 +116,11 @@ function ensureBadgeImpl(): HTMLElement | null {
         }
     });
     badge.addEventListener('pointercancel', () => { dragging = false; moved = true; });
-    const open = () => { void chrome.runtime.sendMessage({ action: 'openOptions' }).catch(console.warn); };
+    const open = () => {
+        void resolveCurrentAccount().catch(() => null)
+            .then(context => chrome.runtime.sendMessage({ action: 'openOptions', accountId: context?.accountId ?? null }))
+            .catch(console.warn);
+    };
     badge.addEventListener('click', event => { if (moved) { moved = false; event.preventDefault(); return; } open(); });
     badge.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
     (document.body || document.documentElement).append(badge); render();
