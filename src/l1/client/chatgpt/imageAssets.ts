@@ -14,7 +14,7 @@ interface ChatGPTParsedDownload {
 
 /** `sediment://file_abc` -> `file_abc`; non-sediment pointers yield null. */
 export function fileIdFromPointer(pointer: string): string | null {
-    if (typeof pointer !== 'string' || !pointer.startsWith('sediment://')) return null;
+    if (!pointer.startsWith('sediment://')) return null;
     const id = pointer.slice('sediment://'.length);
     return id ? id : null;
 }
