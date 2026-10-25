@@ -67,6 +67,24 @@ test('Popup remains normal for already-authorized providers and unrelated sites'
     }
 });
 
+test('Popup omits already-authorized choices while keeping the active ungranted provider selected', async () => {
+    page = await browser.newPage();
+    await mount(page, 'popup', {
+        tabs: [{ id: 7, active: true, url: 'https://claude.ai/chat/fixture' }],
+        geminiAccess: true, grokAccess: true, chatgptAccess: false, claudeAccess: false,
+    });
+    await page.locator('#popupPermission').waitFor({ state: 'visible' });
+    await page.locator('.platform-permission-row[data-platform="claude"]').waitFor({ state: 'visible' });
+    for (const authorized of ['gemini', 'grok']) {
+        assert.equal(await page.locator('.platform-permission-row[data-platform="' + authorized + '"]').isVisible(), false);
+    }
+    assert.equal(await page.getByRole('checkbox', { name: 'Claude', exact: true }).isChecked(), true);
+    assert.equal(await page.getByRole('checkbox', { name: 'ChatGPT', exact: true }).isChecked(), false);
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.locator('#popupMain').waitFor({ state: 'visible' });
+    assert.deepEqual(await read(page, 'connectionRequests'), [[['claude'], true]]);
+});
+
 test('A grant for a different provider does not bypass authorization for the current site', async () => {
     page = await browser.newPage();
     await mount(page, 'popup', { tabs: [{ id: 1, active: true, url: 'https://claude.ai/chat/test' }],
@@ -75,7 +93,9 @@ test('A grant for a different provider does not bypass authorization for the cur
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
     await page.getByRole('checkbox', { name: 'Grok', exact: true }).check();
     await page.locator('#btnAuthorizePlatforms').click();
-    await page.waitForFunction(() => document.querySelector('.platform-permission-state[data-authorized="true"]'));
+    await page.locator('.platform-permission-row[data-platform="grok"]').waitFor({ state: 'hidden' });
+    assert.equal(await page.locator('.platform-permission-row[data-platform="gemini"]').isVisible(), false);
+    assert.equal(await page.locator('.platform-permission-row[data-platform="claude"]').isVisible(), true);
     assert.equal(await page.locator('#popupPermission').isVisible(), true);
     assert.equal(await page.locator('#popupMain').isVisible(), false);
     assert.deepEqual(await read(page, 'connectionRequests'), [[['grok'], true]]);
