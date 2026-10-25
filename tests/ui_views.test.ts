@@ -8,8 +8,7 @@ afterEach(async () => { await page?.close(); });
 after(async () => { await browser?.close(); });
 async function open(patch: Record<string, unknown> = {}) {
     page = await browser.newPage(); await mount(page, 'options', patch);
-    // Multi-account v2 blanks #accountName; zero-account first imports have
-    // no selector options either. Wait for the actual ready state in each case.
+    // Wait for the account list, or for the no-account first-import state.
     await page.waitForFunction(() => {
         const harness = Reflect.get(window, 'harness');
         const count = harness?.accounts?.length ?? 0;
@@ -27,11 +26,12 @@ const rows = [
 ];
 const records = { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100 } } };
 
-test('account view displays multiple trusted UUIDs and hides the selector for a single account', async () => {
+test('account picker stays visible for one or many trusted accounts', async () => {
     await open(); assert.equal(await page.locator('#accountIdSelect').isVisible(), true);
     assert.deepEqual(await page.locator('#accountIdSelect option').evaluateAll(items => items.map(i => (i as HTMLOptionElement).value)), [A, B]);
     await page.close(); await open({ accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'only' }] });
-    assert.equal(await page.locator('#accountIdSelect').isVisible(), false); assert.equal(await page.locator('#accountName').textContent(), 'only');
+    assert.equal(await page.locator('#accountIdSelect').isVisible(), true);
+    assert.equal(await page.locator('#accountIdSelect option:checked').textContent(), 'Gemini · only');
 });
 test('badge view creates one real DOM badge and displays account-scoped count', async () => {
     page = await browser.newPage(); await mount(page, 'badge');
