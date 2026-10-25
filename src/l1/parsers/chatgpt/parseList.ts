@@ -29,15 +29,15 @@ export function parseChatGPTList(value: unknown): ChatGPTListParseResult {
         if (typeof item.id !== 'string' || !item.id.trim()
             || (item.title != null && typeof item.title !== 'string')) throw new TypeError('Invalid ChatGPT list item');
         const id = item.id.trim();
-        const title = typeof item.title === 'string' ? item.title.trim() : '';
+        const title = item.title?.trim() ?? '';
         const createdAt = chatGPTTimestamp(item.create_time);
         const updatedAt = chatGPTTimestamp(item.update_time);
         return { id, ...(title ? { title, titleSource: 'provider' } : {}),
             ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) };
     });
-    return { conversations, ...(typeof page.total === 'number' ? { total: page.total } : {}),
-        ...(typeof page.offset === 'number' ? { offset: page.offset } : {}),
-        ...(typeof page.limit === 'number' ? { limit: page.limit } : {}),
-        ...(typeof page.has_missing_conversations === 'boolean' ? { hasMissingConversations: page.has_missing_conversations } : {}),
-        nextCursor: typeof page.cursor === 'string' ? page.cursor : null };
+    return { conversations, ...(page.total != null ? { total: page.total } : {}),
+        ...(page.offset != null ? { offset: page.offset } : {}),
+        ...(page.limit != null ? { limit: page.limit } : {}),
+        ...(page.has_missing_conversations !== undefined ? { hasMissingConversations: page.has_missing_conversations } : {}),
+        nextCursor: page.cursor ?? null };
 }
