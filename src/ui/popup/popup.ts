@@ -11,20 +11,28 @@ import { runExport } from '../options/controllers/exportController.js';
 import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
 
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
-export async function readActiveKey(): Promise<ConversationKey | null> {
+async function readActiveSource(): Promise<{ accountId: string; conversationId: string | null } | null> {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id === undefined || !tab.url) return null;
     const origin = new URL(tab.url).origin;
     const expectedProvider = origin === 'https://gemini.google.com' ? 'gemini'
         : ['https://chatgpt.com', 'https://chat.openai.com'].includes(origin) ? 'chatgpt' : origin === 'https://grok.com' ? 'grok' : origin === 'https://claude.ai' ? 'claude' : null;
     if (!expectedProvider) return null;
-    const raw = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
-    if (!raw || typeof raw !== 'object') return null;
-    const response = raw as { ok?: unknown; accountContext?: { accountId?: unknown; providerId?: unknown }; conversationId?: unknown };
-    if (response.ok !== true || !isAccountId(response.accountContext?.accountId)
-        || response.accountContext?.providerId !== expectedProvider || typeof response.conversationId !== 'string' || !response.conversationId)
+    const response: unknown = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
+    if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
+        || !('accountContext' in response) || !response.accountContext || typeof response.accountContext !== 'object')
         return null;
-    return { accountId: response.accountContext.accountId, conversationId: response.conversationId };
+    const context = response.accountContext;
+    if (!('accountId' in context) || !isAccountId(context.accountId)
+        || !('providerId' in context) || context.providerId !== expectedProvider) return null;
+    const conversationId = 'conversationId' in response && typeof response.conversationId === 'string'
+        ? response.conversationId : null;
+    return { accountId: context.accountId, conversationId };
+}
+
+export async function readActiveKey(): Promise<ConversationKey | null> {
+    const source = await readActiveSource();
+    return source?.conversationId ? { accountId: source.accountId, conversationId: source.conversationId } : null;
 }
 
 export async function initPopup(): Promise<void> {
@@ -64,7 +72,11 @@ export async function initPopup(): Promise<void> {
     const refresh = async () => { settings = await readSettings(); if (active) render(); };
     const stop = observeSettings(() => { void refresh().catch(e => { showError(e); }); });
     window.addEventListener('pagehide', () => { active = false; stop(); }, { once: true });
-    el('btnOptions').addEventListener('click', () => { void chrome.runtime.openOptionsPage(); });
+    el('btnOptions').addEventListener('click', () => {
+        void readActiveSource().then(source =>
+            chrome.runtime.sendMessage({ action: 'openOptions', accountId: source?.accountId ?? null }))
+            .catch(showError);
+    });
     const changeSettings = (patch: Partial<GlobalSettings>) => {
         if (busy) return;
         const prior = settings;
