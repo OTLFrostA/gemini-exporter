@@ -159,14 +159,14 @@ export async function initWorkbench(): Promise<void> {
         for (const account of state.accounts) {
             const option = document.createElement('option');
             option.value = account.id;
-            option.textContent = `${account.providerId === 'chatgpt' ? 'ChatGPT · ' : account.providerId === 'claude' ? 'Claude · ' : ''}${account.displayName || account.email || `${account.providerId} · ${account.providerAccountId}`}`;
+            option.textContent = `${account.providerId === 'chatgpt' ? 'ChatGPT · ' : account.providerId === 'grok' ? 'Grok · ' : account.providerId === 'claude' ? 'Claude · ' : ''}${account.displayName || account.email || `${account.providerId} · ${account.providerAccountId}`}`;
             selector.append(option);
         }
         selector.value = state.accountId ?? '';
         selector.style.display = state.accounts.length < 2 ? 'none' : 'inline-flex';
         const account = state.accounts.find(a => a.id === state.accountId);
         const name = account?.displayName || account?.email || account?.providerAccountId || text('No local account', '暂无本地账户');
-        el('accountName').textContent = state.accounts.length < 2 ? `${account?.providerId === 'chatgpt' ? 'ChatGPT · ' : account?.providerId === 'claude' ? 'Claude · ' : ''}${name}` : '';
+        el('accountName').textContent = state.accounts.length < 2 ? `${account?.providerId === 'chatgpt' ? 'ChatGPT · ' : account?.providerId === 'grok' ? 'Grok · ' : account?.providerId === 'claude' ? 'Claude · ' : ''}${name}` : '';
         el('takeoutAccountName').textContent = state.accountId
             ? account?.providerId === 'gemini' ? `→ ${name}` : text('Select Gemini', '请选择 Gemini')
             : text('First import', '首次导入');
@@ -255,7 +255,7 @@ export async function initWorkbench(): Promise<void> {
         catch (error) {
             statusError(error);
             if (kind === 'scan' && error instanceof Error &&
-                (error.message === 'Open Gemini, ChatGPT or Claude and connect an account before scanning.'
+                (error.message === 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.'
                     || error.message === 'Open Gemini, log in and refresh the page before scanning.'))
                 connectionError = error.message;
         }

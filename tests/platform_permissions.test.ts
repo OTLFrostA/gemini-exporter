@@ -59,10 +59,10 @@ test('only an explicit platform grant registers its scripts; revocation preserve
             assert.deepEqual(main.matches, [...PLATFORM_HOSTS[platform].pages]);
             assert.equal(main.runAt, 'document_start');
         }
-        assert.equal(scripts.size, 6);
+        assert.equal(scripts.size, platforms.length * 2);
         platformOrigins('gemini').forEach(origin => granted.delete(origin));
         await syncAllPlatformContentScripts();
-        assert.deepEqual([...scripts.keys()].sort(), ['chatgpt-source-content', 'chatgpt-source-main', 'claude-source-content', 'claude-source-main']);
+        assert.deepEqual([...scripts.keys()].sort(), ['chatgpt-source-content', 'chatgpt-source-main', 'claude-source-content', 'claude-source-main', 'grok-source-content', 'grok-source-main']);
         assert.equal(await hasPlatformAccess('gemini'), false);
     } finally { holder.chrome = original; }
 });

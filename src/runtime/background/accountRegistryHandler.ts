@@ -1,3 +1,4 @@
+import { hasGrokAccess } from '../../l1/client/grok/grokSource.js';
 import { hasClaudeAccess } from '../../l1/client/claude/claudeSource.js';
 import { getOrCreateAccount } from '../../l2/accountAdmission.js';
 import { ensureV2Ready } from './readiness.js';
@@ -22,6 +23,7 @@ export function handleAccountRegistryMessage(message: unknown, sender: chrome.ru
                 || !('providerAccountId' in message) || typeof message.providerAccountId !== 'string') throw new TypeError('Invalid account registry command');
             if (message.providerId !== senderProvider) throw new TypeError('Provider mismatch');
             if (message.providerId === 'chatgpt' && !await hasChatGPTAccess()) throw new Error('ChatGPT site access revoked');
+            if (message.providerId === 'grok' && !await hasGrokAccess()) throw new Error('Grok site access revoked');
             if (message.providerId === 'claude' && !await hasClaudeAccess()) throw new Error('Claude site access revoked');
             const email = 'email' in message ? message.email : undefined;
             const displayName = 'displayName' in message ? message.displayName : undefined;

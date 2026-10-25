@@ -9,6 +9,7 @@ export const PLATFORM_HOSTS = {
         pages: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
         attachments: ['https://images.openai.com/*'],
     },
+    grok: { pages: ['https://grok.com/*'], attachments: ['https://assets.grok.com/*'] },
     claude: { pages: ['https://claude.ai/*'], attachments: [] },
 } as const;
 export type SourcePlatform = keyof typeof PLATFORM_HOSTS;

@@ -7,7 +7,7 @@ test('shipping install has no platform access and leaves unconnected source page
     const access = await options.evaluate(async () => ({ permissions: await chrome.permissions.getAll(), scripts: await chrome.scripting.getRegisteredContentScripts() }));
     expect(access.permissions.origins ?? []).toEqual([]);
     expect(access.scripts).toEqual([]);
-    for (const url of ['https://gemini.google.com/app', 'https://chatgpt.com/', 'https://claude.ai/']) {
+    for (const url of ['https://gemini.google.com/app', 'https://chatgpt.com/', 'https://claude.ai/', 'https://grok.com/']) {
         const source = await context.newPage();
         await source.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><main>Unconnected source</main>' }));
         await source.goto(url);
@@ -15,7 +15,7 @@ test('shipping install has no platform access and leaves unconnected source page
         await source.close();
     }
     await options.locator('#btnTourGuide').click();
-    for (const platform of ['gemini', 'chatgpt', 'claude']) {
+    for (const platform of ['gemini', 'chatgpt', 'claude', 'grok']) {
         const group = options.locator(`.platform-permission-row[data-platform="${platform}"]`);
         await expect(group.locator('input[type=checkbox]')).toBeChecked();
         await group.locator('summary').click();

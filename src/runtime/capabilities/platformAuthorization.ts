@@ -2,6 +2,7 @@ import { hasPlatformAccess, requestPlatformsAccess } from '../../l1/client/platf
 import { PLATFORM_HOSTS, type SourcePlatform } from '../../shared/platformHosts.js';
 import { preparePlatformTab, syncPlatformContentScripts } from './platformInjection.js';
 import { discoverChatGPTAccounts } from './chatgptDiscovery.js';
+import { discoverGrokAccounts } from './grokDiscovery.js';
 import { discoverClaudeAccounts } from './claudeDiscovery.js';
 import { getAccount } from '../api/accountRegistry.js';
 import { sendTabMessage } from './tabService.js';
@@ -27,6 +28,7 @@ export async function findAuthorizedAccount(platforms: readonly SourcePlatform[]
         const tabs = await chrome.tabs.query({ url: [...PLATFORM_HOSTS[platform].pages] });
         if (!tabs.length) return null;
         if (platform === 'chatgpt') return (await discoverChatGPTAccounts())[0]?.id ?? null;
+        if (platform === 'grok') return (await discoverGrokAccounts())[0]?.id ?? null;
         if (platform === 'claude') return (await discoverClaudeAccounts())[0]?.id ?? null;
         const source = tabs.find(tab => tab.active) ?? tabs[0];
         if (source.id === undefined) return null;
