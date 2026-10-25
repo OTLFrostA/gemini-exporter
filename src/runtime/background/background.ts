@@ -5,7 +5,8 @@ import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from
 import { initTabActionListeners } from './tabAction.js';
 import { ensureV2Ready } from './readiness.js';
 import { assertContentSender, assertExtensionSender, object, requireCurrentContentAccount } from './contentSender.js';
-import { listIndexes } from '../../l3a/storageService.js';
+import { getAccount, listIndexes } from '../../l3a/storageService.js';
+import { isAccountId } from '../../l2/accountRegistry.js';
 import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
 import { updateSettings } from '../../application/settings/index.js';
@@ -28,7 +29,22 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
         try {
             assertExtensionSender(sender);
             const request = object(message);
-            if (request.action === 'openOptions') { await chrome.runtime.openOptionsPage(); respond({ ok: true }); return; }
+            if (request.action === 'openOptions') {
+                let accountId: string | null = null;
+                if (request.accountId != null) {
+                    if (!isAccountId(request.accountId)) throw new TypeError('Expected Account UUID');
+                    await ensureV2Ready();
+                    const account = sender.tab
+                        ? await requireCurrentContentAccount(sender, request.accountId)
+                        : await getAccount(request.accountId);
+                    if (!account) throw new Error('Source account is not registered');
+                    accountId = account.id;
+                }
+                // Session-only handoff works for both newly opened and already open Options tabs.
+                await chrome.storage.session.set({ openOptionsAccountId: accountId });
+                await chrome.runtime.openOptionsPage();
+                respond({ ok: true }); return;
+            }
             if (request.action === 'openGeminiPage') {
                 const tab = await chrome.tabs.create({ url: 'https://gemini.google.com/app' });
                 respond({ ok: true, tabId: tab.id }); return;
