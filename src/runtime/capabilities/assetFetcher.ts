@@ -29,13 +29,13 @@ const MAX_IPC_IMAGE_BLOB_SIZE = 14 * 1024 * 1024;
 const GG_CHAIN_MAX_HOPS = 5;
 
 function ensureAlr(url: string): string {
-    if (!url || typeof url !== 'string') return url;
+    if (!url) return url;
     if (url.includes('alr=yes')) return url;
     return url.includes('?') ? url + '&alr=yes' : url + '?alr=yes';
 }
 
 function isGgChainUrl(url: string): boolean {
-    if (!url || typeof url !== 'string') return false;
+    if (!url) return false;
     return url.includes('/gg/') || url.includes('/rd-gg/');
 }
 
@@ -168,7 +168,7 @@ function toDataUrl(blob: Blob): Promise<string> {
 }
 
 function extractLh3(text: string): string | null {
-    if (!text || typeof text !== 'string') return null;
+    if (!text) return null;
     const clean = text
         .replace(/\\\//g, '/')
         .replace(/\\u003d/gi, '=')
@@ -418,12 +418,6 @@ async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: (resp: 
     }
 }
 
-interface FetchedImageAsset {
-    buffer: ArrayBuffer;
-    mimeType: string;
-    ext: string;
-}
-
 export function inferImageExt(mimeType?: string, url?: string): string {
     const mime = (mimeType || '').toLowerCase();
     if (mime.includes('png')) return 'png';
@@ -439,61 +433,6 @@ export function inferImageExt(mimeType?: string, url?: string): string {
     return 'jpg';
 }
 
-async function fetchImageBuffer(url: string, timeoutMs = 12000): Promise<FetchedImageAsset | null> {
-    if (!url || typeof url !== 'string') return null;
-    return new Promise((resolve) => {
-        let timer: ReturnType<typeof setTimeout> | null = null;
-        let settled = false;
-
-        const cleanup = () => {
-            if (timer) clearTimeout(timer);
-        };
-
-        if (timeoutMs > 0) {
-            timer = setTimeout(() => {
-                if (!settled) {
-                    settled = true;
-                    resolve(null);
-                }
-            }, timeoutMs);
-        }
-
-        void handleGetImageBlob({ url, preferBuffer: true }, (res) => {
-            cleanup();
-            if (settled) return;
-            settled = true;
-            if (res && res.success && res.dataBuffer) {
-                const mimeType = res.mimeType || res.mime || 'image/jpeg';
-                const ext = inferImageExt(mimeType, res.url || url);
-                resolve({
-                    buffer: res.dataBuffer,
-                    mimeType,
-                    ext
-                });
-            } else if (res && res.success && (res.dataBase64 || res.blobBase64)) {
-                try {
-                    const b64 = res.dataBase64 || res.blobBase64;
-                    const binStr = atob(b64!);
-                    const len = binStr.length;
-                    const bytes = new Uint8Array(len);
-                    for (let i = 0; i < len; i++) bytes[i] = binStr.charCodeAt(i);
-                    const mimeType = res.mimeType || res.mime || 'image/jpeg';
-                    const ext = inferImageExt(mimeType, res.url || url);
-                    resolve({
-                        buffer: bytes.buffer,
-                        mimeType,
-                        ext
-                    });
-                } catch {
-                    resolve(null);
-                }
-            } else {
-                resolve(null);
-            }
-        });
-    });
-}
-
 export const AssetFetcher = {
     ensureAlr,
     toHighRes,
@@ -505,7 +444,6 @@ export const AssetFetcher = {
     downloadAssetDirect,
     fetchGgChain,
     isGgChainUrl,
-    fetchImageBuffer,
     inferImageExt,
     fetchWithCredentialFallback
 };
