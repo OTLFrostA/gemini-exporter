@@ -256,6 +256,45 @@ test('tourGuide - Select All is physically clickable and advances from selection
     assert.equal(await page.evaluate(() => Reflect.get(window, 'testUi').tour.isActive()), true);
 });
 
+test('tourGuide - a deselection change does not advance, while a checked input does', async () => {
+    await open(); await start(2);
+    await page.evaluate(() => {
+        const input = document.querySelector('#list input');
+        if (!(input instanceof HTMLInputElement)) throw new Error('Missing conversation checkbox');
+        input.checked = false;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.waitForTimeout(350);
+    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Select conversations');
+    await page.locator('#list .item input').first().check();
+    await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Choose a format');
+});
+
+test('tourGuide - dismissal restores HTML and SVG focus, and nested SVG clicks stay inside the card', async () => {
+    await open();
+    for (const svg of [false, true]) {
+        await page.evaluate(svg => {
+            document.getElementById('focusOrigin')?.remove();
+            const element = svg ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('button');
+            element.id = 'focusOrigin'; element.setAttribute('tabindex', '0');
+            document.body.append(element); element.focus();
+        }, svg);
+        await start(1);
+        await page.evaluate(() => {
+            const next = document.getElementById('tourNextBtn');
+            if (!next) throw new Error('Missing Next button');
+            const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            next.append(icon);
+            icon.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        });
+        assert.equal(await page.locator('.tour-popover h2').textContent(), 'Select conversations');
+        await page.keyboard.press('Escape');
+        assert.equal(await page.evaluate(() => document.activeElement?.id), 'focusOrigin');
+        await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+        assert.equal(await page.locator('.tour-overlay-container').count(), 0);
+    }
+});
+
 test('tourGuide - a replaced list row becomes the live spotlight target after scanning', async () => {
     await open(); await start(2);
     await page.evaluate(() => {

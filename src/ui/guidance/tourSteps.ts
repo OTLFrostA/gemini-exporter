@@ -9,7 +9,8 @@ export interface TourStep {
 export function bindDelayedActions(bindings: [EventTarget | null, string][], advance: () => void, delay = 250): () => void {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const onAction = (event: Event) => {
-        if (event.type === 'change' && (event.target as HTMLInputElement)?.type === 'checkbox' && !(event.target as HTMLInputElement).checked) return;
+        const target = event.target;
+        if (event.type === 'change' && target instanceof HTMLInputElement && target.type === 'checkbox' && !target.checked) return;
         if (timer !== undefined) return;
         timer = setTimeout(advance, delay);
     };

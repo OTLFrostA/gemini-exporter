@@ -22,7 +22,7 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
         'src/ui/popup/popup.ts', 'src/ui/options/views/cleanupPrompt.ts',
         'src/ui/options/views/directWritePrompt.ts', 'src/ui/options/views/listView.ts',
         'src/runtime/background/contentSender.ts', 'src/l1/client/claude/fileAssets.ts',
-        'src/l1/client/grok/grokSource.ts']);
+        'src/l1/client/grok/grokSource.ts', 'src/ui/guidance/tourGuide.ts', 'src/ui/guidance/tourSteps.ts']);
 
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any',
     '-D', 'typescript/no-unsafe-assignment', '-D', 'typescript/no-unsafe-argument', '-D', 'typescript/no-unsafe-return',

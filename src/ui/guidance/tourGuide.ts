@@ -41,11 +41,12 @@ function overlay(
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove();
-    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousFocus = document.activeElement;
     const currentTarget = () => typeof target === 'function' ? target() : target;
     currentTarget()?.scrollIntoView({ block: 'center', inline: 'nearest' });
-    root = document.createElement('div');
-    root.className = 'tour-overlay-container';
+    const container = document.createElement('div');
+    root = container;
+    container.className = 'tour-overlay-container';
 
     const spotlight = document.createElement('div');
     spotlight.className = 'tour-spotlight';
@@ -78,8 +79,8 @@ function overlay(
         hintBox.textContent = hint;
         popover.append(hintBox);
     }
-    root.append(spotlight, popover);
-    document.body.append(root);
+    container.append(spotlight, popover);
+    document.body.append(container);
 
     const backdrop: HTMLElement[] = [];
     const layout = () => {
@@ -126,7 +127,7 @@ function overlay(
                 left: left + 'px', top: top + 'px', width: width + 'px', height: height + 'px',
             });
             panel.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); close(); });
-            root!.prepend(panel);
+            container.prepend(panel);
             backdrop.push(panel);
         }
 
@@ -157,8 +158,8 @@ function overlay(
         popover.style.transform = 'none';
     };
     const guard = (event: MouseEvent) => {
-        const node = event.target as Node;
-        if (popover.contains(node) || interactive && [currentTarget(), ...related].some(item => item?.contains(node))) return;
+        const node = event.target;
+        if (node instanceof Node && (popover.contains(node) || interactive && [currentTarget(), ...related].some(item => item?.contains(node)))) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         close();
@@ -186,7 +187,7 @@ function overlay(
         document.removeEventListener('keydown', keydown, true);
         window.removeEventListener('resize', layout);
         window.removeEventListener('scroll', layout, true);
-        previousFocus?.focus?.();
+        if (previousFocus instanceof HTMLElement || previousFocus instanceof SVGElement) previousFocus.focus();
     };
     relayout = layout;
     layout();
