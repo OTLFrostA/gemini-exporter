@@ -18,6 +18,7 @@ import GeminiClientRpcClient, {
 } from "./api/rpcClient.js";
 import GeminiClientPagination, {
     type GeminiListRequestOptions,
+    type GeminiListFilter,
     type GeminiDetailRequestOptions,
     type PaginatedDetailResult
 } from "./api/pagination.js";
@@ -79,10 +80,10 @@ const pagination = GeminiClientPagination;
             return getApiUrl(s);
         }
 
-        async getConversationList(pageToken?: string | null, targetSid?: string | null, customFilter?: unknown, opts?: GeminiListRequestOptions): Promise<ListParseResult> {
+        async getConversationList(pageToken?: string | null, targetSid?: string | null, customFilter?: GeminiListFilter, opts?: GeminiListRequestOptions): Promise<ListParseResult> {
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
-            const filter = customFilter || [0, null, 1];
+            const filter: GeminiListFilter = customFilter ?? [0, null, 1];
             const P = GeminiProtocol;
             // JSPB request layout: [pageSize=50, pageToken, filter]
             let req = JSON.stringify([
