@@ -1,8 +1,0 @@
-name: "Gemini Exporter CodeQL Config"
-
-paths-ignore:
-  - "tests/**"
-  - "scripts/**"
-  - "dist/**"
-  - "build.js"
-  - "playwright.config.ts"
