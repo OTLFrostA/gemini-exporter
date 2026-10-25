@@ -69,6 +69,7 @@ test('an early source completion survives readiness wait and keeps its captured 
     const event = { source: global.window, origin: global.location.origin, data: { type: 'GEMINI_STREAM_GENERATE_COMPLETE', payload: { slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: 'gaia' }, id: 'abcdef123456' } } };
     const operation = bridge.handleWindowMessage(event);
     await Promise.resolve(); assert.equal(commits, 0);
+    event.data.payload.id = 'mutated_after_ingress';
     finish(); await operation;
     assert.equal(commits, 1);
     assert.deepEqual(keys, [{ accountId: uuid, conversationId: 'abcdef123456' }]);
