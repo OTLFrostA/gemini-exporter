@@ -4,7 +4,7 @@ import type { PreparedResources } from '../../shared/resources/resourceResult.js
 import type { ExportArtifact } from '../artifacts.js';
 import { buildExportFileName, sanitizeFileName, shortScope } from '../../shared/utils/pathUtils.js';
 import { ZipWriter } from './writers/zipWriter.js';
-import { docxImageType } from '../format/docx/imageType.js';
+import { docxImageType } from '../shared/docxImageType.js';
 import { assertExportPath } from './exportPath.js';
 
 export type ExportFormat = 'markdown' | 'html' | 'json' | 'pdf' | 'docx';
