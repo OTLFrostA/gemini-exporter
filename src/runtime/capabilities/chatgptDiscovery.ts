@@ -1,6 +1,6 @@
 import { getOrCreateAccount } from '../api/accountRegistry.js';
 import { hasChatGPTAccess, ensureChatGPTRegistered } from '../../l1/client/chatgpt/chatgptAccess.js';
-import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
+import { readChatGPTSession } from '../../l1/client/chatgpt/accountObservation.js';
 import type { Account } from '../../l2/accountRegistry.js';
 import { syncPlatformContentScripts } from './platformInjection.js';
 
@@ -12,9 +12,8 @@ export async function discoverChatGPTAccounts(): Promise<Account[]> {
     const response = await fetch('https://chatgpt.com/api/auth/session', { credentials: 'include' });
     if (!response.ok) throw new Error(`ChatGPT session failed: ${response.status}`);
     const session: unknown = await response.json();
-    const observation = chatgptAccountObservation(session);
-    if (!observation || !session || typeof session !== 'object'
-        || !('accessToken' in session) || typeof session.accessToken !== 'string' || !session.accessToken) return [];
+    const { observation, accessToken } = readChatGPTSession(session);
+    if (!observation || !accessToken) return [];
     await ensureChatGPTRegistered();
     await syncPlatformContentScripts('chatgpt');
     return [await getOrCreateAccount(observation.providerId, observation.providerAccountId,

@@ -1,7 +1,7 @@
 import { hasClaudeAccess } from '../../l1/client/claude/claudeSource.js';
 import { getOrCreateAccount } from '../../l2/accountAdmission.js';
 import { ensureV2Ready } from './readiness.js';
-import { assertContentSender, requireContentAccount, contentProviderId } from './contentSender.js';
+import { requireContentAccount, contentProviderId } from './contentSender.js';
 import { hasChatGPTAccess } from '../../l1/client/chatgpt/chatgptAccess.js';
 
 export function handleAccountRegistryMessage(message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void): boolean {
@@ -9,7 +9,7 @@ export function handleAccountRegistryMessage(message: unknown, sender: chrome.ru
     if (sender.id !== chrome.runtime.id) { respond({ ok: false, error: 'Foreign account registry sender' }); return true; }
     void (async () => {
         try {
-            assertContentSender(sender);
+            const senderProvider = contentProviderId(sender);
             await ensureV2Ready();
             if (!('command' in message)) throw new TypeError('Missing account registry command');
             // Extension pages list their own Registry directly. A Content script
@@ -20,7 +20,7 @@ export function handleAccountRegistryMessage(message: unknown, sender: chrome.ru
             }
             if (message.command !== 'getOrCreate' || !('providerId' in message) || typeof message.providerId !== 'string'
                 || !('providerAccountId' in message) || typeof message.providerAccountId !== 'string') throw new TypeError('Invalid account registry command');
-            if (message.providerId !== contentProviderId(sender)) throw new TypeError('Provider mismatch');
+            if (message.providerId !== senderProvider) throw new TypeError('Provider mismatch');
             if (message.providerId === 'chatgpt' && !await hasChatGPTAccess()) throw new Error('ChatGPT site access revoked');
             if (message.providerId === 'claude' && !await hasClaudeAccess()) throw new Error('Claude site access revoked');
             const email = 'email' in message ? message.email : undefined;

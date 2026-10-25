@@ -18,10 +18,10 @@ export function contentProviderId(sender: chrome.runtime.MessageSender): 'gemini
     return hostname === 'gemini.google.com' ? 'gemini' : hostname === 'claude.ai' ? 'claude' : 'chatgpt';
 }
 export async function requireContentAccount(sender: chrome.runtime.MessageSender, accountId: unknown) {
-    assertContentSender(sender);
+    const senderProvider = contentProviderId(sender);
     if (!isAccountId(accountId)) throw new TypeError('Expected Account UUID');
     const account = await getAccount(accountId);
-    if (!account || account.providerId !== contentProviderId(sender)) throw new Error('Content Account/Provider mismatch');
+    if (!account || account.providerId !== senderProvider) throw new Error('Content Account/Provider mismatch');
     if (account.providerId === 'chatgpt' && !await hasChatGPTAccess()) throw new Error('ChatGPT site access revoked');
     if (account.providerId === 'claude' && !await hasClaudeAccess()) throw new Error('Claude site access revoked');
     return account;
