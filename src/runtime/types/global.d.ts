@@ -12,7 +12,6 @@ declare var __WIZ_global_data: Record<string, string> | undefined;
 
 interface Window {
     showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<import('../capabilities/directoryHandle.js').DirectoryHandle>;
-    __mitex?: Pick<typeof import('../../l4/format/typst/mathConverter.js'), 'initMitexWasm' | 'isMitexReady' | 'convertMathWithMitex'>;
     __gemExporterAborted?: boolean;
     __gemExporterActiveClient?: import('../content/contentContext.js').ActiveClientContract | null;
     __gemExporterContentContext?: import('../content/contentContext.js').ContentContext;
@@ -21,7 +20,6 @@ interface Window {
     __gemExporterDevMode?: boolean;
     __gemExporterVerboseLog?: boolean;
     __gemExporterLogAll?: boolean;
-    __gemExporterScrollAll?: (() => void) | null;
     __gemExporterExtractAt?: () => string;
     __gemExporterExtractBl?: () => string;
     __gemExporterEnsureCreds?: () => Promise<unknown>;
@@ -29,7 +27,6 @@ interface Window {
     __gemExporterExtractedBl?: string;
     __gemExporterCleanups?: Array<() => void>;
     __gemExporterHistoryHooked?: boolean;
-    __gemExporterBridgeListening?: boolean;
     __gemExporterSyncInterval?: unknown;
     __gemExporterTitleObserver?: unknown;
     __gemExporterDebounceTimer?: unknown;
@@ -39,10 +36,6 @@ interface Window {
     _WIZ_global_data?: Record<string, string>;
     WIZ_global_data?: Record<string, string>;
     __WIZ_global_data?: Record<string, string>;
-}
-
-interface HTMLElement {
-    __initialRefreshed?: boolean;
 }
 
 declare var __gemExporterAborted: boolean | undefined;
