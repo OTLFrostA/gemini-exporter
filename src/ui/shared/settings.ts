@@ -1,6 +1,6 @@
 import { getSettings, type GlobalSettings } from '../../application/settings/index.js';
 import { UI_COPY } from './legacyLabels.js';
-export const EXPORT_FORMATS = ['markdown', 'html', 'pdf', 'json'] as const satisfies readonly GlobalSettings['defaultFormat'][];
+export const EXPORT_FORMATS = ['markdown', 'html', 'pdf', 'docx', 'json'] as const satisfies readonly GlobalSettings['defaultFormat'][];
 let language = 'en';
 export function useSettings(settings: GlobalSettings, applyDocumentLanguage = true): void {
     language = settings.language ?? (typeof navigator !== 'undefined' && navigator.language.startsWith('zh') ? 'zh' : 'en');
