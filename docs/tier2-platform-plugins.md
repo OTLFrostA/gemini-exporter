@@ -105,20 +105,29 @@ ChatGPT also retains its detailed `report.json`. Reports are checkpointed as
 platforms complete; normal test conversations remain retained.
 
 The shared runner owns the process lock through the CLI. Browser interaction is
-CDP only. Platform-specific installation and permission steps remain real:
-Gemini's clean reinstall can clear optional site grants, and ChatGPT waits for
-an actual user-granted connection. A multi-platform run may therefore need that
-authorization. No permissions or lifecycle acceptance steps are bypassed.
+CDP only. Local Tier 2/3 clean installs use required permissions to avoid native
+optional-permission prompts. The shared Gemini/Tier 3 reinstall temporarily merges
+optional permissions into their required lists while loading, then restores the
+source manifest byte for byte in `finally`, including failures. The running
+extension keeps the loaded permissions; reinstall through the harness after a
+manual reload or browser restart. If the process is forcibly killed, inspect and
+restore the source manifest before committing or packaging.
 
-For local ChatGPT iteration, `TIER2_CHATGPT_REQUIRED_HOSTS=1 npm run test:tier2 --
---platform chatgpt` builds an unpacked copy in the ignored
-`temp/tier2-chatgpt-required-hosts/` directory. Only that copy makes both ChatGPT
-hosts required, so clean reinstalls no longer need repeated optional grants.
-The source/release manifest is unchanged; normal packaging never reads this
-directory. The live report records `testInstallMode: required-chatgpt-hosts`.
-This mode tests the full workflow with installed host access; it does not verify
-the optional-permission prompt UX of the shipping build. Disable the environment
-variable to return to the ordinary optional-permission install.
+`npm run test:tier2 -- --platform chatgpt` now builds an unpacked copy in the
+ignored `temp/tier2-chatgpt-required-hosts/` directory by default. That copy makes
+ChatGPT's two page hosts and image attachment host required. Claude likewise uses
+`temp/tier2-claude-required-hosts/` with `https://claude.ai/*` required. Reports
+record `testInstallMode: required-chatgpt-hosts` or `required-claude-hosts`.
+The source/release manifest is unchanged; normal packaging never reads these
+ignored directories. Temporary required permission manifests must never be
+committed or included in release packages.
+
+These runs exercise the workflow with installed site access and do not validate
+native optional-permission prompts, denial, or revocation. For dedicated native
+permission checks, set `TIER2_CHATGPT_REQUIRED_HOSTS=0` or
+`TIER2_CLAUDE_REQUIRED_HOSTS=0` to install the ordinary optional-permission build;
+those runs may need user authorization. Gemini permission UX checks likewise
+require the original optional manifest outside the shared reinstall override.
 
 ## Adding a platform
 
@@ -223,12 +232,11 @@ Gemini. It was not a clean-install 5/8-turn full run, and does not establish
 coverage of the remaining lifecycle gates. Local account response bodies and
 exported files remain ignored under `tests/output/`.
 
-For local Claude iteration, use `TIER2_CLAUDE_REQUIRED_HOSTS=1 npm run test:tier2
--- --platform claude`. The harness rebuilds an ignored unpacked copy under
+For local Claude iteration, use `npm run test:tier2 -- --platform claude`. The harness rebuilds an ignored unpacked copy under
 `temp/tier2-claude-required-hosts/` with `https://claude.ai/*` required. Shipping
 `manifest.json` and ordinary release packaging retain optional permissions. The
 report records `testInstallMode: required-claude-hosts`; this mode does not test
-the shipping optional-permission prompt. Remove the environment variable to use
+the shipping optional-permission prompt. Set `TIER2_CLAUDE_REQUIRED_HOSTS=0` to use
 the ordinary install and real native permission prompt again.
 
 ### Claude full-plan run, 2026-10-22
