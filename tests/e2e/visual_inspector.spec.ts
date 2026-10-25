@@ -46,28 +46,14 @@ async function screenshot(page: import('@playwright/test').Page, name: string) {
     await page.screenshot({ path: dest });
     expect(fs.existsSync(dest)).toBe(true);
 }
+/** Gemini is authorized in the real fixture, so the tour never requests it again. */
 async function connectTourGemini(page: import('@playwright/test').Page) {
-    // A verified fixture Content binding is required; stored history alone is not a connection.
-    await page.evaluate(({ accountId }) => {
-        Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () =>
-            [{ id: 999, active: true, url: 'https://gemini.google.com/app/fixture' }] });
-        Object.defineProperty(chrome.tabs, 'get', { configurable: true, value: async () =>
-            ({ id: 999, url: 'https://gemini.google.com/app/fixture' }) });
-        Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true,
-            value: (_id: number, _message: unknown, respond?: (value: unknown) => void) => {
-                const response = { ok: true, accountContext: { accountId, providerId: 'gemini' } };
-                if (respond) respond(response);
-                return Promise.resolve(response);
-            } });
-    }, { accountId });
-    await page.getByRole('checkbox', { name: 'ChatGPT', exact: true }).uncheck();
-    await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
-    await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();
-    await page.getByRole('button', { name: 'Authorize', exact: true }).click();
+    await expect(page.locator('.platform-permission-row[data-platform="gemini"]')).toBeHidden();
     await expect(page.locator('#tourNextBtn')).toBeEnabled();
     await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
 }
+
 async function verifyPopoverGeometry(page: import('@playwright/test').Page, target: string, action: string) {
     // Restored Tour cards animate after footer/status relayout. Assert the
     // eventual geometry rather than sampling a button mid-transition offscreen.
