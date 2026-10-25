@@ -1,3 +1,4 @@
+import type { GeminiMessageEvidence } from '../src/l1/parsers/gemini/rpc/detailEvidence.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -204,6 +205,8 @@ test('candidate extraction accepts the compact layout without scanning telemetry
     for (const candidate of [null, [], ['rc_wrong', { wrong: true }]]) assert.equal(extractCandidateText(candidate), '');
 });
 
+const imagesAreRequired: {} extends Pick<GeminiMessageEvidence, 'structuredImages'> ? false : true = true;
+
 test('Turn decoding validates known fields once and honors the selected draft', () => {
     const candidates = [
         ['rc_old', [['Old answer']]],
@@ -220,8 +223,9 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     assert.equal(decoded.rawProviderRequestId, 'r_AB12');
     assert.equal(decoded.userText, 'Prompt');
     assert.equal(Object.hasOwn(decoded, 'rawUserPayload'), false, 'User wire evidence stays private to L1 resource decoders');
-    assert.equal(decoded.candidateIndex, 1);
+    assert.equal(decoded.candidate?.index, 1);
     assert.deepEqual(decoded.candidate, {
+        source: candidates[1], body: candidates[1][1], index: 1, turnDocument: undefined,
         id: 'rc_selected',
         text: 'Selected answer',
         thoughts: null,
@@ -230,7 +234,9 @@ test('Turn decoding validates known fields once and honors the selected draft', 
         groundingCitationMarkers: []
     });
 
+    assert.equal(imagesAreRequired, true);
     const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_SELECTED_DRAFT_01'));
+    assert.ok(parsed.messages.every(message => Array.isArray(message.structuredImages)));
     const modelMessages = parsed.messages.filter(m => m.role === 'model');
     assert.equal(modelMessages.length, 1);
     assert.equal(modelMessages[0].content, 'Selected answer');
@@ -263,7 +269,7 @@ test('Turn Decoder only attributes selected Candidate thoughts, citations and gr
     const decoded = decodeTurn(wire);
     assert.ok(decoded?.candidate);
     assert.equal(decoded.candidate.id, 'rc_selected');
-    assert.equal(decoded.candidateSource, selected);
+    assert.equal(decoded.candidate?.source, selected);
     assert.equal(decoded.candidate.thoughts, 'Selected reasoning');
     assert.deepEqual(decoded.candidate.citations, [{ url: source[0], title: source[1] }]);
     assert.deepEqual(decoded.candidate.sourceAttributions, [
@@ -288,7 +294,7 @@ test('Turn decoder owns text fallbacks without guessing unrelated candidate meta
     assert.equal(decoded.userText, 'User prompt');
     assert.equal(decoded.candidate?.text, 'Model fallback answer');
     assert.equal(Object.hasOwn(decoded.candidate ?? {}, 'raw'), false);
-    assert.equal(Object.hasOwn(decoded.candidate ?? {}, 'body'), false);
+    assert.equal(decoded.candidate?.body, fallbackCandidate[1]);
 
     assert.equal(decodeTurn([[ID], null, ['Flat prompt'], null])?.userText, 'Flat prompt');
     assert.equal(decodeTurn([[ID], null, { invalid: true }, null])?.userText, '');
@@ -300,10 +306,10 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     const compact = [[ID], null, [], [compactCandidate, 'google', 'S', 6]];
     const single = decodeTurn(compact);
     assert.ok(single);
-    assert.equal(single.candidateIndex, 0);
+    assert.equal(single.candidate?.index, 0);
     assert.equal(single.candidate?.id, 'rc_compact');
     assert.equal(single.candidate?.text, 'Compact answer');
-    assert.equal(single.candidateSource, compactCandidate);
+    assert.equal(single.candidate?.source, compactCandidate);
 
     const partialCandidate = [null, [['Text without an ID']]];
     const partial = [[ID], null, [['Prompt']], [[partialCandidate, ['rc_other', [['Other answer']]]]]];
@@ -311,10 +317,10 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     assert.ok(decodedPartial);
     assert.equal(decodedPartial.timestamp, null);
     assert.equal(decodedPartial.rawProviderRequestId, undefined);
-    assert.equal(decodedPartial.candidateIndex, 0);
+    assert.equal(decodedPartial.candidate?.index, 0);
     assert.equal(decodedPartial.candidate?.id, '');
     assert.equal(decodedPartial.candidate?.text, 'Text without an ID');
-    assert.equal(decodedPartial.candidateSource, partialCandidate);
+    assert.equal(decodedPartial.candidate?.source, partialCandidate);
     assert.equal(Object.hasOwn(decodedPartial.candidate ?? {}, 'raw'), false);
     assert.equal(decodeTurn([null, null, null, { malformed: true }])?.candidate, null);
 
@@ -338,7 +344,7 @@ test('Gemini resource decoder consumes raw Turn/Candidate wire slots but exports
     assert.deepEqual(userResources.images, []);
     assert.deepEqual(userResources.files, []);
     const result = decodeGeminiCandidateResources(
-        rawTurn, decoded, rawTurn, new Set(), new Set(), ID
+        decoded.candidate, rawTurn, new Set(), new Set(), ID
     );
     assert.equal(result.structuredExtraction.status, 'decoded');
     assert.equal(result.generatedFiles.length, 0);

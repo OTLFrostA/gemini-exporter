@@ -1,9 +1,10 @@
 import { SignatureKind, type Checker } from 'typescript/unstable/sync';
 import { type Node, type SourceFile, isIdentifier, isPropertyAccessExpression, isElementAccessExpression,
     isStringLiteral, isParenthesizedExpression, isNonNullExpression, isImportSpecifier, isExportSpecifier, isVariableDeclaration, isBindingElement,
-    isTypeAliasDeclaration, isCallExpression, isAsExpression, isTypeAssertion, isTypePredicateNode,
+    SyntaxKind, isTypeOfExpression, isTypeParameterDeclaration, isTypeAliasDeclaration, isCallExpression, isAsExpression, isTypeAssertion, isTypePredicateNode,
     isFunctionDeclaration, isReturnStatement, isObjectLiteralExpression, isPropertyAssignment, isArrowFunction, isFunctionExpression } from 'typescript/unstable/ast';
 
+const parsedGeminiAdapters = new Set(['l1/parsers/gemini/shared/contentAdapter.ts', 'l1/parsers/gemini/shared/structuredContentAdapter.ts']);
 const validator = 'l2/runtimeValidation.ts';
 const parserOwners = new Set(['l1/parsers/gemini/rpc/parseConversation.ts',
     'l1/parsers/gemini/takeout/parseConversation.ts', 'l1/parsers/gemini/rpc/mergePages.ts', 'l1/parsers/chatgpt/parseConversation.ts']);
@@ -67,7 +68,11 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
         if (name === 'assertDomainClosure' && owner !== validator) report(node, 'Closure belongs only to the shared validator');
     };
     for (const node of nodes) {
-        if (/^(?:l2|l3a|l3b|application|l4)\//.test(owner)
+        if (parsedGeminiAdapters.has(owner) && (node.kind === SyntaxKind.UnknownKeyword || node.kind === SyntaxKind.AnyKeyword
+            || node.kind === SyntaxKind.ObjectKeyword || isTypeOfExpression(node) || isTypeParameterDeclaration(node))) {
+            report(node, 'parsed Gemini adapters consume concrete source facts without re-probing raw input');
+        }
+        if ((/^(?:l2|l3a|l3b|application|l4)\//.test(owner) || parsedGeminiAdapters.has(owner))
             && (isAsExpression(node) || isTypeAssertion(node) || isNonNullExpression(node))) {
             report(node, 'typed business layers must narrow or construct values without assertions');
         }

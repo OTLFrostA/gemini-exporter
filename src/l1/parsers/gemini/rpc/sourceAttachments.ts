@@ -1,5 +1,5 @@
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../shared/chipUtils.js";
-import type { JsonValue } from "../../../../shared/utils/jsonTypes.js";
+import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
 
 export interface ImageAttachment {
     /** JSON-serialized matched wire tuple; never an unvalidated runtime value. */
@@ -297,8 +297,8 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
     /** One response may expose the same wire tuple through body and metadata
      * roots. Reuse its decoded evidence while each list keeps its own order,
      * token preference and visibility rules. The reader lives for one extraction. */
-    function createImageEvidenceReader(): (node: object) => RawImageCandidate | null {
-        const evidence = new WeakMap<object, RawImageCandidate | null>();
+    function createImageEvidenceReader(normalize: (raw: RawImageCandidate) => ImageAttachment = sourceImage): (node: object) => ImageAttachment | null {
+        const evidence = new WeakMap<object, ImageAttachment | null>();
         const warnedHosts = new Set<string>();
         return node => {
             if (evidence.has(node)) return evidence.get(node) ?? null;
@@ -313,26 +313,26 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                 }
                 // Retain a bounded JSON-only snapshot of the matched tuple.
                 const evidenceJson = JSON.stringify(node);
-                raw.evidenceNode = evidenceJson.length <= 12000
-                    ? JSON.parse(evidenceJson)
-                    : { truncated: true, preview: evidenceJson.slice(0, 12000) };
-                evidence.set(node, raw);
-                return raw;
+                const snapshot: unknown = evidenceJson.length <= 12000
+                    ? JSON.parse(evidenceJson) : { truncated: true, preview: evidenceJson.slice(0, 12000) };
+                if (isJsonValue(snapshot)) raw.evidenceNode = snapshot;
+                const image = normalize(raw);
+                evidence.set(node, image);
+                return image;
             }
             return null;
         };
     }
 
     function collectImages(obj: unknown, normalize: (raw: RawImageCandidate) => ImageAttachment = sourceImage,
-        readEvidence = createImageEvidenceReader()): ImageAttachment[] {
+        readEvidence = createImageEvidenceReader(normalize)): ImageAttachment[] {
         const images: ImageAttachment[] = [];
         const seenKeys = new Set<string>();
 
         deepWalk(obj, (node) => {
             if (!node || typeof node !== "object") return;
-            const raw = readEvidence(node);
-            if (!raw) return;
-            const img = normalize(raw);
+            const img = readEvidence(node);
+            if (!img) return;
             if (img.token) {
                 const existingIdx = images.findIndex(existing => existing.token === img.token);
                 if (existingIdx !== -1) {
@@ -388,7 +388,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
     }
 
     function extractFileNameFromUrl(url: string): string | null {
-        if (!url || typeof url !== "string") return null;
+        if (!url) return null;
         try {
             const qIdx = url.indexOf("?");
             if (qIdx !== -1) {

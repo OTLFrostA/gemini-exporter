@@ -1,3 +1,4 @@
+import { decodeGeminiStructuredPayload as decodeBody } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import test from 'node:test';
@@ -12,7 +13,7 @@ import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 
 test('captured execution panels survive structured RPC, Domain and physical Markdown grammar with exact code/stdout', () => {
     const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_execution_nodes.json', 'utf8')) as { nodes: [{ '39': [string, string, number, null, number] }][] };
-    const content = parseGeminiBody('', decodeGeminiStructuredPayload(fixture.nodes));
+    const content = parseGeminiBody('', decodeGeminiStructuredPayload(fixture.nodes) ?? undefined);
     assert.equal(content.length, 2);
     assert.ok(content.every(node => node.type === 'code'));
     const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('execution'), 'gemini'),   titleSource: "derived",   title: 'Execution' }, detail: { key: fixtureKey(String('execution'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content }] } };
@@ -29,7 +30,7 @@ test('unrecognized execution extension layouts fall back rather than inventing s
         assert.equal(decodeGeminiStructuredNode([{ '39': event }]), null);
     }
     assert.deepEqual(decodeGeminiStructuredNode([{ 'attachment': [] }]), { nodeType: 0 });
-    const visible = parseGeminiBody('Visible provider reply', { children: [{ nodeType: 999 }] });
+    const visible = parseGeminiBody('Visible provider reply', decodeBody({ children: [{ nodeType: 999 }] }) ?? undefined);
     assert.ok(visible.some(block => block.type === 'paragraph' && block.children.some(node =>
         node.type === 'text' && node.text === 'Visible provider reply')),
     'unknown structured extension must not replace the raw visible response');

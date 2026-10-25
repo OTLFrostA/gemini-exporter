@@ -1,5 +1,5 @@
 import { extractImageEvidence } from "./sourceAttachments.js";
-import type { JsonValue } from "../../../../shared/utils/jsonTypes.js";
+import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
 
 export interface GeminiAnnotation {
     start: number;
@@ -129,15 +129,6 @@ function decodeSourceIds(value: unknown): string[] | null {
     if (!isWireArray(value) || value.length === 0) return null;
     return value.every((id): id is string => typeof id === 'string' && /^spp_[\w-]+$/.test(id))
         ? [...value] : null;
-}
-
-/** Preserve nested image/chip evidence, never allow non-JSON runtime objects
- * into the typed structured-document tree. */
-function isJsonValue(value: unknown): value is JsonValue {
-    if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
-    if (typeof value === 'number') return Number.isFinite(value);
-    if (Array.isArray(value)) return value.every(isJsonValue);
-    return isRecord(value) && Object.values(value).every(isJsonValue);
 }
 
 export function decodeGeminiAnnotation(wa: unknown, issues?: DecodeIssues): GeminiAnnotation | null {
@@ -283,6 +274,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
             }
             case 18: {
                 if (typeof node.text !== "string") return null;
+                if (node.annotations !== undefined && !isWireArray(node.annotations)) return null;
                 let annotations: GeminiAnnotation[] | undefined;
                 if (isWireArray(node.annotations)) {
                     annotations = [];

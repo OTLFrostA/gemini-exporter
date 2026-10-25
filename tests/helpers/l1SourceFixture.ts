@@ -6,7 +6,7 @@ import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 
 /** Native source fixtures intentionally contain neither Account UUID nor trusted Domain. */
 export function sourceMessage(id: string, content = id, role: 'user' | 'model' = 'model'): GeminiMessageEvidence {
-    return { id, content, role, timestamp: null, attachmentCount: 0, messageCount: 1 };
+    return { id, content, role, timestamp: null, attachmentCount: 0, messageCount: 1, structuredImages: [] };
 }
 export function sourceDetail(overrides: Partial<GeminiDetailEvidence> = {}) {
     return parseGeminiDetailEvidence({ id: 'source_chat_123', title: 'Source title', titleSource: 'rpc',

@@ -1,7 +1,7 @@
-import { formatUnknownPayload } from './unknownFallback.js';
 import type { BlockNode } from '../../../../l2/content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
-import type { ResourceEvidence as ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
+import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
+import type { GeminiStructuredDocument } from '../rpc/structuredContent.js';
 import type { ImageAttachment } from '../rpc/sourceAttachments.js';
 import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
@@ -53,29 +53,24 @@ function cleanGeminiBody(text: string): string {
 
 /** Provider syntax ends here. Resource references are bound by the caller's neutral parse hook. */
 export function parseGeminiBody(
-    content: unknown,
-    structuredContent?: unknown,
+    content: string,
+    structuredContent?: GeminiStructuredDocument,
     context: MarkdownParseContext & { sourceCitations?: GeminiSourceCitations; recoverLiteralMath?: boolean } = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
 ): BlockNode[] {
-    const cleaned = typeof content === 'string' ? cleanGeminiBody(content) : '';
+    const cleaned = cleanGeminiBody(content);
     if (structuredContent) {
-        // Malformed provider data must never prevent the visible raw body from being exported.
-        try {
-            const structured = geminiStructuredToContent(structuredContent, context.sourceCitations);
-            if (structured !== null && (structured.length > 0 || !cleaned.trim())) {
-                if (context.recoverLiteralMath !== false && cleaned.includes('$') && hasLiteralMathText(structured)) {
-                    const markdown = parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
-                        ...context, diagnostics: [], lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true,
-                    });
-                    const recovered = recoverLiteralMath(structured, markdown);
-                    if (recovered) context.diagnostics.push({ severity: 'info', code: 'GEMINI_LITERAL_MATH_RECOVERED',
-                        message: 'Recovered native literal math from the matching raw Markdown paragraph',
-                        sourceRef: context.sourceRef, details: { recovered } });
-                }
-                return normalizeGeminiMath(structured);
+        const structured = geminiStructuredToContent(structuredContent, context.sourceCitations);
+        if (structured !== null && (structured.length > 0 || !cleaned.trim())) {
+            if (context.recoverLiteralMath !== false && cleaned.includes('$') && hasLiteralMathText(structured)) {
+                const markdown = parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
+                    ...context, diagnostics: [], lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true,
+                });
+                const recovered = recoverLiteralMath(structured, markdown);
+                if (recovered) context.diagnostics.push({ severity: 'info', code: 'GEMINI_LITERAL_MATH_RECOVERED',
+                    message: 'Recovered native literal math from the matching raw Markdown paragraph',
+                    sourceRef: context.sourceRef, details: { recovered } });
             }
-        } catch {
-            // Includes malformed annotation arrays and nested provider containers.
+            return normalizeGeminiMath(structured);
         }
         context.diagnostics.push({
             severity: 'warning', code: 'GEMINI_STRUCTURED_FALLBACK',
@@ -85,31 +80,22 @@ export function parseGeminiBody(
     }
     // GM-MD-004: display fences without blank lines; fenced code preserves its
     // physical final newline just as the native code string does.
-    if (typeof content === 'string') return normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
+    return normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
         ...context, lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true,
     }));
-    if (content === undefined || content === null) return [];
-    const visible = formatUnknownPayload(content);
-    context.diagnostics.push({
-        id: `unknown-content:${context.sourceRef.providerMessageId ?? context.sourceRef.locator}`,
-        severity: 'warning', code: 'UNKNOWN_MESSAGE_CONTENT',
-        message: 'message content was not a string; preserved as unknown block',
-        sourceRef: context.sourceRef, details: { truncated: visible.truncated },
-    });
-    return [{ type: 'unknown', sourceType: 'message-content', text: visible.text }];
 }
 
 /** Adapt body-local facts already decoded by the resource pipeline. */
-export function structuredBodyAttachments(message: { structuredImages?: ImageAttachment[] }): ResourceEvidence[] {
-    return (message.structuredImages ?? []).map(image => ({
+export function structuredBodyAttachments(message: { structuredImages: ImageAttachment[] }): ResourceEvidence[] {
+    return message.structuredImages.map(image => ({
         ...image, type: 'image', src: image.sourceUrl,
         name: image.fileName ?? image.title, title: image.fileName ?? image.title,
     }));
 }
 
 /** Parse provider-exposed reasoning before it crosses the semantic input boundary. */
-export function parseSourceReasoning(reasoning: unknown, context: MarkdownParseContext): BlockNode[] | undefined {
-    if (typeof reasoning !== 'string') return undefined;
+export function parseSourceReasoning(reasoning: string | undefined, context: MarkdownParseContext): BlockNode[] | undefined {
+    if (reasoning === undefined) return undefined;
     const cleaned = cleanGeminiBody(reasoning);
     return cleaned.trim() ? normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context)) : undefined;
 }

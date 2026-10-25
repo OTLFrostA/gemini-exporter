@@ -1,4 +1,4 @@
-import { GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn } from './extractors.js';
+import { GEMINI_JSPB_SCHEMA, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence } from './detailEvidence.js';
 import {
@@ -57,19 +57,14 @@ export function decodeGeminiUserResources(
 /** decodeTurn selects the draft; specialized decoders see only that draft's
  * raw media/document slots and never re-select a Candidate themselves. */
 export function decodeGeminiCandidateResources(
-    rawTurn: unknown,
-    turn: DecodedGeminiTurn,
+    candidate: DecodedGeminiCandidate,
     inner: unknown,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     convId?: string
 ): DecodedGeminiCandidateResources {
-    const { candidateSource: cand, candidateIndex } = turn;
-    const answerBody = wireArray(cand) ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] : undefined;
+    const { source: cand, index: candidateIndex, body: answerBody, turnDocument } = candidate;
     const candidateBlock = answerBody || cand;
-    const modelPayload = wireArray(rawTurn) ? rawTurn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
-    const turnDocument = wireArray(modelPayload)
-        ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined;
     // Preserve the established ownership, fallback and ordering rules.
     const structuredExtraction = inspectStructuredContent({
         candidate: cand, turnDocument, candidateIndex
@@ -77,7 +72,7 @@ export function decodeGeminiCandidateResources(
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
     const { images: candImages, structuredImages } = extractResponseImageEvidence(
-        cand, [answerBody, rawAnswerDocument, structuredContent], turn.candidate?.text ?? "", structuredContent
+        cand, [answerBody, rawAnswerDocument, structuredContent], candidate.text, structuredContent
     );
     const filteredImages = filterNewImages(candImages, dedupSet);
 

@@ -133,6 +133,11 @@ export interface TitleResult {
 /** Selected Candidate facts decoded at the Turn boundary. Raw media evidence
  * stays private to Gemini resource decoders. */
 export interface DecodedGeminiCandidate {
+    /** Selected wire context; only the resource decoder interprets these remaining slots. */
+    source: unknown;
+    body: unknown;
+    turnDocument: unknown;
+    index: number;
     id: string;
     text: string;
     /** Source facts decoded once, before message assembly. */
@@ -152,9 +157,6 @@ export interface DecodedGeminiTurn {
     /** Only the confirmed request-ID slots yield provider identity. */
     rawProviderRequestId: string | undefined;
     candidate: DecodedGeminiCandidate | null;
-    candidateIndex: number;
-    /** Selected once here; resource decoders must not relocate the candidate. */
-    candidateSource: unknown;
 }
 
 interface GeminiParserExtractorsModule {
@@ -470,7 +472,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
     }
 
     function safeStructureClean(str?: string | null): string {
-        if (!str || typeof str !== "string") return "";
+        if (!str) return "";
         let out = "";
         let inString = false;
         let escape = false;
@@ -501,7 +503,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
     }
 
     function robustFirstPayload(text?: string | null): unknown[] | null {
-        if (!text || typeof text !== "string") return null;
+        if (!text) return null;
 
         let trimmed = text.trim();
         if (trimmed.startsWith(")]}'")) {
@@ -805,6 +807,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         const candidateBlock = body || selected;
         const candidate: DecodedGeminiCandidate | null = candidateIndex < candidates.length
             ? {
+                source: selected, body, index: candidateIndex,
+                turnDocument: isUnknownArray(modelPayload) ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined,
                 id: typeof rawId === "string" ? rawId : "",
                 text: extractModelResponseText(selected),
                 thoughts: extractThoughts(candidateBlock),
@@ -820,9 +824,7 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
             userMessageId,
             fallbackTurnId,
             rawProviderRequestId,
-            candidate,
-            candidateIndex,
-            candidateSource: selected
+            candidate
         };
     }
 

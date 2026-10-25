@@ -264,7 +264,8 @@ function buildUserMessage(
         documents: formattedDocs,
         attachments: attachments.length ? attachments : void 0,
         attachmentCount: attachments.length,
-        messageCount: 1
+        messageCount: 1,
+        structuredImages: []
     };
 }
 
@@ -378,7 +379,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
         const response = geminiResponse(text);
         const top = response.scope(GeminiProtocol.RPCS.DETAIL);
         const utils = getUtils();
-        const isDevMode = (utils && typeof utils.isDevMode === "function") ? utils.isDevMode() : false;
+        const isDevMode = utils.isDevMode();
 
         const protocol = getProtocol();
         const wrb = protocol.WRB || "wrb.fr";
@@ -433,7 +434,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
             // and the historical primary-draft fallback in one place.
             if (turn.candidate) {
                 const resources = decodeGeminiCandidateResources(
-                    rawTurn, turn, inner, dedupSet, docDedupSet, convId
+                    turn.candidate, inner, dedupSet, docDedupSet, convId
                 );
                 const modelMsg = parseCandidateResponse(turn.candidate, turn, resources, convId);
                 if (modelMsg) allMsgs.push(modelMsg);
