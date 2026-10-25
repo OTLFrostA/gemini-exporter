@@ -1,45 +1,5 @@
 [
   {
-    "id": "control_theory_observability_gramian_certificate",
-    "domain": "control_linear_system_observability",
-    "title": "Linear systems: observability, hidden states and Gramian certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define observability for a continuous-time linear system with three states. Derive the observability matrix in LaTeX and explain hidden states in English and Chinese. Choose one observable and one unobservable rational example.",
-      "Compute ranks, null spaces and indistinguishable initial states for both examples. Show a Markdown table of measured outputs, assumptions and exact conclusions. Distinguish numerical ill-conditioning from mathematical rank deficiency.",
-      "Write complete standard-library Python implementing rational Gaussian elimination and observability checks using fractions.Fraction. Validate matrix dimensions and return an explicit unobservable-state certificate.",
-      "Derive the finite-horizon observability Gramian and its connection to output energy. Implement a numerical midpoint integration oracle and compare against the rational rank certificate, with a reproducible tolerance study.",
-      "Prepare a reproducible report with executable Python tests, LaTeX proofs and a Markdown summary. Cover zero output matrix, repeated eigenvalues, one-dimensional systems and near-unobservable perturbations."
-    ]
-  },
-  {
-    "id": "thermodynamics_heat_pump_energy_entropy_audit",
-    "domain": "thermodynamics_heat_pump_cycles",
-    "title": "Heat pumps: energy balance, entropy generation and feasible COP",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Define a steady-state heat pump operating between two reservoirs. Derive first- and second-law constraints in LaTeX, with consistent heat/work signs, and explain the distinction between COP and efficiency in English and Chinese.",
-      "Build a Markdown table for three hot-side temperatures and two cold-side temperatures, giving Carnot COP in heating and cooling modes. Convert Celsius to kelvin explicitly and flag invalid temperature orderings.",
-      "Write complete standard-library Python to validate reservoir inputs and compute work, heat rejection and entropy generation for a proposed operating point. Return physical units and reject impossible COP claims.",
-      "Develop an independent second-law feasibility oracle from total entropy change, without using the Carnot COP formula. Cross-check a deterministic grid including reversible, irreversible and impossible cycles.",
-      "Extend the model to a finite heat-exchanger approach temperature and derive the resulting reduction in attainable COP. Quantify sensitivity using central differences and an analytic derivative.",
-      "Compare direct electric heating, an idealized heat pump and a practical heat pump in a Markdown table at fixed delivered heat. State the system boundary and distinguish electricity consumption from primary energy assumptions.",
-      "Investigate limiting cases: equal reservoir temperatures, very small temperature lifts, nonpositive kelvin and negative requested heat delivery. Provide runnable tests and explain singular limits without accepting invalid physical inputs.",
-      "Produce a reproducible engineering audit with Python tests, LaTeX energy/entropy balances and a Markdown decision table separating infeasible, reversible-bound and feasible irreversible operating points."
-    ]
-  },
-  {
     "id": "probability_absorbing_markov_chain_rewards",
     "domain": "probability_absorbing_markov_chains",
     "title": "Absorbing chains: exact hitting times and reward certificates",
@@ -412,6 +372,47 @@
       "Implement a product-automaton equivalence checker that returns a shortest distinguishing word when languages differ. Test the original against its quotient and against a deliberately corrupted quotient.",
       "For every pair of distinct minimized states, generate a distinguishing-word certificate and verify it independently. Include the empty word where relevant and explain why bounded brute force alone is not a complete equivalence proof.",
       "Write a Chinese-English reproducibility audit with complete Python tests, LaTeX invariants and Markdown results. Include one-state automata, an empty accepting set and an empty alphabet, clearly specifying the representation contract."
+    ]
+  },
+  {
+    "id": "chemistry_diprotic_acid_titration_charge_balance",
+    "domain": "chemistry_acid_base_titration",
+    "title": "Diprotic acid titration: charge balance and certified equilibrium roots",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a diprotic acid titrated by a strong base at fixed temperature. Derive mass balance, charge balance and water autoionization in LaTeX. Explain every concentration and unit in English and Chinese.",
+      "Derive the alpha fractions and a scalar charge-balance residual in hydrogen concentration. Build a Markdown table covering initial solution, both equivalence points and excess base, without assuming Henderson-Hasselbalch is valid everywhere.",
+      "Write complete standard-library Python that solves equilibrium in log hydrogen concentration by bracketed bisection. Validate volumes, concentrations, equilibrium constants and temperature assumptions; return both pH and charge residual.",
+      "Cross-check the solver with an independent species-concentration calculation. Test dilution, nearly coincident dissociation constants, neutral water and extreme but physically meaningful concentrations. Explain when floating-point precision limits the residual certificate.",
+      "Produce a reproducible report with executable Python tests, a Markdown comparison of exact equilibrium and common approximations, and LaTeX error diagnostics. Distinguish mathematical solvability from ideal-solution validity."
+    ]
+  },
+  {
+    "id": "structures_planar_truss_stiffness_energy_certificates",
+    "domain": "structural_engineering_truss_stiffness",
+    "title": "Planar trusses: stiffness, rigid modes and energy certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a small planar pin-jointed triangular truss with rational node coordinates, axial stiffnesses and supports. Derive element stiffness matrices in LaTeX and explain translations, reactions and sign conventions in English and Chinese.",
+      "Assemble the global stiffness matrix for a concrete three-bar example. Show a Markdown table of node coordinates, degrees of freedom, supports, loads and units. Identify rigid-body modes before applying constraints.",
+      "Write complete standard-library Python to assemble and solve the constrained stiffness system. Use explicit node and element records, validate topology and lengths, and return displacement, member force and reaction tables.",
+      "Derive an independent total potential-energy formulation. Verify that its stationary point matches the stiffness solution and compute energy and force-equilibrium residuals using runnable Python.",
+      "Remove one support to create a mechanism and diagnose it with a null-space certificate. Distinguish a geometric mechanism from an ill-conditioned but stable structure in a Markdown table.",
+      "Apply prescribed nonzero support displacement and thermal strain. Derive the equivalent load terms, update the solver and test a zero-load constrained thermal expansion case.",
+      "Perform a reproducible sensitivity study for one member stiffness and one applied load. Compare finite differences against an analytic linear-system derivative, reporting tolerances and units.",
+      "Produce a self-contained engineering audit with executable Python tests, LaTeX stiffness and energy identities, Markdown result tables and explicit limitations concerning buckling, joint rigidity and geometric nonlinearity."
     ]
   }
 ]
