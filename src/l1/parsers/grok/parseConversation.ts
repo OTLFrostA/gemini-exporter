@@ -41,9 +41,9 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     if (leaves.length === 1) {
         const visited = new Set<string>(), branch: string[] = [];
         let id = leaves[0];
-        while (nodes.has(id)) {
+        for (let node = nodes.get(id); node; node = nodes.get(id)) {
             if (visited.has(id)) throw new TypeError('Cyclic Grok response tree');
-            visited.add(id); branch.push(id); id = String(nodes.get(id)!.parentResponseId);
+            visited.add(id); branch.push(id); id = String(node.parentResponseId);
         }
         if (id !== 'undefined' && id !== 'null' && id[14] !== '5') warn('grok.branch.missing_parent', 'Grok root parent is not the observed synthetic root');
         if (visited.size !== nodes.size) warn('grok.branch.disconnected', 'Grok response tree has disconnected messages');
@@ -86,12 +86,13 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
                 ...(typeof citation.url === 'string' ? { url: citation.url } : {}),
                 ...(typeof citation.title === 'string' ? { title: citation.title } : {}) };
         }) : [];
-        if (typeof response.message === 'string' && response.message.includes('<grok:render') && !citations.length && !owned.attachmentIds.length)
+        if (response.message.includes('<grok:render') && !citations.length && !owned.attachmentIds.length)
             warn('grok.citation.unresolved', 'A Grok inline card has no resolved source');
         const ctx = { diagnostics, sourceRef: { ...sourceRef, providerMessageId: id },
             resolveImage: (ref: string, alt: string) => resources.image(ref, alt, id) };
         const markdown = adapted.display_text;
         const timestamp = grokTimestamp(response.createTime);
+        const model = normalizedById.get(id)?.model;
         const reasoning = Array.isArray(response.steps) ? response.steps.flatMap(value => {
             const step = grokObject(value);
             return Array.isArray(step.text) ? step.text.filter((text): text is string => typeof text === 'string').flatMap(text => parseMarkdownToBlocks(text, id, ctx)) : [];
@@ -101,8 +102,7 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
             ...(owned.attachmentIds.length ? { attachmentIds: owned.attachmentIds } : {}),
             ...(citations.length ? { citations } : {}), ...(reasoning.length ? { reasoning } : {}),
             ...(timestamp !== undefined ? { timestamp } : {}),
-            ...(typeof normalizedById.get(id)?.model === 'string' && normalizedById.get(id)?.model
-                ? { model: String(normalizedById.get(id)?.model) } : {}) });
+            ...(typeof model === 'string' && model ? { model } : {}) });
     }
     const updatedAt = grokTimestamp(meta.modifyTime), createdAt = grokTimestamp(meta.createTime);
     return { conversationId: requestedId, ...(updatedAt !== undefined ? { sourceVersion: updatedAt } : {}),
