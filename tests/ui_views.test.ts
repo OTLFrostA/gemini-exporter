@@ -161,6 +161,7 @@ test('zero-account Takeout creates the first Gemini default only after ZIP selec
     assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
     assert.equal((await read(page, 'events')).includes('create'), false);
     const chooserPromise = page.waitForEvent('filechooser');
+    await page.locator('#btnMoreActions').click();
     await page.locator('#btnImportTakeout').click();
     const chooser = await chooserPromise;
     assert.equal((await read(page, 'events')).includes('create'), false, 'Opening the picker must not create an account');
