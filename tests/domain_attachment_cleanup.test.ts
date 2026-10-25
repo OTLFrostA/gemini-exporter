@@ -131,6 +131,27 @@ test('provider tokens resolve generated representations before tokens leave Doma
     assert.deepEqual(source, original);
 });
 
+test('resource metadata fills absent fields while preserving empty generation text and list occurrences', () => {
+    const link = { title: 'Evidence', url: 'https://example.test/reference' };
+    const source: SourceAttachmentLists = {
+        attachments: [{ type: 'image', url: 'https://example.test/image', name: '',
+            generation: { chatId: 'chat', generationOrdinal: 0, prompt: '' },
+            sections: ['A'], links: [link], candidates: ['download'] }],
+        images: [{ type: 'image', url: 'https://example.test/image', name: 'Image',
+            generation: { chatId: 'chat', generationOrdinal: 0, prompt: 'Later prompt', imageCount: 1 },
+            sections: ['A', 'A', 'B'], links: [link, { url: link.url, title: link.title }],
+            candidates: ['download', 'download', 'preview'] }],
+    };
+    const original = structuredClone(source);
+    const [resource] = normalizeSourceAttachments(source);
+    assert.equal(resource.name, 'Image');
+    assert.deepEqual(resource.generation, { chatId: 'chat', generationOrdinal: 0, prompt: '', imageCount: 1 });
+    assert.deepEqual(resource.sections, ['A', 'A', 'B']);
+    assert.deepEqual(resource.links, [link, link]);
+    assert.deepEqual(resource.candidates, ['download', 'download', 'preview']);
+    assert.deepEqual(source, original);
+});
+
 test('reliable generation identity merges online/offline paths and preserves metadata', async () => {
     const domain = await assertRoundTrip({ ...metadata, messages: [{ role: 'assistant', content: '',
         attachments: [{ type: 'image', localName: 'online.png', providerRequestId: 'r_ABCDEF0123456789', imageOrdinal: 0 }],

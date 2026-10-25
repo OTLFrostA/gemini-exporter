@@ -36,3 +36,8 @@ export interface ResourceEvidence {
     hasFabricatedText?: boolean;
 }
 
+/** Copy a known field without losing the relationship between its key and value. */
+export function copyDefinedField<T extends object, K extends keyof T>(target: T, source: Pick<Partial<T>, K>, key: K, overwrite = false): void {
+    const value = source[key];
+    if (value !== undefined && (overwrite || target[key] === undefined || target[key] === '')) target[key] = value;
+}
