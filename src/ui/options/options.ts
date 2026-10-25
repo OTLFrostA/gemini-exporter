@@ -20,6 +20,7 @@ import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constan
 import { showDirectWritePrompt } from './views/directWritePrompt.js';
 import { confirmCleanup } from './views/cleanupPrompt.js';
 import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../application/export/types.js';
+import { isAccountId } from '../../l2/accountRegistry.js';
 
 type Level = 'info' | 'warn' | 'error';
 type Action = 'scan' | 'export' | 'takeout' | 'cleanup' | null;
@@ -609,6 +610,18 @@ export async function initWorkbench(): Promise<void> {
     });
     el('btnPlatformPermissions').addEventListener('click', () => { if (!busy) TourGuide.showPlatformAuthorization(select); });
     el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(select); });
+    const applyOpenedAccount = async (value: unknown) => {
+        if (!isAccountId(value)) return;
+        // Consume once: directly opening Options later must not reuse a previous source.
+        await chrome.storage.session.remove('openOptionsAccountId');
+        if (busy) return;
+        if (!state.accounts.some(account => account.id === value)) await refresh();
+        if (!busy && state.accounts.some(account => account.id === value)) await select(value);
+    };
+    const onOpenedAccountChange = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+        if (area === 'session' && changes.openOptionsAccountId)
+            void applyOpenedAccount(changes.openOptionsAccountId.newValue).catch(error => statusError(error));
+    };
     const stopSettings = observeSettings(() => {
         void readSettings().then(next => { settings = next; render(); }).catch(e => statusError(e));
     });
@@ -624,7 +637,7 @@ export async function initWorkbench(): Promise<void> {
     const stopDomainChanges = observeDomainChanges(() => refresh().catch(e => statusError(e)));
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
-        stopSettings(); stopDomainChanges();
+        stopSettings(); stopDomainChanges(); chrome.storage.onChanged.removeListener(onOpenedAccountChange);
         window.removeEventListener('focus', onFocus); TourGuide.destroy();
     }, { once: true });
     renderLog(); render();
@@ -632,6 +645,8 @@ export async function initWorkbench(): Promise<void> {
     settings = await readSettings();
     renderLog(); // Localize initial 'Ready' once; subsequent toggles never retranslate the log.
     await refresh();
+    chrome.storage.onChanged.addListener(onOpenedAccountChange);
+    await applyOpenedAccount((await chrome.storage.session.get('openOptionsAccountId')).openOptionsAccountId);
     try {
         await Directory.restoreSavedDirHandle();
         directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
