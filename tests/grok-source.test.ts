@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseGrokConversation } from '../src/l1/parsers/grok/parseConversation.js';
+import { compatibleGrokBodies } from '../src/l1/parsers/grok/wireCompatibility.js';
 import { parseGrokList } from '../src/l1/parsers/grok/parseList.js';
 import { grokAccount } from '../src/l1/parsers/grok/source.js';
 import { preprocessGrokMarkdown } from '../src/l1/parsers/grok/markdownCompatibility.js';
@@ -229,4 +230,34 @@ test('upstream citation titles preserve literal backslashes and brackets without
     assert.deepEqual(content, [{ type: 'paragraph', children: [{ type: 'link',
         href: 'https://example.com/source', children: [{ type: 'text', text: title }] }] }]);
     assert.equal(parsed.conversation.detail.messages[1].citations?.[0].title, title);
+});
+
+test('Grok image metadata reuses verified identity and preserves captured-image deduplication', () => {
+    const url = 'https://assets.grok.com/generated.png';
+    const otherUrl = 'https://assets.grok.com/captured.png';
+    const uuid = '11111111-1111-4111-8111-111111111111';
+    const captured = [
+        { original_src: url, label: 'source duplicate' },
+        { original_src: otherUrl, label: 'first' },
+        { original_src: otherUrl, label: 'duplicate' },
+        { original_src: 123, label: 'non-string source' },
+    ];
+    const warnings: string[] = [];
+    const converted = compatibleGrokBodies({ responses: [{
+        message: '',
+        cardAttachmentsJson: [JSON.stringify({
+            cardType: 'generated_image_card',
+            image_chunk: { imageUrl: url, progress: 100, imageUuid: uuid, imageModel: 'imagine_x_1' },
+        })],
+        fileAttachmentsMetadata: [{ fileMetadataId: uuid, fileUri: 'users/example/duplicate.png' }],
+        capturedImages: captured,
+    }] }, code => warnings.push(code));
+    assert.deepEqual(warnings, []);
+    assert.equal(converted.responses[0].model, 'imagine_x_1');
+    assert.deepEqual(converted.responses[0].fileAttachments, []);
+    assert.deepEqual(converted.responses[0].capturedImages, [captured[1], captured[3]]);
+    assert.deepEqual(converted.responses[0].imageAttachments, [{
+        url, fileName: 'generated-image', mimeType: undefined,
+        generation: { providerRequestId: uuid },
+    }]);
 });

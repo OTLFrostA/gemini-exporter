@@ -42,7 +42,7 @@ export function compatibleGrokBodies(payload: Record<string, unknown>, warn: (co
                     ...(typeof card.prompt === 'string' ? { prompt: card.prompt } : {}),
                     ...(typeof chunk.imageIndex === 'number' ? { imageOrdinal: chunk.imageIndex } : {}) };
                 image({ url, fileName: chunk.imageTitle || 'generated-image', mimeType: chunk.mimeType, generation });
-                if (typeof chunk.imageUuid === 'string') resolvedIds.add(chunk.imageUuid);
+                if (generation.providerRequestId !== undefined) resolvedIds.add(generation.providerRequestId);
                 // Source names the image model separately from the chat orchestrator.
                 if (typeof chunk.imageModel === 'string' && typeof row.message === 'string'
                     && row.message.replace(/<grok:render[^]*?<\/grok:render>/g, '').trim() === '') row.model = chunk.imageModel;
@@ -72,8 +72,9 @@ export function compatibleGrokBodies(payload: Record<string, unknown>, warn: (co
         // Native metadata is preferable to DOM enrichment of the same image.
         const captured = (Array.isArray(row.capturedImages) ? row.capturedImages : []).filter(value => {
             const uri = grokObject(value).original_src;
-            if (typeof uri === 'string' && seen.has(uri)) return false;
-            if (typeof uri === 'string') seen.add(uri);
+            if (typeof uri !== 'string') return true;
+            if (seen.has(uri)) return false;
+            seen.add(uri);
             return true;
         });
         return { ...row, imageAttachments: images, fileAttachments: files, capturedImages: captured };
