@@ -206,7 +206,7 @@ function createHookSandbox(sniffProfile?: typeof import('../src/l1/parsers/gemin
         document: { querySelectorAll: () => [], addEventListener: () => {} },
         console: { log: () => {}, warn: () => {}, debug: () => {} },
         setTimeout: () => 0,
-        URLSearchParams, Request, XMLHttpRequest: MockXhr,
+        URL, URLSearchParams, Request, XMLHttpRequest: MockXhr,
         sniffUserProfileFromDom: sniffProfile ?? require('../src/l1/parsers/gemini/dom/accountSniffer.js').sniffUserProfileFromDom,
         geminiAccountObservation: require('../src/l1/client/gemini/accountObservation.js').geminiAccountObservation,
         readGeminiDetailRequest: require('../src/l1/parsers/gemini/rpc/detailRequest.js').readGeminiDetailRequest,

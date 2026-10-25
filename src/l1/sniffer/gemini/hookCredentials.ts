@@ -1,18 +1,10 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import { sniffUserProfileFromDom } from '../../parsers/gemini/dom/accountSniffer.js';
 import { geminiAccountObservation } from '../../client/gemini/accountObservation.js';
-import { readGeminiDetailRequest } from '../../parsers/gemini/rpc/detailRequest.js';
-import { readGeminiListRequest } from '../../parsers/gemini/rpc/listRequest.js';
 import { GeminiProtocol, CrossWorldEvents } from '../../protocol/gemini/protocol.js';
-import { parseConfirmedGeminiDeletion } from '../../parsers/gemini/rpc/parseDeletion.js';
 import type { GeminiProtocolModule } from '../../protocol/gemini/protocol.js';
-import type {
-    GeminiCredentialsPayload,
-    GeminiConversationDeletedPayload,
-    GeminiStreamStartPayload,
-    GeminiStreamCompletePayload,
-    GeminiNetworkBatchexecutePayload
-} from '../../protocol/gemini/events.js';
+import type { GeminiCredentialsPayload } from '../../protocol/gemini/events.js';
+import { createGeminiResponseRouter } from './responses/router.js';
 
 declare global {
     interface Window {
@@ -71,6 +63,7 @@ declare global {
         if (typeof requestId === 'string' && requestId.length > 0 && requestId.length <= 128) publishAccount(requestId);
     });
 
+    const routeResponse = createGeminiResponseRouter();
     const origFetch = window.fetch;
     const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
     const origSend = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.send : null;
@@ -131,25 +124,6 @@ declare global {
         }
     }
 
-    function detectDeletedConversation(
-        url: string | URL | Request | null | undefined,
-        body: unknown,
-        responseText: unknown,
-        requestAccountObservation: Omit<Account, 'id'> | null,
-        successfulResponse: boolean
-    ): void {
-        if (!successfulResponse || !requestAccountObservation
-            || requestAccountObservation.providerAccountId === 'default'
-            || typeof body !== 'string' || typeof responseText !== 'string') return;
-        const conversationId = parseConfirmedGeminiDeletion(body, responseText);
-        if (!conversationId) return;
-        const payload: GeminiConversationDeletedPayload = {
-            id: conversationId, slot: getSlotFromUrl(url), requestAccountObservation,
-            url: toUrlString(url), requestBody: body, responseText
-        };
-        window.postMessage({ type: Events.CONVERSATION_DELETED, payload }, location.origin);
-    }
-
     function getSlotFromUrl(url: string | URL | Request | null | undefined): string {
         let slot = 'u0';
         const uStr = toUrlString(url);
@@ -162,169 +136,13 @@ declare global {
         return slot;
     }
 
-    function isStreamUrl(url: string | URL | Request | null | undefined): boolean {
-        try {
-            const parsed = new URL(toUrlString(url), location.href);
-            return parsed.protocol === 'https:' && parsed.hostname === 'gemini.google.com'
-                && parsed.pathname.endsWith('/StreamGenerate');
-        } catch { return false; }
-    }
-
-    // candidate[8][0] == 2 means answered. Require complete JSON frames and EOF.
-    // This signals generation completion; Application must acquire actual Detail.
-    // Transport-only trailers and unknown/error responses cannot complete a turn.
-    function completedTurn(text: string): { conversationId: string; responseId: string } | null {
-        let identity: { conversationId: string; responseId: string } | null = null;
-        let answered = false;
-        try {
-            let expectedLength: number | undefined;
-            for (const line of text.split('\n').map(value => value.trim()).filter(Boolean)) {
-                if (line === ")]}'") continue;
-                if (/^\d+$/.test(line)) {
-                    if (expectedLength !== undefined) return null;
-                    expectedLength = Number(line); continue;
-                }
-                if (expectedLength !== undefined) {
-                    const bytes = new TextEncoder().encode(line).length;
-                    // Live StreamGenerate counts UTF-16 code units, including
-                    // surrounding LFs. Legacy captures use bare UTF-8 byte lengths.
-                    if (expectedLength !== bytes && expectedLength !== line.length + 2) return null;
-                }
-                expectedLength = undefined;
-                const rows: unknown = JSON.parse(line);
-                if (!Array.isArray(rows)) return null;
-                for (const row of rows) {
-                    if (!Array.isArray(row)) return null;
-                    if (row[0] === 'er' || row[5] != null) return null;
-                    if (row[0] !== 'wrb.fr') continue;
-                    if (typeof row[2] !== 'string') return null;
-                    const inner: unknown = JSON.parse(row[2]);
-                    if (!Array.isArray(inner)) return null;
-                    const metadata: unknown = inner[1];
-                    if (Array.isArray(metadata) && typeof metadata[0] === 'string' && /^c_[a-f0-9]{8,64}$/i.test(metadata[0])
-                        && typeof metadata[1] === 'string' && /^r_[a-f0-9]+$/i.test(metadata[1])) {
-                        const next = { conversationId: metadata[0].slice(2), responseId: metadata[1] };
-                        if (identity && (identity.conversationId !== next.conversationId || identity.responseId !== next.responseId)) return null;
-                        identity = next;
-                    }
-                    if (Array.isArray(inner[4]) && inner[4].length) {
-                        answered = inner[4].every((candidate: unknown) => Array.isArray(candidate)
-                            && typeof candidate[0] === 'string' && candidate[0].startsWith('rc_')
-                            && Array.isArray(candidate[8]) && candidate[8][0] === 2);
-                    }
-                }
-            }
-            return expectedLength === undefined && answered ? identity : null;
-        } catch { return null; }
-    }
-    let lastCompletedTurn: string | undefined;
-
-    function extractConversationId(
-        _url: string | URL | Request | null | undefined,
-        body?: unknown,
-        responseText?: unknown
-    ): string | null {
-        try {
-            // 1. Check response text first (most authoritative for newly assigned conversation IDs in streaming chunk 1)
-            if (typeof responseText === 'string') {
-                const m = responseText.match(/["']c_([a-f0-9]{8,64})["']/i) || responseText.match(/c_([a-f0-9]{8,64})/i);
-                if (m && m[1]) return m[1];
-            }
-            // 2. Check request body
-            if (typeof body === 'string') {
-                let decoded = body;
-                try { decoded = decodeURIComponent(body); } catch {}
-                const m = decoded.match(/["']c_([a-f0-9]{8,64})["']/i) || decoded.match(/c_([a-f0-9]{8,64})/i);
-                if (m && m[1]) return m[1];
-            }
-            // 3. Check current window location
-            if (typeof location !== 'undefined') {
-                const m = location.pathname.match(/\/app\/([a-f0-9]{8,64})/i);
-                if (m && m[1]) return m[1];
-            }
-        } catch (e) {
-            if (isDev()) console.debug('[GemExporter:hook]', e);
-        }
-        return null;
-    }
-
-    function broadcastStreamStart(url: string | URL | Request | null | undefined, body?: unknown, requestAccountObservation: Omit<Account, 'id'> | null = null): void {
-        try {
-            const convId = extractConversationId(url, body);
-            const slot = getSlotFromUrl(url);
-            try {
-                window.__geminiIsStreaming = true;
-                window.__geminiLastStreamStart = Date.now();
-                if (convId) window.__geminiActiveStreamConvId = convId;
-            } catch {}
-            const payload: GeminiStreamStartPayload = { id: convId, slot, requestAccountObservation };
-            window.postMessage({
-                type: Events.STREAM_START,
-                payload
-            }, location.origin);
-        } catch (e) {
-            if (isDev()) console.debug('[GemExporter:hook]', e);
-        }
-    }
-
-    function broadcastStreamComplete(
-        url: string | URL | Request | null | undefined,
-        text: string,
-        requestAccountObservation: Omit<Account, 'id'> | null,
-        slot: string
-    ): void {
-        const turn = completedTurn(text);
-        if (!turn) return;
-        const identity = JSON.stringify([slot, requestAccountObservation?.providerAccountId, turn.conversationId, turn.responseId]);
-        if (identity === lastCompletedTurn) return;
-        lastCompletedTurn = identity;
-        window.__geminiLastStreamComplete = Date.now();
-        window.__geminiActiveStreamConvId = turn.conversationId;
-        const payload: GeminiStreamCompletePayload = { id: turn.conversationId, requestAccountObservation, slot, url: toUrlString(url) };
-        window.postMessage({ type: Events.STREAM_COMPLETE, payload }, location.origin);
-    }
-
-    // Capture before native send. A request for another slot has no verified current-page identity.
-    function captureRequestAccount(url: string | URL | Request | null | undefined): Omit<Account, 'id'> | null {
-        if ((!toUrlString(url).includes('batchexecute') && !isStreamUrl(url)) || getSlotFromUrl(url) !== getSlotFromUrl(location.href)) return null;
+    // Capture request ownership without decoding endpoint response semantics.
+    function captureRequestAccount(url: string): Omit<Account, 'id'> | null {
+        if (getSlotFromUrl(url) !== getSlotFromUrl(location.href)) return null;
         return geminiAccountObservation(sniffUserProfileFromDom());
     }
 
-    function broadcastBatchexecute(url: string | URL | Request | null | undefined, text: unknown, body?: unknown, truncated = false, requestedAt = 0, requestAccountObservation: Omit<Account, 'id'> | null = null, capturedSlot?: string): void {
-        try {
-            // wrb.fr is the outer wrapper of EVERY batchexecute response, so it must
-            // not take part in this test — including it makes the filter always pass
-            // and relays every response body (up to 3MB) across worlds. Only the
-            // payloads the ISOLATED side actually parses (list / detail) are relayed.
-            if (typeof text !== 'string' || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) return;
-            const slot = capturedSlot;
-            if (!slot) return;
-            const listRequest = readGeminiListRequest(body);
-            const detailRequest = readGeminiDetailRequest(body);
-            const payload: GeminiNetworkBatchexecutePayload = {
-                text: text.slice(0, 3000000), // Protect against memory spikes
-                ...(listRequest ? { listRequest } : {}),
-                ...(detailRequest ? { detailRequest } : {}),
-                requestedAt,
-                requestAccountObservation,
-                truncated: truncated || text.length > 3000000,
-                slot,
-                url: toUrlString(url)
-            };
-            window.postMessage({
-                type: Events.NETWORK_BATCHEXECUTE,
-                payload
-            }, location.origin);
-        } catch (e) {
-            if (isDev()) console.debug('[GemExporter:hook]', e);
-        }
-    }
-
-    const BATCHEXECUTE_SNIFF_CAP = 3 * 1024 * 1024;
-    // Growing answer snapshots can exceed the RPC capture budget cumulatively.
-    const STREAM_SNIFF_CAP = 100 * 1024 * 1024;
-
-    async function readCappedText(response: Response, cap: number = BATCHEXECUTE_SNIFF_CAP): Promise<{ text: string; truncated: boolean }> {
+    async function readCappedText(response: Response, cap: number): Promise<{ text: string; truncated: boolean }> {
         const body = response.body;
         if (body && typeof body.getReader === 'function') {
             const reader = body.getReader();
@@ -374,8 +192,10 @@ declare global {
             init?: RequestInit
         ): Promise<Response> {
             const requestedAt = Date.now();
-            const requestAccountObservation = captureRequestAccount(input);
-            const requestSlot = getSlotFromUrl(input);
+            const url = toUrlString(input);
+            const endpoint = routeResponse(url);
+            const handler = endpoint?.({ url, slot: getSlotFromUrl(input), pagePath: location.pathname,
+                requestedAt, requestAccountObservation: captureRequestAccount(url) });
             let requestBody: unknown;
             if (typeof Request !== 'undefined' && input instanceof Request) {
                 requestBody = input.body;
@@ -386,15 +206,13 @@ declare global {
             let capturedBody = Promise.resolve(typeof body === 'string' ? body
                 : body instanceof URLSearchParams ? body.toString() : '');
             if (typeof body !== 'string' && typeof Request !== 'undefined' && input instanceof Request
-                && input.url.includes('batchexecute')) {
+                && handler) {
                 try { capturedBody = input.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
             }
 
             try {
                 captureFromUrl(input, body);
-                if (isStreamUrl(input)) {
-                    broadcastStreamStart(input, body, requestAccountObservation);
-                }
+                handler?.start(typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '');
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
@@ -402,39 +220,21 @@ declare global {
             let response: Response;
             try { response = await nativeFetch.call(this, input, init); }
             catch (error) {
-                if (isStreamUrl(input)) window.__geminiIsStreaming = false;
+                handler?.end();
                 throw error;
             }
 
-            try {
-                const u = toUrlString(input);
-                if (u.includes('batchexecute')) {
-                    const cloned = response.clone();
-                    readCappedText(cloned).then(async ({ text: txt, truncated }) => {
-                        try {
-                            detectDeletedConversation(input, await capturedBody, txt, requestAccountObservation, response.ok && !truncated);
-                            broadcastBatchexecute(input, txt, await capturedBody, truncated || !response.ok, requestedAt, requestAccountObservation, requestSlot);
-                        } catch (e) {
-                            if (isDev()) console.debug('[GemExporter:hook]', e);
-                        }
-                    }).catch((e: unknown) => {
-                        if (isDev()) console.debug('[GemExporter:hook]', e);
-                    });
-                } else if (isStreamUrl(input)) {
-                    if (!response.ok) { window.__geminiIsStreaming = false; return response; }
-                    try {
-                        void readCappedText(response.clone(), STREAM_SNIFF_CAP).then(({ text, truncated }) => {
-                            if (!truncated && !(init?.signal?.aborted)
-                                && !(typeof Request !== 'undefined' && input instanceof Request && input.signal.aborted)) {
-                                broadcastStreamComplete(input, text, requestAccountObservation, requestSlot);
-                            }
-                        }).catch((error: unknown) => {
-                            if (isDev()) console.debug('[GemExporter:hook]', error);
-                        }).finally(() => { window.__geminiIsStreaming = false; });
-                    } catch { window.__geminiIsStreaming = false; }
-                }
-            } catch (e) {
-                if (isDev()) console.debug('[GemExporter:hook]', e);
+            if (handler) {
+                const selected = handler;
+                try {
+                    void readCappedText(response.clone(), selected.captureLimit).then(async ({ text, truncated }) => {
+                        const aborted = init?.signal?.aborted
+                            || (typeof Request !== 'undefined' && input instanceof Request && input.signal.aborted);
+                        selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
+                    }).catch((error: unknown) => {
+                        if (isDev()) console.debug('[GemExporter:hook]', error);
+                    }).finally(() => selected.end());
+                } catch { selected.end(); }
             }
 
             return response;
@@ -464,42 +264,31 @@ declare global {
                 const url = this.__hookUrl;
                 const body = args[0];
                 const requestedAt = Date.now();
-                const requestAccountObservation = captureRequestAccount(url);
-                const requestSlot = getSlotFromUrl(url);
+                const sourceUrl = toUrlString(url);
+                const endpoint = routeResponse(sourceUrl);
+                const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(url), pagePath: location.pathname,
+                    requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
                 captureFromUrl(url, body);
-
-                const u = toUrlString(url);
-                if (u.includes('batchexecute')) {
-                    this.addEventListener('load', () => {
-                        try {
-                            detectDeletedConversation(url, typeof body === 'string' ? body
-                                : body instanceof URLSearchParams ? body.toString() : '', this.responseText,
-                                requestAccountObservation, this.status >= 200 && this.status < 300);
-                            broadcastBatchexecute(url, this.responseText, body, this.status < 200 || this.status >= 300, requestedAt, requestAccountObservation, requestSlot);
-                        } catch (e) {
-                            if (isDev()) console.debug('[GemExporter:hook]', e);
-                        }
-                    });
-                } else if (isStreamUrl(url)) {
-                    broadcastStreamStart(url, body, requestAccountObservation);
+                if (handler) {
+                    const selected = handler;
+                    const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
+                    selected.start(requestBody);
                     let ended = false;
-                    const cleanup = () => {
-                        for (const event of ['load', 'loadend', 'abort', 'error', 'timeout']) this.removeEventListener(event, handleStreamEnd);
-                    };
-                    const handleStreamEnd = (event: Event) => {
+                    const handleEnd = (event: Event) => {
                         if (ended) return;
                         ended = true;
-                        cleanup();
-                        window.__geminiIsStreaming = false;
-                        if (event.type !== 'load' || this.status < 200 || this.status >= 300) return;
+                        for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.removeEventListener(name, handleEnd);
                         try {
-                            if (this.responseText.length <= STREAM_SNIFF_CAP) {
-                                broadcastStreamComplete(url, this.responseText, requestAccountObservation, requestSlot);
+                            if (event.type === 'load') {
+                                const text = this.responseText;
+                                selected.complete(requestBody, text.slice(0, selected.captureLimit), text.length > selected.captureLimit,
+                                    this.status >= 200 && this.status < 300);
                             }
                         } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }
+                        finally { selected.end(); }
                     };
-                    for (const event of ['load', 'loadend', 'abort', 'error', 'timeout']) this.addEventListener(event, handleStreamEnd);
-                    cancelStream = () => handleStreamEnd(new Event('error'));
+                    for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.addEventListener(name, handleEnd);
+                    cancelStream = () => handleEnd(new Event('error'));
                 }
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);

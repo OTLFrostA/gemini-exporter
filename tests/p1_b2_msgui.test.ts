@@ -64,7 +64,7 @@ test('P1-025: runtime listener cleanup permits clean reinitialization', async t 
 });
 test('P1-028: sniffed response reader remains capped (static)', () => {
     const src = source('l1/sniffer/gemini/hookCredentials.ts');
-    assert.ok(src.includes('readCappedText')); assert.ok(src.includes('BATCHEXECUTE_SNIFF_CAP'));
+    assert.ok(src.includes('readCappedText')); assert.ok(src.includes('selected.captureLimit'));
 });
 test('P1-030: resource IPC rejects oversized replies before delivering bytes', async t => {
     const h = await router(t);
