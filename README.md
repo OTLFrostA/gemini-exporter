@@ -1,10 +1,20 @@
 # Product homepage
 
-Static, brand-neutral landing page for https://otlfrosta.com.
+Minimal, brand-neutral product landing page: https://otlfrosta.com.
 
-All files for the website live on the permanent `website` branch. The browser extension's `main` branch intentionally contains no website source.
+The site lives entirely on the permanent `website` branch. Do not merge website code into the extension's `main` branch.
 
-## Develop locally
+## Positioning
+
+The website communicates exactly three primary benefits:
+
+1. 100% free, open source, and local processing without a developer-operated conversation storage service.
+2. One batch export of synced Gemini conversations, including available images/attachments; Markdown, HTML, PDF and JSON.
+3. Live Save automatically updates Markdown backups in an authorized local folder after new Gemini replies.
+
+Gemini is available in the published extension. ChatGPT, Claude and Grok remain experimental and must not be marketed as released until verified. No offline or browser-closed autosaving is promised.
+
+## Local preview
 
 ```sh
 git fetch origin website
@@ -13,23 +23,15 @@ cd public
 python3 -m http.server 8000
 ```
 
-Visit http://localhost:8000. There is no dependency installation, build step, or runtime JavaScript.
-
 ## Cloudflare Pages
 
-- GitHub repository: `OTLFrostA/gemini-exporter`
-- Production branch: `website` (not `main`)
+- Project: `otlfrosta-site`
+- GitHub repo: `OTLFrostA/gemini-exporter`
+- Production branch: `website` (NOT `main`)
 - Framework preset: None
-- Build command: leave blank
+- Build command: empty
 - Root directory: `/`
-- Build output directory: `public`
-- Custom domain: `otlfrosta.com`
-- Optional `www.otlfrosta.com` alias with redirect to apex
+- Output directory: `public`
+- Custom domains: `otlfrosta.com`, `www.otlfrosta.com` (301 to apex)
 
-Push website-only updates to `website`; Cloudflare Pages automatically deploys that branch. Do not merge website commits into `main`.
-
-## Content and privacy
-
-The screenshots in `public/assets/` come from real desktop Chrome captures of the extension using a test/staging account. They contain synced test-account conversation titles, not anonymized fixture data. No conversation bodies or email addresses appear. The images are copied locally, avoiding cross-origin requests. See `main:docs/product-screenshots.md` for capture provenance. The dark image shows local-folder delivery selected, but Live Save is off and no folder has been authorized. The website does not load analytics, external scripts, or third-party fonts.
-
-Keep marketing claims aligned with the published Chrome Web Store release. Gemini is published; ChatGPT, Claude, and Grok may be experimental in source builds and must not be presented as published support before verification.
+The static page loads no JavaScript, external fonts, analytics, or trackers. The hero image is an actual Chrome screenshot from a test account, with no email addresses or conversation bodies. See `main:docs/product-screenshots.md` for capture notes. Privacy and product documentation are linked to the extension's main branch.
