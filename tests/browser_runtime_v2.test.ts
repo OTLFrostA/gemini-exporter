@@ -373,8 +373,7 @@ test('Live Save Content sends only the changed key and suppresses stale reinject
     assert.equal(feedback, 0);
     const committed = { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false };
     global.chrome.runtime.sendMessage = (async () => ({ ok: true, result: committed })) as any;
-    // IPC decoding reconstructs validated facts; transport object identity is not a contract.
-    assert.deepEqual(JSON.parse(JSON.stringify(await coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' }))), committed);
+    assert.strictEqual(await coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' }), committed);
     assert.equal(feedback, 1, 'the live v2 Badge callback receives committed ExportResult');
     coordinator.cleanup();
 });

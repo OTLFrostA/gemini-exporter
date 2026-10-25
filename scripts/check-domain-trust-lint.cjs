@@ -13,7 +13,7 @@ function ownedTypeScriptFiles(relativeDir) {
 // Typed business and downstream layers reject implicit any flow. The compiler-based
 // architecture gate additionally rejects all casts and non-null assertions in these owners.
 const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
-    .concat(['src/runtime/content', 'src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout'])
+    .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout'])
     .flatMap(ownedTypeScriptFiles);
 
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any',

@@ -67,9 +67,8 @@ const onMessage = (message: unknown, sender: chrome.runtime.MessageSender, respo
 };
 chrome.runtime.onMessage.addListener(onMessage);
 registerCleanup(() => chrome.runtime.onMessage.removeListener(onMessage));
-const receive = (event: MessageEvent<unknown>) => {
-    if (event.source !== window || event.origin !== location.origin || !event.data || typeof event.data !== 'object'
-        || !('type' in event.data) || event.data.type !== GROK_SOURCE_EVENT || !('payload' in event.data)) return;
+const receive = (event: MessageEvent) => {
+    if (event.source !== window || event.origin !== location.origin || event.data?.type !== GROK_SOURCE_EVENT) return;
     const raw: unknown = event.data.payload;
     queue = queue.catch(() => {}).then(async () => {
         if (!active || !raw || typeof raw !== 'object' || !('url' in raw) || typeof raw.url !== 'string'

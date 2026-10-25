@@ -55,9 +55,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     return true;
 });
 let queue = Promise.resolve();
-const receive = (event: MessageEvent<unknown>) => {
-    if (event.source !== window || event.origin !== location.origin || !event.data || typeof event.data !== 'object'
-        || !('type' in event.data) || event.data.type !== CLAUDE_SOURCE_EVENT || !('payload' in event.data)) return;
+const receive = (event: MessageEvent) => {
+    if (event.source !== window || event.origin !== location.origin || event.data?.type !== CLAUDE_SOURCE_EVENT) return;
     const raw: unknown = event.data.payload;
     queue = queue.catch(() => {}).then(async () => {
         if (!active || !raw || typeof raw !== 'object' || !('url' in raw) || typeof raw.url !== 'string'
