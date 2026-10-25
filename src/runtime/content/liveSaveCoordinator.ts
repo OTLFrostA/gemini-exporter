@@ -7,8 +7,8 @@ interface Feedback {
     showLiveSaveError?: (accountId: string) => void;
 }
 let badge: Feedback | undefined;
-let instance: object | null = null;
-export function init(options: { badge?: Feedback } = {}): void { badge = options.badge; instance = {}; }
+let instance: symbol | null = null;
+export function init(options: { badge?: Feedback } = {}): void { badge = options.badge; instance = Symbol(); }
 export function cleanup(): void { instance = null; badge = undefined; }
 /** Accepted passive Detail or a completed reply may request unified Export. */
 export async function executeLiveSave(value: ConversationKey, refreshDetail = false): Promise<ExportResult | null> {
