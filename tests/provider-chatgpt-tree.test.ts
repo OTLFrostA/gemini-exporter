@@ -511,6 +511,31 @@ test('ChatGPT current list schema without the legacy missing flag traverses all 
     assert.equal((await getConversations(account.id)).length, 102);
 });
 
+test('ChatGPT rolling total traverses beyond 200 rows and requires a proven final page', async () => {
+    for (const [endKey, expectedCount] of [
+        ['C_PROVIDER_CHATGPT_TREE_ROLLING_END', 203],
+        ['C_PROVIDER_CHATGPT_TREE_ROLLING_EMPTY_END', 200],
+        ['C_PROVIDER_CHATGPT_TREE_ROLLING_FULL_END', 300],
+    ] as const) {
+        const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
+        const offsets: number[] = [];
+        const provider = new ChatGPTProvider({ fetchFn: async url => {
+            if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_04')));
+            const offset = Number(new URL(url).searchParams.get('offset'));
+            offsets.push(offset);
+            return new Response(JSON.stringify(chatgptListGen(offset === 0
+                ? 'C_PROVIDER_CHATGPT_TREE_ROLLING_0' : offset === 100
+                    ? 'C_PROVIDER_CHATGPT_TREE_ROLLING_100' : endKey)));
+        } });
+        const committed: number[] = [];
+        assert.equal(await provider.listConversations({ accountId: account.id, streamId: 'recent',
+            onPageCommitted: async page => { committed.push(page.totalObserved); return false; },
+        }), 'source_end');
+        assert.deepEqual(offsets, [0, 100, 200]);
+        assert.deepEqual(committed, [100, 200, expectedCount]);
+    }
+});
+
 test('ChatGPT empty current list schema proves source exhaustion', async () => {
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['u-list', 'workspace-list']));
     const provider = new ChatGPTProvider({ fetchFn: async url => new Response(JSON.stringify(
