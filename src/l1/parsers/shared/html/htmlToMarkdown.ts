@@ -11,7 +11,7 @@ function stripHtmlTags(str: string): string {
 }
 
 export function convertHtmlToMarkdown(html?: string | null): string {
-    if (!html || typeof html !== 'string') return html || '';
+    if (!html) return '';
     if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table)[\s>]/i.test(html)) return html;
 
     let res = html;

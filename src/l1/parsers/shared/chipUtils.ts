@@ -13,7 +13,7 @@ export function isInternalChipUrl(u?: string | null): boolean {
 }
 
 export function stripInternalChipMarkdown(text?: string | null): string {
-    if (!text || typeof text !== 'string') return '';
+    if (!text) return '';
 
     const standaloneRe = new RegExp(
         `(?:^|\\n)\\s*(?:\\[)?https?:\\/\\/googleusercontent\\.com\\/${INTERNAL_CHIP_TOKEN_PATTERN}(?:\\/[^\\s\\n\\]]*)?(?:\\])?\\s*(?=\\n|$)`,
