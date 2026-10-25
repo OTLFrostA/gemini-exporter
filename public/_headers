@@ -7,3 +7,6 @@
 
 /assets/*
   Cache-Control: public, max-age=86400
+
+/styles.css
+  Cache-Control: no-cache, must-revalidate
