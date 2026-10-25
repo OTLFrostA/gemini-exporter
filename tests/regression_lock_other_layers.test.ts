@@ -17,7 +17,7 @@ import { assertExportPath } from '../src/l4/packaging/exportPath.js';
 import { sanitizeRelativePath } from '../src/shared/utils/pathUtils.js';
 import { writeToFolder } from '../src/l4/delivery/index.js';
 import { resolveAccountTab } from '../src/runtime/capabilities/tabService.js';
-import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 useIndexStorage();
 const account = fixtureAccount('gemini');
@@ -134,9 +134,9 @@ test('P0: a v2 document attachment is present in ZIP and its ExportRecord lands 
     const host = fakeBrowser(t);
     const bytes = new TextEncoder().encode('# embedded doc body');
     fakeNetwork(t, bytes, 'text/markdown');
-    const originalZip = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', JSZip);
-    t.after(() => __setModuleOverride('JSZip', originalZip));
+    const originalZip = __getZipConstructor();
+    __setZipConstructor(JSZip);
+    t.after(() => __setZipConstructor(originalZip));
     const id = 'cccc3333dddd4444';
     await seed(id, { doc: true });
     const result = await runExport(request(id));
@@ -158,9 +158,9 @@ test('P0: a v2 image attachment is packaged once with its original bytes and a s
     const host = fakeBrowser(t);
     const png = Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3);
     fakeNetwork(t, png, 'image/png');
-    const originalZip = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', JSZip);
-    t.after(() => __setModuleOverride('JSZip', originalZip));
+    const originalZip = __getZipConstructor();
+    __setZipConstructor(JSZip);
+    t.after(() => __setZipConstructor(originalZip));
     const id = 'eeee5555ffff6666';
     await seed(id, { image: true });
     const result = await runExport(request(id));

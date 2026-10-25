@@ -10,7 +10,7 @@ import { PdfResourceError } from '../src/l4/format/pdf/errors.js';
 import { missingResource, type PreparedResources } from '../src/shared/resources/resourceResult.js';
 import type { DocumentAst } from '../src/l3b/ast/ast.js';
 import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
-import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 function domain() {
     // Mock the L2 v2 boundary using data only, not L2's production validator.
@@ -42,7 +42,7 @@ test('L4 Packaging uses AST File purposes, not source asset kind, to deliver PDF
     const planned = planExportPaths([{ conversation: c, prepared, fileIds }], 'pdf');
     assert.deepEqual(planned[0], plan);
     const JSZip = require('../lib/jszip.min.js');
-    __setModuleOverride('JSZip', JSZip);
+    __setZipConstructor(JSZip);
     const output = await packageExportFiles([files], 'browserDownload');
     assert.equal(output.length, 1);
     assert.equal(output[0].mimeType, 'application/zip');

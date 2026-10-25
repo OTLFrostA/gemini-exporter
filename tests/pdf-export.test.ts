@@ -29,7 +29,7 @@ import { buildMinimalValidPdf, StubPdfCompiler } from './helpers/stubPdfCompiler
 import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { startBrowserDownload } from '../src/l4/delivery/index.js';
 import { missingResource } from '../src/shared/resources/resourceResult.js';
-import { __getModuleOverride, __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const account = fixtureAccount('gemini');
 const JSZip = require('../lib/jszip.min.js');
@@ -64,9 +64,9 @@ function sandbox(t: TestContext, compile: IPdfCompiler['compile'] =
     t.after(() => { TypstSandboxCompiler.prototype.compile = prior; });
 }
 function zip(t: TestContext): void {
-    const prior = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', JSZip);
-    t.after(() => __setModuleOverride('JSZip', prior));
+    const prior = __getZipConstructor();
+    __setZipConstructor(JSZip);
+    t.after(() => __setZipConstructor(prior));
 }
 function context(signal: AbortSignal = new AbortController().signal) {
     return { signal, reportProgress() {} };

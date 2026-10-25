@@ -1,10 +1,9 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiResponse } from '../../parsers/gemini/rpc/parseResponse.js';
 import { isConfirmedGeminiDetailNotFound } from '../../parsers/gemini/rpc/parseDeletion.js';
-import GeminiProtocol, { GeminiProtocolModule } from "../../protocol/gemini/protocol.js";
+import GeminiProtocol from "../../protocol/gemini/protocol.js";
 import { isDevMode } from "../../../runtime/devMode.js";
 import { getErrorMessage } from "../../../shared/utils/errorText.js";
-import { __resolveModule } from "../../../shared/utils/moduleOverrides.js";
 import GeminiClientCredentialManager, {
     getBlFromPage,
     getAtFromPage,
@@ -36,10 +35,6 @@ export class ConfirmedGeminiConversationNotFound extends Error {
 interface GeminiAPIClientOptions {
     signal?: AbortSignal | null;
     [key: string]: unknown;
-}
-
-function getProtocol(): GeminiProtocolModule {
-    return __resolveModule('GeminiProtocol', GeminiProtocol);
 }
 
 const credentialManager = GeminiClientCredentialManager;
@@ -88,7 +83,7 @@ const pagination = GeminiClientPagination;
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
             const filter = customFilter || [0, null, 1];
-            const P = getProtocol();
+            const P = GeminiProtocol;
             // JSPB request layout: [pageSize=50, pageToken, filter]
             let req = JSON.stringify([
                 [
@@ -174,7 +169,7 @@ const pagination = GeminiClientPagination;
                 console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || "").length}`);
             }
             const detailOnly = !!(opts && opts.detailOnly);
-            const P = getProtocol();
+            const P = GeminiProtocol;
             const rpcids = detailOnly ? P.RPCS.DETAIL : `${P.RPCS.DETAIL},${P.RPCS.LIST}`;
             // JSPB request layout:
             // DETAIL: [convId, 10|null, pageToken, 1, [1], [4], null, 1]
@@ -265,7 +260,7 @@ const pagination = GeminiClientPagination;
                 return parsed;
             } catch (err: unknown) {
                 const errMsg = getErrorMessage(err);
-                const errCategory = getProtocol().classifyDetailError(text, resp?.status);
+                const errCategory = GeminiProtocol.classifyDetailError(text, resp?.status);
                 if (isConfirmedGeminiDetailNotFound(response.envelope)) {
                     if (isDev) {
                         console.info(`[Gemini Exporter Client] Conversation ${id} is confirmed deleted on server (BardErrorInfo: 1167). Skipping.`);
@@ -293,5 +288,4 @@ const pagination = GeminiClientPagination;
     }
 
 export { GeminiAPIClient };
-
 

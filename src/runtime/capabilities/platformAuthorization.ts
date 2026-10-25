@@ -14,8 +14,7 @@ export async function activatePlatformAccess(platforms: readonly SourcePlatform[
     const results = await Promise.allSettled(platforms.map(async platform => {
         await syncPlatformContentScripts(platform);
         const tabs = await chrome.tabs.query({ url: [...PLATFORM_HOSTS[platform].pages] });
-        const activation = await Promise.allSettled(tabs.filter(tab => tab.id !== undefined)
-            .map(tab => preparePlatformTab(platform, tab.id!)));
+        const activation = await Promise.allSettled(tabs.flatMap(tab => tab.id === undefined ? [] : [preparePlatformTab(platform, tab.id)]));
         if (activation.some(result => result.status === 'rejected')) throw new Error('Source tab activation failed');
     }));
     return results.every(result => result.status === 'fulfilled');

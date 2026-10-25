@@ -22,7 +22,7 @@ import { serializeDomainJson, JSON_ARCHIVE_VERSION } from '../src/l4/format/json
 import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
 import type { PreparedResources, ResourceResult, ResourceBytes } from '../src/shared/resources/resourceResult.js';
-import { __setModuleOverride, __getModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 useIndexStorage();
 const account = fixtureAccount('gemini');
@@ -142,8 +142,8 @@ test('real v2 Takeout import admits Index/Detail and retains variant filenames a
             [asset.id, { ok: true, resourceId: asset.id,
                 value: { bytes: acquired[i].bytes,
                     mediaType: asset.kind === 'image' ? 'image/png' : 'application/octet-stream' } }]));
-        const oldZip = __getModuleOverride('JSZip');
-        __setModuleOverride('JSZip', JSZip);
+        const oldZip = __getZipConstructor();
+        __setZipConstructor(JSZip);
         try {
             const [plan] = planExportPaths([{ conversation, prepared,
                 fileIds: collectDocumentResources(document).fileIds }], 'markdown');
@@ -155,7 +155,7 @@ test('real v2 Takeout import admits Index/Detail and retains variant filenames a
             for (const [i, asset] of assets.entries()) {
                 assert.deepEqual(await zip.file(plan.resources[asset.id]).async('uint8array'), acquired[i].bytes);
             }
-        } finally { __setModuleOverride('JSZip', oldZip); }
+        } finally { __setZipConstructor(oldZip); }
     } finally { context.release(); }
 });
 

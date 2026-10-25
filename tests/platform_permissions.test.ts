@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { PLATFORM_HOSTS, platformOrigins, type SourcePlatform } from '../src/shared/platformHosts.js';
+import { PLATFORM_HOSTS, platformOrigins, SOURCE_PLATFORMS, type SourcePlatform } from '../src/shared/platformHosts.js';
 import { hasPlatformAccess, requestPlatformsAccess } from '../src/l1/client/platformAccess.js';
 import { syncPlatformContentScripts, syncAllPlatformContentScripts } from '../src/runtime/capabilities/platformInjection.js';
 
-const platforms = Object.keys(PLATFORM_HOSTS) as SourcePlatform[];
+const platforms = SOURCE_PLATFORMS;
 test('manifest declares exactly the independent optional platform groups and no static source scripts', () => {
     const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
     assert.deepEqual(manifest.host_permissions ?? [], []);

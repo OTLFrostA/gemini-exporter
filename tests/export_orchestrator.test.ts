@@ -14,16 +14,16 @@ import { ingestDetail, ingestDeletedConversation } from '../src/l2/ingestion.js'
 import { readConversation } from '../src/l2/readConversation.js';
 import { getIndex, getDetail, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
 import { runExport } from '../src/application/export/runExport.js';
-import { __getModuleOverride, __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import { v2ExportHost, exportKey, exportRequest, seedExportConversation, seedExportIndexOnly } from './helpers/v2ExportHost.js';
 
 const JSZip = require('../lib/jszip.min.js');
 const P = (text: string) => ({ type: 'paragraph' as const, children: [{ type: 'text' as const, text }] });
 
 function realZip(t: { after(fn: () => void): void }) {
-    const old = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', JSZip);
-    t.after(() => __setModuleOverride('JSZip', old));
+    const old = __getZipConstructor();
+    __setZipConstructor(JSZip);
+    t.after(() => __setZipConstructor(old));
 }
 async function contents(blob: Blob) {
     const zip = await JSZip.loadAsync(await blob.arrayBuffer());
@@ -454,12 +454,12 @@ test('resource failure makes only the affected v2 conversation partial, not its 
 
 test('L4 ZIP generation failure after staging delivers nothing and cannot commit any records', async t => {
     const host = v2ExportHost(t);
-    const prior = __getModuleOverride('JSZip');
-    __setModuleOverride('JSZip', class {
+    const prior = __getZipConstructor();
+    __setZipConstructor(class {
         file() {}
-        async generateAsync() { throw new Error('Broken ZIP generator'); }
+        async generateAsync(): Promise<never> { throw new Error('Broken ZIP generator'); }
     });
-    t.after(() => __setModuleOverride('JSZip', prior));
+    t.after(() => __setZipConstructor(prior));
     await seedExportConversation('zip-one');
     await seedExportConversation('zip-two');
     const result = await runExport(exportRequest(['zip-one', 'zip-two']));

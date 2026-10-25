@@ -1,10 +1,9 @@
-import { PLATFORM_HOSTS, type SourcePlatform } from '../../shared/platformHosts.js';
+import { PLATFORM_HOSTS, SOURCE_PLATFORMS as platforms, type SourcePlatform } from '../../shared/platformHosts.js';
 import { activatePlatformAccess, findAuthorizedAccount, hasPlatformAccess,
     observePlatformAccess, requestPlatformAuthorization } from '../../runtime/capabilities/platformAuthorization.js';
 import { text } from './settings.js';
 
 const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok' };
-const platforms = Object.keys(PLATFORM_HOSTS) as SourcePlatform[];
 
 /** Shared by onboarding and the standalone site-access dialog. Selection never revokes access. */
 export function mountPlatformAuthorization(host: HTMLElement, options: {
@@ -27,11 +26,9 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     const legend = document.createElement('legend');
     legend.textContent = text('Supported platforms', '支持的平台');
     list.append(legend);
-    const inputs = new Map<SourcePlatform, HTMLInputElement>();
-    const states = new Map<SourcePlatform, HTMLElement>();
-    const selection = () => platforms.filter(platform => inputs.get(platform)!.checked);
+    const selection = () => rows.filter(row => row.input.checked).map(row => row.platform);
     const updateButton = () => { authorize.disabled = busy || !selection().length; };
-    for (const platform of platforms) {
+    const rows = platforms.map(platform => {
         const row = document.createElement('div');
         row.className = 'platform-permission-row';
         row.dataset.platform = platform;
@@ -42,12 +39,10 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         input.value = platform;
         input.checked = true;
         input.addEventListener('change', updateButton);
-        inputs.set(platform, input);
         const name = document.createElement('span');
         name.textContent = names[platform];
         const state = document.createElement('span');
         state.className = 'platform-permission-state';
-        states.set(platform, state);
         label.append(input, name);
         const heading = document.createElement('div');
         heading.className = 'platform-permission-heading';
@@ -64,7 +59,8 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         details.append(summary, sites);
         row.append(heading, details);
         list.append(row);
-    }
+        return { platform, input, state };
+    });
     const hint = document.createElement('p');
     hint.className = 'platform-permission-hint';
     hint.textContent = text('Only selected platforms are requested. Unchecking does not revoke existing access.',
@@ -80,8 +76,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         const granted = await Promise.all(platforms.map(hasPlatformAccess));
         if (!active || current !== revision) return;
         authorized = platforms.filter((_, index) => granted[index]);
-        for (const platform of platforms) {
-            const state = states.get(platform)!;
+        for (const { platform, state } of rows) {
             state.textContent = authorized.includes(platform) ? text('Authorized', '已授权') : text('Not authorized', '未授权');
             state.dataset.authorized = String(authorized.includes(platform));
         }

@@ -50,9 +50,9 @@ test('cancellation before compiler initialization allocates no sandbox', async t
 test('batch conversations share one compiler and dispose it once at task end', async t => {
     v2ExportHost(t);
     await seedExportConversation('one'); await seedExportConversation('two');
-    const { __setModuleOverride, __getModuleOverride } = require('../src/shared/utils/moduleOverrides.js');
-    const previous = __getModuleOverride('JSZip'); __setModuleOverride('JSZip', require('../lib/jszip.min.js'));
-    t.after(() => __setModuleOverride('JSZip', previous));
+    const { __setZipConstructor, __getZipConstructor } = require('../src/l4/packaging/writers/zipWriter.js');
+    const previous = __getZipConstructor(); __setZipConstructor(require('../lib/jszip.min.js'));
+    t.after(() => __setZipConstructor(previous));
     const instances = new Set<TypstSandboxCompiler>();
     t.mock.method(TypstSandboxCompiler.prototype, 'compile', async function(this: TypstSandboxCompiler) {
         instances.add(this); return { pdfBytes: buildMinimalValidPdf(), diagnostics: [] };

@@ -20,7 +20,7 @@ import { getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { planExportPaths, buildExportFiles } from '../src/l4/packaging/index.js';
-import { __setModuleOverride, __getModuleOverride, __resolveModule } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const account = fixtureAccount('gemini');
 const key = (conversationId: string) => ({ accountId: account.id, conversationId });
@@ -144,9 +144,8 @@ test('production module override guard keeps test injection from becoming an exp
     const original = process.env.NODE_ENV;
     try {
         process.env.NODE_ENV = 'production';
-        __setModuleOverride('TestMockSeam', { injected: true });
-        assert.equal(__getModuleOverride('TestMockSeam'), undefined);
-        assert.equal(__resolveModule('TestMockSeam', 'default-runtime'), 'default-runtime');
+        __setZipConstructor(class { file() {} async generateAsync() { return new Blob(); } });
+        assert.equal(__getZipConstructor(), undefined);
     } finally {
         if (original === undefined) delete process.env.NODE_ENV;
         else process.env.NODE_ENV = original;

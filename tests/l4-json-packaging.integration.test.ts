@@ -9,7 +9,7 @@ import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
 import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { serializeDomainJson } from '../src/l4/format/json/serializeDomainJson.js';
-import { __setModuleOverride } from '../src/shared/utils/moduleOverrides.js';
+import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 const JSZip = require('../lib/jszip.min.js');
 
@@ -31,7 +31,7 @@ test('v2 L2 trusted Domain -> L4 JSON references -> same planned ZIP entries', a
     const [plan] = planExportPaths([{ conversation, prepared, fileIds: new Set<string>() }], 'json');
     const content = serializeDomainJson(conversation, fixtureAccountFor(conversation), plan.resources);
     const files = buildExportFiles('json', plan, content, prepared);
-    __setModuleOverride('JSZip', JSZip);
+    __setZipConstructor(JSZip);
     const [packed] = await packageExportFiles([files], 'browserDownload');
     const zip = await JSZip.loadAsync(await (packed.content as Blob).arrayBuffer());
     for (const path of Object.values(plan.resources)) {
