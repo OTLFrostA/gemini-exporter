@@ -165,7 +165,6 @@ export class ContentContext {
         for (const key of Array.from(this._timers.keys())) {
             this.clearTimer(key);
         }
-        this._timers.clear();
     }
 
     public isDevMode(): boolean {

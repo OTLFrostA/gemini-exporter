@@ -1,7 +1,6 @@
 import { contentContext } from './contentContext.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
-let __syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let __lastObservedUrl = typeof location !== 'undefined' ? location.href : '';
 let __historyUrlCallback: (() => void) | null = null;
 let __locationPoll: ReturnType<typeof setInterval> | null = null;
@@ -24,15 +23,9 @@ function removeHistoryListeners(): void {
 }
 
 export function cleanup(): void {
-    contentContext.clearTimer('urlWatcher');
     contentContext.clearTimer('syncInterval');
     contentContext.clearTimer('titleObserver');
     contentContext.clearTimer('debounceTimer');
-
-    if (__syncDebounceTimer) {
-        clearTimeout(__syncDebounceTimer);
-        __syncDebounceTimer = null;
-    }
 
     if (typeof window !== 'undefined') {
         const w = window;
@@ -45,17 +38,11 @@ export function cleanup(): void {
 }
 
 export function debouncedSync(syncCallback?: () => void, delay = 350): void {
-    if (__syncDebounceTimer) {
-        clearTimeout(__syncDebounceTimer);
-        __syncDebounceTimer = null;
-    }
     const timer = setTimeout(() => {
-        __syncDebounceTimer = null;
         contentContext.clearTimer('debounceTimer');
         if (contentContext.getDeepScanPromise()) return;
         if (typeof syncCallback === 'function') syncCallback();
     }, delay);
-    __syncDebounceTimer = timer;
     contentContext.registerTimer('debounceTimer', timer, () => clearTimeout(timer));
 }
 

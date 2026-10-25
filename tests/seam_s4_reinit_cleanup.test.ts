@@ -7,6 +7,7 @@ import { registerCleanup, runCleanups } from '../src/runtime/content/cleanupRegi
 import { MessageRouter } from '../src/runtime/content/messageRouter.js';
 import { init as initMessageBridge } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { PageObserver } from '../src/runtime/content/pageObserver.js';
+import { contentContext } from '../src/runtime/content/contentContext.js';
 
 function makeWindow() {
     const listeners: Record<string, Array<(...args: any[]) => void>> = {};
@@ -142,4 +143,22 @@ test('pageObserver routes history and popstate events only through the newest ca
         PageObserver.cleanup();
         assert.equal(win.listenerCount('popstate'), 0, 'explicit cleanup is idempotent');
     });
+});
+
+test('pageObserver debounce uses the registered timer and cleanup cancels scheduled work', async () => {
+    const calls: string[] = [];
+    try {
+        PageObserver.debouncedSync(() => calls.push('stale'), 5);
+        const first = contentContext.getTimer('debounceTimer');
+        assert.notEqual(first, undefined);
+        PageObserver.debouncedSync(() => calls.push('latest'), 5);
+        assert.notEqual(contentContext.getTimer('debounceTimer'), first);
+        await new Promise<void>(resolve => setTimeout(resolve, 25));
+        assert.deepEqual(calls, ['latest']);
+        assert.equal(contentContext.getTimer('debounceTimer'), undefined);
+        PageObserver.debouncedSync(() => calls.push('cancelled'), 20);
+        PageObserver.cleanup();
+        await new Promise<void>(resolve => setTimeout(resolve, 25));
+        assert.deepEqual(calls, ['latest']);
+    } finally { PageObserver.cleanup(); }
 });
