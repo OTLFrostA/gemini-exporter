@@ -316,8 +316,11 @@ class ExtensionActions:
         """点击取消全选按钮，返回勾选后的复选框总数"""
         return cdp_opt.eval(f"""
         (() => {{
-            const btn = document.querySelector('{WorkbenchSelectors.BTN_SELECT_NONE}');
-            if (btn) btn.click();
+            const checkbox = document.querySelector('{WorkbenchSelectors.BTN_SELECT_ALL}');
+            if (checkbox && !checkbox.disabled) {{
+                if (!checkbox.checked) checkbox.click();
+                checkbox.click();
+            }}
             return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
         }})()
         """) or 0
@@ -342,8 +345,8 @@ class ExtensionActions:
             for (let i = 0; i < 100; i++) {{
                 const saved = await globalThis.__tier2V2.getSettings();
                 const button = document.getElementById('btnSelectAll');
-                const value = button?.textContent?.trim() || '';
-                const expected = language === 'en' ? value.toLowerCase().includes('all') : value.includes('全选');
+                const value = button?.getAttribute('aria-label') || '';
+                const expected = language === 'en' ? value === 'Select all visible conversations' : value === '全选当前可见会话';
                 if (document.body.dataset.busy === 'false' && saved.language === language && expected) return value;
                 await new Promise(resolve => setTimeout(resolve, 50));
             }}
