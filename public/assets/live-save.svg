@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 420" role="img" aria-labelledby="title desc">
+<title id="title">Live Save updates local Markdown files</title>
+<desc id="desc">Conceptual diagram: when a new Gemini reply finishes, Live Save refreshes the authorized local Markdown file.</desc>
+<defs>
+<linearGradient id="bg" x2="1" y2="1"><stop stop-color="#151627"/><stop offset="1" stop-color="#0c1219"/></linearGradient>
+<linearGradient id="file" x2="1" y2="1"><stop stop-color="#2a3247"/><stop offset="1" stop-color="#161d2d"/></linearGradient>
+</defs>
+<rect width="680" height="420" rx="18" fill="url(#bg)"/>
+<text x="38" y="47" fill="#bcb3df" font-family="Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="2">AUTOMATIC LOCAL BACKUP</text>
+<rect x="36" y="99" width="270" height="225" rx="16" stroke="#4d486c" fill="#1b1a30"/>
+<circle cx="67" cy="130" r="7" fill="#a8a0f1"/>
+<text x="86" y="137" fill="#e4ddff" font-family="Arial,sans-serif" font-size="16" font-weight="700">Gemini conversation</text>
+<rect x="57" y="158" width="226" height="63" rx="12" fill="#282640"/>
+<rect x="74" y="176" width="134" height="7" rx="3.5" fill="#777497"/>
+<rect x="74" y="193" width="181" height="7" rx="3.5" fill="#777497"/>
+<rect x="57" y="235" width="226" height="63" rx="12" fill="#332c53" stroke="#6f61a4"/>
+<rect x="74" y="252" width="158" height="7" rx="3.5" fill="#c6b9ff"/>
+<rect x="74" y="269" width="188" height="7" rx="3.5" fill="#8880b0"/>
+<text x="57" y="343" fill="#b6afda" font-family="Arial,sans-serif" font-size="14">New reply finishes</text>
+<path d="M321 213h65m-11-10 11 10-11 10" fill="none" stroke="#bca9ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="350" cy="191" r="8" fill="#91dcb3"/>
+<rect x="406" y="99" width="240" height="225" rx="16" fill="#152823" stroke="#498574"/>
+<path d="M432 153v-20h68l12 12h106v28" fill="none" stroke="#9ad6b3" stroke-width="3" stroke-linejoin="round"/>
+<rect x="430" y="155" width="192" height="135" rx="11" fill="url(#file)" stroke="#528d7d"/>
+<path d="M456 175h37l10 10v38h-47z" fill="#31584c" stroke="#a0d9bf" stroke-width="2"/>
+<path d="M493 175v11h10" fill="none" stroke="#a0d9bf" stroke-width="2"/>
+<text x="516" y="238" fill="#f2fbf6" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle">Chat.md</text>
+<text x="525" y="269" fill="#92e6be" font-family="Arial,sans-serif" font-size="14" text-anchor="middle">Updated</text>
+<text x="526" y="343" fill="#b2ddc9" font-family="Arial,sans-serif" font-size="14" text-anchor="middle">Your chosen local folder</text>
+<rect x="254" y="364" width="175" height="36" rx="18" fill="#263642" stroke="#4b796f"/>
+<circle cx="277" cy="382" r="5" fill="#91dfb7"/>
+<text x="293" y="387" fill="#c7e9db" font-family="Arial,sans-serif" font-size="14" font-weight="700">Live Save enabled</text>
+</svg>

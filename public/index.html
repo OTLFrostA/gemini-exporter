@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0b0c12">
-  <meta name="description" content="Save all your Gemini conversations. 100% free and local, one-click bulk export, and automatic Markdown backups as your chats update. Open source, no tracking.">
+  <meta name="description" content="Export all Google Gemini chat history locally. Free, open-source batch backup to PDF, Markdown, HTML or JSON. Auto-save new replies and import Google Takeout ZIP files.">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <link rel="canonical" href="https://otlfrosta.com/">
   <link rel="icon" href="/assets/icon.png" type="image/png" sizes="128x128">
-  <link rel="stylesheet" href="/styles.css?v=20261025-three-pillars">
+  <link rel="stylesheet" href="/styles.css?v=20261025-visual-stories-faq">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Your AI conversations. Yours to keep.">
   <meta property="og:site_name" content="Your AI conversations. Yours to keep.">
-  <meta property="og:description" content="100% free. 100% local. Export every chat in one batch and automatically save updates on your device.">
+  <meta property="og:description" content="Export all Gemini conversations, save local files, and automatically back up new replies. Free and open source.">
   <meta property="og:url" content="https://otlfrosta.com/">
   <meta property="og:image" content="https://otlfrosta.com/assets/workbench.png">
   <meta name="twitter:card" content="summary_large_image">
-  <title>Your AI conversations. Yours to keep. | Free local chat backup</title>
+  <title>Export All Gemini Chats &amp; Auto-Save Replies | Free Local Backup</title>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -27,7 +27,7 @@
       <span>Your chats, your files<span class="brand-dot">.</span></span>
     </a>
     <nav class="nav" aria-label="Main navigation">
-      <a class="nav-features" href="#benefits">Why it works</a>
+      <a class="nav-features" href="#features">Features</a><a class="nav-faq" href="#faq">FAQ</a>
       <a class="nav-github" href="https://github.com/OTLFrostA/gemini-exporter" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
@@ -37,7 +37,7 @@
       <div class="hero-badge"><span class="status-dot" aria-hidden="true"></span> FREE <span class="badge-sep">·</span> OPEN SOURCE <span class="badge-sep">·</span> LOCAL ONLY</div>
       <h1 id="hero-title">Your AI conversations.<br><span>Yours to keep.</span></h1>
       <p class="hero-subtitle">Export, preserve, and own your AI conversations.</p>
-      <p class="hero-detail">Back up your whole history in one batch. Save future replies automatically. Keep it all on your own device.</p>
+      <p class="hero-detail">Bulk-export your entire history. Automatically save new replies. All on your device.</p>
       <div class="hero-actions">
         <a class="button button-primary" href="https://chromewebstore.google.com/detail/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=otlfrosta.com&amp;utm_medium=website&amp;utm_campaign=hero" target="_blank" rel="noopener noreferrer">
           <svg class="chrome-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fff"/><circle cx="12" cy="12" r="4.6" fill="#5872e0"/><path d="M11.2 2a10 10 0 0 1 9.5 5.5h-9l-2 3.3-4.8-7.1A9.9 9.9 0 0 1 11.2 2Z" fill="#f1c34a"/><path d="M2.4 9.3a10 10 0 0 0 8.6 12.6l4.4-7.6h-4.2L6.8 6.9 2.4 9.3Z" fill="#42a777"/><path d="M20.7 7.5a10 10 0 0 1-8.1 14.4l4.1-7.2-2.2-3.7 1.9-3.5h4.3Z" fill="#e26864"/></svg>
@@ -47,35 +47,91 @@
       </div>
       <p class="availability"><span class="available-dot" aria-hidden="true"></span> Available for Gemini <span class="availability-divider" aria-hidden="true">/</span> ChatGPT, Claude &amp; Grok in development</p>
 
-      <figure class="hero-preview">
-        <a href="/assets/workbench.png" target="_blank" rel="noopener noreferrer" aria-label="Open full-sized image of the Gemini Exporter interface">
-          <img src="/assets/workbench.png" width="1280" height="800" alt="Actual Gemini Exporter interface showing 482 selected conversations and the batch export button" fetchpriority="high" decoding="async">
-        </a>
-        <figcaption>Real extension screenshot from a test account. <span>Click to enlarge ↗</span></figcaption>
-      </figure>
+      </section>
+
+    <section class="features wrap" id="features" aria-label="Three reasons to back up your AI conversations">
+      <article class="feature-story" aria-labelledby="feature-local-title">
+        <div class="story-copy">
+          <p class="story-index"><span>01</span> FREE. PRIVATE. LOCAL.</p>
+          <h2 id="feature-local-title">100% free.<br><span>100% local.</span></h2>
+          <p>No subscription, no API key, no tracking. Gemini Exporter processes your conversations inside your browser and saves the results directly to your device — never to a server we operate. It’s open source, so you can inspect exactly how it works.</p>
+        </div>
+        <div class="story-media story-diagram">
+          <img src="/assets/local-only.svg" width="680" height="420" loading="lazy" decoding="async" alt="Diagram showing a Gemini browser session processed locally into files on your device, with no upload to the exporter developer's servers">
+        </div>
+      </article>
+      <article class="feature-story feature-reverse" aria-labelledby="feature-batch-title">
+        <div class="story-copy">
+          <p class="story-index"><span>02</span> ONE BATCH. EVERY CHAT.</p>
+          <h2 id="feature-batch-title">Export your entire<br><span>chat history at once.</span></h2>
+          <p>Click <strong>Sync All</strong> to find your conversations, select everything, then <strong>Export selected</strong>. Save your Gemini history as Markdown, PDF, HTML, or JSON, with available images and attachments. Thousands of chats? Import your official Google Takeout ZIP to supplement the online scan.</p>
+        </div>
+        <div class="story-media story-screenshot">
+          <img src="/assets/workbench.png" width="1280" height="800" loading="lazy" decoding="async" alt="Actual Gemini Exporter workbench showing the Sync All button, a list of selected Gemini conversations, and export controls">
+        </div>
+      </article>
+      <article class="feature-story" aria-labelledby="feature-autosave-title">
+        <div class="story-copy">
+          <p class="story-index"><span>03</span> BACKGROUND AUTO-SAVE</p>
+          <h2 id="feature-autosave-title">New replies.<br><span>Already backed up.</span></h2>
+          <p>Choose a local folder and enable <strong>Live Save</strong>. When Gemini finishes a new reply, the extension automatically updates the conversation’s Markdown backup in that folder. No need to manually export the same chat again.</p>
+        </div>
+        <div class="story-media story-diagram">
+          <img src="/assets/live-save.svg" width="680" height="420" loading="lazy" decoding="async" alt="Illustration of a new Gemini reply being saved automatically into an updated Markdown file in a local folder">
+        </div>
+      </article>
     </section>
 
-    <section class="benefits wrap" id="benefits" aria-labelledby="benefits-title">
-      <h2 class="benefits-heading" id="benefits-title">Three reasons to use it</h2>
-      <div class="benefit-grid">
-        <article class="benefit">
-          <p class="benefit-label"><span>01</span> FREE &amp; LOCAL</p>
-          <h3>100% free.<br><span>100% local.</span></h3>
-          <p class="benefit-copy">No subscriptions, no API keys, no exporter account. Your conversations are processed on your device, not uploaded to our servers. No tracking.</p>
-          <p class="benefit-foot">OPEN SOURCE <span>·</span> NO TELEMETRY</p>
-        </article>
-        <article class="benefit">
-          <p class="benefit-label"><span>02</span> BULK EXPORT</p>
-          <h3>All your chats.<br><span>One batch.</span></h3>
-          <p class="benefit-copy">Sync your Gemini history, select everything, and export your conversations together — including available images and attachments.</p>
-          <p class="benefit-foot">MARKDOWN <span>·</span> PDF <span>·</span> HTML <span>·</span> JSON</p>
-        </article>
-        <article class="benefit">
-          <p class="benefit-label"><span>03</span> BACKGROUND AUTO-SAVE</p>
-          <h3>Every update.<br><span>Auto-saved.</span></h3>
-          <p class="benefit-copy">Choose a local folder and enable Live Save. As new replies finish, your Markdown backups update automatically — no repeated exporting.</p>
-          <p class="benefit-foot">LIVE SAVE <span>·</span> LOCAL MARKDOWN</p>
-        </article>
+
+
+    <section class="faq-section wrap" id="faq" aria-labelledby="faq-title">
+      <div class="faq-intro">
+        <p class="kicker">QUESTIONS &amp; ANSWERS</p>
+        <h2 id="faq-title">Frequently asked questions</h2>
+        <p>How to export all Gemini chats, handle thousands of conversations, resume a large backup, and keep new replies saved automatically.</p>
+        <a class="guide-link" href="https://github.com/OTLFrostA/gemini-exporter/blob/main/docs/USER_GUIDE.md" target="_blank" rel="noopener noreferrer">Read the complete user guide <span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="faq-list">
+        <details open>
+          <summary>How do I export my entire Gemini chat history?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>Install Gemini Exporter from the <a href="https://chromewebstore.google.com/detail/ldpbiafkgjlaooeplkiooljccpalpkgf" target="_blank" rel="noopener noreferrer">Chrome Web Store</a>, authorize access to Gemini, and open the extension’s <strong>Workbench</strong>. Click <strong>Sync All</strong> to scan the available conversation list, select all conversations, choose a format and destination, then click <strong>Export selected</strong>. Sync All discovers conversations; Export selected creates the actual backup files.</p></div>
+        </details>
+        <details>
+          <summary>Can I export thousands of Gemini conversations if the website doesn't load my full history?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>Yes. For very large histories, or when Gemini's online conversation list stops loading older chats, download your official <a href="https://takeout.google.com/settings/takeout/custom/gemini" target="_blank" rel="noopener noreferrer">Google Takeout Gemini archive</a>. In the Workbench, choose the matching Gemini account and import the original <strong>ZIP file</strong> without extracting it. Then select and export the imported conversations. Takeout supplements online scanning, although deleted or expired content may not always be recoverable.</p></div>
+        </details>
+        <details>
+          <summary>My bulk export is slow. Can I stop and resume it later?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>For a large backup, select <strong>Save to local folder</strong> instead of Browser download. Files are written directly to the folder, so the extension does not have to assemble a large browser-download ZIP in memory. You can stop and start another export later. Leave <strong>Skip exported</strong> enabled to skip completed exports of the same format when their source conversations are unchanged; interrupted or changed conversations can be exported again. You may need to reauthorize the folder after restarting Chrome.</p></div>
+        </details>
+        <details>
+          <summary>How does automatic backup or Live Save work?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>In the Workbench, choose <strong>Save to local folder</strong>, authorize a folder, select <strong>Markdown (.md)</strong>, and turn on <strong>Live Save</strong>. The extension updates the local Markdown backup when Gemini finishes a new reply during an active browsing session. This is not a cloud synchronization service, and it does not keep running after your browser is closed.</p></div>
+        </details>
+        <details>
+          <summary>Which file formats can I export my Gemini conversations to?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>Choose <strong>Markdown, PDF, HTML, or JSON</strong> for individual conversations or batches. Markdown is useful for notes, HTML and PDF for reading, and JSON for structured archives. Browser downloads bundle multiple files into a ZIP automatically; Save to local folder writes files directly.</p></div>
+        </details>
+        <details>
+          <summary>Can I save generated images, uploaded files, and other attachments?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>The exporter includes images and attachments where the source platform still makes them accessible. Some generated images or uploaded files can expire or become unavailable, in which case they cannot be reconstructed. The extension reports detected resource problems rather than pretending a partial export is complete.</p></div>
+        </details>
+        <details>
+          <summary>Is Gemini Exporter free, private, and open source?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>Yes. The extension is free and open source, with no exporter subscription, telemetry, account signup, or API key. Export processing happens in your browser, and resulting files stay on your device. The extension uses your signed-in Gemini session to request your conversations from Gemini, but does not send their contents to a developer-operated server. You can review the <a href="https://github.com/OTLFrostA/gemini-exporter" target="_blank" rel="noopener noreferrer">source code</a> and <a href="https://github.com/OTLFrostA/gemini-exporter/blob/main/docs/PRIVACY_POLICY.md" target="_blank" rel="noopener noreferrer">privacy policy</a>.</p></div>
+        </details>
+        <details>
+          <summary>How do I export just one Gemini conversation?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>Open the conversation in Gemini, click the extension popup, choose Markdown, PDF, HTML, or JSON, then select <strong>Export Current Conversation</strong>. You don't need to scan your entire history to save a single chat.</p></div>
+        </details>
+        <details>
+          <summary>Can I import my official Google Takeout ZIP without unzipping it?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>Yes. Download the original Gemini archive from <a href="https://takeout.google.com/settings/takeout/custom/gemini" target="_blank" rel="noopener noreferrer">Google Takeout</a>. Open the Workbench, select the destination Gemini account, and import the ZIP directly. Imported conversations can then be selected and exported in the same formats as online conversations.</p></div>
+        </details>
+        <details>
+          <summary>Does it support ChatGPT, Claude, or Grok?<span class="faq-plus" aria-hidden="true">+</span></summary>
+          <div class="faq-answer"><p>The <strong>published Chrome extension currently supports Google Gemini</strong>. ChatGPT, Claude, and Grok support is being developed and may be available experimentally in source builds. We don't present those integrations as released until they are ready for general use.</p></div>
+        </details>
       </div>
     </section>
 

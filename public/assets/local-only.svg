@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 420" role="img" aria-labelledby="title desc">
+<title id="title">Browser-first local processing</title>
+<desc id="desc">A Gemini session supplies the conversation to your browser, which processes it and creates local files, with no exporter server.</desc>
+<defs>
+<linearGradient id="bg" x2="1" y2="1"><stop stop-color="#15182a"/><stop offset="1" stop-color="#0d1018"/></linearGradient>
+<linearGradient id="node" x2="1" y2="1"><stop stop-color="#2a2747"/><stop offset="1" stop-color="#181d2c"/></linearGradient>
+<filter id="glow"><feGaussianBlur stdDeviation="22"/></filter>
+</defs>
+<rect x="0" y="0" width="680" height="420" rx="18" fill="url(#bg)"/>
+<ellipse cx="365" cy="207" rx="210" ry="104" fill="#5046a1" opacity=".14" filter="url(#glow)"/>
+<text x="36" y="48" fill="#bcb4df" font-family="Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="2">LOCAL-ONLY EXPORT</text>
+<rect x="34" y="109" width="160" height="190" rx="16" stroke="#45435f" fill="#1c1c31"/>
+<rect x="47" y="124" width="134" height="42" rx="9" fill="#282643"/>
+<path d="M62 145h15m-7-7v14" stroke="#c3b5ff" stroke-width="2.2" stroke-linecap="round"/>
+<text x="88" y="150" fill="#e8e5fb" font-family="Arial,sans-serif" font-size="16" font-weight="700">Gemini</text>
+<text x="54" y="218" fill="#bdb8ce" font-family="Arial,sans-serif" font-size="15">Your existing</text>
+<text x="54" y="241" fill="#bdb8ce" font-family="Arial,sans-serif" font-size="15">browser session</text>
+<path d="M210 199h43m-11-10 11 10-11 10" fill="none" stroke="#b9a8ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="272" y="96" width="190" height="216" rx="18" fill="url(#node)" stroke="#7972bb" stroke-width="1.5"/>
+<rect x="292" y="119" width="150" height="112" rx="10" fill="#111525" stroke="#4b496d"/>
+<rect x="307" y="136" width="57" height="9" rx="4.5" fill="#c4b2ff"/>
+<rect x="307" y="158" width="120" height="6" rx="3" fill="#575b80"/>
+<rect x="307" y="173" width="102" height="6" rx="3" fill="#575b80"/>
+<rect x="307" y="188" width="113" height="6" rx="3" fill="#575b80"/>
+<circle cx="427" cy="142" r="5" fill="#93e9c3"/>
+<text x="367" y="260" text-anchor="middle" fill="#f3f0ff" font-family="Arial,sans-serif" font-size="17" font-weight="700">Browser processing</text>
+<text x="367" y="282" text-anchor="middle" fill="#b5afda" font-family="Arial,sans-serif" font-size="13">On your device</text>
+<path d="M478 199h32m-11-10 11 10-11 10" fill="none" stroke="#b9a8ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="526" y="109" width="122" height="190" rx="16" fill="#192c29" stroke="#4c8e79"/>
+<path d="M545 170v-36h30l9 10h43v26" stroke="#abebc9" stroke-width="3" fill="none" stroke-linejoin="round"/>
+<rect x="545" y="155" width="83" height="59" rx="7" fill="#27473e" stroke="#65a88f"/>
+<path d="M563 174h49m-49 10h33m-33 10h42" stroke="#a5dac1" stroke-linecap="round" stroke-width="3"/>
+<text x="587" y="246" text-anchor="middle" fill="#e0f9ed" font-family="Arial,sans-serif" font-size="16" font-weight="700">Local</text>
+<text x="587" y="267" text-anchor="middle" fill="#e0f9ed" font-family="Arial,sans-serif" font-size="16" font-weight="700">files</text>
+<rect x="220" y="346" width="248" height="41" rx="20.5" fill="#153129" stroke="#366c58"/>
+<circle cx="247" cy="367" r="6" fill="#8ce3b8"/>
+<text x="267" y="372" fill="#b7ead0" font-family="Arial,sans-serif" font-size="15" font-weight="700">No upload to our servers</text>
+</svg>
