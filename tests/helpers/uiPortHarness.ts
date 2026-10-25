@@ -18,7 +18,7 @@ export const activatePlatformAccess = async platforms => {h.activatedPlatforms=p
 export const findAuthorizedAccount = async platforms => {
  if(h.holdDiscovery) return new Promise(resolve=>h.finishDiscovery=resolve);
  for(const platform of platforms){
-  if(!(h.tabs??[]).some(tab=>tab.url?.includes(platform==='gemini'?'gemini.google.com':platform==='chatgpt'?'chatgpt.com':'claude.ai')))continue;
+  if(!(h.tabs??[]).some(tab=>tab.url?.includes(platform==='gemini'?'gemini.google.com':platform==='chatgpt'?'chatgpt.com':platform==='grok'?'grok.com':'claude.ai')))continue;
   if(platform!=='gemini')h.discoveryCalls.push(platform);
   if(h.discoveryError)continue;
   const context=platform==='gemini'?h.contextReply?.accountContext:null;
@@ -28,10 +28,11 @@ export const findAuthorizedAccount = async platforms => {
  return null;
 };
 export const observePlatformAccess = listener => {h.accessListener=listener;return ()=>{h.accessListener=null;};};
-export const SOURCE_PLATFORMS = ['gemini', 'chatgpt', 'claude'];
+export const SOURCE_PLATFORMS = ['gemini', 'chatgpt', 'grok', 'claude'];
 export const PLATFORM_HOSTS = {
  gemini:{pages:['https://gemini.google.com/*'],attachments:['https://*.googleusercontent.com/*']},
  chatgpt:{pages:['https://chatgpt.com/*','https://chat.openai.com/*'],attachments:['https://images.openai.com/*']},
+ grok:{pages:['https://grok.com/*'],attachments:['https://assets.grok.com/*']},
  claude:{pages:['https://claude.ai/*'],attachments:[]}
 };
 export const DIRECT_WRITE_THRESHOLD = 20;
