@@ -1,9 +1,9 @@
 import type { AIProvider } from "./aiProvider.js";
 
-export class ProviderRegistryClass<TProvider extends AIProvider = AIProvider> {
-    private providers: Map<string, TProvider> = new Map();
+export class ProviderRegistryClass {
+    private providers = new Map<string, AIProvider>();
 
-    register(provider: TProvider): void {
+    register(provider: AIProvider): void {
         if (!provider || !provider.id) {
             throw new Error('Invalid provider: id is required');
         }
@@ -21,7 +21,7 @@ export class ProviderRegistryClass<TProvider extends AIProvider = AIProvider> {
         return this.providers.delete(id);
     }
 
-    get(id: string): TProvider | undefined {
+    get(id: string): AIProvider | undefined {
         return this.providers.get(id);
     }
 }
