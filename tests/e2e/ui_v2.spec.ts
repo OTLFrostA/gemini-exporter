@@ -30,15 +30,15 @@ test('Options applies a one-time source handoff on load and reuse, but not while
     await expect.poll(async () => page.evaluate(() => chrome.storage.session.get('openOptionsAccountId')))
         .toEqual({ openOptionsAccountId: null });
 
-    await page.evaluate(id => (window as any).harness.openOptionsFor(id), A);
+    await page.evaluate(id => Reflect.get(window, 'harness').openOptionsFor(id), A);
     await expect(selector).toHaveValue(A);
     await page.locator('#btnSelectAll').click();
     await page.locator('#btnExport').click();
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
 
-    await page.evaluate(id => (window as any).harness.openOptionsFor(id), B);
+    await page.evaluate(id => Reflect.get(window, 'harness').openOptionsFor(id), B);
     await expect(selector).toHaveValue(A);
-    await page.evaluate(() => (window as any).harness.finishExport());
+    await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await expect(selector).toHaveValue(A);
 });
