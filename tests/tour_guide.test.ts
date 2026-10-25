@@ -28,14 +28,15 @@ test('tourGuide - navigation, back and completion operate on current in-page sta
     assert.equal(await page.locator('[role=dialog]').count(), 0); assert.deepEqual(await read(page, 'patches'), []);
 });
 async function choose(platforms: string[]) {
-    for (const platform of ['Gemini', 'ChatGPT', 'Claude']) {
-        await page.getByRole('checkbox', { name: platform, exact: true }).setChecked(platforms.includes(platform));
+    for (const platform of ['Gemini', 'ChatGPT', 'Grok', 'Claude']) {
+        const checkbox = page.getByRole('checkbox', { name: platform, exact: true });
+        if (await checkbox.count()) await checkbox.setChecked(platforms.includes(platform));
     }
 }
 
 test('Authorization shows one button above a default-selected platform list without opening websites', async () => {
     await open({ geminiAccess: false }); await start();
-    for (const name of ['Gemini', 'ChatGPT', 'Claude'])
+    for (const name of ['Gemini', 'ChatGPT', 'Grok', 'Claude'])
         assert.equal(await page.getByRole('checkbox', { name, exact: true }).isChecked(), true);
     assert.equal(await page.locator('.platform-authorization button').count(), 1);
     assert.deepEqual(await read(page, 'events'), []);
@@ -43,13 +44,12 @@ test('Authorization shows one button above a default-selected platform list with
     await page.evaluate(() => Reflect.get(window, 'testUi').tour.nextStep());
     assert.equal(await page.locator('.tour-popover h2').textContent(), 'Authorize AI platforms');
     await page.locator('#btnAuthorizePlatforms').click();
-    await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
-    assert.deepEqual(await read(page, 'connectionRequests'), [[['gemini', 'chatgpt', 'claude'], true]]);
+    // The last missing authorization completes this step and advances automatically.
+    await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
+    assert.deepEqual(await read(page, 'connectionRequests'), [[['gemini', 'chatgpt', 'grok', 'claude'], true]]);
     assert.deepEqual(await read(page, 'openedUrls') ?? [], []);
-    assert.equal(await page.locator('.platform-permission-state[data-authorized="true"]').count(), 3);
-    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Authorize AI platforms');
-    await page.locator('#tourNextBtn').click();
-    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Scan conversations');
+    assert.equal(await page.locator('#btnAuthorizePlatforms').count(), 0);
+    assert.equal(await page.locator('#tourPrevBtn').count(), 0);
 });
 
 test('Authorization requests only the selection, disables empty selection, and can retry denial', async () => {
@@ -91,7 +91,7 @@ test('Existing access enables Next; unchecking never revokes access, and revocat
     assert.deepEqual(await read(page, 'connectionRequests'), []);
     await page.evaluate(() => { const h = Reflect.get(window, 'harness'); h.geminiAccess = false; h.accessListener(); });
     await page.waitForFunction(() => (document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
-    assert.equal(await page.locator('.platform-permission-state[data-authorized="true"]').count(), 0);
+    assert.equal(await page.locator('.platform-permission-row[data-platform="gemini"]').isVisible(), true);
 });
 
 test('Standalone authorization reuses the same list and stays outside the tutorial', async () => {
@@ -101,11 +101,13 @@ test('Standalone authorization reuses the same list and stays outside the tutori
     assert.equal(await page.locator('.tour-step-badge').textContent(), 'Site access');
     await choose(['Gemini']);
     await page.locator('#btnAuthorizePlatforms').click();
-    await page.waitForFunction(() => document.querySelector('.platform-permission-state[data-authorized="true"]'));
+    await page.locator('.platform-permission-row[data-platform="gemini"]').waitFor({ state: 'hidden' });
     await page.locator('#platformAuthorizationDone').click();
     assert.equal(await page.locator('.tour-popover').count(), 0);
     await page.locator('#btnPlatformPermissions').click();
-    for (const name of ['Gemini', 'ChatGPT', 'Claude']) assert.equal(await page.getByRole('checkbox', { name, exact: true }).isChecked(), true);
+    assert.equal(await page.getByRole('checkbox', { name: 'Gemini', exact: true }).count(), 0);
+    for (const name of ['ChatGPT', 'Grok', 'Claude'])
+        assert.equal(await page.getByRole('checkbox', { name, exact: true }).isChecked(), true);
     await page.keyboard.press('Escape');
     assert.deepEqual(await read(page, 'patches'), []);
 });
@@ -124,6 +126,7 @@ test('Closing discards a pending authorization result and does not change accoun
 test('Slow account discovery does not block authorization and closing discards its late selection', async () => {
     await open({ geminiAccess: false, holdDiscovery: true });
     await page.locator('#btnTourGuide').click();
+    await choose(['Gemini']);
     await page.locator('#btnAuthorizePlatforms').click();
     await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishDiscovery === 'function');
     await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
