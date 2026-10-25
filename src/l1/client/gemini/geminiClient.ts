@@ -35,7 +35,6 @@ export class ConfirmedGeminiConversationNotFound extends Error {
 
 interface GeminiAPIClientOptions {
     signal?: AbortSignal | null;
-    [key: string]: unknown;
 }
 
 const credentialManager = GeminiClientCredentialManager;
@@ -53,7 +52,7 @@ const pagination = GeminiClientPagination;
             if (this.signal) {
                 if (this.signal.aborted) {
                     this.aborted = true;
-                } else if (typeof this.signal.addEventListener === "function") {
+                } else {
                     this.signal.addEventListener("abort", () => {
                         this.aborted = true;
                     }, { once: true });
@@ -71,7 +70,7 @@ const pagination = GeminiClientPagination;
             if (callSignal && callSignal.aborted) return true;
             if (this.signal && this.signal.aborted) return true;
             return !!(
-                (typeof globalThis !== "undefined" && globalThis.__gemExporterAborted) ||
+                globalThis.__gemExporterAborted ||
                 (typeof window !== "undefined" && window.__gemExporterAborted)
             );
         }
