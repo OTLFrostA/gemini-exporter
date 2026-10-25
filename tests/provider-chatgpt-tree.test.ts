@@ -160,6 +160,18 @@ test('ChatGPTProvider checkReadiness reports logged-out session', async () => {
     assert.equal(seenCredentials, 'include');
 });
 
+test('ChatGPTProvider rejects non-string Session tokens before an authorized request', async () => {
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['invalid-token-user', 'invalid-token-workspace']));
+    const requests: string[] = [];
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        requests.push(url);
+        return new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_INVALID_TOKEN_01')));
+    } });
+    assert.equal((await provider.checkReadiness(account.id)).ready, false);
+    await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent' }), /has no accessToken/);
+    assert.deepEqual(requests, Array(2).fill('https://chatgpt.com/api/auth/session'));
+});
+
 test('tool image nodes are kept and their sediment pointers collected', () => {
     const toolImage: ChatGPTConversationNode = {
         id: 't1',

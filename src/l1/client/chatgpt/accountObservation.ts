@@ -22,3 +22,13 @@ export function chatgptAccountObservation(session: unknown): Omit<Account, 'id'>
         ...(displayName ? { displayName } : {}),
     };
 }
+
+/** Trust only the Session fields needed by the provider. */
+export function readChatGPTSession(session: unknown) {
+    const raw = record(session), user = record(raw?.user), token = raw?.accessToken;
+    return {
+        accessToken: typeof token === 'string' && token.trim() ? token : null,
+        accountName: text(user?.email) ?? text(user?.name),
+        observation: chatgptAccountObservation(session),
+    };
+}

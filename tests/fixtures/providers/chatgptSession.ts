@@ -10,6 +10,10 @@ const fixtureMap = {
     }),
     'C_ACCOUNT_CONTEXT_LOGOUT_01': () => ({}),
     'C_PROVIDER_CHATGPT_TREE_READINESS_01': () => ({}),
+    'C_PROVIDER_CHATGPT_TREE_INVALID_TOKEN_01': () => ({
+        accessToken: { bearer: 'not-a-string' },
+        user: { id: 'invalid-token-user' }, account: { id: 'invalid-token-workspace' },
+    }),
     'C_PROVIDER_CHATGPT_TREE_INVALID_DETAIL_SESSION_01': () => ({ accessToken: 'tok' }),
     'C_PROVIDER_CHATGPT_TREE_FOREIGN_DETAIL_SESSION_01': () => ({ accessToken: 'tok' }),
     'C_PROVIDER_CHATGPT_TREE_RETRY_429_SESSION_01': () => ({
