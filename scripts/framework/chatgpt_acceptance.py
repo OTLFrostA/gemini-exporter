@@ -17,9 +17,9 @@ from scripts.framework.browser_acceptance import BrowserAcceptance
 
 class ChatGPTAcceptance(BrowserAcceptance):
     def prepare_extension(self):
-        """Explicit local-only install flavor; never edit the shipping manifest."""
+        """Default local-only install flavor; never edit the shipping manifest."""
         self.extension_root = self.root
-        if os.environ.get('TIER2_CHATGPT_REQUIRED_HOSTS') != '1':
+        if os.environ.get('TIER2_CHATGPT_REQUIRED_HOSTS') == '0':
             self.report['testInstallMode'] = 'optional-chatgpt-hosts'
             return
         target = self.root/'temp/tier2-chatgpt-required-hosts'
@@ -28,7 +28,7 @@ class ChatGPTAcceptance(BrowserAcceptance):
         for name in ('src', 'dist', 'lib', 'icons', '_locales'):
             shutil.copytree(self.root/name, target/name)
         manifest = json.loads((self.root/'manifest.json').read_text())
-        hosts = ['https://chatgpt.com/*', 'https://chat.openai.com/*']
+        hosts = ['https://chatgpt.com/*', 'https://chat.openai.com/*', 'https://images.openai.com/*']
         manifest['host_permissions'] = list(dict.fromkeys(manifest.get('host_permissions', [])+hosts))
         manifest['optional_host_permissions'] = [host for host in manifest.get('optional_host_permissions', []) if host not in hosts]
         (target/'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n')
@@ -143,7 +143,7 @@ class ChatGPTAcceptance(BrowserAcceptance):
             target = wait_for(lambda: next((t for t in get_tabs(self.port) if t['id'] == target_id), None))
             stale = CDPConnection(target['webSocketDebuggerUrl'])
             wait_for(lambda: stale.eval("!!document.getElementById('prompt-textarea')"), 30)
-            # Replace extension contexts, preserving Chrome's actual optional grant.
+            # Replace extension contexts, preserving the local test install's permissions.
             result = self.browser.call('Extensions.loadUnpacked', {'path': str(self.extension_root)})
             if result.get('error'):
                 raise ValueError(result['error'])

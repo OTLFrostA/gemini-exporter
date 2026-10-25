@@ -9,6 +9,8 @@ Validates:
 """
 
 import os
+import json
+from pathlib import Path
 import sys
 import tempfile
 import unittest
@@ -292,6 +294,17 @@ class InpageBadgeTests(unittest.TestCase):
 
 
 class TestWorkspaceReinstall(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.repo_path = self.directory.name
+        self.manifest_path = Path(self.repo_path) / 'manifest.json'
+        self.original = b'{ "permissions": ["storage"], "optional_permissions": ["storage", "tabs"], "host_permissions": ["https://existing.test/*"], "optional_host_permissions": ["https://gemini.google.com/*", "https://chatgpt.com/*", "https://claude.ai/*"] }\n'
+        self.manifest_path.write_bytes(self.original)
+
+    def tearDown(self):
+        self.assertEqual(self.manifest_path.read_bytes(), self.original)
+
     @patch("subprocess.run")
     @patch("scripts.framework.actions.time.sleep")
     @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
@@ -300,8 +313,16 @@ class TestWorkspaceReinstall(unittest.TestCase):
     def test_reinstall_only_uninstalls_the_id_returned_for_workspace(self, discover, connection, ws, sleep, build):
         from scripts.framework.actions import CDPActions
         client = connection.return_value
-        client.call.side_effect = [{"result": {"id": "workspace-id"}}, {"result": {}}, {"result": {"id": "workspace-id"}}]
-        self.assertEqual(CDPActions.reinstall_extension(repo_path="/tmp/exporter"), "workspace-id")
+        def respond(method, params):
+            manifest = json.loads(self.manifest_path.read_bytes())
+            self.assertNotIn('optional_permissions', manifest)
+            self.assertNotIn('optional_host_permissions', manifest)
+            self.assertEqual(manifest['permissions'], ['storage', 'tabs'])
+            self.assertEqual(manifest['host_permissions'], ['https://existing.test/*',
+                'https://gemini.google.com/*', 'https://chatgpt.com/*', 'https://claude.ai/*'])
+            return {"result": {"id": "workspace-id"}}
+        client.call.side_effect = respond
+        self.assertEqual(CDPActions.reinstall_extension(repo_path=self.repo_path), "workspace-id")
         self.assertEqual(client.call.call_args_list[1].args, ("Extensions.uninstall", {"id": "workspace-id"}))
         discover.assert_not_called()
         client.close.assert_called_once()
@@ -316,9 +337,19 @@ class TestWorkspaceReinstall(unittest.TestCase):
             client = connection.return_value
             client.reset_mock()
             client.call.side_effect = responses
-            self.assertIsNone(CDPActions.reinstall_extension(repo_path="/tmp/exporter"))
+            self.assertIsNone(CDPActions.reinstall_extension(repo_path=self.repo_path))
             self.assertEqual(client.call.call_count, len(responses))
             client.close.assert_called_once()
+
+    @patch("subprocess.run")
+    @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
+    @patch("scripts.framework.actions.CDPConnection")
+    def test_exception_during_install_restores_manifest(self, connection, ws, build):
+        from scripts.framework.actions import CDPActions
+        connection.return_value.call.side_effect = RuntimeError('CDP disconnected')
+        with self.assertRaisesRegex(RuntimeError, 'CDP disconnected'):
+            CDPActions.reinstall_extension(repo_path=self.repo_path)
+        connection.return_value.close.assert_called_once()
 
 
 class TestExporterIdentity(unittest.TestCase):

@@ -42,6 +42,12 @@
 * **适用场景**：日常功能开发与单步迭代推荐使用 `npm run test:changed` 极速自测；每次提交 PR 前必须全量通过 `npm test`，GitHub Actions 门禁对此强制校验。
 * **特性**：轻量极速，包含 scoped zero-any 门禁、TypeScript 严格类型检查、当前全量单元测试套件、esbuild 生产 Bundle 打包构建校验与当前全量无头 Playwright 端到端用例（含 1:1 HTML 导出、老会话置顶升权、确证远端删除后的同 Key 原子清理、显式本地清理及 Takeout 标题升级视觉审计），完全自包含，不依赖外网与真实 Google 账号。
 
+### Tier 2/3 本地测试权限原则
+* 为避免纯净重装后的平台授权弹窗阻塞自动化，Tier 2/3 共用重装入口在加载扩展期间，将 `optional_host_permissions` 临时合入 `host_permissions`，将 `optional_permissions`（若有）临时合入 `permissions`，保留已有 required 权限并去重。适用于 Gemini 及 Tier 3 的重装/重置入口。ChatGPT / Claude 默认使用 `temp/`（git-ignored）内的独立安装副本，将对应平台所需 host 权限改为 required，源 manifest 始终不变；仅专门验证 optional 授权时，可设置 `TIER2_CHATGPT_REQUIRED_HOSTS=0` / `TIER2_CLAUDE_REQUIRED_HOSTS=0`。
+* 临时 manifest 只用于本地测试安装。共用重装入口在加载结束后（包括失败或异常）立即按原始字节恢复源文件；Chrome 已加载的测试实例继续使用安装时的 required 权限。手动重载或重启 Chrome 后若需继续测试，应重新走测试重装入口；ChatGPT / Claude 的临时安装副本仅保留在 ignored 目录。
+* **临时权限提升严禁 check in、提交 PR 或进入发布包**。提交或打包前必须确认 `manifest.json` 没有此类差异；若进程被强制终止导致未恢复，先恢复原来的 optional 配置。不得使用 `skip-worktree` / `assume-unchanged` 隐藏差异。
+* 正式产品仍使用 optional 平台权限。此测试模式不验收真实授权弹窗、拒绝或撤销权限等行为；这些场景须使用原始 optional manifest 单独验证，不能因 Tier 2/3 通过而宣称通过。
+
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
 * **执行命令**：`npm run test:tier2`（对应 `python3 scripts/test_live_chat_and_export.py`）。
 * **适用场景**：修改了 Protobuf/JSPB 解析引擎、Google Takeout 导入逻辑、会话排序、网络请求拦截或发布新版本前。
