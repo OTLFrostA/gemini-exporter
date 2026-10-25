@@ -77,6 +77,8 @@ test('cleanup confirmation is screenshot-visible, traps focus, cancels safely an
     for (const theme of ['dark', 'light']) {
         await page.evaluate(theme => Reflect.get(globalThis, 'uiFixture').updateSettings({ theme }), theme);
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+        await page.locator('#btnMoreActions').click();
+        await expect(page.locator('#moreActionsMenu')).toBeVisible();
         await page.locator('#btnClearScan').click();
         await expect(modal).toBeVisible();
         await expect(modal).toHaveAccessibleName('Clear scan records?');
@@ -89,11 +91,12 @@ test('cleanup confirmation is screenshot-visible, traps focus, cancels safely an
         await page.screenshot({ animations: 'disabled', path: `${evidence}/cleanup_${theme}.png` });
         await page.keyboard.press('Escape');
         await expect(modal).toBeHidden();
-        await expect(page.locator('#btnClearScan')).toBeFocused();
+        await expect(page.locator('#btnMoreActions')).toBeFocused();
         await expect(page.locator('#list .item')).toHaveCount(1);
     }
     await page.locator('#langToggle').uncheck();
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+    await page.locator('#btnMoreActions').click();
     await page.locator('#btnClearScan').click();
     await expect(modal).toHaveAccessibleName('清除扫描记录？');
     await expect(modal).toContainText('账户：Fixture account');
