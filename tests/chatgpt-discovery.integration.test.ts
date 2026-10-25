@@ -63,7 +63,7 @@ test('Granted discovery registers the session workspace and the production scan 
 test('Missing login or workspace identity cannot create a ChatGPT scan account', async () => {
     const env = await environment();
     try {
-        for (const key of ['C_DISCOVERY_SESSION_02', 'C_DISCOVERY_SESSION_03', 'C_DISCOVERY_SESSION_04'] as const) {
+        for (const key of ['C_DISCOVERY_SESSION_02', 'C_DISCOVERY_SESSION_03', 'C_DISCOVERY_SESSION_04', 'C_DISCOVERY_SESSION_06'] as const) {
             const value = chatgptSessionGen(key);
             globalThis.fetch = async () => new Response(JSON.stringify(value));
             assert.deepEqual(await discoverChatGPTAccounts(), []);

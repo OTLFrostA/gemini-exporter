@@ -39,6 +39,9 @@ const fixtureMap = {
         accessToken: '', user: { id: 'user', name: 'Test user' }, account: { id: 'workspace' },
     }),
     'C_DISCOVERY_SESSION_05': () => ({}),
+    'C_DISCOVERY_SESSION_06': () => ({
+        accessToken: '   ', user: { id: 'user', name: 'Test user' }, account: { id: 'workspace' },
+    }),
     'C_L1_CLIENT_V2_MOCKED_03': () => ({
         accessToken: 'token', user: { id: 'user-1' }, account: { id: 'workspace-1' },
     }),

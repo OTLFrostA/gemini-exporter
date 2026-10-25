@@ -8,7 +8,7 @@ export async function discoverClaudeAccounts(): Promise<Account[]> {
     if (!await hasClaudeAccess()) return [];
     const raw = await readClaudeSource('/api/organizations');
     if (!Array.isArray(raw)) throw new TypeError('Claude organization response changed');
-    const verified = raw.filter((value): value is Record<string, unknown> =>
+    const verified = raw.filter((value): value is Record<string, unknown> & { uuid: string } =>
         !!value && typeof value === 'object' && !Array.isArray(value)
         && typeof value.uuid === 'string' && /^[\da-f-]{36}$/i.test(value.uuid));
     const chatOrganizations = verified.filter(value =>
@@ -23,7 +23,7 @@ export async function discoverClaudeAccounts(): Promise<Account[]> {
     const accounts: Account[] = [];
     for (const organization of organizations) {
         const name = typeof organization.name === 'string' ? organization.name.trim() : '';
-        accounts.push(await getOrCreateAccount('claude', organization.uuid as string,
+        accounts.push(await getOrCreateAccount('claude', organization.uuid,
             undefined, name || undefined));
     }
     return accounts;
