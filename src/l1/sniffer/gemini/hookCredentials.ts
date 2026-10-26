@@ -23,9 +23,7 @@ declare global {
 (() => {
     if (typeof window === 'undefined' || window.__gemExporterHookInstalled) return;
 
-    const rawProto: GeminiProtocolModule | undefined =
-        (typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : undefined) ||
-        (typeof window !== 'undefined' ? window.GeminiProtocol : undefined);
+    const rawProto: GeminiProtocolModule | undefined = GeminiProtocol || window.GeminiProtocol;
     if (!rawProto) {
         console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
         return;
@@ -69,7 +67,7 @@ declare global {
     const origSend = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.send : null;
 
     function isDev(): boolean {
-        return typeof window !== 'undefined' && Boolean(window.__gemExporterDevMode);
+        return Boolean(window.__gemExporterDevMode);
     }
 
     function toUrlString(url: string | URL | Request | null | undefined): string {
@@ -129,7 +127,7 @@ declare global {
         const uStr = toUrlString(url);
         const m = uStr.match(/\/u\/(\d+)\//);
         if (m && m[1]) slot = 'u' + m[1];
-        else if (typeof location !== 'undefined') {
+        else {
             const m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
             if (m2 && m2[1]) slot = 'u' + m2[1];
         }
@@ -168,16 +166,14 @@ declare global {
                 }
             } finally {
                 try {
-                    if (truncated && typeof reader.cancel === 'function') void reader.cancel().catch(() => {});
+                    if (truncated) void reader.cancel().catch(() => {});
                 } catch { /* best effort */ }
                 try { reader.releaseLock(); } catch { /* best effort */ }
             }
             const merged = new Uint8Array(received);
             let off = 0;
             for (const c of chunks) { merged.set(c, off); off += c.length; }
-            const decoded = (typeof TextDecoder !== 'undefined')
-                ? new TextDecoder().decode(merged)
-                : String.fromCharCode.apply(null, Array.from(merged.slice(0, 65536)));
+            const decoded = new TextDecoder().decode(merged);
             return { text: decoded, truncated };
         }
         const txt = await response.text();
