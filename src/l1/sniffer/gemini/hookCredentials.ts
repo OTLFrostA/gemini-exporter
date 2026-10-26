@@ -83,9 +83,11 @@ declare global {
             const u = toUrlString(url);
             if (!u.includes('batchexecute')) return;
             publishAccount();
-            let at = u.match(/[?&]at=([^&]+)/)?.[1] ?? null;
+            const urlAtMatch = /[?&]at=(?<token>[^&]+)/.exec(u);
+            let at = urlAtMatch?.groups?.token ?? null;
             if (!at && typeof body === 'string') {
-                at = body.match(/at=([^&]+)/)?.[1] ?? null;
+                const bodyAtMatch = /at=(?<token>[^&]+)/.exec(body);
+                at = bodyAtMatch?.groups?.token ?? null;
             }
             const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
             const blMatch = u.match(/[?&]bl=([^&]+)/);
