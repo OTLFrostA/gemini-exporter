@@ -11,6 +11,8 @@ import type {
     ChatGPTNodeMessage,
 } from './chatgptTypes.js';
 
+import { chatGPTTimestamp } from './timestamp.js';
+
 type Metadata = NonNullable<ChatGPTNodeMessage['metadata']>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,10 +34,6 @@ function text(value: unknown): string | undefined {
 function strings(value: unknown): string[] | null {
     if (!unknownArray(value) || !value.every((item): item is string => typeof item === 'string')) return null;
     return value;
-}
-
-function timestamp(value: unknown): number | string | undefined {
-    return typeof value === 'number' && Number.isFinite(value) || typeof value === 'string' ? value : undefined;
 }
 
 function links(value: unknown): Array<{ title?: string; url?: string }> | undefined {
@@ -206,7 +204,7 @@ function decodeMessage(value: unknown): ChatGPTNodeMessage {
         || role !== 'user' && role !== 'assistant' && role !== 'system' && role !== 'tool')
         throw new TypeError('Invalid ChatGPT Detail message');
     const metadata = decodeMetadata(source.metadata);
-    const time = timestamp(source.create_time), updated = timestamp(source.update_time);
+    const time = chatGPTTimestamp(source.create_time);
     return {
         id: source.id,
         author: { role, ...(text(author.name) !== undefined ? { name: text(author.name) } : {}) },
@@ -217,8 +215,7 @@ function decodeMessage(value: unknown): ChatGPTNodeMessage {
         ...(typeof source.end_turn === 'boolean' ? { end_turn: source.end_turn } : {}),
         ...(text(source.channel) !== undefined || source.channel === null
             ? { channel: text(source.channel) ?? null } : {}),
-        ...(time !== undefined ? { create_time: time } : {}),
-        ...(updated !== undefined ? { update_time: updated } : {}),
+        ...(time !== undefined ? { createdAtMs: time } : {}),
         ...(metadata ? { metadata } : {}),
     };
 }
@@ -256,14 +253,14 @@ export function decodeChatGPTDetail(value: unknown, requestedId: string): ChatGP
     }
     if (source.current_node != null && typeof source.current_node !== 'string')
         throw new TypeError('Invalid ChatGPT Detail current_node');
-    const created = timestamp(source.create_time), updated = timestamp(source.update_time);
+    const created = chatGPTTimestamp(source.create_time), updated = chatGPTTimestamp(source.update_time);
     return {
         id: requestedId, mapping,
         title: text(source.title) ?? '',
         current_node: text(source.current_node) ?? '',
         is_archived: typeof source.is_archived === 'boolean' ? source.is_archived : false,
-        ...(created !== undefined ? { create_time: created } : {}),
-        ...(updated !== undefined ? { update_time: updated } : {}),
+        ...(created !== undefined ? { createdAtMs: created } : {}),
+        ...(updated !== undefined ? { updatedAtMs: updated } : {}),
         ...(source.conversation_id === requestedId ? { conversation_id: requestedId } : {}),
     };
 }
