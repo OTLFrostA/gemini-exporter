@@ -127,7 +127,7 @@ function extractErrorText(errOrText: unknown): string {
     if (typeof errOrText === 'string') return errOrText;
     if (errOrText instanceof Error) return errOrText.message;
     if (typeof errOrText === 'object' && errOrText !== null && 'message' in errOrText) {
-        return String((errOrText as { message?: unknown }).message || '');
+        return String(errOrText.message || '');
     }
     return String(errOrText || '');
 }
