@@ -22,11 +22,17 @@ export function grokResources(assets: DomainAsset[], hints: Record<string, Resou
         const id = 'grok:' + messageId + ':' + kind + ':' + ordinal;
         const name = typeof row.file_name === 'string' ? row.file_name : kind;
         const generation = row.generation && typeof row.generation === 'object' ? grokObject(row.generation) : null;
-        const mediaType = typeof row.file_type === 'string' && row.file_type ? row.file_type : undefined;
-        assets.push({ id, kind, name, ...(generation ? { generation: {
+        const normalizedGeneration = generation ? {
             ...(typeof generation.providerRequestId === 'string' ? { providerRequestId: generation.providerRequestId } : {}),
             ...(typeof generation.prompt === 'string' ? { prompt: generation.prompt } : {}),
-            ...(typeof generation.imageOrdinal === 'number' ? { imageOrdinal: generation.imageOrdinal } : {}) } } : {}), ...(mediaType ? { mediaType } : {}), ...(uri && isDurableSourceUri(uri) ? { sourceUri: uri } : {}) });
+            ...(typeof generation.imageOrdinal === 'number' && Number.isFinite(generation.imageOrdinal)
+                ? { imageOrdinal: generation.imageOrdinal } : {}),
+        } : null;
+        const mediaType = typeof row.file_type === 'string' && row.file_type ? row.file_type : undefined;
+        assets.push({ id, kind, name,
+            ...(normalizedGeneration && Object.keys(normalizedGeneration).length ? { generation: normalizedGeneration } : {}),
+            ...(mediaType ? { mediaType } : {}),
+            ...(uri && isDurableSourceUri(uri) ? { sourceUri: uri } : {}) });
         hints[id] = { ...(data ? { dataBase64: data } : {}), ...(uri ? { url: uri } : {}), ...(mediaType ? { mimeType: mediaType } : {}) };
         return id;
     }
