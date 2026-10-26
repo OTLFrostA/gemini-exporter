@@ -1,14 +1,13 @@
 import { resolveCurrentAccount, isCurrentAccount } from './accountContext.js';
 import { extractConversationIdFromUrl } from '../../shared/utils/pathUtils.js';
-import { AssetFetcher } from '../capabilities/assetFetcher.js';
+import { AssetFetcher, type AssetFetchResponse } from '../capabilities/assetFetcher.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import { getExtensionVersion } from '../../shared/utils/constants.js';
 
 // Bound the existing flat L1 DTO before Chrome constructs its JSON message.
 // Count conservatively without allocating another encoded/serialized copy.
-function assertResourceIpcSize(result: unknown): void {
-    if (!result || typeof result !== 'object') throw new Error('Invalid resource response');
-    if ('size' in result && typeof result.size === 'number' && result.size > 50 * 1024 * 1024) throw new Error('Resource exceeds IPC size limit');
+function assertResourceIpcSize(result: AssetFetchResponse): void {
+    if (result.size !== undefined && result.size > 50 * 1024 * 1024) throw new Error('Resource exceeds IPC size limit');
     let bytes = 2;
     for (const [key, value] of Object.entries(result)) {
         bytes += key.length * 6 + 16;
@@ -50,10 +49,9 @@ export function init(): void {
                 if (!account || !('accountId' in message) || message.accountId !== account.accountId) throw new Error('Requested account does not match this Tab');
                 if (!('url' in message) || !allowedAssetUrl(message.url)) throw new Error('Asset URL not allowed');
                 const handler = message.action === 'getFileBlob' ? AssetFetcher.handleGetFileBlob : AssetFetcher.handleGetImageBlob;
-                let result: unknown;
-                let received = false;
-                await handler({ url: message.url }, value => { received = true; result = value; });
-                if (!received) throw new Error('Resource operation returned no result');
+                let result: AssetFetchResponse | undefined;
+                await handler({ url: message.url }, value => { result = value; });
+                if (result === undefined) throw new Error('Resource operation returned no result');
                 const fresh = await resolveCurrentAccount();
                 if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during resource acquisition');
                 assertResourceIpcSize(result);

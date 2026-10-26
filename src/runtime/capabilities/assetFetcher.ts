@@ -4,7 +4,7 @@ interface AssetFetchRequest {
     fileName?: string;
     preferBuffer?: boolean;
 }
-interface AssetFetchResponse {
+export interface AssetFetchResponse {
     success: boolean;
     dataUrl?: string;
     dataBuffer?: ArrayBuffer;
