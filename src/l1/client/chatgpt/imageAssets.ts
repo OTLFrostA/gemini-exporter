@@ -27,19 +27,18 @@ export function buildFileDownloadPath(fileId: string): string {
 /** Narrow the files/download payload without ever upgrading unknown data. */
 export function parseFileDownloadPayload(value: unknown): ChatGPTParsedDownload | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    const record = value as Record<string, unknown>;
-    if (record['status'] !== 'success') return null;
-    const downloadUrl = record['download_url'];
+    if (!('status' in value) || value.status !== 'success') return null;
+    const downloadUrl = 'download_url' in value ? value.download_url : undefined;
     if (typeof downloadUrl !== 'string' || !downloadUrl) return null;
     const parsed: ChatGPTParsedDownload = { downloadUrl };
-    if (typeof record['file_name'] === 'string' && record['file_name']) {
-        parsed.fileName = record['file_name'];
+    if ('file_name' in value && typeof value.file_name === 'string' && value.file_name) {
+        parsed.fileName = value.file_name;
     }
-    if (typeof record['file_size_bytes'] === 'number' && Number.isFinite(record['file_size_bytes'])) {
-        parsed.byteLength = Math.round(record['file_size_bytes']);
+    if ('file_size_bytes' in value && typeof value.file_size_bytes === 'number' && Number.isFinite(value.file_size_bytes)) {
+        parsed.byteLength = Math.round(value.file_size_bytes);
     }
-    if (typeof record['mime_type'] === 'string' && record['mime_type']) {
-        parsed.mimeType = record['mime_type'];
+    if ('mime_type' in value && typeof value.mime_type === 'string' && value.mime_type) {
+        parsed.mimeType = value.mime_type;
     }
     return parsed;
 }

@@ -97,7 +97,8 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
             || node.kind === SyntaxKind.ObjectKeyword || isTypeOfExpression(node) || isTypeParameterDeclaration(node))) {
             report(node, 'parsed Gemini adapters consume concrete source facts without re-probing raw input');
         }
-        if ((/^(?:l2|l3a|l3b|application|l4)\//.test(owner) || parsedGeminiAdapters.has(owner) || geminiDecoders.test(owner) || owner === detailIpcIngress)
+        if ((/^(?:l2|l3a|l3b|application|l4)\//.test(owner) || parsedGeminiAdapters.has(owner) || geminiDecoders.test(owner) || owner === detailIpcIngress
+            || owner === 'l1/client/chatgpt/imageAssets.ts')
             && (isAsExpression(node) || isTypeAssertion(node) || isNonNullExpression(node))) {
             report(node, 'typed business layers must narrow or construct values without assertions');
         }

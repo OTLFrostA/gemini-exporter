@@ -74,3 +74,7 @@ memory views only when required by its native write contract.
 Compile-time `typeof`, native capability detection, and validation of actual
 external input are not interchangeable with unchecked casts. Generated third-party
 WASM declarations under `vendor/` are excluded from the owned-source zero-any gate.
+
+The ChatGPT file-download decoder narrows known wire fields directly at ingress,
+without a dictionary assertion. Its owner is covered by the existing compiler
+assertion/non-null gate and strict type-aware lint.
