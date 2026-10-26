@@ -104,7 +104,7 @@ function sameGeneration(a: ResourceEvidence, b: ResourceEvidence): boolean {
         || (a.generation && b.generation && sameGenerationEvent(a.generation, b.generation));
     return !!eventMatch && ordinal !== undefined && ordinal === imageOrdinal(b) && !generationConflict(a, b);
 }
-function stableValue(value: unknown): string {
+function stableValue(value: ResourceEvidence | string | NonNullable<ResourceEvidence['links']>[number]): string {
     return JSON.stringify(value, (_key, entry: unknown) => {
         if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
             return Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b)));
@@ -182,7 +182,6 @@ export function resolveSourceAttachmentGroups(groups: readonly SourceAttachmentG
         lists.forEach((list, listIndex) => {
             const origin = groupIndex * 4 + listIndex;
             for (const raw of list) {
-                if (!raw || typeof raw !== 'object') continue;
                 const ordinal = occurrence++;
                 const attachment = copyAttachment(raw, listIndex === 1 || listIndex === 3 ? 'image' : 'file');
                 const refs = references(attachment, options.semanticOnly, normalize);
