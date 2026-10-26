@@ -60,7 +60,7 @@ export const getOrCreateAccount = async (providerId, providerAccountId) => {
  h.accounts.push(account);
  return account;
 };
-export const isAccountId = id => { const valid = typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{12}$/.test(id); (h.accountChecks ??= []).push({ id, valid }); return valid; };
+export const isAccountId = id => { const re = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{12}$/; const valid = typeof id === 'string' && re.test(id); (h.accountChecks ??= []).push({ id, type: typeof id, length: id?.length, re: re.source, valid }); return valid; };
 export const conversationKey = (accountId, conversationId) => {
  if (!isAccountId(accountId) || !conversationId || conversationId !== conversationId.trim()) throw new TypeError('Invalid conversation key');
  return { accountId, conversationId };
