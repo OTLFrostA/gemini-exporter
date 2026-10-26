@@ -21,7 +21,7 @@ declare global {
 }
 
 (() => {
-    if (typeof window === 'undefined' || window.__gemExporterHookInstalled) return;
+    if (window.__gemExporterHookInstalled) return;
 
     const rawProto: GeminiProtocolModule | undefined = GeminiProtocol || window.GeminiProtocol;
     if (!rawProto) {
@@ -57,14 +57,14 @@ declare global {
         if (event.source !== window || event.origin !== location.origin || !raw || typeof raw !== 'object'
             || !('type' in raw) || raw.type !== Events.ACCOUNT_REQUESTED || !('payload' in raw)
             || !raw.payload || typeof raw.payload !== 'object' || !('requestId' in raw.payload)) return;
-        const requestId: unknown = raw.payload.requestId;
+        const requestId = raw.payload.requestId;
         if (typeof requestId === 'string' && requestId.length > 0 && requestId.length <= 128) publishAccount(requestId);
     });
 
     const routeResponse = createGeminiResponseRouter();
     const origFetch = window.fetch;
-    const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
-    const origSend = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.send : null;
+    const origOpen = XMLHttpRequest.prototype.open;
+    const origSend = XMLHttpRequest.prototype.send;
 
     function isDev(): boolean {
         return Boolean(window.__gemExporterDevMode);
@@ -73,11 +73,11 @@ declare global {
     function toUrlString(url: string | URL | Request | null | undefined): string {
         if (!url) return '';
         const raw = typeof url === 'string' ? url
-            : typeof Request !== 'undefined' && url instanceof Request ? url.url : url.toString();
+            : url instanceof Request ? url.url : url.toString();
         try { return new URL(raw, location.href).href; } catch { return raw; }
     }
 
-    function captureFromUrl(url: string | URL | Request | null | undefined, body?: unknown): void {
+    function captureFromUrl(url: string | URL | Request | null | undefined, body?: RequestInit['body'] | Parameters<XMLHttpRequest['send']>[0]): void {
         try {
             if (!url) return;
             const u = toUrlString(url);
@@ -85,13 +85,13 @@ declare global {
             publishAccount();
             const urlAtMatch = /[?&]at=(?<token>[^&]+)/.exec(u);
             let at = urlAtMatch?.groups?.token ?? null;
-            if (!at && typeof body === 'string') {
-                const bodyAtMatch = /at=(?<token>[^&]+)/.exec(body);
-                at = bodyAtMatch?.groups?.token ?? null;
-            }
             const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
             const blMatch = u.match(/[?&]bl=([^&]+)/);
             if (typeof body === 'string') {
+                if (!at) {
+                    const bodyAtMatch = /at=(?<token>[^&]+)/.exec(body);
+                    at = bodyAtMatch?.groups?.token ?? null;
+                }
                 try {
                     const params = new URLSearchParams(body);
                     if (!at) at = params.get('at');
@@ -191,19 +191,20 @@ declare global {
             const endpoint = routeResponse(url);
             const handler = endpoint?.({ url, slot: getSlotFromUrl(input), pagePath: location.pathname,
                 requestedAt, requestAccountObservation: captureRequestAccount(url) });
-            const requestBody = typeof Request !== 'undefined' && input instanceof Request
+            const requestBody = input instanceof Request
                 ? input.body : undefined;
             const body = (init && init.body) || requestBody;
-            let capturedBody = Promise.resolve(typeof body === 'string' ? body
-                : body instanceof URLSearchParams ? body.toString() : '');
-            if (typeof body !== 'string' && typeof Request !== 'undefined' && input instanceof Request
+            const bodyText = typeof body === 'string' ? body
+                : body instanceof URLSearchParams ? body.toString() : '';
+            let capturedBody = Promise.resolve(bodyText);
+            if (typeof body !== 'string' && input instanceof Request
                 && handler) {
                 try { capturedBody = input.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
             }
 
             try {
                 captureFromUrl(input, body);
-                handler?.start(typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '');
+                handler?.start(bodyText);
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
@@ -220,7 +221,7 @@ declare global {
                 try {
                     void readCappedText(response.clone(), selected.captureLimit).then(async ({ text, truncated }) => {
                         const aborted = init?.signal?.aborted
-                            || (typeof Request !== 'undefined' && input instanceof Request && input.signal.aborted);
+                            || (input instanceof Request && input.signal.aborted);
                         selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
                     }).catch((error: unknown) => {
                         if (isDev()) console.debug('[GemExporter:hook]', error);
