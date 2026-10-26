@@ -11,7 +11,7 @@ import { decodeGeminiDetail, findTurnsDeep } from '../src/l1/parsers/gemini/rpc/
 import { robustFirstPayload, extractModelCandidates, decodeTurn, extractCandidateText, extractThoughts, extractCitations } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { extractInnerPayload, extractNextPageToken } from '../src/l1/parsers/gemini/rpc/payload.js';
 import { extractImages, extractUserFiles, extractDocumentsMeta } from './helpers/recordFixture/attachments.js';
-import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { decodeGeminiStructuredPayload, type GeminiStructuredDocument } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { decodeGeminiTurn, decodeGeminiUserResources, decodeGeminiCandidateResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
 import { structuredBodyAttachments } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { extractResponseImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
@@ -473,8 +473,10 @@ test('response images decode shared wire evidence once and refresh it for the ne
     const inline = ['https://lh3.googleusercontent.com/preview', 512, 512, 'same-image-token'];
     const body = [inline, generated];
     const candidate = ['rc_images', body];
-    const structuredContent = { children: [{ nodeType: 0, Xj: [{ generatedImagePayload: [generated] }] }] };
-    const evidence = extractResponseImageEvidence(candidate, [body, structuredContent], '', structuredContent);
+    const structuredContent: GeminiStructuredDocument = { children: [{ nodeType: 0, images: [{
+        sourceUrl: 'https://lh3.googleusercontent.com/generated', token: 'same-image-token', isGenerated: true,
+    }] }] };
+    const evidence = extractResponseImageEvidence(candidate, [body], '', structuredContent);
     const { images } = evidence;
     assert.equal(snapshots, 1, 'overlapping roots must share the decoded diagnostic snapshot');
     assert.equal(images.length, 1);

@@ -65,12 +65,12 @@ export function decodeGeminiCandidateResources(
     const candidateBlock = answerBody || cand;
     // Preserve the established ownership, fallback and ordering rules.
     const structuredExtraction = inspectStructuredContent({
-        candidate: cand, turnDocument, candidateIndex
+        turnDocument, candidateIndex
     });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
     const { images: candImages, structuredImages } = extractResponseImageEvidence(
-        cand, [answerBody, rawAnswerDocument, structuredContent], candidate.text, structuredContent
+        cand, [answerBody, rawAnswerDocument], candidate.text, structuredContent
     );
     const filteredImages = filterNewImages(candImages, dedupSet);
 

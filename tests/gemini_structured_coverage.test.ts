@@ -4,8 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { decodeGeminiAnnotation, decodeGeminiStructuredPayload, inspectStructuredContent } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
-import { extractImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
-import type { JsonValue } from '../src/shared/utils/jsonTypes.js';
+import { extractResponseImageEvidence, type ImageAttachment } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 import { decodeTurn } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
@@ -80,7 +79,7 @@ test('unknown nested annotation rejects whole document and reports only shape ev
 test('unknown wire fields, absent payload, and uncorrelated candidate have distinct outcomes', () => {
     const unknown = Object.assign(Array(14).fill(null), { 13: ['PRIVATE_FILE_REFERENCE'] });
     assert.deepEqual(inspectStructuredContent({
-        candidate: { structuredContent: [[[unknown]]] }, turnDocument: undefined, candidateIndex: 0
+        turnDocument: [[[unknown]]], candidateIndex: 0
     }), {
         status: 'decode_rejected', issue: { kind: 'node', fields: [13] },
     });
@@ -92,21 +91,17 @@ test('unknown wire fields, absent payload, and uncorrelated candidate have disti
     assert.ok(turn);
     assert.equal(Object.hasOwn(turn, 'rawAnswerDocument'), false);
     assert.equal(inspectStructuredContent({
-        candidate: undefined, turnDocument: report, candidateIndex: 1
+        turnDocument: report, candidateIndex: 1
     }).status, 'candidate_unmatched');
     assert.equal(inspectStructuredContent({
-        candidate: undefined, turnDocument: report, candidateIndex: 0
+        turnDocument: report, candidateIndex: 0
     }).status, 'decoded');
     assert.equal(inspectStructuredContent({
-        candidate: { structuredContent: { children: [] } }, turnDocument: report, candidateIndex: 1
-    }).status, 'decoded');
-    assert.equal(inspectStructuredContent({
-        candidate: undefined, turnDocument: null, candidateIndex: 1
+        turnDocument: null, candidateIndex: 1
     }).status, 'missing');
-    // An invalid candidate-local document must not silently fall back to a
-    // valid Turn-level document from a different ownership slot.
+    // Unsupported Turn documents must not be treated as absent or successfully decoded.
     assert.deepEqual(inspectStructuredContent({
-        candidate: { structuredContent: { unsupported: true } }, turnDocument: report, candidateIndex: 0
+        turnDocument: { unsupported: true }, candidateIndex: 0
     }), { status: 'decode_rejected', issue: { kind: 'payload' } });
 });
 
@@ -120,7 +115,7 @@ test('adapter rejection remains visible and preserves complete Markdown body', (
 });
 
 
-test('validated Gemini structured attachments preserve full search-image and UI-chip JSON metadata', () => {
+test('Gemini structured attachments expose decoded image facts and ignore UI-chip metadata', () => {
     const search = {
         attachmentType: 36,
         title: 'Source image',
@@ -143,10 +138,10 @@ test('validated Gemini structured attachments preserve full search-image and UI-
     assert.equal(imageNode.nodeType, 0);
     assert.equal(chipNode.nodeType, 0);
     if (imageNode.nodeType !== 0 || chipNode.nodeType !== 0) throw new Error('Expected attachment nodes');
-    const typedMetadata: JsonValue | undefined = imageNode.Xj?.[0];
-    assert.deepEqual(typedMetadata, search);
-    assert.deepEqual(chipNode.Xj, [chip]);
-    const images = extractImageEvidence(decoded);
+    const typedImages: ImageAttachment[] | undefined = imageNode.images;
+    assert.equal(typedImages?.[0].sourceUrl, search.Kc);
+    assert.deepEqual(chipNode.images, []);
+    const images = extractResponseImageEvidence([], [], '', decoded).structuredImages;
     assert.equal(images.length, 1, 'search result retains its image, UI chip contributes no image');
     assert.equal(images[0].title, 'Source image');
     assert.equal(images[0].width, 640);
@@ -167,7 +162,7 @@ test('captured Imagen envelope retains resource panels and closes exactly one na
     assert.ok(decoded);
     assert.equal(decoded.children.length, 1);
     assert.equal(decoded.children[0].nodeType, 0);
-    assert.ok(JSON.stringify(decoded).includes('generatedImagePayload'), 'resource evidence is retained, not dropped');
+    assert.ok(decoded.children[0].nodeType === 0 && decoded.children[0].images?.some(image => image.isGenerated), 'generated image facts are decoded at attachment ingress');
     const result = parseGeminiRpcConversation(geminiDetailGen('G_STRUCTURED_COVERAGE_04'), { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(result.conversation.detail.assets.length, 1);
     assert.equal(result.conversation.detail.assets[0].kind, 'image');
