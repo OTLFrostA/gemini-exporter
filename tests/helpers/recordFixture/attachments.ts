@@ -11,7 +11,7 @@ interface GeminiParserAttachmentsModule {
     extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
     createDocumentReader: typeof source.createDocumentReader;
     parseDocSections: (docContentArr: unknown, contentMatch?: "substring") => DocSectionsResult;
-    itemMatchesFilename: (name?: string | null) => boolean;
+    itemMatchesFilename: (name: string) => boolean;
     extractFileNameFromUrl: (url: string) => string | null;
 }
 
