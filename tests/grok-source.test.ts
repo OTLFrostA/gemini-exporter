@@ -281,6 +281,13 @@ test('upstream citation titles preserve literal backslashes and brackets without
     assert.deepEqual(content, [{ type: 'paragraph', children: [{ type: 'link',
         href: 'https://example.com/source', children: [{ type: 'text', text: title }] }] }]);
     assert.equal(parsed.conversation.detail.messages[1].citations?.[0].title, title);
+    for (const invalidTitle of [42, {}, []]) {
+        Object.assign(f.bodies.responses[1], {
+            webSearchResults: [{ url: 'https://example.com/source', title: invalidTitle }],
+        });
+        const recovered = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+        assert.equal(recovered.conversation.detail.messages[1].citations?.[0].title, 'Source');
+    }
 });
 
 test('Grok image metadata reuses verified identity and preserves captured-image deduplication', () => {
@@ -295,7 +302,7 @@ test('Grok image metadata reuses verified identity and preserves captured-image 
     ];
     const warnings: string[] = [];
     const converted = compatibleGrokBodies({ responses: [{
-        message: '',
+        responseId: uuid, message: '',
         cardAttachmentsJson: [JSON.stringify({
             cardType: 'generated_image_card',
             image_chunk: { imageUrl: url, progress: 100, imageUuid: uuid, imageModel: 'imagine_x_1' },
