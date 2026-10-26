@@ -201,6 +201,24 @@ test('hookCredentials - fetch body preserves (init.body || requestBody) fallback
 });
 
 
+test('hookCredentials - credential token sources preserve URL, body, and encoded form precedence', async () => {
+    const { posted, win } = createHookSandbox();
+    const base = 'https://gemini.google.com/batchexecute?f.sid=token-sid';
+    const cases: [string, string, string][] = [
+        [base + '&at=url%20token', 'at=body_token', 'url token'],
+        [base, 'request=1&at=body_token', 'body_token'],
+        [base, 'a%74=form+token', 'form token'],
+    ];
+    for (const [url, body, expected] of cases) {
+        posted.length = 0;
+        await win.fetch(url, { method: 'POST', body });
+        const credentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
+        assert.equal(credentials.length, 1);
+        assert.equal(credentials[0].msg.payload.at, expected);
+    }
+});
+
+
 // ============================================================================
 // Section 3: API Parser, Title Extraction & Deduplication
 // ============================================================================
