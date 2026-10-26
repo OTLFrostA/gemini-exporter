@@ -231,3 +231,25 @@ test('GeminiAPIClient 401 evicts only the expired SID from session storage', asy
         else Reflect.deleteProperty(globalThis, 'chrome');
     }
 });
+
+
+test('bootstrap stores a new special-key SID as an own entry and ignores inherited credentials', async () => {
+    const ctx = makeContext();
+    ctx.__sessionData.gemini_credentials_map = { neighbor: { sid: 'neighbor', at: 'kept' } };
+    vm.runInContext(code, ctx, { filename: 'bootstrap.js' });
+    ctx.TestBootstrap.initBootstrap();
+    await new Promise(resolve => setImmediate(resolve));
+    for (const sid of ['__proto__', 'constructor']) {
+        ctx.__testSid = sid;
+        vm.runInContext(`
+            for (const listener of [...accountListeners]) listener({source: window, origin: location.origin,
+                data: {type: 'GEMINI_CREDENTIALS', payload: {sid: __testSid, at: 'fresh', accountSlot: 'u0'}}});
+        `, ctx);
+        await new Promise(resolve => setImmediate(resolve));
+        const stored = ctx.__sessionData.gemini_credentials_map;
+        assert.ok(Object.hasOwn(stored, sid), 'new SID must survive object serialization');
+        assert.equal(stored[sid].at, 'fresh');
+        assert.equal(stored[sid].name, undefined, 'an inherited constructor must not become prior credential metadata');
+        assert.equal(stored.neighbor.at, 'kept');
+    }
+});
