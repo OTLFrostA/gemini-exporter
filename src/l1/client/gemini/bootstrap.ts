@@ -28,7 +28,7 @@ const Proto: GeminiProtocolModule = GeminiProtocol;
 function isDev(): boolean {
     if (typeof window !== 'undefined') {
         const ctx = window.__gemExporterContentContext;
-        if (ctx && typeof ctx.isDevMode === 'function') return ctx.isDevMode();
+        if (ctx) return ctx.isDevMode();
         return !!window.__gemExporterDevMode;
     }
     return false;
@@ -39,7 +39,7 @@ type BootstrapCredential = GeminiStoredCredential;
 function updateContextCreds(creds: BootstrapCredential): void {
     if (typeof window !== 'undefined') {
         const ctx = window.__gemExporterContentContext;
-        if (ctx && typeof ctx.setCredentials === 'function') {
+        if (ctx) {
             ctx.setCredentials(creds);
         }
     }
@@ -50,10 +50,10 @@ export function extractAtFromPage(): string {
     try {
         try {
             if (typeof window !== 'undefined') {
-                if (window.__gemExporterExtractedAt && typeof window.__gemExporterExtractedAt === 'string' && window.__gemExporterExtractedAt.length > 15) {
+                if (window.__gemExporterExtractedAt && window.__gemExporterExtractedAt.length > 15) {
                     return window.__gemExporterExtractedAt;
                 }
-                if (window.__geminiAt && typeof window.__geminiAt === 'string' && window.__geminiAt.length > 15) {
+                if (window.__geminiAt && window.__geminiAt.length > 15) {
                     return window.__geminiAt;
                 }
             }
