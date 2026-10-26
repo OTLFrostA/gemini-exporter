@@ -42,7 +42,7 @@ function unique(values: TakeoutArchiveResource[]): TakeoutArchiveResource[] { re
 export function createTakeoutResourceResolver(files: Readonly<Record<string, TakeoutSourceFile>>, activityPath?: string): (uri: string) => TakeoutResourceResolution {
     const paths: Index = new Map(), names: Index = new Map(), stems: Index = new Map(), normalizedNames: Index = new Map(), normalizedStems: Index = new Map();
     for (const [path, entry] of Object.entries(files)) {
-        if (!entry || typeof entry !== 'object' || entry.dir) continue;
+        if (entry.dir) continue;
         const resource = { path, entry };
         const name = takeoutBaseName(path);
         // Archive inventory paths are literal, not URI-encoded HTML references.
