@@ -67,9 +67,12 @@ const onMessage = (message: unknown, sender: chrome.runtime.MessageSender, respo
 };
 chrome.runtime.onMessage.addListener(onMessage);
 registerCleanup(() => chrome.runtime.onMessage.removeListener(onMessage));
-const receive = (event: MessageEvent) => {
-    if (event.source !== window || event.origin !== location.origin || event.data?.type !== GROK_SOURCE_EVENT) return;
-    const raw: unknown = event.data.payload;
+const receive = (event: MessageEvent<unknown>) => {
+    if (event.source !== window || event.origin !== location.origin) return;
+    const data = event.data;
+    if (!data || typeof data !== 'object' || !('type' in data)
+        || data.type !== GROK_SOURCE_EVENT || !('payload' in data)) return;
+    const raw = data.payload;
     queue = queue.catch(() => {}).then(async () => {
         if (!active || !raw || typeof raw !== 'object' || !('url' in raw) || typeof raw.url !== 'string'
             || !('method' in raw) || typeof raw.method !== 'string' || !('owner' in raw) || !grokUuid(raw.owner)
