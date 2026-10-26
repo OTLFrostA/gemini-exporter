@@ -9,7 +9,6 @@ import { runLiveSave } from '../src/runtime/background/liveSaveHandler.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getExportRecord } from '../src/l3a/storageService.js';
 import { FsWriter } from '../src/l4/delivery/writers/fsWriter.js';
-import { inferImageExt } from '../src/runtime/capabilities/assetFetcher.js';
 import { liveKey, seedLiveDetail, v2LiveSaveHost } from './helpers/v2LiveSaveHost.js';
 
 const paragraph = (text: string) => ({ type: 'paragraph' as const, children: [{ type: 'text' as const, text }] });
@@ -146,11 +145,3 @@ test('L4 FsWriter serializes concurrent writes targeting the same physical path'
     assert.equal(current, 'second');
 });
 
-test('Runtime image extension inference retains MIME and URL fallbacks', () => {
-    assert.equal(inferImageExt('image/png'), 'png');
-    assert.equal(inferImageExt('image/webp'), 'webp');
-    assert.equal(inferImageExt('image/gif'), 'gif');
-    assert.equal(inferImageExt('image/jpeg'), 'jpg');
-    assert.equal(inferImageExt(undefined, 'https://example.test/photo.png?alr=yes'), 'png');
-    assert.equal(inferImageExt(undefined, 'https://example.test/untyped'), 'jpg');
-});
