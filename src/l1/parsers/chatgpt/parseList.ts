@@ -10,34 +10,37 @@ interface ChatGPTListParseResult {
     nextCursor: string | null;
 }
 
-function record(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid ChatGPT list payload');
-    return value as Record<string, unknown>;
-}
-
 /** Backend list metadata -> Domain; pagination controls remain explicit beside business facts. */
-export function parseChatGPTList(value: unknown): ChatGPTListParseResult {
-    const page = record(value);
-    if (!Array.isArray(page.items)
-        || (page.total != null && (typeof page.total !== 'number' || !Number.isSafeInteger(page.total) || page.total < 0))
-        || (page.cursor != null && typeof page.cursor !== 'string')
-        || (page.offset != null && (typeof page.offset !== 'number' || !Number.isSafeInteger(page.offset) || page.offset < 0))
-        || (page.limit != null && (typeof page.limit !== 'number' || !Number.isSafeInteger(page.limit) || page.limit <= 0))
-        || (page.has_missing_conversations !== undefined && typeof page.has_missing_conversations !== 'boolean')) throw new TypeError('Invalid ChatGPT list page');
-    const conversations = page.items.map((value: unknown) => {
-        const item = record(value);
-        if (typeof item.id !== 'string' || !item.id.trim()
-            || (item.title != null && typeof item.title !== 'string')) throw new TypeError('Invalid ChatGPT list item');
-        const id = item.id.trim();
-        const title = item.title?.trim() ?? '';
-        const createdAt = chatGPTTimestamp(item.create_time);
-        const updatedAt = chatGPTTimestamp(item.update_time);
+export function parseChatGPTList(page: unknown): ChatGPTListParseResult {
+    if (!page || typeof page !== 'object' || Array.isArray(page)) throw new TypeError('Invalid ChatGPT list payload');
+    const items = 'items' in page ? page.items : undefined;
+    const total = 'total' in page ? page.total : undefined;
+    const cursor = 'cursor' in page ? page.cursor : undefined;
+    const offset = 'offset' in page ? page.offset : undefined;
+    const limit = 'limit' in page ? page.limit : undefined;
+    const hasMissingConversations = 'has_missing_conversations' in page ? page.has_missing_conversations : undefined;
+    if (!Array.isArray(items)
+        || (total != null && (typeof total !== 'number' || !Number.isSafeInteger(total) || total < 0))
+        || (cursor != null && typeof cursor !== 'string')
+        || (offset != null && (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0))
+        || (limit != null && (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit <= 0))
+        || (hasMissingConversations !== undefined && typeof hasMissingConversations !== 'boolean')) throw new TypeError('Invalid ChatGPT list page');
+    const conversations = items.map((item: unknown) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) throw new TypeError('Invalid ChatGPT list payload');
+        const rawId = 'id' in item ? item.id : undefined;
+        const rawTitle = 'title' in item ? item.title : undefined;
+        if (typeof rawId !== 'string' || !rawId.trim()
+            || (rawTitle != null && typeof rawTitle !== 'string')) throw new TypeError('Invalid ChatGPT list item');
+        const id = rawId.trim();
+        const title = rawTitle?.trim() ?? '';
+        const createdAt = chatGPTTimestamp('create_time' in item ? item.create_time : undefined);
+        const updatedAt = chatGPTTimestamp('update_time' in item ? item.update_time : undefined);
         return { id, ...(title ? { title, titleSource: 'provider' } : {}),
             ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) };
     });
-    return { conversations, ...(page.total != null ? { total: page.total } : {}),
-        ...(page.offset != null ? { offset: page.offset } : {}),
-        ...(page.limit != null ? { limit: page.limit } : {}),
-        ...(page.has_missing_conversations !== undefined ? { hasMissingConversations: page.has_missing_conversations } : {}),
-        nextCursor: page.cursor ?? null };
+    return { conversations, ...(total != null ? { total } : {}),
+        ...(offset != null ? { offset } : {}),
+        ...(limit != null ? { limit } : {}),
+        ...(hasMissingConversations !== undefined ? { hasMissingConversations } : {}),
+        nextCursor: cursor ?? null };
 }

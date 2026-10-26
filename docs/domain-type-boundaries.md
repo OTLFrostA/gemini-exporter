@@ -82,3 +82,8 @@ assertion/non-null gate and strict type-aware lint.
 Claude list decoding likewise narrows each raw member directly, without a
 dictionary-returning helper. UUID uniqueness, timestamp admission and wire-order
 coverage keys remain at this ingress; strict type-aware lint covers the owner.
+
+ChatGPT list decoding reads its fixed page and item fields once at ingress.
+Validated optional metadata feeds pagination directly, including false and nullish
+cursor semantics. This decoder uses no record assertion and is covered by both
+the compiler assertion/non-null gate and strict type-aware lint.
