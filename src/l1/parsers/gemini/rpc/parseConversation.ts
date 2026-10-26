@@ -37,7 +37,7 @@ function citationsOf(message: GeminiMessageEvidence): { citations: DomainCitatio
     const addSource = (source: { url: string; title?: string }): DomainCitation => {
         const existing = byUrl.get(source.url);
         if (existing) return existing;
-        const citation = { id: `citation-${byUrl.size}`, url: source.url, ...(typeof source.title === 'string' ? { title: source.title } : {}) };
+        const citation = { id: `citation-${byUrl.size}`, url: source.url, ...(source.title !== undefined ? { title: source.title } : {}) };
         byUrl.set(source.url, citation);
         citations.push(citation);
         return citation;
@@ -94,12 +94,12 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
         const reasoning = parseSourceReasoning(message.thoughts, { diagnostics: contentDiagnostics, sourceRef });
         const { citations, legacyCitations, sourceCitations } = citationsOf(message);
         const closed = closeSourceCitations({
-            ...(typeof message.id === 'string' && message.id.trim() ? { id: message.id } : {}),
+            ...(message.id.trim() ? { id: message.id } : {}),
             role: message.role === 'model' ? 'assistant' : 'user',
             content: message.role === 'user' ? parseGeminiPrompt(message.content)
                 : parseGeminiBody(message.content, context.bodyRepresentation === 'markdown' ? undefined : message.structuredContent,
                     { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured' }),
-            ...(typeof message.timestamp === 'number' && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
+            ...(message.timestamp !== null && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
             ...(legacyCitations.length ? { citations: legacyCitations } : {}),
