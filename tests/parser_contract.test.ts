@@ -13,6 +13,7 @@ import type { DomainMessage } from '../src/l2/conversationDetail.js';
 import type { ListParseDiagnostics } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import type { GeminiProtocolModule, isConfirmedDeletedError, classifyDetailError } from '../src/l1/protocol/gemini/protocol.js';
 import type { ListFailureDiagnostics } from '../src/l1/client/aiProvider.js';
 
 import type { ChatGPTApiConversation, ChatGPTNodeMessage, ChatGPTConversationNode } from '../src/l1/parsers/chatgpt/chatgptTypes.js';
@@ -22,6 +23,10 @@ import type { ChatGPTApiConversation, ChatGPTNodeMessage, ChatGPTConversationNod
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Assert<T extends true> = T;
 type OutputContracts = [
+    Assert<Equal<Parameters<typeof isConfirmedDeletedError>[0], string>>,
+    Assert<Equal<Parameters<typeof classifyDetailError>[0], string>>,
+    Assert<Equal<Parameters<GeminiProtocolModule['isConfirmedDeletedError']>[0], string>>,
+    Assert<Equal<Parameters<GeminiProtocolModule['classifyDetailError']>[0], string>>,
     Assert<Equal<ChatGPTApiConversation['mapping'], ReadonlyMap<string, ChatGPTConversationNode>>>,
     Assert<Equal<ReturnType<ChatGPTApiConversation['mapping']['get']>, ChatGPTConversationNode | undefined>>,
     Assert<Equal<ChatGPTApiConversation['createdAtMs'], number | undefined>>,
@@ -38,7 +43,7 @@ type OutputContracts = [
     Assert<Equal<DecodedGeminiCandidate['source'], unknown[]>>,
     Assert<Equal<Parameters<typeof decodeCandidateArtifacts>[0], unknown[]>>,
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true];
+const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true];
 // The tuple already enforces these contracts at TypeScript compile time.
 // A runtime .every(Boolean) assertion on literal true values cannot detect a parser bug.
 void contracts;
