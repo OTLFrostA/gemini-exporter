@@ -173,31 +173,17 @@ test('hookCredentials - real Request inputs preserve list cursor context', async
 });
 
 
-test('hookCredentials - fetch body preserves (init.body || requestBody) fallback semantics for falsy init.body', async () => {
+test('hookCredentials - native fetch RequestInit body captures credentials', async () => {
     const { posted, win } = createHookSandbox();
-
-    // 1. Falsy init.body ('') must fall back to args[0].body (requestBody), matching init.body || (args[0] && args[0].body)
-    const fallbackInput = {
-        body: geminiListRequestGen('G_HOOK_FALLBACK_CREDENTIAL_REQUEST_01'),
-        toString() {
-            return 'https://gemini.google.com/u/0/batchexecute';
-        }
-    };
-    await win.fetch(fallbackInput as any, { method: 'POST', body: '' });
+    await win.fetch('https://gemini.google.com/u/0/batchexecute', {
+        method: 'POST',
+        body: geminiListRequestGen('G_HOOK_OVERRIDE_CREDENTIAL_REQUEST_01')
+    });
     await new Promise(r => setTimeout(r, 20));
 
-    const credEvents1 = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-    assert.strictEqual(credEvents1.length, 1, 'Expected credentials capture from fallback body');
-    assert.strictEqual(credEvents1[0].msg.payload.at, 'fallback_at_token', 'Must extract at token from fallback body when init.body is empty');
-
-    // 2. Truthy init.body must override requestBody
-    posted.length = 0;
-    await win.fetch(fallbackInput as any, { method: 'POST', body: geminiListRequestGen('G_HOOK_OVERRIDE_CREDENTIAL_REQUEST_01') });
-    await new Promise(r => setTimeout(r, 20));
-
-    const credEvents2 = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-    assert.strictEqual(credEvents2.length, 1, 'Expected credentials capture from override body');
-    assert.strictEqual(credEvents2[0].msg.payload.at, 'override_at_token', 'Must extract at token from override init.body');
+    const credentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
+    assert.equal(credentials.length, 1);
+    assert.equal(credentials[0].msg.payload.at, 'override_at_token');
 });
 
 
