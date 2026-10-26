@@ -31,9 +31,10 @@ The Cloudflare zone has **Web Analytics auto-injection enabled** (EU Lite mode e
 
 This tracks campaign-level Chrome Web Store visits and installs, not X post impressions or cross-site user identities.
 
-## Website privacy policy
+## Separate privacy policies
 
-- `https://otlfrosta.com/privacy` is served from `public/privacy.html` (Cloudflare Pages extensionless HTML routing).
-- The page explains both the published Gemini Exporter extension's local-only processing and the separate website's Cloudflare Web Analytics and infrastructure processing, in English and Simplified Chinese.
-- Keep the extension policy claims aligned with the canonical `main/docs/PRIVACY_POLICY.md` when those behaviors change. The site's EU Lite Web Analytics disclosure must reflect the live Cloudflare configuration.
-- `public/privacy.css` only styles the policy page; it does not affect the homepage.
+- **Chrome Web Store Privacy Policy URL:** `https://otlfrosta.com/privacy` (`public/privacy.html`) describes the browser extension's local-only processing, local storage, permissions and source-service requests. It is linked from the homepage's extension privacy FAQ.
+- **Website privacy:** `https://otlfrosta.com/website-privacy` (`public/website-privacy.html`) describes Cloudflare-hosted website analytics, infrastructure processing, and campaign URL pass-through. It is linked from the homepage footer.
+- Both pages have English and Simplified Chinese sections and a two-link policy switcher (plain links; no JavaScript tabs).
+- Keep extension claims aligned with `main/docs/PRIVACY_POLICY.md` when the extension changes, and website analytics claims aligned with Cloudflare's live RUM/EU Lite configuration. The two static pages are independent snapshots rather than a new build-time dependency.
+- `public/privacy.css` styles both policy pages; it does not affect the homepage.
