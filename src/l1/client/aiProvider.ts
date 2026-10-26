@@ -4,6 +4,7 @@ import type { ConversationKey } from '../../l2/conversationKey.js';
 import type { DomainAsset } from '../../l2/conversationDetail.js';
 import type { PageObservationHead } from '../../l2/pageObservation.js';
 import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
+import type { ListParseDiagnostics } from '../parsers/gemini/rpc/parseList.js';
 
 export type PageEvidence = PageObservationHead;
 export interface CommittedListPage { page: number; totalObserved: number; scanHead?: PageEvidence }
@@ -15,7 +16,7 @@ export interface ListFailureDiagnostics {
     page: number;
     requestCursor: string | null;
     failure: string;
-    details?: Readonly<Record<string, unknown>>;
+    details?: Readonly<ListParseDiagnostics>;
 }
 export class ProviderListError extends Error {
     constructor(message: string, readonly diagnostics: ListFailureDiagnostics) {
