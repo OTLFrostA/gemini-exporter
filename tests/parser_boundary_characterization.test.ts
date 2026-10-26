@@ -325,6 +325,17 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     assert.equal(Object.hasOwn(decodedPartial.candidate ?? {}, 'raw'), false);
     assert.equal(decodeTurn([null, null, null, { malformed: true }])?.candidate, null);
 
+    const mixedCandidates: unknown[] = [
+        ['rc_first', [['Primary answer']]],
+        { malformed: true },
+        ['rc_target', [['Selected answer']]]
+    ];
+    const mixed = decodeTurn([[ID], null, [['Prompt']], [mixedCandidates, null, null, 'rc_target']]);
+    assert.equal(mixed?.candidate?.index, 2, 'malformed draft must not shift the selected draft index');
+    assert.equal(mixed?.candidate?.source, mixedCandidates[2]);
+    assert.equal(mixed?.candidate?.text, 'Selected answer');
+    assert.equal(decodeTurn([[ID], null, [], [[{ malformed: true }]]])?.candidate, null);
+
     const rawDocument = [[[null]]];
     const withMedia: unknown[] = [[ID], null, [], [[['rc_media', [['Image prompt']]]]]];
     const modelPayload = withMedia[3];
