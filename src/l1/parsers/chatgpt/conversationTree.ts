@@ -140,7 +140,7 @@ function copyChatGPTNode(node: ChatGPTConversationNode, snapshots?: Map<string, 
  * hidden/tool messages. Returns oldest-first linear history.
  */
 export function extractChatGPTLinearNodes(
-    mapping: Record<string, ChatGPTConversationNode>,
+    mapping: ReadonlyMap<string, ChatGPTConversationNode>,
     startNodeId: string,
     snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>,
 ): ChatGPTConversationNode[] {
@@ -149,7 +149,7 @@ export function extractChatGPTLinearNodes(
     const visited = new Set<string>();
     while (currentId && !visited.has(currentId)) {
         visited.add(currentId);
-        const node: ChatGPTConversationNode | undefined = mapping[currentId];
+        const node: ChatGPTConversationNode | undefined = mapping.get(currentId);
         if (!node || node.parent === undefined) break;
         const role = node.message?.author.role;
         const ct = node.message?.content.content_type;
@@ -168,14 +168,14 @@ export function extractChatGPTLinearNodes(
 
 /** Latest model_slug on the current branch wins (model can change mid-chat). */
 export function extractChatGPTModelSlug(
-    mapping: Record<string, ChatGPTConversationNode>,
+    mapping: ReadonlyMap<string, ChatGPTConversationNode>,
     linearNodes: ChatGPTConversationNode[],
 ): string {
     for (let i = linearNodes.length - 1; i >= 0; i -= 1) {
         const slug = linearNodes[i]?.message?.metadata?.model_slug;
         if (slug) return slug;
     }
-    for (const node of Object.values(mapping)) {
+    for (const node of mapping.values()) {
         const slug = node.message?.metadata?.model_slug;
         if (slug) return slug;
     }
@@ -192,7 +192,7 @@ export function processChatGPTMapping(
 ): ChatGPTConversationNode[] {
     const startId =
         conversation.current_node
-        || Object.values(conversation.mapping).find((n) => !n.children || n.children.length === 0)?.id;
+        || [...conversation.mapping.values()].find((n) => !n.children || n.children.length === 0)?.id;
     // An empty/unattributable mapping is incomplete source evidence, not a parser crash.
     // The L1 caller will return zero messages and L2 quality remains 'unknown'.
     if (!startId) return [];

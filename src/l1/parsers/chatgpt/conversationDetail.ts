@@ -30,7 +30,7 @@ function hasThinking(t: ChatGPTThinking): boolean {
  * onto the assistant node that follows them. Returns nodeId -> thinking.
  */
 export function collectChatGPTThinking(
-    mapping: Record<string, ChatGPTConversationNode>,
+    mapping: ReadonlyMap<string, ChatGPTConversationNode>,
     resultNodeIds: Set<string>,
     startNodeId: string,
 ): Map<string, ChatGPTThinking> {
@@ -58,7 +58,7 @@ export function collectChatGPTThinking(
     while (currentId && !visited.has(currentId)) {
         visited.add(currentId);
         const id: string = currentId;
-        const node: ChatGPTConversationNode | undefined = mapping[id];
+        const node: ChatGPTConversationNode | undefined = mapping.get(id);
         if (!node || node.parent === undefined) break;
         const message = node.message;
         if (message?.content) {
