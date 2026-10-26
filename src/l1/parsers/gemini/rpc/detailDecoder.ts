@@ -35,7 +35,7 @@ import {
     type DecodedGeminiCandidateResources,
 } from './turnResources.js';
 
-const isTurnCache = new WeakMap<object, boolean>();
+const isTurnCache = new WeakMap<unknown[], boolean>();
 
 function isUnknownArray(value: unknown): value is unknown[] {
     return Array.isArray(value);
