@@ -33,7 +33,7 @@ export function component(node: DilNode, content: string, scope: Scope, source: 
     if (node.name === 'CodeBlock') {
         const language = prop(node, 'language', scope);
         if (language !== undefined && (typeof language !== 'string' || !/^[\w+-]*$/.test(language))) throw new Error('Invalid code language');
-        return codeFence(content, typeof language === 'string' ? language : '');
+        return codeFence(content, language ?? '');
     }
     if (node.name === 'svg') return codeFence(source.slice(node.start, node.end).replace(
         /\b(strokeWidth|fontSize|textAnchor|strokeLinecap|strokeLinejoin|fillRule|clipRule)(?=\s*=)/g,
