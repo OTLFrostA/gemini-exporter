@@ -87,3 +87,8 @@ ChatGPT list decoding reads its fixed page and item fields once at ingress.
 Validated optional metadata feeds pagination directly, including false and nullish
 cursor semantics. This decoder uses no record assertion and is covered by both
 the compiler assertion/non-null gate and strict type-aware lint.
+
+The ChatGPT Session ingress reads user/workspace/token fields once and returns
+precise identity and provider facts. Account-only callers reuse its decoded
+observation; no open dictionary or raw Session is cached. The same compiler and
+strict lint gates cover this decoder.
