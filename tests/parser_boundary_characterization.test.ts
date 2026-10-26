@@ -12,7 +12,7 @@ import { robustFirstPayload, extractModelCandidates, decodeTurn, extractCandidat
 import { extractInnerPayload, extractNextPageToken } from '../src/l1/parsers/gemini/rpc/payload.js';
 import { extractImages, extractUserFiles, extractDocumentsMeta } from './helpers/recordFixture/attachments.js';
 import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
-import { decodeGeminiUserResources, decodeGeminiCandidateResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
+import { decodeGeminiTurn, decodeGeminiUserResources, decodeGeminiCandidateResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
 import { structuredBodyAttachments } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { extractResponseImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 
@@ -249,6 +249,24 @@ test('Turn decoding validates known fields once and honors the selected draft', 
     }
 });
 
+test('single Turn decoder closes selected draft and user resources into typed message evidence', () => {
+    const candidates: unknown[] = [
+        ['rc_old', [['Old answer']]],
+        { malformed: true },
+        ['rc_selected', [['Selected answer']]]
+    ];
+    const raw = [[ID, 'r_AB12'], [1700000000, 500000000], [['Prompt']], [candidates, null, 'google', 'rc_selected']];
+    const messages = decodeGeminiTurn(raw, createDocumentReader(raw), new Set(), new Set(), ID);
+    assert.deepEqual(messages.map(({ role, id, content }) => [role, id, content]), [
+        ['user', 'r_AB12', 'Prompt'],
+        ['model', 'rc_selected', 'Selected answer']
+    ]);
+    assert.ok(messages.every(message => !Object.hasOwn(message, 'source')
+        && !Object.hasOwn(message, 'body') && !Object.hasOwn(message, 'turnDocument')),
+        'downstream message evidence must not expose raw candidate wire slots');
+    assert.deepEqual(decodeGeminiTurn(null, createDocumentReader([]), new Set(), new Set(), ID), []);
+});
+
 test('Turn Decoder only attributes selected Candidate thoughts, citations and grounding metadata', () => {
     const wrongBody = [
         ['Unselected draft'],
@@ -324,6 +342,17 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     assert.equal(decodedPartial.candidate?.source, partialCandidate);
     assert.equal(Object.hasOwn(decodedPartial.candidate ?? {}, 'raw'), false);
     assert.equal(decodeTurn([null, null, null, { malformed: true }])?.candidate, null);
+
+    const mixedCandidates: unknown[] = [
+        ['rc_first', [['Primary answer']]],
+        { malformed: true },
+        ['rc_target', [['Selected answer']]]
+    ];
+    const mixed = decodeTurn([[ID], null, [['Prompt']], [mixedCandidates, null, null, 'rc_target']]);
+    assert.equal(mixed?.candidate?.index, 2, 'malformed draft must not shift the selected draft index');
+    assert.equal(mixed?.candidate?.source, mixedCandidates[2]);
+    assert.equal(mixed?.candidate?.text, 'Selected answer');
+    assert.equal(decodeTurn([[ID], null, [], [[{ malformed: true }]]])?.candidate, null);
 
     const rawDocument = [[[null]]];
     const withMedia: unknown[] = [[ID], null, [], [[['rc_media', [['Image prompt']]]]]];

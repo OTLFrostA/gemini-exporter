@@ -1,6 +1,6 @@
-import { GEMINI_JSPB_SCHEMA, type DecodedGeminiCandidate } from './extractors.js';
+import { GEMINI_JSPB_SCHEMA, decodeTurn, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
-import type { GeminiAttachmentEvidence, GeminiDocumentEvidence } from './detailEvidence.js';
+import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import {
     extractImageEvidence,
     extractResponseImageEvidence,
@@ -8,6 +8,7 @@ import {
     extractDocumentsMeta,
     type GeminiDocumentReader,
     filterNewImages,
+    isInternalChipUrl,
     type ImageAttachment,
     type UserFileAttachment,
     type DeepResearchDocMeta,
@@ -151,4 +152,217 @@ export function decodeGeminiCandidateResources(
         documents: docDetails,
         structuredExtraction,
     };
+}
+
+function buildUserMessage(
+    turn: DecodedGeminiTurn,
+    resources: DecodedGeminiUserResources,
+    dedupSet: Set<string>,
+    docDedupSet: Set<string>
+): GeminiMessageEvidence | null {
+    const ts = turn.timestamp;
+    const uText = turn.userText;
+    const uImgs = filterNewImages(resources.images, dedupSet);
+    const uFiles = resources.files.filter((f: UserFileAttachment) => {
+        const key = f.id || f.sourceUrl || f.fileName;
+        if (!key || docDedupSet.has(key)) return false;
+        docDedupSet.add(key);
+        return true;
+    });
+
+    if (!uText && !uImgs.length && !uFiles.length) return null;
+
+    const userMsgId = turn.userMessageId;
+
+    const formattedImages = uImgs.length ? uImgs.map((i: ImageAttachment) => ({
+        ...i,
+        type: "image",
+        isImage: true
+    })) : void 0;
+
+    const formattedDocs = uFiles.length ? uFiles.map((f: UserFileAttachment) => {
+        return {
+            id: f.id,
+            title: f.fileName || "attachment",
+            createdAt: ts,
+            chipUrl: "",
+            sections: [],
+            links: [],
+            contentMarkdown: void 0,
+            url: f.sourceUrl,
+            candidates: f.thumbnailUrl ? [f.sourceUrl, f.thumbnailUrl] : [f.sourceUrl],
+            type: "file"
+        };
+    }) : void 0;
+
+    const attachments: GeminiAttachmentEvidence[] = [];
+    if (formattedImages) {
+        for (const im of formattedImages) {
+            attachments.push({
+                type: "image",
+                src: im.sourceUrl,
+                alt: im.fileName,
+                isBlob: false,
+                isImage: true,
+                originalUrl: im.sourceUrl
+            });
+        }
+    }
+    if (formattedDocs) {
+        for (const d of formattedDocs) {
+            attachments.push({
+                type: "file",
+                name: d.title || d.id,
+                title: d.title,
+                url: d.url,
+                contentMarkdown: d.contentMarkdown
+            });
+        }
+    }
+
+    const rawRequestId = turn.rawProviderRequestId;
+
+    return {
+        id: rawRequestId ?? "",
+        role: "user",
+        providerRequestId: rawRequestId || void 0,
+        rawProviderRequestId: rawRequestId,
+        turnId: userMsgId || void 0,
+        content: uText,
+        timestamp: ts,
+        images: formattedImages,
+        documents: formattedDocs,
+        attachments: attachments.length ? attachments : void 0,
+        attachmentCount: attachments.length,
+        messageCount: 1,
+        structuredImages: []
+    };
+}
+
+function parseCandidateResponse(
+    candidate: DecodedGeminiCandidate,
+    turn: DecodedGeminiTurn,
+    resources: DecodedGeminiCandidateResources,
+    convId?: string
+): GeminiMessageEvidence | null {
+    const ts = turn.timestamp;
+    const candidateId = candidate.id;
+    let responseText = candidate.text;
+    const { images: candImages, filteredImages, generatedFiles, documents: docDetails, structuredExtraction, structuredImages } = resources;
+    const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
+
+    const { thoughts, citations, sourceAttributions, groundingCitationMarkers } = candidate;
+
+    if (responseText) {
+        responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\s*/i, "");
+        responseText = stripInternalChipMarkdown(responseText);
+    }
+
+    const rawRequestId = turn.rawProviderRequestId;
+    const generatedCount = candImages.filter(img => img.isGenerated).length;
+    const generationPrompt = turn.userText;
+    const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
+        const isGen = !!img.isGenerated;
+        const ordinal = isGen ? (img.imageOrdinal ?? (generatedCount === 1 ? 0 : undefined)) : undefined;
+        return {
+            ...img,
+            type: "image",
+            providerRequestId: isGen ? rawRequestId : undefined,
+            imageOrdinal: ordinal,
+            ...(isGen ? {
+                generation: {
+                    chatId: String(convId || '').replace(/^c_/, ''),
+                    providerRequestId: rawRequestId,
+                    imageOrdinal: ordinal,
+                    generationOrdinal: 0,
+                    imageCount: generatedCount,
+                    ...(ts !== null ? { time: ts } : {}),
+                    ...(generationPrompt.trim() ? { prompt: generationPrompt } : {}),
+                }
+            } : {})
+        };
+    }) : void 0;
+
+    const attachments: GeminiAttachmentEvidence[] = [...generatedFiles];
+    if (formattedImages) {
+        for (const img of formattedImages) {
+            attachments.push({
+                type: "image",
+                src: img.sourceUrl,
+                alt: img.fileName,
+                isBlob: false,
+                isImage: true,
+                originalUrl: img.sourceUrl,
+                token: img.token,
+                providerRequestId: img.providerRequestId,
+                imageOrdinal: img.imageOrdinal,
+                ...(img.isGenerated ? { isGenerated: true } : {}),
+                ...(img.generation ? { generation: img.generation } : {})
+            });
+        }
+    }
+    if (docDetails.length) {
+        for (const d of docDetails) {
+            if (d.contentMarkdown || (d.url && !isInternalChipUrl(d.url))) {
+                attachments.push({
+                    type: "file",
+                    id: d.id,
+                    name: d.title || d.id,
+                    title: d.title,
+                    url: d.url,
+                        contentMarkdown: d.contentMarkdown
+                });
+            }
+        }
+    }
+
+    if (!responseText && !thoughts && !attachments.length && !docDetails.length && !structuredContent) return null;
+
+    const fallbackTurnId = turn.fallbackTurnId;
+
+    return {
+        id: candidateId,
+        role: "model",
+        content: responseText || "",
+        providerRequestId: rawRequestId || void 0,
+        rawProviderRequestId: rawRequestId,
+        turnId: fallbackTurnId || void 0,
+        thoughts: thoughts || void 0,
+        citations: citations.length ? citations : void 0,
+        timestamp: ts,
+        images: formattedImages,
+        documents: docDetails.length ? docDetails : void 0,
+        attachments: attachments.length ? attachments : void 0,
+        attachmentCount: attachments.length,
+        messageCount: 1,
+        ...(structuredContent ? { structuredContent } : {}),
+        structuredExtraction,
+        structuredImages,
+        ...(sourceAttributions.length ? { sourceAttributions } : {}),
+        ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {})
+    };
+}
+
+/** The Turn ingress closes all JSPB slots before message composition.
+ * Context-dependent document binding and deduplication remain in this decoder. */
+export function decodeGeminiTurn(
+    rawTurn: unknown,
+    documents: GeminiDocumentReader,
+    dedupSet: Set<string>,
+    docDedupSet: Set<string>,
+    convId?: string
+): GeminiMessageEvidence[] {
+    const turn = decodeTurn(rawTurn);
+    if (!turn) return [];
+
+    const messages: GeminiMessageEvidence[] = [];
+    const userMessage = buildUserMessage(turn, decodeGeminiUserResources(rawTurn), dedupSet, docDedupSet);
+    if (userMessage) messages.push(userMessage);
+
+    if (turn.candidate) {
+        const resources = decodeGeminiCandidateResources(turn.candidate, documents, dedupSet, docDedupSet, convId);
+        const modelMessage = parseCandidateResponse(turn.candidate, turn, resources, convId);
+        if (modelMessage) messages.push(modelMessage);
+    }
+    return messages;
 }
