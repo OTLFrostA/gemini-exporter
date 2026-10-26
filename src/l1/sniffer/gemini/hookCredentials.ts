@@ -16,7 +16,7 @@ declare global {
         __gemExporterHookInstalled?: boolean;
     }
     interface XMLHttpRequest {
-        __hookUrl?: string | URL;
+        __hookUrl?: string;
     }
 }
 
@@ -70,17 +70,15 @@ declare global {
         return Boolean(window.__gemExporterDevMode);
     }
 
-    function toUrlString(url: string | URL | Request | null | undefined): string {
+    function toUrlString(url: string | URL | Request): string {
         if (!url) return '';
         const raw = typeof url === 'string' ? url
             : url instanceof Request ? url.url : url.toString();
         try { return new URL(raw, location.href).href; } catch { return raw; }
     }
 
-    function captureFromUrl(url: string | URL | Request | null | undefined, body: string): void {
+    function captureFromUrl(u: string, body: string): void {
         try {
-            if (!url) return;
-            const u = toUrlString(url);
             if (!u.includes('batchexecute')) return;
             publishAccount();
             const rawAt = /[?&]at=(?<token>[^&]+)/.exec(u)?.groups?.token;
@@ -109,10 +107,9 @@ declare global {
         }
     }
 
-    function getSlotFromUrl(url: string | URL | Request | null | undefined): string {
+    function getSlotFromUrl(url: string): string {
         let slot = 'u0';
-        const uStr = toUrlString(url);
-        const m = uStr.match(/\/u\/(\d+)\//);
+        const m = url.match(/\/u\/(\d+)\//);
         if (m && m[1]) slot = 'u' + m[1];
         else {
             const m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
@@ -175,7 +172,7 @@ declare global {
         const requestedAt = Date.now();
         const url = toUrlString(input);
         const endpoint = routeResponse(url);
-        const handler = endpoint?.({ url, slot: getSlotFromUrl(input), pagePath: location.pathname,
+        const handler = endpoint?.({ url, slot: getSlotFromUrl(url), pagePath: location.pathname,
             requestedAt, requestAccountObservation: captureRequestAccount(url) });
         const request = input instanceof Request ? input : undefined;
         const body = (init && init.body) || request?.body;
@@ -187,7 +184,7 @@ declare global {
         }
 
         try {
-            captureFromUrl(input, requestBody);
+            captureFromUrl(url, requestBody);
             handler?.start(requestBody);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -222,7 +219,7 @@ declare global {
         | [method: string, url: string | URL, async: boolean, username?: string | null, password?: string | null];
     const hookedOpen = function(this: XMLHttpRequest, ...args: XhrOpenArgs): void {
         try {
-            this.__hookUrl = args[1];
+            this.__hookUrl = toUrlString(args[1]);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
         }
@@ -233,15 +230,14 @@ declare global {
     XMLHttpRequest.prototype.send = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>): void {
         let cancelStream = () => {};
         try {
-            const url = this.__hookUrl;
+            const sourceUrl = this.__hookUrl ?? '';
             const body = args[0];
             const requestedAt = Date.now();
-            const sourceUrl = toUrlString(url);
             const endpoint = routeResponse(sourceUrl);
-            const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(url), pagePath: location.pathname,
+            const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(sourceUrl), pagePath: location.pathname,
                 requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
             const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
-            captureFromUrl(url, requestBody);
+            captureFromUrl(sourceUrl, requestBody);
             if (handler) {
                 const selected = handler;
                 selected.start(requestBody);
