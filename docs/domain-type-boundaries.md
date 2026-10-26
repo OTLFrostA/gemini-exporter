@@ -42,6 +42,11 @@ Compiler-based architecture tests reject their reintroduction, including ordinar
 casts unrelated to the Domain brand. Type-aware lint rejects implicit `any` flow
 through all five owners as well as explicit `any`.
 
+ChatGPT, Claude and Grok content listeners receive `MessageEvent<unknown>` and
+validate the source, origin and capture envelope before queuing its payload.
+Provider payloads remain unknown until their existing source decoders run; the
+same strict type-aware lint gate covers these three listener owners.
+
 L2 coverage and detail selection operate on concrete Domain shapes (`PageObservation`
 cursor evidence and `DomainConversationDetail`) rather than generic wrappers. L3a maps
 each IndexedDB store name to its fixed row type via `StoreValueMap`, eliminating
