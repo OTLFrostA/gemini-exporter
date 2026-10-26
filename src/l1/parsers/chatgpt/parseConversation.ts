@@ -1,4 +1,4 @@
-import { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
+import type { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
 import { contentQuality } from '../qualityEvidence.js';
@@ -214,12 +214,14 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
         diagnostics: contentDiagnostics,
         sourceRef: { providerId: 'chatgpt', locator: `conversation:${conversation.id}` },
     };
-    const nodes = processChatGPTMapping(conversation);
+    // Preserve the source snapshot produced during branch projection; do not reparse its rendered text.
+    const snapshots = new Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>();
+    const nodes = processChatGPTMapping(conversation, snapshots);
     const interactiveSnapshots = nodes.flatMap(node => {
         const raw = conversation.mapping[node.id]?.message;
-        return raw?.metadata?.model_dil_v2 && raw.content.content_type === 'text'
-            ? [{ messageId: raw.id, snapshot: chatGPTInteractiveSnapshot(
-                (raw.content.parts ?? []).join(''), raw.metadata.model_dil_v2.fallbackMarkdown) }] : [];
+        const snapshot = snapshots.get(node.id);
+        return snapshot && raw?.metadata?.model_dil_v2 && raw.content.content_type === 'text'
+            ? [{ messageId: raw.id, snapshot }] : [];
     });
     const interactiveIncomplete = interactiveSnapshots.some(({ snapshot }) => snapshot.incomplete);
     for (const { messageId, snapshot } of interactiveSnapshots) {
