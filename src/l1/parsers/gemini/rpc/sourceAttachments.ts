@@ -369,8 +369,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         return { images, structuredImages: structuredContent ? reader(structuredContent) : [] };
     }
 
-    function itemMatchesFilename(name?: string | null): boolean {
-        if (typeof name !== "string") return false;
+    function itemMatchesFilename(name: string): boolean {
         const trimmed = name.trim();
         if (!trimmed) return false;
         if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) return false;
