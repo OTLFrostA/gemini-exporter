@@ -1,3 +1,4 @@
+import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
 import { chatGPTInteractiveSnapshot } from '../src/l1/parsers/chatgpt/interactiveSnapshot.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
@@ -680,27 +681,27 @@ test('Captured live DIL quiz parses nested questions/options before buttons, wit
 test('DIL AsyncImage gallery becomes one ordered image resource instead of leaked control JSON', () => {
     const url = 'https://images.openai.com/static-rsc-4/' + 'a'.repeat(300) + '?purpose=fullsize';
     const answer = textNode('answer', 'question', 'assistant', '<AsyncImage query="flow network"/>');
-    answer.message!.metadata = { model_dil_v2: {
+    const metadata = { model_dil_v2: {
         fallbackMarkdown: 'Before\n\n\uE200image_group\uE202{"query":["flow network"]}\uE201\n\nAfter',
         appData: { opGenui: { componentResults: { image: { componentName: 'AsyncImage', status: 'resolved',
             safe_urls: [url], state: { images: [{ content_url: url }, { content_url: url }] } } } } },
     } };
     const conversation = { id: 'gallery', title: 'Gallery', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
-        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagram'), answer } };
-    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagram'), answer: { ...answer, message: { ...answer.message!, metadata } } } };
+    const parsed = parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() });
     const message = parsed.conversation.detail.messages.at(-1)!;
     assert.deepEqual(message.content.map(b => b.type), ['paragraph', 'image', 'paragraph']);
     assert.equal(parsed.conversation.detail.assets.length, 1);
     assert.equal(parsed.conversation.detail.assets[0].sourceUri, url);
     assert.ok(parsed.conversation.detail.assets[0].id.length < 64);
     assert.ok(!JSON.stringify(message.content).includes('image_group'));
-    assert.ok(answer.message!.metadata!.model_dil_v2!.fallbackMarkdown!.includes('image_group'), 'source stays unchanged');
-    const imageResult = answer.message!.metadata!.model_dil_v2!.appData!.opGenui!.componentResults!.image;
+    assert.ok(metadata.model_dil_v2.fallbackMarkdown.includes('image_group'), 'source stays unchanged');
+    const imageResult = metadata.model_dil_v2.appData.opGenui.componentResults.image;
     imageResult.safe_urls = [];
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0,
+    assert.equal(parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() }).conversation.detail.assets.length, 0,
         'unapproved source URLs are never promoted into image resources');
-    imageResult.safe_urls = ['https://invalid.example/x']; imageResult.state!.images = [{content_url:'https://invalid.example/x'}];
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0);
+    imageResult.safe_urls = ['https://invalid.example/x']; imageResult.state.images = [{content_url:'https://invalid.example/x'}];
+    assert.equal(parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() }).conversation.detail.assets.length, 0);
 });
 
 
@@ -708,22 +709,22 @@ test('DIL galleries bind each query to its resolution ID despite reordered resul
     const answer = textNode('answer', 'question', 'assistant', '<AsyncImage/>');
     const urlA = 'https://images.openai.com/static-rsc-4/winding';
     const urlB = 'https://images.openai.com/static-rsc-4/ray';
-    answer.message!.metadata = { model_dil_v2: {
+    const metadata = { model_dil_v2: {
         fallbackMarkdown: 'Before\n\uE200image_group\uE202{"query":["winding"]}\uE201\nMiddle\n\uE200image_group\uE202{"query":["ray"]}\uE201\nAfter',
         code: '__dil.jsx(AsyncImage,{"query":"winding","__resolutionId":__dilConstants["4"]});__dil.jsx(AsyncImage,{"query":"ray","__resolutionId":__dilConstants["8"]})',
-        constants: { '4': 'id-a', '8': 'id-b' },
+        constants: Object.fromEntries([['4', 'id-a'], ['8', 'id-b']]),
         appData: { opGenui: { componentResults: {
             'id-b': { componentName: 'AsyncImage', status: 'resolved', safe_urls: [urlB], state: { images: [{ content_url: urlB }] } },
             'id-a': { componentName: 'AsyncImage', status: 'resolved', safe_urls: [urlA], state: { images: [{ content_url: urlA }] } },
         } } },
     } };
     const conversation = { id: 'galleries', title: 'Gallery', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
-        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagrams'), answer } };
-    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagrams'), answer: { ...answer, message: { ...answer.message!, metadata } } } };
+    const parsed = parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() });
     assert.deepEqual(parsed.conversation.detail.assets.map(asset => asset.sourceUri), [urlA, urlB]);
     assert.deepEqual(parsed.conversation.detail.messages.at(-1)!.content.map(block => block.type), ['paragraph', 'image', 'paragraph', 'image', 'paragraph']);
-    answer.message!.metadata!.model_dil_v2!.constants = {};
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0, 'ambiguous multi-gallery ordering is never guessed');
+    conversation.mapping.answer.message.metadata = { model_dil_v2: { ...metadata.model_dil_v2, constants: {} } };
+    assert.equal(parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() }).conversation.detail.assets.length, 0, 'ambiguous multi-gallery ordering is never guessed');
 });
 
 test('DIL fallback norm escapes preserve all table cells and math', () => {

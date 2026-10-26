@@ -7,16 +7,11 @@ import type {
     ChatGPTApiConversationWithId,
     ChatGPTConversationNode,
     ChatGPTMessageContent,
+    ChatGPTGalleryResult,
     ChatGPTNodeMessage,
 } from './chatgptTypes.js';
 
 type Metadata = NonNullable<ChatGPTNodeMessage['metadata']>;
-type GalleryResult = {
-    componentName?: string;
-    status?: string;
-    state?: { images?: Array<{ content_url?: string; thumbnail_url?: string; title?: string }> };
-    safe_urls?: string[];
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -52,29 +47,29 @@ function links(value: unknown): Array<{ title?: string; url?: string }> | undefi
     });
 }
 
-function galleryResults(value: unknown): Record<string, GalleryResult> | undefined {
+function galleryResults(value: unknown): ReadonlyMap<string, ChatGPTGalleryResult> | undefined {
     const source = record(value);
     if (!source) return undefined;
-    const results: Record<string, GalleryResult> = {};
+    const results = new Map<string, ChatGPTGalleryResult>();
     for (const [key, raw] of Object.entries(source)) {
         const entry = record(raw);
         if (!entry) continue;
         const state = record(entry.state);
-        const images = unknownArray(state?.images) ? state.images.flatMap(rawImage => {
-            const image = record(rawImage);
-            return image ? [{
-                ...(text(image.content_url) !== undefined ? { content_url: text(image.content_url) } : {}),
-                ...(text(image.thumbnail_url) !== undefined ? { thumbnail_url: text(image.thumbnail_url) } : {}),
-                ...(text(image.title) !== undefined ? { title: text(image.title) } : {}),
-            }] : [];
-        }) : undefined;
         const urls = strings(entry.safe_urls);
-        Object.defineProperty(results, key, { value: {
+        const imageUrls = unknownArray(state?.images) ? state.images.flatMap(rawImage => {
+            const image = record(rawImage);
+            const url = text(image?.content_url) ?? text(image?.thumbnail_url);
+            if (url === undefined || !urls?.includes(url)) return [];
+            try {
+                const parsed = new URL(url);
+                return parsed.protocol === 'https:' && parsed.hostname === 'images.openai.com' ? [url] : [];
+            } catch { return []; }
+        }) : [];
+        results.set(key, {
             ...(text(entry.componentName) !== undefined ? { componentName: text(entry.componentName) } : {}),
             ...(text(entry.status) !== undefined ? { status: text(entry.status) } : {}),
-            ...(images ? { state: { images } } : {}),
-            ...(urls ? { safe_urls: urls } : {}),
-        }, enumerable: true, configurable: true, writable: true });
+            imageUrls,
+        });
     }
     return results;
 }
@@ -83,12 +78,10 @@ function dilMetadata(value: unknown): Metadata['model_dil_v2'] {
     const source = record(value);
     if (!source) return undefined;
     const rawConstants = record(source.constants);
-    const constants: Record<string, string> = {};
+    const constants = new Map<string, string>();
     if (rawConstants) {
         for (const [key, value] of Object.entries(rawConstants)) {
-            if (typeof value === 'string') Object.defineProperty(constants, key, {
-                value, enumerable: true, configurable: true, writable: true,
-            });
+            if (typeof value === 'string') constants.set(key, value);
         }
     }
     const appData = record(source.appData);

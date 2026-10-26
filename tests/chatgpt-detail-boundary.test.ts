@@ -92,9 +92,10 @@ test('ChatGPT Detail decoder sanitizes optional nested metadata without leaking 
     assert.deepEqual(meta?.citations, [{ metadata: { title: 'Reference', url: 'https://example.com' } }]);
     assert.deepEqual(meta?.content_references?.[0].sources, [{ title: 'Second', url: 'https://second.example' }]);
     assert.deepEqual(meta?.aggregate_result?.messages, [{ message_type: 'image', image_url: 'https://img.example' }]);
-    assert.deepEqual(meta?.model_dil_v2?.constants, { good: 'resolved-id' });
+    assert.deepEqual(meta?.model_dil_v2?.constants, new Map([['good', 'resolved-id']]));
+    assert.equal(meta?.model_dil_v2?.constants?.get('toString'), undefined);
     // A malformed safe_urls list must never be passed to the gallery selector.
-    assert.equal(meta?.model_dil_v2?.appData?.opGenui?.componentResults?.r.safe_urls, undefined);
+    assert.deepEqual(meta?.model_dil_v2?.appData?.opGenui?.componentResults?.get('r')?.imageUrls, []);
     assert.equal('strange' in (meta ?? {}), false);
 });
 
@@ -150,4 +151,37 @@ test('ChatGPT manual and live Detail entrypoints both invoke the shared boundary
     assert.match(capture, /decodeChatGPTDetail\(raw\.responseBody, key\.conversationId\)/);
     assert.doesNotMatch(provider, /as ChatGPTApiConversationWithId/);
     assert.doesNotMatch(capture, /as ChatGPTApiConversationWithId/);
+});
+
+
+test('ChatGPT gallery ingress approves locators once and preserves unresolved result identity', () => {
+    const original = detailGen('C_DETAIL_L1_SOURCE_01');
+    const answer = original.mapping.answer;
+    const url = 'https://images.openai.com/approved';
+    const rejected = ['http://images.openai.com/image', 'https://images.openai.com.evil.test/image',
+        'https://evil.test/image', 'data:image/png;base64,AAAA', 'not a URL'];
+    const source = {
+        approved: { componentName: 'AsyncImage', status: 'resolved', safe_urls: [url],
+            state: { images: [{ content_url: url }, { thumbnail_url: url },
+                { content_url: '', thumbnail_url: url }, null, { content_url: 42, thumbnail_url: url }] } },
+        unapproved: { componentName: 'AsyncImage', status: 'resolved', safe_urls: [],
+            state: { images: [{ content_url: url }] } },
+        invalid: { componentName: 'AsyncImage', status: 'resolved', safe_urls: rejected,
+            state: { images: rejected.map(content_url => ({ content_url })) } },
+        absent: { componentName: 'AsyncImage', status: 'pending' },
+    };
+    const before = structuredClone(source);
+    const decoded = decodeChatGPTDetail({ ...original, mapping: { ...original.mapping,
+        answer: { ...answer, message: { ...answer.message, metadata: {
+            model_dil_v2: { appData: { opGenui: { componentResults: source } } },
+        } } },
+    } }, id);
+    const results = decoded.mapping.answer.message?.metadata?.model_dil_v2?.appData?.opGenui?.componentResults;
+    assert.deepEqual(results && Object.fromEntries(results), {
+        approved: { componentName: 'AsyncImage', status: 'resolved', imageUrls: [url, url, url] },
+        unapproved: { componentName: 'AsyncImage', status: 'resolved', imageUrls: [] },
+        invalid: { componentName: 'AsyncImage', status: 'resolved', imageUrls: [] },
+        absent: { componentName: 'AsyncImage', status: 'pending', imageUrls: [] },
+    });
+    assert.deepEqual(source, before, 'Ingress must not mutate source evidence');
 });

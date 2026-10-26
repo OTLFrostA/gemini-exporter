@@ -64,7 +64,7 @@ function dilGalleryParts(text: string, message: ChatGPTNodeMessage): Array<strin
     const markers = [...text.matchAll(/\uE200image_group\uE202([^\uE201]*)\uE201/g)];
     if (!markers.length) return null;
     const dil = message.metadata?.model_dil_v2;
-    const results = dil?.appData?.opGenui?.componentResults ?? {};
+    const results = dil?.appData?.opGenui?.componentResults;
     const bindings = new Map<string, string[]>();
     // This deliberately accepts only observed, literal AsyncImage props. Dynamic
     // expressions remain fallback text instead of being guessed or evaluated.
@@ -72,33 +72,30 @@ function dilGalleryParts(text: string, message: ChatGPTNodeMessage): Array<strin
         const query = /"query":("(?:\\.|[^"\\])*")/.exec(match[1]);
         const resolution = /"__resolutionId":__dilConstants\["([^"\]]+)"\]/.exec(match[1]);
         if (!query || !resolution) continue;
-        const id = dil?.constants?.[resolution[1]];
-        if (typeof id !== 'string') continue;
+        const id = dil?.constants?.get(resolution[1]);
+        if (id === undefined) continue;
         try {
             const key: unknown = JSON.parse(query[1]);
             if (typeof key === 'string') bindings.set(key, [...(bindings.get(key) ?? []), id]);
         } catch { /* Nonliteral props are not eligible. */ }
     }
-    const resolved = Object.values(results).filter(item => item?.componentName === 'AsyncImage' && item.status === 'resolved');
+    const resolved = [...(results?.values() ?? [])].filter(item => item?.componentName === 'AsyncImage' && item.status === 'resolved');
     const parts: Array<string | { content_type: string; asset_pointer: string }> = [];
     let cursor = 0, converted = false;
     for (const marker of markers) {
         let result: typeof resolved[number] | undefined;
         try {
             const payload: unknown = JSON.parse(marker[1]);
-            if (payload && typeof payload === 'object' && 'query' in payload && Array.isArray(payload.query) && payload.query.length === 1) {
+            if (payload && typeof payload === 'object' && 'query' in payload && Array.isArray(payload.query) && payload.query.length === 1
+                && typeof payload.query[0] === 'string') {
                 const ids = bindings.get(payload.query[0]);
-                if (ids?.length === 1) result = results[ids[0]];
+                if (ids?.length === 1) result = results?.get(ids[0]);
             }
         } catch { /* Preserve malformed markers. */ }
         if (!result && markers.length === 1 && resolved.length === 1) result = resolved[0];
         const selected = result;
         const pointers = selected?.componentName === 'AsyncImage' && selected.status === 'resolved'
-            ? (selected.state?.images ?? []).map(image => image.content_url ?? image.thumbnail_url).filter((url): url is string => {
-                if (typeof url !== 'string' || !selected.safe_urls?.includes(url)) return false;
-                try { const parsed = new URL(url); return parsed.protocol === 'https:' && parsed.hostname === 'images.openai.com'; }
-                catch { return false; }
-            }) : [];
+            ? selected.imageUrls : [];
         parts.push(text.slice(cursor, marker.index));
         if (pointers.length) {
             parts.push(...[...new Set(pointers)].map(pointer => ({ content_type: 'image_asset_pointer', asset_pointer: pointer })));
