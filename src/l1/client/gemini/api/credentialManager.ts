@@ -30,8 +30,8 @@ function isStoredCredential(value: unknown): value is StoredCredential {
 }
 
 export interface GeminiClientCredentialManagerModule {
-    getBlFromPage: (doc?: unknown) => string | null;
-    getAtFromPage: (doc?: unknown) => string;
+    getBlFromPage: () => string | null;
+    getAtFromPage: () => string;
     detectSlot: (urlOrPath?: string | null) => string | null;
     getCredStorage: () => chrome.storage.StorageArea | null;
     loadCredMap: () => Promise<RawCredentialMap>;
@@ -59,31 +59,11 @@ function getGlobalObject(): Record<string, unknown> | null {
     return null;
 }
 
-function getTargetDocument(doc?: unknown): Record<string, unknown> | null {
-    if (isRecord(doc)) {
-        return doc;
-    }
-    const glob = getGlobalObject();
-    if (glob && isRecord(glob.document)) {
-        return glob.document;
-    }
-    return null;
-}
-
-function getDocumentHtml(targetDoc: Record<string, unknown>): string {
-    const docEl = targetDoc.documentElement;
-    if (isRecord(docEl) && typeof docEl.innerHTML === "string") {
-        return docEl.innerHTML;
-    }
-    return "";
-}
-
-function getBlFromPage(doc?: unknown): string | null {
+function getBlFromPage(): string | null {
     try {
         const glob = getGlobalObject();
-        const targetDoc = getTargetDocument(doc);
-        if (!targetDoc) return null;
-        const html = getDocumentHtml(targetDoc);
+        if (typeof document === "undefined") return null;
+        const html = document.documentElement?.innerHTML ?? "";
         const htmlLen = html.length;
         if (_blCache && Date.now() - _blCache.ts < CRED_CACHE_TTL && _blCache.len === htmlLen) {
             return _blCache.v;
@@ -104,7 +84,7 @@ function getBlFromPage(doc?: unknown): string | null {
     return null;
 }
 
-function getAtFromPage(doc?: unknown): string {
+function getAtFromPage(): string {
     try {
         const glob = getGlobalObject();
         if (glob) {
@@ -114,9 +94,8 @@ function getAtFromPage(doc?: unknown): string {
                 if (typeof a === "string" && a) return a;
             }
         }
-        const targetDoc = getTargetDocument(doc);
-        if (!targetDoc) return "";
-        const html = getDocumentHtml(targetDoc);
+        if (typeof document === "undefined") return "";
+        const html = document.documentElement?.innerHTML ?? "";
         const htmlLen = html.length;
         if (_atCache && Date.now() - _atCache.ts < CRED_CACHE_TTL && _atCache.len === htmlLen) {
             return _atCache.v;
@@ -136,30 +115,13 @@ function getAtFromPage(doc?: unknown): string {
                 return v;
             }
         }
-        if (typeof targetDoc.querySelectorAll === "function") {
-            const rawScripts: unknown = Reflect.apply(targetDoc.querySelectorAll, targetDoc, ["script"]);
-            if (Array.isArray(rawScripts)) {
-                for (const s of rawScripts) {
-                    if (isRecord(s) && typeof s.textContent === "string") {
-                        const m = s.textContent.match(P.TOKEN_PATTERNS.atFromScript);
-                        if (m && typeof m[1] === "string") {
-                            _atCache = { v: m[1], ts: Date.now(), len: htmlLen };
-                            return m[1];
-                        }
-                    }
-                }
-            } else if (isRecord(rawScripts) && typeof rawScripts.length === "number") {
-                const len = rawScripts.length;
-                for (let i = 0; i < len; i++) {
-                    const s = rawScripts[i];
-                    if (isRecord(s) && typeof s.textContent === "string") {
-                        const m = s.textContent.match(P.TOKEN_PATTERNS.atFromScript);
-                        if (m && typeof m[1] === "string") {
-                            _atCache = { v: m[1], ts: Date.now(), len: htmlLen };
-                            return m[1];
-                        }
-                    }
-                }
+        for (const script of document.querySelectorAll("script")) {
+            const text = script.textContent;
+            if (!text) continue;
+            const m = text.match(P.TOKEN_PATTERNS.atFromScript);
+            if (m) {
+                _atCache = { v: m[1], ts: Date.now(), len: htmlLen };
+                return m[1];
             }
         }
         const mHtml = html.match(P.TOKEN_PATTERNS.atFromScript);
