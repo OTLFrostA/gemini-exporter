@@ -1,12 +1,20 @@
 import { hasGrokAccess } from './grokSource.js';
 import { grokUuid } from '../../parsers/grok/source.js';
 
+/** Trusted shape assembled by our isolated-world DOM collector. */
+export interface GrokCapturedImage {
+    responseId: string;
+    original_src: string;
+    format: string;
+    source: 'user_upload' | 'ai_generated';
+}
+
 /** Loominary's image selectors, with exact response ownership and account checks. */
-export async function readGrokImages(conversationId: string, owner: string): Promise<unknown[]> {
+export async function readGrokImages(conversationId: string, owner: string): Promise<GrokCapturedImage[]> {
     if (!grokUuid(conversationId) || !grokUuid(owner)) throw new TypeError('Invalid Grok image context');
     if (!await hasGrokAccess()) throw new Error('Grok host permission unavailable');
     const tabs = await chrome.tabs.query({ url: ['https://grok.com/*'] });
-    const results: unknown[] = [];
+    const results: GrokCapturedImage[] = [];
     for (const tab of tabs) {
         if (tab.id === undefined) continue;
         const response = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED',
@@ -18,7 +26,7 @@ export async function readGrokImages(conversationId: string, owner: string): Pro
                     return !!user && typeof user === 'object' && 'userId' in user && user.userId === account;
                 };
                 if (!await verify()) return [];
-                const rows: { responseId: string; original_src: string; format: string; source: string }[] = [];
+                const rows: GrokCapturedImage[] = [];
                 const seen = new Set<string>();
                 const images = document.querySelectorAll<HTMLImageElement>(
                     '[id^="response-"] img[src*="assets.grok.com"][src*="/generated/"],[data-testid="image-viewer"] img[src*="assets.grok.com"],figure img[src*="assets.grok.com"][src*="preview-image"]');
