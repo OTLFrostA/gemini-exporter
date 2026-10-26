@@ -99,9 +99,7 @@ function getBlFromPage(doc?: unknown): string | null {
         _blCache = { v: res, ts: Date.now(), len: htmlLen };
         if (res) return res;
     } catch (e) {
-        if (typeof console !== "undefined" && typeof console.debug === "function") {
-            console.debug("[GemExporter:credentialManager.ts]", e);
-        }
+        console.debug("[GemExporter:credentialManager.ts]", e);
     }
     return null;
 }
