@@ -46,7 +46,7 @@ let _atCache: { v: string; ts: number; len: number } | null = null;
 const CRED_CACHE_TTL = 30000;
 
 function isRecord(val: unknown): val is Record<string, unknown> {
-    return typeof val === "object" && val !== null;
+    return typeof val === "object" && val !== null && !Array.isArray(val);
 }
 
 function getBlFromPage(): string | null {
