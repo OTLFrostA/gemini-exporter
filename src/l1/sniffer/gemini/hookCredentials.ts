@@ -63,8 +63,8 @@ declare global {
 
     const routeResponse = createGeminiResponseRouter();
     const origFetch = window.fetch;
-    const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
-    const origSend = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.send : null;
+    const origOpen = XMLHttpRequest.prototype.open;
+    const origSend = XMLHttpRequest.prototype.send;
 
     function isDev(): boolean {
         return Boolean(window.__gemExporterDevMode);
@@ -73,7 +73,7 @@ declare global {
     function toUrlString(url: string | URL | Request | null | undefined): string {
         if (!url) return '';
         const raw = typeof url === 'string' ? url
-            : typeof Request !== 'undefined' && url instanceof Request ? url.url : url.toString();
+            : url instanceof Request ? url.url : url.toString();
         try { return new URL(raw, location.href).href; } catch { return raw; }
     }
 
@@ -167,114 +167,107 @@ declare global {
         return txt.length > cap ? { text: txt.slice(0, cap), truncated: true } : { text: txt, truncated: false };
     }
 
-    if (origFetch) {
-        const nativeFetch = origFetch;
-        window.fetch = async function(
-            this: unknown,
-            input: RequestInfo | URL,
-            init?: RequestInit
-        ): Promise<Response> {
-            const requestedAt = Date.now();
-            const url = toUrlString(input);
-            const endpoint = routeResponse(url);
-            const handler = endpoint?.({ url, slot: getSlotFromUrl(input), pagePath: location.pathname,
-                requestedAt, requestAccountObservation: captureRequestAccount(url) });
-            const request = typeof Request !== 'undefined' && input instanceof Request ? input : undefined;
-            const body = (init && init.body) || request?.body;
-            const requestBody = typeof body === 'string' ? body
-                : body instanceof URLSearchParams ? body.toString() : '';
-            let capturedBody = Promise.resolve(requestBody);
-            if (typeof body !== 'string' && request && handler) {
-                try { capturedBody = request.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
-            }
+    window.fetch = async function(
+        this: unknown,
+        input: RequestInfo | URL,
+        init?: RequestInit
+    ): Promise<Response> {
+        const requestedAt = Date.now();
+        const url = toUrlString(input);
+        const endpoint = routeResponse(url);
+        const handler = endpoint?.({ url, slot: getSlotFromUrl(input), pagePath: location.pathname,
+            requestedAt, requestAccountObservation: captureRequestAccount(url) });
+        const request = input instanceof Request ? input : undefined;
+        const body = (init && init.body) || request?.body;
+        const requestBody = typeof body === 'string' ? body
+            : body instanceof URLSearchParams ? body.toString() : '';
+        let capturedBody = Promise.resolve(requestBody);
+        if (typeof body !== 'string' && request && handler) {
+            try { capturedBody = request.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
+        }
 
+        try {
+            captureFromUrl(input, requestBody);
+            handler?.start(requestBody);
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+
+        let response: Response;
+        try { response = await origFetch.call(this, input, init); }
+        catch (error) {
+            handler?.end();
+            throw error;
+        }
+
+        if (handler) {
+            const selected = handler;
             try {
-                captureFromUrl(input, requestBody);
-                handler?.start(requestBody);
-            } catch (e) {
-                if (isDev()) console.debug('[GemExporter:hook]', e);
-            }
+                void readCappedText(response.clone(), selected.captureLimit).then(async ({ text, truncated }) => {
+                    const aborted = init?.signal?.aborted
+                        || request?.signal.aborted;
+                    selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
+                }).catch((error: unknown) => {
+                    if (isDev()) console.debug('[GemExporter:hook]', error);
+                }).finally(() => selected.end());
+            } catch { selected.end(); }
+        }
 
-            let response: Response;
-            try { response = await nativeFetch.call(this, input, init); }
-            catch (error) {
-                handler?.end();
-                throw error;
-            }
+        return response;
+    };
 
+
+    type XhrOpenArgs =
+        | [method: string, url: string | URL]
+        | [method: string, url: string | URL, async: boolean, username?: string | null, password?: string | null];
+    const hookedOpen = function(this: XMLHttpRequest, ...args: XhrOpenArgs): void {
+        try {
+            this.__hookUrl = args[1];
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+        Reflect.apply(origOpen, this, args);
+    };
+    XMLHttpRequest.prototype.open = hookedOpen;
+
+    XMLHttpRequest.prototype.send = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>): void {
+        let cancelStream = () => {};
+        try {
+            const url = this.__hookUrl;
+            const body = args[0];
+            const requestedAt = Date.now();
+            const sourceUrl = toUrlString(url);
+            const endpoint = routeResponse(sourceUrl);
+            const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(url), pagePath: location.pathname,
+                requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
+            const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
+            captureFromUrl(url, requestBody);
             if (handler) {
                 const selected = handler;
-                try {
-                    void readCappedText(response.clone(), selected.captureLimit).then(async ({ text, truncated }) => {
-                        const aborted = init?.signal?.aborted
-                            || request?.signal.aborted;
-                        selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
-                    }).catch((error: unknown) => {
-                        if (isDev()) console.debug('[GemExporter:hook]', error);
-                    }).finally(() => selected.end());
-                } catch { selected.end(); }
+                selected.start(requestBody);
+                let ended = false;
+                const handleEnd = (event: Event) => {
+                    if (ended) return;
+                    ended = true;
+                    for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.removeEventListener(name, handleEnd);
+                    try {
+                        if (event.type === 'load') {
+                            const text = this.responseText;
+                            selected.complete(requestBody, text.slice(0, selected.captureLimit), text.length > selected.captureLimit,
+                                this.status >= 200 && this.status < 300);
+                        }
+                    } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }
+                    finally { selected.end(); }
+                };
+                for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.addEventListener(name, handleEnd);
+                cancelStream = () => handleEnd(new Event('error'));
             }
-
-            return response;
-        };
-    }
-
-    if (origOpen && origSend) {
-        const nativeOpen = origOpen;
-        const nativeSend = origSend;
-
-        type XhrOpenArgs =
-            | [method: string, url: string | URL]
-            | [method: string, url: string | URL, async: boolean, username?: string | null, password?: string | null];
-        const hookedOpen = function(this: XMLHttpRequest, ...args: XhrOpenArgs): void {
-            try {
-                this.__hookUrl = args[1];
-            } catch (e) {
-                if (isDev()) console.debug('[GemExporter:hook]', e);
-            }
-            Reflect.apply(nativeOpen, this, args);
-        };
-        XMLHttpRequest.prototype.open = hookedOpen;
-
-        XMLHttpRequest.prototype.send = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>): void {
-            let cancelStream = () => {};
-            try {
-                const url = this.__hookUrl;
-                const body = args[0];
-                const requestedAt = Date.now();
-                const sourceUrl = toUrlString(url);
-                const endpoint = routeResponse(sourceUrl);
-                const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(url), pagePath: location.pathname,
-                    requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
-                const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
-                captureFromUrl(url, requestBody);
-                if (handler) {
-                    const selected = handler;
-                    selected.start(requestBody);
-                    let ended = false;
-                    const handleEnd = (event: Event) => {
-                        if (ended) return;
-                        ended = true;
-                        for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.removeEventListener(name, handleEnd);
-                        try {
-                            if (event.type === 'load') {
-                                const text = this.responseText;
-                                selected.complete(requestBody, text.slice(0, selected.captureLimit), text.length > selected.captureLimit,
-                                    this.status >= 200 && this.status < 300);
-                            }
-                        } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }
-                        finally { selected.end(); }
-                    };
-                    for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.addEventListener(name, handleEnd);
-                    cancelStream = () => handleEnd(new Event('error'));
-                }
-            } catch (e) {
-                if (isDev()) console.debug('[GemExporter:hook]', e);
-            }
-            try { nativeSend.apply(this, args); }
-            catch (error) { cancelStream(); throw error; }
-        };
-    }
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+        try { origSend.apply(this, args); }
+        catch (error) { cancelStream(); throw error; }
+    };
 
     if (isDev()) console.log('[Gemini Exporter] MAIN world credentials hook initialized');
 
