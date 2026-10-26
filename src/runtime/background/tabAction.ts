@@ -15,7 +15,7 @@ import { isGeminiUrl } from '../../shared/utils/pathUtils.js';
 const isGeminiTabUrl = isGeminiUrl;
 
 function updateTabActionState(tabId?: number | null, url?: string | null): void {
-    if (typeof chrome === 'undefined' || !chrome.action || !tabId) return;
+    if (typeof chrome === 'undefined' || !chrome.action || tabId == null) return;
     const isGemini = isGeminiTabUrl(url);
     const icons = isGemini ? ACTION_COLOR_ICONS : ACTION_GRAY_ICONS;
     const title = isGemini ? 'Gemini Exporter (Active)' : 'Gemini Exporter (未激活 - 当前非 Gemini 页面)';
@@ -48,12 +48,12 @@ export function initTabActionListeners(): void {
         }
         if (chrome.tabs.query) {
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs && tabs[0]?.id) {
+                if (tabs?.[0]?.id !== undefined) {
                     updateTabActionState(tabs[0].id, tabs[0].url);
                 }
             });
         }
     } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:tabAction] init tab action state error', e);
+        console.debug('[GemExporter:tabAction] init tab action state error', e);
     }
 }
