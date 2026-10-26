@@ -82,8 +82,7 @@ export class GrokProvider implements AIProvider {
         }
         const captured = await this.images(id, account.providerAccountId);
         signal?.throwIfAborted();
-        for (const value of captured) {
-            const image = grokObject(value);
+        for (const image of captured) {
             const response = responses.find(value => grokObject(value).responseId === image.responseId);
             if (!response) continue;
             const row = grokObject(response);
