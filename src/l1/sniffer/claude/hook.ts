@@ -47,4 +47,4 @@ export function installClaudeHook(): void {
         return response;
     };
 }
-if (typeof window !== 'undefined') installClaudeHook();
+installClaudeHook();

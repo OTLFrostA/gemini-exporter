@@ -108,13 +108,14 @@ function dilGalleryParts(text: string, message: ChatGPTNodeMessage): Array<strin
 }
 
 /** Copy a node so repeat exports never mutate the cached raw mapping. */
-function copyChatGPTNode(node: ChatGPTConversationNode): ChatGPTConversationNode {
+function copyChatGPTNode(node: ChatGPTConversationNode, snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>): ChatGPTConversationNode {
     const message = node.message;
     if (!message) return { ...node };
     if (isTextContent(message)) {
         const snapshot = message.metadata?.model_dil_v2
             ? chatGPTInteractiveSnapshot(message.content.parts.join(''), message.metadata.model_dil_v2.fallbackMarkdown)
             : undefined;
+        if (snapshot) snapshots?.set(node.id, snapshot);
         // Normalize the provider fallback dialect only after source selection.
         // Rewriting fallback first can invent a disagreement with correct source
         // and replace exact code bodies with provider-reformatted code.
@@ -141,6 +142,7 @@ function copyChatGPTNode(node: ChatGPTConversationNode): ChatGPTConversationNode
 export function extractChatGPTLinearNodes(
     mapping: Record<string, ChatGPTConversationNode>,
     startNodeId: string,
+    snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>,
 ): ChatGPTConversationNode[] {
     const result: ChatGPTConversationNode[] = [];
     let currentId: string | undefined = startNodeId;
@@ -157,7 +159,7 @@ export function extractChatGPTLinearNodes(
             && ct !== 'user_editable_context'
             && !shouldSkipChatGPTMessage(node.message)
         ) {
-            result.unshift(copyChatGPTNode(node));
+            result.unshift(copyChatGPTNode(node, snapshots));
         }
         currentId = node.parent;
     }
@@ -186,6 +188,7 @@ export function extractChatGPTModelSlug(
  */
 export function processChatGPTMapping(
     conversation: ChatGPTApiConversationWithId,
+    snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>,
 ): ChatGPTConversationNode[] {
     const startId =
         conversation.current_node
@@ -193,7 +196,7 @@ export function processChatGPTMapping(
     // An empty/unattributable mapping is incomplete source evidence, not a parser crash.
     // The L1 caller will return zero messages and L2 quality remains 'unknown'.
     if (!startId) return [];
-    return extractChatGPTLinearNodes(conversation.mapping, startId);
+    return extractChatGPTLinearNodes(conversation.mapping, startId, snapshots);
 }
 
 /** Text of a node for Domain conversion; non-text parts become empty. */

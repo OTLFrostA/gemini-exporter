@@ -1,4 +1,3 @@
-import { installClaudeHook } from '../src/l1/sniffer/claude/hook.js';
 import { claudeRequest, activeClaudeOrganization } from '../src/l1/sniffer/claude/observation.js';
 import { claudeFileId } from '../src/l1/client/claude/fileAssets.js';
 import { contentComposer } from '../src/l3b/compose/composeContent.js';
@@ -270,7 +269,10 @@ test('Claude passive hook uses only native traffic and suppresses cross-organiza
     Object.defineProperty(globalThis, 'location', { configurable: true, value: { origin: 'https://claude.ai', href: 'https://claude.ai/new' } });
     const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve)); };
     try {
-        installClaudeHook();
+        // The browser entry auto-installs when loaded, after the mocked Window exists.
+        const entry = require.resolve('../src/l1/sniffer/claude/hook.js');
+        delete require.cache[entry];
+        require(entry);
         const base = `https://claude.ai/api/organizations/${c1}/chat_conversations/${c2}`;
         await host.fetch(base + '/completion2', { method: 'POST' });
         await flush();

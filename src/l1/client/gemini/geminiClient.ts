@@ -64,15 +64,12 @@ const pagination = GeminiClientPagination;
             this.aborted = true;
         }
 
-        // 兼容标准 AbortSignal 及过渡期全局标志（仅作 fallback: window.__gemExporterAborted）
+        // 兼容标准 AbortSignal 及过渡期全局标志（仅作 fallback）
         isAborted(callSignal?: AbortSignal | null): boolean {
             if (this.aborted) return true;
             if (callSignal && callSignal.aborted) return true;
             if (this.signal && this.signal.aborted) return true;
-            return !!(
-                globalThis.__gemExporterAborted ||
-                (typeof window !== "undefined" && window.__gemExporterAborted)
-            );
+            return !!globalThis.__gemExporterAborted;
         }
 
         getApiUrl(s?: string | null): string {

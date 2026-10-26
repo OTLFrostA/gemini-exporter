@@ -26,43 +26,32 @@ const SK_CRED = STORAGE_KEYS.CREDENTIALS;
 const Proto: GeminiProtocolModule = GeminiProtocol;
 
 function isDev(): boolean {
-    if (typeof window !== 'undefined') {
-        const ctx = window.__gemExporterContentContext;
-        if (ctx) return ctx.isDevMode();
-        return !!window.__gemExporterDevMode;
-    }
-    return false;
+    const ctx = window.__gemExporterContentContext;
+    return ctx ? ctx.isDevMode() : !!window.__gemExporterDevMode;
 }
 
 type BootstrapCredential = GeminiStoredCredential;
 
 function updateContextCreds(creds: BootstrapCredential): void {
-    if (typeof window !== 'undefined') {
-        const ctx = window.__gemExporterContentContext;
-        if (ctx) {
-            ctx.setCredentials(creds);
-        }
-    }
+    window.__gemExporterContentContext?.setCredentials(creds);
 }
 
 export function extractAtFromPage(): string {
     if (!Proto) return '';
     try {
         try {
-            if (typeof window !== 'undefined') {
-                if (window.__gemExporterExtractedAt && window.__gemExporterExtractedAt.length > 15) {
-                    return window.__gemExporterExtractedAt;
-                }
-                if (window.__geminiAt && window.__geminiAt.length > 15) {
-                    return window.__geminiAt;
-                }
+            if (window.__gemExporterExtractedAt && window.__gemExporterExtractedAt.length > 15) {
+                return window.__gemExporterExtractedAt;
+            }
+            if (window.__geminiAt && window.__geminiAt.length > 15) {
+                return window.__geminiAt;
             }
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:bootstrap.ts]', e);
         }
 
         try {
-            const w = typeof window !== 'undefined' ? window : globalThis;
+            const w = window;
             for (const wiz of [w._WIZ_global_data, w.WIZ_global_data, w.__WIZ_global_data]) {
                 if (!wiz || typeof wiz !== 'object' || !(Proto.TOKENS.AT in wiz)) continue;
                 const token: unknown = Reflect.get(wiz, Proto.TOKENS.AT);
@@ -266,7 +255,6 @@ export function ensureCreds(): Promise<BootstrapCredential | null> {
 }
 
 export function initBootstrap(): void {
-    if (typeof window === 'undefined') return;
     window.__gemExporterExtractAt = extractAtFromPage;
     window.__gemExporterExtractBl = extractBlFromPage;
     window.__gemExporterEnsureCreds = ensureCreds;

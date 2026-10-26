@@ -5,7 +5,6 @@
  * The cleanup typically removes a listener/timer/observer this bundle added.
  */
 export function registerCleanup(fn: () => void): () => void {
-    if (typeof window === 'undefined') return () => {};
     if (!Array.isArray(window.__gemExporterCleanups)) window.__gemExporterCleanups = [];
     window.__gemExporterCleanups.push(fn);
     return () => {
@@ -20,7 +19,6 @@ export function registerCleanup(fn: () => void): () => void {
  * Called once at the top of the content-script re-init path.
  */
 export function runCleanups(): void {
-    if (typeof window === 'undefined') return;
     const fns: Array<() => void> = Array.isArray(window.__gemExporterCleanups) ? window.__gemExporterCleanups : [];
     window.__gemExporterCleanups = [];
     for (const fn of fns) {

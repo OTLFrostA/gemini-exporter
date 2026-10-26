@@ -1,4 +1,4 @@
-import { compatibleGrokBodies } from './wireCompatibility.js';
+import { compatibleGrokBodies, type GrokWireResponse } from './wireCompatibility.js';
 import { preprocessGrokMarkdown } from './markdownCompatibility.js';
 import { extractGrokData } from './vendor/loominary/grokParser.js';
 import { normalizeGrokResponses } from './vendor/loominary/normalizeResponses.js';
@@ -17,22 +17,22 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     if (!grokUuid(requestedId) || meta.conversationId !== requestedId) throw new TypeError('Grok detail identity mismatch');
     if (!Array.isArray(graph.responseNodes) || !Array.isArray(payload.responses)) throw new TypeError('Invalid Grok response snapshot');
     const nodes = new Map<string, Record<string, unknown>>(),
-        responses = new Map<string, Record<string, unknown> & { message: string }>();
+        responses = new Map<string, GrokWireResponse>();
     for (const value of graph.responseNodes) {
         const node = grokObject(value);
         if (!grokUuid(node.responseId) || nodes.has(node.responseId) || node.parentResponseId != null && !grokUuid(node.parentResponseId)) throw new TypeError('Invalid Grok response tree');
         nodes.set(node.responseId, node);
     }
     for (const value of payload.responses) {
-        const response = grokObject(value);
-        if (!grokUuid(response.responseId) || responses.has(response.responseId) || !nodes.has(response.responseId)) throw new TypeError('Unexpected Grok response body');
-        if (response.parentResponseId !== nodes.get(response.responseId)?.parentResponseId
-            || response.sender !== nodes.get(response.responseId)?.sender) throw new TypeError('Grok response binding mismatch');
+        const response = grokObject(value), id = response.responseId;
+        if (!grokUuid(id) || responses.has(id) || !nodes.has(id)) throw new TypeError('Unexpected Grok response body');
+        if (response.parentResponseId !== nodes.get(id)?.parentResponseId
+            || response.sender !== nodes.get(id)?.sender) throw new TypeError('Grok response binding mismatch');
         const message = response.message;
         if ((response.sender === 'human' || response.sender === 'assistant') && typeof message !== 'string')
             throw new TypeError('Missing Grok message text');
         // Unsupported senders are skipped; never pass their invalid text to Loominary.
-        responses.set(response.responseId, { ...response, message: typeof message === 'string' ? message : '' });
+        responses.set(id, { ...response, responseId: id, message: typeof message === 'string' ? message : '' });
     }
     const parents = new Set([...nodes.values()].map(node => node.parentResponseId));
     const leaves = [...nodes.keys()].filter(id => !parents.has(id));
@@ -58,15 +58,22 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     // Clone because its normalizer sorts source responses in place.
     const compatible = compatibleGrokBodies({ ...payload, responses: [...responses.values()] }, warn);
     // Normalize source TeX before upstream inserts escaped Markdown citation titles.
-    for (const row of compatible.responses) if (typeof row.message === 'string') row.message = preprocessGrokMarkdown(row.message);
+    const modelsById = new Map<string, string>();
+    for (const row of compatible.responses) {
+        row.message = preprocessGrokMarkdown(row.message);
+        if (typeof row.model === 'string' && row.model) modelsById.set(row.responseId, row.model);
+    }
     const normalized: unknown = normalizeGrokResponses(structuredClone(graph.responseNodes), compatible);
     if (!Array.isArray(normalized)) throw new TypeError('Invalid upstream Grok normalization');
-    const normalizedById = new Map(normalized.map(value => { const row = grokObject(value); return [row.responseId, row] as const; }));
     const upstream: unknown = extractGrokData({ conversationId: requestedId, title: meta.title,
         exportTime: meta.modifyTime, responses: normalized });
     const history = grokObject(upstream).chat_history;
     if (!Array.isArray(history)) throw new TypeError('Invalid Loominary Grok output');
-    const parsedById = new Map(history.map(value => { const row = grokObject(value); return [row.uuid, row] as const; }));
+    const parsedById = new Map(history.map(value => {
+        const row = grokObject(value);
+        if (!grokUuid(row.uuid)) throw new TypeError('Invalid Loominary Grok message ID');
+        return [row.uuid, row] as const;
+    }));
     const assets: DomainAsset[] = [], acquisitionHints: Record<string, ResourceAcquisitionHint> = {};
     const resources = grokResources(assets, acquisitionHints, warn);
     const messages: DomainMessage[] = [];
@@ -96,7 +103,7 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
             resolveImage: (ref: string, alt: string) => resources.image(ref, alt, id) };
         const markdown = adapted.display_text;
         const timestamp = grokTimestamp(response.createTime);
-        const model = normalizedById.get(id)?.model;
+        const model = modelsById.get(id);
         const reasoning = Array.isArray(response.steps) ? response.steps.flatMap(value => {
             const step = grokObject(value);
             return Array.isArray(step.text) ? step.text.filter((text): text is string => typeof text === 'string').flatMap(text => parseMarkdownToBlocks(text, id, ctx)) : [];
@@ -106,7 +113,7 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
             ...(owned.attachmentIds.length ? { attachmentIds: owned.attachmentIds } : {}),
             ...(citations.length ? { citations } : {}), ...(reasoning.length ? { reasoning } : {}),
             ...(timestamp !== undefined ? { timestamp } : {}),
-            ...(typeof model === 'string' && model ? { model } : {}) });
+            ...(model ? { model } : {}) });
     }
     const updatedAt = grokTimestamp(meta.modifyTime), createdAt = grokTimestamp(meta.createTime);
     return { conversationId: requestedId, ...(updatedAt !== undefined ? { sourceVersion: updatedAt } : {}),

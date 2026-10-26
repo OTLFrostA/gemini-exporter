@@ -179,7 +179,7 @@ declare global {
 }
 
 function getQueryLocalFontsFn(): QueryLocalFontsFn | undefined {
-    return (typeof window === 'undefined' ? undefined : window.queryLocalFonts) ?? globalThis.queryLocalFonts;
+    return globalThis.queryLocalFonts;
 }
 
 function classifyQueryError(err: unknown): { reason: LocalFontQueryReason; detail: string } {

@@ -13,6 +13,7 @@ import type { DomainMessage } from '../src/l2/conversationDetail.js';
 import type { ListParseDiagnostics } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import type { ListFailureDiagnostics } from '../src/l1/client/aiProvider.js';
 
 // Compile-time regression: native evidence and application views preserve contracts rather
 // than widening media/results/dependencies back to an unchecked escape.
@@ -22,6 +23,7 @@ type OutputContracts = [
     Assert<Equal<ListParseResult['_raw'], unknown>>,
     Assert<Equal<DetailParseResult['transport']['decodedPayload'], unknown>>,
     Assert<Equal<ListParseResult['_debug'], ListParseDiagnostics | undefined>>,
+    Assert<Equal<ListFailureDiagnostics['details'], Readonly<ListParseDiagnostics> | undefined>>,
     Assert<Equal<DetailParseResult['conversation']['detail']['messages'][number], DomainMessage>>,
     Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,
     Assert<Equal<ReturnType<typeof parseGeminiRpcConversation>, DetailParseResult>>,
@@ -29,7 +31,7 @@ type OutputContracts = [
     Assert<Equal<DecodedGeminiCandidate['source'], unknown[]>>,
     Assert<Equal<Parameters<typeof decodeCandidateArtifacts>[0], unknown[]>>,
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true];
+const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true];
 // The tuple already enforces these contracts at TypeScript compile time.
 // A runtime .every(Boolean) assertion on literal true values cannot detect a parser bug.
 void contracts;
