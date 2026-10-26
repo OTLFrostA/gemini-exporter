@@ -860,3 +860,39 @@ test('Live Save serializes same-Key writes and coalesces trailing events without
     await save(key);
     assert.deepEqual(calls, [false, true, false], 'settled task is removed');
 });
+
+test('Claude discovery admits normalized organizations, not raw remote JSON records', async () => {
+    const first = '11111111-1111-4111-8111-111111111111';
+    const second = '22222222-2222-4222-8222-222222222222';
+    let raw: unknown = [
+        null, 'invalid', { uuid: 'bad', name: 'foreign', capabilities: ['chat'] },
+        { uuid: first, name: '  First team  ', capabilities: ['chat'] },
+        { uuid: second, name: 42, capabilities: ['files'] },
+    ];
+    const registered: Array<{ id: string; name: unknown }> = [];
+    const { discoverClaudeAccounts } = load('src/runtime/capabilities/claudeDiscovery.ts', {
+        'src/l1/client/claude/claudeAccess.js': {
+            hasClaudeAccess: async () => true,
+            readClaudeSource: async (path: string) => { assert.equal(path, '/api/organizations'); return raw; },
+            ensureClaudeRegistered: async () => undefined,
+        },
+        'src/runtime/capabilities/platformInjection.js': { syncPlatformContentScripts: async () => undefined },
+        'src/runtime/api/accountRegistry.js': {
+            getOrCreateAccount: async (_provider: string, id: string, _email: unknown, name: unknown) => {
+                registered.push({ id, name });
+                return { id, providerId: 'claude', providerAccountId: id };
+            },
+        },
+    });
+    const found = await discoverClaudeAccounts();
+    assert.deepEqual(found.map((a: { id: string }) => a.id), [first]);
+    assert.deepEqual(registered, [{ id: first, name: 'First team' }]);
+
+    raw = [{ uuid: second, name: 42, capabilities: { chat: true } }];
+    await discoverClaudeAccounts();
+    assert.deepEqual(registered.at(-1), { id: second, name: undefined },
+        'the single-org fallback must not pass unvalidated names');
+
+    raw = [{ uuid: 'invalid', name: 'wrong', capabilities: ['chat'] }];
+    assert.deepEqual(await discoverClaudeAccounts(), []);
+});
