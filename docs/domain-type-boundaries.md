@@ -92,3 +92,9 @@ The ChatGPT Session ingress reads user/workspace/token fields once and returns
 precise identity and provider facts. Account-only callers reuse its decoded
 observation; no open dictionary or raw Session is cached. The same compiler and
 strict lint gates cover this decoder.
+
+DIL object literals start as statically typed empty dictionaries and acquire a
+null prototype before any property is written. Operator recognition selects the
+validated token and precedence from one readonly table; escape lookup returns an
+optional value from a readonly Map. No type assertion is needed in the expression
+owner, which is covered by the compiler and strict lint gates.
