@@ -288,7 +288,7 @@ export async function handleGetImageBlob(msg: AssetFetchRequest, sendResponse: (
                     lastErr = 'empty blob';
                     continue;
                 }
-                if (msg.preferBuffer === true && typeof blob.arrayBuffer === 'function') {
+                if (msg.preferBuffer === true) {
                     try {
                         const dataBuffer = await blob.arrayBuffer();
                         sendResponse({
@@ -361,7 +361,7 @@ async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: (resp: 
                 if (!isGg || !isTextResponse) {
                     const blob = await r.blob();
                     if (blob.size > 0 && (!isTextResponse || blob.size > 2000)) {
-                        if (msg.preferBuffer === true && typeof blob.arrayBuffer === 'function') {
+                        if (msg.preferBuffer === true) {
                             try {
                                 const dataBuffer = await blob.arrayBuffer();
                                 sendResponse({
