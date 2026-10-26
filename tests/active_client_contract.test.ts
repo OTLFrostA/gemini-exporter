@@ -15,11 +15,9 @@ import { init as initMessageRouter } from '../src/runtime/content/messageRouter.
 const clientWithoutAbort: ActiveClientContract = {};
 
 const _compileTimeCheck = () => {
-    if (typeof window !== 'undefined') {
-        window.__gemExporterActiveClient = clientWithoutAbort;
-        window.__gemExporterActiveClient = null;
-        window.__gemExporterActiveClient = undefined;
-    }
+    window.__gemExporterActiveClient = clientWithoutAbort;
+    window.__gemExporterActiveClient = null;
+    window.__gemExporterActiveClient = undefined;
     const ctx = new ContentContext();
     ctx.setActiveClient(clientWithoutAbort);
     const retrieved: ActiveClientContract | null = ctx.getActiveClient();

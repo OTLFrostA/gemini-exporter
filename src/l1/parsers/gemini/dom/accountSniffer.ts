@@ -70,7 +70,7 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
     // Current Gemini bootstrap: qDCSke is Gaia, oPEP7c is the current account email.
     // Read the pair from one Wiz object; a generic DOM label may belong to another account.
     try {
-        const win = (documentObj.defaultView || (typeof window !== 'undefined' ? window : null));
+        const win = documentObj.defaultView;
         const wiz = win?._WIZ_global_data || win?.WIZ_global_data || win?.__WIZ_global_data;
         if (wiz && typeof wiz === 'object' && 'qDCSke' in wiz) {
             const subject = wiz.qDCSke;

@@ -14,10 +14,8 @@ function __handleLocationChange(): void {
 
 function removeHistoryListeners(): void {
     if (__locationPoll !== null) { clearInterval(__locationPoll); __locationPoll = null; }
-    if (typeof window !== 'undefined' && window.removeEventListener) {
-        window.removeEventListener('popstate', __handleLocationChange);
-        window.removeEventListener('gemini:locationchange', __handleLocationChange);
-    }
+    window.removeEventListener('popstate', __handleLocationChange);
+    window.removeEventListener('gemini:locationchange', __handleLocationChange);
     __historyUrlCallback = null;
 }
 
@@ -26,7 +24,6 @@ export function cleanup(): void {
 }
 
 export function hookHistoryEvents(onUrlChanged: () => void): void {
-    if (typeof window === 'undefined' || typeof history === 'undefined') return;
 
     const w = window;
     if (!w.__gemExporterHistoryHooked) {

@@ -9,7 +9,7 @@ let listening = false;
 const pendingAdmissions = new Set<Promise<void>>();
 export function init(dependencies: GeminiCaptureCallbacks = {}) {
     receiver = new GeminiCaptureReceiver(dependencies);
-    if (typeof window !== 'undefined' && !listening) {
+    if (!listening) {
         window.addEventListener('message', receiveWindowMessage);
         listening = true;
         registerCleanup(() => {
@@ -22,7 +22,7 @@ export function init(dependencies: GeminiCaptureCallbacks = {}) {
 function receiveWindowMessage(event: MessageEvent<unknown>): void { void handleWindowMessage(event).catch(() => {}); }
 export async function handleWindowMessage(event: MessageEvent<unknown>): Promise<void> {
     const capturedReceiver = receiver;
-    if (!capturedReceiver || !event || typeof window === 'undefined' || event.source !== window
+    if (!capturedReceiver || !event || event.source !== window
         || (typeof location !== 'undefined' && event.origin !== location.origin)) return;
     try {
         const capture = parseGeminiCapturedSource(event.data);
