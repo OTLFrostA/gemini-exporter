@@ -13,7 +13,7 @@ export function installChatGPTHook(): void {
     };
     // The current site embeds the initial history in router loader data; no
     // /conversations fetch occurs for that first sidebar page.
-    if (typeof document !== 'undefined') installChatGPTSidebarCapture(identity,
+    installChatGPTSidebarCapture(identity,
         payload => window.postMessage({ type: CHATGPT_SOURCE_EVENT, payload }, location.origin));
     window.fetch = async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href).href;
@@ -81,4 +81,4 @@ export function installChatGPTHook(): void {
     };
 }
 
-if (typeof window !== 'undefined') installChatGPTHook();
+installChatGPTHook();
