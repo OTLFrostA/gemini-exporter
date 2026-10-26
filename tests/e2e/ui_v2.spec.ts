@@ -2,11 +2,13 @@ import { test, expect } from '@playwright/test';
 import { mount, read, A, B } from '../helpers/uiPortHarness';
 
 test('Popup Options navigation follows a verified account even without an open conversation', async ({ page }) => {
+    page.on('pageerror', error => console.error('DIAG popup pageerror:', error.stack));
     await mount(page, 'popup', {
         contextReply: { ok: true, accountContext: { accountId: B, providerId: 'gemini' }, conversationId: null },
     });
     await expect(page.locator('#btnCurrent')).toBeDisabled();
     await page.locator('#btnOptions').click();
+    console.error('DIAG popup:', JSON.stringify({ requests: await read(page, 'tabRequests'), events: await read(page, 'events'), status: await page.locator('#status').textContent(), messages: await read(page, 'messages') }));
     await expect.poll(async () => read(page, 'messages')).toContainEqual({ action: 'openOptions', accountId: B });
 });
 
@@ -24,7 +26,9 @@ test('Content Badge passes its current account when opening Options', async ({ p
 });
 
 test('Options applies a one-time source handoff on load and reuse, but not while exporting', async ({ page }) => {
+    page.on('pageerror', error => console.error('DIAG options pageerror:', error.stack));
     await mount(page, 'options', { initialOpenOptionsAccountId: B, holdExport: true });
+    console.error('DIAG options:', JSON.stringify({ events: await read(page, 'events'), initialAccountId: await page.locator('#accountIdSelect').inputValue(), messages: await read(page, 'messages'), status: await page.locator('#status').textContent() }));
     const selector = page.locator('#accountIdSelect');
     await expect(selector).toHaveValue(B);
     await expect.poll(async () => page.evaluate(() => chrome.storage.session.get('openOptionsAccountId')))
