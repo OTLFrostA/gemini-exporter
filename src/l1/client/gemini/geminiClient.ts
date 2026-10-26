@@ -105,7 +105,7 @@ const pagination = GeminiClientPagination;
                 let snippet = "";
                 try {
                     snippet = (await resp.text()).slice(0, 320);
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.ts]", e); }
+                } catch (e) { console.debug("[GemExporter:geminiClient.ts]", e); }
 
                 const retry400 = retryPolicy.handleHttp400 ? await retryPolicy.handleHttp400({
                     resp,
