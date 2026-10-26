@@ -60,7 +60,7 @@ export const getOrCreateAccount = async (providerId, providerAccountId) => {
  h.accounts.push(account);
  return account;
 };
-export const isAccountId = id => { const re = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{12}$/; const valid = typeof id === 'string' && re.test(id); (h.accountChecks ??= []).push({ id, type: typeof id, length: id?.length, re: re.source, valid }); return valid; };
+export const isAccountId = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id);
 export const conversationKey = (accountId, conversationId) => {
  if (!isAccountId(accountId) || !conversationId || conversationId !== conversationId.trim()) throw new TypeError('Invalid conversation key');
  return { accountId, conversationId };
@@ -72,11 +72,9 @@ export const runExport = async (request,options={}) => {h.exports.push(request);
  const exported = aborted ? 0 : request.keys.length - failed.length;
  return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;
-export const sendTabMessage = async (tabId,message,timeoutMs) => {
+export const sendTabMessage = (tabId,message,timeoutMs) => {
  h.tabRequests.push({tabId,message,timeoutMs});
- const response = await chrome.tabs.sendMessage(tabId,message);
- h.lastTabResponse = response;
- return response;
+ return chrome.tabs.sendMessage(tabId,message);
 };
 export const observeDomainChanges = listener => {h.domainListener=listener;return ()=>{h.domainListener=null;};};
 export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');h.scanProgress=options.onProgress;options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
