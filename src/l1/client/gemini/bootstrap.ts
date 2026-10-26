@@ -63,9 +63,11 @@ export function extractAtFromPage(): string {
 
         try {
             const w = typeof window !== 'undefined' ? window : globalThis;
-            if (w._WIZ_global_data?.[Proto.TOKENS.AT]) return w._WIZ_global_data[Proto.TOKENS.AT];
-            if (w.WIZ_global_data?.[Proto.TOKENS.AT]) return w.WIZ_global_data[Proto.TOKENS.AT];
-            if (w.__WIZ_global_data?.[Proto.TOKENS.AT]) return w.__WIZ_global_data[Proto.TOKENS.AT];
+            for (const wiz of [w._WIZ_global_data, w.WIZ_global_data, w.__WIZ_global_data]) {
+                if (!wiz || typeof wiz !== 'object' || !(Proto.TOKENS.AT in wiz)) continue;
+                const token: unknown = Reflect.get(wiz, Proto.TOKENS.AT);
+                if (typeof token === 'string' && token) return token;
+            }
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:bootstrap.ts]', e);
         }
