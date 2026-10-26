@@ -7,6 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseClaudeList } from '../src/l1/parsers/claude/parseList.js';
 import { parseClaudeConversation } from '../src/l1/parsers/claude/parseConversation.js';
+import { decodeClaudeDetail } from '../src/l1/parsers/claude/decodeDetail.js';
 import { parseNativeTool } from '../src/l1/parsers/claude/parseNativeTools.js';
 import { parseToolUse } from '../src/l1/parsers/claude/parseTools.js';
 import { readClaudeSource } from '../src/l1/client/claude/claudeSource.js';
@@ -70,6 +71,44 @@ test('Claude detail follows the current leaf, excluding regenerated branches', (
     assert.equal(parsed.conversation.detail.savedAt, Date.parse('2026-10-02T00:00:00Z'));
     assert.equal('key' in parsed.conversation.detail, false);
     assert.deepEqual(source, clone);
+});
+
+test('Claude Detail ingress normalizes selected branch, content and files once', () => {
+    const raw = claudeDetailGen('CL_L1_SOURCE_MARKDOWN_ARTIFACTS_01');
+    const original = structuredClone(raw);
+    const evidence = decodeClaudeDetail(raw, c1);
+    assert.equal(evidence.currentLeafId, leaf);
+    assert.equal(evidence.updatedAt, Date.parse('2026-10-02T00:00:00Z'));
+    const model = evidence.messages.find(message => message.uuid === leaf);
+    assert.ok(model);
+    assert.equal(model.parentId, root);
+    assert.deepEqual(model.content?.map(block => block.kind), ['thinking', 'text', 'tool_use']);
+    assert.equal(model.attachments[0]?.name, 'notes.txt');
+    assert.equal(model.attachments[0]?.extractedContent, 'document text');
+    assert.equal('parent_message_uuid' in model, false);
+    assert.equal('extracted_content' in (model.attachments[0] ?? {}), false);
+    assert.deepEqual(raw, original, 'wire payload remains untouched');
+});
+
+test('Claude Detail ingress preserves malformed block diagnostics and invalid parents', () => {
+    const raw = claudeDetailGen('CL_L1_SOURCE_SELECTED_BRANCH_01');
+    const selected = raw.chat_messages.find(message => message.uuid === leaf);
+    assert.ok(selected);
+    selected.content = [null, { type: 'text', text: 42 }, { type: 'thinking', thinking: 'still readable' }];
+    selected.files = [null, { name: 'missing.pdf' }];
+    const parsed = parseClaudeConversation(raw, c1);
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    for (const code of ['claude.content.invalid', 'claude.content.unsupported',
+        'claude.attachment.invalid', 'claude.attachment.unavailable']) {
+        assert.ok(parsed.diagnostics.some(d => d.code === code), code);
+    }
+    const badParent = claudeDetailGen('CL_L1_SOURCE_SELECTED_BRANCH_01');
+    const leafNode = badParent.chat_messages.find(message => message.uuid === leaf);
+    assert.ok(leafNode);
+    leafNode.parent_message_uuid = { invalid: true };
+    const branch = parseClaudeConversation(badParent, c1);
+    assert.equal(branch.conversation.detail.quality.status, 'partial');
+    assert.ok(branch.diagnostics.some(d => d.code === 'claude.branch.partial'));
 });
 
 test('Claude missing parent and missing leaf never claim complete source coverage', () => {
