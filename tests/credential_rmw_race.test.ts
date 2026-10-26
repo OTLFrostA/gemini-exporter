@@ -31,9 +31,7 @@ test('concurrent credential refreshes preserve updates to both SIDs', async () =
     } };
     const params = (sid: string, at: string) => ({
         resp: { status: 400 }, snippet: 'xsrf', cred: { sid, at: 'old' }, isRetried: false,
-        getAtFromPage: () => at, getBlFromPage: () => null,
-        loadCredMap: async () => (await sessionStorage.get()).gemini_credentials_map,
-        getCredStorage: () => sessionStorage
+        getAtFromPage: () => at, getBlFromPage: () => null
     });
     try {
         const first = handleHttp400(params('sid1', 'new1'));

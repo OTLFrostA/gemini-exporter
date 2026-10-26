@@ -29,13 +29,15 @@ test('P2-1: empty terminal page is a natural end', async () => {
 });
 
 // ---------- P2-3: 401 先刷新 at，刷新失败才删凭证 ----------
-function make401Deps(map: Record<string, any>) {
-    const storage = {
-        set: async (obj: Record<string, any>) => { Object.assign(map, JSON.parse(JSON.stringify(obj.gemini_credentials_map))); },
-    };
+function make401Deps(map: Record<string, any>, onWrite = () => {}) {
     return {
-        loadCredMap: async () => map,
-        getCredStorage: () => storage,
+        updateCredential: async (sid: string | number, decide: () => { patch: { at?: string; bl?: string } | null }) => {
+            const { patch } = decide();
+            if (!Object.hasOwn(map, sid)) return;
+            if (patch === null) delete map[sid];
+            else Object.assign(map[sid], patch);
+            onWrite();
+        },
     };
 }
 
@@ -100,20 +102,13 @@ test('P2-3: 401 但 map 中无此 sid → 两条路径都是 no-op（不写不�
     // map 里根本没有 sid9（可能已被其他 tab 删除）
     const inner: Record<string, any> = { sidOther: { at: 'x', sid: 'sidOther' } };
     let writes = 0;
-    const storage = {
-        set: async (obj: Record<string, any>) => {
-            writes++;
-            Object.assign(inner, JSON.parse(JSON.stringify(obj.gemini_credentials_map)));
-        },
-    };
     const origWarn = console.warn;
     console.warn = () => {};
     try {
         // fresh-at 路径：sid 不在 map 中，不应写入幻影条目
         await RetryPolicy.handleHttp401({
             cred: { at: 'stale-at', sid: 'sid9' },
-            loadCredMap: async () => inner,
-            getCredStorage: () => storage,
+            ...make401Deps(inner, () => { writes++; }),
             refreshAtFromPage: () => 'fresh-at-from-page'
         });
         assert.strictEqual(writes, 0, 'fresh-at 路径：map 无此 sid 时不得写入');
@@ -121,8 +116,7 @@ test('P2-3: 401 但 map 中无此 sid → 两条路径都是 no-op（不写不�
         // delete 路径：sid 不在 map 中，同样 no-op
         await RetryPolicy.handleHttp401({
             cred: { at: 'stale-at', sid: 'sid9' },
-            loadCredMap: async () => inner,
-            getCredStorage: () => storage,
+            ...make401Deps(inner, () => { writes++; }),
             refreshAtFromPage: () => null
         });
         assert.strictEqual(writes, 0, 'delete 路径：map 无此 sid 时不得写入');

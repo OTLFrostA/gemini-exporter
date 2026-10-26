@@ -193,12 +193,13 @@ test('4. Valid map load from storage', async () => {
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     try {
         const credManager = getFreshCredManager();
-        const map = await credManager.loadCredMap();
-        assert.strictEqual(Object.keys(map).length, 2);
-        assert.strictEqual(map.s1.sid, 's1');
-        assert.strictEqual(map.s1.at, 'at1');
-        assert.strictEqual(map.s2.accountSlot, 'u1');
-        assert.strictEqual(map.s2.lastUsed, 2000);
+        const first = await credManager.resolveCred('s1');
+        const second = await credManager.resolveCred('s2');
+        assert.strictEqual(first.sid, 's1');
+        assert.strictEqual(first.at, 'at1');
+        assert.strictEqual(second.accountSlot, 'u1');
+        assert.strictEqual(second.lastUsed, 2000);
+        assert.strictEqual(Object.keys(mock.data.gemini_credentials_map as object).length, 2);
     } finally {
         (globalThis as Record<string, unknown>).chrome = origChrome;
     }
@@ -221,7 +222,6 @@ test('C3 review: array-shaped credential map is rejected, never selected or rewr
     delete globals.document;
 
     const manager = getFreshCredManager();
-    assert.deepStrictEqual(await manager.loadCredMap(), {}, 'an array is not an SID-keyed credential map');
     const resolved = await manager.resolveCred('default');
     assert.notStrictEqual(resolved.sid, 'array_sid', 'positional credentials are not selected');
     assert.strictEqual(resolved.at, '', 'tokens from malformed array map are never reused');
@@ -402,13 +402,13 @@ test('14. Missing historical fields remain missing during load and credential re
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     try {
         const credManager = getFreshCredManager();
-        const map = await credManager.loadCredMap();
-        assert.ok(map.hist_1, 'entry must exist');
-        assert.strictEqual(map.hist_1.sid, 'hist_1');
-        assert.strictEqual(map.hist_1.at, 'tok_1');
-        assert.strictEqual(map.hist_1.bl, undefined, 'bl must not be synthesized');
-        assert.strictEqual(map.hist_1.accountSlot, undefined, 'accountSlot must not be synthesized');
-        assert.strictEqual(map.hist_1.lastUsed, undefined, 'lastUsed must not be synthesized');
+        const stored = (mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>).hist_1;
+        assert.ok(stored, 'entry must exist');
+        assert.strictEqual(stored.sid, 'hist_1');
+        assert.strictEqual(stored.at, 'tok_1');
+        assert.strictEqual(stored.bl, undefined, 'bl must not be synthesized');
+        assert.strictEqual(stored.accountSlot, undefined, 'accountSlot must not be synthesized');
+        assert.strictEqual(stored.lastUsed, undefined, 'lastUsed must not be synthesized');
 
         // Reading a credential map must not write back invented metadata.
         const storedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
@@ -463,8 +463,6 @@ test('16. Numeric SID is preserved when resolving stored credentials', async () 
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     try {
         const credManager = getFreshCredManager();
-        const loadedMap = await credManager.loadCredMap();
-        assert.strictEqual(loadedMap['987654321'].sid, 987654321);
         const bySid = await credManager.resolveCred('987654321');
         assert.strictEqual(bySid.sid, 987654321);
         assert.strictEqual(bySid.at, 'numeric_at');

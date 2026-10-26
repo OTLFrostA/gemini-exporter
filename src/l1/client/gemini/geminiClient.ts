@@ -8,7 +8,7 @@ import GeminiClientCredentialManager, {
     getBlFromPage,
     getAtFromPage,
     detectSlot,
-    loadCredMap,
+    updateCredential,
     resolveCred
 } from "./api/credentialManager.js";
 import GeminiClientRetryPolicy from "./api/retryPolicy.js";
@@ -111,8 +111,7 @@ const pagination = GeminiClientPagination;
                     isRetried: !!opts?._retried,
                     getAtFromPage,
                     getBlFromPage,
-                    loadCredMap,
-                    getCredStorage: credentialManager.getCredStorage
+                    updateCredential
                 }) : { shouldRetry: false };
 
                 if (retry400.shouldRetry) {
@@ -127,8 +126,7 @@ const pagination = GeminiClientPagination;
                 if (resp.status === 401 && retryPolicy.handleHttp401) {
                     await retryPolicy.handleHttp401({
                         cred,
-                        loadCredMap,
-                        getCredStorage: credentialManager.getCredStorage,
+                        updateCredential,
                         refreshAtFromPage: credentialManager.getAtFromPage
                     });
                 }
@@ -203,8 +201,7 @@ const pagination = GeminiClientPagination;
                     isRetried: !!opts?._retriedXsrf,
                     getAtFromPage,
                     getBlFromPage,
-                    loadCredMap,
-                    getCredStorage: credentialManager.getCredStorage
+                    updateCredential
                 }) : { shouldRetry: false };
 
                 if (retry400.shouldRetry) {
@@ -219,8 +216,7 @@ const pagination = GeminiClientPagination;
                 if (resp.status === 401 && retryPolicy.handleHttp401) {
                     await retryPolicy.handleHttp401({
                         cred,
-                        loadCredMap,
-                        getCredStorage: credentialManager.getCredStorage,
+                        updateCredential,
                         refreshAtFromPage: credentialManager.getAtFromPage
                     });
                 }

@@ -163,8 +163,8 @@ test('CredentialManager credentials storage uses chrome.storage.session and does
         }
     };
     try {
-        const map = await CredentialManager.loadCredMap();
-        assert.strictEqual(map.test_sid?.at, 'test_at');
+        const resolved = await CredentialManager.resolveCred('test_sid');
+        assert.strictEqual(resolved.at, 'test_at');
         assert.strictEqual(sessionStore.gemini_credentials_map?.test_sid?.at, 'test_at');
         assert.strictEqual(localStore.gemini_credentials_map, undefined, 'credentials must never be written to local store on read');
     } finally {
