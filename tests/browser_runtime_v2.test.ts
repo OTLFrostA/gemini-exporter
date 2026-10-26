@@ -147,6 +147,7 @@ test('ingestion rejects foreign, unsupported, subframe and malformed requests', 
     for (const patch of [
         { accountId: 'u0' }, { items: {} }, { items: [{ conversationId: '', fields: {} }] },
         { items: [{ conversationId: ' a ', fields: {} }] },
+        { items: [null] }, { items: [{ conversationId: 'abc', fields: null }] },
         { items: [{ conversationId: 'abc', fields: { title: 'Incomplete title' } }] },
         { items: [{ conversationId: 'abc', fields: { updatedAt: 1.5 } }] },
         { items: new Array(1) },
