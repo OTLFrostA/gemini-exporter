@@ -177,6 +177,4 @@ const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
     parseRetryAfterMs
 };
 
-if (typeof module === 'object' && module.exports) module.exports = GeminiClientRetryPolicy;
-
 export default GeminiClientRetryPolicy;

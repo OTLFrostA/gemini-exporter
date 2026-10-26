@@ -111,7 +111,5 @@ const GeminiClientRpcClient: GeminiClientRpcClientModule = {
     mergeAbortSignals
 };
 
-if (typeof module === 'object' && module.exports) module.exports = GeminiClientRpcClient;
-
 export default GeminiClientRpcClient;
 

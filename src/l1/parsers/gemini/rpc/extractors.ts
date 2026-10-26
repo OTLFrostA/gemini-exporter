@@ -865,6 +865,4 @@ const GeminiParserExtractors: GeminiParserExtractorsModule = {
     cleanTitle,
     isRealTitle
 };
-if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
-
 export default GeminiParserExtractors;
