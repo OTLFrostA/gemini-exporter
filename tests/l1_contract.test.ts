@@ -1,3 +1,4 @@
+import type { ChatGPTConversationNode } from '../src/l1/parsers/chatgpt/chatgptTypes.js';
 import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
 import { geminiListPage, geminiListPages, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
@@ -260,10 +261,10 @@ test('L1 import submits facts and returns count/status with numerical progress',
     assert.ok(progress.every(value => typeof value === 'number' && value >= 0 && value <= 100)); assert.equal(progress.at(-1), 100);
 });
 test('L1 ChatGPT body quality is independent of missing image bytes', () => {
-    const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'), conversation: { id: 'chatgpt_123', createdAtMs: 1700000000000, updatedAtMs: 1700000001000, is_archived: false, title: 'Images', current_node: 'node', mapping: {
+    const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'), conversation: { id: 'chatgpt_123', createdAtMs: 1700000000000, updatedAtMs: 1700000001000, is_archived: false, title: 'Images', current_node: 'node', mapping: new Map(Object.entries<ChatGPTConversationNode>({
         root: { id: 'root', children: ['node'] },
         node: { id: 'node', parent: 'root', children: [], message: { id: 'msg', author: { role: 'assistant' }, recipient: 'all', status: 'finished_successfully', weight: 1, content: { content_type: 'multimodal_text', parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_123' }] } } },
-    } }, assetsByNode: new Map() });
+    })) }, assetsByNode: new Map() });
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     assert.equal(parsed.conversation.detail.assets.length, 1);
 });

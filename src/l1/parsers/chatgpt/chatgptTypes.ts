@@ -76,7 +76,7 @@ export interface ChatGPTApiConversation {
     updatedAtMs?: number;
     conversation_id?: string;
     current_node: string;
-    mapping: Record<string, ChatGPTConversationNode>;
+    mapping: ReadonlyMap<string, ChatGPTConversationNode>;
     title: string;
     is_archived: boolean;
 }

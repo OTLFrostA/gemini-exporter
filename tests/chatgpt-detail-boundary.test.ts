@@ -86,7 +86,7 @@ test('ChatGPT Detail decoder sanitizes optional nested metadata without leaking 
         },
     };
     const decoded = decodeChatGPTDetail(raw, id);
-    const meta = decoded.mapping.answer.message?.metadata;
+    const meta = decoded.mapping.get('answer')?.message?.metadata;
     assert.equal(meta?.model_slug, 'gpt-6');
     assert.deepEqual(meta?.attachments?.map(item => item.id), ['f1']);
     assert.deepEqual(meta?.citations, [{ metadata: { title: 'Reference', url: 'https://example.com' } }]);
@@ -113,8 +113,8 @@ test('ChatGPT Detail boundary discards unused raw author.metadata without invent
         } },
     };
     const decoded = decodeChatGPTDetail(raw, id);
-    assert.deepEqual(decoded.mapping.answer.message?.author, { role: 'assistant', name: 'model' });
-    assert.equal('metadata' in (decoded.mapping.answer.message?.author ?? {}), false);
+    assert.deepEqual(decoded.mapping.get('answer')?.message?.author, { role: 'assistant', name: 'model' });
+    assert.equal('metadata' in (decoded.mapping.get('answer')?.message?.author ?? {}), false);
 });
 
 test('ChatGPT Detail boundary retains unknown content kinds as non-renderable, not guessed prose', () => {
@@ -127,7 +127,7 @@ test('ChatGPT Detail boundary retains unknown content kinds as non-renderable, n
                 content: { content_type: 'new_provider_kind', private_value: { body: 'not trustworthy' } } } },
         },
     }, id);
-    assert.deepEqual(decoded.mapping.answer.message?.content, { content_type: 'new_provider_kind' });
+    assert.deepEqual(decoded.mapping.get('answer')?.message?.content, { content_type: 'new_provider_kind' });
 });
 
 test('ChatGPT Detail missing optional status does not invent incomplete branch coverage', () => {
@@ -139,7 +139,7 @@ test('ChatGPT Detail missing optional status does not invent incomplete branch c
         },
     } };
     const conversation = decodeChatGPTDetail(withoutStatus, id);
-    assert.equal(conversation.mapping.answer.message?.status, undefined);
+    assert.equal(conversation.mapping.get('answer')?.message?.status, undefined);
     const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
 });
@@ -176,7 +176,7 @@ test('ChatGPT gallery ingress approves locators once and preserves unresolved re
             model_dil_v2: { appData: { opGenui: { componentResults: source } } },
         } } },
     } }, id);
-    const results = decoded.mapping.answer.message?.metadata?.model_dil_v2?.appData?.opGenui?.componentResults;
+    const results = decoded.mapping.get('answer')?.message?.metadata?.model_dil_v2?.appData?.opGenui?.componentResults;
     assert.deepEqual(results && Object.fromEntries(results), {
         approved: { componentName: 'AsyncImage', status: 'resolved', imageUrls: [url, url, url] },
         unapproved: { componentName: 'AsyncImage', status: 'resolved', imageUrls: [] },
@@ -206,8 +206,8 @@ test('ChatGPT Detail normalizes source times once before message and index assem
         const decoded = decodeChatGPTDetail(raw, id);
         assert.equal(decoded.createdAtMs, expected);
         assert.equal(decoded.updatedAtMs, expected);
-        assert.equal(decoded.mapping.answer.message?.createdAtMs, expected);
-        assert.equal('updatedAtMs' in (decoded.mapping.answer.message ?? {}), false);
+        assert.equal(decoded.mapping.get('answer')?.message?.createdAtMs, expected);
+        assert.equal('updatedAtMs' in (decoded.mapping.get('answer')?.message ?? {}), false);
         assert.equal('create_time' in decoded, false);
         assert.equal('update_time' in decoded, false);
         const parsed = parseChatGPTConversation({ conversation: decoded, assetsByNode: new Map() });
@@ -230,17 +230,53 @@ test('ChatGPT Detail drops malformed optional times at ingress without fabricati
                 create_time: value, update_time: value } } } }, id);
         assert.equal('create_time' in decoded, false);
         assert.equal('update_time' in decoded, false);
-        assert.equal('create_time' in (decoded.mapping.answer.message ?? {}), false);
-        assert.equal('update_time' in (decoded.mapping.answer.message ?? {}), false);
+        assert.equal('create_time' in (decoded.mapping.get('answer')?.message ?? {}), false);
+        assert.equal('update_time' in (decoded.mapping.get('answer')?.message ?? {}), false);
         assert.equal(decoded.createdAtMs, undefined);
         assert.equal(decoded.updatedAtMs, undefined);
-        assert.equal(decoded.mapping.answer.message?.createdAtMs, undefined);
-        assert.equal('updatedAtMs' in (decoded.mapping.answer.message ?? {}), false);
+        assert.equal(decoded.mapping.get('answer')?.message?.createdAtMs, undefined);
+        assert.equal('updatedAtMs' in (decoded.mapping.get('answer')?.message ?? {}), false);
         const parsed = parseChatGPTConversation({ conversation: decoded, assetsByNode: new Map() });
         assert.equal(parsed.sourceVersion, undefined);
         assert.equal(parsed.conversation.index.createdAt, undefined);
         assert.equal(parsed.conversation.index.updatedAt, undefined);
         assert.equal(parsed.conversation.detail.savedAt, undefined);
         assert.equal(parsed.conversation.detail.messages.find(message => message.id === 'answer')?.timestamp, undefined);
+    }
+});
+
+
+test('ChatGPT node lookup never admits inherited object keys as source ancestors', () => {
+    const original = detailGen('C_DETAIL_L1_SOURCE_01');
+    for (const missingId of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+        for (const current_node of ['answer', missingId]) {
+            const raw = { ...original, current_node, mapping: {
+                answer: { ...original.mapping.answer, parent: missingId },
+            } };
+            const decoded = decodeChatGPTDetail(raw, id);
+            const parsed = parseChatGPTConversation({ conversation: decoded, assetsByNode: new Map() });
+            assert.equal(parsed.conversation.detail.quality.status, 'partial', missingId);
+            assert.equal(decoded.mapping.get(missingId), undefined);
+            assert.deepEqual(parsed.conversation.detail.messages.map(message => message.id),
+                current_node === 'answer' ? ['answer'] : []);
+        }
+    }
+});
+
+test('ChatGPT decoder preserves own special node IDs without mutating the received mapping', () => {
+    const original = detailGen('C_DETAIL_L1_SOURCE_01');
+    for (const nodeId of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+        const raw = { ...original, current_node: nodeId, mapping: Object.fromEntries([
+            ['root', { id: 'root', children: [nodeId] }],
+            [nodeId, { ...original.mapping.answer, id: nodeId, parent: 'root' }],
+        ]) };
+        const before = structuredClone(raw);
+        const decoded = decodeChatGPTDetail(raw, id);
+        assert.equal(decoded.mapping.size, 2);
+        assert.equal(decoded.mapping.get(nodeId)?.id, nodeId);
+        const parsed = parseChatGPTConversation({ conversation: decoded, assetsByNode: new Map() });
+        assert.equal(parsed.conversation.detail.quality.status, 'complete', nodeId);
+        assert.deepEqual(parsed.conversation.detail.messages.map(message => message.id), [nodeId]);
+        assert.deepEqual(raw, before);
     }
 });

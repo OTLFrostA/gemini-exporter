@@ -15,13 +15,15 @@ import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import type { ListFailureDiagnostics } from '../src/l1/client/aiProvider.js';
 
-import type { ChatGPTApiConversation, ChatGPTNodeMessage } from '../src/l1/parsers/chatgpt/chatgptTypes.js';
+import type { ChatGPTApiConversation, ChatGPTNodeMessage, ChatGPTConversationNode } from '../src/l1/parsers/chatgpt/chatgptTypes.js';
 
 // Compile-time regression: native evidence and application views preserve contracts rather
 // than widening media/results/dependencies back to an unchecked escape.
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Assert<T extends true> = T;
 type OutputContracts = [
+    Assert<Equal<ChatGPTApiConversation['mapping'], ReadonlyMap<string, ChatGPTConversationNode>>>,
+    Assert<Equal<ReturnType<ChatGPTApiConversation['mapping']['get']>, ChatGPTConversationNode | undefined>>,
     Assert<Equal<ChatGPTApiConversation['createdAtMs'], number | undefined>>,
     Assert<Equal<ChatGPTApiConversation['updatedAtMs'], number | undefined>>,
     Assert<Equal<ChatGPTNodeMessage['createdAtMs'], number | undefined>>,
@@ -36,7 +38,7 @@ type OutputContracts = [
     Assert<Equal<DecodedGeminiCandidate['source'], unknown[]>>,
     Assert<Equal<Parameters<typeof decodeCandidateArtifacts>[0], unknown[]>>,
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true];
+const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true];
 // The tuple already enforces these contracts at TypeScript compile time.
 // A runtime .every(Boolean) assertion on literal true values cannot detect a parser bug.
 void contracts;

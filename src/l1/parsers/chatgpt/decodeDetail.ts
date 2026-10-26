@@ -245,11 +245,9 @@ export function decodeChatGPTDetail(value: unknown, requestedId: string): ChatGP
     }
     const rawMapping = record(source.mapping);
     if (!rawMapping) throw new TypeError('Invalid ChatGPT Detail payload');
-    const mapping: Record<string, ChatGPTConversationNode> = {};
+    const mapping = new Map<string, ChatGPTConversationNode>();
     for (const [key, raw] of Object.entries(rawMapping)) {
-        Object.defineProperty(mapping, key, {
-            value: decodeNode(raw, key), enumerable: true, configurable: true, writable: true,
-        });
+        mapping.set(key, decodeNode(raw, key));
     }
     if (source.current_node != null && typeof source.current_node !== 'string')
         throw new TypeError('Invalid ChatGPT Detail current_node');
