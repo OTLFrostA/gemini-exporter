@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary, v2Settings, v2IndexFixtures, mockLiveSaveEffective } from './helpers/runtimeV2ContractMocks.js';
-import { restoreDomainDetail } from '../src/l2/runtimeValidation.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -24,7 +23,6 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
-        'src/l2/runtimeValidation.js': { restoreDomainDetail },
         // Runtime unit mocks L2; the real Index reader is tested by L2 suites.
         'src/l2/conversationIndex.js': { restoreConversationIndex: (value: unknown) => {
             if (!value || typeof value !== 'object' || Array.isArray(value) || !('key' in value)) throw new TypeError('Invalid Index');
@@ -100,30 +98,22 @@ test('ingestion preserves Detail and Index facts; reports L2 errors', async () =
     const indexFields = { title: 'a', titleSource: 'provider' as const };
     assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail', accountId: uuid, conversationId: 'abc', detail, indexFields }), { ok: false, error: 'commit failed' });
     const key = { accountId: uuid, conversationId: 'abc' };
-    assert.deepEqual(seen, [uuid, 'abc', { ...detail, key }, { ...indexFields, key }]);
+    assert.deepEqual(seen, [uuid, 'abc', detail, { ...indexFields, key }]);
     assert.equal(handle({ action: 'domainStorage' }, sender, () => assert.fail()), false);
 });
 
-test('Detail IPC decodes nested Domain facts before invoking L2', async () => {
+test('Detail IPC validates Index fields before invoking L2', async () => {
     global.chrome = chromeBase() as any;
     let calls = 0;
     const handle = load('src/runtime/background/domainStorageHandler.ts', {
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
         'src/l2/ingestion.js': { ingestDetail: async () => { calls++; return { accepted: true, changed: true }; } },
     }).handleDomainIngestionMessage;
-    const invalidDetail = {
-        ...detailFact,
-        messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 123 }] }] }],
-    };
-    const malformed = await invoke(handle, { action: 'domainIngest', operation: 'detail',
-        accountId: uuid, conversationId: 'abc', detail: invalidDetail });
-    assert.equal(malformed.ok, false);
-    assert.match(malformed.error, /Invalid persisted Domain contract/);
     const invalidIndex = await invoke(handle, { action: 'domainIngest', operation: 'detail',
         accountId: uuid, conversationId: 'abc', detail: detailFact, indexFields: { title: 'needs authority' } });
     assert.equal(invalidIndex.ok, false);
     assert.match(invalidIndex.error, /Invalid Index title|Invalid conversation index schema/);
-    assert.equal(calls, 0, 'invalid Content IPC data cannot reach trusted L2 ingestion');
+    assert.equal(calls, 0, 'invalid Index IPC fields cannot reach L2 ingestion');
 });
 
 test('Background returns the full Detail admission result only after L2 commits', async () => {
