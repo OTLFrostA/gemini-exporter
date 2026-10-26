@@ -110,18 +110,21 @@ test('Detail: unrecognized empty response without affirmative empty-turn evidenc
 });
 
 test('Detail: verified blank native turns have a distinct empty-source outcome; schema drift remains an error', async () => {
-    const candidate = ['rc_empty', [''], null, []];
-    const model: unknown[] = [[candidate], null, null, 'rc_empty'];
-    model[8] = 'US'; model[12] = [[]]; model[24] = 1;
     const page = parseGeminiRpcConversation(geminiDetailGen('G_PAGINATION_EMPTY_01'),
         { providerId: 'gemini', targetConvId: 'source_chat_123' });
+    assert.equal(page.transport.bodyShape, 'confirmed_empty_turns');
+    Object.defineProperty(page.transport, 'decodedPayload', {
+        get() { throw new Error('Pagination must not read opaque audit payload'); },
+    });
     await assert.rejects(getConversationDetail(detailClient([page]), 'source_chat_123'), ConfirmedSourceEmptyError);
-    for (const change of [
-        (copy: typeof page) => { copy.diagnostics.push({ code: 'GEMINI_SCHEMA_DRIFT', severity: 'warning', message: 'Unknown field' }); },
-        (copy: typeof page) => { (copy.transport.decodedPayload as unknown[][])[0][0] = [['c_other', 'r_empty'], null, [['']], model]; },
-        (copy: typeof page) => { const payload = copy.transport.decodedPayload as unknown[][][]; (payload[0][0][3] as unknown[])[30] = [['unknown document']]; },
-    ]) {
-        const copy = structuredClone(page); change(copy);
-        await assert.rejects(getConversationDetail(detailClient([copy]), 'source_chat_123'), /GEMINI_DETAIL_EMPTY_UNVERIFIED/);
+    const drift = parseGeminiRpcConversation(geminiDetailGen('G_PAGINATION_EMPTY_01'), { providerId: 'gemini' });
+    drift.diagnostics.push({ code: 'GEMINI_SCHEMA_DRIFT', severity: 'warning', message: 'Unknown field' });
+    await assert.rejects(getConversationDetail(detailClient([drift]), 'source_chat_123'), /GEMINI_DETAIL_EMPTY_UNVERIFIED/);
+    for (const [key, error] of [
+        ['G_PAGINATION_EMPTY_FOREIGN', /identity/],
+        ['G_PAGINATION_EMPTY_DOCUMENT', /GEMINI_DETAIL_EMPTY_UNVERIFIED/],
+    ] as const) {
+        const malformed = parseGeminiRpcConversation(geminiDetailGen(key), { providerId: 'gemini', targetConvId: 'source_chat_123' });
+        await assert.rejects(getConversationDetail(detailClient([malformed]), 'source_chat_123'), error);
     }
 });

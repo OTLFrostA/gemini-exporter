@@ -15,6 +15,13 @@ import { listGen as geminiListGen } from './gemini.js';
 /** Native batchexecute response bodies containing Gemini's hNvQHb Detail RPC. */
 const DOMAIN_ID = 'c_native12345678';
 const rpc = (inner: unknown): string => ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
+function emptyTurnWire(id: string, unknownDocument = false): string {
+    const candidate = ['rc_empty', [''], null, []];
+    const model: unknown[] = [[candidate], null, null, 'rc_empty'];
+    model[8] = 'US'; model[12] = [[]]; model[24] = 1;
+    if (unknownDocument) model[30] = [['unknown document']];
+    return rpc([[[[id, 'r_empty'], null, [['']], model, [1757132274, 411870000]]], null, null, []]);
+}
 function domainTurn(prompt = 'Question', seconds: number | null = 1700000000,
     candidates: unknown[] = [['rc_answer', [['Answer']]]], request = 'r_AB12'): unknown[] {
     return [[DOMAIN_ID, request], seconds === null ? null : [seconds, 0], [[prompt]], [candidates]];
@@ -681,15 +688,9 @@ const fixtureMap = {
         ['rc_selected', [['Displayed image ![image](https://lh3.googleusercontent.com/selected-image.png)'],
             ['https://lh3.googleusercontent.com/selected-image.png', 640, 480]]],
     ], 'rc_selected'),
-    'G_PAGINATION_EMPTY_01': () => {
-        const candidate = ['rc_empty', [''], null, []];
-        const model: unknown[] = [[candidate], null, null, 'rc_empty'];
-        model[8] = 'US';
-        model[12] = [[]];
-        model[24] = 1;
-        const raw = [[[['c_source_chat_123', 'r_empty'], null, [['']], model, [1757132274, 411870000]]], null, null, []];
-        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(raw)]]);
-    },
+    'G_PAGINATION_EMPTY_01': () => emptyTurnWire('c_source_chat_123'),
+    'G_PAGINATION_EMPTY_FOREIGN': () => emptyTurnWire('c_other'),
+    'G_PAGINATION_EMPTY_DOCUMENT': () => emptyTurnWire('c_source_chat_123', true),
 
     'G_OBSERVABILITY_DOC_01': () => {
         const item = ['https://y/immersive_entry_chip/e2e', '123e4567-e89b-12d3-a456-426614174099', 'End To End Heuristic Title'];

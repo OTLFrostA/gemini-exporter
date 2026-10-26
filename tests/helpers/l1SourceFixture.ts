@@ -1,4 +1,5 @@
 import { parseGeminiDetailEvidence } from '../../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { classifyDetailBody } from '../../src/l1/parsers/gemini/rpc/emptyDetail.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence } from '../../src/l1/parsers/gemini/rpc/detailEvidence.js';
 import { extractImageEvidence } from '../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 import { parseList } from '../../src/l1/parsers/gemini/rpc/parseList.js';
@@ -11,7 +12,8 @@ export function sourceMessage(id: string, content = id, role: 'user' | 'model' =
 export function sourceDetail(overrides: Partial<GeminiDetailEvidence> = {}) {
     return parseGeminiDetailEvidence({ id: 'source_chat_123', title: 'Source title', titleSource: 'rpc',
         messages: [sourceMessage('answer')], updatedAt: 1700000000000,
-        url: 'https://gemini.google.com/app/source_chat_123', nextPageToken: null, attachmentCount: 0, ...overrides }, { providerId: 'gemini' });
+        url: 'https://gemini.google.com/app/source_chat_123', nextPageToken: null, attachmentCount: 0,
+        bodyShape: classifyDetailBody(overrides._raw, overrides.id ?? 'source_chat_123'), ...overrides }, { providerId: 'gemini' });
 }
 /** Parsed native List evidence; all wire construction lives in listGen(key). */
 export function sourceList(key: Parameters<typeof geminiListGen>[0]) {

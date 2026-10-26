@@ -1,5 +1,4 @@
 import { ConfirmedSourceEmptyError } from '../../sourceErrors.js';
-import { hasConfirmedEmptyTurns } from './emptyDetail.js';
 import type { Account } from '../../../../l2/accountRegistry.js';
 import { mergeConversationPages } from '../../../parsers/gemini/rpc/mergePages.js';
 import type { SourceConversationParseResult } from '../../../parsers/parsingResult.js';
@@ -41,10 +40,8 @@ interface GeminiClientPaginationModule { getConversationDetail: typeof getConver
 
 /** Empty messages are trustworthy only when the native Detail body explicitly contains empty turns. */
 function isExplicitlyEmptyDetail(page: DetailParseResult): boolean {
-    const inner = page.transport.decodedPayload;
     return page.conversation.detail.messages.length === 0 && !page.transport.nextPageToken
-        && Array.isArray(inner) && Array.isArray(inner[0]) && inner[0].length === 0
-        && inner[1] === null && typeof inner[2] === 'string' && inner[2].trim().length > 0
+        && page.transport.bodyShape === 'empty_turn_array'
         && !page.diagnostics.some(diagnostic => diagnostic.code === 'GEMINI_SCHEMA_DRIFT'
             && diagnostic.message.startsWith('Envelope drift:'));
 }
@@ -65,11 +62,8 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
     if (token && !truncateReason) truncateReason = 'max_turns_page_limit_20';
     let first = pages[0];
     if (!first) throw new Error('no data');
-    const inner = first.transport.decodedPayload;
-    const metadata: unknown = Array.isArray(inner) && Array.isArray(inner[2]) ? inner[2][0] : null;
-    const metadataOnly = !pages.some(page => page.conversation.detail.messages.length) && Array.isArray(inner)
-        && inner[0] === null && inner[1] === null && Array.isArray(inner[2])
-        && Array.isArray(metadata) && typeof metadata[0] === 'string' && metadata[0].startsWith('c_');
+    const metadataOnly = !pages.some(page => page.conversation.detail.messages.length)
+        && first.transport.bodyShape === 'metadata_only';
     if (metadataOnly) {
         try {
             const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true, account, signal });
@@ -104,7 +98,10 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
     // empty body to L2 as though Gemini had returned the conversation.
     const explicitlyEmpty = pages.length === 1 && !token && !truncateReason && isExplicitlyEmptyDetail(first);
     if (!hasMessages && !explicitlyEmpty) {
-        if (pages.length === 1 && !token && !truncateReason && hasConfirmedEmptyTurns(first, expectedId)) {
+        if (pages.length === 1 && !token && !truncateReason
+            && first.transport.bodyShape === 'confirmed_empty_turns'
+            && !first.conversation.detail.assets.length && !first.evidence?.rejectedTurns
+            && !first.diagnostics.some(d => d.code === 'GEMINI_SCHEMA_DRIFT')) {
             throw new ConfirmedSourceEmptyError();
         }
         throw new Error('GEMINI_DETAIL_EMPTY_UNVERIFIED: Detail returned no verifiable messages');

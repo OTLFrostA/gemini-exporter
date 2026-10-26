@@ -34,6 +34,7 @@ type OutputContracts = [
     Assert<Equal<ChatGPTNodeMessage['createdAtMs'], number | undefined>>,
     Assert<Equal<ListParseResult['_raw'], unknown>>,
     Assert<Equal<DetailParseResult['transport']['decodedPayload'], unknown>>,
+    Assert<Equal<DetailParseResult['transport']['bodyShape'], 'metadata_only' | 'empty_turn_array' | 'confirmed_empty_turns' | undefined>>,
     Assert<Equal<ListParseResult['_debug'], ListParseDiagnostics | undefined>>,
     Assert<Equal<ListFailureDiagnostics['details'], Readonly<ListParseDiagnostics> | undefined>>,
     Assert<Equal<DetailParseResult['conversation']['detail']['messages'][number], DomainMessage>>,
@@ -43,7 +44,7 @@ type OutputContracts = [
     Assert<Equal<DecodedGeminiCandidate['source'], unknown[]>>,
     Assert<Equal<Parameters<typeof decodeCandidateArtifacts>[0], unknown[]>>,
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true];
+const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true];
 // The tuple already enforces these contracts at TypeScript compile time.
 // A runtime .every(Boolean) assertion on literal true values cannot detect a parser bug.
 void contracts;

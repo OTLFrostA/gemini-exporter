@@ -136,8 +136,7 @@ test('Gemini list limit requires LIST-specific 1096 plus a bound Recent continua
 });
 
 test('Metadata-only Detail retry propagates confirmed NotFound instead of accepting stale metadata', async () => {
-    const first = sourceDetail({ messages: [] });
-    first.transport.decodedPayload = [null, null, [['c_source_chat_123', 'Source title']]];
+    const first = sourceDetail({ messages: [], _raw: [null, null, [['c_source_chat_123', 'Source title']]] });
     let calls = 0;
     await assert.rejects(getConversationDetail({
         async fetchConversationPage() {
@@ -149,8 +148,7 @@ test('Metadata-only Detail retry propagates confirmed NotFound instead of accept
 });
 
 test('Metadata-only Detail with a transient retry failure cannot be admitted as empty', async () => {
-    const first = sourceDetail({ messages: [] });
-    first.transport.decodedPayload = [null, null, [['c_source_chat_123', 'Source title']]];
+    const first = sourceDetail({ messages: [], _raw: [null, null, [['c_source_chat_123', 'Source title']]] });
     let calls = 0;
     await assert.rejects(getConversationDetail({
         async fetchConversationPage() {
