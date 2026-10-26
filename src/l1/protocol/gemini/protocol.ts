@@ -176,16 +176,5 @@ export const GeminiProtocol: GeminiProtocolModule = {
     classifyDetailError
 };
 
-interface GeminiProtocolModuleExports extends GeminiProtocolModule {
-    GeminiProtocol: GeminiProtocolModule;
-    CrossWorldEvents: typeof CrossWorldEvents;
-    default: GeminiProtocolModule;
-}
-const protocolExports = GeminiProtocol as GeminiProtocolModuleExports;
-protocolExports.GeminiProtocol = GeminiProtocol;
-protocolExports.CrossWorldEvents = CrossWorldEvents;
-protocolExports.default = GeminiProtocol;
-
-
 export default GeminiProtocol;
 
