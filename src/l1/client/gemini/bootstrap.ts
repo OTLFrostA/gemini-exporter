@@ -131,9 +131,9 @@ export function isExtAlive(): boolean {
     }
 }
 
-export async function loadCredentialsMap(): Promise<Record<string, BootstrapCredential>> {
+export async function loadCredentialsMap(): Promise<Map<string, BootstrapCredential>> {
     let storage = getCredStorage();
-    if (!storage) return {};
+    if (!storage) return new Map();
     let mapObj: Record<string, unknown> = {};
     try {
         mapObj = await storage.get([SK_CRED_MAP]);
@@ -149,14 +149,14 @@ export async function loadCredentialsMap(): Promise<Record<string, BootstrapCred
         }
     }
     const saved = mapObj[SK_CRED_MAP];
-    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
-    return Object.fromEntries(Object.keys(saved).map(sid => [sid, parseGeminiCredential(Reflect.get(saved, sid))]));
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return new Map();
+    return new Map(Object.keys(saved).map(sid => [sid, parseGeminiCredential(Reflect.get(saved, sid))]));
 }
 
-export async function saveCredentials(map: Record<string, BootstrapCredential>, cred?: Partial<GeminiCredentialsPayload>): Promise<void> {
+export async function saveCredentials(map: ReadonlyMap<string, BootstrapCredential>, cred?: Partial<GeminiCredentialsPayload>): Promise<void> {
     let storage = getCredStorage();
     if (!storage) return;
-    const toSave = { [SK_CRED_MAP]: map, ...(cred ? { [SK_CRED]: cred } : {}) };
+    const toSave = { [SK_CRED_MAP]: Object.fromEntries(map), ...(cred ? { [SK_CRED]: cred } : {}) };
     try {
         await storage.set(toSave);
     } catch (e: unknown) {
@@ -192,11 +192,11 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
             updateContextCreds({ at: atFromPage });
         }
         const map = await loadCredentialsMap();
-        const vals = Object.values(map);
+        const vals = [...map.values()];
         if (atFromPage && vals.length === 0) {
             const slot = detectSlotFromUrl();
             const fakeSid = 'page_sid_' + Date.now();
-            map[fakeSid] = {
+            const credential: BootstrapCredential = {
                 at: atFromPage,
                 sid: fakeSid,
                 accountSlot: slot,
@@ -204,13 +204,14 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
                 lastUsed: Date.now(),
                 bl: blFromPage || (Proto ? Proto.BL_FALLBACK : '')
             };
+            map.set(fakeSid, credential);
             await saveCredentials(map, {
                 at: atFromPage,
                 sid: fakeSid
             });
-            updateContextCreds(map[fakeSid]);
+            updateContextCreds(credential);
             if (isDev()) console.log('[Gemini Exporter] at fallback created fake sid', 'atLen', atFromPage.length, 'blLen', (blFromPage || '').length);
-            return map[fakeSid];
+            return credential;
         }
         if (atFromPage && vals.length > 0) {
             vals.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
@@ -219,7 +220,7 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
                 best.at = atFromPage;
                 best.lastUsed = Date.now();
                 if (blFromPage) best.bl = blFromPage;
-                map[best.sid || Object.keys(map)[0]] = best;
+                map.set(best.sid || [...map.keys()][0], best);
                 await saveCredentials(map, {
                     at: best.at,
                     sid: best.sid
@@ -228,7 +229,7 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
                 if (isDev()) console.log('[Gemini Exporter] at refreshed from page', 'atLen', atFromPage.length);
             } else if (blFromPage && best.bl !== blFromPage) {
                 best.bl = blFromPage;
-                map[String(best.sid)] = best;
+                map.set(String(best.sid), best);
                 await saveCredentials(map);
                 updateContextCreds({ bl: blFromPage });
             }
@@ -237,7 +238,7 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
             const best = vals[0];
             if (best.bl !== blFromPage) {
                 best.bl = blFromPage;
-                map[String(best.sid)] = best;
+                map.set(String(best.sid), best);
                 await saveCredentials(map);
                 updateContextCreds({ bl: blFromPage });
                 if (isDev()) console.log('[Gemini Exporter] bl refreshed', 'blLen', blFromPage.length);
@@ -305,8 +306,8 @@ export function initBootstrap(): void {
                     const sid = p.sid || '';
                     if (!sid) return;
                     const map = await loadCredentialsMap();
-                    const old = map[sid] || {};
-                    map[sid] = {
+                    const old = map.get(sid) ?? {};
+                    const credential: BootstrapCredential = {
                         at: p.at || old.at || extractAtFromPage() || '',
                         sid,
                         accountSlot: slot || old.accountSlot || 'u0',
@@ -316,13 +317,14 @@ export function initBootstrap(): void {
                         lastUsed: Date.now(),
                         bl: p.bl || old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
                     };
+                    map.set(sid, credential);
                     await saveCredentials(map, {
-                        at: map[sid].at,
+                        at: credential.at,
                         sid
                     });
-                    updateContextCreds(map[sid]);
+                    updateContextCreds(credential);
                     if (isDev()) {
-                        console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (map[sid].at || '').length);
+                        console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (credential.at || '').length);
                     }
                 } catch (err: unknown) {
                     if (!getErrorMessage(err).includes('Extension context invalidated')) console.warn('creds store fail', err);
