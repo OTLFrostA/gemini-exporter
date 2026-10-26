@@ -49,19 +49,9 @@ function isRecord(val: unknown): val is Record<string, unknown> {
     return typeof val === "object" && val !== null;
 }
 
-function getGlobalObject(): Record<string, unknown> | null {
-    const candidate: unknown = typeof window !== "undefined"
-        ? window
-        : globalThis;
-    if (isRecord(candidate)) {
-        return candidate;
-    }
-    return null;
-}
-
 function getBlFromPage(): string | null {
     try {
-        const glob = getGlobalObject();
+        const glob = globalThis;
         if (typeof document === "undefined") return null;
         const html = document.documentElement?.innerHTML ?? "";
         const htmlLen = html.length;
@@ -73,7 +63,7 @@ function getBlFromPage(): string | null {
         let res: string | null = null;
         if (m && typeof m[1] === "string") {
             res = m[1];
-        } else if (glob && typeof glob.__gemExporterBl === "string" && glob.__gemExporterBl) {
+        } else if ("__gemExporterBl" in glob && typeof glob.__gemExporterBl === "string" && glob.__gemExporterBl) {
             res = glob.__gemExporterBl;
         }
         _blCache = { v: res, ts: Date.now(), len: htmlLen };
@@ -86,13 +76,11 @@ function getBlFromPage(): string | null {
 
 function getAtFromPage(): string {
     try {
-        const glob = getGlobalObject();
-        if (glob) {
-            const extractAtFn = glob.__gemExporterExtractAt;
-            if (typeof extractAtFn === "function") {
-                const a: unknown = Reflect.apply(extractAtFn, glob, []);
-                if (typeof a === "string" && a) return a;
-            }
+        const glob = globalThis;
+        const extractAtFn = "__gemExporterExtractAt" in glob ? glob.__gemExporterExtractAt : undefined;
+        if (typeof extractAtFn === "function") {
+            const a: unknown = Reflect.apply(extractAtFn, glob, []);
+            if (typeof a === "string" && a) return a;
         }
         if (typeof document === "undefined") return "";
         const html = document.documentElement?.innerHTML ?? "";
@@ -101,14 +89,14 @@ function getAtFromPage(): string {
             return _atCache.v;
         }
         const P = GeminiProtocol;
-        if (glob && isRecord(glob._WIZ_global_data)) {
+        if (isRecord(glob._WIZ_global_data)) {
             const v = glob._WIZ_global_data[P.TOKENS.AT];
             if (typeof v === "string" && v) {
                 _atCache = { v, ts: Date.now(), len: htmlLen };
                 return v;
             }
         }
-        if (glob && isRecord(glob.WIZ_global_data)) {
+        if (isRecord(glob.WIZ_global_data)) {
             const v = glob.WIZ_global_data[P.TOKENS.AT];
             if (typeof v === "string" && v) {
                 _atCache = { v, ts: Date.now(), len: htmlLen };
@@ -125,7 +113,7 @@ function getAtFromPage(): string {
             }
         }
         const mHtml = html.match(P.TOKEN_PATTERNS.atFromScript);
-        if (mHtml && typeof mHtml[1] === "string") {
+        if (mHtml) {
             _atCache = { v: mHtml[1], ts: Date.now(), len: htmlLen };
             return mHtml[1];
         }
@@ -139,10 +127,7 @@ function detectSlot(urlOrPath?: string | null): string | null {
     try {
         let path = urlOrPath ?? "";
         if (!path) {
-            const glob = getGlobalObject();
-            if (glob && isRecord(glob.location) && typeof glob.location.pathname === "string") {
-                path = glob.location.pathname;
-            }
+            path = globalThis.location?.pathname ?? "";
         }
         const slot = detectSlotFromUrl(path);
         return slot === "u0" ? "default" : slot;
