@@ -22,7 +22,16 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
-        'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
+        'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
+        // Runtime unit mocks L2; the real Index reader is tested by L2 suites.
+        'src/l2/conversationIndex.js': { restoreConversationIndex: (value: unknown) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value) || !('key' in value)) throw new TypeError('Invalid Index');
+            const key = mockConversationKey([uuid, otherUuid]).readConversationKey(value.key);
+            const { key: _rawKey, ...fields } = value;
+            if (fields.title !== undefined && (typeof fields.title !== 'string' || typeof fields.titleSource !== 'string')) throw new TypeError('Invalid Index title');
+            if (fields.updatedAt !== undefined && (typeof fields.updatedAt !== 'number' || !Number.isSafeInteger(fields.updatedAt))) throw new TypeError('Invalid Index timestamp');
+            return { key, ...fields };
+        } }, ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
         const key = Object.keys(ports).find(key => resolved === path.resolve(root, key).replace(/\.ts$/, '.js'));
