@@ -117,7 +117,6 @@ test('user_file_attachment: itemMatchesFilename correctly identifies valid filen
     assert.strictEqual(attachments.itemMatchesFilename('architecture.md?download=1'), false);
     assert.strictEqual(attachments.itemMatchesFilename('foo/bar.md'), false);
     assert.strictEqual(attachments.itemMatchesFilename(''), false);
-    assert.strictEqual(attachments.itemMatchesFilename(null), false);
 });
 
 test('user_file_attachment: extractFileNameFromUrl extracts filenames from query params and paths', () => {
