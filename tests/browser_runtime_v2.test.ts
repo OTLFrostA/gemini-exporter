@@ -97,8 +97,23 @@ test('ingestion preserves Detail and Index facts; reports L2 errors', async () =
     const detail = { ...detailFact, quality: { status: 'partial' as const } };
     const indexFields = { title: 'a', titleSource: 'provider' as const };
     assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail', accountId: uuid, conversationId: 'abc', detail, indexFields }), { ok: false, error: 'commit failed' });
-    assert.deepEqual(seen, [uuid, 'abc', detail, indexFields]);
+    const key = { accountId: uuid, conversationId: 'abc' };
+    assert.deepEqual(seen, [uuid, 'abc', detail, { ...indexFields, key }]);
     assert.equal(handle({ action: 'domainStorage' }, sender, () => assert.fail()), false);
+});
+
+test('Detail IPC validates Index fields before invoking L2', async () => {
+    global.chrome = chromeBase() as any;
+    let calls = 0;
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestDetail: async () => { calls++; return { accepted: true, changed: true }; } },
+    }).handleDomainIngestionMessage;
+    const invalidIndex = await invoke(handle, { action: 'domainIngest', operation: 'detail',
+        accountId: uuid, conversationId: 'abc', detail: detailFact, indexFields: { title: 'needs authority' } });
+    assert.equal(invalidIndex.ok, false);
+    assert.match(invalidIndex.error, /Invalid Index title|Invalid conversation index schema/);
+    assert.equal(calls, 0, 'invalid Index IPC fields cannot reach L2 ingestion');
 });
 
 test('Background returns the full Detail admission result only after L2 commits', async () => {
