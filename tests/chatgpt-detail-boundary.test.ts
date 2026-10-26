@@ -185,3 +185,62 @@ test('ChatGPT gallery ingress approves locators once and preserves unresolved re
     });
     assert.deepEqual(source, before, 'Ingress must not mutate source evidence');
 });
+
+
+test('ChatGPT Detail normalizes source times once before message and index assembly', () => {
+    const original = detailGen('C_DETAIL_L1_SOURCE_01');
+    const answer = original.mapping.answer;
+    const cases = [
+        [1700000000.1259, 1700000000125],
+        [1700000000123.9, 1700000000123],
+        ['2023-11-14T22:13:20Z', 1700000000000],
+        // Already normalized pre-2001 milliseconds must not be treated as seconds again.
+        ['1980-01-01T00:00:00Z', 315532800000],
+        [1, 1000],
+    ] as const;
+    for (const [sourceTime, expected] of cases) {
+        const raw = { ...original, create_time: sourceTime, update_time: sourceTime,
+            mapping: { ...original.mapping, answer: { ...answer, message: { ...answer.message,
+                create_time: sourceTime, update_time: sourceTime } } } };
+        const before = structuredClone(raw);
+        const decoded = decodeChatGPTDetail(raw, id);
+        assert.equal(decoded.createdAtMs, expected);
+        assert.equal(decoded.updatedAtMs, expected);
+        assert.equal(decoded.mapping.answer.message?.createdAtMs, expected);
+        assert.equal('updatedAtMs' in (decoded.mapping.answer.message ?? {}), false);
+        assert.equal('create_time' in decoded, false);
+        assert.equal('update_time' in decoded, false);
+        const parsed = parseChatGPTConversation({ conversation: decoded, assetsByNode: new Map() });
+        assert.equal(parsed.conversation.index.createdAt, expected);
+        assert.equal(parsed.conversation.index.updatedAt, expected);
+        assert.equal(parsed.sourceVersion, expected);
+        assert.equal(parsed.conversation.detail.savedAt, expected);
+        assert.equal(parsed.conversation.detail.messages.find(message => message.id === 'answer')?.timestamp, expected);
+        assert.deepEqual(raw, before);
+    }
+});
+
+test('ChatGPT Detail drops malformed optional times at ingress without fabricating dates', () => {
+    const original = detailGen('C_DETAIL_L1_SOURCE_01');
+    const answer = original.mapping.answer;
+    for (const value of [undefined, null, 0, -1, NaN, Infinity, Number.MAX_SAFE_INTEGER + 2,
+        '', 'invalid', {}, [], true]) {
+        const decoded = decodeChatGPTDetail({ ...original, create_time: value, update_time: value,
+            mapping: { ...original.mapping, answer: { ...answer, message: { ...answer.message,
+                create_time: value, update_time: value } } } }, id);
+        assert.equal('create_time' in decoded, false);
+        assert.equal('update_time' in decoded, false);
+        assert.equal('create_time' in (decoded.mapping.answer.message ?? {}), false);
+        assert.equal('update_time' in (decoded.mapping.answer.message ?? {}), false);
+        assert.equal(decoded.createdAtMs, undefined);
+        assert.equal(decoded.updatedAtMs, undefined);
+        assert.equal(decoded.mapping.answer.message?.createdAtMs, undefined);
+        assert.equal('updatedAtMs' in (decoded.mapping.answer.message ?? {}), false);
+        const parsed = parseChatGPTConversation({ conversation: decoded, assetsByNode: new Map() });
+        assert.equal(parsed.sourceVersion, undefined);
+        assert.equal(parsed.conversation.index.createdAt, undefined);
+        assert.equal(parsed.conversation.index.updatedAt, undefined);
+        assert.equal(parsed.conversation.detail.savedAt, undefined);
+        assert.equal(parsed.conversation.detail.messages.find(message => message.id === 'answer')?.timestamp, undefined);
+    }
+});

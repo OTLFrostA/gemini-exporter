@@ -36,7 +36,7 @@ for (const fixture of corpus) test(`Captured DIL ${fixture.name}: source is inde
     // Verify every original Python CodeBlock physically survives, including
     // indentation. This oracle reads raw component bodies, not parser output.
     const parsed = parseChatGPTConversation({ assetsByNode: new Map(), conversation: {
-        id: fixture.name, title: fixture.name, current_node: 'answer', create_time: 1, update_time: 2, is_archived: false,
+        id: fixture.name, title: fixture.name, current_node: 'answer', createdAtMs: 1000, updatedAtMs: 2000, is_archived: false,
         mapping: { root: { id: 'root', children: ['answer'] }, answer: { id: 'answer', parent: 'root', children: [], message: {
             id: 'answer', author: { role: 'assistant' }, recipient: 'all', weight: 1, end_turn: true,
             status: 'finished_successfully', content: { content_type: 'text', parts: [fixture.raw] },

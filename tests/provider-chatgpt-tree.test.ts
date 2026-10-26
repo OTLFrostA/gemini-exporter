@@ -98,7 +98,7 @@ test('missing ChatGPT ancestors and cyclic mappings never claim complete Detail 
     };
     for (const mapping of [broken, cyclic]) {
         const parsed = parseChatGPTConversation({
-            conversation: { id: 'conv-partial', title: 'Partial', create_time: 1, update_time: 2,
+            conversation: { id: 'conv-partial', title: 'Partial', createdAtMs: 1000, updatedAtMs: 2000,
                 current_node: 'a', mapping, is_archived: false },
             assetsByNode: new Map(),
         });
@@ -112,7 +112,7 @@ test('a linked but streaming or interrupted ChatGPT reply never claims complete 
         Object.assign(leaf.message!, patch);
         const parsed = parseChatGPTConversation({ conversation: { id: 'streaming', current_node: 'a',
             mapping: { root: { id: 'root', parent: null, children: ['a'] } as unknown as ChatGPTConversationNode, a: leaf },
-            title: 'Streaming', create_time: 1, update_time: 2, is_archived: false }, assetsByNode: new Map() });
+            title: 'Streaming', createdAtMs: 1000, updatedAtMs: 2000, is_archived: false }, assetsByNode: new Map() });
         assert.equal(parsed.conversation.detail.quality.status, 'partial');
     }
 });
@@ -121,8 +121,8 @@ test('processChatGPTMapping walks from current_node to root', () => {
     const conversation: ChatGPTApiConversationWithId = {
         id: 'conv-1',
         title: 'demo',
-        create_time: 1700000000,
-        update_time: 1700000600,
+        createdAtMs: 1700000000000,
+        updatedAtMs: 1700000600000,
         current_node: 'e',
         is_archived: false,
         mapping: {
@@ -316,7 +316,7 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
     // Reasoning blocks render through the full parser (markdown included).
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
-            id: 'conv-think', title: 't', create_time: 1, update_time: 2,
+            id: 'conv-think', title: 't', createdAtMs: 1000, updatedAtMs: 2000,
             current_node: 'a1', mapping, is_archived: false,
         },
         assetsByNode: new Map(),
@@ -367,7 +367,7 @@ test('bodies parse to structured blocks and models stay per-message', () => {
     };
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
-            id: 'conv-md', title: 't', create_time: 1, update_time: 2,
+            id: 'conv-md', title: 't', createdAtMs: 1000, updatedAtMs: 2000,
             current_node: 'a1', mapping, is_archived: false,
         },
         assetsByNode: new Map(),
@@ -411,7 +411,7 @@ test('repeated image pointers reuse one asset instead of breaking closure', () =
     const img = { pointer: 'sediment://file_dup', assetId: 'img-file_dup', dataBase64: 'aGk=' };
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
-            id: 'conv-dup', title: 't', create_time: 1, update_time: 2,
+            id: 'conv-dup', title: 't', createdAtMs: 1000, updatedAtMs: 2000,
             current_node: 't2', mapping, is_archived: false,
         },
         assetsByNode: new Map([
@@ -627,7 +627,7 @@ test('Intelligent UI questionnaires use the provider fallback without executing 
     const assistant = textNode('answer', 'question', 'assistant', raw);
     assistant.message!.metadata = { model_dil_v2: { fallbackMarkdown: fallback } };
     const conversation: ChatGPTApiConversationWithId = {
-        id: 'questionnaire', title: 'Questionnaire', create_time: 1, update_time: 2,
+        id: 'questionnaire', title: 'Questionnaire', createdAtMs: 1000, updatedAtMs: 2000,
         current_node: 'answer', is_archived: false,
         mapping: {
             root: { id: 'root', children: ['question'] },
@@ -688,7 +688,7 @@ test('Captured live DIL quiz parses nested questions/options before buttons, wit
     const answer = textNode('answer', 'question', 'assistant', fixture.raw);
     answer.message!.metadata = { model_dil_v2: {} };
     const conversation: ChatGPTApiConversationWithId = {
-        id: 'captured-quiz', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+        id: 'captured-quiz', title: 'Quiz', createdAtMs: 1000, updatedAtMs: 2000, current_node: 'answer', is_archived: false,
         mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
     };
     const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
@@ -755,7 +755,7 @@ test('DIL fallback norm escapes preserve all table cells and math', () => {
     answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: String.raw`| Check | Assertion | Purpose |
 |---|---|---|
 | Optimality | \(\\|x-\Pi(x)\\|_\infty<10^{-9}\) | Checks residual |` } };
-    const conversation = { id: 'norm', title: 'Norm', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
+    const conversation = { id: 'norm', title: 'Norm', createdAtMs: 1000, updatedAtMs: 2000, current_node: 'answer', is_archived: false,
         mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Verify'), answer } };
     const blocks = parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.messages.at(-1)!.content;
     const serialized = JSON.stringify(blocks);

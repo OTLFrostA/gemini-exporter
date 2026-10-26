@@ -4,10 +4,10 @@ import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConvers
 import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
-import type { ChatGPTApiConversationWithId } from '../src/l1/parsers/chatgpt/chatgptTypes.js';
+import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
 
-const parse = (raw: ChatGPTApiConversationWithId) => parseChatGPTConversation({
-    conversation: raw, assetsByNode: new Map(),
+const parse = (raw: { id: string }) => parseChatGPTConversation({
+    conversation: decodeChatGPTDetail(raw, raw.id), assetsByNode: new Map(),
 });
 
 test('ChatGPT source branch to root yields keyless complete Detail and millisecond source times', () => {

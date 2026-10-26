@@ -1,5 +1,5 @@
 /**
- * ChatGPT raw backend-api shapes, ported from pionxzh/chatgpt-exporter (MIT).
+ * ChatGPT decoded Detail shapes, ported from pionxzh/chatgpt-exporter (MIT).
  * Session, list and mapping payloads verified against the logged-in 9222 test profile.
  */
 
@@ -26,8 +26,8 @@ export interface ChatGPTGalleryResult {
 export interface ChatGPTNodeMessage {
     author: { role: ChatGPTAuthorRole; name?: string };
     content: ChatGPTMessageContent;
-    create_time?: number | string;
-    update_time?: number | string;
+    /** Validated Unix milliseconds; raw seconds/strings are decoded at ingress. */
+    createdAtMs?: number;
     id: string;
     metadata?: {
         model_slug?: string;
@@ -71,8 +71,9 @@ export interface ChatGPTConversationNode {
 }
 
 export interface ChatGPTApiConversation {
-    create_time?: number | string;
-    update_time?: number | string;
+    /** Validated Unix milliseconds; raw seconds/strings are decoded at ingress. */
+    createdAtMs?: number;
+    updatedAtMs?: number;
     conversation_id?: string;
     current_node: string;
     mapping: Record<string, ChatGPTConversationNode>;

@@ -41,7 +41,6 @@ import {
     extractChatGPTModelSlug,
     processChatGPTMapping,
 } from './conversationTree.js';
-import { chatGPTTimestamp } from './timestamp.js';
 import { preprocessChatGPTMarkdown } from './markdownCompatibility.js';
 
 /** Image bytes resolved by the provider for one sediment pointer. */
@@ -177,7 +176,7 @@ function messageOfNode(
         role: chatGPTNodeRole(node),
         model,
         content,
-        timestamp: chatGPTTimestamp(node.message?.create_time),
+        timestamp: node.message?.createdAtMs,
         ...(() => {
             const reasoning = thinking ? reasoningOfThinking(thinking, node.id, ctx) : [];
             return reasoning.length > 0 ? { reasoning } : {};
@@ -261,14 +260,14 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
         ),
     );
     // Source activity versions travel beside Detail; Index owns updatedAt.
-    const sourceVersion = chatGPTTimestamp(conversation.update_time);
+    const sourceVersion = conversation.updatedAtMs;
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
         conversationId: conversation.id,
         conversation: {
             index: parseIndexMetadata({ providerId: 'chatgpt', id: conversation.id,
                 title: conversation.title?.trim() || '', titleSource: 'provider',
-                createdAt: chatGPTTimestamp(conversation.create_time), updatedAt: sourceVersion,
+                createdAt: conversation.createdAtMs, updatedAt: sourceVersion,
                 messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
             detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: interactiveIncomplete ? 'partial' : branchCoverage(conversation) }), assets, messages },
         },
