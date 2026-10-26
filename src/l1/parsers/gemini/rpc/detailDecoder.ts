@@ -19,6 +19,7 @@ import { createDocumentReader } from "./sourceAttachments.js";
 import GeminiProtocol from "../../../protocol/gemini/protocol.js";
 import { isDevMode as devModeEnabled } from "../../../../runtime/devMode.js";
 import { extractNextPageToken } from "./payload.js";
+import { classifyDetailBody } from './emptyDetail.js';
 import { resolveDetailTitle } from "../../../../shared/utils/titleText.js";
 import { decodeGeminiTurn, DOC_TITLE_FALLBACK_RE } from './turnResources.js';
 
@@ -259,6 +260,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
             attachmentCount: allMsgs.reduce((a, m) => a + (m.attachmentCount || 0), 0),
             schemaDrift: schemaDriftWarnings.length ? schemaDriftWarnings : void 0,
             turnsRejected: turnsRejected > 0 ? turnsRejected : void 0,
+            bodyShape: classifyDetailBody(inner, convId),
             _raw: inner,
             _debug
         };
