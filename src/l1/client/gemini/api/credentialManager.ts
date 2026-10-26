@@ -59,10 +59,7 @@ function getBlFromPage(): string | null {
         }
         const P = GeminiProtocol;
         const m = html.match(P.TOKEN_PATTERNS.blCfb2hFromHtml) || html.match(P.TOKEN_PATTERNS.blAssistantFromHtml);
-        let res: string | null = null;
-        if (m && typeof m[1] === "string") {
-            res = m[1];
-        }
+        const res = m?.[1] ?? null;
         _blCache = { v: res, ts: Date.now(), len: htmlLen };
         if (res) return res;
     } catch (e) {
