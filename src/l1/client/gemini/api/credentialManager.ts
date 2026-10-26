@@ -51,7 +51,6 @@ function isRecord(val: unknown): val is Record<string, unknown> {
 
 function getBlFromPage(): string | null {
     try {
-        const glob = globalThis;
         if (typeof document === "undefined") return null;
         const html = document.documentElement?.innerHTML ?? "";
         const htmlLen = html.length;
@@ -63,8 +62,6 @@ function getBlFromPage(): string | null {
         let res: string | null = null;
         if (m && typeof m[1] === "string") {
             res = m[1];
-        } else if ("__gemExporterBl" in glob && typeof glob.__gemExporterBl === "string" && glob.__gemExporterBl) {
-            res = glob.__gemExporterBl;
         }
         _blCache = { v: res, ts: Date.now(), len: htmlLen };
         if (res) return res;
@@ -77,10 +74,10 @@ function getBlFromPage(): string | null {
 function getAtFromPage(): string {
     try {
         const glob = globalThis;
-        const extractAtFn = "__gemExporterExtractAt" in glob ? glob.__gemExporterExtractAt : undefined;
-        if (typeof extractAtFn === "function") {
-            const a: unknown = Reflect.apply(extractAtFn, glob, []);
-            if (typeof a === "string" && a) return a;
+        const extractAtFn = glob.__gemExporterExtractAt;
+        if (extractAtFn) {
+            const at = extractAtFn();
+            if (at) return at;
         }
         if (typeof document === "undefined") return "";
         const html = document.documentElement?.innerHTML ?? "";
