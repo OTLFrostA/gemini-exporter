@@ -27,9 +27,12 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/l2/conversationIndex.js': { restoreConversationIndex: (value: unknown) => {
             if (!value || typeof value !== 'object' || Array.isArray(value) || !('key' in value)) throw new TypeError('Invalid Index');
             const key = mockConversationKey([uuid, otherUuid]).readConversationKey(value.key);
+            const title = 'title' in value ? value.title : undefined;
+            const titleSource = 'titleSource' in value ? value.titleSource : undefined;
+            const updatedAt = 'updatedAt' in value ? value.updatedAt : undefined;
+            if (title !== undefined && (typeof title !== 'string' || typeof titleSource !== 'string')) throw new TypeError('Invalid Index title');
+            if (updatedAt !== undefined && (typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt))) throw new TypeError('Invalid Index timestamp');
             const { key: _rawKey, ...fields } = value;
-            if (fields.title !== undefined && (typeof fields.title !== 'string' || typeof fields.titleSource !== 'string')) throw new TypeError('Invalid Index title');
-            if (fields.updatedAt !== undefined && (typeof fields.updatedAt !== 'number' || !Number.isSafeInteger(fields.updatedAt))) throw new TypeError('Invalid Index timestamp');
             return { key, ...fields };
         } }, ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
