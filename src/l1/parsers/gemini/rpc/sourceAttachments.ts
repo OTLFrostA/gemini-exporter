@@ -69,7 +69,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
             let key = kind + "|" + host;
             if (warned.has(key)) return;
             warned.add(key);
-            if (typeof console !== "undefined" && console.warn) {
+            if (console.warn) {
                 console.warn(`[Gemini Exporter] media URL skipped (host not in whitelist, ${kind}): host=${host} url=${String(url).slice(0, 220)}`);
             }
         } catch (e) { /* ignore */ }
