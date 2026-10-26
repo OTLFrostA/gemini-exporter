@@ -41,4 +41,4 @@ export function installGrokHook(): void {
         return response;
     };
 }
-if (typeof window !== 'undefined') installGrokHook();
+installGrokHook();
