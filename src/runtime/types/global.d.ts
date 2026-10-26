@@ -20,7 +20,7 @@ interface Window {
     __gemExporterLogAll?: boolean;
     __gemExporterExtractAt?: () => string;
     __gemExporterExtractBl?: () => string;
-    __gemExporterEnsureCreds?: () => Promise<unknown>;
+    __gemExporterEnsureCreds?: typeof import('../../l1/client/gemini/bootstrap.js').ensureCreds;
     __gemExporterExtractedAt?: string;
     __gemExporterExtractedBl?: string;
     __gemExporterCleanups?: Array<() => void>;
