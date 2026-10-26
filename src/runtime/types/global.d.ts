@@ -23,7 +23,6 @@ interface Window {
     __gemExporterExtractedBl?: string;
     __gemExporterCleanups?: Array<() => void>;
     __gemExporterHistoryHooked?: boolean;
-    __gemExporterBl?: string | null;
     __geminiAt?: string;
     _WIZ_global_data?: Record<string, string>;
     WIZ_global_data?: Record<string, string>;
