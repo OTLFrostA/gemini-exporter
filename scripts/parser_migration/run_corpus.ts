@@ -129,11 +129,11 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
 
     const activeBaselineParser = options.baselineParser || defaultBaselineParser;
     const activeCandidateParser = options.candidateParser;
-    const defaultBaselineConverter: MathConverterFn = (latex, display) => convertMathWithMitex(latex, display);
+    const defaultBaselineConverter: MathConverterFn = (latex, display) => convertMathWithMitex(latex, 'latex', display);
     const activeBaselineConverter = options.baselineConverter || defaultBaselineConverter;
 
     const defaultCandidateConverter: MathConverterFn = (latex, display) => {
-        const res = convertMathWithMitex(latex, display);
+        const res = convertMathWithMitex(latex, 'latex', display);
         return { typst: res.typst, diagnostic: res.diagnostic };
     };
     const activeCandidateConverter = 'candidateConverter' in options

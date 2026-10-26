@@ -27,18 +27,9 @@ function warn(code: string, message: string): RenderDiagnostic {
 
 export function convertMathWithMitex(
     source: string,
-    notationOrDisplay?: string | boolean,
-    maybeDisplay?: boolean,
+    notation = 'latex',
+    display = false,
 ): MathConversionResult {
-    let notation = 'latex';
-    let display = false;
-
-    if (typeof notationOrDisplay === 'boolean') {
-        display = notationOrDisplay;
-    } else if (typeof notationOrDisplay === 'string') {
-        notation = notationOrDisplay;
-        display = maybeDisplay ?? false;
-    }
 
     if (notation !== 'latex') {
         return {
