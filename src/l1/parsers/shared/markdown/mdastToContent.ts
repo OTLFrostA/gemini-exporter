@@ -453,7 +453,7 @@ function adaptBlockNode(
             return [{
                 type: 'list',
                 ordered,
-                ...(ordered ? { start: typeof node.start === 'number' ? node.start : 1 } : {}),
+                ...(ordered ? { start: node.start ?? 1 } : {}),
                 items,
             }];
         }
