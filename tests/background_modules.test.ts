@@ -132,7 +132,7 @@ test('disabled and non-Markdown Live Save never check directory or invoke an exp
 
 test('missing or ungranted directory fails without mutating user Settings or prompting', async () => {
     const settings = { enabledDisk: true, defaultFormat: 'markdown', includeAssets: true };
-    for (const handle of [null, { queryPermission: async () => 'prompt', requestPermission: () => assert.fail('Worker must not request user permission') }]) {
+    for (const handle of [null, { queryPermission: async () => 'granted' }, { queryPermission: async () => 'prompt', requestPermission: () => assert.fail('Worker must not request user permission') }]) {
         const live = load('src/runtime/background/liveSaveHandler.ts', {
             'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
             'src/l3a/storageService.js': { getDirectoryHandle: async () => handle },
@@ -152,7 +152,7 @@ test('Live Save calls the single Application Export with fixed Markdown/Folder a
         'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async (request: unknown) => {
             assert.deepEqual(request, { mode: 'readwrite' });
             return 'granted';
-        } }) },
+        }, requestPermission: () => assert.fail('Worker must not request user permission') }) },
         'src/application/export/runExport.js': { runExport: async (request: unknown) => {
             steps.push('export');
             assert.deepEqual(request, { keys: [key], format: 'markdown', delivery: 'folderWriter', includeAssets: false, skipUnchanged: false });
