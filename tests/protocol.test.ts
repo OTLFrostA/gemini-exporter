@@ -67,6 +67,12 @@ test('protocol - deletion anchors match the GzXR5e-anchored id and reject decoys
     assert.strictEqual(noAnchor.match(Proto.DELETION_ANCHORS[1]), null);
 });
 
+test('protocol - error-like objects retain message semantics without a type assertion', () => {
+    assert.strictEqual(Proto.classifyDetailError({ message: '["BardErrorInfo",1167]' }, 200), 'confirmed_deleted');
+    assert.strictEqual(Proto.classifyDetailError({ message: 12 }), 'parse_error');
+    assert.strictEqual(Proto.classifyDetailError({ message: null }), 'unknown');
+});
+
 test('protocol - reqid generator increments (frontend fingerprint convention)', () => {
     const next = Proto.createReqidGenerator();
     const a = Number(next());
