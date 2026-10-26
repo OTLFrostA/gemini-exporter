@@ -14,7 +14,7 @@ export function createHookSandbox(sniffProfile?: typeof sniffUserProfileFromDom)
         addEventListener() {}, setInterval() { return 0; },
         async fetch(_input?: unknown, _init?: RequestInit) { return new Response(win.__nextResponseText); },
     };
-    class MockXhr { open(_method: string, _url: string) {} send(_body?: string) {} addEventListener() {} }
+    class MockXhr { open(_method: string, _url: string) {} send(_body?: XMLHttpRequestBodyInit | Document | null) {} addEventListener() {} }
     const script = require('./bundleGeminiHook.cjs')();
     vm.runInNewContext(script, { window: win,
         location: { origin: 'https://gemini.google.com', href: 'https://gemini.google.com/app', pathname: '/app' },

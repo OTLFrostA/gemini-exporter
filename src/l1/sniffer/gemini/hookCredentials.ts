@@ -77,32 +77,20 @@ declare global {
         try { return new URL(raw, location.href).href; } catch { return raw; }
     }
 
-    function captureFromUrl(url: string | URL | Request | null | undefined, body?: unknown): void {
+    function captureFromUrl(url: string | URL | Request | null | undefined, body: string): void {
         try {
             if (!url) return;
             const u = toUrlString(url);
             if (!u.includes('batchexecute')) return;
             publishAccount();
-            const urlAtMatch = /[?&]at=(?<token>[^&]+)/.exec(u);
-            let at = urlAtMatch?.groups?.token ?? null;
-            if (!at && typeof body === 'string') {
-                const bodyAtMatch = /at=(?<token>[^&]+)/.exec(body);
-                at = bodyAtMatch?.groups?.token ?? null;
-            }
+            const rawAt = /[?&]at=(?<token>[^&]+)/.exec(u)?.groups?.token;
+            const at = rawAt ? decodeURIComponent(rawAt) : new URLSearchParams(body).get('at') ?? '';
             const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
             const blMatch = u.match(/[?&]bl=([^&]+)/);
-            if (typeof body === 'string') {
-                try {
-                    const params = new URLSearchParams(body);
-                    if (!at) at = params.get('at');
-                } catch (e) {
-                    if (isDev()) console.debug('[GemExporter:hook]', e);
-                }
-            }
             if (at || sidMatch) {
                 const slot = getSlotFromUrl(u);
                 const payload: GeminiCredentialsPayload = {
-                    at: at ? decodeURIComponent(at) : '',
+                    at,
                     sid: sidMatch ? decodeURIComponent(sidMatch[1]) : '',
                     bl: blMatch ? decodeURIComponent(blMatch[1]) : '',
                     accountSlot: slot,
@@ -191,19 +179,18 @@ declare global {
             const endpoint = routeResponse(url);
             const handler = endpoint?.({ url, slot: getSlotFromUrl(input), pagePath: location.pathname,
                 requestedAt, requestAccountObservation: captureRequestAccount(url) });
-            const requestBody = typeof Request !== 'undefined' && input instanceof Request
-                ? input.body : undefined;
-            const body = (init && init.body) || requestBody;
-            let capturedBody = Promise.resolve(typeof body === 'string' ? body
-                : body instanceof URLSearchParams ? body.toString() : '');
-            if (typeof body !== 'string' && typeof Request !== 'undefined' && input instanceof Request
-                && handler) {
-                try { capturedBody = input.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
+            const request = typeof Request !== 'undefined' && input instanceof Request ? input : undefined;
+            const body = (init && init.body) || request?.body;
+            const requestBody = typeof body === 'string' ? body
+                : body instanceof URLSearchParams ? body.toString() : '';
+            let capturedBody = Promise.resolve(requestBody);
+            if (typeof body !== 'string' && request && handler) {
+                try { capturedBody = request.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
             }
 
             try {
-                captureFromUrl(input, body);
-                handler?.start(typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '');
+                captureFromUrl(input, requestBody);
+                handler?.start(requestBody);
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
@@ -220,7 +207,7 @@ declare global {
                 try {
                     void readCappedText(response.clone(), selected.captureLimit).then(async ({ text, truncated }) => {
                         const aborted = init?.signal?.aborted
-                            || (typeof Request !== 'undefined' && input instanceof Request && input.signal.aborted);
+                            || request?.signal.aborted;
                         selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
                     }).catch((error: unknown) => {
                         if (isDev()) console.debug('[GemExporter:hook]', error);
@@ -259,10 +246,10 @@ declare global {
                 const endpoint = routeResponse(sourceUrl);
                 const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(url), pagePath: location.pathname,
                     requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
-                captureFromUrl(url, body);
+                const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
+                captureFromUrl(url, requestBody);
                 if (handler) {
                     const selected = handler;
-                    const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
                     selected.start(requestBody);
                     let ended = false;
                     const handleEnd = (event: Event) => {
