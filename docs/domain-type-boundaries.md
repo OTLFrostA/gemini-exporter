@@ -52,6 +52,12 @@ and a nonnegative integer before updating account-scoped state. Position replies
 must prove `ok: true`; only string errors reach presentation. The same strict
 type-aware lint gate covers the Badge owner.
 
+Live Save also decodes its Chrome reply before returning an `ExportResult` or
+notifying Badge. The Runtime ingress checks counts, cancellation, failed
+ConversationKeys and attachment issue fields, reconstructing only the validated
+result. Application remains independent of IPC decoding; the coordinator is
+covered by the same strict type-aware lint gate.
+
 L2 coverage and detail selection operate on concrete Domain shapes (`PageObservation`
 cursor evidence and `DomainConversationDetail`) rather than generic wrappers. L3a maps
 each IndexedDB store name to its fixed row type via `StoreValueMap`, eliminating

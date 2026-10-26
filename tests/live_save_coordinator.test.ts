@@ -52,3 +52,38 @@ test('completed reply forwards the refresh requirement to the authenticated work
     await executeLiveSave(host.key, true);
     assert.deepEqual(host.sent, [{ action: 'runLiveSave', key: host.key, refreshDetail: true }]);
 });
+
+test('Live Save rejects malformed IPC results before returning them or notifying Badge', async t => {
+    const host = await liveCoordinatorHost(t);
+    const invalid = [null, {}, { ok: 1, result: host.result }, { ok: true },
+        ...[undefined, false, [], {}, { ...host.result, exported: '1' },
+            { ...host.result, skipped: -1 }, { ...host.result, partial: 0.5 },
+            { ...host.result, aborted: 0 }, { ...host.result, failed: null },
+            { ...host.result, failed: [{ ...host.key, accountId: 'foreign' }] },
+            { ...host.result, failed: [{ ...host.key, conversationId: ' padded ' }] },
+            { ...host.result, expiredConversations: null }, { ...host.result, otherPartial: -1 },
+            { ...host.result, attachmentIssues: {} }, { ...host.result, attachmentIssues: [null] },
+            ...[{ resourceId: 1, name: 'file', code: 'FAILED' },
+                { resourceId: 'r', name: 'file', code: 1 },
+                { resourceId: 'r', name: 'file', code: 'FAILED', sourceUrl: false },
+                { resourceId: 'r', name: 'file', code: 'FAILED', httpStatus: '404' }]
+                .map(issue => ({ ...host.result, attachmentIssues: [issue] }))]
+            .map(result => ({ ok: true, result }))];
+    for (const reply of invalid) {
+        host.reply(async () => reply);
+        await assert.rejects(executeLiveSave(host.key), /Live Save|conversation key/);
+        assert.deepEqual(host.feedback, []);
+    }
+    assert.equal(host.errors.length, invalid.length);
+});
+
+test('Live Save decodes complete failure and attachment details without changing their values', async t => {
+    const host = await liveCoordinatorHost(t);
+    const result = { ...host.result, failed: [host.key], partial: 1, expiredConversations: 1, otherPartial: 0,
+        attachmentIssues: [{ resourceId: 'r', name: 'file', code: 'RESOURCE_SOURCE_EXPIRED',
+            sourceUrl: 'https://example.test/file', httpStatus: 404 }] };
+    host.reply(async () => ({ ok: true, result }));
+    assert.deepEqual(await executeLiveSave(host.key), result);
+    assert.deepEqual(host.feedback, [result]);
+    assert.deepEqual(host.errors, []);
+});
