@@ -66,6 +66,33 @@ test('Grok rejects duplicate, foreign and misbound response bodies', () => {
     assert.throws(() => parseGrokConversation(g.metadata, g.tree, g.bodies, g.id), /binding/);
 });
 
+test('Grok tree binding preserves null and missing root parents without widening validated node state', () => {
+    for (const parent of [null, undefined]) {
+        const f = fixture();
+        if (parent === undefined) {
+            Reflect.deleteProperty(f.tree.responseNodes[0], 'parentResponseId');
+            Reflect.deleteProperty(f.bodies.responses[0], 'parentResponseId');
+        } else {
+            Object.assign(f.tree.responseNodes[0], { parentResponseId: parent });
+            Object.assign(f.bodies.responses[0], { parentResponseId: parent });
+        }
+        const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+        assert.equal(parsed.conversation.detail.quality.status, 'complete');
+        assert.deepEqual(parsed.conversation.detail.messages.map(m => m.role), ['user', 'assistant']);
+    }
+
+    const mismatched = fixture();
+    Object.assign(mismatched.tree.responseNodes[0], { parentResponseId: null });
+    Reflect.deleteProperty(mismatched.bodies.responses[0], 'parentResponseId');
+    assert.throws(() => parseGrokConversation(mismatched.metadata, mismatched.tree, mismatched.bodies, mismatched.id), /binding mismatch/);
+
+    for (const parentResponseId of [42, {}, 'not-a-uuid']) {
+        const f = fixture();
+        Object.assign(f.tree.responseNodes[0], { parentResponseId });
+        assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Invalid Grok response tree/);
+    }
+});
+
 test('Grok rejects malformed selected message text before Loominary receives it', () => {
     for (const message of [42, 0, null, false, { text: 'not a string' }]) {
         const f = fixture();
