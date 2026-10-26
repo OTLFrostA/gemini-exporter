@@ -47,6 +47,11 @@ validate the source, origin and capture envelope before queuing its payload.
 Provider payloads remain unknown until their existing source decoders run; the
 same strict type-aware lint gate covers these three listener owners.
 
+Badge IPC replies are unknown at receipt. Count replies must prove `ok: true`
+and a nonnegative integer before updating account-scoped state. Position replies
+must prove `ok: true`; only string errors reach presentation. The same strict
+type-aware lint gate covers the Badge owner.
+
 L2 coverage and detail selection operate on concrete Domain shapes (`PageObservation`
 cursor evidence and `DomainConversationDetail`) rather than generic wrappers. L3a maps
 each IndexedDB store name to its fixed row type via `StoreValueMap`, eliminating

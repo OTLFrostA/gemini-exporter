@@ -61,9 +61,11 @@ async function refreshAccount(): Promise<void> {
 async function refreshIndexCount(id: string): Promise<void> {
     if (id !== accountId || !alive) return;
     try {
-        const response = await chrome.runtime.sendMessage({ action: 'getLocalIndexCount', accountId: id });
+        const response: unknown = await chrome.runtime.sendMessage({ action: 'getLocalIndexCount', accountId: id });
         if (!alive || accountId !== id || getAccountContext()?.accountId !== id) return;
-        if (!response?.ok || !Number.isInteger(response.count) || response.count < 0) throw new Error('Invalid index count');
+        if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
+            || !('count' in response) || typeof response.count !== 'number'
+            || !Number.isInteger(response.count) || response.count < 0) throw new Error('Invalid index count');
         count = response.count;
     } catch { if (alive && accountId === id && getAccountContext()?.accountId === id) count = null; }
     render();
@@ -111,7 +113,11 @@ function ensureBadgeImpl(): HTMLElement | null {
             const rect = element.getBoundingClientRect();
             void chrome.runtime.sendMessage({ action: 'updateBadgePosition',
                 position: { left: Math.round(rect.left), top: Math.round(rect.top) } })
-                .then(reply => { if (!reply?.ok) throw new Error(reply?.error ?? 'Badge position update failed'); })
+                .then((reply: unknown) => {
+                    if (reply && typeof reply === 'object' && 'ok' in reply && reply.ok === true) return;
+                    throw new Error(reply && typeof reply === 'object' && 'error' in reply && typeof reply.error === 'string'
+                        ? reply.error : 'Badge position update failed');
+                })
                 .catch(console.warn);
         }
     });
