@@ -587,7 +587,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                                 source: "heuristic-flat"
                             });
                         }
-                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
+                    } catch (e) { console.debug("[GemExporter:attachments.ts]", e); }
                 }
             }
         });
