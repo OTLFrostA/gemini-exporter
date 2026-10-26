@@ -457,7 +457,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
                     topPreview: top ? JSON.stringify(top).slice(0, 800) : null
                 };
             } catch (e) {
-                if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:parseDetail.ts]", e);
+                console.debug("[GemExporter:parseDetail.ts]", e);
             }
         }
         if (schemaDriftWarnings.length) {
