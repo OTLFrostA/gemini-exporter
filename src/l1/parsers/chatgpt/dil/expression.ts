@@ -50,7 +50,11 @@ export function expression(source: string, scope: Scope): Value {
                     const arg = read(); requireToken(')');
                     if (arg !== null && typeof arg === 'object') throw new Error('Expected scalar');
                     value = name === 'String' ? String(arg) : Number(arg);
-                } else { if (!scope.has(name)) throw new Error('Unbound expression'); value = scope.get(name)!; }
+                } else {
+                    const bound = scope.get(name);
+                    if (bound === undefined) throw new Error('Unbound expression');
+                    value = bound;
+                }
             }
         }
         for (;;) {
