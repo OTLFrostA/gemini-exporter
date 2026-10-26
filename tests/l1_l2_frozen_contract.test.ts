@@ -199,3 +199,41 @@ test('scan cleanup aborts both Coverage and ExportRecords when either deletion f
         assert.ok(await getExportRecord(key())); assert.ok(await getDetail(key()));
     } finally { IDBObjectStore.prototype.delete = originalDelete; storage.restore(); }
 });
+
+test('Detail IPC rejects malformed graphs and mismatched identity, then admits canonical facts', async () => {
+    const storage = indexStorage({ gemini_exporter_v2_initialized: true });
+    try {
+        await ingestDetail(ACCOUNT_UUID, cid, body());
+        const before = await getDetail(key());
+        Object.assign(chrome.runtime, { id: 'own-extension' });
+        const malformed: unknown[] = [
+            { ...body(), assets: 'not an array' },
+            { ...body(), messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'missing' }] }] },
+            { ...body(), key: key(OTHER_ACCOUNT_UUID) },
+            { ...body(), key: { ...key(), conversationId: 'another' } },
+        ];
+        for (const detail of malformed) {
+            const response = await new Promise<unknown>(resolve => {
+                assert.equal(handleDomainIngestionMessage({ action: 'domainIngest', operation: 'detail',
+                    accountId: ACCOUNT_UUID, conversationId: cid, detail }, {
+                    id: 'own-extension', tab: { id: 1 } as chrome.tabs.Tab, frameId: 0,
+                    url: 'https://gemini.google.com/app'
+                }, resolve), true);
+            });
+            assert.ok(response && typeof response === 'object' && 'ok' in response);
+            assert.equal(response.ok, false);
+            assert.deepEqual(await getDetail(key()), before);
+        }
+        const response = await new Promise<unknown>(resolve => {
+            assert.equal(handleDomainIngestionMessage({ action: 'domainIngest', operation: 'detail',
+                accountId: ACCOUNT_UUID, conversationId: cid,
+                detail: { ...body(), messages: [{ role: 'assistant', content: [], model: undefined }] } }, {
+                id: 'own-extension', tab: { id: 1 } as chrome.tabs.Tab, frameId: 0,
+                url: 'https://gemini.google.com/app'
+            }, resolve), true);
+        });
+        assert.deepEqual(response, { ok: true, result: { accepted: true, changed: true } });
+        const stored = await getDetail(key()); assert.ok(stored);
+        assert.deepEqual(stored.messages, [{ role: 'assistant', content: [] }]);
+    } finally { storage.restore(); }
+});
