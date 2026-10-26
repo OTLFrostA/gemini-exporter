@@ -163,7 +163,7 @@ interface GeminiParserExtractorsModule {
     extractCandidateText: (cand: unknown) => string;
     safeStructureClean: (str?: string | null) => string;
     robustFirstPayload: (text?: string | null) => unknown[] | null;
-    deepWalk: (root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth?: number) => void;
+    deepWalk: (root: unknown, visitor: (node: object, depth: number) => boolean | void, maxDepth?: number) => void;
     extractThoughts: (candidateBlock: unknown) => string | null;
     extractCitations: (candidateBlock: unknown) => Citation[];
     extractGroundingCitationMarkers?: (candidate: unknown) => string[];
@@ -262,7 +262,7 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         return Array.isArray(value);
     }
 
-    function deepWalk(root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth: number = 50): void {
+    function deepWalk(root: unknown, visitor: (node: object, depth: number) => boolean | void, maxDepth: number = 50): void {
         function walk(node: unknown, depth: number) {
             if (!node || !isObjectRecord(node) || depth > maxDepth) return;
             const shouldDescend = visitor(node, depth);
