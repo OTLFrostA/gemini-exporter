@@ -16,6 +16,7 @@ import {
     readSandboxDiagnostic,
     readSandboxError,
     SANDBOX_MESSAGE_TYPES,
+    type HostSandboxMessage,
 } from './sandboxProtocol.js';
 import {
     type TypstBlockNode,
@@ -27,7 +28,7 @@ const PDF_MAGIC = '%PDF-';
 
 interface SandboxFrame {
     readonly contentWindow: unknown;
-    postToSandbox(message: Record<string, unknown>, transfer?: Transferable[]): void;
+    postToSandbox(message: HostSandboxMessage, transfer?: Transferable[]): void;
     onMessage(handler: (event: { source: unknown; origin: string; data: unknown }) => void): () => void;
     destroy(): void;
 }
@@ -382,7 +383,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
             return buf;
         });
         const jobId = newJobId();
-        const message = {
+        const message: HostSandboxMessage = {
             type: HOST_TO_SANDBOX.COMPILE,
             jobId,
             files: [{ path: '/payload.json', text: payloadText }],
@@ -526,7 +527,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
 
     private roundTrip(
         jobId: string,
-        message: Record<string, unknown>,
+        message: HostSandboxMessage,
         transfer: ArrayBuffer[],
         timeoutMs: number,
         signal: AbortSignal,
