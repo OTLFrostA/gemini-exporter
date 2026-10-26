@@ -33,8 +33,7 @@ export interface GeminiClientCredentialManagerModule {
     getBlFromPage: () => string | null;
     getAtFromPage: () => string;
     detectSlot: (urlOrPath?: string | null) => string | null;
-    getCredStorage: () => chrome.storage.StorageArea | null;
-    loadCredMap: () => Promise<RawCredentialMap>;
+    updateCredential: (sid: string | number, decide: () => { patch: { at?: string; bl?: string } | null; clearLocal?: boolean }) => Promise<void>;
     resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null) => Promise<GeminiCredentials>;
     generateFallbackSid: () => string;
 }
@@ -131,22 +130,52 @@ function detectSlot(urlOrPath?: string | null): string | null {
     return "default";
 }
 
-function toRawCredentialMap(raw: unknown): RawCredentialMap {
-    return isRecord(raw) ? raw : {};
-}
-
-async function loadCredMap(): Promise<RawCredentialMap> {
+async function loadRawCredMap(): Promise<RawCredentialMap> {
     const storage = getCredStorage();
     if (!storage) return {};
     try {
-        const s: unknown = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP]);
-        if (isRecord(s)) {
-            return toRawCredentialMap(s[STORAGE_KEYS.CREDENTIALS_MAP]);
-        }
-        return {};
+        const result: unknown = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP]);
+        const raw = isRecord(result) ? result[STORAGE_KEYS.CREDENTIALS_MAP] : undefined;
+        return isRecord(raw) ? raw : {};
     } catch {
         return {};
     }
+}
+
+// Keep the untouched storage snapshot only for writeback; selection sees validated entries.
+async function loadCredMap() {
+    const raw = await loadRawCredMap();
+    const entries = new Map<string, StoredCredential>();
+    for (const [sid, value] of Object.entries(raw)) {
+        if (isStoredCredential(value)) entries.set(sid, value);
+    }
+    return { raw, entries };
+}
+
+async function updateCredential(
+    sid: string | number,
+    decide: Parameters<GeminiClientCredentialManagerModule['updateCredential']>[1]
+): Promise<void> {
+    await withCredMapLock(async () => {
+        const { patch, clearLocal = true } = decide();
+        const map = await loadRawCredMap();
+        const key = String(sid);
+        if (!Object.hasOwn(map, key)) return;
+        const entry = map[key];
+        if (patch === null) {
+            if (!entry) return;
+            delete map[key];
+        } else {
+            if (!isRecord(entry)) return;
+            map[key] = { ...entry, ...patch };
+        }
+        const storage = getCredStorage();
+        if (!storage) return;
+        await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+        if (clearLocal && typeof chrome !== 'undefined' && chrome.storage.local && storage !== chrome.storage.local) {
+            await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+        }
+    });
 }
 
 async function resolveCred(
@@ -161,8 +190,8 @@ async function resolveCredInner(
     overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null
 ): Promise<GeminiCredentials> {
     if (targetSidOrSlot?.includes('@')) throw new TypeError('Email is not a credential routing identity');
-    const map = await loadCredMap();
-    let vals = Object.values(map).filter(isStoredCredential);
+    const { raw: map, entries } = await loadCredMap();
+    let vals = [...entries.values()];
     const pageAt = getAtFromPage();
     const pageBl = getBlFromPage();
 
@@ -172,7 +201,7 @@ async function resolveCredInner(
         /^u\d+$/i.test(targetSidOrSlot) ||
         targetSidOrSlot === 'default'
     );
-    const targetSid = (!isSlotParam && targetSidOrSlot && map[targetSidOrSlot]) ? targetSidOrSlot : null;
+    const targetSid = !isSlotParam && targetSidOrSlot ? targetSidOrSlot : null;
     const requestedSlot = overrides?.accountSlot || (isSlotParam ? targetSidOrSlot : null);
 
     const firstAt = vals[0]?.at;
@@ -192,6 +221,7 @@ async function resolveCredInner(
             const storage = getCredStorage();
             if (storage) {
                 map[String(sid)] = entry;
+                entries.set(String(sid), entry);
                 await storage.set({
                     [STORAGE_KEYS.CREDENTIALS_MAP]: map,
                     [STORAGE_KEYS.CREDENTIALS]: {
@@ -219,8 +249,8 @@ async function resolveCredInner(
     }
 
     let result: GeminiCredentials;
-    if (targetSid && isStoredCredential(map[targetSid])) {
-        const stored = map[targetSid];
+    const stored = targetSid ? entries.get(targetSid) : undefined;
+    if (stored) {
         result = {
             ...stored,
             bl: stored.bl || pageBl || GeminiProtocol.BL_FALLBACK,
@@ -257,14 +287,13 @@ async function resolveCredInner(
     return result;
 }
 
-export { getBlFromPage, getAtFromPage, detectSlot, loadCredMap, resolveCred, generateFallbackSid };
+export { getBlFromPage, getAtFromPage, detectSlot, updateCredential, resolveCred, generateFallbackSid };
 
 export const GeminiClientCredentialManager: GeminiClientCredentialManagerModule = {
     getBlFromPage,
     getAtFromPage,
     detectSlot,
-    getCredStorage,
-    loadCredMap,
+    updateCredential,
     resolveCred,
     generateFallbackSid
 };
