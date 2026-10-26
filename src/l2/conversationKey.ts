@@ -2,7 +2,7 @@ import { isAccountId } from './accountRegistry.js';
 
 export interface ConversationKey { accountId: string; conversationId: string }
 export function conversationKey(accountId: string, conversationId: string): ConversationKey {
-    if (!isAccountId(accountId) || typeof conversationId !== 'string' || !conversationId || conversationId !== conversationId.trim()) throw new TypeError('Invalid conversation key');
+    if (!isAccountId(accountId) || !conversationId || conversationId !== conversationId.trim()) throw new TypeError('Invalid conversation key');
     return { accountId, conversationId };
 }
 export function readConversationKey(value: unknown): ConversationKey {
