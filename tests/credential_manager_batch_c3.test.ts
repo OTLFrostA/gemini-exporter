@@ -1,4 +1,5 @@
 export {};
+import type { TestContext } from 'node:test';
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -36,8 +37,14 @@ function makeMockStorage(initialData: Record<string, unknown> = {}) {
     };
 }
 
-test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromHtml -> __gemExporterBl', () => {
+test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromHtml -> __gemExporterBl', (t: TestContext) => {
     const credManager = getFreshCredManager();
+    const globals = globalThis as Record<string, unknown>;
+    const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    t.after(() => {
+        if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+        else delete globals.document;
+    });
 
     // Both blCfb2hFromHtml and blAssistantFromHtml present: blCfb2hFromHtml wins
     const docBoth = {
@@ -45,7 +52,8 @@ test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromH
             innerHTML: 'start "cfb2h":"bl_primary" middle "bl":"boq_assistant-secondary" end'
         }
     };
-    assert.strictEqual(credManager.getBlFromPage(docBoth), 'bl_primary', 'blCfb2hFromHtml should take highest precedence');
+    globals.document = docBoth;
+    assert.strictEqual(credManager.getBlFromPage(), 'bl_primary', 'blCfb2hFromHtml should take highest precedence');
 
     // Only blAssistantFromHtml present ("bl":"boq_assistant...")
     const docAssistant = {
@@ -53,10 +61,10 @@ test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromH
             innerHTML: 'prefix "bl":"boq_assistant-bard-web-server_2026" suffix'
         }
     };
-    assert.strictEqual(credManager.getBlFromPage(docAssistant), 'boq_assistant-bard-web-server_2026', 'blAssistantFromHtml should be used when primary pattern absent');
+    globals.document = docAssistant;
+    assert.strictEqual(credManager.getBlFromPage(), 'boq_assistant-bard-web-server_2026', 'blAssistantFromHtml should be used when primary pattern absent');
 
     // Neither present in doc, but glob.__gemExporterBl present
-    const origWindow = (globalThis as Record<string, unknown>).window;
     try {
         (globalThis as Record<string, unknown>).__gemExporterBl = 'bl_from_glob';
         const docEmpty = {
@@ -64,16 +72,22 @@ test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromH
                 innerHTML: '<div>no bl tokens here</div>'
             }
         };
-        assert.strictEqual(credManager.getBlFromPage(docEmpty), 'bl_from_glob', '__gemExporterBl should be fallback when patterns absent');
+        globals.document = docEmpty;
+        assert.strictEqual(credManager.getBlFromPage(), 'bl_from_glob', '__gemExporterBl should be fallback when patterns absent');
     } finally {
         delete (globalThis as Record<string, unknown>).__gemExporterBl;
-        if (origWindow !== undefined) (globalThis as Record<string, unknown>).window = origWindow;
     }
 });
 
-test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_global_data -> WIZ_global_data -> script scan -> full HTML -> empty', () => {
+test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_global_data -> WIZ_global_data -> script scan -> full HTML -> empty', (t: TestContext) => {
     const credManager = getFreshCredManager();
     const P = require('../src/l1/protocol/gemini/protocol.js').default;
+    const globals = globalThis as Record<string, unknown>;
+    const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    t.after(() => {
+        if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+        else delete globals.document;
+    });
 
     // A. __gemExporterExtractAt wins over everything
     const origExtractAt = (globalThis as Record<string, unknown>).__gemExporterExtractAt;
@@ -93,7 +107,8 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
         const doc = {
             documentElement: { innerHTML: '<html>"SNlM0e":"at_in_html"</html>' }
         };
-        assert.strictEqual(credManager.getAtFromPage(doc), 'at_wiz_1', '_WIZ_global_data wins over WIZ_global_data');
+        globals.document = doc;
+        assert.strictEqual(credManager.getAtFromPage(), 'at_wiz_1', '_WIZ_global_data wins over WIZ_global_data');
     } finally {
         delete (globalThis as Record<string, unknown>)._WIZ_global_data;
         delete (globalThis as Record<string, unknown>).WIZ_global_data;
@@ -106,7 +121,8 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
             documentElement: { innerHTML: '<html>"SNlM0e":"at_in_html_script"</html>' },
             querySelectorAll: () => [{ textContent: '"SNlM0e":"at_in_script_query"' }]
         };
-        assert.strictEqual(credManager.getAtFromPage(doc), 'at_wiz_plain', 'WIZ_global_data wins over scripts');
+        globals.document = doc;
+        assert.strictEqual(credManager.getAtFromPage(), 'at_wiz_plain', 'WIZ_global_data wins over scripts');
     } finally {
         delete (globalThis as Record<string, unknown>).WIZ_global_data;
     }
@@ -116,21 +132,24 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
         documentElement: { innerHTML: '<html>"SNlM0e":"at_in_html_tail"</html>' },
         querySelectorAll: () => [{ textContent: 'var a = 1; "SNlM0e":"at_from_query_script";' }]
     };
-    assert.strictEqual(credManager.getAtFromPage(docScript), 'at_from_query_script', 'querySelectorAll scripts wins over HTML regex');
+    globals.document = docScript;
+    assert.strictEqual(credManager.getAtFromPage(), 'at_from_query_script', 'querySelectorAll scripts wins over HTML regex');
 
     // E. full HTML scan when no scripts matched
     const docHtml = {
         documentElement: { innerHTML: '<div>content with "SNlM0e":"at_full_html" in body</div>' },
         querySelectorAll: () => []
     };
-    assert.strictEqual(credManager.getAtFromPage(docHtml), 'at_full_html', 'full HTML scan fallback');
+    globals.document = docHtml;
+    assert.strictEqual(credManager.getAtFromPage(), 'at_full_html', 'full HTML scan fallback');
 
     // F. empty fallback
     const docNone = {
         documentElement: { innerHTML: '<div>plain text</div>' },
         querySelectorAll: () => []
     };
-    assert.strictEqual(credManager.getAtFromPage(docNone), '', 'returns empty string when no AT tokens found');
+    globals.document = docNone;
+    assert.strictEqual(credManager.getAtFromPage(), '', 'returns empty string when no AT tokens found');
 });
 
 test('3. Slot detection: explicit path -> pathname -> u0 to default -> catch to default', () => {
