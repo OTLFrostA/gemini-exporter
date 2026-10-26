@@ -22,7 +22,19 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
-        'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
+        'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
+        // Runtime unit mocks L2; the real Index reader is tested by L2 suites.
+        'src/l2/conversationIndex.js': { restoreConversationIndex: (value: unknown) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value) || !('key' in value)) throw new TypeError('Invalid Index');
+            const key = mockConversationKey([uuid, otherUuid]).readConversationKey(value.key);
+            const title = 'title' in value ? value.title : undefined;
+            const titleSource = 'titleSource' in value ? value.titleSource : undefined;
+            const updatedAt = 'updatedAt' in value ? value.updatedAt : undefined;
+            if (title !== undefined && (typeof title !== 'string' || typeof titleSource !== 'string')) throw new TypeError('Invalid Index title');
+            if (updatedAt !== undefined && (typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt))) throw new TypeError('Invalid Index timestamp');
+            const { key: _rawKey, ...fields } = value;
+            return { key, ...fields };
+        } }, ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
         const key = Object.keys(ports).find(key => resolved === path.resolve(root, key).replace(/\.ts$/, '.js'));
@@ -142,10 +154,39 @@ test('ingestion rejects foreign, unsupported, subframe and malformed requests', 
     for (const origin of [{ ...sender, id: 'other' }, { ...sender, tab: undefined }, { ...sender, url: 'https://chatgpt.com/' }, { ...sender, frameId: 1 }]) {
         assert.equal((await invoke(handle, message, origin)).ok, false);
     }
-    for (const patch of [{ accountId: 'u0' }, { items: {} }, { items: [{ conversationId: '', fields: {} }] }, { operation: 'write' }]) {
+    const page = { streamId: 'recent', requestCursor: null, nextCursor: null,
+        requestedAt: 1, requestKnown: true, valid: true, ordered: true, keys: [] };
+    for (const patch of [
+        { accountId: 'u0' }, { items: {} }, { items: [{ conversationId: '', fields: {} }] },
+        { items: [{ conversationId: ' a ', fields: {} }] },
+        { items: [null] }, { items: [{ conversationId: 'abc', fields: null }] },
+        { items: [{ conversationId: 'abc', fields: { title: 'Incomplete title' } }] },
+        { items: [{ conversationId: 'abc', fields: { updatedAt: 1.5 } }] },
+        { items: new Array(1) },
+        { page: { ...page, requestKnown: 'true' } },
+        { page: { ...page, valid: 'true' } },
+        { page: { ...page, requestedAt: 'not-a-time' } },
+        { page: { ...page, keys: [{ id: 'abc', time: 'not-a-time' }] } },
+        { page: { ...page, keys: new Array(1) } },
+        { operation: 'write' },
+    ]) {
         assert.equal((await invoke(handle, { ...message, ...patch })).ok, false);
     }
     assert.equal(calls, 0);
+});
+
+test('Index IPC decodes canonical facts before sending them to L2', async () => {
+    global.chrome = chromeBase() as any;
+    let admitted: unknown[] | null = null;
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestIndexes: async (...args: unknown[]) => { admitted = args; } },
+    }).handleDomainIngestionMessage;
+    const items = [{ conversationId: 'abc', fields: { title: 'A', titleSource: 'provider', updatedAt: 10 } }];
+    const page = { streamId: 'recent', requestCursor: null, nextCursor: null,
+        requestedAt: 20, requestKnown: true, valid: true, ordered: true, keys: [{ id: 'abc', time: 10 }] };
+    assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'indexes', accountId: uuid, items, page }), { ok: true });
+    assert.deepEqual(admitted, [uuid, items, page]);
 });
 
 test('provider mismatch is rejected before L2 admission', async () => {

@@ -1,7 +1,32 @@
 import { notifyDomainChanged } from '../api/domainChanges.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../l2/ingestion.js';
+import { restoreConversationIndex } from '../../l2/conversationIndex.js';
+import type { PageObservationHead } from '../../l2/pageObservation.js';
 import { ensureV2Ready } from './readiness.js';
 import { object, requireContentContext, assertContentSender } from './contentSender.js';
+
+/** IPC page evidence must be typed before L2 Coverage can interpret it as proof. */
+function readPageHead(value: unknown): PageObservationHead {
+    const page = object(value);
+    const { streamId, requestCursor, nextCursor, requestedAt, requestKnown, valid, ordered, terminal } = page;
+    if (typeof streamId !== 'string' || !streamId || streamId !== streamId.trim()
+        || (requestCursor !== null && typeof requestCursor !== 'string')
+        || (nextCursor !== null && typeof nextCursor !== 'string')
+        || typeof requestedAt !== 'number' || !Number.isSafeInteger(requestedAt)
+        || typeof requestKnown !== 'boolean' || typeof valid !== 'boolean' || typeof ordered !== 'boolean'
+        || (terminal !== undefined && terminal !== 'provider_limit')
+        || !Array.isArray(page.keys)) throw new TypeError('Invalid Index page evidence');
+    const keys = Array.from(page.keys, value => {
+        const key = object(value);
+        if (typeof key.id !== 'string' || !key.id || key.id !== key.id.trim()
+            || typeof key.time !== 'number' || !Number.isSafeInteger(key.time)) {
+            throw new TypeError('Invalid Index page key');
+        }
+        return { id: key.id, time: key.time };
+    });
+    return { streamId, requestCursor, nextCursor, requestedAt, requestKnown, valid, ordered, keys,
+        ...(terminal === 'provider_limit' ? { terminal } : {}) };
+}
 
 /** Only L2 admission crosses this boundary; there is no direct Storage write port. */
 export function handleDomainIngestionMessage(message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void): boolean {
@@ -14,13 +39,15 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
             const { account } = await requireContentContext(sender, request.accountId);
             if (request.operation === 'indexes') {
                 if (!Array.isArray(request.items)) throw new TypeError('Expected Index items');
-                for (const item of request.items) {
+                const items = Array.from(request.items, item => {
                     const entry = object(item);
-                    if (typeof entry.conversationId !== 'string' || !entry.conversationId) throw new TypeError('Expected conversation ID');
-                    object(entry.fields);
-                }
-                if (request.page !== undefined) object(request.page);
-                await ingestIndexes(account.id, request.items as Parameters<typeof ingestIndexes>[1], request.page as Parameters<typeof ingestIndexes>[2]);
+                    const { key, ...fields } = restoreConversationIndex({
+                        ...object(entry.fields), key: { accountId: account.id, conversationId: entry.conversationId },
+                    });
+                    return { conversationId: key.conversationId, fields };
+                });
+                const page = request.page === undefined ? undefined : readPageHead(request.page);
+                await ingestIndexes(account.id, items, page);
             } else if (request.operation === 'detail') {
                 if (typeof request.conversationId !== 'string' || !request.conversationId) throw new TypeError('Expected conversation ID');
                 object(request.detail);
