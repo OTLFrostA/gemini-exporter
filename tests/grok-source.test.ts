@@ -66,6 +66,52 @@ test('Grok rejects duplicate, foreign and misbound response bodies', () => {
     assert.throws(() => parseGrokConversation(g.metadata, g.tree, g.bodies, g.id), /binding/);
 });
 
+test('Grok rejects malformed selected message text before Loominary receives it', () => {
+    for (const message of [42, 0, null, false, { text: 'not a string' }]) {
+        const f = fixture();
+        Object.assign(f.bodies.responses[1], { message });
+        assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Missing Grok message text/);
+    }
+    const f = fixture();
+    Reflect.deleteProperty(f.bodies.responses[1], 'message');
+    assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Missing Grok message text/);
+});
+
+test('Grok retains disconnected bodies as partial and validates their text before vendor parsing', () => {
+    const f = fixture();
+    const idA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', idB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    f.tree.responseNodes.push(
+        { responseId: idA, parentResponseId: idB, sender: 'assistant' },
+        { responseId: idB, parentResponseId: idA, sender: 'assistant' },
+    );
+    f.bodies.responses.push(
+        { ...f.bodies.responses[1], responseId: idA, parentResponseId: idB, message: 'orphan A' },
+        { ...f.bodies.responses[1], responseId: idB, parentResponseId: idA, message: 'orphan B' },
+    );
+    const original = structuredClone(f);
+    const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+    assert.deepEqual(f, original, 'source JSON must not be mutated');
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    assert.equal(parsed.conversation.detail.messages.length, 4, 'disconnected bodies remain in the partial export');
+    assert.ok(parsed.diagnostics.some(d => d.code === 'grok.branch.disconnected'));
+
+    Object.assign(f.bodies.responses[2], { message: 42 });
+    assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Missing Grok message text/);
+    Object.assign(f.bodies.responses[2], { message: 'orphan A' });
+    Object.assign(f.bodies.responses[3], { message: null });
+    assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Missing Grok message text/);
+});
+
+test('Grok ignores unsupported senders without passing invalid text to Loominary', () => {
+    const f = fixture();
+    Object.assign(f.tree.responseNodes[1], { sender: 'tool' });
+    Object.assign(f.bodies.responses[1], { sender: 'tool', message: 42 });
+    const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    assert.equal(parsed.conversation.detail.messages.length, 1);
+    assert.ok(parsed.diagnostics.some(d => d.code === 'grok.sender.unsupported'));
+});
+
 test('Grok list uses native activity and cursor and rejects invalid records', () => {
     const f = fixture(); const row = { ...f.metadata.conversation, createTime: '2026-10-25T05:10:31.525Z' };
     const parsed = parseGrokList({ conversations: [row], nextPageToken: f.id });

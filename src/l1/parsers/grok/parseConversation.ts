@@ -16,7 +16,8 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     const meta = grokObject(grokObject(metadata).conversation), graph = grokObject(tree), payload = grokObject(bodies);
     if (!grokUuid(requestedId) || meta.conversationId !== requestedId) throw new TypeError('Grok detail identity mismatch');
     if (!Array.isArray(graph.responseNodes) || !Array.isArray(payload.responses)) throw new TypeError('Invalid Grok response snapshot');
-    const nodes = new Map<string, Record<string, unknown>>(), responses = new Map<string, Record<string, unknown>>();
+    const nodes = new Map<string, Record<string, unknown>>(),
+        responses = new Map<string, Record<string, unknown> & { message: string }>();
     for (const value of graph.responseNodes) {
         const node = grokObject(value);
         if (!grokUuid(node.responseId) || nodes.has(node.responseId) || node.parentResponseId != null && !grokUuid(node.parentResponseId)) throw new TypeError('Invalid Grok response tree');
@@ -27,7 +28,11 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
         if (!grokUuid(response.responseId) || responses.has(response.responseId) || !nodes.has(response.responseId)) throw new TypeError('Unexpected Grok response body');
         if (response.parentResponseId !== nodes.get(response.responseId)?.parentResponseId
             || response.sender !== nodes.get(response.responseId)?.sender) throw new TypeError('Grok response binding mismatch');
-        responses.set(response.responseId, response);
+        const message = response.message;
+        if ((response.sender === 'human' || response.sender === 'assistant') && typeof message !== 'string')
+            throw new TypeError('Missing Grok message text');
+        // Unsupported senders are skipped; never pass their invalid text to Loominary.
+        responses.set(response.responseId, { ...response, message: typeof message === 'string' ? message : '' });
     }
     const parents = new Set([...nodes.values()].map(node => node.parentResponseId));
     const leaves = [...nodes.keys()].filter(id => !parents.has(id));
@@ -51,7 +56,7 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     }
     // Upstream owns citation-card conversion, attachment schemas and display text.
     // Clone because its normalizer sorts source responses in place.
-    const compatible = compatibleGrokBodies(payload, warn);
+    const compatible = compatibleGrokBodies({ ...payload, responses: [...responses.values()] }, warn);
     // Normalize source TeX before upstream inserts escaped Markdown citation titles.
     for (const row of compatible.responses) if (typeof row.message === 'string') row.message = preprocessGrokMarkdown(row.message);
     const normalized: unknown = normalizeGrokResponses(structuredClone(graph.responseNodes), compatible);
@@ -69,7 +74,6 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
         const response = responses.get(id);
         if (!response) { warn('grok.response.missing', 'A source response body is unavailable'); continue; }
         if (response.sender !== 'human' && response.sender !== 'assistant') { warn('grok.sender.unsupported', 'Unsupported Grok response sender'); continue; }
-        if (typeof response.message !== 'string') throw new TypeError('Missing Grok message text');
         if (response.partial === true || Array.isArray(response.streamErrors) && response.streamErrors.length) warn('grok.response.partial', 'Grok response incomplete');
         // Preserve unsupported source facts explicitly rather than silently advertising a full export.
         for (const field of ['toolResponses', 'citedXposts', 'inputChunks', 'outputChunks']) {
