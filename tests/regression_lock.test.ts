@@ -194,6 +194,10 @@ test('hookCredentials - credential token sources preserve URL, body, and encoded
         [base + '&at=url%20token', 'at=body_token', 'url token'],
         [base, 'request=1&at=body_token', 'body_token'],
         [base, 'a%74=form+token', 'form token'],
+        [base, 'at=form+token', 'form token'],
+        [base, 'at=literal%2Btoken', 'literal+token'],
+        [base, 'at=literal%25token', 'literal%token'],
+        [base, 'format=wrong&at=right', 'right'],
     ];
     for (const [url, body, expected] of cases) {
         posted.length = 0;
@@ -312,4 +316,41 @@ test('Takeout later meaningful title replaces a placeholder through current L1 i
     const persisted = JSON.stringify(detail.messages);
     assert.ok(persisted.includes('model response 1'));
     assert.ok(persisted.includes('model response 2'));
+});
+
+
+test('hookCredentials - fetch and XHR canonicalize URLSearchParams before credential extraction', async () => {
+    const { posted, win, Xhr } = createHookSandbox();
+    const url = 'https://gemini.google.com/batchexecute?f.sid=form-sid';
+    for (const body of ['at=form%20token', new URLSearchParams({ at: 'form token' })]) {
+        posted.length = 0;
+        await win.fetch(url, { method: 'POST', body });
+        const fetchCredentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
+        assert.equal(fetchCredentials.length, 1);
+        assert.equal(fetchCredentials[0].msg.payload.at, 'form token');
+        assert.equal(fetchCredentials[0].msg.payload.sid, 'form-sid');
+        posted.length = 0;
+        const xhr = new Xhr();
+        xhr.open('POST', url);
+        xhr.send(body);
+        const xhrCredentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
+        assert.equal(xhrCredentials.length, 1);
+        assert.equal(xhrCredentials[0].msg.payload.at, 'form token');
+        assert.equal(xhrCredentials[0].msg.payload.sid, 'form-sid');
+    }
+});
+
+
+test('hookCredentials - credential-shaped text inside another form field is not an AT source', async () => {
+    const { posted, win, Xhr } = createHookSandbox();
+    const url = 'https://gemini.google.com/batchexecute';
+    for (const body of ['f.req=at=not-a-token', 'format=not-a-token',
+        new URLSearchParams({ 'f.req': 'at=not-a-token' })]) {
+        posted.length = 0;
+        await win.fetch(url, { method: 'POST', body });
+        const xhr = new Xhr();
+        xhr.open('POST', url);
+        xhr.send(body);
+        assert.equal(posted.some(p => p.msg.type === 'GEMINI_CREDENTIALS'), false);
+    }
 });
