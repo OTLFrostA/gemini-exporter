@@ -151,7 +151,7 @@ function toHighRes(url: string, variant = 's1024-rj'): string {
 
 function toDataUrl(blob: Blob): Promise<string> {
     if (typeof FileReader === 'undefined') {
-        if (typeof Buffer !== 'undefined' && typeof blob.arrayBuffer === 'function') {
+        if (typeof Buffer !== 'undefined') {
             return blob.arrayBuffer().then((buf: ArrayBuffer) => {
                 const b64 = Buffer.from(buf).toString('base64');
                 const type = blob.type || 'application/octet-stream';
