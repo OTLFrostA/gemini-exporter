@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0c12">
+  <meta name="description" content="Privacy policy for Gemini Exporter browser extension and otlfrosta.com. Local-only conversation exports, optional permissions, and cookie-free website analytics.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://otlfrosta.com/privacy">
+  <link rel="icon" href="/assets/icon.png" type="image/png" sizes="128x128">
+  <link rel="stylesheet" href="/styles.css?v=20261026-privacy">
+  <link rel="stylesheet" href="/privacy.css?v=1">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Privacy Policy | Gemini Exporter">
+  <meta property="og:description" content="Your conversation exports stay on your device. Website analytics are separate and cookie-free.">
+  <meta property="og:url" content="https://otlfrosta.com/privacy">
+  <title>Privacy Policy | Gemini Exporter</title>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header wrap" id="top">
+    <a class="brand" href="/" aria-label="OTLFrostA homepage">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      <span>Your chats, your files<span class="brand-dot">.</span></span>
+    </a>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="/">Home</a>
+      <a class="nav-github" href="https://github.com/OTLFrostA/gemini-exporter" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+
+  <main id="main" class="policy-page wrap">
+    <div class="policy-heading">
+      <p class="kicker">PRIVACY &amp; TRANSPARENCY</p>
+      <h1>Privacy Policy</h1>
+      <p class="policy-subtitle">Gemini Exporter Chrome extension &amp; otlfrosta.com</p>
+      <p class="policy-updated">Last updated: October 26, 2026 · 最近更新：2026 年 10 月 26 日</p>
+      <nav class="policy-language" aria-label="Policy language">
+        <a href="#english" lang="en">English</a>
+        <a href="#chinese" lang="zh-CN">简体中文</a>
+      </nav>
+    </div>
+
+    <article class="policy-content" id="english" lang="en" aria-labelledby="english-heading">
+      <h2 id="english-heading">English</h2>
+      <div class="policy-summary">
+        <strong>The important distinction:</strong> Gemini Exporter processes your conversation exports locally, without developer-operated telemetry or upload servers. Our <a href="https://otlfrosta.com/">website</a> is separate and uses Cloudflare's cookie-free web analytics.
+      </div>
+
+      <section aria-labelledby="en-scope">
+        <h3 id="en-scope">1. Scope</h3>
+        <p>This policy covers the Gemini Exporter Chrome extension and the website at <a href="https://otlfrosta.com/">otlfrosta.com</a>. Their data practices are different and described separately below. The published extension currently supports Google Gemini; experimental ChatGPT, Claude, and Grok integrations may be present in the open-source code but should not be treated as published features.</p>
+      </section>
+
+      <section aria-labelledby="en-extension">
+        <h3 id="en-extension">2. Extension: local data processing</h3>
+        <p>The extension reads conversations and available attachments from services you have already signed in to, when you authorize access or request an export. It processes and exports this content on your device as Markdown, HTML, PDF, or JSON; multi-file downloads may be packaged as ZIP files. PDF compilation and ZIP creation run locally.</p>
+        <p><strong>We do not receive or collect your conversations, attachments, passwords, account credentials, session tokens, or export files.</strong> The extension does not send them to a server operated by us, and it contains no developer-operated analytics, advertising trackers, or telemetry. Requests to retrieve your conversations or attachments are made directly to the relevant source service using your existing browser session.</p>
+        <p>The extension stores settings, scan information, conversation metadata, and export records locally in browser extension storage. Files that you download or save to a folder remain on your device; you control their retention and deletion.</p>
+      </section>
+
+      <section aria-labelledby="en-permissions">
+        <h3 id="en-permissions">3. Extension permissions</h3>
+        <ul>
+          <li><strong>Storage and unlimitedStorage:</strong> local preferences, conversation index information, scan state, and export records.</li>
+          <li><strong>Scripting:</strong> activates scripts for supported source sites only when their access is granted.</li>
+          <li><strong>Optional site access:</strong> conversation and attachment domains for Gemini, or experimental ChatGPT, Claude, and Grok adapters when supported and explicitly authorized. No source platform needs mandatory host access at installation.</li>
+          <li><strong>Local Font Access:</strong> when requested, reads the names or metadata of installed fonts to select fonts for PDF rendering. Font files and conversation content are not uploaded.</li>
+        </ul>
+        <p>Connecting one platform does not authorize another. We do not store platform passwords or session tokens in the extension's conversation database.</p>
+      </section>
+
+      <section aria-labelledby="en-third-party">
+        <h3 id="en-third-party">4. Source services and local libraries</h3>
+        <p>To perform an export, the extension communicates directly with the authorized source platform, such as Google Gemini. Your activity with that platform is also subject to the platform's own privacy practices. The extension includes locally executed open-source libraries such as JSZip and Typst WebAssembly, and a bundled math font; these components do not require a developer-operated service to render or package your files.</p>
+      </section>
+
+      <section aria-labelledby="en-website">
+        <h3 id="en-website">5. Website: Cloudflare Web Analytics</h3>
+        <p>The website is served through Cloudflare and uses <a href="https://developers.cloudflare.com/web-analytics/" target="_blank" rel="noopener noreferrer">Cloudflare Web Analytics</a> to understand aggregate website usage and performance. This service does not use analytics cookies, Local Storage, or visitor fingerprinting. Its reports include information such as page views, referring sites, approximate geography, browser/device categories, and page performance. We do not use website analytics to access or analyze your exported conversations.</p>
+        <p><strong>European Union visitors are excluded from Web Analytics collection under our current Cloudflare EU Lite configuration.</strong> Cloudflare also processes technical request information, potentially including IP addresses, as needed to deliver and protect the website. That infrastructure processing is separate from the cookie-free Web Analytics reports and is governed by <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer">Cloudflare's Privacy Policy</a>.</p>
+        <p>The website has no GA4 tracking script or analytics consent banner. When you follow a Chrome Web Store link, standard UTM campaign labels may be passed along in the destination URL for campaign-level attribution; we do not generate a visitor ID to link your browsing activity across sites.</p>
+      </section>
+
+      <section aria-labelledby="en-sharing">
+        <h3 id="en-sharing">6. Sharing, retention, and control</h3>
+        <p>We do not sell your data, use extension data for advertising, or transfer extension data for unrelated purposes, credit decisions, or lending. Extension records and export files remain under your control on your device. You can clear local scan/export records with the extension controls and delete downloaded files yourself.</p>
+        <p>Website traffic and performance data are handled by Cloudflare in connection with its service. External links, including Chrome Web Store and GitHub, lead to services with their own privacy policies. We do not maintain a developer-hosted database of your conversations or an account profile for this extension.</p>
+      </section>
+
+      <section aria-labelledby="en-contact">
+        <h3 id="en-contact">7. Open source, contact, and changes</h3>
+        <p>The extension's <a href="https://github.com/OTLFrostA/gemini-exporter" target="_blank" rel="noopener noreferrer">source code</a> and more detailed <a href="https://github.com/OTLFrostA/gemini-exporter/blob/main/docs/PRIVACY_POLICY.md" target="_blank" rel="noopener noreferrer">extension privacy documentation</a> are public. For questions, requests, or corrections, contact us through <a href="https://github.com/OTLFrostA/gemini-exporter/issues" target="_blank" rel="noopener noreferrer">GitHub Issues</a>. Please do not post private conversations or credentials in a public issue.</p>
+        <p>We may update this policy when features or data practices change. The date at the top indicates the latest published revision.</p>
+      </section>
+    </article>
+
+    <article class="policy-content policy-chinese" id="chinese" lang="zh-CN" aria-labelledby="chinese-heading">
+      <h2 id="chinese-heading">简体中文</h2>
+      <div class="policy-summary">
+        <strong>最重要的区别：</strong>Gemini Exporter 扩展在本机处理对话和导出文件，不使用开发者提供的上传服务器或遥测服务；<a href="https://otlfrosta.com/">官网</a>与扩展相互独立，使用不依赖 Cookie 的 Cloudflare 网站统计。
+      </div>
+
+      <section aria-labelledby="zh-scope">
+        <h3 id="zh-scope">1. 适用范围</h3>
+        <p>本政策适用于 Gemini Exporter Chrome 扩展，以及 <a href="https://otlfrosta.com/">otlfrosta.com</a> 官网。两者的数据处理方式不同，下面分别说明。商店已发布版本目前支持 Google Gemini；开源代码中可能包含实验性的 ChatGPT、Claude 和 Grok 适配器，不代表这些功能已经正式发布。</p>
+      </section>
+
+      <section aria-labelledby="zh-extension">
+        <h3 id="zh-extension">2. 扩展：所有导出处理均在本地完成</h3>
+        <p>在您授权或主动执行导出时，扩展通过您现有的平台登录会话，从来源网站读取对话和可用附件，并在本机将其处理为 Markdown、HTML、PDF 或 JSON 文件。批量浏览器下载可打包为 ZIP。PDF 编译和 ZIP 打包均在本地执行。</p>
+        <p><strong>我们不接收或收集您的对话、附件、密码、账号凭据、会话令牌或导出文件。</strong> 扩展不会把这些内容发送到我们运营的服务器，也不包含开发者遥测、广告追踪或分析 SDK。读取来源对话和附件所需的网络请求仅直接发送至相应来源平台。</p>
+        <p>扩展设置、扫描信息、会话索引元数据和导出记录保存在浏览器扩展的本地存储中。下载或保存到文件夹的文件留在您的设备上，保留和删除由您控制。</p>
+      </section>
+
+      <section aria-labelledby="zh-permissions">
+        <h3 id="zh-permissions">3. 扩展权限</h3>
+        <ul>
+          <li><strong>storage / unlimitedStorage：</strong>本地保存偏好设置、会话索引、扫描状态和导出记录。</li>
+          <li><strong>scripting：</strong>仅为您已经授予访问权限的平台启用相应脚本。</li>
+          <li><strong>可选网站访问：</strong>按需授权 Gemini 等受支持平台及其附件域名；实验性 ChatGPT、Claude 和 Grok 适配器也仅在支持并获授权时访问对应网站。安装扩展时不强制授予任何来源平台的站点权限。</li>
+          <li><strong>本地字体访问：</strong>如需授权，扩展仅读取已安装字体的名称或元数据，以便本地 PDF 排版；不会上传字体文件或对话内容。</li>
+        </ul>
+        <p>授权一个平台不会自动授权其他平台。平台密码及会话令牌不会写入扩展的会话数据库。</p>
+      </section>
+
+      <section aria-labelledby="zh-third-party">
+        <h3 id="zh-third-party">4. 来源平台与本地依赖</h3>
+        <p>导出时扩展会直接访问您授权的来源平台，例如 Google Gemini；您在该平台的操作也受该平台隐私政策约束。扩展使用 JSZip、Typst WebAssembly 和内置数学字体等本地组件，不需要通过开发者服务器处理文件。</p>
+      </section>
+
+      <section aria-labelledby="zh-website">
+        <h3 id="zh-website">5. 官网：Cloudflare Web Analytics</h3>
+        <p>官网由 Cloudflare 提供网络服务，并使用 <a href="https://developers.cloudflare.com/web-analytics/" target="_blank" rel="noopener noreferrer">Cloudflare Web Analytics</a> 获取汇总的网站访问及性能数据。该服务不使用分析 Cookie、Local Storage 或访客指纹。统计内容包括页面浏览量、来源网站、大致地理区域、浏览器与设备类别、网页性能等。官网统计不会读取或分析扩展导出的对话内容。</p>
+        <p><strong>根据当前启用的 Cloudflare EU Lite 配置，欧盟访客不会被纳入 Web Analytics 统计。</strong> Cloudflare 为了分发和保护网页，仍可能处理 IP 地址等必要的网络请求信息。这类网络基础设施处理不同于无 Cookie 的 Web Analytics 报表，详情见 <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer">Cloudflare 隐私政策</a>。</p>
+        <p>官网没有 GA4 追踪脚本或分析 Cookie 同意弹窗。点击 Chrome Web Store 链接时，网址可能透传用于推广活动归因的 UTM 参数；我们不会生成访客 ID，在不同网站之间追踪个人浏览行为。</p>
+      </section>
+
+      <section aria-labelledby="zh-sharing">
+        <h3 id="zh-sharing">6. 数据共享、保留与控制</h3>
+        <p>我们不出售用户数据，不将扩展数据用于广告、与扩展核心功能无关的用途、信用评估或借贷。扩展本地扫描及导出记录可通过扩展提供的功能清理；下载的文件由您自行管理和删除。</p>
+        <p>官网访问及性能数据由 Cloudflare 在提供服务的过程中处理。Chrome Web Store、GitHub 等外部链接均遵循其各自的隐私政策。我们不运营存放您对话内容的数据库，也不要求为使用本扩展注册开发者账户。</p>
+      </section>
+
+      <section aria-labelledby="zh-contact">
+        <h3 id="zh-contact">7. 开源、联系与政策更新</h3>
+        <p>扩展的<a href="https://github.com/OTLFrostA/gemini-exporter" target="_blank" rel="noopener noreferrer">源代码</a>及更详细的<a href="https://github.com/OTLFrostA/gemini-exporter/blob/main/docs/PRIVACY_POLICY.md" target="_blank" rel="noopener noreferrer">扩展隐私文档</a>均公开可查。如有疑问、相关请求或内容修正，请通过 <a href="https://github.com/OTLFrostA/gemini-exporter/issues" target="_blank" rel="noopener noreferrer">GitHub Issues</a> 联系。请勿在公开 Issue 中提交个人对话或账号凭据。</p>
+        <p>如果功能或数据处理方式发生变化，我们可能更新本政策；页面顶部的日期为最新发布修订日期。</p>
+      </section>
+    </article>
+  </main>
+
+  <footer class="footer wrap policy-footer">
+    <div class="footer-line">
+      <span class="footer-brand">Your chats, your files.</span>
+      <div class="footer-links">
+        <a href="/">Home</a>
+        <a href="/privacy" aria-current="page">Privacy</a>
+        <a href="https://github.com/OTLFrostA/gemini-exporter/issues" target="_blank" rel="noopener noreferrer">Support</a>
+      </div>
+    </div>
+    <p>Independent open-source project. Not affiliated with Google or other AI providers.</p>
+  </footer>
+</body>
+</html>

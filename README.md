@@ -30,3 +30,10 @@ The Cloudflare zone has **Web Analytics auto-injection enabled** (EU Lite mode e
 - For new source-specific entry points, define a new path rule in `public/_redirects`, no DNS record required. Do not change the extension `main` branch.
 
 This tracks campaign-level Chrome Web Store visits and installs, not X post impressions or cross-site user identities.
+
+## Website privacy policy
+
+- `https://otlfrosta.com/privacy` is served from `public/privacy.html` (Cloudflare Pages extensionless HTML routing).
+- The page explains both the published Gemini Exporter extension's local-only processing and the separate website's Cloudflare Web Analytics and infrastructure processing, in English and Simplified Chinese.
+- Keep the extension policy claims aligned with the canonical `main/docs/PRIVACY_POLICY.md` when those behaviors change. The site's EU Lite Web Analytics disclosure must reflect the live Cloudflare configuration.
+- `public/privacy.css` only styles the policy page; it does not affect the homepage.

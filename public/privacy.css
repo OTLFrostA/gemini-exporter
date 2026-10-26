@@ -1,0 +1,24 @@
+/* Privacy policy: intentionally scoped so the homepage layout stays unchanged. */
+.policy-page{max-width:850px;padding-top:80px}
+.policy-heading{padding-bottom:44px;border-bottom:1px solid var(--border)}
+.policy-heading h1{font-size:clamp(40px,6vw,62px);letter-spacing:-.065em;line-height:1.08;margin:18px 0 0}
+.policy-subtitle{font-size:17px;color:#d5d2e9;line-height:1.6;margin-top:18px}
+.policy-updated{font-size:12px;color:var(--muted);line-height:1.7;margin-top:15px}
+.policy-language{display:flex;gap:22px;margin-top:28px;color:#cbbaff;font-size:14px;font-weight:650}
+.policy-language a:hover{color:#fff}
+.policy-content{scroll-margin-top:24px;padding-top:52px;color:#b8bed3;font-size:15px;line-height:1.84}
+.policy-content h2{font-size:27px;color:#f6f2ff;letter-spacing:-.035em;font-weight:700;margin:0 0 25px}
+.policy-summary{padding:22px 24px;color:#d6d2e8;line-height:1.8;background:rgba(159,140,235,.075);border:1px solid rgba(196,179,255,.22);border-radius:12px}
+.policy-summary strong,.policy-content strong{color:#f0e9ff;font-weight:680}
+.policy-content section{padding:28px 0;border-bottom:1px solid rgba(191,193,222,.12)}
+.policy-content section h3{font-size:18px;line-height:1.4;letter-spacing:-.022em;color:#eeeaf9;font-weight:690;margin-bottom:14px}
+.policy-content section p+p{margin-top:16px}
+.policy-content ul{padding-left:23px;margin:13px 0}
+.policy-content li{padding-left:4px;margin:9px 0}
+.policy-content a{color:#cdbfff;text-decoration:underline;text-underline-offset:3px}
+.policy-content a:hover{color:#fff}
+.policy-content a:focus-visible{outline-offset:3px}
+.policy-chinese{margin-top:68px;border-top:1px solid var(--border);padding-top:52px}
+.policy-footer{padding-top:75px}
+@media(max-width:720px){.policy-page{padding-top:57px}.policy-heading{padding-bottom:35px}.policy-content{padding-top:38px}.policy-content section{padding:24px 0}.policy-chinese{margin-top:51px;padding-top:40px}}
+@media(max-width:520px){.policy-heading h1{font-size:40px}.policy-subtitle{font-size:15px}.policy-content{font-size:14px}.policy-content h2{font-size:24px}.policy-summary{padding:18px}.policy-content section h3{font-size:17px}.policy-footer{padding-top:52px}}
