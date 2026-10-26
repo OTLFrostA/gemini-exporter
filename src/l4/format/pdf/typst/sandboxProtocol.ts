@@ -11,6 +11,14 @@ export const HOST_TO_SANDBOX: {
     CANCEL: 'typst/cancel',
 };
 
+export type HostSandboxMessage =
+    | { type: typeof HOST_TO_SANDBOX.INIT; jobId: string; wasm: ArrayBuffer }
+    | { type: typeof HOST_TO_SANDBOX.COMPILE; jobId: string;
+        files: Array<{ path: string; text: string }>;
+        binaries: Array<{ path: string; buf: ArrayBuffer }>;
+        fonts: ArrayBuffer[] }
+    | { type: typeof HOST_TO_SANDBOX.CANCEL; jobId: string };
+
 export const SANDBOX_TO_HOST: {
     readonly READY: 'typst/ready';
     readonly INITED: 'typst/inited';
