@@ -92,10 +92,12 @@ test('Claude Detail ingress normalizes selected branch, content and files once',
 
 test('Claude Detail ingress preserves malformed block diagnostics and invalid parents', () => {
     const raw = claudeDetailGen('CL_L1_SOURCE_SELECTED_BRANCH_01');
-    const selected = raw.chat_messages.find(message => message.uuid === leaf);
-    assert.ok(selected);
-    selected.content = [null, { type: 'text', text: 42 }, { type: 'thinking', thinking: 'still readable' }];
-    selected.files = [null, { name: 'missing.pdf' }];
+    if (!('chat_messages' in raw) || !Array.isArray(raw.chat_messages)) throw new Error('Missing fixture messages');
+    raw.chat_messages = raw.chat_messages.map((value: unknown) => value && typeof value === 'object'
+        && 'uuid' in value && value.uuid === leaf ? {
+            ...value, content: [null, { type: 'text', text: 42 }, { type: 'thinking', thinking: 'still readable' }],
+            files: [null, { name: 'missing.pdf' }],
+        } : value);
     const parsed = parseClaudeConversation(raw, c1);
     assert.equal(parsed.conversation.detail.quality.status, 'partial');
     for (const code of ['claude.content.invalid', 'claude.content.unsupported',
@@ -103,9 +105,9 @@ test('Claude Detail ingress preserves malformed block diagnostics and invalid pa
         assert.ok(parsed.diagnostics.some(d => d.code === code), code);
     }
     const badParent = claudeDetailGen('CL_L1_SOURCE_SELECTED_BRANCH_01');
-    const leafNode = badParent.chat_messages.find(message => message.uuid === leaf);
-    assert.ok(leafNode);
-    leafNode.parent_message_uuid = { invalid: true };
+    if (!('chat_messages' in badParent) || !Array.isArray(badParent.chat_messages)) throw new Error('Missing fixture messages');
+    badParent.chat_messages = badParent.chat_messages.map((value: unknown) => value && typeof value === 'object'
+        && 'uuid' in value && value.uuid === leaf ? { ...value, parent_message_uuid: { invalid: true } } : value);
     const branch = parseClaudeConversation(badParent, c1);
     assert.equal(branch.conversation.detail.quality.status, 'partial');
     assert.ok(branch.diagnostics.some(d => d.code === 'claude.branch.partial'));
