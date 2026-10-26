@@ -1,6 +1,7 @@
 import { notifyDomainChanged } from '../api/domainChanges.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../l2/ingestion.js';
 import { restoreConversationIndex } from '../../l2/conversationIndex.js';
+import { restoreDomainDetail } from '../../l2/runtimeValidation.js';
 import type { PageObservationHead } from '../../l2/pageObservation.js';
 import { ensureV2Ready } from './readiness.js';
 import { object, requireContentContext, assertContentSender } from './contentSender.js';
@@ -50,9 +51,11 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                 await ingestIndexes(account.id, items, page);
             } else if (request.operation === 'detail') {
                 if (typeof request.conversationId !== 'string' || !request.conversationId) throw new TypeError('Expected conversation ID');
-                object(request.detail);
-                if (request.indexFields !== undefined) object(request.indexFields);
-                const result = await ingestDetail(account.id, request.conversationId, request.detail as Parameters<typeof ingestDetail>[2], request.indexFields as Parameters<typeof ingestDetail>[3]);
+                const key = { accountId: account.id, conversationId: request.conversationId };
+                const detail = restoreDomainDetail({ key, ...object(request.detail) });
+                const indexFields = request.indexFields === undefined ? undefined
+                    : restoreConversationIndex({ ...object(request.indexFields), key });
+                const result = await ingestDetail(account.id, request.conversationId, detail, indexFields);
                 if (!result.accepted && result.changed) throw new TypeError('Invalid committed Detail ingestion result');
                 notifyDomainChanged(account.id);
                 respond({ ok: true, result: { accepted: result.accepted, changed: result.changed } });
