@@ -72,6 +72,11 @@ test('Grok list uses native activity and cursor and rejects invalid records', ()
     assert.equal(parsed.keys[0].time, Date.parse(row.modifyTime));
     assert.equal(parsed.nextCursor, f.id);
     assert.equal(parseGrokList({ conversations: [] }).nextCursor, null);
+    assert.equal(parseGrokList({ conversations: [], nextPageToken: '' }).nextCursor, null);
+    assert.throws(() => parseGrokList({ conversations: [], nextPageToken: null }), /token/);
+    assert.throws(() => parseGrokList({ conversations: [], nextPageToken: 12 }), /token/);
+    assert.equal(parseGrokList({ conversations: [{ ...row, title: '   ' }] }).conversations[0].title, undefined);
+    assert.equal(parseGrokList({ conversations: [{ ...row, title: 12 }] }).conversations[0].title, undefined);
     assert.throws(() => parseGrokList({ conversations: [row, row] }), /duplicate/);
     assert.throws(() => parseGrokList({ conversations: [{ ...row, modifyTime: null }] }), /timestamp/);
     assert.throws(() => parseGrokList({ conversations: [], nextPageToken: '../foreign' }), /token/);
