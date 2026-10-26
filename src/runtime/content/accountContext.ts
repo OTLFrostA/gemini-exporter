@@ -18,7 +18,12 @@ export function setAccountChangedHandler(handler: () => void): void {
 }
 let latestSignature: string | null = null;
 let pending: { signature: string; result: Promise<AccountContext | null> } | null = null;
-const providerNow = () => typeof location !== 'undefined' && location.hostname === 'grok.com' ? 'grok' : typeof location !== 'undefined' && ['chatgpt.com', 'chat.openai.com'].includes(location.hostname) ? 'chatgpt' : typeof location !== 'undefined' && location.hostname === 'claude.ai' ? 'claude' : 'gemini';
+const providerNow = () => {
+    const host = typeof location === 'undefined' ? '' : location.hostname;
+    return host === 'grok.com' ? 'grok'
+        : host === 'chatgpt.com' || host === 'chat.openai.com' ? 'chatgpt'
+        : host === 'claude.ai' ? 'claude' : 'gemini';
+};
 const slotNow = () => detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
 
 export function invalidateAccountContext(): void {
