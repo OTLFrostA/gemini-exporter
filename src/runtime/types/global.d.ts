@@ -23,11 +23,13 @@ interface Window {
     __gemExporterExtractedBl?: string;
     __gemExporterCleanups?: Array<() => void>;
     __gemExporterHistoryHooked?: boolean;
-    __gemExporterBl?: string | null;
     __geminiAt?: string;
     _WIZ_global_data?: Record<string, string>;
     WIZ_global_data?: Record<string, string>;
     __WIZ_global_data?: Record<string, string>;
 }
+
+// Bootstrap publishes the same typed callback on Window and globalThis in the content world.
+declare var __gemExporterExtractAt: (() => string) | undefined;
 
 declare var __gemExporterAborted: boolean | undefined;

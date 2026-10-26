@@ -37,7 +37,7 @@ function makeMockStorage(initialData: Record<string, unknown> = {}) {
     };
 }
 
-test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromHtml -> __gemExporterBl', (t: TestContext) => {
+test('1. BL extraction precedence and cache: HTML sources only', (t: TestContext) => {
     const credManager = getFreshCredManager();
     const globals = globalThis as Record<string, unknown>;
     const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
@@ -64,19 +64,9 @@ test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromH
     globals.document = docAssistant;
     assert.strictEqual(credManager.getBlFromPage(), 'boq_assistant-bard-web-server_2026', 'blAssistantFromHtml should be used when primary pattern absent');
 
-    // Neither present in doc, but glob.__gemExporterBl present
-    try {
-        (globalThis as Record<string, unknown>).__gemExporterBl = 'bl_from_glob';
-        const docEmpty = {
-            documentElement: {
-                innerHTML: '<div>no bl tokens here</div>'
-            }
-        };
-        globals.document = docEmpty;
-        assert.strictEqual(credManager.getBlFromPage(), 'bl_from_glob', '__gemExporterBl should be fallback when patterns absent');
-    } finally {
-        delete (globalThis as Record<string, unknown>).__gemExporterBl;
-    }
+    // A writerless legacy global must not supply BL credentials.
+    globals.document = { documentElement: { innerHTML: '<div>no bl tokens here</div>' } };
+    assert.strictEqual(credManager.getBlFromPage(), null, 'unmatched HTML must not supply a BL token');
 });
 
 test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_global_data -> WIZ_global_data -> script scan -> full HTML -> empty', (t: TestContext) => {
@@ -150,6 +140,27 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
     };
     globals.document = docNone;
     assert.strictEqual(credManager.getAtFromPage(), '', 'returns empty string when no AT tokens found');
+});
+
+test('External Wiz globals reject malformed token values before cache admission', (t: TestContext) => {
+    const globals = globalThis as Record<string, unknown>;
+    const names = ['document', '__gemExporterExtractAt', '_WIZ_global_data', 'WIZ_global_data'];
+    const previous = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+    t.after(() => names.forEach((name, i) => {
+        if (previous[i]) Object.defineProperty(globalThis, name, previous[i]);
+        else delete globals[name];
+    }));
+
+    const P = require('../src/l1/protocol/gemini/protocol.js').default;
+    const manager = getFreshCredManager();
+    delete globals.__gemExporterExtractAt;
+    globals.document = { documentElement: { innerHTML: '<div>no AT token</div>' }, querySelectorAll: () => [] };
+    globals._WIZ_global_data = { [P.TOKENS.AT]: 123 };
+    globals.WIZ_global_data = { [P.TOKENS.AT]: ['invalid'] };
+    assert.equal(manager.getAtFromPage(), '', 'malformed external Wiz values must not be cached as credentials');
+
+    globals.WIZ_global_data = { [P.TOKENS.AT]: 'validated-at' };
+    assert.equal(manager.getAtFromPage(), 'validated-at', 'the first valid fallback token is still accepted');
 });
 
 test('3. Slot detection: explicit path -> pathname -> u0 to default -> catch to default', () => {
