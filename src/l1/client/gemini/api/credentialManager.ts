@@ -52,7 +52,7 @@ function isRecord(val: unknown): val is Record<string, unknown> {
 function getGlobalObject(): Record<string, unknown> | null {
     const candidate: unknown = typeof window !== "undefined"
         ? window
-        : (typeof globalThis !== "undefined" ? globalThis : null);
+        : globalThis;
     if (isRecord(candidate)) {
         return candidate;
     }
@@ -70,14 +70,6 @@ function getTargetDocument(doc?: unknown): Record<string, unknown> | null {
     return null;
 }
 
-function getDocumentHtmlLength(targetDoc: Record<string, unknown>): number {
-    const docEl = targetDoc.documentElement;
-    if (isRecord(docEl) && typeof docEl.innerHTML === "string") {
-        return docEl.innerHTML.length;
-    }
-    return 0;
-}
-
 function getDocumentHtml(targetDoc: Record<string, unknown>): string {
     const docEl = targetDoc.documentElement;
     if (isRecord(docEl) && typeof docEl.innerHTML === "string") {
@@ -91,12 +83,12 @@ function getBlFromPage(doc?: unknown): string | null {
         const glob = getGlobalObject();
         const targetDoc = getTargetDocument(doc);
         if (!targetDoc) return null;
-        const htmlLen = getDocumentHtmlLength(targetDoc);
+        const html = getDocumentHtml(targetDoc);
+        const htmlLen = html.length;
         if (_blCache && Date.now() - _blCache.ts < CRED_CACHE_TTL && _blCache.len === htmlLen) {
             return _blCache.v;
         }
         const P = GeminiProtocol;
-        const html = getDocumentHtml(targetDoc);
         const m = html.match(P.TOKEN_PATTERNS.blCfb2hFromHtml) || html.match(P.TOKEN_PATTERNS.blAssistantFromHtml);
         let res: string | null = null;
         if (m && typeof m[1] === "string") {
@@ -126,7 +118,8 @@ function getAtFromPage(doc?: unknown): string {
         }
         const targetDoc = getTargetDocument(doc);
         if (!targetDoc) return "";
-        const htmlLen = getDocumentHtmlLength(targetDoc);
+        const html = getDocumentHtml(targetDoc);
+        const htmlLen = html.length;
         if (_atCache && Date.now() - _atCache.ts < CRED_CACHE_TTL && _atCache.len === htmlLen) {
             return _atCache.v;
         }
@@ -171,7 +164,6 @@ function getAtFromPage(doc?: unknown): string {
                 }
             }
         }
-        const html = getDocumentHtml(targetDoc);
         const mHtml = html.match(P.TOKEN_PATTERNS.atFromScript);
         if (mHtml && typeof mHtml[1] === "string") {
             _atCache = { v: mHtml[1], ts: Date.now(), len: htmlLen };
