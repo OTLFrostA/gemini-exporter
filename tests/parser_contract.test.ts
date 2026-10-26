@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import type { ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import type { DetailParseResult } from '../src/l1/client/gemini/api/detailTypes.js';
 import type { GeminiDetailEvidence } from '../src/l1/parsers/gemini/rpc/detailEvidence.js';
+import type { DecodedGeminiCandidate } from '../src/l1/parsers/gemini/rpc/extractors.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import type { DomainMessage } from '../src/l2/conversationDetail.js';
 import type { ListParseDiagnostics } from '../src/l1/parsers/gemini/rpc/parseList.js';
@@ -24,8 +25,9 @@ type OutputContracts = [
     Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,
     Assert<Equal<ReturnType<typeof parseGeminiRpcConversation>, DetailParseResult>>,
     Assert<Equal<ReturnType<typeof decodeGeminiDetail>, GeminiDetailEvidence>>,
+    Assert<Equal<DecodedGeminiCandidate['source'], unknown[]>>,
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true];
+const contracts: OutputContracts = [true, true, true, true, true, true, true, true];
 // The tuple already enforces these contracts at TypeScript compile time.
 // A runtime .every(Boolean) assertion on literal true values cannot detect a parser bug.
 void contracts;
