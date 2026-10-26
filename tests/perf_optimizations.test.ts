@@ -155,16 +155,35 @@ test('perf - assetFetcher returns base64 when preferBuffer is false', async () =
     const { AssetFetcher } = require('../src/runtime/capabilities/assetFetcher.js');
 
     const originalFetch = (global as any).fetch;
+    const originalReader = Object.getOwnPropertyDescriptor(globalThis, 'FileReader');
+    // Content Scripts have FileReader; Node does not. Mock that browser boundary,
+    // not a production Buffer fallback, and use a real Blob in the response.
+    class TestFileReader {
+        result: string | null = null;
+        error: Error | null = null;
+        onloadend: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+
+        readAsDataURL(blob: Blob): void {
+            void blob.arrayBuffer().then(
+                bytes => {
+                    this.result = `data:${blob.type};base64,${Buffer.from(bytes).toString('base64')}`;
+                    this.onloadend?.();
+                },
+                (error: unknown) => {
+                    this.error = error instanceof Error ? error : new Error(String(error));
+                    this.onerror?.();
+                }
+            );
+        }
+    }
+    Object.defineProperty(globalThis, 'FileReader', { configurable: true, value: TestFileReader });
     const testData = Buffer.from('fake image binary content 1234567890');
     try {
         (global as any).fetch = async () => ({
             ok: true,
             headers: new Map([['content-type', 'image/png']]),
-            blob: async () => ({
-                size: testData.length,
-                type: 'image/png',
-                arrayBuffer: async () => testData.buffer.slice(testData.byteOffset, testData.byteOffset + testData.byteLength)
-            })
+            blob: async () => new Blob([testData.toString('utf8')], { type: 'image/png' })
         });
 
         let responsePayload: any = null;
@@ -177,10 +196,12 @@ test('perf - assetFetcher returns base64 when preferBuffer is false', async () =
 
         assert.ok(responsePayload, 'should receive response');
         assert.strictEqual(responsePayload.success, true);
-        assert.ok(responsePayload.dataBase64, 'dataBase64 should be generated when preferBuffer is false');
+        assert.strictEqual(responsePayload.dataBase64, testData.toString('base64'), 'base64 must preserve actual Blob bytes');
         assert.strictEqual(responsePayload.dataBuffer, undefined, 'dataBuffer should not be generated when preferBuffer is false');
     } finally {
         (global as any).fetch = originalFetch;
+        if (originalReader) Object.defineProperty(globalThis, 'FileReader', originalReader);
+        else Reflect.deleteProperty(globalThis, 'FileReader');
     }
 });
 

@@ -54,7 +54,7 @@ async function fetchWithCredentialFallback(
 
     try {
         return await doFetch(url, primaryInit);
-    } catch (err: unknown) {
+    } catch (err) {
         if (baseInit.signal?.aborted) {
             throw err;
         }
@@ -150,15 +150,6 @@ function toHighRes(url: string, variant = 's1024-rj'): string {
 }
 
 function toDataUrl(blob: Blob): Promise<string> {
-    if (typeof FileReader === 'undefined') {
-        if (typeof Buffer !== 'undefined') {
-            return blob.arrayBuffer().then((buf: ArrayBuffer) => {
-                const b64 = Buffer.from(buf).toString('base64');
-                const type = blob.type || 'application/octet-stream';
-                return `data:${type};base64,${b64}`;
-            });
-        }
-    }
     return new Promise((res, rej) => {
         const fr = new FileReader();
         fr.onloadend = () => res(String(fr.result || ''));
@@ -418,21 +409,6 @@ async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: (resp: 
     }
 }
 
-export function inferImageExt(mimeType?: string, url?: string): string {
-    const mime = (mimeType || '').toLowerCase();
-    if (mime.includes('png')) return 'png';
-    if (mime.includes('webp')) return 'webp';
-    if (mime.includes('gif')) return 'gif';
-    if (mime.includes('svg')) return 'svg';
-    if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
-    if (url) {
-        const clean = url.split('?')[0].split('#')[0];
-        const m = clean.match(/\.(png|jpe?g|webp|gif|svg)$/i);
-        if (m) return m[1].toLowerCase().replace('jpeg', 'jpg');
-    }
-    return 'jpg';
-}
-
 export const AssetFetcher = {
     ensureAlr,
     toHighRes,
@@ -444,6 +420,5 @@ export const AssetFetcher = {
     downloadAssetDirect,
     fetchGgChain,
     isGgChainUrl,
-    inferImageExt,
     fetchWithCredentialFallback
 };
