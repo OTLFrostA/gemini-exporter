@@ -47,8 +47,8 @@ async function decodeArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZ
     if (!activityPath || !files[activityPath] || files[activityPath].dir) throw new TypeError('Takeout ZIP requires an unambiguous activityPath');
     const activity = files[activityPath];
     const size = activity._data?.uncompressedSize;
-    if (typeof size !== 'number' || !Number.isFinite(size) || size < 0 || size > 250 * 1024 * 1024) throw new TypeError('Takeout HTML uncompressed size is unknown or exceeds the supported limit');
-    if (typeof activity.async !== 'function') throw new TypeError('Takeout activity entry cannot be read');
+    if (size === undefined || !Number.isFinite(size) || size < 0 || size > 250 * 1024 * 1024) throw new TypeError('Takeout HTML uncompressed size is unknown or exceeds the supported limit');
+    if (!activity.async) throw new TypeError('Takeout activity entry cannot be read');
     const htmlText = await activity.async('text');
     if (typeof htmlText !== 'string') throw new TypeError('Takeout activity entry must decode to HTML text');
     return { htmlText, activityPath, archiveFiles: files };
@@ -64,7 +64,7 @@ export async function parseGeminiTakeoutZipArchive(bytes: GeminiTakeoutZipRaw, c
 
 /** Read only a source-bound entry; callers own the archive handle's task lifetime. */
 export async function readTakeoutBytes(file: TakeoutSourceFile): Promise<Uint8Array | null> {
-    if (typeof file.async !== 'function') return null;
+    if (!file.async) return null;
     const bytes = await file.async('uint8array');
     return bytes instanceof Uint8Array && bytes.byteLength > 0 ? bytes : null;
 }
