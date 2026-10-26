@@ -660,7 +660,9 @@ test('DIL static-source diagnostics reuse the same snapshot as the rendered bran
     const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
     const diagnostic = parsed.diagnostics.find(item => item.code === 'CHATGPT_INTERACTIVE_STATIC_SNAPSHOT');
     assert.ok(diagnostic, 'source DIL modules must be diagnosed, not reparsed from the rendered body');
-    assert.equal(diagnostic.details?.representation, expected.representation);
+    const details = diagnostic.details;
+    assert.ok(details && typeof details === 'object' && !Array.isArray(details));
+    assert.equal('representation' in details ? details.representation : undefined, expected.representation);
     assert.equal(parsed.conversation.detail.quality.status, expected.incomplete ? 'partial' : 'complete');
     const body = JSON.stringify(parsed.conversation.detail.messages[1].content);
     for (const choice of ['First choice', 'Second choice']) assert.ok(body.includes(choice));
