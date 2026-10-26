@@ -12,7 +12,7 @@ import { robustFirstPayload, extractModelCandidates, decodeTurn, extractCandidat
 import { extractInnerPayload, extractNextPageToken } from '../src/l1/parsers/gemini/rpc/payload.js';
 import { extractImages, extractUserFiles, extractDocumentsMeta } from './helpers/recordFixture/attachments.js';
 import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
-import { decodeGeminiUserResources, decodeGeminiCandidateResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
+import { decodeGeminiTurn, decodeGeminiUserResources, decodeGeminiCandidateResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
 import { structuredBodyAttachments } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { extractResponseImageEvidence } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 
@@ -247,6 +247,24 @@ test('Turn decoding validates known fields once and honors the selected draft', 
         assert.equal(message.rawProviderRequestId, 'r_AB12');
         assert.equal(message.providerRequestId, 'r_AB12');
     }
+});
+
+test('single Turn decoder closes selected draft and user resources into typed message evidence', () => {
+    const candidates: unknown[] = [
+        ['rc_old', [['Old answer']]],
+        { malformed: true },
+        ['rc_selected', [['Selected answer']]]
+    ];
+    const raw = [[ID, 'r_AB12'], [1700000000, 500000000], [['Prompt']], [candidates, null, 'google', 'rc_selected']];
+    const messages = decodeGeminiTurn(raw, createDocumentReader(raw), new Set(), new Set(), ID);
+    assert.deepEqual(messages.map(({ role, id, content }) => [role, id, content]), [
+        ['user', 'r_AB12', 'Prompt'],
+        ['model', 'rc_selected', 'Selected answer']
+    ]);
+    assert.ok(messages.every(message => !Object.hasOwn(message, 'source')
+        && !Object.hasOwn(message, 'body') && !Object.hasOwn(message, 'turnDocument')),
+        'downstream message evidence must not expose raw candidate wire slots');
+    assert.deepEqual(decodeGeminiTurn(null, createDocumentReader([]), new Set(), new Set(), ID), []);
 });
 
 test('Turn Decoder only attributes selected Candidate thoughts, citations and grounding metadata', () => {
