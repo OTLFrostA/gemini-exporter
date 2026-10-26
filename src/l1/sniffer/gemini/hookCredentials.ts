@@ -192,13 +192,9 @@ declare global {
             const endpoint = routeResponse(url);
             const handler = endpoint?.({ url, slot: getSlotFromUrl(input), pagePath: location.pathname,
                 requestedAt, requestAccountObservation: captureRequestAccount(url) });
-            let requestBody: unknown;
-            if (typeof Request !== 'undefined' && input instanceof Request) {
-                requestBody = input.body;
-            } else if (typeof input === 'object' && input !== null && 'body' in input) {
-                requestBody = input.body;
-            }
-            const body: unknown = (init && init.body) || requestBody;
+            const requestBody = typeof Request !== 'undefined' && input instanceof Request
+                ? input.body : undefined;
+            const body = (init && init.body) || requestBody;
             let capturedBody = Promise.resolve(typeof body === 'string' ? body
                 : body instanceof URLSearchParams ? body.toString() : '');
             if (typeof body !== 'string' && typeof Request !== 'undefined' && input instanceof Request
