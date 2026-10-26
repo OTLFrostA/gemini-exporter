@@ -120,7 +120,7 @@ function fingerprint(attachment: ResourceEvidence): string | undefined {
     return stableValue({ ...attachment, type });
 }
 /** Preserve each collection's element type and the existing occurrence-based merge. */
-function mergeValues<T>(existing: readonly T[] = [], source: readonly T[]): T[] {
+function mergeValues<T extends string | NonNullable<ResourceEvidence['links']>[number]>(existing: readonly T[] = [], source: readonly T[]): T[] {
     const values = [...existing];
     const counts = new Map<string, number>();
     values.forEach(value => {
