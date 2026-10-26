@@ -20,13 +20,14 @@ Preserve a practical FAQ with real current button names and content about batch 
 - Framework: None; build command: empty; output directory: `public`
 - Domain: `otlfrosta.com` (with `www` redirected to apex)
 
-No third-party scripts, analytics, tracking, cookies, browser storage, or external fonts. A tiny local first-party script (`public/utm.js`) copies inbound UTM values to both Chrome Web Store CTA URLs without network calls.
+Website analytics are **optional and consent-based**: `public/analytics.js` loads GA4 (`G-JNJBLJPDGQ`) only after an affirmative choice. The choice is stored in first-party `localStorage`; GA4 may set cookies after consent. Users can decline or revoke consent via the footer's Analytics settings; see `/privacy.html`. This applies to the **website only**. The Chrome extension remains local-only with no telemetry or chat uploads. CSP permits only the Google Analytics endpoints needed after consent. The local first-party `public/utm.js` copies inbound UTM values to both Chrome Web Store CTA URLs without network calls.
 
 ## X Bio short URL and attribution
 
 - `https://otlfrosta.com/x` responds with HTTP 302 to `https://otlfrosta.com/?utm_source=twitter&utm_medium=social&utm_campaign=x_bio` via `public/_redirects`.
-- The homepage CTA buttons read `utm_source`, `utm_medium`, and `utm_campaign` directly from the current URL and pass them through to the Chrome Web Store link. Values must be short ASCII campaign tokens. No cookies, local storage, analytics scripts, or extra requests.
+- The homepage CTA buttons read `utm_source`, `utm_medium`, and `utm_campaign` directly from the current URL and pass them through to the Chrome Web Store link. Values must be short ASCII campaign tokens. No cookies, local storage, analytics scripts, or extra requests from **the UTM pass-through script itself**.
 - When there are no incoming UTM parameters, existing default `utm_source=otlfrosta.com&utm_medium=website&utm_campaign=hero|footer` remains unchanged.
+- With analytics consent, `store_cta_click` captures the hero/footer button separately; GA4 Enhanced Measurement may also record its native outbound `click`. Count only one event type for conversion reports and register the `cta_location` custom dimension in GA4 if needed.
 - For new source-specific entry points, define a new path rule in `public/_redirects`, no DNS record required. Do not change the extension `main` branch.
 
 This tracks campaign-level Chrome Web Store visits and installs, not X post impressions or cross-site user identities.

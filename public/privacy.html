@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0c12">
+  <meta name="description" content="Website analytics and privacy information for otlfrosta.com.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://otlfrosta.com/privacy.html">
+  <link rel="icon" href="/assets/icon.png" type="image/png" sizes="128x128">
+  <link rel="stylesheet" href="/styles.css?v=20261026-analytics">
+  <script src="/analytics.js?v=1" defer></script>
+  <title>Website Privacy | OTLFrostA</title>
+</head>
+<body>
+  <header class="site-header wrap">
+    <a class="brand" href="/">OTLFrostA</a>
+    <nav class="nav"><a href="/">Home</a></nav>
+  </header>
+  <main class="wrap privacy-page">
+    <p class="kicker">WEBSITE PRIVACY</p>
+    <h1>Privacy on otlfrosta.com</h1>
+    <p>Last updated: October 26, 2026.</p>
+    <h2>Optional website analytics</h2>
+    <p>This personal website uses Google Analytics 4 (GA4) only if you select "Allow analytics". Before you consent, no Google Analytics script is loaded and this site does not send analytics events to Google. If you consent, GA4 may use cookies and collect standard website measurements such as page views, approximate location, referral source, device and browser information, and clicks to the Chrome Web Store. Google processes this information under its own privacy terms.</p>
+    <p>We use these measurements to understand which pages visitors find useful and which links lead to the Chrome Web Store. We do not intentionally send names, email addresses, conversation text, or other personal content as analytics event parameters.</p>
+    <h2>Your choice</h2>
+    <p>Your analytics choice is kept in your browser's local storage. Choose "No thanks" to decline, or select "Analytics settings" in the footer to change your choice at any time. Revoking consent stops subsequent website analytics loading and clears Google Analytics cookies for this site where accessible. Browser privacy tools may block analytics independently.</p>
+    <h2>Chrome extension</h2>
+    <p>Website analytics are separate from the <a href="https://github.com/OTLFrostA/gemini-exporter">Gemini Exporter</a> extension. The extension has no developer telemetry or conversation uploads, and export processing remains local. Its separate <a href="https://github.com/OTLFrostA/gemini-exporter/blob/main/docs/PRIVACY_POLICY.md">extension privacy policy</a> explains those protections.</p>
+    <h2>Questions</h2>
+    <p>Contact us through <a href="https://github.com/OTLFrostA/gemini-exporter/issues">GitHub Issues</a>.</p>
+  </main>
+  <footer class="footer wrap">
+    <div class="footer-line">
+      <span class="footer-brand">OTLFrostA</span>
+      <div class="footer-links">
+        <a href="/">Home</a>
+        <button type="button" class="analytics-settings" id="analytics-settings">Analytics settings</button>
+      </div>
+    </div>
+  </footer>
+  <aside class="analytics-consent" id="analytics-consent" aria-label="Optional website analytics" hidden>
+    <p>This website uses optional Google Analytics to count visits and store-link clicks. The Chrome extension itself has no telemetry or chat-data collection. <a href="/privacy.html">Website privacy</a></p>
+    <div class="analytics-actions">
+      <button type="button" class="button button-outline" id="analytics-decline">No thanks</button>
+      <button type="button" class="button button-primary" id="analytics-allow">Allow analytics</button>
+    </div>
+  </aside>
+</body>
+</html>

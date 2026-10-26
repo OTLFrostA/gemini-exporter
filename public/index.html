@@ -11,6 +11,7 @@
   <link rel="icon" href="/assets/icon.png" type="image/png" sizes="128x128">
   <link rel="stylesheet" href="/styles.css?v=20261025-visual-stories-faq">
   <script src="/utm.js?v=1" defer></script>
+  <script src="/analytics.js?v=1" defer></script>
   <meta property="og:type" content="website">
   <meta property="og:title" content="Your AI conversations. Yours to keep.">
   <meta property="og:site_name" content="Your AI conversations. Yours to keep.">
@@ -40,7 +41,7 @@
       <p class="hero-subtitle">Export, preserve, and own your AI conversations.</p>
       <p class="hero-detail">Bulk-export your entire history. Automatically save new replies. All on your device.</p>
       <div class="hero-actions">
-        <a data-store-cta class="button button-primary" href="https://chromewebstore.google.com/detail/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=otlfrosta.com&amp;utm_medium=website&amp;utm_campaign=hero" target="_blank" rel="noopener noreferrer">
+        <a data-store-cta="hero" class="button button-primary" href="https://chromewebstore.google.com/detail/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=otlfrosta.com&amp;utm_medium=website&amp;utm_campaign=hero" target="_blank" rel="noopener noreferrer">
           <svg class="chrome-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fff"/><circle cx="12" cy="12" r="4.6" fill="#5872e0"/><path d="M11.2 2a10 10 0 0 1 9.5 5.5h-9l-2 3.3-4.8-7.1A9.9 9.9 0 0 1 11.2 2Z" fill="#f1c34a"/><path d="M2.4 9.3a10 10 0 0 0 8.6 12.6l4.4-7.6h-4.2L6.8 6.9 2.4 9.3Z" fill="#42a777"/><path d="M20.7 7.5a10 10 0 0 1-8.1 14.4l4.1-7.2-2.2-3.7 1.9-3.5h4.3Z" fill="#e26864"/></svg>
           Add to Chrome <span aria-hidden="true">↗</span>
         </a>
@@ -55,7 +56,7 @@
         <div class="story-copy">
           <p class="story-index"><span>01</span> FREE. PRIVATE. LOCAL.</p>
           <h2 id="feature-local-title">100% free.<br><span>100% local.</span></h2>
-          <p>No subscription, no API key, no tracking. Gemini Exporter processes your conversations inside your browser and saves the results directly to your device — never to a server we operate. It’s open source, so you can inspect exactly how it works.</p>
+          <p>No subscription, no API key, and no tracking in the extension. Gemini Exporter processes your conversations inside your browser and saves the results directly to your device — never to a server we operate. It’s open source, so you can inspect exactly how it works.</p>
         </div>
         <div class="story-media story-diagram">
           <img src="/assets/local-only.svg" width="680" height="420" loading="lazy" decoding="async" alt="Diagram showing a Gemini browser session processed locally into files on your device, with no upload to the exporter developer's servers">
@@ -142,7 +143,7 @@
         <h2 id="closing-title">Your chats belong to you.</h2>
         <p>Free to install. Local by design. Made for Google Gemini today.</p>
       </div>
-      <a data-store-cta class="button button-primary" href="https://chromewebstore.google.com/detail/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=otlfrosta.com&amp;utm_medium=website&amp;utm_campaign=footer" target="_blank" rel="noopener noreferrer">Add to Chrome <span aria-hidden="true">↗</span></a>
+      <a data-store-cta="footer" class="button button-primary" href="https://chromewebstore.google.com/detail/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=otlfrosta.com&amp;utm_medium=website&amp;utm_campaign=footer" target="_blank" rel="noopener noreferrer">Add to Chrome <span aria-hidden="true">↗</span></a>
     </section>
   </main>
 
@@ -151,11 +152,20 @@
       <span class="footer-brand">Your chats, your files.</span>
       <div class="footer-links">
         <a href="https://github.com/OTLFrostA/gemini-exporter" target="_blank" rel="noopener noreferrer">Source</a>
-        <a href="https://github.com/OTLFrostA/gemini-exporter/blob/main/docs/PRIVACY_POLICY.md" target="_blank" rel="noopener noreferrer">Privacy</a>
+        <a href="/privacy.html">Website privacy</a>
+        <a href="https://github.com/OTLFrostA/gemini-exporter/blob/main/docs/PRIVACY_POLICY.md" target="_blank" rel="noopener noreferrer">Extension privacy</a>
+        <button class="analytics-settings" type="button" id="analytics-settings">Analytics settings</button>
         <a href="https://github.com/OTLFrostA/gemini-exporter/blob/main/docs/USER_GUIDE.md" target="_blank" rel="noopener noreferrer">Guide</a>
       </div>
     </div>
     <p>Independent open-source project. Not affiliated with Google or other AI providers.</p>
   </footer>
+  <aside class="analytics-consent" id="analytics-consent" aria-label="Optional website analytics" hidden>
+    <p>This website uses optional Google Analytics to count visits and store-link clicks. The Chrome extension itself has no telemetry or chat-data collection. <a href="/privacy.html">Website privacy</a></p>
+    <div class="analytics-actions">
+      <button type="button" class="button button-outline" id="analytics-decline">No thanks</button>
+      <button type="button" class="button button-primary" id="analytics-allow">Allow analytics</button>
+    </div>
+  </aside>
 </body>
 </html>
