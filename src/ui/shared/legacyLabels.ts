@@ -1,5 +1,5 @@
 /** UI-only copy preserved from the main workbench/popup. No legacy business dependencies. */
-export const UI_COPY: Record<'en' | 'zh', Record<string, string>> = {
+export const UI_COPY = {
   "en": {
     "btnCancel": "Abort Export",
     "btnClearExported": "Clear",

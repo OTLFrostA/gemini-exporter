@@ -15,7 +15,8 @@ test('i18n - every current inline UI label has nonempty English and Chinese text
         const labels = await page.locator('[data-en], [data-zh]').evaluateAll(nodes => nodes.map(node => [node.getAttribute('data-en'), node.getAttribute('data-zh')]));
         const keys = await page.locator('[data-i18n]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-i18n')!));
         assert.ok(labels.length + keys.length > 0);
-        for (const key of keys) labels.push([UI_COPY.en[key], UI_COPY.zh[key]]);
+        const en = new Map(Object.entries(UI_COPY.en)), zh = new Map(Object.entries(UI_COPY.zh));
+        for (const key of keys) labels.push([en.get(key) ?? null, zh.get(key) ?? null]);
         for (const pair of labels) assert.ok(pair.every(text => typeof text === 'string' && text.length > 0), JSON.stringify(pair));
         await page.close();
     }
@@ -64,6 +65,36 @@ test('i18n - labelPage translates descendants as text without interpreting trans
         document.body.append(root, child); Reflect.get(window, 'testUi').settings.labelPage();
         return { text: root.textContent, child: child.textContent, images: root.querySelectorAll('img').length };
     }); assert.deepEqual(result, { text: '<img src=x onerror=alert(1)>', child: 'Child', images: 0 });
+});
+test('i18n - undeclared prototype keys cannot become labels, translations or scan handlers', async () => {
+    await open();
+    const keys = ['__proto__', 'constructor', 'toString', 'hasOwnProperty'];
+    const labels = await page.evaluate(keys => {
+        const settings = Reflect.get(window, 'testUi').settings;
+        const nodes = keys.map(key => {
+            const node = document.createElement('input');
+            node.textContent = 'original'; node.title = 'original'; node.placeholder = 'original';
+            node.setAttribute('aria-label', 'original');
+            node.dataset.i18n = key; node.dataset.i18nTitle = key;
+            node.dataset.i18nPlaceholder = key; node.dataset.i18nAriaLabel = key;
+            document.body.append(node); return node;
+        });
+        settings.labelPage();
+        return nodes.map(node => [node.textContent, node.title, node.placeholder, node.getAttribute('aria-label')]);
+    }, keys);
+    assert.deepEqual(labels, keys.map(() => ['original', 'original', 'original', 'original']));
+    await page.locator('#langToggle').setChecked(false);
+    await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
+    const errors = await page.evaluate(keys => keys.map(key => Reflect.get(window, 'testUi').settings.errorText(new Error(key))), keys);
+    assert.deepEqual(errors, keys.map(() => '操作失败，请重试；详情请查看日志或诊断报告。'));
+    for (const reason of keys) {
+        await page.evaluate(reason => { Reflect.get(window, 'harness').scanResult = {
+            status: 'error', reason, pagesFetched: 0, conversationsFetched: 0,
+        }; }, reason);
+        await page.locator('#btnSyncAll').click();
+        await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+        assert.equal(await page.locator('#status').textContent(), '扫描失败 · 0 / 0');
+    }
 });
 test('i18n - language selector updates the single Settings owner and document language', async () => {
     await open(); await page.locator('#langToggle').setChecked(false); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
