@@ -1,3 +1,4 @@
+import type { GeminiStructuredDocument, GeminiStructuredNode } from './structuredContent.js';
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../shared/chipUtils.js";
 import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
 import { payloadToMs } from "./payload.js";
@@ -319,13 +320,11 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
     }
 
     function collectImages(obj: unknown, normalize: (raw: RawImageCandidate) => ImageAttachment = sourceImage,
-        readEvidence = createImageEvidenceReader(normalize)): ImageAttachment[] {
+        readEvidence = createImageEvidenceReader(normalize), decoded: Iterable<ImageAttachment> = []): ImageAttachment[] {
         const images: ImageAttachment[] = [];
         const seenKeys = new Set<string>();
 
-        deepWalk(obj, (node) => {
-            const img = readEvidence(node);
-            if (!img) return;
+        const addImage = (img: ImageAttachment) => {
             if (img.token) {
                 const existingIdx = images.findIndex(existing => existing.token === img.token);
                 if (existingIdx !== -1) {
@@ -345,28 +344,54 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                 seenKeys.add(key);
                 images.push(img);
             }
+        };
+        deepWalk(obj, node => {
+            const image = readEvidence(node);
+            if (image) addImage(image);
         });
+        for (const image of decoded) addImage(image);
         return images;
     }
 
     function extractImageEvidence(obj: unknown): ImageAttachment[] {
         return collectImages(obj);
     }
-    function extractResponseImageEvidence(candidate: unknown, visibleMedia: unknown, text: string, structuredContent?: unknown): GeminiResponseImageEvidence {
+    function* structuredImageEvidence(nodes: readonly GeminiStructuredNode[]): Generator<ImageAttachment> {
+        for (const node of nodes) {
+            switch (node.nodeType) {
+                case 0:
+                    yield* node.images ?? [];
+                    break;
+                case 'paragraph':
+                case 15:
+                    yield* structuredImageEvidence(node.children);
+                    break;
+                case 14:
+                case 20:
+                    for (const item of node.items) yield* structuredImageEvidence(item.children);
+                    break;
+                case 17:
+                    for (const row of node.rows) for (const cell of row.cells) yield* structuredImageEvidence(cell.children);
+                    break;
+            }
+        }
+    }
+
+    function extractResponseImageEvidence(candidate: readonly unknown[], visibleMedia: readonly unknown[], text: string, structuredContent?: GeminiStructuredDocument): GeminiResponseImageEvidence {
         const readEvidence = createImageEvidenceReader();
-        const reader = (root: unknown) => collectImages(root, sourceImage, readEvidence);
-        const visibleKeys = new Set(reader(visibleMedia).map(getImageDedupKey));
+        const structuredImages = collectImages(undefined, sourceImage, readEvidence, structuredImageEvidence(structuredContent?.children ?? []));
+        const visibleKeys = new Set(collectImages(visibleMedia, sourceImage, readEvidence, structuredImages).map(getImageDedupKey));
         const inlineUrls = new Set<string>();
         for (const match of text.matchAll(/!\[[^\]]*\]\(<?(https?:\/\/[^\s)>]+)>?(?:\s+[^)]*)?\)|<img\b[^>]*\bsrc=["'](https?:\/\/[^"']+)["']/gi)) {
             inlineUrls.add(match[1] || match[2]);
         }
-        const images = reader([candidate, visibleMedia]).filter(image => {
+        const images = collectImages([candidate, visibleMedia], sourceImage, readEvidence, structuredImages).filter(image => {
             if (image.sourceEvidence?.detectorKind !== 'extractImages attachmentType:36') return true;
             // Search results in candidate metadata are not automatically answer images.
             // Require an attachment in the answer document/body or a real inline image URL.
             return visibleKeys.has(getImageDedupKey(image)) || inlineUrls.has(image.sourceUrl);
         });
-        return { images, structuredImages: structuredContent ? reader(structuredContent) : [] };
+        return { images, structuredImages };
     }
 
     function itemMatchesFilename(name: string): boolean {

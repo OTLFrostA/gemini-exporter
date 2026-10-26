@@ -1,5 +1,5 @@
-import { extractImageEvidence } from "./sourceAttachments.js";
-import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
+import { extractImageEvidence, type ImageAttachment } from "./sourceAttachments.js";
+import { isJsonValue } from "../../../../shared/utils/jsonTypes.js";
 
 export interface GeminiAnnotation {
     start: number;
@@ -72,8 +72,8 @@ export interface GeminiQuoteNode {
 
 export interface GeminiAttachmentNode {
     nodeType: 0;
-    /** Preserve extensible provider attachment metadata, but only as validated JSON. */
-    Xj?: Array<Record<string, JsonValue>>;
+    /** Resource facts are decoded at attachment ingress, before typed traversal. */
+    images?: ImageAttachment[];
 }
 
 export interface GeminiFileNode { nodeType: 24; id: string; title: string }
@@ -314,12 +314,10 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
                 const rawXj = node.Xj;
                 if (rawXj === undefined) return { nodeType: 0 };
                 if (!isWireArray(rawXj)) return null;
-                const Xj: Array<Record<string, JsonValue>> = [];
                 for (const entry of rawXj) {
                     if (!isJsonValue(entry) || !isRecord(entry)) return null;
-                    Xj.push(entry);
                 }
-                return { nodeType: 0, Xj };
+                return { nodeType: 0, images: extractImageEvidence(rawXj) };
             case 15: {
                 if (!isWireArray(node.children)) return null;
                 const children: GeminiStructuredNode[] = [];
@@ -558,7 +556,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 
     // Captured Imagen resource panel (field 9). Its image files are bound by
     // the shared resource pipeline, just like other nodeType 0 attachments.
-    // Retain the complete panel rather than inventing body text from its prompt metadata.
+    // Decode resource facts here; prompt/UI metadata is not a body node.
     if (isWireArray(w[9]) && w[9].length === 1 && isWireArray(w[9][0]) && w[9][0].length > 0) {
         const panels = w[9][0];
         const knownPanels = w.every((value, index) => value == null || index === 9) && panels.every(panel => isWireArray(panel) && panel.length === 12
@@ -567,7 +565,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
             && /^https?:\/\/googleusercontent\.com\/image_generation_content\//.test(panel[1][0])
             && extractImageEvidence(panel[0]).some(image => image.isGenerated));
         if (knownPanels && isJsonValue(w[9])) {
-            return { nodeType: 0, Xj: [{ generatedImagePayload: w[9] }] };
+            return { nodeType: 0, images: extractImageEvidence(w[9]) };
         }
         return null;
     }
@@ -687,25 +685,16 @@ export type GeminiStructuredExtraction =
 
 /** Source ownership comes from decodeTurn; never re-interpret the raw Turn. */
 interface GeminiStructuredEvidenceInput {
-    candidate: unknown;
     turnDocument: unknown;
     candidateIndex: number;
 }
 
 export function inspectStructuredContent(input: GeminiStructuredEvidenceInput): GeminiStructuredExtraction {
-    const decode = (raw: unknown): GeminiStructuredExtraction => {
-        const issues: DecodeIssues = [];
-        const document = decodeGeminiStructuredPayload(raw, issues);
-        return document ? { status: 'decoded', document }
-            : { status: 'decode_rejected', issue: issues[0] ?? { kind: 'payload' } };
-    };
-
-    // Candidate-local content is authoritative, including selected alternatives.
-    const candidateContent = isRecord(input.candidate) ? input.candidate.structuredContent : undefined;
-    if (candidateContent != null) return decode(candidateContent);
-
     // Turn-level document field 12 belongs only to primary Candidate 0 (PR #705).
     if (input.turnDocument == null) return { status: 'missing' };
     if (input.candidateIndex !== 0) return { status: 'candidate_unmatched' };
-    return decode(input.turnDocument);
+    const issues: DecodeIssues = [];
+    const document = decodeGeminiStructuredPayload(input.turnDocument, issues);
+    return document ? { status: 'decoded', document }
+        : { status: 'decode_rejected', issue: issues[0] ?? { kind: 'payload' } };
 }
