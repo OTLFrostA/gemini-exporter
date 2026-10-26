@@ -8,11 +8,9 @@ export function startKeepAlive(): () => void {
     if (typeof chrome === 'undefined' || !chrome.runtime?.getPlatformInfo) return () => {};
     const interval = setInterval(() => {
         try {
-            if (chrome.runtime.getPlatformInfo) {
-                chrome.runtime.getPlatformInfo(() => {});
-            }
+            chrome.runtime?.getPlatformInfo?.(() => {});
         } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:keepAlive]', e);
+            console.debug('[GemExporter:keepAlive]', e);
         }
     }, 20000);
     return () => clearInterval(interval);
