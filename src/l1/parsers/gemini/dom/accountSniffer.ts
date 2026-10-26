@@ -72,11 +72,12 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
     try {
         const win = (documentObj.defaultView || (typeof window !== 'undefined' ? window : null));
         const wiz = win?._WIZ_global_data || win?.WIZ_global_data || win?.__WIZ_global_data;
-        if (wiz && typeof wiz === 'object') {
-            const subject = wiz['qDCSke'];
+        if (wiz && typeof wiz === 'object' && 'qDCSke' in wiz) {
+            const subject = wiz.qDCSke;
             if (typeof subject === 'string' && /^\d{10,25}$/.test(subject)) {
                 gaiaId = subject;
-                const activeEmail = extractEmailFromText(wiz['oPEP7c']);
+                const activeEmail = 'oPEP7c' in wiz && typeof wiz.oPEP7c === 'string'
+                    ? extractEmailFromText(wiz.oPEP7c) : null;
                 if (activeEmail !== email) name = undefined;
                 email = activeEmail ?? undefined;
             }
