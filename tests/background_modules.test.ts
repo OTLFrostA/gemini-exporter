@@ -85,7 +85,7 @@ test('TabAction marks production Gemini tabs active and unrelated tabs inactive'
             tabs: {
                 onActivated: { addListener: (listener: ActivatedListener) => { listeners.activated = listener; } },
                 onUpdated: { addListener: (listener: UpdatedListener) => { listeners.updated = listener; } },
-                query: (_query: unknown, callback: (tabs: unknown[]) => void) => callback([]),
+                query: (_query: unknown, callback: (tabs: unknown[]) => void) => callback([{ id: 0, url: 'https://gemini.google.com/app' }]),
                 get: (id: number, callback: (tab: { id: number; url: string }) => void) =>
                     callback({ id, url: 'https://gemini.google.com/u/1/app' })
             }
@@ -97,14 +97,17 @@ test('TabAction marks production Gemini tabs active and unrelated tabs inactive'
         listeners.updated(7, { url: 'https://gemini.google.com/app' }, {});
         listeners.updated(8, { url: 'https://other.example/path' }, {});
         listeners.updated(9, { url: 'https://example.com/gemini.google.com' }, {});
+        listeners.updated(0, { url: 'https://other.example/path' }, {});
         listeners.activated({ tabId: 10 });
 
         const color = { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' };
         const gray = { 16: 'icons/icon16_gray.png', 48: 'icons/icon48_gray.png', 128: 'icons/icon128_gray.png' };
         assert.deepEqual(icons, [
+            { tabId: 0, path: color }, // Initial active-tab query must accept ID zero.
             { tabId: 7, path: color },
             { tabId: 8, path: gray },
             { tabId: 9, path: gray },
+            { tabId: 0, path: gray }, // Tab updates must accept ID zero too.
             { tabId: 10, path: color },
         ]);
         assert.match((titles[0] as { title: string }).title, /Active/);
