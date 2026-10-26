@@ -8,16 +8,16 @@ import { FEEDBACK_URL } from '../../shared/utils/constants.js';
  */
 export function initSessionAccessLevel(): void {
     try {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session && chrome.storage.session.setAccessLevel) {
+        if (typeof chrome !== 'undefined' && chrome.storage?.session?.setAccessLevel) {
             chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
         }
     } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:lifecycle]', e);
+        console.debug('[GemExporter:lifecycle]', e);
     }
 }
 
 export function initUninstallUrl(): void {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.setUninstallURL) {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.setUninstallURL) {
         try {
             chrome.runtime.setUninstallURL(FEEDBACK_URL, () => {
                 if (chrome.runtime.lastError) {
@@ -31,7 +31,7 @@ export function initUninstallUrl(): void {
 }
 
 export function initLifecycleListeners(): void {
-    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onInstalled) return;
+    if (typeof chrome === 'undefined' || !chrome.runtime?.onInstalled) return;
 
     chrome.runtime.onInstalled.addListener((details) => {
         initUninstallUrl();
