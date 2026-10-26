@@ -1,10 +1,11 @@
 import { grokObject, grokUuid } from './source.js';
 
+export type GrokWireResponse = Record<string, unknown> & { responseId: string; message: string };
+
 /** Bridge current Grok asset metadata to Loominary's existing attachment schema. */
-export function compatibleGrokBodies(payload: Record<string, unknown>, warn: (code: string, message: string) => void) {
-    if (!Array.isArray(payload.responses)) throw new TypeError('Invalid Grok bodies');
-    return { ...payload, responses: payload.responses.map((value): Record<string, unknown> => {
-        const row = structuredClone(grokObject(value));
+export function compatibleGrokBodies(payload: { responses: GrokWireResponse[] }, warn: (code: string, message: string) => void) {
+    return { ...payload, responses: payload.responses.map((value): GrokWireResponse => {
+        const row = structuredClone(value);
         const images: Record<string, unknown>[] = [], files: Record<string, unknown>[] = [];
         const seen = new Set<string>(), resolvedIds = new Set<string>();
         const assetUrl = (value: unknown): string | undefined => {
@@ -44,8 +45,7 @@ export function compatibleGrokBodies(payload: Record<string, unknown>, warn: (co
                 image({ url, fileName: chunk.imageTitle || 'generated-image', mimeType: chunk.mimeType, generation });
                 if (generation.providerRequestId !== undefined) resolvedIds.add(generation.providerRequestId);
                 // Source names the image model separately from the chat orchestrator.
-                if (typeof chunk.imageModel === 'string' && typeof row.message === 'string'
-                    && row.message.replace(/<grok:render[^]*?<\/grok:render>/g, '').trim() === '') row.model = chunk.imageModel;
+                if (typeof chunk.imageModel === 'string' && row.message.replace(/<grok:render[^]*?<\/grok:render>/g, '').trim() === '') row.model = chunk.imageModel;
             } catch { warn('grok.card.invalid', 'Malformed Grok card'); }
         }
         // Asset records carry downloadable keys; legacy metadata can contain only UUIDs.
