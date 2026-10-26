@@ -12,7 +12,7 @@ export interface ActiveClientContract {
     abort?: () => void;
 }
 
-/** A content script has a stable Window. Tests can inject a small mirror or null. */
+/** Browser global is the mirror; tests may explicitly inject a mirror or null. */
 type ContentWindowMirror = Pick<Window,
     '__gemExporterContentContext' | '__gemExporterAborted' | '__gemExporterActiveClient'
     | '__gemExporterDevMode'
@@ -27,7 +27,7 @@ export class ContentContext {
 
     // Resolve the browser capability once at construction. Runtime methods
     // never need to re-check a global whose availability is fixed per context.
-    constructor(private readonly _window: ContentWindowMirror | null = typeof window === 'undefined' ? null : window) {
+    constructor(private readonly _window: ContentWindowMirror | null = globalThis) {
         this._syncWindowMirrors();
     }
 

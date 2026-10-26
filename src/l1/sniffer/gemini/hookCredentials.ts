@@ -21,7 +21,7 @@ declare global {
 }
 
 (() => {
-    if (typeof window === 'undefined' || window.__gemExporterHookInstalled) return;
+    if (window.__gemExporterHookInstalled) return;
 
     const rawProto: GeminiProtocolModule | undefined = GeminiProtocol || window.GeminiProtocol;
     if (!rawProto) {
