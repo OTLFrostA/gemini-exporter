@@ -193,6 +193,30 @@ test('4. Valid map load from storage', async () => {
     }
 });
 
+test('C3 review: array-shaped credential map is rejected, never selected or rewritten', async (t: TestContext) => {
+    const globals = globalThis as Record<string, unknown>;
+    const previousChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    t.after(() => {
+        if (previousChrome) Object.defineProperty(globalThis, 'chrome', previousChrome);
+        else delete globals.chrome;
+        if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+        else delete globals.document;
+    });
+
+    const malformed = [{ sid: 'array_sid', at: 'array_at', bl: 'array_bl', accountSlot: 'default' }];
+    const mock = makeMockStorage({ gemini_credentials_map: malformed });
+    globals.chrome = { storage: { session: mock, local: mock } };
+    delete globals.document;
+
+    const manager = getFreshCredManager();
+    assert.deepStrictEqual(await manager.loadCredMap(), {}, 'an array is not an SID-keyed credential map');
+    const resolved = await manager.resolveCred('default');
+    assert.notStrictEqual(resolved.sid, 'array_sid', 'positional credentials are not selected');
+    assert.strictEqual(resolved.at, '', 'tokens from malformed array map are never reused');
+    assert.deepStrictEqual(mock.data.gemini_credentials_map, malformed, 'invalid stored data is not rewritten');
+});
+
 test('8. Newest same-slot credential selected by lastUsed ordering', async () => {
     const origChrome = (globalThis as Record<string, unknown>).chrome;
     const mock = makeMockStorage({
