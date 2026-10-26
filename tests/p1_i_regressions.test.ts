@@ -40,7 +40,7 @@ test('P1-075 - second DELETION_ANCHOR requires the c_ prefix (anchored disciplin
 });
 
 // ---------------------------------------------------------------- P1-077
-test('P1-077 - protocol self-mounts remain available without a globalThis mount', () => {
+test('P1-077 - CJS test bridge preserves protocol exports without a globalThis mount', () => {
     assert.strictEqual(Proto.GeminiProtocol, Proto);
     assert.strictEqual(Proto.default, Proto);
     assert.strictEqual(Proto.CrossWorldEvents, Proto.EVENTS);

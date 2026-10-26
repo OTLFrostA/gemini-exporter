@@ -1,14 +1,12 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import { sniffUserProfileFromDom } from '../../parsers/gemini/dom/accountSniffer.js';
 import { geminiAccountObservation } from '../../client/gemini/accountObservation.js';
-import { GeminiProtocol, CrossWorldEvents } from '../../protocol/gemini/protocol.js';
-import type { GeminiProtocolModule } from '../../protocol/gemini/protocol.js';
+import { CrossWorldEvents } from '../../protocol/gemini/protocol.js';
 import type { GeminiCredentialsPayload } from '../../protocol/gemini/events.js';
 import { createGeminiResponseRouter } from './responses/router.js';
 
 declare global {
     interface Window {
-        GeminiProtocol?: GeminiProtocolModule;
         __geminiIsStreaming?: boolean;
         __geminiLastStreamStart?: number;
         __geminiActiveStreamConvId?: string;
@@ -23,14 +21,8 @@ declare global {
 (() => {
     if (window.__gemExporterHookInstalled) return;
 
-    const rawProto: GeminiProtocolModule | undefined = GeminiProtocol || window.GeminiProtocol;
-    if (!rawProto) {
-        console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
-        return;
-    }
     window.__gemExporterHookInstalled = true;
-    const Proto: GeminiProtocolModule = rawProto;
-    const Events = Proto.EVENTS || CrossWorldEvents;
+    const Events = CrossWorldEvents;
 
     // MAIN-world discovery can read Wiz globals; the isolated content script cannot.
     // Discovery is independent of whether Gemini has sent a credential-bearing RPC.
