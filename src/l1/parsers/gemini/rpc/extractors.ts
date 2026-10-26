@@ -128,7 +128,7 @@ export interface TitleResult {
  * stays private to Gemini resource decoders. */
 export interface DecodedGeminiCandidate {
     /** Selected wire context; only the resource decoder interprets these remaining slots. */
-    source: unknown;
+    source: unknown[];
     body: unknown;
     turnDocument: unknown;
     index: number;
@@ -799,9 +799,9 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         const rawId = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
         const body = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
         const candidateBlock = body || selected;
-        const candidate: DecodedGeminiCandidate | null = candidateIndex < candidates.length
+        const candidate: DecodedGeminiCandidate | null = slots !== null
             ? {
-                source: selected, body, index: candidateIndex,
+                source: slots, body, index: candidateIndex,
                 turnDocument: isUnknownArray(modelPayload) ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined,
                 id: typeof rawId === "string" ? rawId : "",
                 text: extractModelResponseText(selected),
