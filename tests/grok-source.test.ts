@@ -77,7 +77,7 @@ test('Grok rejects malformed selected message text before Loominary receives it'
     assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Missing Grok message text/);
 });
 
-test('Grok keeps disconnected malformed messages out of the selected branch without mutating source', () => {
+test('Grok retains disconnected bodies as partial and validates their text before vendor parsing', () => {
     const f = fixture();
     const idA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', idB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     f.tree.responseNodes.push(
@@ -85,22 +85,31 @@ test('Grok keeps disconnected malformed messages out of the selected branch with
         { responseId: idB, parentResponseId: idA, sender: 'assistant' },
     );
     f.bodies.responses.push(
-        { ...f.bodies.responses[1], responseId: idA, parentResponseId: idB, message: 'unused' },
-        { ...f.bodies.responses[1], responseId: idB, parentResponseId: idA, message: 'unused' },
+        { ...f.bodies.responses[1], responseId: idA, parentResponseId: idB, message: 'orphan A' },
+        { ...f.bodies.responses[1], responseId: idB, parentResponseId: idA, message: 'orphan B' },
     );
-    Object.assign(f.bodies.responses[2], { message: 42 });
-    Object.assign(f.bodies.responses[3], { message: null });
     const original = structuredClone(f);
     const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
-    assert.deepEqual(f, original);
+    assert.deepEqual(f, original, 'source JSON must not be mutated');
     assert.equal(parsed.conversation.detail.quality.status, 'partial');
-    assert.equal(parsed.conversation.detail.messages.length, 2);
+    assert.equal(parsed.conversation.detail.messages.length, 4, 'disconnected bodies remain in the partial export');
     assert.ok(parsed.diagnostics.some(d => d.code === 'grok.branch.disconnected'));
 
-    // Ambiguous branches are all exported, so even the otherwise orphaned body must be validated.
-    f.tree.responseNodes[3].parentResponseId = f.tree.responseNodes[0].parentResponseId;
-    f.bodies.responses[3].parentResponseId = f.tree.responseNodes[3].parentResponseId;
+    Object.assign(f.bodies.responses[2], { message: 42 });
     assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Missing Grok message text/);
+    Object.assign(f.bodies.responses[2], { message: 'orphan A' });
+    Object.assign(f.bodies.responses[3], { message: null });
+    assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Missing Grok message text/);
+});
+
+test('Grok ignores unsupported senders without passing invalid text to Loominary', () => {
+    const f = fixture();
+    Object.assign(f.tree.responseNodes[1], { sender: 'tool' });
+    Object.assign(f.bodies.responses[1], { sender: 'tool', message: 42 });
+    const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    assert.equal(parsed.conversation.detail.messages.length, 1);
+    assert.ok(parsed.diagnostics.some(d => d.code === 'grok.sender.unsupported'));
 });
 
 test('Grok list uses native activity and cursor and rejects invalid records', () => {
