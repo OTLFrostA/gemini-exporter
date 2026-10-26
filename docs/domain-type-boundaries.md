@@ -78,3 +78,7 @@ WASM declarations under `vendor/` are excluded from the owned-source zero-any ga
 The ChatGPT file-download decoder narrows known wire fields directly at ingress,
 without a dictionary assertion. Its owner is covered by the existing compiler
 assertion/non-null gate and strict type-aware lint.
+
+Claude list decoding likewise narrows each raw member directly, without a
+dictionary-returning helper. UUID uniqueness, timestamp admission and wire-order
+coverage keys remain at this ingress; strict type-aware lint covers the owner.
