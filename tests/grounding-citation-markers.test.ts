@@ -558,6 +558,7 @@ test('combined [cite:1,2] becomes source citation references without metadata le
 test('real Gemini code diagram drops confirmed grounding tokens exactly as the webpage does', () => {
     const fixture = require('./fixtures/gemini_confirmed_code_citations.json');
     const { conversation } = sourceConversation({ id: 'code-citations', title: 'Code citations', messages: [{
+        id: 'code-citations-model',
         role: 'model', content: '```text\n' + fixture.code + '```',
         structuredContent: { children: [{ nodeType: 1, code: fixture.code, info: 'text' }] },
         groundingCitationMarkers: fixture.markers,
