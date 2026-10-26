@@ -83,27 +83,26 @@ declare global {
             const u = toUrlString(url);
             if (!u.includes('batchexecute')) return;
             publishAccount();
-            let atMatch: RegExpMatchArray | [unknown, string] | null = u.match(/[?&]at=([^&]+)/);
-            if (!atMatch && typeof body === 'string') {
-                atMatch = body.match(/at=([^&]+)/);
+            const urlAtMatch = /[?&]at=(?<token>[^&]+)/.exec(u);
+            let at = urlAtMatch?.groups?.token ?? null;
+            if (!at && typeof body === 'string') {
+                const bodyAtMatch = /at=(?<token>[^&]+)/.exec(body);
+                at = bodyAtMatch?.groups?.token ?? null;
             }
             const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
             const blMatch = u.match(/[?&]bl=([^&]+)/);
             if (typeof body === 'string') {
                 try {
                     const params = new URLSearchParams(body);
-                    if (!atMatch) {
-                        const a = params.get('at');
-                        if (a) atMatch = [null, a];
-                    }
+                    if (!at) at = params.get('at');
                 } catch (e) {
                     if (isDev()) console.debug('[GemExporter:hook]', e);
                 }
             }
-            if (atMatch || sidMatch) {
+            if (at || sidMatch) {
                 const slot = getSlotFromUrl(u);
                 const payload: GeminiCredentialsPayload = {
-                    at: atMatch ? decodeURIComponent(atMatch[1]) : '',
+                    at: at ? decodeURIComponent(at) : '',
                     sid: sidMatch ? decodeURIComponent(sidMatch[1]) : '',
                     bl: blMatch ? decodeURIComponent(blMatch[1]) : '',
                     accountSlot: slot,
@@ -142,7 +141,7 @@ declare global {
 
     async function readCappedText(response: Response, cap: number): Promise<{ text: string; truncated: boolean }> {
         const body = response.body;
-        if (body && typeof body.getReader === 'function') {
+        if (body) {
             const reader = body.getReader();
             const chunks: Uint8Array[] = [];
             let received = 0;
