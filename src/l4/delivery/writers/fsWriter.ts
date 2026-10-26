@@ -72,9 +72,8 @@ class FsWriter implements IExportWriter {
         if (actualContent === null || actualContent === undefined) {
             throw new Error(`[FsWriter] Cannot write null or undefined content to ${cleanName}`);
         }
-        const isBlob = typeof Blob !== 'undefined' && actualContent instanceof Blob;
-        const isBufferSource = (typeof ArrayBuffer !== 'undefined' && actualContent instanceof ArrayBuffer) ||
-            (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(actualContent));
+        const isBlob = actualContent instanceof Blob;
+        const isBufferSource = actualContent instanceof ArrayBuffer || ArrayBuffer.isView(actualContent);
         if (typeof actualContent === 'object' && !isBlob && !isBufferSource) {
             throw new Error(`[FsWriter] Invalid content object passed to writeFile for ${cleanName}`);
         }
