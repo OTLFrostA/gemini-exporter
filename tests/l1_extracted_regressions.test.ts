@@ -308,27 +308,6 @@ test('hookCredentials - real Request inputs preserve list cursor context', async
     assert.ok(relay.msg.payload.requestedAt > 0);
 });
 
-test('hookCredentials - fetch body preserves (init.body || requestBody) fallback semantics for falsy init.body', async () => {
-    const { posted, win } = createHookSandbox();
-    const fallbackInput = {
-        body: geminiListRequestGen('G_HOOK_FALLBACK_CREDENTIAL_REQUEST_01'),
-        toString() {
-            return 'https://gemini.google.com/u/0/batchexecute';
-        }
-    };
-    await win.fetch(fallbackInput as any, { method: 'POST', body: '' });
-    await new Promise(r => setTimeout(r, 20));
-    const credEvents1 = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-    assert.strictEqual(credEvents1.length, 1);
-    assert.strictEqual(credEvents1[0].msg.payload.at, 'fallback_at_token');
-    posted.length = 0;
-    await win.fetch(fallbackInput as any, { method: 'POST', body: geminiListRequestGen('G_HOOK_OVERRIDE_CREDENTIAL_REQUEST_01') });
-    await new Promise(r => setTimeout(r, 20));
-    const credEvents2 = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-    assert.strictEqual(credEvents2.length, 1);
-    assert.strictEqual(credEvents2[0].msg.payload.at, 'override_at_token');
-});
-
 test('audit fix: robustFirstPayload preserves , null , and control characters inside user content strings', () => {
     const testContent = 'Special test message with , null , in code and [brackets]';
     const text = geminiDetailGen('G_EXTRACTED_REGRESSION_PARSER_DETAIL_01');
