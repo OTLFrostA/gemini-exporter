@@ -13,8 +13,9 @@ export function mockAccountRegistry(knownAccountIds: readonly string[]): Pick<ty
     };
 }
 
-export function mockConversationKey(knownAccountIds: readonly string[]): Pick<typeof import('../../src/l2/conversationKey.js'), 'readConversationKey'> {
+export function mockConversationKey(knownAccountIds: readonly string[]): Pick<typeof import('../../src/l2/conversationKey.js'), 'readConversationKey' | 'sameConversationKey'> {
     return {
+        sameConversationKey: (a, b) => a.accountId === b.accountId && a.conversationId === b.conversationId,
         readConversationKey: (value: unknown) => {
             if (!value || typeof value !== 'object' || Array.isArray(value)) {
                 throw new TypeError('Invalid conversation key');

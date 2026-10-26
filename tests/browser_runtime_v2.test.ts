@@ -23,7 +23,8 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
-        // Runtime unit mocks L2; the real Index reader is tested by L2 suites.
+        // Runtime unit mocks L2 decoders; real schema/closure validation is covered by L2 and integration suites.
+        'src/l2/runtimeValidation.js': { restoreDomainDetail: (value: unknown) => value },
         'src/l2/conversationIndex.js': { restoreConversationIndex: (value: unknown) => {
             if (!value || typeof value !== 'object' || Array.isArray(value) || !('key' in value)) throw new TypeError('Invalid Index');
             const key = mockConversationKey([uuid, otherUuid]).readConversationKey(value.key);
@@ -98,7 +99,7 @@ test('ingestion preserves Detail and Index facts; reports L2 errors', async () =
     const indexFields = { title: 'a', titleSource: 'provider' as const };
     assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail', accountId: uuid, conversationId: 'abc', detail, indexFields }), { ok: false, error: 'commit failed' });
     const key = { accountId: uuid, conversationId: 'abc' };
-    assert.deepEqual(seen, [uuid, 'abc', detail, { ...indexFields, key }]);
+    assert.deepEqual(seen, [uuid, 'abc', { ...detail, key }, { ...indexFields, key }]);
     assert.equal(handle({ action: 'domainStorage' }, sender, () => assert.fail()), false);
 });
 
@@ -895,4 +896,21 @@ test('Claude discovery admits normalized organizations, not raw remote JSON reco
 
     raw = [{ uuid: 'invalid', name: 'wrong', capabilities: ['chat'] }];
     assert.deepEqual(await discoverClaudeAccounts(), []);
+});
+
+
+test('Detail IPC decoder rejection prevents L2 admission and view invalidation', async () => {
+    global.chrome = chromeBase() as any;
+    let calls = 0;
+    const notifications: unknown[] = [];
+    Reflect.set(chrome.runtime, 'sendMessage', async (message: unknown) => { notifications.push(message); });
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/runtimeValidation.js': { restoreDomainDetail: () => { throw new TypeError('schema rejected'); } },
+        'src/l2/ingestion.js': { ingestDetail: async () => { calls++; return { accepted: true, changed: true }; } },
+    }).handleDomainIngestionMessage;
+    assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail',
+        accountId: uuid, conversationId: 'abc', detail: detailFact }), { ok: false, error: 'schema rejected' });
+    assert.equal(calls, 0);
+    assert.deepEqual(notifications, []);
 });

@@ -76,3 +76,29 @@ test('compiler-based gate rejects independent bypasses, including aliases, witho
         snapshot.dispose();
     } finally { api.close(); }
 });
+
+
+test('only the authenticated Detail IPC owner can decode detached bodies, and it cannot assert types', () => {
+    const owner = 'runtime/background/domainStorageHandler.ts';
+    const sources = [
+        `import {restoreDomainDetail as decode} from './validation';decode(raw);`,
+        `const detail=raw as Parameters<typeof ingestDetail>[2];`,
+        `const detail=raw!;`,
+    ];
+    const virtual = new Map(sources.map((source, index) => [resolve(root, `tests/arch/__ipc_ingress_probe_${index}.ts`), source]));
+    const api = new API({ cwd: root, fs: { readFile: path => virtual.get(path), fileExists: path => virtual.has(path) ? true : undefined } });
+    try {
+        const snapshot = api.updateSnapshot({ openFiles: [...virtual.keys()] });
+        for (const [index, path] of [...virtual.keys()].entries()) {
+            const ast = snapshot.getDefaultProjectForFile(path)!.program.getSourceFile(path)!;
+            const issues = trustBoundaryViolations(ast, owner);
+            if (index === 0) {
+                assert.deepEqual(issues, []);
+                for (const other of ['runtime/background/other.ts', 'application/probe.ts']) {
+                    assert.ok(trustBoundaryViolations(ast, other).some(issue => issue.includes('unauthorized restoreDomainDetail')));
+                }
+            } else assert.ok(issues.some(issue => issue.includes('without assertions')));
+        }
+        snapshot.dispose();
+    } finally { api.close(); }
+});

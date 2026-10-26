@@ -12,7 +12,11 @@ walks those dependencies and rejects paths back into L1.
 ## Validation and evidence
 
 Persistence and IPC are separate trust boundaries. They cannot preserve an
-in-memory proof, so their L2 decoders deliberately accept `unknown`. Removing those
+in-memory proof, so their L2 decoders deliberately accept `unknown`. The authenticated
+Background Detail IPC adapter calls the shared `restoreDomainDetail` decoder and
+checks the request identity before calling typed L2 admission. The decoder and
+reference-closure schema remain owned by L2. Architecture checks authorize this
+specific ingress and prohibit type assertions there. Removing those
 checks or asserting a raw transport value to a Domain type would weaken the
 contract. Semantic variants named `unknown` also remain valid content facts.
 
