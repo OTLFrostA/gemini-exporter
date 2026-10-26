@@ -122,7 +122,7 @@ export function decodeGeminiCandidateResources(
                 const heuristicChain = metaItem.source === "heuristic-flat"
                     || parsedPrimary?.contentMatch === "substring"
                     || parsedAlt?.contentMatch === "substring";
-                if (heuristicChain && typeof console !== "undefined" && console.warn) {
+                if (heuristicChain) {
                     console.warn(`[GemExporter:parseDetail.ts] heuristic doc content for "${docTitle}" (id=${metaItem.id}); marked hasFabricatedText`);
                 }
                 docDetails.push({
