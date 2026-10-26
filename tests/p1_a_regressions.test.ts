@@ -142,8 +142,10 @@ test('P1-010: self-healed bl is written to session storage rather than memory on
             local: { remove: async () => {} }
         }
     });
-    const undoDoc = replaceGlobal('document', {});
-    const undoBl = replaceGlobal('__gemExporterBl', 'healed-bl-from-page');
+    const undoDoc = replaceGlobal('document', {
+        documentElement: { innerHTML: '"cfb2h":"healed-bl-from-page"' },
+        querySelectorAll: () => []
+    });
     try {
         const cred = await resolveCred();
         assert.ok(setCalls.length > 0, 'healed bl must be persisted');
@@ -151,7 +153,6 @@ test('P1-010: self-healed bl is written to session storage rather than memory on
         assert.equal(persisted?.sid1?.bl, 'healed-bl-from-page');
         assert.equal(cred.bl, 'healed-bl-from-page');
     } finally {
-        undoBl();
         undoDoc();
         undoChrome();
     }
