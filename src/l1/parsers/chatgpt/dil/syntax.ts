@@ -42,8 +42,9 @@ export function parseDil(source: string): DilNode[] {
                 const end = new RegExp('^' + run[0] + '{' + run.length + ',}[ \\t]*$', 'm').exec(tail.slice(fence[0].length));
                 if (end) { at += fence[0].length + end.index + end[0].length; continue; }
             }
-            if (source[at] === '`') {
-                const run = /^`+/.exec(tail)![0]; const end = source.indexOf(run, at + run.length);
+            const ticks = /^`+/.exec(tail);
+            if (ticks) {
+                const run = ticks[0]; const end = source.indexOf(run, at + run.length);
                 if (end >= 0) { at = end + run.length; continue; }
             }
             const mathClose = tail.startsWith('\\(') ? '\\)' : tail.startsWith('\\[') ? '\\]' : tail.startsWith('$$') ? '$$' : '';
