@@ -1,5 +1,6 @@
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../shared/chipUtils.js";
 import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
+import { payloadToMs } from "./payload.js";
 
 export interface ImageAttachment {
     /** JSON-serialized matched wire tuple; never an unvalidated runtime value. */
@@ -551,8 +552,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
 
                     const title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
                     const rawTimestamp = fields[doc.TIMESTAMP];
-                    const timestamp = isUnknownArray(rawTimestamp) ? rawTimestamp[0] : undefined;
-                    const createdAt = typeof timestamp === "number" ? 1000 * timestamp : undefined;
+                    const createdAt = payloadToMs(isUnknownArray(rawTimestamp) ? rawTimestamp[0] : undefined) ?? undefined;
                     const rawContentId = fields[doc.CONTENT_ID];
                     const contentId = typeof rawContentId === "string" && rawContentId.length > 10
                         ? rawContentId : undefined;
