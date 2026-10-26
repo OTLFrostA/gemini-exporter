@@ -8,7 +8,7 @@ import { FEEDBACK_URL } from '../../shared/utils/constants.js';
  */
 export function initSessionAccessLevel(): void {
     try {
-        if (typeof chrome !== 'undefined' && chrome.storage?.session?.setAccessLevel) {
+        if (chrome.storage?.session?.setAccessLevel) {
             chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
         }
     } catch (e) {
@@ -17,7 +17,7 @@ export function initSessionAccessLevel(): void {
 }
 
 export function initUninstallUrl(): void {
-    if (typeof chrome !== 'undefined' && chrome.runtime?.setUninstallURL) {
+    if (chrome.runtime?.setUninstallURL) {
         try {
             chrome.runtime.setUninstallURL(FEEDBACK_URL, () => {
                 if (chrome.runtime.lastError) {
@@ -31,7 +31,7 @@ export function initUninstallUrl(): void {
 }
 
 export function initLifecycleListeners(): void {
-    if (typeof chrome === 'undefined' || !chrome.runtime?.onInstalled) return;
+    if (!chrome.runtime?.onInstalled) return;
 
     chrome.runtime.onInstalled.addListener((details) => {
         initUninstallUrl();
