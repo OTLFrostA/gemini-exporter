@@ -165,8 +165,7 @@ export async function loadCredentialsMap(): Promise<Record<string, BootstrapCred
 export async function saveCredentials(map: Record<string, BootstrapCredential>, cred?: Partial<GeminiCredentialsPayload>): Promise<void> {
     let storage = getCredStorage();
     if (!storage) return;
-    const toSave: Record<string, unknown> = { [SK_CRED_MAP]: map };
-    if (cred) toSave[SK_CRED] = cred;
+    const toSave = { [SK_CRED_MAP]: map, ...(cred ? { [SK_CRED]: cred } : {}) };
     try {
         await storage.set(toSave);
     } catch (e: unknown) {
