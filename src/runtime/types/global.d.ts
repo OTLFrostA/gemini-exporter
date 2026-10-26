@@ -6,9 +6,9 @@ declare const __EXT_VERSION__: string;
 
 declare var GeminiAPIClient: import('../../l1/client/gemini/geminiClient.js').GeminiAPIClient;
 
-declare var _WIZ_global_data: Record<string, string> | undefined;
-declare var WIZ_global_data: Record<string, string> | undefined;
-declare var __WIZ_global_data: Record<string, string> | undefined;
+declare var _WIZ_global_data: unknown;
+declare var WIZ_global_data: unknown;
+declare var __WIZ_global_data: unknown;
 
 interface Window {
     showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<import('../capabilities/directoryHandle.js').DirectoryHandle>;
@@ -27,9 +27,9 @@ interface Window {
     __gemExporterHistoryHooked?: boolean;
     __gemExporterBl?: string | null;
     __geminiAt?: string;
-    _WIZ_global_data?: Record<string, string>;
-    WIZ_global_data?: Record<string, string>;
-    __WIZ_global_data?: Record<string, string>;
+    _WIZ_global_data?: unknown;
+    WIZ_global_data?: unknown;
+    __WIZ_global_data?: unknown;
 }
 
 declare var __gemExporterAborted: boolean | undefined;
