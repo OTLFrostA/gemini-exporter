@@ -36,6 +36,19 @@ export const SANDBOX_TO_HOST: {
     ERROR: 'typst/error',
 };
 
+// Internal outbound messages have a precise contract; incoming postMessage data remains untrusted.
+export type SandboxToHostMessage =
+    | { type: typeof SANDBOX_TO_HOST.READY }
+    | { type: typeof SANDBOX_TO_HOST.INITED; jobId: string; ok: boolean; initMs: number }
+    | { type: typeof SANDBOX_TO_HOST.PROGRESS; jobId: string;
+        stage: string; current: number; total: number; fontMs?: number }
+    | { type: typeof SANDBOX_TO_HOST.FONTS_INSTALLED; jobId: string }
+    | { type: typeof SANDBOX_TO_HOST.COMPILED; jobId: string; ok: boolean;
+        pdf: ArrayBuffer | null; pdfBytes: number; compileMs: number;
+        diagnostics: Array<{ severity: string; message: string }> }
+    | { type: typeof SANDBOX_TO_HOST.ERROR; jobId: string;
+        error: { name: string; message: string } };
+
 export const HOST_MESSAGE_TYPES: ReadonlySet<string> = new Set(Object.values(HOST_TO_SANDBOX));
 export const SANDBOX_MESSAGE_TYPES: ReadonlySet<string> = new Set(Object.values(SANDBOX_TO_HOST));
 
