@@ -646,6 +646,29 @@ test('Intelligent UI questionnaires use the provider fallback without executing 
 });
 
 
+test('DIL static-source diagnostics reuse the same snapshot as the rendered branch', () => {
+    const source = '<radio-group><radio>First choice</radio><radio>Second choice</radio></radio-group>';
+    const answer = textNode('answer', 'question', 'assistant', source);
+    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: 'First choice\nSecond choice' } };
+    const conversation: ChatGPTApiConversationWithId = {
+        id: 'dil-once', current_node: 'answer', title: '', is_archived: false,
+        mapping: { root: { id: 'root', children: ['question'] },
+            question: textNode('question', 'root', 'user', 'Choose'),
+            answer },
+    };
+    const expected = chatGPTInteractiveSnapshot(source, 'First choice\nSecond choice');
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    const diagnostic = parsed.diagnostics.find(item => item.code === 'CHATGPT_INTERACTIVE_STATIC_SNAPSHOT');
+    assert.ok(diagnostic, 'source DIL modules must be diagnosed, not reparsed from the rendered body');
+    const details = diagnostic.details;
+    assert.ok(details && typeof details === 'object' && !Array.isArray(details));
+    assert.equal('representation' in details ? details.representation : undefined, expected.representation);
+    assert.equal(parsed.conversation.detail.quality.status, expected.incomplete ? 'partial' : 'complete');
+    const body = JSON.stringify(parsed.conversation.detail.messages[1].content);
+    for (const choice of ['First choice', 'Second choice']) assert.ok(body.includes(choice));
+    assert.equal((answer.message!.content as { parts: string[] }).parts[0], source, 'do not mutate input mapping');
+});
+
 test('Captured live DIL quiz parses nested questions/options before buttons, without fallback', () => {
     const fixture = JSON.parse(readFileSync(join(__dirname, 'fixtures/chatgpt_dynamic_questionnaire.json'), 'utf8')) as {
         raw: string; fallbackMarkdown: string;
