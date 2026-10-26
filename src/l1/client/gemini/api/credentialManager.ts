@@ -170,9 +170,7 @@ function getAtFromPage(doc?: unknown): string {
             return mHtml[1];
         }
     } catch (e) {
-        if (typeof console !== "undefined" && typeof console.debug === "function") {
-            console.debug("[GemExporter:credentialManager.ts]", e);
-        }
+        console.debug("[GemExporter:credentialManager.ts]", e);
     }
     return "";
 }
@@ -189,9 +187,7 @@ function detectSlot(urlOrPath?: string | null): string | null {
         const slot = detectSlotFromUrl(path);
         return slot === "u0" ? "default" : slot;
     } catch (e) {
-        if (typeof console !== "undefined" && typeof console.debug === "function") {
-            console.debug("[GemExporter:credentialManager.ts]", e);
-        }
+        console.debug("[GemExporter:credentialManager.ts]", e);
     }
     return "default";
 }
@@ -269,9 +265,7 @@ async function resolveCredInner(
                 }
             }
         } catch (e) {
-            if (typeof console !== "undefined" && typeof console.debug === "function") {
-                console.debug("[GemExporter:credentialManager.ts]", e);
-            }
+            console.debug("[GemExporter:credentialManager.ts]", e);
         }
     } else if (pageBl) {
         const curSlot = normSlot(requestedSlot || detectSlot());
