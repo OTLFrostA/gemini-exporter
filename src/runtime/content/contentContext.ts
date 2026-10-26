@@ -53,12 +53,10 @@ export class ContentContext {
 
     public abort(): void {
         this.setAborted(true);
-        if (this._activeClient && typeof this._activeClient.abort === 'function') {
-            try {
-                this._activeClient.abort();
-            } catch {
-                /* intentional: best-effort abort */
-            }
+        try {
+            this._activeClient?.abort?.();
+        } catch {
+            /* intentional: best-effort abort */
         }
     }
 
