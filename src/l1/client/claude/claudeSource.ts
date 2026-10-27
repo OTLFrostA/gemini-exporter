@@ -27,7 +27,8 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
                         const response = await fetch(resource, { credentials: 'include',
                             headers: { Accept: 'application/json' } });
                         if (!response.ok) throw new Error('Claude API HTTP ' + response.status);
-                        return response.json();
+                        const json: unknown = await response.json();
+                        return json;
                     };
                     if (organization) {
                         const cookieOrg = document.cookie.split(';').map(part => part.trim())
@@ -36,7 +37,8 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
                             throw new Error('Active Claude organization differs from selected account');
                         const organizations = await getJson('/api/organizations');
                         if (!Array.isArray(organizations) || !organizations.some(
-                            org => org && typeof org === 'object' && org.uuid === organization))
+                            (org: unknown) => org !== null && typeof org === 'object'
+                                && 'uuid' in org && org.uuid === organization))
                             throw new Error('Claude organization/account changed');
                     }
                     return getJson(requestedPath);

@@ -26,6 +26,10 @@ const fixtureMap = {
     'CL_LIST_BOUNDARY_TRUNCATED_01': () => ({ data: providerRows(), has_more: true }),
     'CL_LIST_BOUNDARY_INCOMPLETE_01': () => ({ data: providerRows(), has_more: false, search_incomplete: true }),
     'CL_LIST_BOUNDARY_MISSING_FLAG_01': () => ({ data: providerRows() }),
+    'CL_LIST_BOUNDARY_SEARCH_ABSENT_01': () => ({ data: providerRows(), has_more: false }),
+    'CL_LIST_BOUNDARY_BAD_SEARCH_STRING_01': () => ({ data: [], has_more: false, search_incomplete: 'true' }),
+    'CL_LIST_BOUNDARY_BAD_SEARCH_NUMBER_01': () => ({ data: [], has_more: false, search_incomplete: 1 }),
+    'CL_LIST_BOUNDARY_BAD_SEARCH_NULL_01': () => ({ data: [], has_more: false, search_incomplete: null }),
 };
 
 /** Preserve malformed native variants so parser/provider boundary tests can reject them. */

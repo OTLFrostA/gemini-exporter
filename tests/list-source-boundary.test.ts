@@ -1,5 +1,6 @@
 import { ClaudeProvider } from '../src/l1/client/claude/claudeProvider.js';
 import { listGen as claudeListGen } from './fixtures/providers/claudeList.js';
+import { organizationsGen as claudeOrganizationsGen } from './fixtures/providers/claudeOrganizations.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import test from 'node:test';
@@ -117,6 +118,33 @@ test('DOM metadata preserves title precedence and keeps UI labels and observatio
     assert.equal(fallback.titleSource, 'sniff');
     assert.equal(Object.hasOwn(fallback, 'updatedAt'), false);
     assert.equal(Object.hasOwn(fallback, 'createdAt'), false);
+});
+
+test('Claude readiness narrows unknown organization members before matching the account', async () => {
+    const account = await getOrCreateAccount('claude', '11111111-1111-4111-8111-111111111111');
+    const matching = new ClaudeProvider({ apiGet: async path => {
+        assert.equal(path, '/api/organizations');
+        return claudeOrganizationsGen('CL_ACCOUNT_MIXED_ROWS_01');
+    } });
+    assert.equal((await matching.checkReadiness(account.id)).ready, true);
+    const wrongShape = new ClaudeProvider({ apiGet: async () =>
+        claudeOrganizationsGen('CL_ACCOUNT_INVALID_ENVELOPE_01') });
+    assert.equal((await wrongShape.checkReadiness(account.id)).ready, false);
+});
+
+test('Claude rejects malformed search_incomplete before trusting a list page', async () => {
+    const account = await getOrCreateAccount('claude', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    for (const key of ['CL_LIST_BOUNDARY_BAD_SEARCH_STRING_01',
+        'CL_LIST_BOUNDARY_BAD_SEARCH_NUMBER_01', 'CL_LIST_BOUNDARY_BAD_SEARCH_NULL_01'] as const) {
+        let committed = 0;
+        const provider = new ClaudeProvider({ apiGet: async () => claudeListGen(key) });
+        await assert.rejects(provider.listConversations({ accountId: account.id, streamId: 'recent',
+            onPageCommitted: async () => { committed++; return false; } }), /Invalid Claude paginated list/);
+        assert.equal(committed, 0, key);
+        assert.deepEqual(await getConversations(account.id), [], key);
+    }
+    const withoutFlag = new ClaudeProvider({ apiGet: async () => claudeListGen('CL_LIST_BOUNDARY_SEARCH_ABSENT_01') });
+    assert.equal(await withoutFlag.listConversations({ accountId: account.id, streamId: 'recent' }), 'source_end');
 });
 
 test('Claude paginated source proves exhaustion and rejects unordered or truncated pages', async () => {
