@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Raw GET /api/organizations/:org/chat_conversations/:id response bodies.
  * Every key supplies an independent, fixed native reply; no scenarios or options.
  */
@@ -270,3 +271,5 @@ const fixtureMap = {
 export function detailGen(key: keyof typeof fixtureMap) {
     return fixtureMap[key]();
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored Claude protocol, content or state counterexample; no saved capture is used."));

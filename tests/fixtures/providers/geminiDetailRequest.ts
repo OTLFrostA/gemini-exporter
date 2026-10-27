@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Native request bodies for Gemini's hNvQHb Detail RPC. */
 function requestBody(args: unknown[]): string {
     return new URLSearchParams({
@@ -27,3 +28,5 @@ const fixtureMap = {
 export function requestGen(key: keyof typeof fixtureMap): string {
     return fixtureMap[key]();
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored Gemini protocol, content or state counterexample; no saved capture is used."));

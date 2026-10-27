@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic, derived } from './provenance.js';
 import streamFrames from '../gemini_answered_stream.json';
 
 /** Native StreamGenerate response bodies, one immutable key per test wire variant. */
@@ -60,3 +61,19 @@ const fixtureMap = {
 export function streamGen(key: keyof typeof fixtureMap): string {
     return fixtureMap[key]();
 }
+
+const geminiAnsweredStreamOrigin = derived(["tests/fixtures/gemini_answered_stream.json"], "Saved decoded Stream frames rewrapped with explicit status, identity, framing or stress mutations.");
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored Gemini protocol, content or state counterexample; no saved capture is used."), {
+    G_STREAM_ANSWERED_01: geminiAnsweredStreamOrigin,
+    G_STREAM_UNANSWERED_01: geminiAnsweredStreamOrigin,
+    G_STREAM_DIFFERENT_REQUEST_01: geminiAnsweredStreamOrigin,
+    G_STREAM_EXTRA_LENGTH_01: geminiAnsweredStreamOrigin,
+    G_STREAM_ERROR_TRAILER_01: geminiAnsweredStreamOrigin,
+    G_STREAM_OVER_101_MIB_01: geminiAnsweredStreamOrigin,
+    G_STREAM_INCLUSIVE_01: geminiAnsweredStreamOrigin,
+    G_STREAM_CORRUPT_LENGTH_01: geminiAnsweredStreamOrigin,
+    G_STREAM_CAPTURED_ANSWERED_01: geminiAnsweredStreamOrigin,
+    G_STREAM_CUMULATIVE_3_MIB_01: geminiAnsweredStreamOrigin,
+    G_STREAM_E2E_ANSWERED_01: geminiAnsweredStreamOrigin,
+});

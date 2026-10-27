@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic, captured, derived } from './provenance.js';
 import nativeDelete from '../gemini_native_delete.json';
 /** Raw Gemini GzXR5e conversation deletion RPC request bodies. */
 const fixtureMap = {
@@ -31,3 +32,8 @@ const fixtureMap = {
 export function deleteRequestGen(key: keyof typeof fixtureMap): string {
     return fixtureMap[key]();
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored Gemini protocol, content or state counterexample; no saved capture is used."), {
+    G_NATIVE_CAPTURE_DELETE_REQUEST_01: captured("tests/fixtures/gemini_native_delete.json", "sanitized requestBody"),
+    G_NATIVE_CAPTURE_DELETE_DUPLICATE_REQUEST_01: derived(["tests/fixtures/gemini_native_delete.json"], "Saved source fields embedded in an authored protocol/state counterexample."),
+});

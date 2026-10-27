@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Native responses from ChatGPT /backend-api/conversations only. */
 type NativeListPage = {
     items: unknown[];
@@ -128,3 +129,5 @@ interface ChatGPTConversationsResponse {
 export function listGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
     return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored ChatGPT protocol, content or state counterexample; no saved capture is used."));
