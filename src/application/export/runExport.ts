@@ -64,6 +64,8 @@ export async function runExport(request: ExportRequest, options: {
     signal?: AbortSignal;
     /** A completed reply requires a new source snapshot even if cached timestamps match. */
     refreshDetail?: boolean;
+    /** User-selected ZIP readers owned by the open workbench, released by that page. */
+    importedResources?: import('../../l1/resources/sourceResources.js').SourceResourceContext;
 } = {}): Promise<ExportResult> {
     const failed: ConversationKey[] = [];
     const result: ExportResult = { exported: 0, skipped: 0, partial: 0, failed, aborted: false };
@@ -214,7 +216,7 @@ export async function runExport(request: ExportRequest, options: {
                 // Inline packets and expiring locators are task-owned, never cached bytes.
                 // A fresh Detail alone cannot rehydrate these resources in a later export.
                 const needsSourceReaders = request.includeAssets && conversation?.detail.assets.some(asset =>
-                    !/^https:\/\//i.test(asset.sourceUri ?? '') && !asset.document?.contentMarkdown
+                    !options.importedResources?.has(key, asset.id) && !/^https:\/\//i.test(asset.sourceUri ?? '') && !asset.document?.contentMarkdown
                     && providerFor(account.providerId).canAcquireResourceDirectly?.(asset) !== true);
                 if (options.refreshDetail || !conversation || !isFresh(conversation) || needsSourceReaders) {
                     try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
@@ -248,7 +250,10 @@ export async function runExport(request: ExportRequest, options: {
                     // File nodes are exported as originals even for PDF; Image nodes may be embedded.
                     const fileIds = references.fileIds;
                     const prepared = await prepareExportResources(snapshot.detail.assets, requiredIds,
-                        (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
+                        (asset, abort) => options.importedResources?.has(key, asset.id)
+                            ? options.importedResources.acquire(key, asset, abort,
+                                () => providerFor(account.providerId).acquireResource(key, asset, abort))
+                            : providerFor(account.providerId).acquireResource(key, asset, abort), signal);
                     return { ...view, key, account, conversation: snapshot, prepared, fileIds, refreshFailed,
                         ...(record?.folderBaseName ? { folderBaseName: record.folderBaseName } : {}) };
                 };

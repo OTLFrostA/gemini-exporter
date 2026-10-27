@@ -495,3 +495,22 @@ test('renewable provider resource locators export all formats without redundant 
     assert.equal(events.includes('refresh'),false);
     assert.equal(events.filter(e=>e==='acquire:image').length,4,'each task still actually acquires the image');
 });
+
+test('workbench ZIP readers supply offline bytes without a source refresh and stay caller-owned', async () => {
+    const { detail } = seed('first', { assets: true });
+    for (const asset of detail.assets) asset.sourceUri = `sediment://${asset.id}`;
+    const acquired: string[] = [];
+    const importedResources: import('../src/l1/resources/sourceResources.js').SourceResourceContext = {
+        retain() {}, retainParsed() {},
+        has: (conversationKey, assetId) => conversationKey.accountId === account.id && ['image', 'file', 'unused'].includes(assetId),
+        async acquire(_key, asset) { acquired.push(asset.id); return { bytes: Uint8Array.of(4, 5, 6) }; },
+        release() { throw new Error('export must not release caller-owned ZIP readers'); },
+        releaseConversation() { throw new Error('export must not release caller-owned ZIP readers'); },
+    };
+    const result = await runExport(request(), { importedResources });
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 0);
+    assert.equal(events.includes('refresh'), false);
+    assert.deepEqual(acquired, ['image', 'file']);
+    assert.equal(events.some(event => event.startsWith('acquire:')), false);
+});

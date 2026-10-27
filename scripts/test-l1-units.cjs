@@ -40,6 +40,7 @@ const suites = {
         'tests/timestamp_honesty.test.ts',
     ],
     takeout: [
+        'tests/l1-openai-import-v2-mocked.test.ts',
         'tests/l1-takeout-v2-mocked.test.ts',
         'tests/takeout_missing_ts.test.ts',
     ],
@@ -49,6 +50,7 @@ const suites = {
     // Historical cross-module tests remain available, but never run under the
     // L1 unit label. Execute explicitly: node scripts/test-l1-units.cjs integration.
     integration: [
+        'tests/openai-import.test.ts',
         'tests/l1_contract.test.ts',
         'tests/l1-native-acquisition.test.ts',
         'tests/l1_l2_verified_deletion.test.ts',

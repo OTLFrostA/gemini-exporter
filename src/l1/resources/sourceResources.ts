@@ -7,7 +7,8 @@ import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
 type ResourceReader = (signal?: AbortSignal) => Promise<ResourceBytes>;
 const conversationIdentity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
 
-/** One acquisition/export task owns this context. Release it in the task's finally block. */
+/** The caller owns this context and releases it on completion. A workbench may
+ * retain user-selected ZIP readers until pagehide; bytes never enter Domain. */
 export function createSourceResourceContext() {
     const readers = new Map<string, Map<string, ResourceReader>>();
     let released = false;
@@ -45,6 +46,9 @@ export function createSourceResourceContext() {
                 } else if (locator) selected.set(asset.id, signal => acquireSourceResource({ ...asset, sourceUri: locator }, signal));
             }
             readers.set(conversationIdentity(key), selected);
+        },
+        has(key: ConversationKey, assetId: string): boolean {
+            return !released && readers.get(conversationIdentity(key))?.has(assetId) === true;
         },
         async acquire(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, remote?: ResourceReader): Promise<ResourceBytes> {
             readConversationKey(key);

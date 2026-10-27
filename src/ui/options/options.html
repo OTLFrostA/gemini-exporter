@@ -240,6 +240,7 @@
   #moreActionsMenu button:hover{background:var(--card-inner);transform:none;box-shadow:none;}
   #moreActionsMenu button.menu-danger{color:var(--destructive-text,var(--danger));}
   #moreActionsMenu .menu-account-note{display:block;margin:-2px 10px 6px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  #moreActionsMenu #openaiImportHint{white-space:normal;line-height:1.5;}
   #moreActionsMenu .menu-divider{height:1px;background:var(--border);margin:6px 4px;}
   #localDataControls{display:flex;flex-direction:column;gap:0;}
   .conversation-selection{display:flex;align-items:center;gap:9px;flex:none;min-height:26px;margin:8px 1px 4px;padding:0 9px;color:var(--muted);}
@@ -420,6 +421,8 @@
         <div id="moreActionsMenu" class="conversation-more-menu" hidden>
           <button id="btnImportTakeout" class="ghost small" data-i18n="btnImportTakeout" data-i18n-title="btnImportTakeoutTip" title="导入历史 Takeout ZIP">📥 导入 Takeout</button>
           <span id="takeoutAccountName" class="stat menu-account-note" title="Takeout import target"></span>
+          <button id="btnImportOpenAI" class="ghost small" data-ui-en="📥 Import OpenAI ZIP" data-ui-zh="📥 导入 OpenAI ZIP">📥 导入 OpenAI ZIP</button>
+          <span id="openaiImportHint" class="stat menu-account-note"></span>
           <div class="menu-divider"></div>
           <div id="localDataControls" aria-label="本地记录" data-i18n-aria-label="localRecords">
             <button id="btnClearScan" class="ghost small menu-danger" data-ui-en="Clear scan records" data-ui-zh="清除扫描记录" data-i18n-title="clearScanRecordsTip" title="清除当前账号扫描记录">清除扫描记录</button>
@@ -429,6 +432,7 @@
         </div>
       </div>
       <input type="file" id="takeoutFileInput" accept=".zip" hidden>
+      <input type="file" id="openaiFileInput" accept=".zip" hidden>
     </div>
     <div class="conversation-selection">
       <input id="btnSelectAll" type="checkbox" aria-label="全选当前可见会话">

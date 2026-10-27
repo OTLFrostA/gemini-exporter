@@ -1,5 +1,7 @@
 {
   "suites": [
+    "tests/l1-openai-import-v2-mocked.test.ts",
+    "tests/openai-import.test.ts",
     "tests/client_cancellation.test.ts",
     "tests/compat_rules.test.ts",
     "tests/cred_storage_unify.test.ts",
