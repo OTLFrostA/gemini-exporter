@@ -21,9 +21,11 @@ interface StoreValueMap {
 }
 type StoreName = keyof StoreValueMap;
 
-interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAll' | 'index'> {
+interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAll' | 'index' | 'put' | 'add'> {
     get(query: IDBValidKey | IDBKeyRange): IDBRequest<V | undefined>;
     getAll(query?: IDBValidKey | IDBKeyRange | null, count?: number): IDBRequest<V[]>;
+    put(value: V, key?: IDBValidKey): IDBRequest<IDBValidKey>;
+    add(value: V, key?: IDBValidKey): IDBRequest<IDBValidKey>;
     index(name: string): Omit<IDBIndex, 'get'> & {
         get(query: IDBValidKey | IDBKeyRange): IDBRequest<V | undefined>;
     };
