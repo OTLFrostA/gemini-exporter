@@ -89,17 +89,14 @@ test('gemini_parser - JSPB schema and candidate extraction filters telemetry and
 
     const parsed = decodeGeminiDetail(rawText, '024c7ad5d90f4db8');
 
-    // MUST be exactly 2 messages (1 user, 1 model), NOT 8 or 9!
     assert.strictEqual(parsed.messages.length, 2, `Expected exactly 2 messages, got ${parsed.messages.length}`);
     assert.strictEqual(parsed.messages[0].role, 'user');
     assert.strictEqual(parsed.messages[0].content, '如果cas不带机枪的话能抢制空么');
 
     assert.strictEqual(parsed.messages[1].role, 'model');
-    // Content must be clean and NOT polluted with trailing 'zh'
     assert.strictEqual(parsed.messages[1].content, '不能。如果你的CAS完全没有装备机枪，是无法夺取制空权的。');
     assert.strictEqual(parsed.messages[1].content.endsWith('zh'), false, 'Content must not end with language tag zh');
 
-    // None of the telemetry or grounding tokens should exist as messages
     const contents = parsed.messages.map((m: any) => m.content);
     assert.ok(!contents.includes('hoi4 air wing equipment filtering tags'));
     assert.ok(!contents.includes('google'));
@@ -112,7 +109,6 @@ test('gemini_parser - JSPB schema and candidate extraction filters telemetry and
 test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns', () => {
     const { detectTurnSchemaDrift } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 
-    // Healthy turn
     const healthyTurn = [
         ["c_valid_123", "r_turn_1"],
         [1717058840, 0],
@@ -123,7 +119,7 @@ test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns'
     assert.strictEqual(healthyCheck.isDrifted, false);
     assert.strictEqual(healthyCheck.warnings.length, 0);
 
-    // Drifting turn: missing turn ID meta and corrupted model payload
+// A damaged metadata slot must not erase healthy adjacent turns.
     const driftedTurn = [
         ["corrupted_meta"],
         null
@@ -138,7 +134,6 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     const attachments = require('./helpers/recordFixture/attachments.js');
     const parseListMod = require('../src/l1/parsers/gemini/rpc/parseList.js');
 
-    // 1. deepWalk unified tree walker
     const visited: string[] = [];
     const tree = { a: [1, { b: 2, c: [3, 4] }], d: 5 };
     extractors.deepWalk(tree, (node: object) => {
@@ -147,7 +142,6 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     });
     assert.deepStrictEqual(visited, ['a,d', 'b,c']);
 
-    // Early termination in deepWalk
     let earlyCount = 0;
     extractors.deepWalk([1, 2, [3, 4, [5, 6]]], (node: object) => {
         earlyCount++;
@@ -157,7 +151,6 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     });
     assert.ok(earlyCount < 5, 'deepWalk should stop descending when visitor returns false');
 
-    // 2. extractors: thoughts & citations
     const candBlock = [
         ["THOUGHT", "Thinking deeply about quantum physics..."],
         ["https://arxiv.org/abs/1234.5678", "Quantum Supremacy Paper"],
@@ -171,11 +164,10 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     assert.strictEqual(citations[0].url, "https://arxiv.org/abs/1234.5678");
     assert.strictEqual(citations[0].title, "Quantum Supremacy Paper");
 
-    // 3. attachments: isInternalChipUrl
     assert.strictEqual(attachments.isInternalChipUrl("https://googleusercontent.com/immersive_entry_chip/abc"), true);
     assert.strictEqual(attachments.isInternalChipUrl("https://example.com/normal.png"), false);
 
-    // 4. The production LIST row decoder owns timestamp interpretation.
+// Keep source timestamp interpretation in the LIST decoder rather than a generic parser.
     const mockItem = ["c_test", "Title", null, null, null, [1720000000, 500000000]];
     const decoded = parseListMod.decodeGeminiListRow(mockItem);
     assert.strictEqual(decoded?.id, 'test');

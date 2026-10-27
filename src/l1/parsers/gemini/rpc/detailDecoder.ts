@@ -127,7 +127,6 @@ function extractTurnsFromInner(
     }
     if (!turns) turns = [];
 
-    // 4. Detect "metadata-only" response: inner = [null, null, [[conv_id_str, title, ...]]]
     const metaListIdx = innerSchema.METADATA_ONLY_LIST;
     const activeSlots = isUnknownArray(activeInner) ? activeInner : [];
     const metaRows = activeSlots[metaListIdx];

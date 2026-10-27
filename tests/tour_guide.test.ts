@@ -73,7 +73,6 @@ test('Authorization shows one button above a default-selected platform list with
     await page.evaluate(() => Reflect.get(window, 'testUi').tour.nextStep());
     assert.equal(await page.locator('.tour-popover h2').textContent(), 'Authorize AI platforms');
     await page.locator('#btnAuthorizePlatforms').click();
-    // The last missing authorization completes this step and advances automatically.
     await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Scan conversations');
     assert.deepEqual(await read(page, 'connectionRequests'), [[['gemini', 'chatgpt', 'grok', 'claude'], true]]);
     assert.deepEqual(await read(page, 'openedUrls') ?? [], []);
@@ -159,7 +158,6 @@ test('Slow account discovery does not block authorization and closing discards i
     await page.locator('#btnAuthorizePlatforms').click();
     await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishDiscovery === 'function');
     await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
-    // The only selected platform was just authorized and is now hidden; no ungranted selection remains.
     assert.equal(await page.locator('#btnAuthorizePlatforms').isEnabled(), false);
     await page.keyboard.press('Escape');
     await page.evaluate(({ B }) => Reflect.get(window, 'harness').finishDiscovery(B), { B });
@@ -216,9 +214,7 @@ test('tourGuide - action-driven advancement covers scan, selection, format, expo
     await page.locator('#list .item input').first().check(); await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Choose a format');
     await page.locator('#format').selectOption('html'); await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Export selected conversations');
     await page.locator('#btnExport').click(); await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Live Save');
-    // The tour now shows the folder card: select the local destination first.
     await page.locator('input[name="delivery"][value="folderWriter"]').check();
-    // A directory click advances the step once the folder is selected.
     await page.locator('#btnSetDir').click(); await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Optional feedback');
     // Prevent external navigation; the actual DOM click still advances the current step.
     await page.locator('#feedbackBox').evaluate(el => el.addEventListener('click', event => event.preventDefault()));

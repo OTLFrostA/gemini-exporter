@@ -1,4 +1,3 @@
-# scripts/framework/driver/gemini_driver.py
 """
 High-Level Gemini Automation Driver and Chat Session Abstractions.
 Encapsulates all low-level CDP interactions, DOM selectors, atomic pipelines,
@@ -51,7 +50,6 @@ class GeminiChatSession:
         else:
             prompt_text = str(prompt)
 
-        # 若指定了待上传文件，在发帖前先将其注入输入框并等待卡片挂载
         if file_attachment:
             print(f"      📎 正在向输入框上传并挂载文件附件: {os.path.basename(file_attachment)}...")
             self.driver.upload_file(file_attachment)
@@ -72,12 +70,10 @@ class GeminiChatSession:
             self.turns.append(err_res)
             return err_res
 
-        # 刷新/补全会话 ID
         curr_id = self.driver.get_current_chat_id()
         if curr_id:
             self.chat_id = curr_id
 
-        # 通过 Driver 提取最新回复文本与生图实体
         turn_res = self.driver.extract_turn_result(prompt_text, duration=duration)
         turn_res.chat_id = self.chat_id
         self.turns.append(turn_res)
@@ -137,7 +133,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
         """
         cdp = self.cdp
-        # 1. 首先缓冲等待模型切换按钮挂载就绪并包含文本（最多等待 15 秒，避免 SPA 路由切换瞬间 DOM 未就绪）
+        # The SPA can render the picker late; wait for the real button rather than clicking a stale target.
         wait_btn_start = time.time()
         while time.time() - wait_btn_start < 15.0:
             btn_info = cdp.eval(f"""
@@ -417,7 +413,6 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             err = res.get("error", "未知错误") if isinstance(res, dict) else "CDP eval 失败"
             raise RuntimeError(f"文件注入粘贴事件失败: {err}")
 
-        # 等待页面渲染出附件预览卡片
         t0 = time.time()
         while time.time() - t0 < timeout:
             mounted = self.cdp.eval(f"""
@@ -666,5 +661,4 @@ class GeminiPlatformDriver(ChatPlatformDriver):
 # 保持 100% 向后兼容别名
 GeminiDriver = GeminiPlatformDriver
 
-# 自动注册至平台驱动注册中心
 PlatformRegistry.register("gemini", GeminiPlatformDriver)

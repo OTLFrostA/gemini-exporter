@@ -1,14 +1,6 @@
 import { composeFixture } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-/**
- * tests/html_export.test.ts
- * HTML export via the production canonical path
- * (ChatFormatter.formatHtmlDocument: parseConversation -> Domain -> Document AST -> HTML backend).
- *
- * Item 2 (P0): the legacy sync toHtml() / formatContent(chat, 'html') path
- * was removed; these tests now exercise the canonical renderer, which
- * shares GEM_HTML_CSS / GEM_HTML_SCRIPT from htmlTemplate.ts.
- */
+/** Exercise the canonical Domain-to-AST HTML path to prevent retired renderer behavior leaking back. */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -50,17 +42,14 @@ test('html_export - formatHtmlDocument returns valid structure, metadata, and st
     const { document, resources } = await composeFixture(native.conversation, native.resourceHints);
     const { html } = await renderDocumentHtml(document, resources);
 
-    // 1. Valid HTML5 Doctype & Meta
     assert.ok(html.startsWith('<!DOCTYPE html>'), 'Must start with <!DOCTYPE html>');
     assert.ok(html.includes('<title>Quantum Computing &amp; Algorithms</title>'), 'Title must be safely escaped in <title>');
     assert.ok(html.includes('generator" content="Gemini Exporter"'), 'Must contain generator meta');
 
-    // 2. High fidelity Print Stylesheet (@media print) & Pure 1:1 Stream
     assert.ok(html.includes('@media print'), 'Must include @media print styles for PDF readiness');
     assert.ok(!html.includes('gem-top-bar'), 'Must NOT contain top bar to keep 1:1 fidelity');
     assert.ok(html.includes('prefers-color-scheme'), 'Must support adaptive system theme');
 
-    // 3. User Turn & Attachments
     assert.ok(html.includes('gem-turn-user'), 'Must contain user turn section');
     assert.ok(html.includes('gem-user-bubble'), 'Must contain user bubble');
     assert.ok(html.includes("What is Grover&#39;s algorithm?"), 'Must contain user text escaped');
@@ -70,7 +59,6 @@ test('html_export - formatHtmlDocument returns valid structure, metadata, and st
     assert.ok(html.includes('assets/quantum_notes.pdf'), 'Must link file attachment to assets/ path');
     assert.ok(html.includes('download="quantum_notes.pdf"'), 'File card must include download attribute');
 
-    // 4. Model Turn: Thoughts, Table, Code Block, Math
     assert.ok(html.includes('gem-turn-model'), 'Must contain model turn section');
     assert.ok(html.includes('gem-thoughts'), 'Must contain thoughts accordion');
     assert.ok(html.includes('amplitude amplification principles'), 'Must contain thoughts text');
@@ -82,7 +70,6 @@ test('html_export - formatHtmlDocument returns valid structure, metadata, and st
     assert.ok(html.includes('grover_iterations'), 'Must contain code block content');
     assert.ok(html.includes('gem-math-inline'), 'Must format inline math');
 
-    // 5. Clean Layout Assertions: Zero sidebar, zero bottom chat input, zero reaction bars
     assert.ok(!html.includes('class="sidebar"'), 'Must NOT contain sidebar');
     assert.ok(!html.includes('id="chat-input"'), 'Must NOT contain chat input box');
     assert.ok(!html.includes('thumb_up'), 'Must NOT contain thumbs up/down buttons');

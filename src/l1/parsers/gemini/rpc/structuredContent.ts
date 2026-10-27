@@ -152,14 +152,7 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
             if (sourceIds) return { start, end, type, sourceIds };
         }
         if (typeof start === "number" && typeof end === "number" && typeof type === "number") {
-            // Supported inline annotation types:
-            // 0: strong (bold)
-            // 2: emphasis (italic)
-            // 4: inline math
-            // 5: subtle/italic emphasis
-            // 6: link
-            // 7: inline code
-            // 12: strikethrough
+// Only characterized numeric annotation tags may be rendered; unknown tags must fail closed.
             if ([0, 2, 4, 5, 6, 7, 12].includes(type)) {
                 return {
                     start,
@@ -193,8 +186,6 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
     let t: number | null = null;
     let url: string | undefined;
 
-    // In JSPB wire:
-    // style[2] non-null -> type 4 (inline math)
     if (style.length > 2 && style[2] !== null && style[2] !== undefined) {
         t = 4;
     } else if (style.length > 0 && isWireArray(style[0])) {
@@ -208,7 +199,6 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
             t = 7; // inline code; captured RPC style flag, not internal annotation enum
         }
     } else if (style.length > 1 && isWireArray(style[1])) {
-        // link url or other formatting
         const s1 = style[1];
         if (s1.length > 0 && typeof s1[0] === "string") {
             t = 6;
@@ -424,7 +414,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return { nodeType: 'paragraph', children };
     }
 
-    // Field 34: Display Math
     if (w.length > 34 && w[34] !== null && w[34] !== undefined) {
         const mathPayload = w[34];
         const fta = isWireArray(mathPayload) && mathPayload.length > 0 && typeof mathPayload[0] === "string"
@@ -441,12 +430,10 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return null;
     }
 
-    // Field 23: Line break
     if (w.length > 23 && w[23] !== null && w[23] !== undefined) {
         return { nodeType: 13 };
     }
 
-    // Field 19: Thematic break
     if (w.length > 19 && w[19] !== null && w[19] !== undefined) {
         return { nodeType: 19 };
     }
@@ -466,7 +453,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return { nodeType: 15, children };
     }
 
-    // Field 15: Blockquote
     if (w.length > 15 && w[15] !== null && w[15] !== undefined) {
         const bqPayload = w[15];
         const rawChildren = isWireArray(bqPayload) && bqPayload.length > 0 && isWireArray(bqPayload[0])
@@ -481,7 +467,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return { nodeType: 15, children };
     }
 
-    // Field 12: Ordered list
     if (w.length > 12 && w[12] !== null && w[12] !== undefined) {
         const olPayload = w[12];
         const rawItems = isWireArray(olPayload) && olPayload.length > 0 && isWireArray(olPayload[0])
@@ -504,7 +489,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return { nodeType: 14, VHa: vha, items };
     }
 
-    // Field 11: Unordered list
     if (w.length > 11 && w[11] !== null && w[11] !== undefined) {
         const ulPayload = w[11];
         const rawItems = isWireArray(ulPayload) && ulPayload.length > 0 && isWireArray(ulPayload[0])
@@ -524,7 +508,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return { nodeType: 20, items };
     }
 
-    // Field 10: Table
     if (w.length > 10 && w[10] !== null && w[10] !== undefined) {
         const tblPayload = w[10];
         const rawRows = isWireArray(tblPayload) && tblPayload.length > 0 && isWireArray(tblPayload[0])
@@ -570,7 +553,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return null;
     }
 
-    // Field 3: Code block
     if (w.length > 3 && w[3] !== null && w[3] !== undefined) {
         const codePayload = w[3];
         const code = isWireArray(codePayload) && typeof codePayload[0] === "string" ? codePayload[0] : "";
@@ -578,7 +560,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return { nodeType: 1, code, ...(info ? { info } : {}) };
     }
 
-    // Field 1: Text / Heading / Paragraph
     if (w.length > 1 && w[1] !== null && w[1] !== undefined) {
         const textPayload = w[1];
         if (isWireArray(textPayload)) {
@@ -618,7 +599,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
             info: `${eventSlots[1]}?${eventSlots[4] === 0 ? 'code_reference' : 'code_stdout'}&code_event_index=${eventIndex}` };
     }
 
-    // Field 0 or 2: Attachments / follow-up chips
     if ((w.length > 0 && w[0] !== null && typeof w[0] === 'object' && !isWireArray(w[0])) ||
         (w.length >= 3 && w[0] === null && w[1] === null && w[2] !== null)) {
         return { nodeType: 0 };
@@ -630,7 +610,6 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
 export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssues): GeminiStructuredDocument | null {
     if (!raw) return null;
 
-    // Case 1: Already structured document object
     if (isRecord(raw)) {
         const doc = raw;
         if (isWireArray(doc.children)) {
@@ -645,7 +624,6 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
         return null;
     }
 
-    // Case 2: Array payload (wire format or array of nodes)
     if (isWireArray(raw)) {
         let nodeArray = raw;
         // Captured Imagen documents add an empty metadata trailer: [[[nodes]], []].
@@ -654,7 +632,6 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
             && isWireArray(nodeArray[0]) && nodeArray[0].length === 1 && isWireArray(nodeArray[0][0])) {
             nodeArray = [nodeArray[0]];
         }
-        // Turn field 12 envelope in JSPB: [ [ [ node_0, node_1, ... ] ] ]
         if (nodeArray.length === 1 && isWireArray(nodeArray[0])) {
             if (nodeArray[0].length === 1 && isWireArray(nodeArray[0][0])) {
                 nodeArray = nodeArray[0][0];

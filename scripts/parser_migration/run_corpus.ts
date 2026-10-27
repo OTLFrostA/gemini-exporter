@@ -1,20 +1,6 @@
 import { fixtureAccount, fixtureKey } from '../../tests/helpers/domainFixture.js';
 import { historicalFixture } from '../../tests/helpers/nativeFixture.js';
-/**
- * scripts/parser_migration/run_corpus.ts
- *
- * Parser Migration Corpus Runner (Section 6, 23 & Remediation Plan 1.1)
- * Evaluates 110 documents (108 scenario inputs + 2 synthetic fixtures | Real Gemini Output: 0).
- *
- * Capabilities:
- * 1. Injectable Architecture:
- *    Accepts baseline vs candidate parser (for PR 2 Markdown) and converter (for PR 4 MiTeX).
- * 2. Segmented Evaluation:
- *    Can target specific corpus sets ('real_gemini_output', 'scenario_inputs', 'synthetic_fixtures', or 'all').
- * 3. Real Typst WASM Compilation Gate:
- *    Actually compiles converted Typst expressions via TypstSandboxCompiler to compute genuine compileFailures.
- * 4. Machine-Readable Report Output conforming to Section 23.
- */
+/** Compare the exact outputs of isolated parser/converter runs to avoid hiding divergent failures. */
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -56,7 +42,7 @@ interface CorpusReport {
             fallbacks: number;
             blockDistribution: Record<string, number>;
         };
-        // Backwards-compatible aliases reflecting baseline:
+    // Legacy report consumers still read these baseline aliases.
         parseFailures: number;
         fallbacks: number;
         blockDistribution: Record<string, number>;
@@ -77,7 +63,7 @@ interface CorpusReport {
             conversionFailures: number;
             compileFailures: number;
         };
-        // Backwards-compatible aliases reflecting baseline:
+    // Legacy report consumers still read these baseline aliases.
         converted: number;
         conversionFailures: number;
         compileFailures: number;
@@ -209,7 +195,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         diffs: [],
     };
 
-    // 1. Process Markdown documents
     const mdStart = Date.now();
     for (const doc of documents) {
         let baseRes: any = null;
@@ -217,7 +202,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         let candRes: any = null;
         let candErr: any = null;
 
-        // 1a. Run Baseline parser in isolated try/catch
         try {
             baseRes = await activeBaselineParser(doc.text, doc.id);
             for (const d of baseRes?.diagnostics || []) {
@@ -247,7 +231,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             });
         }
 
-        // 1b. Run Candidate parser in isolated try/catch (runs REGARDLESS of baseline)
+    // Run the candidate even when baseline parsing fails, so asymmetrical failures remain observable.
         if (activeCandidateParser) {
             try {
                 candRes = await activeCandidateParser(doc.text, doc.id);
@@ -279,7 +263,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             }
         }
 
-        // 1c. Differential comparison if candidate parser was active
         if (activeCandidateParser) {
             if (baseRes && candRes) {
                 const diff = compareMarkdownAst(doc.text, baseRes.conversation.detail.messages[0]?.content ?? [], candRes.conversation.detail.messages[0]?.content ?? []);
@@ -297,7 +280,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                     });
                 }
             } else if (!baseErr && candErr) {
-                // Baseline succeeded, candidate threw
                 report.markdown.diffCount += 1;
                 report.markdown.diffsByCategory.D_CANNOT_DETERMINE += 1;
                 report.diffs.push({
@@ -307,7 +289,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                     rationale: `Candidate threw fatal exception while baseline succeeded: ${candErr.message || String(candErr)}`,
                 });
             } else if (baseErr && !candErr) {
-                // Baseline threw, candidate succeeded
                 report.markdown.diffCount += 1;
                 report.markdown.diffsByCategory.D_CANNOT_DETERMINE += 1;
                 report.diffs.push({
@@ -317,7 +298,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                     rationale: `Baseline threw fatal exception while candidate succeeded. Candidate recovery observed.`,
                 });
             } else if (baseErr && candErr) {
-                // Both threw
                 report.markdown.diffCount += 1;
                 report.markdown.diffsByCategory.D_CANNOT_DETERMINE += 1;
                 report.diffs.push({
@@ -332,12 +312,11 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     const mdEnd = Date.now();
     report.markdown.totalDurationMs = mdEnd - mdStart;
     report.markdown.avgDurationMs = documents.length > 0 ? (mdEnd - mdStart) / documents.length : 0;
-    // Keep top-level aliases synchronized with baseline
+    // Keep legacy top-level report aliases synchronized for existing consumers.
     report.markdown.parseFailures = report.markdown.baseline.parseFailures;
     report.markdown.fallbacks = report.markdown.baseline.fallbacks;
     report.markdown.blockDistribution = report.markdown.baseline.blockDistribution;
 
-    // 2. Process Math expressions
     const mathStart = Date.now();
     const baselineSuccessful: Array<{ id: string; latex: string; display: boolean; typst: string }> = [];
     const candidateSuccessful: Array<{ id: string; latex: string; display: boolean; typst: string }> = [];
@@ -348,7 +327,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         let candRes: any = null;
         let candErr: any = null;
 
-        // 2a. Run Baseline converter in isolated try/catch
         try {
             baseRes = activeBaselineConverter(expr.latex, !!expr.display);
             if (baseRes?.typst) {
@@ -380,7 +358,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             });
         }
 
-        // 2b. Run Candidate converter in isolated try/catch (runs REGARDLESS of baseline)
+    // Run the candidate even when baseline conversion fails, so asymmetrical failures remain observable.
         if (activeCandidateConverter) {
             try {
                 candRes = activeCandidateConverter(expr.latex, !!expr.display);
@@ -414,7 +392,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             }
         }
 
-        // 2c. Differential comparison if candidate converter was injected
         if (activeCandidateConverter) {
             if (baseRes && candRes) {
                 const diff = compareMathConversion(expr.latex, baseRes, candRes);
@@ -464,14 +441,12 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     const mathEnd = Date.now();
     report.math.totalDurationMs = mathEnd - mathStart;
     report.math.avgDurationMs = mathExpressions.length > 0 ? (mathEnd - mathStart) / mathExpressions.length : 0;
-    // Keep top-level aliases synchronized with baseline
+    // Keep legacy top-level report aliases synchronized for existing consumers.
     report.math.converted = report.math.baseline.converted;
     report.math.conversionFailures = report.math.baseline.conversionFailures;
 
-    // 3. Genuine Typst WASM compilation gate (100% of expressions evaluated, no truncation)
     // Compiles the EXACT output obtained from conversion phase; never re-invokes converters.
     if (options.compileTypst) {
-        // 3a. Baseline Typst compile gate
         if (baselineSuccessful.length > 0) {
             try {
                 const host = new RealWasmSandboxHost(repoRoot());
@@ -483,7 +458,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                             content: baselineSuccessful.map(e => ({ type: 'math', source: e.latex })),
                         }],
                     } };
-                    // Direct lookup of the cached exact Typst output from conversion phase:
                     const baseTypstMap = new Map<string, string>();
                     for (const e of baselineSuccessful) {
                         baseTypstMap.set(e.latex, e.typst);
@@ -516,7 +490,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             }
         }
 
-        // 3b. Candidate Typst compile gate (compiles candidate's genuine typst output)
         if (activeCandidateConverter && candidateSuccessful.length > 0) {
             try {
                 const host = new RealWasmSandboxHost(repoRoot());
@@ -528,7 +501,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                             content: candidateSuccessful.map(e => ({ type: 'math', source: e.latex })),
                         }],
                     } };
-                    // Direct lookup of the cached exact Typst output from conversion phase:
                     const candTypstMap = new Map<string, string>();
                     for (const e of candidateSuccessful) {
                         candTypstMap.set(e.latex, e.typst);
@@ -560,14 +532,12 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         }
     }
 
-    // Save JSON report
     fs.mkdirSync(path.dirname(finalOutputPath), { recursive: true });
     fs.writeFileSync(finalOutputPath, JSON.stringify(report, null, 2), 'utf-8');
 
     return report;
 }
 
-// CLI execution
 if (require.main === module) {
     (async () => {
         try {

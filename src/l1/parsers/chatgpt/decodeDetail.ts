@@ -234,7 +234,6 @@ function decodeNode(value: unknown, key: string): ChatGPTConversationNode {
     };
 }
 
-/** Validate one received Detail and bind it to the requested conversation ID. */
 export function decodeChatGPTDetail(value: unknown, requestedId: string): ChatGPTApiConversationWithId {
     const source = record(value);
     if (!source || !requestedId) throw new TypeError('Invalid ChatGPT Detail payload');

@@ -1,4 +1,3 @@
-# scripts/framework/cases/export.py
 import os
 import json
 import time
@@ -122,13 +121,11 @@ class LiveSaveNewChatCase(FeatureTestCase):
         print(f"\n   💾 正在验证场景一：新会话 2 ({s2_id}) 实时落盘与状态标签闭环...")
         cdp_opt = ctx.connect_options()
         try:
-            # 1. 刷新 OPFS 目录并物理落盘到 output_dir
             flush_res = CDPActions.flush_live_save_to_disk(cdp_opt, ctx.output_dir)
             if not flush_res.get('ok'):
                 return False, f"OPFS 回写失败: {flush_res.get('error')}", flush_res
             print(f"      📁 实时落盘文件已同步到磁盘 (文件总数: {flush_res.get('count', 0)})")
 
-            # 2. 真实物理磁盘断言：必须存在对应的 .md 文件、大小 > 0、mtime >= ctx.start_time
             disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save(
                 target_dir=ctx.output_dir,
                 target_chat_ids=[s2_id],
@@ -138,7 +135,6 @@ class LiveSaveNewChatCase(FeatureTestCase):
             if not disk_ok:
                 return False, f"场景一物理磁盘落盘断言失败: {disk_msg}", disk_data
 
-            # 3. Options 展示实际完成后的 ExportRecord；选择保持显式
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.5)
             badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s2_id, "exported")
@@ -170,7 +166,6 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
             return False, "会话 1 ID 无效", None
 
         print(f"\n   🔄 正在执行场景二：老会话 1 ({s1_id}) 开启实时落盘并继续更新...")
-        # 1. 在 Options 工作台重新开启实时导出
         cdp_opt = ctx.connect_options()
         try:
             # Snapshot before the next actual prompt. The first exported MD is a
@@ -196,7 +191,6 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
         finally:
             cdp_opt.close()
 
-        # 2. 回访会话 1 发送继续追加提问 B
         cdp_gem = ctx.connect_gemini()
         try:
             driver = ctx.get_gemini_driver(cdp_gem)
@@ -214,7 +208,6 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
         finally:
             cdp_gem.close()
 
-        # 3. 回到 Options 页面，将 OPFS 实时落盘实体回写物理磁盘
         cdp_opt = ctx.connect_options()
         try:
             # Poll the actual content, not an arbitrary fixed settle delay.
@@ -234,7 +227,6 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
             if not disk_ok:
                 return False, f"场景二物理磁盘落盘断言失败: {disk_msg}", disk_data
 
-            # 5. Options 展示追加内容导出后的实际 ExportRecord
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.5)
             badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s1_id, "exported")
@@ -263,7 +255,6 @@ class ZipExportDownloadCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
         try:
-            # 确保搜索框已彻底清空并恢复全量工作台项目
             CDPActions.clear_search_workbench(cdp_opt)
             # 与 FastSkip 用例解耦：若残留【跳过已导出】开启状态，显式关闭，
             # 保证手动勾选导出不受其他用例的开关状态影响。
@@ -709,7 +700,6 @@ class HtmlExportDownloadCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
         try:
-            # 确保清空搜索框
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.3)
 
@@ -757,7 +747,6 @@ class HtmlExportDownloadCase(FeatureTestCase):
                     return False, f"{cid}: {message}", None
                 verified_turns += len(record['turn_evidence'])
 
-            # 校验每一个 HTML 文件的规范结构
             zero_byte_count = 0
             for hf in html_files:
                 fpath = os.path.join(extract_dir, hf)
@@ -766,7 +755,6 @@ class HtmlExportDownloadCase(FeatureTestCase):
                     continue
                 with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
-                # 校验合法 HTML 网页骨架
                 if "<!DOCTYPE html>" not in content and "<!doctype html>" not in content.lower():
                     return False, f"HTML 导出文件缺少 DOCTYPE 声明: {hf}", None
                 if "<html" not in content or "</html>" not in content:
@@ -776,7 +764,6 @@ class HtmlExportDownloadCase(FeatureTestCase):
                 if 'generator" content="Gemini Exporter"' not in content:
                     return False, f"HTML 导出文件缺少 Gemini Exporter 生成元数据: {hf}", None
 
-                # 校验包含真实会话消息节点（防止空文档假通过）
                 has_turns = 'class="gem-turn' in content or '<div class="bubble' in content or 'gem-user-bubble' in content
                 if not has_turns:
                     return False, f"HTML 导出文件缺少对话轮次节点 (未渲染真实对话消息): {hf}", None
@@ -806,7 +793,6 @@ class HtmlExportDownloadCase(FeatureTestCase):
                 "zip_size": zip_size
             }
         finally:
-            # 恢复工作台默认格式为 markdown
             try:
                 cdp_opt.eval("""
                 (() => {
@@ -871,7 +857,6 @@ class PdfExportDownloadCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
         try:
-            # 确保清空搜索框
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.3)
 
@@ -919,7 +904,6 @@ class PdfExportDownloadCase(FeatureTestCase):
                     return False, f"{cid}: {message}", info
                 verified_turns += len(record['turn_evidence'])
 
-            # 校验每一个 PDF 文件合法的二进制结构
             zero_byte_count = 0
             for pf in pdf_files:
                 fpath = os.path.join(extract_dir, pf)
@@ -935,7 +919,6 @@ class PdfExportDownloadCase(FeatureTestCase):
                     f.seek(max(0, size - 2048))
                     tail = f.read(2048)
 
-                # 校验合法 PDF 魔数头与结构特征
                 if not header.startswith(b"%PDF-"):
                     return False, f"PDF 导出文件缺少标准 %PDF- 文件头魔数: {pf}", None
                 if b"%%EOF" not in tail and b"/Root" not in header and b"/Root" not in tail:
@@ -997,7 +980,6 @@ class PdfExportDownloadCase(FeatureTestCase):
                 "zip_size": zip_size
             }
         finally:
-            # 恢复工作台默认格式为 markdown
             try:
                 cdp_opt.eval("""
                 (() => {

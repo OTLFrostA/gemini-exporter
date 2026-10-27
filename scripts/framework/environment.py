@@ -1,4 +1,3 @@
-# scripts/framework/environment.py
 """
 Unified Test Environment Lifecycle Manager for Tier 2 and Tier 3.
 Provides deterministic environment preparation:
@@ -249,7 +248,6 @@ class TestEnvironment:
     def connect_options(self) -> CDPConnection:
         self.setup_permissions()
         conn = self.connect_tab("options")
-        # 预热并缓存本地字体至 window.__geminiLocalFontsCache
         try:
             conn.eval("""
             (async () => {
@@ -368,7 +366,6 @@ class TestEnvironment:
         4. 全局下载路径拦截
         5. 活动连接视口与行为标准化
         """
-        # 1. 扩展卸载与纯净重装
         if reinstall:
             print("\n🔄 [环境初始化] 通过 CDP 原生卸载并纯净安装当前工作区扩展代码...")
             ext_id = self.reinstall_extension()
@@ -382,7 +379,6 @@ class TestEnvironment:
         gemini_tab = None
         options_tab = None
 
-        # 2. 准备标签页
         for page in target_pages:
             norm = "gemini" if page.lower() in ("gemini", "chat") else "options"
             if norm == "gemini":
@@ -393,11 +389,9 @@ class TestEnvironment:
             elif norm == "options":
                 options_tab = self.ensure_options_tab()
 
-        # 3. 设置全局下载
         if setup_download:
             self.setup_download_behavior(self.output_dir)
 
-        # 4. 连接活动标签页
         active_tab = None
         active_cdp = None
         if active_target:

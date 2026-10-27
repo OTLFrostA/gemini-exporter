@@ -1,11 +1,4 @@
-// scripts/release-prepare.js — one-time release housekeeping, kept OUT of the build.
-//
-// Syncs package.json "version" and the README version badges from manifest.json
-// (the version Single Source of Truth). This used to run inside build.js on every
-// build; it was moved here so that `node build.js` is pure and never mutates the
-// tracked source tree.
-//
-// Usage: node scripts/release-prepare.js
+// Keep release-time version sync out of build.js so ordinary builds cannot modify tracked sources.
 
 const fs = require('fs');
 const path = require('path');
@@ -27,7 +20,6 @@ const EXT_VERSION = (() => {
     }
 })();
 
-// Keep package.json version in sync with manifest.json (Single Source of Truth)
 try {
     if (fs.existsSync(PKG_PATH)) {
         const pkg = JSON.parse(fs.readFileSync(PKG_PATH, 'utf8'));
@@ -41,7 +33,6 @@ try {
     console.warn('[release:prepare] Warning: Could not sync package.json version:', err.message);
 }
 
-// Keep README version badges in sync with manifest.json
 for (const readmeFile of ['README.md', 'README_zh.md']) {
     const readmePath = path.join(ROOT, readmeFile);
     if (fs.existsSync(readmePath)) {

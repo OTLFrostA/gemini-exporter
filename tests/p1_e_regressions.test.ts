@@ -1,14 +1,4 @@
-/**
- * P1-E 回归测试 —— 2026-09-15 代码审查 E 组「解析器：形态识别误判与静默丢数据」
- * P1-061 ~ P1-074，共 30 个用例。
- *
- * 每个用例均为 red-by-design：修复前失败、修复后通过，外加边界锁定用例。
- * P1-061a 注：rc_ 行首正则的 \\s*→\s* 在行为上被下游 .trim() 掩盖
- * （旧正则实际是死代码，匹配字面反斜杠+s），故用源码级断言锁定；
- * P1-061b/c 用真实行级清理的行为差异断言。
- *
- * 运行：node -r ./tests/ts_register.js --test tests/p1_e_regressions.test.ts
- */
+/** P1-061 needs a source-level assertion because downstream trimming hides the old regexp bug. */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -22,7 +12,6 @@ const attachments = require('./helpers/recordFixture/attachments.js');
 const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
 const { listGen: geminiListGen } = require('./fixtures/providers/gemini.js') as typeof import('./fixtures/providers/gemini.js');
 
-// ---------------------------------------------------------------- helpers
 function makeTurn(opts: {
     userPayload?: unknown; candText?: string; convId?: string; tsSec?: number; extraCand?: unknown[];
 } = {}): unknown[] {
@@ -49,9 +38,7 @@ function userMessageOf(res: any): any {
     return res.messages.find((m: any) => m.role === "user");
 }
 
-// ---------------------------------------------------------------- P1-061
 test('P1-061a: rc_ 清洗正则使用真正的 \\s（源码级锁定，旧正则匹配字面反斜杠+s 是死代码）', () => {
-    // Model message normalization now lives in the unified Turn ingress decoder.
     const src = fs.readFileSync(path.join(__dirname, '../src/l1/parsers/gemini/rpc/turnResources.ts'), 'utf8');
     assert.ok(src.includes('/^rc_[a-z0-9_]{10,}\\s*/i'), 'rc_ 清洗正则必须使用单反斜杠 \\s');
     assert.ok(!src.includes('/^rc_[a-z0-9_]{10,}\\\\s*/i'), '不应残留双重转义 \\\\s');
@@ -71,7 +58,6 @@ test('P1-061c: 生成图片 URL 整行被清理（保留段落换行，有图片
     assert.strictEqual(model.content, "看这张图\n\n结束");
 });
 
-// ---------------------------------------------------------------- P1-062
 test('P1-062a: isTurn 对标准 turn 返回 true（快速路径，多次调用结果一致）', () => {
     const turn = makeTurn();
     assert.strictEqual(detailDecoder.isTurn(turn), true);
@@ -95,7 +81,6 @@ test('P1-062c/d: 非 turn（坏 id 前缀；仅靠 "r_" 子串的假 turn）返�
     assert.strictEqual(detailDecoder.isTurn(fake), false, '仅含 "r_" 子串、无真实形态标记');
 });
 
-// ---------------------------------------------------------------- P1-063
 test('P1-063: metadata-only 载荷产出可见的 schemaDrift 警告（非 dev 也不静默）', () => {
     const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_DETAIL_03'));
     assert.strictEqual(res.messages.length, 0, '无 turns 时消息为空');
@@ -103,7 +88,6 @@ test('P1-063: metadata-only 载荷产出可见的 schemaDrift 警告（非 dev �
     assert.ok(res.schemaDrift.some((w: string) => /metadata-only/i.test(w)), '应包含 metadata-only 警告');
 });
 
-// ---------------------------------------------------------------- P1-064
 test('P1-064a: user payload[0] 为字符串时提取全文而非首字符', () => {
     const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_DETAIL_04'));
     const user = userMessageOf(res);
@@ -116,10 +100,8 @@ test('P1-064b: 标准 [[text]] 形态的用户文本提取不变', () => {
     assert.strictEqual(userMessageOf(res).content, "标准形态文本");
 });
 
-// ---------------------------------------------------------------- P1-065
 test('P1-065a: 启发式跳过仅含 "c_" 子串的错误 chunk（decodeGeminiDetail）', () => {
-    // 触发条件：无标准 WRB 信封；错误 chunk 排在正确 chunk 之前；
-    // 错误 chunk 含 "c_" 子串（music_）但无完整会话 ID 格式，且内藏假 turn。
+// A music_ substring is not evidence of a valid c_ conversation identity.
     const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_LEADING_DECOY_DETAIL_01'));
     assert.strictEqual(res.messages.length, 2, '应解析出正确 chunk 的 user+model 两条消息');
     assert.strictEqual(userMessageOf(res).content, "hello");
@@ -132,7 +114,6 @@ test('P1-065b: bogus chunks preceding a genuine LIST envelope cannot take preced
     assert.strictEqual(res.conversations[0].id, "list0012345678");
 });
 
-// ---------------------------------------------------------------- P1-066
 test('P1-066a: messageCount 不把 item[5] 的 epoch 秒误判成消息数', () => {
     const res = parseListMod.parseList(geminiListGen('G_P1E_LIST_01'));
     assert.strictEqual(res.conversations[0].messageCount, undefined, '无有效 count 位时应为 0 而非十亿级数字');
@@ -144,7 +125,6 @@ test('P1-066b: COUNT_ALT1 的正常 count 位仍生效', () => {
     assert.strictEqual(res.conversations[0].messageCount, undefined);
 });
 
-// ---------------------------------------------------------------- P1-067
 test('P1-067a: extractTurnTimestamp 优先读 schema 声明的下标 1', () => {
     const turn: unknown[] = [["c_x"], [1700000000, 500000000], [["u"]], [[["rc_1", ["t"]]]], "tail"];
     assert.strictEqual(extractors.extractTurnTimestamp(turn), 1700000000500);
@@ -155,7 +135,6 @@ test('P1-067b: 下标 1 缺失时兼容旧位置（下标 4）', () => {
     assert.strictEqual(extractors.extractTurnTimestamp(turn), 1700000001000);
 });
 
-// ---------------------------------------------------------------- P1-069
 test('P1-069a: extractImages 拒绝非 Google 媒体 host 的 URL', () => {
     const imgs = attachments.extractImages([["https://evil-tracker.com/pixel.png", 100, 100]]);
     assert.strictEqual(imgs.length, 0);
@@ -175,7 +154,6 @@ test('P1-069c: extractUserFiles 拒绝非 Google 媒体 host 的 URL', () => {
 
 
 
-// ---------------------------------------------------------------- P1-071
 test('P1-071a: inferExt 识别 .svg 并给出正确 MIME（不再强制 .jpg）', () => {
     const imgs = attachments.extractImages([["https://lh3.googleusercontent.com/pic.svg", 100, 100]]);
     assert.strictEqual(imgs.length, 1);
@@ -192,7 +170,6 @@ test('P1-071b: Pattern 2 的 rawFileName 扩展名与 MIME 一致（.avif）', (
     assert.strictEqual(imgs[0].mimeType, "image/avif");
 });
 
-// ---------------------------------------------------------------- P1-072
 test('P1-072a: findDocContentById 不命中正文里仅"提到" ID 的节点', () => {
     const decoy = ["note", "本文引用了 doc99999 的观点\n\n" + "y".repeat(250)];
     const real = ["c_doc99999", "## 真实文档正文\n\n" + "正文".repeat(150)];
@@ -205,7 +182,6 @@ test('P1-072b: findDocContentById 无匹配时返回 null', () => {
     assert.strictEqual(attachments.createDocumentReader([["a", "b"]]).byId("c_nope123456"), null);
 });
 
-// ---------------------------------------------------------------- P1-073
 test('P1-073a: extractConversationId 深搜找 ID，全程不做 JSON.stringify', () => {
     const inner = [[[[["c_deepfind1234567890"]]]]];
     const origStringify = JSON.stringify;
@@ -221,7 +197,6 @@ test('P1-073b: 找不到 ID 时返回 c_unknown', () => {
     assert.strictEqual(extractors.extractConversationId([["nothing", "here"]]), "c_unknown");
 });
 
-// ---------------------------------------------------------------- P1-074
 test('P1-074a: 无时间戳的会话返回 null 而非伪造 Date.now()', () => {
     const res = parseListMod.parseList(geminiListGen('G_P1E_LIST_03'));
     const c = res.conversations[0];

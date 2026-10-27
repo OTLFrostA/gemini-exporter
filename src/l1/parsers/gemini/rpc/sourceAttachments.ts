@@ -193,7 +193,6 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
     };
 
     const detectAttachmentType36: ImageNodeDetector = (node) => {
-        // Form 1: Deserialized object with attachmentType === 36 (runtime structured content node / attachment)
         if (isRecord(node)) {
             const obj = node;
             if (obj.attachmentType !== 36) return null;
@@ -223,7 +222,6 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
             };
         }
 
-        // Form 2: Wire format tuple for search image attachment (repeated array with image URLs and title)
         if (isUnknownArray(node) && node.length >= 8) {
             const slots = node;
             const slot0 = slots[0];
@@ -306,7 +304,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                     warnWhitelistDropOnce(warnedHosts, raw.sourceUrl, raw.detectorKind);
                     return null;
                 }
-                // Retain a bounded JSON-only snapshot of the matched tuple.
+    // Bound captured evidence to avoid retaining arbitrary raw payloads beyond extraction.
                 const evidenceJson = JSON.stringify(node);
                 const snapshot: unknown = evidenceJson.length <= 12000
                     ? JSON.parse(evidenceJson) : { truncated: true, preview: evidenceJson.slice(0, 12000) };
@@ -559,7 +557,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
             }
         }
 
-        // Pass 1: strict path only — typed indices, never marked heuristic.
+    // Only exact ownership paths can produce trusted resources.
         deepWalk([root], (node) => {
             if (isUnknownArray(node)) {
                 const entries = node;
@@ -587,8 +585,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         });
         if (out.length > 0) return out;
 
-        // Pass 2: flat fallback, only when the strict path produced nothing.
-        // Heuristic by construction — results are marked source: 'heuristic-flat'.
+    // Mark flat fallback as heuristic so inferred files never masquerade as verified.
         deepWalk([root], (node) => {
             if (isUnknownArray(node)) {
                 const entries = node;

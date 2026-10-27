@@ -30,7 +30,6 @@ function createNodeAccessTracker(): NodeAccessTracker {
 test('single-pass decode: access count per node in nested list is strictly linear O(1) per node', () => {
     const { trackNode, accessCounts } = createNodeAccessTracker();
 
-    // Build a 6-level deeply nested list: List -> Item -> List -> Item -> ... -> TextNode
     const depth = 6;
     const leaf = trackNode('node_leaf', {
         nodeType: 18,
@@ -136,7 +135,6 @@ test('single-pass decode: mixed heterogeneous hierarchy (Table -> Cell -> Quote 
     assert.strictEqual(accessCounts.get('hetero_ordered_list'), 1);
     assert.strictEqual(accessCounts.get('hetero_text'), 1);
 
-    // Verify AST structural integrity without type assertions
     if (decoded.nodeType === 17) {
         const firstRow = decoded.rows[0];
         const firstCell = firstRow?.cells[0];
@@ -187,7 +185,6 @@ test('deep nesting complexity: depth-20 list confirms linear single-pass node ac
 });
 
 test('fail-closed semantics: invalid children at any depth or malformed containers return null', () => {
-    // 1. Text node with invalid annotation
     const invalidText = decodeGeminiStructuredNode({
         nodeType: 18,
         text: 'hello',
@@ -195,7 +192,6 @@ test('fail-closed semantics: invalid children at any depth or malformed containe
     });
     assert.strictEqual(invalidText, null);
 
-    // 2. Ordered/unordered list with invalid child
     const invalidList = decodeGeminiStructuredNode({
         nodeType: 20,
         items: [
@@ -209,7 +205,6 @@ test('fail-closed semantics: invalid children at any depth or malformed containe
     });
     assert.strictEqual(invalidList, null);
 
-    // 3. Table with invalid cell child
     const invalidTable = decodeGeminiStructuredNode({
         nodeType: 17,
         rows: [
@@ -226,14 +221,12 @@ test('fail-closed semantics: invalid children at any depth or malformed containe
     });
     assert.strictEqual(invalidTable, null);
 
-    // 4. Quote with invalid child
     const invalidQuote = decodeGeminiStructuredNode({
         nodeType: 15,
         children: [{ nodeType: 999 }]
     });
     assert.strictEqual(invalidQuote, null);
 
-    // 5. Malformed container payloads
     assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [null] }), null);
     assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [{}] }), null);
     assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [{ children: 'invalid' }] }), null);
@@ -246,7 +239,6 @@ test('fail-closed semantics: invalid children at any depth or malformed containe
 });
 
 test('edge cases: empty containers preserve original structure', () => {
-    // Text without annotations
     const textNoAnnots = decodeGeminiStructuredNode({
         nodeType: 18,
         text: 'hello'
@@ -256,7 +248,6 @@ test('edge cases: empty containers preserve original structure', () => {
         text: 'hello'
     });
 
-    // Text with empty annotations array
     const textEmptyAnnots = decodeGeminiStructuredNode({
         nodeType: 18,
         text: 'hello',
@@ -268,7 +259,6 @@ test('edge cases: empty containers preserve original structure', () => {
         annotations: []
     });
 
-    // Empty list
     const emptyList = decodeGeminiStructuredNode({
         nodeType: 20,
         items: []
@@ -278,7 +268,6 @@ test('edge cases: empty containers preserve original structure', () => {
         items: []
     });
 
-    // Empty table
     const emptyTable = decodeGeminiStructuredNode({
         nodeType: 17,
         rows: []
@@ -288,7 +277,6 @@ test('edge cases: empty containers preserve original structure', () => {
         rows: []
     });
 
-    // Empty quote
     const emptyQuote = decodeGeminiStructuredNode({
         nodeType: 15,
         children: []
