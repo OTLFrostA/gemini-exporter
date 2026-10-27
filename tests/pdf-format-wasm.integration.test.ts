@@ -146,3 +146,34 @@ test('real PDF extracts combining graphemes exactly once in prose, inline code a
         }
     } finally { compiler.dispose(); }
 });
+
+// Repairing Latin text must not infer visual glyph order for complex scripts or
+// turn .notdef glyphs into apparently correct selectable text.
+test('Unicode map repair leaves complex-script and missing-glyph mappings untouched', async () => {
+    const host = new RealWasmSandboxHost(repoRoot());
+    const rawReplies: Uint8Array[] = [];
+    const createFrame = host.createFrame.bind(host);
+    host.createFrame = url => {
+        const frame = createFrame(url);
+        const onMessage = frame.onMessage.bind(frame);
+        frame.onMessage = handler => onMessage(event => {
+            const data = event.data;
+            if (data !== null && typeof data === 'object' && 'pdf' in data && data.pdf instanceof ArrayBuffer) {
+                rawReplies.push(new Uint8Array(data.pdf).slice());
+            }
+            handler(event);
+        });
+        return frame;
+    };
+    const compiler = new TypstSandboxCompiler({ host });
+    try {
+        for (const text of ['شَّ شُّ أَلْف क़ कि क्', '\u{1e4ec}']) {
+            const result = await compileDocumentPdf(v2Document([
+                { type: 'paragraph', children: [{ type: 'text', text }] },
+            ]), {}, new Map(), compiler, context());
+            const original = rawReplies.at(-1);
+            assert.ok(original, 'capture the real WASM reply before Unicode repair');
+            assert.deepEqual(result.pdfBytes, original);
+        }
+    } finally { compiler.dispose(); }
+});
