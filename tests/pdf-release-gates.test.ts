@@ -25,7 +25,6 @@ const assert = require('node:assert');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 
-// ------------------------------------------------------------------ fixtures
 
 /** 千字文 + 常用符号/数字/希腊字母, 单份 ~1100 字; 重复两次 > 2000 字。 */
 const ZH_UNIT =
@@ -156,7 +155,6 @@ function collectAllStrings(o: any): string[] {
     return out;
 }
 
-// ------------------------------------------------------------------ gate (a)
 
 test('P0 gate (a): math travels as TEXT in the payload, never an image placeholder', () => {
     const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())), {}, opts);
@@ -195,7 +193,6 @@ test('P0 gate (a): math travels as TEXT in the payload, never an image placehold
     void diagnostics;
 });
 
-// ------------------------------------------------------------------ gate (b)
 
 test('P0 gate (b): 2000+ char Chinese text survives byte-identical', () => {
     const { payload } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())), {}, opts);
@@ -228,7 +225,6 @@ test('P0 gate (b): 2000+ char Chinese text survives byte-identical', () => {
     assert.ok(plain.includes(INLINE_LATEX), 'plainText must contain inline math source');
 });
 
-// ------------------------------------------------------------------ gate (c)
 
 test('P0 gate (c): unconvertible formula degrades to visible source fallback, never silently dropped', () => {
     const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(gatesBundle(), fixtureAccountFor(gatesBundle())), {}, opts);

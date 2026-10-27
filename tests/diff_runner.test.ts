@@ -193,7 +193,6 @@ test('Differential Runner: Recursively catches table structure and cell alterati
 });
 
 test('Differential Runner: Unknown / future semantic fields produce diff by default without special-casing', () => {
-    // 1. Candidate introduces an unmentioned custom semantic attribute on a block
     const baseBundle = [{
                     type: 'paragraph',
                     children: [{ type: 'text', text: 'Hello' }],
@@ -209,7 +208,6 @@ test('Differential Runner: Unknown / future semantic fields produce diff by defa
     assert.strictEqual(diff1.category, 'D_CANNOT_DETERMINE');
     assert.ok(diff1.rationale?.includes('customSemanticAnnotation'));
 
-    // 2. Candidate modifies a cell-level property (e.g. rowSpan)
     const baseTable = [{
                     type: 'table',
                     rows: [{

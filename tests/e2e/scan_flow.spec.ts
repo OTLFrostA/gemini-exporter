@@ -9,7 +9,6 @@ test.beforeEach(async ({context, extensionId}) => {
 
 test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
   test('should execute full GeminiClient scan, parse batchexecute list RPC, update progress, and populate workbench', async ({ context, extensionId }) => {
-    // 1. Open mock Gemini page in the background with credentials and MaZiqc RPC routing
     const geminiPage = await context.newPage();
 
     await geminiPage.route('https://gemini.google.com/**', async (route) => {
@@ -56,10 +55,8 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
 
     const optionsPage = await openOptions(context,extensionId);
     await expect(optionsPage.locator('#list .item')).toHaveCount(0);
-    // 3. The single sync button scans the Recent stream.
     await optionsPage.click('#btnSyncAll');
 
-    // 4. Ordinary Scan All admits Recent; the separate pinned item stays absent.
     const listItems = optionsPage.locator('#list .item');
     await expect(listItems).toHaveCount(3, { timeout: 10000 });
     await expect(optionsPage.locator('[data-chat-id="scan_pinned"]')).toHaveCount(0);

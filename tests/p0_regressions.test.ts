@@ -21,7 +21,6 @@ function readSrc(rel: string): string {
     return fs.readFileSync(path.join(__dirname, rel), 'utf8');
 }
 
-// ---------------------------------------------------------------- P0-1（已撤回：误报）
 // 2026-09-15 勘误：原报告称保存链一次失败后永久中毒，实际推演 + 本测试证实
 // `.catch(reject)` 让链条每次调用后自愈。本用例保留为通过性回归测试，
 // 锁定"单次失败后链条恢复"的正确行为。
@@ -38,7 +37,6 @@ test('P0-1: export-record writes recover after one storage failure', async () =>
     } finally { env.restore(); }
 });
 
-// ---------------------------------------------------------------- P0-2
 test('P0-2: resolveCred backfill must not drop other accounts from the credential map', async () => {
     const sessionStore: Record<string, any> = {};
     const prevChrome = (global as any).chrome;
@@ -86,7 +84,6 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
     }
 });
 
-// ---------------------------------------------------------------- P0-4
 test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () => {
     const { DOC_TITLE_FALLBACK_RE } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
     assert.ok(DOC_TITLE_FALLBACK_RE instanceof RegExp, 'DOC_TITLE_FALLBACK_RE must be exported as RegExp');
@@ -98,7 +95,6 @@ test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () 
     assert.strictEqual(DOC_TITLE_FALLBACK_RE.test('No heading here'), false);
 });
 
-// ---------------------------------------------------------------- P0-5
 test('P0-5: popup displays export errors to the user', async () => {
     const { chromium } = require('playwright');
     const { mount } = require('./helpers/uiPortHarness.js');
@@ -113,7 +109,6 @@ test('P0-5: popup displays export errors to the user', async () => {
 // Runtime export no longer supplements images using detached Takeout evidence.
 // Native Takeout/RPC ownership tests cover source-derived generated assets.
 
-// ---------------------------------------------------------------- P0-7
 test('P0-7: Canonical Markdown must not throw on invalid date values', async () => {
     let threw: any = null;
     let md = '';

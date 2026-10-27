@@ -7,21 +7,16 @@ const { payloadToMs, extractInnerPayload } = require('../src/l1/parsers/gemini/r
 const { resolveDetailTitle } = require('../src/shared/utils/titleText.js');
 
 test('payloadToMs - converts JSPB timestamp representations to milliseconds', () => {
-    // 1. [seconds, nanos] tuple
     assert.strictEqual(payloadToMs([1700000000, 500000000]), 1700000000500);
     assert.strictEqual(payloadToMs([1700000000, 0]), 1700000000000);
     assert.strictEqual(payloadToMs([1700000000]), 1700000000000);
 
-    // 2. [milliseconds] tuple (> 1e11)
     assert.strictEqual(payloadToMs([1700000000000]), 1700000000000);
 
-    // 3. Numeric seconds (> 1e9, <= 1e11)
     assert.strictEqual(payloadToMs(1700000000), 1700000000000);
 
-    // 4. Numeric milliseconds (> 1e11)
     assert.strictEqual(payloadToMs(1700000000123), 1700000000123);
 
-    // 5. Invalid / falsy inputs
     assert.strictEqual(payloadToMs(null), null);
     assert.strictEqual(payloadToMs(undefined), null);
     assert.strictEqual(payloadToMs(0), null);
@@ -98,15 +93,12 @@ test('resolveDetailTitle - sniffs valid user prompt', () => {
 });
 
 test('resolveDetailTitle - returns null for empty, placeholder, or generic user messages', () => {
-    // 1. Empty or non-array
     assert.strictEqual(resolveDetailTitle(null, 'c_123'), null);
     assert.strictEqual(resolveDetailTitle([], 'c_123'), null);
 
-    // 2. Only generic brand / placeholder
     assert.strictEqual(resolveDetailTitle([{ role: 'user', content: 'Gemini' }], 'c_123'), null);
     assert.strictEqual(resolveDetailTitle([{ role: 'user', content: 'Untitled' }], 'c_123'), null);
     assert.strictEqual(resolveDetailTitle([{ role: 'user', content: ' ' }], 'c_123'), null);
 
-    // 3. Only model message
     assert.strictEqual(resolveDetailTitle([{ role: 'model', content: 'Hello user' }], 'c_123'), null);
 });

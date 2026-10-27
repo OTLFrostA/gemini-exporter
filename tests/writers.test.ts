@@ -7,17 +7,13 @@ const { sanitizeFileName } = require('../src/shared/utils/pathUtils.js');
 const { ZipWriter, isPrecompressedAsset } = require('../src/l4/packaging/writers/zipWriter.js');
 const { __setZipConstructor } = require('../src/l4/packaging/writers/zipWriter.js');
 
-// ---------------------------------------------------------------------------
 // FsWriter
-// ---------------------------------------------------------------------------
 test('fsWriter - sanitizeFileName and ensureSubDir nested resolution', async () => {
-    // 1. sanitizeFileName edge cases
     assert.strictEqual(sanitizeFileName('valid_name.md'), 'valid_name.md');
     assert.strictEqual(sanitizeFileName(''), 'untitled');
     assert.strictEqual(sanitizeFileName(null), 'untitled');
     assert.strictEqual(sanitizeFileName('invalid:name*with?chars.txt'), 'invalid_name_with_chars.txt');
 
-    // 2. ensureSubDir nested path resolution
     const createdDirs: string[] = [];
     const mockRootHandle = {
         name: 'root',
@@ -39,12 +35,10 @@ test('fsWriter - sanitizeFileName and ensureSubDir nested resolution', async () 
     assert.deepStrictEqual(createdDirs, ['assets', 'images']);
     assert.strictEqual(finalSub.name, 'images');
 
-    // 3. FsWriter requires valid directory handle
     assert.throws(() => {
         new FsWriter(null as any);
     }, /Directory handle is required for FsWriter/);
 
-    // 4. FsWriter.init throws if permission is denied
     const deniedHandle = {
         queryPermission: async () => 'denied',
         requestPermission: async () => 'denied'
@@ -55,9 +49,7 @@ test('fsWriter - sanitizeFileName and ensureSubDir nested resolution', async () 
     }, /Directory permission not granted: denied/);
 });
 
-// ---------------------------------------------------------------------------
 // ZipWriter
-// ---------------------------------------------------------------------------
 test('zipWriter - exports, instantiation, and sanitization', () => {
     assert.ok(ZipWriter);
     __setZipConstructor(class MockJSZip {

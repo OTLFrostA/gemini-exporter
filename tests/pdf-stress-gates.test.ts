@@ -46,14 +46,12 @@ const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const BASE_TS = 1727000000000;
 const TYPST_OPTS = {};
 
-// ---------------------------------------------------------------------------
 // 合成器：照抄 P0 s4 样本构成（60 轮 / 121 消息；分页、思考、引用、图片、
 // 缺失附件、未知角色），外加任务要求的混合内容：中文、公式、代码块、表格、
 // 引用、附件占位。
 //
 // 注意：块级公式必须独占一行。P0 发现 F1 bug——`$$...$$` 同行后跟文本时整个
 // 消息块被静默丢弃（REPORT.md §6）。样本构造主动规避该形状，bug 本体留给仓库修。
-// ---------------------------------------------------------------------------
 
 function mdFor(i: number, role: string): string {
     const parts: string[] = [];
@@ -154,12 +152,10 @@ function makeBatchConversation(n: number): any {
     };
 }
 
-// ---------------------------------------------------------------------------
 // 1. 长会话压力：121 消息 normalize + payload
 // 预算 60s 的依据：本机实测 ~1.1s（P0 预处理阶段秒级）；取约 55 倍余量，
 // 防 CI 机器慢 + 未来 normalizer 增重。10 分钟是整链路（含真编译）预算，
 // 真编译器落地后此处预算要收紧为端到端口径。
-// ---------------------------------------------------------------------------
 
 test('stress: 121-message conversation normalizes and converts well under budget', async () => {
     const raw = makeStressConversation();
@@ -183,12 +179,10 @@ test('stress: 121-message conversation normalizes and converts well under budget
     );
 });
 
-// ---------------------------------------------------------------------------
 // 2. 100 会话 batch 压力：总耗时有明确上界
 // 预算 120s 的依据：本机实测 100 会话 × 8 消息 = 800 消息共 ~1.9s；
 // P0 的 50.6s 是含 WASM 真编译的口径，此处只测预处理。120s ≈ 60 倍余量，
 // 留给 CI 机器抖动。真编译器落地后升级为端到端 batch 门。
-// ---------------------------------------------------------------------------
 
 test('stress: 100-conversation batch has bounded total preprocessing time', async () => {
     const batch = Array.from({ length: 100 }, (_, n) => makeBatchConversation(n));
@@ -209,13 +203,11 @@ test('stress: 100-conversation batch has bounded total preprocessing time', asyn
     );
 });
 
-// ---------------------------------------------------------------------------
 // 3. 内存无泄漏信号：50 次 normalize+payload 循环，heapUsed 增长有界
 // 实测（本机，3 轮）：+1.0 / +0.0 / +0.1 MB → 断言 < 100MB。
 // 诚实标注：这是"无泄漏信号"门，不是精确泄漏证明——WASM 堆内内存无法从
 // 外部单独归因（P0 REPORT.md §3）；且本环境未暴露 gc，断言的是含惰性 GC 的
 // 堆增长上界。
-// ---------------------------------------------------------------------------
 
 test('memory: repeated normalize+payload shows no leak signal', async () => {
     const raw = makeStressConversation();
@@ -244,7 +236,6 @@ test('memory: repeated normalize+payload shows no leak signal', async () => {
     );
 });
 
-// ---------------------------------------------------------------------------
 // 4. 50MiB 附件门：规格测试（占位）
 //
 // 规格测试——Phase D asset resolver 落地时把本节的本地 helper 换成 import 真模块，
@@ -256,7 +247,6 @@ test('memory: repeated normalize+payload shows no leak signal', async () => {
 //   c) 0 字节 / 非法 size → 拒绝并告警。理由：0 字节文件无法携带任何内容进 PDF；
 //      若按"可用"放行会产生空引用，违背"缺失资源不能静默消失"铁律；拒绝后走
 //      missing-asset 可见路径（列出名称），保持非静默。
-// ---------------------------------------------------------------------------
 
 const ATTACHMENT_SIZE_LIMIT_BYTES = 50 * 1024 * 1024; // 52_428_800
 
@@ -339,7 +329,6 @@ test('attachment gate spec: set budget boundary at exactly 50MiB', async () => {
     assert.strictEqual(over.accepted, false, 'one byte over the set budget is rejected');
 });
 
-// ---------------------------------------------------------------------------
 // 5. Item 4 (P0)：100 会话 full-pipeline release stress（含真编译）
 //
 // 完整链路：PdfExporter → normalize → project → resources → payload →
@@ -367,7 +356,6 @@ test('attachment gate spec: set budget boundary at exactly 50MiB', async () => {
 // 内存说明：rough peak 只是 Node 堆采样（onItemExported 回调处）；WASM 堆内
 // 内存无法从外部单独归因（P0 REPORT.md §3）。fake writer 为断言而持有全部
 // PDF 字节，peak 天然包含约 100 份 PDF 的体量。
-// ---------------------------------------------------------------------------
 
 const RELEASE_STRESS = process.env.RELEASE_STRESS === '1';
 

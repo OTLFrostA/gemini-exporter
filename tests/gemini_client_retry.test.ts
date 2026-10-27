@@ -8,9 +8,7 @@ const { handleHttp400 } = require('../src/l1/client/gemini/api/retryPolicy.js');
 const { useIndexStorage } = require('./helpers/indexStorage.js');
 useIndexStorage();
 
-// ---------------------------------------------------------------------------
 // 1. handleHttp400 XSRF recovery logic in retryPolicy
-// ---------------------------------------------------------------------------
 test('retryPolicy - handleHttp400 extracts xsrf token from response snippet and signals retry', async () => {
     const mockSnippet = ')]}\'\n[["xsrf","fresh_xsrf_token_456"],["error","invalid_token"]]';
     const params = {
@@ -50,9 +48,7 @@ test('retryPolicy - handleHttp400 uses getAtFromPage fallback if snippet has no 
     assert.strictEqual(resSame.shouldRetry, false, 'Should not retry if token unchanged');
 });
 
-// ---------------------------------------------------------------------------
 // 2. GeminiAPIClient HTTP 400 automatic retry
-// ---------------------------------------------------------------------------
 test('geminiClient - getConversationList recovers on HTTP 400 with fresh credentials', async () => {
     const client = new GeminiAPIClient();
     const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
@@ -88,9 +84,7 @@ test('geminiClient - getConversationList recovers on HTTP 400 with fresh credent
     }
 });
 
-// ---------------------------------------------------------------------------
 // 3. GeminiAPIClient AbortSignal handling
-// ---------------------------------------------------------------------------
 test('geminiClient - abort signal immediately halts client and flags isAborted', () => {
     const client = new GeminiAPIClient();
     assert.strictEqual(client.isAborted(), false);

@@ -24,9 +24,7 @@ const { attemptResource } = require('../src/shared/resources/resourceResult.js')
 const { acquireSourceResource } = require('../src/l1/resources/sourceResources.js');
 // The retired asset pipeline belongs to the unselected runtime cases below.
 
-// ---------------------------------------------------------------------------
 // P1-031: 429 退避 sleep 可中断
-// ---------------------------------------------------------------------------
 
 test('p1c - interruptibleSleep: 完整等待返回 false，被 abort 中断返回 true', async () => {
     const t0 = Date.now();
@@ -59,9 +57,7 @@ test('p1c - handleHttp429: 已 abort 的 signal 直接返回 aborted，不再睡
     assert.ok(Date.now() - t0 < 500, `should return immediately (took ${Date.now() - t0}ms)`);
 });
 
-// ---------------------------------------------------------------------------
 // P1-032 / P1-033: Retry-After 解析（整数秒钳制 30s；HTTP-date 支持）
-// ---------------------------------------------------------------------------
 
 test('p1c - parseRetryAfterMs: 整数秒钳制到 30s；HTTP-date 可解析；非法/过期返回 undefined', () => {
     // P1-032: Retry-After: 3600 不再导致 1 小时睡眠
@@ -96,9 +92,7 @@ test('p1c - handleHttp429: Retry-After 头被实际采用且不超过 30s 上限
     assert.ok(res.delayMs! <= 30000, `clamped to 30s cap, got ${res.delayMs}`);
 });
 
-// ---------------------------------------------------------------------------
 // P1-039: 接收侧 retryAfterMs（header 不可读时由调用方显式传入）
-// ---------------------------------------------------------------------------
 
 test('p1c - handleHttp429: 显式 retryAfterMs 参数在无 header 时生效', async () => {
     const res = await handleHttp429({
@@ -113,9 +107,7 @@ test('p1c - handleHttp429: 显式 retryAfterMs 参数在无 header 时生效', a
     assert.strictEqual(res.delayMs, 4000, `explicit hint honored, got ${res.delayMs}`);
 });
 
-// ---------------------------------------------------------------------------
 // P1-034: rpcClient 调用方 signal 与内部 timeout 合并（不再二选一）
-// ---------------------------------------------------------------------------
 
 test('p1c - mergeAbortSignals: 空/单个/多个 signal 的合并语义', () => {
     assert.strictEqual(rpcClientMod.mergeAbortSignals([null, undefined]), undefined, 'no signals -> undefined');
@@ -173,9 +165,7 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
     }
 });
 
-// ---------------------------------------------------------------------------
 // P1-035: getConversationList 15s 超时 + 429 退避快速取消
-// ---------------------------------------------------------------------------
 
 test('p1c - getConversationList: 429 退避期间 abort 直接抛取消，不睡满退避', async () => {
     const origFetch = (global as any).fetch;
@@ -200,9 +190,7 @@ test('p1c - getConversationList: 429 退避期间 abort 直接抛取消，不睡
     }
 });
 
-// ---------------------------------------------------------------------------
 // P1-040: 分页启动前已取消则直接退出（不再被 client.aborted = false 吞掉）
-// ---------------------------------------------------------------------------
 
 test('p1c - listConversations: pre-start cancellation propagates AbortError without a request', async () => {
     const controller = new AbortController(); controller.abort();
@@ -210,7 +198,6 @@ test('p1c - listConversations: pre-start cancellation propagates AbortError with
     await assert.rejects(provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', signal: controller.signal }), { name: 'AbortError' });
 });
 
-// ---------------------------------------------------------------------------
 // Retired batchFetcher/assetPipeline scenarios now exercise the current owners.
 test('p1c - HTTP 429 backoff is cancelled before a retry begins', async () => {
     const controller = new AbortController();

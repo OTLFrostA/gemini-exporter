@@ -195,7 +195,6 @@ test('T5.1: MiTeX version and provenance consistency across repository metadata'
     const scopeContent = fs.readFileSync(scopePath, 'utf8');
     const wasmBytes = fs.readFileSync(wasmPath);
 
-    // 1. Provable WASM SHA256 and byte length match documented metadata
     const actualWasmHash = crypto.createHash('sha256').update(wasmBytes).digest('hex');
     assert.strictEqual(wasmBytes.length, 230735, 'Vendored mitex_wasm_bg.wasm byte size must match');
     assert.ok(readmeContent.includes(actualWasmHash), 'Vendor README must record the exact SHA256 of the vendored WASM');
@@ -203,7 +202,6 @@ test('T5.1: MiTeX version and provenance consistency across repository metadata'
     const mitexNoticeSection = noticesContent.slice(noticesContent.indexOf('### 5. MiTeX'));
     assert.ok(mitexNoticeSection.includes(actualWasmHash), 'THIRD_PARTY_NOTICES Section 5 must record the exact SHA256 of the vendored WASM');
 
-    // 2. Provable cross-file version consistency (scope header, vendor README, and notices cannot contradict each other)
     const scopeVersionMatch = scopeContent.match(/@preview\/mitex:(\d+\.\d+\.\d+)/);
     const readmeVersionMatch = readmeContent.match(/\*\*Version\*\*:\s*`(\d+\.\d+\.\d+)`/);
     const noticesVersionMatch = mitexNoticeSection.match(/\*\*Version\*\*:\s*`(\d+\.\d+\.\d+)`/);
@@ -215,7 +213,6 @@ test('T5.1: MiTeX version and provenance consistency across repository metadata'
     assert.strictEqual(readmeVersionMatch[1], scopeVersionMatch[1], 'Vendor README version must match mitex-scope.typ version');
     assert.strictEqual(noticesVersionMatch[1], scopeVersionMatch[1], 'THIRD_PARTY_NOTICES version must match mitex-scope.typ version');
 
-    // 3. Provable self-contained scope integration (exports mitex-scope, zero runtime @preview imports)
     assert.ok(scopeContent.includes('#let mitex-scope = scope'), 'mitex-scope.typ must export #let mitex-scope = scope');
     assert.ok(!/^\s*#import\s+"@preview\//m.test(scopeContent), 'mitex-scope.typ must not contain active @preview/ runtime imports');
 });
@@ -248,7 +245,6 @@ test('T5.2: Failed MiTeX initialization clears cached state and allows subsequen
     resetMitexForTesting();
     assert.strictEqual(isMitexReady(), false);
 
-    // 1. First init fails with invalid WASM bytes
     const badBytes = new Uint8Array([0, 1, 2, 3]);
     await assert.rejects(
         initMitexWasm(badBytes),
@@ -257,7 +253,6 @@ test('T5.2: Failed MiTeX initialization clears cached state and allows subsequen
     );
     assert.strictEqual(isMitexReady(), false, 'isMitexReady must remain false after failure');
 
-    // 2. Second init retries with valid node loading and succeeds
     await initMitexWasm();
     assert.strictEqual(isMitexReady(), true, 'Subsequent retry must succeed and report ready');
 });
