@@ -5,6 +5,7 @@ import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
 import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
+import { restoreDomainDetail } from '../src/l2/runtimeValidation.js';
 
 const parse = (raw: { id: string }) => parseChatGPTConversation({
     conversation: decodeChatGPTDetail(raw, raw.id), assetsByNode: new Map(),
@@ -41,6 +42,69 @@ test('ChatGPT missing image bytes does not become missing body evidence', () => 
     assert.ok(result.diagnostics.some(d => d.code === 'CHATGPT_IMAGE_ASSET_UNAVAILABLE'));
     assert.equal(result.conversation.detail.messages[0].attachmentIds, undefined);
     assert.deepEqual(result.conversation.detail.messages[0].content.filter(b => b.type === 'image').map(b => b.assetId), [result.conversation.detail.assets[0].id]);
+});
+
+test('ChatGPT Detail rejects empty attachment identities before exposing typed metadata', () => {
+    const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+    const message = raw.mapping.question?.message;
+    assert.ok(message);
+    message.metadata = { attachments: [
+        { id: '', name: 'missing-id.txt', size: 12 },
+        { id: 'missing-name', name: '', size: 13 },
+        { id: 'notes', name: 'notes.txt', size: 14 },
+        { id: 'picture', name: 'image.png', mime_type: 'image/png' },
+    ] };
+    const source = structuredClone(raw.mapping.question);
+    const decoded = decodeChatGPTDetail(raw, raw.id);
+    assert.deepEqual(decoded.mapping.get('question')?.message?.metadata?.attachments, [
+        { id: 'notes', name: 'notes.txt', size: 14 },
+        { id: 'picture', name: 'image.png', mime_type: 'image/png' },
+    ]);
+    const parsed = parseChatGPTConversation({ conversation: decoded, assetsByNode: new Map() });
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    assert.deepEqual(parsed.conversation.detail.assets.map(a => [a.id, a.name, a.byteLength]),
+        [['file-notes', 'notes.txt', 14]]);
+    assert.deepEqual(raw.mapping.question, source, 'the provider source must remain unchanged');
+});
+
+test('ChatGPT Detail only admits safe nonnegative attachment byte counts to L2', () => {
+    for (const [size, expected] of [
+        [-1, undefined], [1.5, undefined], [Number.MAX_SAFE_INTEGER + 1, undefined],
+        [NaN, undefined], [Infinity, undefined], ['12', undefined], [null, undefined],
+        [0, 0], [12, 12], [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+    ] as const) {
+        const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+        const message = raw.mapping.question?.message;
+        assert.ok(message);
+        message.metadata = { attachments: [{ id: 'file-size', name: 'data.bin' }] };
+        const file = message.metadata.attachments?.[0];
+        assert.ok(file);
+        Object.assign(file, { size });
+
+        const decoded = decodeChatGPTDetail(raw, raw.id);
+        assert.equal(decoded.mapping.get('question')?.message?.metadata?.attachments?.[0]?.size, expected, String(size));
+        const parsed = parseChatGPTConversation({ conversation: decoded, assetsByNode: new Map() });
+        assert.equal(parsed.conversation.detail.assets.length, 1, String(size));
+        assert.equal(parsed.conversation.detail.assets[0]?.byteLength, expected, String(size));
+        assert.equal(parsed.conversation.detail.quality.status, 'complete', String(size));
+        assert.doesNotThrow(() => restoreDomainDetail({ ...parsed.conversation.detail,
+            key: { accountId: '00000000-0000-4000-8000-000000000001', conversationId: raw.id } }), String(size));
+    }
+});
+
+test('ChatGPT Detail discards negative reasoning durations without losing valid fractional seconds', () => {
+    for (const [duration, expected] of [
+        [-1, undefined], [-0.25, undefined], [NaN, undefined], [Infinity, undefined],
+        ['3', undefined], [0, 0], [1.25, 1.25],
+    ] as const) {
+        const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+        const message = raw.mapping.answer?.message;
+        assert.ok(message);
+        message.metadata = { finished_duration_sec: 0 };
+        Object.assign(message.metadata, { finished_duration_sec: duration });
+        assert.equal(decodeChatGPTDetail(raw, raw.id).mapping.get('answer')?.message?.metadata?.finished_duration_sec,
+            expected, String(duration));
+    }
 });
 
 test('ChatGPT source-native paging fields remain evidence, not Domain Index fields', () => {

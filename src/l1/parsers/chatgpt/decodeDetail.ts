@@ -98,10 +98,12 @@ function decodeMetadata(value: unknown): ChatGPTNodeMessage['metadata'] {
     if (!source) return undefined;
     const attachments = unknownArray(source.attachments) ? source.attachments.flatMap(raw => {
         const file = record(raw);
-        if (!file || typeof file.id !== 'string' || typeof file.name !== 'string') return [];
+        if (!file || typeof file.id !== 'string' || !file.id
+            || typeof file.name !== 'string' || !file.name) return [];
         return [{ id: file.id, name: file.name,
             ...(text(file.mime_type) !== undefined ? { mime_type: text(file.mime_type) } : {}),
-            ...(typeof file.size === 'number' && Number.isFinite(file.size) ? { size: file.size } : {}),
+            ...(typeof file.size === 'number' && Number.isSafeInteger(file.size) && file.size >= 0
+                ? { size: file.size } : {}),
         }];
     }) : undefined;
     const aggregate = record(source.aggregate_result);
@@ -142,7 +144,7 @@ function decodeMetadata(value: unknown): ChatGPTNodeMessage['metadata'] {
             ? { is_thinking_preamble_message: source.is_thinking_preamble_message } : {}),
         ...(text(source.reasoning_title) !== undefined ? { reasoning_title: text(source.reasoning_title) } : {}),
         ...(typeof source.finished_duration_sec === 'number' && Number.isFinite(source.finished_duration_sec)
-            ? { finished_duration_sec: source.finished_duration_sec } : {}),
+            && source.finished_duration_sec >= 0 ? { finished_duration_sec: source.finished_duration_sec } : {}),
         ...(attachments ? { attachments } : {}),
         ...(aggregateMessages ? { aggregate_result: { messages: aggregateMessages } } : {}),
         ...(citations ? { citations } : {}),
