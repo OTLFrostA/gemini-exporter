@@ -80,6 +80,7 @@ interface TurnsExtractionResult {
     turns: unknown[];
     inner: unknown;
     schemaDriftWarnings: string[];
+    metadataConversation: GeminiDetailEvidence['metadataConversation'];
 }
 
 function extractTurnsFromInner(
@@ -92,7 +93,7 @@ function extractTurnsFromInner(
     isDevMode: boolean
 ): TurnsExtractionResult {
     const schemaDriftWarnings: string[] = [];
-    if (isUnknownArray(top) && top.length > 0 && !isStandardWrb && innerStr) {
+    if (top !== null && top.length > 0 && !isStandardWrb && innerStr) {
         schemaDriftWarnings.push(`Envelope drift: batchexecute response missing standard WRB detail RPC header [${wrb}, ${detailRpc}], fell back to heuristic payload discovery`);
     }
 
@@ -105,7 +106,7 @@ function extractTurnsFromInner(
         turns = primaryTurns;
     }
     if (!turns) turns = findTurnsDeep(activeInner);
-    if (!turns && isUnknownArray(top)) {
+    if (!turns && top !== null) {
         for (const item of top) {
             if (!isUnknownArray(item) || typeof item[2] !== "string") continue;
             if (item[2] === innerStr) continue;
@@ -132,11 +133,18 @@ function extractTurnsFromInner(
     const metaRows = activeSlots[metaListIdx];
     const firstMeta = isUnknownArray(metaRows) ? metaRows[0] : undefined;
     const firstMetaSlots = isUnknownArray(firstMeta) ? firstMeta : null;
+    const rawMetadataId = firstMetaSlots?.[0];
+    const metadataId = typeof rawMetadataId === 'string' && rawMetadataId.startsWith('c_')
+        ? rawMetadataId : undefined;
     const isMetadataOnly = !turns.length
         && activeSlots[innerSchema.TURNS_OR_LIST_PRIMARY] === null
         && activeSlots[innerSchema.LIST_SECONDARY] === null
         && isUnknownArray(metaRows) && metaRows.length > 0
-        && firstMetaSlots !== null && typeof firstMetaSlots[0] === "string" && firstMetaSlots[0].startsWith("c_");
+        && metadataId !== undefined;
+    const rawMetadataTitle = firstMetaSlots?.[1];
+    const metadataConversation = isMetadataOnly && typeof rawMetadataTitle === 'string' && rawMetadataTitle.trim()
+        ? { id: metadataId, title: cleanTitle(rawMetadataTitle) }
+        : undefined;
 
     if (isMetadataOnly) {
         schemaDriftWarnings.push(`metadata-only payload: hNvQHb returned no turns (inner[${metaListIdx}][0] looks like a list-format row); exported messages will be empty`);
@@ -145,13 +153,13 @@ function extractTurnsFromInner(
         console.warn("[Parser] hNvQHb returned metadata-only payload (no turns). " +
             `inner[${metaListIdx}][0] looks like a list-format row, not a turns array. ` +
             "conv:", firstMetaSlots?.[0], "title:", firstMetaSlots?.[1],
-            "rc_count:", firstMetaSlots?.filter((x: unknown) => typeof x === "string" && x.startsWith("rc_")).length);
+            "rc_count:", firstMetaSlots?.filter(x => typeof x === "string" && x.startsWith("rc_")).length);
     }
     if (!turns.length && activeInner && isUnknownArray(activeInner) && activeInner.length > 0 && !isMetadataOnly) {
         schemaDriftWarnings.push(`Payload drift: inner JSON array present (length ${activeInner.length}) but unable to locate turns array`);
     }
 
-    return { turns, inner: activeInner, schemaDriftWarnings };
+    return { turns, inner: activeInner, schemaDriftWarnings, metadataConversation };
 }
 
 /** Source facts only: no archive destinations, unique names or synthetic image filenames. */
@@ -169,7 +177,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
 
         if (!extractedInner) throw new Error("invalid");
 
-        const { turns, inner, schemaDriftWarnings } = extractTurnsFromInner(
+        const { turns, inner, schemaDriftWarnings, metadataConversation } = extractTurnsFromInner(
             extractedInner,
             top,
             innerStr,
@@ -178,15 +186,6 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
             detailRpc,
             isDevMode
         );
-
-        const innerSlots = isUnknownArray(inner) ? inner : [];
-        const metadataRows = innerSlots[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST];
-        const metadataRow = !turns.length && innerSlots[0] === null && innerSlots[1] === null && isUnknownArray(metadataRows)
-            ? metadataRows[0] : undefined;
-        const metadataConversation = isUnknownArray(metadataRow)
-            && typeof metadataRow[0] === 'string' && metadataRow[0].startsWith('c_')
-            && typeof metadataRow[1] === 'string' && metadataRow[1].trim()
-            ? { id: metadataRow[0], title: cleanTitle(metadataRow[1]) } : undefined;
 
         let convId = extractConversationId(inner, turns);
         if (convId === "c_unknown" && targetConvId) convId = targetConvId;
@@ -265,7 +264,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
             _raw: inner,
             _debug
         };
-    } catch (e: unknown) {
+    } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         throw new Error("detail parse fail: " + message);
     }
