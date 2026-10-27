@@ -16,8 +16,8 @@ function fixture(t: test.TestContext): string {
 test('release gate accepts the exact licensed offline font fallback', t => {
     const result = checkBundledFonts(fixture(t));
     assert.deepEqual(result.failures, []);
-    assert.equal(result.fontFiles.length, 4);
-    assert.equal(result.totalBytes, 21409340);
+    assert.equal(result.fontFiles.length, 5);
+    assert.equal(result.totalBytes, 21749580);
 });
 
 test('release gate rejects modified bytes under an approved font name', t => {

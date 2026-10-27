@@ -14,6 +14,7 @@ const document = v2Document([
     { type: 'image', resourceId: 'image', alt: 'Figure' },
     { type: 'file', resourceId: 'file', label: 'notes.pdf', kind: 'file' },
     { type: 'math', source: 'x^2' },
+    { type: 'paragraph', children: [{ type: 'text', text: '◌̧ ◌̈' }] },
 ]);
 const context = () => ({ signal: new AbortController().signal, reportProgress() {} });
 
@@ -26,6 +27,7 @@ test('real WASM compiles an image at the supplied Packaging path and releases it
         const extracted = extractPdfText(result.pdfBytes);
         assert.ok(extracted.imageXObjectCount >= 1);
         assert.match(extracted.text, /notes\.pdf/);
+        assert.ok(extractPdfText(result.pdfBytes, false).text.includes('◌̧ ◌̈'));
         assert.equal(result.diagnostics.some(d => d.severity === 'error'), false);
     } finally {
         compiler.dispose();
@@ -117,6 +119,30 @@ test('real PDF preserves dotted circles and NFD graphemes in ordinary prose offl
         assert.ok(!text.includes('\0') && !text.includes('\uFFFD'), 'no missing glyphs in prose');
         for (const grapheme of sample.normalize('NFC').split(' ')) {
             assert.ok(text.normalize('NFC').includes(grapheme), 'selectable grapheme: ' + grapheme);
+        }
+    } finally { compiler.dispose(); }
+});
+
+
+test('real PDF extracts combining graphemes exactly once in prose, inline code and code blocks', async () => {
+    const sample = '◌̧ ◌̈ ä ä ş ş x̂ x̂x̂ ◌̧◌̧ ◌̈◌̈ ̈ ̧ ̧̈ ä́';
+    const blocks = [
+        { type: 'paragraph', children: [{ type: 'text', text: 'BEGIN' + sample + 'END' }] },
+        { type: 'paragraph', children: [{ type: 'inlineCode', code: 'BEGIN' + sample + 'END' }] },
+        { type: 'code', language: 'text', code: 'BEGIN' + sample + 'END' },
+    ] satisfies Parameters<typeof v2Document>[0];
+    const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
+    try {
+        const result = await compileDocumentPdf(v2Document(blocks), {}, new Map(), compiler, context());
+        // PDF.js/pypdf may ignore ActualText; both extraction paths must agree.
+        for (const honorActualText of [true, false]) {
+            const text = extractPdfText(result.pdfBytes, honorActualText).text;
+            const copies = [...text.matchAll(/BEGIN([\s\S]*?)END/g)].map(match => match[1]);
+            assert.equal(copies.length, 3);
+            for (const copy of copies) {
+                assert.equal(copy.normalize('NFC').replace(/\s/g, ''), sample.normalize('NFC').replace(/\s/g, ''),
+                    honorActualText ? 'ActualText replacement' : 'raw ToUnicode mapping');
+            }
         }
     } finally { compiler.dispose(); }
 });

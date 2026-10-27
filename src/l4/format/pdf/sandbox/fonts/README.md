@@ -2,10 +2,10 @@
 
 ## Release validation
 
-`npm run test:release-fonts` verifies the exact SHA256 of all four fonts below
+`npm run test:release-fonts` verifies the exact SHA256 of all five fonts below
 and their original license files. Unknown, renamed, missing or modified fonts,
 symlinks and embedded `data:font/` payloads in generated JavaScript fail the gate.
-The total font asset budget is 22 MiB (current total: 21,409,340 bytes).
+The total font asset budget is 22 MiB (current total: 21,749,580 bytes).
 
 Both full local `npm test` and CI run this gate after building `dist/`. This
 replaces the former blanket CJK prohibition and 5 MiB budget: the licensed CJK
@@ -45,3 +45,11 @@ Access is denied or unavailable. Device fonts remain preferred when authorized.
 - **SHA256**: `de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551`.
 
 The font budget increases by 2 MiB to accommodate this fallback; the existing font hashes remain unchanged.
+
+## 5. DejaVuSansMono.ttf (340,240 bytes)
+
+- **Source**: <https://github.com/matplotlib/matplotlib/blob/39b27ddaafe636f06776a2044b5df05d07648dc4/lib/matplotlib/mpl-data/fonts/ttf/DejaVuSansMono.ttf>
+- **License**: Bitstream Vera / DejaVu font license, shipped verbatim as `LICENSE-DejaVu.txt` from the same pinned directory.
+- **SHA256**: `602ec86b8948cfcd956482fe64f94c36c867770149ef2f791d4613f443bcecb3`.
+- **Modification**: None. Full upstream font, not a test-character subset.
+- **Why bundled**: The current Typst PDF writer splits Noto Sans Mono's positioned combining marks into separate text runs, duplicating the cluster's Unicode mapping. DejaVu Sans Mono preserves mark placement and one selectable copy of each cluster without disabling mark positioning. It precedes Noto Sans Mono and affected device monospace fonts. No runtime network or local-font permission is needed; the existing 22 MiB budget is unchanged.

@@ -38,11 +38,12 @@
 
 #let font-mono = (
     "Courier New",
+  // Keep combining clusters in one PDF text run; Noto/ Menlo can duplicate them.
+  "DejaVu Sans Mono",
   "SF Mono",
   "Menlo",
   "Monaco",
   "JetBrains Mono",
-  "DejaVu Sans Mono",
   "Noto Sans Mono",
   "Noto Sans CJK SC",
   "Noto Emoji",
