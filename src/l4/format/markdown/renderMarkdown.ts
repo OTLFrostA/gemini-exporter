@@ -21,7 +21,6 @@ function codeSpan(value: string): string {
     return `${fence}${pad}${value}${pad}${fence}`;
 }
 
-/** Projects and encodes a format-neutral document as GFM; no source registry or clock. */
 export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings, options: RendererOptions = {}): string {
     const locale = options.locale ?? 'en';
     const strings = getRendererStrings(locale);

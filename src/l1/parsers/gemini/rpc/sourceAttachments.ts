@@ -193,7 +193,6 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
     };
 
     const detectAttachmentType36: ImageNodeDetector = (node) => {
-        // Form 1: Deserialized object with attachmentType === 36 (runtime structured content node / attachment)
         if (isRecord(node)) {
             const obj = node;
             if (obj.attachmentType !== 36) return null;
@@ -223,7 +222,6 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
             };
         }
 
-        // Form 2: Wire format tuple for search image attachment (repeated array with image URLs and title)
         if (isUnknownArray(node) && node.length >= 8) {
             const slots = node;
             const slot0 = slots[0];

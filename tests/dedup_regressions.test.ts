@@ -9,7 +9,6 @@ const assert = require('node:assert');
 const { calculateBackoff } = require('../src/shared/utils/retryUtils.js');
 
 
-// ---------------------------------------------------------------------------
 // Ordinary request rate limiting is based on HTTP 429 only.
 
 
@@ -29,9 +28,7 @@ test('dedup - calculateBackoff keeps formula, cap and honors Retry-After', () =>
     assert.ok(smallAfter >= 2000 * Math.pow(2, 3), `computed delay kept, got ${smallAfter}`);
 });
 
-// ---------------------------------------------------------------------------
 // live-save pipeline unification: both call sites share format + writer.
-// ---------------------------------------------------------------------------
 
 test('dedup - Live Save uses the shared Markdown renderer and Packaging filename', async (t: import('node:test').TestContext) => {
     const host = v2LiveSaveHost(t);

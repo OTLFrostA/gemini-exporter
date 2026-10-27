@@ -45,7 +45,6 @@ class FsWriter implements IExportWriter {
     }
 
     async writeFile(relativePath: string, content?: WriteFileContent | null, options?: WriteFileOptions): Promise<string> {
-        // Single supported form: (relativePath, content, options?).
         // The legacy (subDirPath, fileName, content) overload was retired:
         // it had zero production callers (live-save uses the separate
         // LiveSaveWriter facade, not this interface).

@@ -1,8 +1,4 @@
 /**
- * src/l1/parsers/gemini/shared/markdownCompatibility.ts
- *
- * Gemini Exporter - Parser Compatibility Rule Registry
- *
  * Enforces the Compatibility Rule Admission Policy (Section 4 & 31):
  * - Initial state: empty (0 speculative rules).
  * - Every rule must have:
@@ -15,7 +11,6 @@
 import { inlineMathMarkdown } from '../../../../shared/utils/markdownMath.js';
 import { LATEX_COMPAT_RULES } from '../../../../shared/utils/latexCompatibility.js';
 
-/** Read the delimiter run already identified by the caller. */
 function delimiterRun(source: string, start: number): string {
     let end = start + 1;
     while (source[end] === source[start]) end++;
@@ -23,15 +18,10 @@ function delimiterRun(source: string, start: number): string {
 }
 
 interface CompatRuleMetadata {
-    /** Unique rule identifier, e.g. 'GM-MD-001' or 'GM-TEX-001' */
     readonly id: string;
-    /** Relative path to minimal reproduction test fixture with real provenance */
     readonly evidence: string;
-    /** Timestamp when this behavior was first observed on live Gemini */
     readonly observedAt: string;
-    /** Concise explanation of why standard parser is insufficient */
     readonly description: string;
-    /** Hash or fingerprint of the original minimal trigger input */
     readonly originalHash?: string;
 }
 
@@ -65,8 +55,6 @@ export const GM_MD_004_LINE_START_DISPLAY = Object.freeze({
 });
 
 /**
- * Normalizes multiline display-math fences ($$) where LaTeX environment keywords
- * (e.g. \\begin{aligned}, \\end{aligned}) are attached directly to $$ on the fence line.
  * Standard micromark mathFlow requires standalone $$ delimiters to open and close fences.
  */
 function normalizeMathFences(source: string): string {
@@ -101,7 +89,6 @@ function normalizeMathFences(source: string): string {
             continue;
         }
 
-        // Match lines with optional blockquote prefix or indentation
         const prefixMatch = line.match(/^([ \t]*(?:>[ \t]*)*)(.*)$/);
         const prefix = prefixMatch ? prefixMatch[1] : '';
         const rest = prefixMatch ? prefixMatch[2] : line;
@@ -114,9 +101,6 @@ function normalizeMathFences(source: string): string {
                 continue;
             }
 
-            // Check if line starts with $$ followed by content, but does NOT contain another $$ on the same line
-            // e.g. "$$\begin{aligned}" -> opening multiline display math fence with attached content.
-            // If rest contains another $$ (e.g. "$$x^2$$" or "$$x^2$$ text" or "$$a$$ and $$b$$"), it is self-contained on this line.
             if (rest.startsWith('$$') && !rest.slice(2).trimStart().startsWith('$')) {
                 const restAfterOpen = rest.slice(2);
                 if (!restAfterOpen.includes('$$')) {
@@ -129,15 +113,12 @@ function normalizeMathFences(source: string): string {
 
             result.push(line);
         } else {
-            // Already inside multiline display math block
             if (restTrimmed === '$$') {
                 inDisplayMath = false;
                 result.push(line);
                 continue;
             }
 
-            // Check if line ends with $$ attached to math content (e.g. "\end{aligned}$$")
-            // Ensure this line does not contain an opening $$ earlier on the same line
             if (restTrimmed.endsWith('$$') && !restTrimmed.slice(0, -2).trimEnd().endsWith('$')) {
                 const restBeforeClose = restTrimmed.slice(0, -2);
                 if (!restBeforeClose.includes('$$')) {
@@ -169,7 +150,6 @@ export const GM_MD_001_FENCE_NORMALIZATION: MarkdownCompatRule = Object.freeze({
 });
 
 /**
- * Active Markdown compatibility rules.
  * Initial state was empty; GM-MD-001 admitted per Section 4 & 31 admission policy.
  */
 /** Real Gemini emits raw absolute-value bars inside table math, before GFM lexing. */
@@ -305,7 +285,6 @@ export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Objec
 ]);
 
 /**
- * Preprocesses raw Gemini Markdown through registered compatibility rules.
  * When GEMINI_MARKDOWN_COMPAT_RULES is empty, this is an exact identity no-op.
  */
 export function preprocessGeminiMarkdown(source: string): string {

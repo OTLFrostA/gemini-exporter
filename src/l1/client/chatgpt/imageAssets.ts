@@ -12,14 +12,12 @@ interface ChatGPTParsedDownload {
     mimeType?: string;
 }
 
-/** `sediment://file_abc` -> `file_abc`; non-sediment pointers yield null. */
 export function fileIdFromPointer(pointer: string): string | null {
     if (!pointer.startsWith('sediment://')) return null;
     const id = pointer.slice('sediment://'.length);
     return id ? id : null;
 }
 
-/** Backend path for the signed-URL exchange. */
 export function buildFileDownloadPath(fileId: string): string {
     return `/files/download/${encodeURIComponent(fileId)}`;
 }

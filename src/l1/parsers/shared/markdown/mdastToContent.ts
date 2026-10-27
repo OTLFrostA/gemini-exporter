@@ -1,15 +1,3 @@
-/**
- * src/l1/parsers/shared/markdown/mdastToContent.ts
- *
- * Pure adapter from MDAST (mdast-util-from-markdown) to Content AST (blocks.ts, inline.ts).
- *
- * Responsibilities:
- * - Maps MDAST Root/BlockContent nodes to shared BlockNode[].
- * - Maps MDAST PhrasingContent nodes to shared InlineNode[].
- * - Wires Gemini-specific asset linking via imageInline().
- * - Emits required Content diagnostics (MATH_FENCE_UNCLOSED, MATH_BLOCK_EMPTY).
- * - Preserves soft and hard line breaks according to Content AST.
- */
 
 import type {
     Root,
@@ -38,7 +26,6 @@ export interface MarkdownParseContext {
     diagnostics: Diagnostic[];
     sourceRef: SourceRef;
     resolveImage?(ref: string, alt: string, title?: string): ImageInline;
-    /** Structural location in the shared semantic body. */
     path?: string;
     definitions?: Map<string, { url: string; title?: string }>;
     /** Provider dialect: $$ on its own line remains display math beside prose. */
@@ -55,9 +42,6 @@ function imageInline(ref: string, alt: string, title: string | undefined, ctx: M
     };
 }
 
-/**
- * Coalesce consecutive TextInline nodes within the inline tree.
- */
 export function mergeAdjacentTextNodes(nodes: InlineNode[]): InlineNode[] {
     const result: InlineNode[] = [];
     for (const node of nodes) {
@@ -78,9 +62,6 @@ export function mergeAdjacentTextNodes(nodes: InlineNode[]): InlineNode[] {
     return result;
 }
 
-/**
- * Converts a text string containing newlines into TextInline and soft LineBreakInline nodes.
- */
 function textWithSoftBreaks(text: string): InlineNode[] {
     if (!text.includes('\n')) {
         return text ? [{ type: 'text', text }] : [];
@@ -99,7 +80,6 @@ function textWithSoftBreaks(text: string): InlineNode[] {
 }
 
 /**
- * Recursively collect all Definition nodes in the MDAST tree.
  * Follows CommonMark precedence: the first definition for a given identifier takes precedence.
  */
 export function collectDefinitions(
@@ -153,9 +133,6 @@ function unknownBlockText(value: unknown): string {
     return children.map(unknownBlockText).filter(text => text.trim()).join(separator);
 }
 
-/**
- * Adapt a single MDAST PhrasingContent node to shared InlineNode[].
- */
 function adaptPhrasingNode(
     node: PhrasingContent,
     ctx: MarkdownParseContext,
@@ -283,9 +260,6 @@ function adaptPhrasingNode(
     }
 }
 
-/**
- * Adapt an array of MDAST PhrasingContent nodes into shared InlineNode[].
- */
 export function adaptInlines(
     nodes: PhrasingContent[],
     ctx: MarkdownParseContext,
@@ -300,27 +274,18 @@ export function adaptInlines(
     return mergeAdjacentTextNodes(raw);
 }
 
-/**
- * Adapt a TableCell to Content AST { children: InlineNode[] }.
- */
 function adaptTableCell(cell: MdastTableCell, ctx: MarkdownParseContext): { children: InlineNode[] } {
     return {
         children: adaptInlines(cell.children, ctx),
     };
 }
 
-/**
- * Adapt a TableRow to shared TableRow.
- */
 function adaptTableRow(row: MdastTableRow, ctx: MarkdownParseContext): TableRow {
     return {
         cells: row.children.map((c) => adaptTableCell(c, ctx)),
     };
 }
 
-/**
- * Adapt a List item to shared ListItem.
- */
 function adaptListItem(
     item: MdastListItem,
     ctx: MarkdownParseContext,
@@ -328,7 +293,6 @@ function adaptListItem(
 ): ListItem {
     const blocks = adaptBlockNodes(item.children, { ...ctx, path: `${ctx.path}.blocks` }, rawMarkdown);
 
-    // If GFM task list checkbox is present, prepend checkbox marker to first inline text
     if (item.checked !== null && item.checked !== undefined && blocks.length > 0) {
         const marker = item.checked ? '[x] ' : '[ ] ';
         const firstBlock = blocks[0];
@@ -344,9 +308,6 @@ function adaptListItem(
     return { blocks };
 }
 
-/**
- * Checks if a standalone paragraph is actually a display math formula ($$...$$).
- */
 function tryExtractDisplayMathParagraph(
     para: Paragraph,
     ctx: MarkdownParseContext,
@@ -356,7 +317,6 @@ function tryExtractDisplayMathParagraph(
     const child = para.children[0];
     if (child.type !== 'inlineMath') return null;
 
-    // Check if the original slice in raw markdown started with '$$'
     const pos = child.position;
     if (pos && pos.start.offset !== undefined) {
         const rawSlice = rawMarkdown.slice(pos.start.offset, pos.start.offset + 2);
@@ -381,9 +341,6 @@ function tryExtractDisplayMathParagraph(
     return null;
 }
 
-/**
- * Adapt a single MDAST block content node to shared BlockNode[].
- */
 function adaptBlockNode(
     node: RootContent,
     ctx: MarkdownParseContext,
@@ -581,9 +538,6 @@ function adaptBlockNode(
     }
 }
 
-/**
- * Adapt an array of MDAST block content nodes to shared BlockNode[].
- */
 function adaptBlockNodes(
     nodes: RootContent[],
     ctx: MarkdownParseContext,
@@ -596,9 +550,6 @@ function adaptBlockNodes(
     return blocks;
 }
 
-/**
- * Top-level adapter: converts an MDAST Root to shared BlockNode[].
- */
 export function mdastRootToBlocks(
     root: Root,
     ctx: MarkdownParseContext,

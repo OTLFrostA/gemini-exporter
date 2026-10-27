@@ -27,18 +27,15 @@ test('chat_formatter - formatMarkdownDocument', async () => {
 
     const { document, resources } = await composeFixture(historicalFixture(mockChat).conversation);
     const markdown = renderDocumentMarkdown(document, resources);
-    // Frontmatter structure assertions
     assert.ok(markdown.startsWith('---\n'), 'Markdown must start with YAML frontmatter delimiter');
     assert.ok(markdown.includes('\n---\n\n'), 'YAML frontmatter must close with --- delimiter');
     assert.ok(markdown.includes('title: "Quantum Physics Guide"'), 'Frontmatter must contain title key');
     assert.ok(markdown.includes('id: "12345678"'), 'Frontmatter must contain id key');
     assert.ok(!/^url:/m.test(markdown), 'Composer does not synthesize a source URL');
     assert.ok(markdown.includes('tags:\n  - gemini-export'), 'Frontmatter must contain gemini-export tag');
-    // Heading and content assertions
     assert.ok(markdown.includes('# Quantum Physics Guide'), 'Must render H1 title');
     assert.ok(markdown.includes('What is superposition?'), 'Must contain user message');
     assert.ok(markdown.includes('Superposition is a fundamental principle'), 'Must contain model message');
-    // Role ordering assertion
     const userIdx = markdown.search(/## 👤/);
     const modelIdx = markdown.search(/## 🤖/);
     assert.ok(userIdx !== -1 && modelIdx !== -1, 'Must include both user and model role headings');

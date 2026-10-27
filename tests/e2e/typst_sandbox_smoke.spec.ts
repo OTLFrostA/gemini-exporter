@@ -1,7 +1,4 @@
 /**
- * tests/e2e/typst_sandbox_smoke.spec.ts
- *
- * Tier 1 Playwright smoke test for the P1b sandbox compile container:
  * drives the REAL typst.ts 0.7.0 WASM compiler inside the MV3 sandbox page
  * (init + font install + compile of a minimal v8-template document) and
  * asserts:
@@ -85,7 +82,6 @@ test.describe('Typst sandbox compile container (P1b smoke)', () => {
           return res.arrayBuffer();
         };
 
-        // 1. Init with the vendored WASM module bytes.
         const wasm = await fetchBytes(urls.wasm);
         const initJob = nextJob();
         const inited = await post<{ type: string; ok: boolean; initMs: number }>(
@@ -94,7 +90,6 @@ test.describe('Typst sandbox compile container (P1b smoke)', () => {
         );
         if (!inited.ok) throw new Error('sandbox init reported ok=false');
 
-        // 2. Compile a minimal document through the real v8 templates.
         const font = await fetchBytes(urls.font);
         const payload = {
           schemaVersion: 1,

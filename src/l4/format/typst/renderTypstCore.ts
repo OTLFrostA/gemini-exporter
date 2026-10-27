@@ -16,7 +16,6 @@ interface TypstRuntimeHooks {
     onDiagnostic?: (diagnostic: Diagnostic) => void;
 }
 
-/** L4 Format-only lowerer shared by the passive Renderer and the PDF compiler. */
 export function renderDocumentTypstCore(
     document: DocumentAst,
     resources: ResourceBindings,

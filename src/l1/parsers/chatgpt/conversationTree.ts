@@ -135,10 +135,6 @@ function copyChatGPTNode(node: ChatGPTConversationNode, snapshots?: Map<string, 
     };
 }
 
-/**
- * Walk from current_node back to root via parent links, skipping system and
- * hidden/tool messages. Returns oldest-first linear history.
- */
 export function extractChatGPTLinearNodes(
     mapping: ReadonlyMap<string, ChatGPTConversationNode>,
     startNodeId: string,
@@ -199,7 +195,6 @@ export function processChatGPTMapping(
     return extractChatGPTLinearNodes(conversation.mapping, startId, snapshots);
 }
 
-/** Text of a node for Domain conversion; non-text parts become empty. */
 function chatGPTNodeText(node: ChatGPTConversationNode): string {
     const content = node.message?.content;
     if (!content) return '';
@@ -278,7 +273,6 @@ export function chatGPTNodeSegments(node: ChatGPTConversationNode): ChatGPTNodeS
     return text.trim() ? [{ kind: 'text', text }] : [];
 }
 
-/** Role mapping into our neutral Domain vocabulary. */
 export function chatGPTNodeRole(node: ChatGPTConversationNode): 'user' | 'assistant' {
     return node.message?.author.role === 'user' ? 'user' : 'assistant';
 }

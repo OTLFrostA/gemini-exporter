@@ -7,11 +7,9 @@ import { ContentContext, contentContext } from '../src/runtime/content/contentCo
 import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
 import { init as initMessageRouter } from '../src/runtime/content/messageRouter.js';
 
-// --------------------------------------------------------------------------
 // 1. Compile-time regression:
 // Prove that a valid ActiveClientContract WITHOUT abort() can be assigned
 // to window.__gemExporterActiveClient and ContentContext without type error.
-// --------------------------------------------------------------------------
 const clientWithoutAbort: ActiveClientContract = {};
 
 const _compileTimeCheck = () => {
@@ -25,10 +23,8 @@ const _compileTimeCheck = () => {
 };
 void _compileTimeCheck;
 
-// --------------------------------------------------------------------------
 // 2. Runtime regression: the mock Chrome listener and window must be scoped
 // to each test; mutating the host globals at module import polluted other tests.
-// --------------------------------------------------------------------------
 type MessageListener = (msg: any, sender: any, respond: (response: any) => void) => unknown;
 type Dispatch = (msg: any) => Promise<any>;
 

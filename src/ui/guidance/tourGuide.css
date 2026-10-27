@@ -1,4 +1,3 @@
-/* tourGuide.css - Lightweight Spotlight & Onboarding Tour Styles */
 :root {
   --tour-bg: #121420;
   --tour-border: #282c44;
@@ -281,7 +280,6 @@
 }
 
 
-/* A centered release notice, distinct from target-based feature tours. */
 .tour-upgrade-popover { width: 440px; }
 .tour-upgrade-copy p { margin: 0 0 11px; }
 .tour-upgrade-copy p:last-child { margin-bottom: 0; }

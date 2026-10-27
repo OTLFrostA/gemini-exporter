@@ -28,7 +28,6 @@ test('chipUtils - isInternalChipUrl detects all Google internal chip URLs', () =
 });
 
 test('chipUtils - stripInternalChipMarkdown removes standalone chips and unwraps links', () => {
-    // 1. Unwrapping markdown link
     const textWithLink = 'Refer to the report: [Deep Research Analysis](https://googleusercontent.com/deep_research/ref123).';
     assert.strictEqual(
         stripInternalChipMarkdown(textWithLink),
@@ -39,21 +38,18 @@ test('chipUtils - stripInternalChipMarkdown removes standalone chips and unwraps
     const legitimateLinks = 'Read [manual](https://example.com/deep_research) and https://googleusercontent.com/avatar/profile.jpg';
     assert.strictEqual(stripInternalChipMarkdown(legitimateLinks), legitimateLinks);
 
-    // 2. Standalone URL lines
     const textWithStandalone = 'Line 1\nhttps://googleusercontent.com/map_content/loc1\nLine 2';
     assert.strictEqual(
         stripInternalChipMarkdown(textWithStandalone),
         'Line 1\n\nLine 2'
     );
 
-    // 3. Bracketed standalone URL line
     const textWithBracketed = 'Header\n[https://googleusercontent.com/web_search_content/q1]\nFooter';
     assert.strictEqual(
         stripInternalChipMarkdown(textWithBracketed),
         'Header\n\nFooter'
     );
 
-    // 5. Strips provider-only structured UI tags (ElicitationsGroup, Elicitation, FollowUp, GenerateWidget)
     const textWithMarkup = [
         'Main content line 1.',
         '<ElicitationsGroup message="想要进一步探索量子计算的相关概念，可以尝试以下方向：">',
@@ -74,7 +70,6 @@ test('chipUtils - stripInternalChipMarkdown removes standalone chips and unwraps
 });
 
 test('chipUtils - stripInternalChipMarkdown strips immersive_entry_chip and preserves document content', () => {
-    // 1. Doc starting with standalone immersive_entry_chip URL
     const docWithChip = [
         'http://googleusercontent.com/immersive_entry_chip/0',
         '# 城市供水管网水力建模与参数辨识',
@@ -91,7 +86,6 @@ test('chipUtils - stripInternalChipMarkdown strips immersive_entry_chip and pres
     assert.ok(cleaned.includes('Hazen-Williams'), 'Cleaned text must preserve body content');
 
 
-    // 2. Doc containing only immersive_entry_chip
     const onlyChip = 'http://googleusercontent.com/immersive_entry_chip/0\n';
     assert.strictEqual(stripInternalChipMarkdown(onlyChip).trim(), '', 'Doc with only chip URL should result in empty text');
 });

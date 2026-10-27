@@ -1,6 +1,4 @@
 /**
- * PDF export integration regressions on the frozen v2 contracts.
- *
  * Application.runExport owns item failures, batch delivery and ExportRecord.
  * L3b builds the AST; L4 PDF Format accepts an IPdfCompiler boundary and L4
  * Packaging/Delivery owns the output. The old PdfExporter / StorageService,

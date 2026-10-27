@@ -4,14 +4,9 @@ import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisitio
 import { contentQuality } from '../qualityEvidence.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 /**
- * ChatGPT conversation parser: assembled mapping evidence -> branded Domain.
  * Acquisition (session/list/detail/downloads) stays in the provider; only this
  * parser module may call validateParserDomain for ChatGPT payloads, mirroring
  * the Gemini rpc/dom/takeout parser ownership in the trust boundary.
- *
- * Message bodies are ChatGPT-dialect Markdown: normalized by
- * markdownCompatibility.ts, then parsed by the shared mdast pipeline into
- * BlockNodes (code/table/math structure preserved, like Gemini bodies).
  */
 import type {
     DomainAsset,
@@ -43,7 +38,6 @@ import {
 } from './conversationTree.js';
 import { preprocessChatGPTMarkdown } from './markdownCompatibility.js';
 
-/** Image bytes resolved by the provider for one sediment pointer. */
 interface ChatGPTParsedImage {
     pointer: string;
     assetId: string;
@@ -53,7 +47,6 @@ interface ChatGPTParsedImage {
     byteLength?: number;
 }
 
-/** Uploaded-file bytes resolved by the provider (absent when undownloadable). */
 interface ChatGPTParsedFile {
     id: string;
     name: string;
@@ -71,7 +64,6 @@ interface ChatGPTNodeAssets {
 interface ChatGPTParseInput {
     account?: Account;
     conversation: ChatGPTApiConversationWithId;
-    /** Pre-resolved downloads keyed by node id; missing entries mean no assets. */
     assetsByNode: Map<string, ChatGPTNodeAssets>;
 }
 

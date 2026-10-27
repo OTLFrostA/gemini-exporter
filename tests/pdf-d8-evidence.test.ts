@@ -41,9 +41,7 @@ const {
     resolveLocalCjkFont,
 } = require('./helpers/realWasmSandbox.js');
 
-// ---------------------------------------------------------------------------
 // builders
-// ---------------------------------------------------------------------------
 
 
 function para(text: string) {
@@ -137,9 +135,7 @@ function assertPdfMagic(pdfBytes: Uint8Array): void {
     assert.strictEqual(Buffer.from(pdfBytes.slice(0, 5)).toString('latin1'), '%PDF-');
 }
 
-// ---------------------------------------------------------------------------
 // D8-1: 0 外部请求
-// ---------------------------------------------------------------------------
 
 test('D8-1: full WASM init + font install + compile makes 0 external requests', async () => {
     const domain = makeDomain([
@@ -163,9 +159,7 @@ test('D8-1: full WASM init + font install + compile makes 0 external requests', 
     assertPdfMagic(gated.result.pdfBytes);
 });
 
-// ---------------------------------------------------------------------------
 // D8-2: selectable math (real convertMath, no formula-as-image)
-// ---------------------------------------------------------------------------
 
 test('D8-2: formulas compile to selectable text, not images', async () => {
     const domain = makeDomain(
@@ -202,9 +196,7 @@ test('D8-2: formulas compile to selectable text, not images', async () => {
     assert.ok(extracted.text.includes('mass-energy'), 'prose survives alongside math');
 });
 
-// ---------------------------------------------------------------------------
 // D8-3: CJK 文本提取 / 无 tofu
-// ---------------------------------------------------------------------------
 
 test('D8-3: long Chinese session extracts with full CJK coverage, zero tofu', async (t: { skip: (msg?: string) => void }) => {
     const cjkFont = resolveLocalCjkFont();
@@ -255,9 +247,7 @@ test('D8-3: long Chinese session extracts with full CJK coverage, zero tofu', as
     assert.ok(missing.length === 0, `all input CJK chars extractable; missing: ${missing.slice(0, 20).join('')}`);
 });
 
-// ---------------------------------------------------------------------------
 // D8-4: 50 MiB metadata-only 附件
-// ---------------------------------------------------------------------------
 
 test('D8-4: 50 MiB file attachment stays metadata-only (no read, no hash, no OOM)', async () => {
     const FIFTY_MIB = 50 * 1024 * 1024;
@@ -315,9 +305,7 @@ test('D8-4: 50 MiB file attachment stays metadata-only (no read, no hash, no OOM
     );
 });
 
-// ---------------------------------------------------------------------------
 // D8-5: 多会话压力
-// ---------------------------------------------------------------------------
 
 test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async () => {
     const host = new RealWasmSandboxHost(repoRoot());
@@ -377,9 +365,7 @@ test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async ()
     );
 });
 
-// ---------------------------------------------------------------------------
 // D8-6: 连续导出 dispose / leak 回归 (#594)
-// ---------------------------------------------------------------------------
 
 test('D8-6: repeated create -> compile -> dispose leaves no frame/listener growth', async () => {
     const CYCLES = 5;
@@ -409,13 +395,9 @@ test('D8-6: repeated create -> compile -> dispose leaves no frame/listener growt
     console.log(`  D8-6: ${CYCLES} cycles, stats=${JSON.stringify(host.stats)}`);
 });
 
-// ---------------------------------------------------------------------------
 // extractor self-check (guards the test helper itself)
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // extractor unit tests (guard the test helper itself)
-// ---------------------------------------------------------------------------
 
 test('pdfTextExtract: literal strings with raw balanced parens (Typst CID bytes)', () => {
     // Typst emits 2-byte CID bytes 0x28/0x29 as RAW '(' / ')' inside literal

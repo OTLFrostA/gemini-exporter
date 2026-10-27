@@ -1,16 +1,9 @@
 /**
- * tests/document-html-math-policy.test.ts
- * Tier 1 unit test suite for PR 3: HTML Math Rendering Policy.
- *
- * Verifies:
- * 1. Supported LaTeX formulas (inline, fraction, scripts, matrix, cases, operatorname, Greek)
- *    are rendered into native W3C MathML (<math>) without raw LaTeX syntax leakage (\frac, \sqrt, etc.).
  * 2. Original LaTeX source is preserved inside MathML <annotation encoding="application/x-tex">
  *    for accessibility and copyability.
  * 3. Unsupported LaTeX environments (TikZ) are detected and fail gracefully with diagnostic warnings
  *    and copyable fallback blocks.
  * 4. Unknown LaTeX commands / syntax errors trigger graceful diagnostic fallback blocks.
- * 5. Full integration with renderCanonicalHtml verifies both Chinese and English fallback labels.
  */
 export {};
 const test = require('node:test');
@@ -22,36 +15,30 @@ const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
 
 test('PR 3: Supported LaTeX math compiles to valid MathML', () => {
-    // 1. Inline formula
     const resInline = renderMathHtml('E = mc^2', false, getRendererStrings('zh').mathFallback);
     assert.strictEqual(resInline.diagnostic, undefined);
     assert.ok(resInline.html.includes('<math xmlns="http://www.w3.org/1998/Math/MathML">'));
     assert.ok(resInline.html.includes('<annotation encoding="application/x-tex">E = mc^2</annotation>'));
 
-    // 2. Fraction
     const resFrac = renderMathHtml(String.raw`\frac{a}{b}`, true, getRendererStrings('zh').mathFallback);
     assert.strictEqual(resFrac.diagnostic, undefined);
     assert.ok(resFrac.html.includes('<mfrac>'));
     const withoutAnnotation = resFrac.html.replace(/<annotation\b[\s\S]*?<\/annotation>/g, '');
     assert.strictEqual(withoutAnnotation.includes(String.raw`\frac`), false, 'Visible MathML DOM must use <mfrac> instead of raw \\frac text');
 
-    // 3. Scripts
     const resScripts = renderMathHtml('x_i^2', false, getRendererStrings('zh').mathFallback);
     assert.strictEqual(resScripts.diagnostic, undefined);
     assert.ok(resScripts.html.includes('<msubsup>') || resScripts.html.includes('<msub>'));
 
-    // 4. Matrix
     const resMatrix = renderMathHtml(String.raw`\begin{pmatrix} a & b \\ c & d \end{pmatrix}`, true, getRendererStrings('zh').mathFallback);
     assert.strictEqual(resMatrix.diagnostic, undefined);
     assert.ok(resMatrix.html.includes('<mtable'));
     assert.ok(resMatrix.html.includes('<mtr>'));
 
-    // 5. Cases
     const resCases = renderMathHtml(String.raw`\begin{cases} 1 & x > 0 \\ 0 & x \le 0 \end{cases}`, true, getRendererStrings('zh').mathFallback);
     assert.strictEqual(resCases.diagnostic, undefined);
     assert.ok(resCases.html.includes('<mtable'));
 
-    // 6. Operatorname & Greek
     const resOp = renderMathHtml(String.raw`\operatorname{tr}(A) + \hbar \Omega`, false, getRendererStrings('zh').mathFallback);
     assert.strictEqual(resOp.diagnostic, undefined);
     assert.ok(resOp.html.includes('<mi>tr</mi>') || resOp.html.includes('tr'));
@@ -122,7 +109,6 @@ test('PR 3: End-to-end integration via provider parsing, composition and HTML re
     assert.ok(html.includes('无法排版该公式；保留原始 LaTeX：'));
     assert.ok(html.includes(String.raw`\begin{tikzpicture}`));
 
-    // MathML assertions
     assert.ok(html.includes('<math xmlns="http://www.w3.org/1998/Math/MathML">'));
     assert.ok(html.includes('<annotation encoding="application/x-tex">E = mc^2</annotation>'));
     assert.ok(html.includes(String.raw`\hbar \Omega = \int_0^\infty f(x) dx`));

@@ -1,4 +1,3 @@
-# scripts/framework/pipeline/actions.py
 """
 Atomic Action Primitives for Gemini Interaction Pipeline.
 Each action encapsulates exactly one single-responsibility step with state invariants,
@@ -194,7 +193,6 @@ class UniversalInputAction:
         px_x = point[0] if point and len(point) >= 2 else None
         px_y = point[1] if point and len(point) >= 2 else None
 
-        # 1. 物理寻址并上焦
         cdp.eval(f"""
         (() => {{
             let target = null;
@@ -293,15 +291,12 @@ class StagePromptAction(AtomicAction):
         return PipelineStage.STAGED
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        # 1. 彻底清空目标编辑器
         UniversalInputAction.clear_target(cdp, selector=self.editor_selector)
         time.sleep(0.2)
 
-        # 2. 原生输入文本并派发事件
         UniversalInputAction.insert_text(cdp, self.prompt_text, selector=self.editor_selector)
         time.sleep(0.2)
 
-        # 3. 校验注入结果
         editor_sel_json = json.dumps(self.editor_selector)
         staged_len = cdp.eval(f"""
         (() => {{

@@ -5,9 +5,6 @@ import path from 'node:path';
 import { calculateBackoff, abortableSleep } from '../src/shared/utils/retryUtils.js';
 const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
-// ---------------------------------------------------------------------------
-// 1. calculateBackoff: Formula, Exponential Growth, Jitter & Retry-After Cap
-// ---------------------------------------------------------------------------
 
 test('retryUtils - calculateBackoff computes deterministic exponential delays when jitter is 0', () => {
     const opts = { initialDelayMs: 1000, maxDelayMs: 20000, jitterMs: 0 };
@@ -54,9 +51,6 @@ test('retryUtils - calculateBackoff honors server Retry-After floor even beyond 
     assert.strictEqual(delayNeg, 1000, 'negative retryAfterMs ignored');
 });
 
-// ---------------------------------------------------------------------------
-// 2. abortableSleep: Non-positive, No-Signal, Pre-aborted, & Mid-sleep Abort
-// ---------------------------------------------------------------------------
 
 test('retryUtils - abortableSleep resolves immediately on non-positive ms', async () => {
     const resZero = await abortableSleep(0);

@@ -1,21 +1,14 @@
 import { sourceConversation } from './helpers/l1SourceFixture.js';
 /**
- * tests/structured-rpc-domain.test.ts
- *
- * Verification suite for Gemini Structured RPC -> Domain content integration.
- * Tests:
  * 1. Structured path is actively used (decision point prioritized over Markdown parser).
  * 2. #705 Divergence cases:
  *    - Display math (multiline and after prose) mapped directly to Canonical math block.
  *    - Table + math pipe ($|\alpha|^2$ and $\|\psi\rangle$) preserving intact cells and math.
- * 3. Real Tier 2 Probe fixtures validation against Domain closure.
- * 4. Wire JSPB decoding in Gemini parser layer.
  * 5. Fallback semantics:
  *    - Missing structuredContent -> fallback to Markdown parser.
  *    - Unknown nodeType -> fallback to Markdown parser.
  *    - Malformed node / crossing annotations -> fallback to Markdown parser.
  *    - Empty structured doc with non-empty raw markdown -> fallback to Markdown parser.
- * 6. HTML renderer compatibility with Domain content from structured path.
  */
 export {};
 const test = require('node:test');
@@ -94,25 +87,21 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
     const modelMsg = domain.detail.messages.find((m: any) => m.id === 'm2');
     assert.ok(modelMsg, 'Model message present');
 
-    // Should have 2 blocks: paragraph and math (NOT the raw markdown text)
     assert.strictEqual(modelMsg.content.length, 2);
     assert.strictEqual(modelMsg.content[0].type, 'paragraph');
     assert.ok(modelMsg.content[0]?.type === 'paragraph');
     assert.strictEqual(modelMsg.content[1].type, 'math');
     assert.ok(modelMsg.content[1]?.type === 'math');
 
-    // Check paragraph inlines:
     const p = modelMsg.content[0];
     const strongInline = p.children.find((c: any) => c.type === 'strong');
     assert.ok(strongInline?.type === 'strong');
     assert.ok(strongInline, 'Strong inline exists from annotation');
     assert.strictEqual(inlineText(strongInline.children[0]), 'structured');
 
-    // Check math block:
     const math = modelMsg.content[1];
     assert.strictEqual(math.source, 'E = mc^2');
 
-    // Ensure raw markdown string was NOT used
     const allText = JSON.stringify(modelMsg.content);
     assert.ok(!allText.includes('raw markdown text'), 'Raw markdown was bypassed');
 });
@@ -170,7 +159,6 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     const tableFixture = loadProbeFixture('table-stack-structured.json');
     const psiTableFixture = loadProbeFixture('psi-table-stack-structured.json');
 
-    // Case C-alpha
     const convAlpha = {
         id: 'c_table_alpha',
         title: 'Table Alpha Test',
@@ -191,24 +179,20 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     assert.ok(tableBlockAlpha, 'Table block exists for Case C-alpha');
 
     assert.ok(tableBlockAlpha.headerRows);
-    // Header row should have exactly 5 cells
     assert.strictEqual(tableBlockAlpha.headerRows.length, 1);
     assert.strictEqual(tableBlockAlpha.headerRows[0].cells.length, 5);
 
-    // All data rows must have exactly 5 cells
     assert.strictEqual(tableBlockAlpha.rows.length, 4);
     for (let r = 0; r < tableBlockAlpha.rows.length; r++) {
         assert.strictEqual(tableBlockAlpha.rows[r].cells.length, 5, `Row ${r} must have 5 cells`);
     }
 
-    // Verify cell r2c4 contains the alpha^2 math intact
     const cellAlpha = tableBlockAlpha.rows[1].cells[4]; // row 2 in 0-indexed data rows is index 1
     const mathNodeAlpha = cellAlpha.children.find((c: any) => c.type === 'inlineMath' && c.source.includes('\\alpha'));
     assert.ok(mathNodeAlpha?.type === 'inlineMath');
     assert.ok(mathNodeAlpha, 'InlineMath node found in table cell');
     assert.strictEqual(mathNodeAlpha.source, String.raw`|\alpha|^2`);
 
-    // Case C-psi
     const convPsi = {
         id: 'c_table_psi',
         title: 'Table Psi Test',
@@ -229,7 +213,6 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     assert.ok(tableBlockPsi, 'Table block exists for Case C-psi');
 
     assert.ok(tableBlockPsi.headerRows);
-    // Header row should have exactly 3 cells
     assert.strictEqual(tableBlockPsi.headerRows[0].cells.length, 3);
     for (let r = 0; r < tableBlockPsi.rows.length; r++) {
         assert.strictEqual(tableBlockPsi.rows[r].cells.length, 3, `Row ${r} must have 3 cells`);
@@ -247,7 +230,6 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
     const aStack = loadProbeFixture('a-stack-structured.json');
     const bStack = loadProbeFixture('b-stack-structured.json');
 
-    // Case A: 50 root nodes
     assert.strictEqual(aStack.children.length, 50);
     const convA = {
         id: 'c_probe_a',
@@ -257,7 +239,6 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
     const resA = await sourceConversation(convA as any);
     assert.doesNotThrow(() => assertDomainClosure((resA.conversation).detail));
 
-    // Case B: 49 root nodes
     assert.strictEqual(bStack.children.length, 49);
     const convB = {
         id: 'c_probe_b',
@@ -269,7 +250,6 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
 });
 
 test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe fixtures', () => {
-    // 1. Psi-table wire fixture: real turn[3][12] from probe case-b turn 0
     const psiWire = loadProbeFixture('wire-turn-3-12-psi-table.json');
     const psiRuntime = loadProbeFixture('psi-table-stack-structured.json');
 
@@ -282,11 +262,9 @@ test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe f
         'Node types match ([18, 17, 0])'
     );
 
-    // Text content matches
     const textNode = decodedPsi.children[0] as any;
     assert.strictEqual(textNode.text, psiRuntime.children[0].text);
 
-    // Table shape, cell counts, and math intact
     const decodedTable = decodedPsi.children[1] as any;
     const runtimeTable = psiRuntime.children[1] as any;
     assert.strictEqual(decodedTable.rows.length, runtimeTable.rows.length, 'Row count matches (5 rows)');
@@ -294,7 +272,6 @@ test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe f
         assert.strictEqual(decodedTable.rows[r].cells.length, 3, `Row ${r} has 3 cells`);
     }
 
-    // Verify cell math annotations in row 1 cell 2 (psi table cell)
     const decodedMathCell = decodedTable.rows[1].cells[2];
     const mathChild = decodedMathCell.children.find((c: any) => c.text && c.text.includes('\\Vert{}\\psi'));
     assert.ok(mathChild, 'Found math text child in row 1 cell 2');
@@ -302,7 +279,6 @@ test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe f
     assert.ok(mathAnnot, 'Inline math annotation exists in decoded wire cell');
     assert.strictEqual(mathAnnot.type, 4);
 
-    // 2. B-stack wire fixture: real turn[3][12] from probe case-b turn 1 (display math + lists + headings)
     const bWire = loadProbeFixture('wire-turn-3-12-b-stack.json');
     const bRuntime = loadProbeFixture('b-stack-structured.json');
 
@@ -310,7 +286,6 @@ test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe f
     assert.ok(decodedB, 'Decoded b-stack wire document');
     assert.strictEqual(decodedB.children.length, bRuntime.children.length, 'Root node count matches (49)');
 
-    // Compare all 13 display math nodes
     const decodedMath = decodedB.children.filter((c: any) => c.nodeType === 12);
     const runtimeMath = bRuntime.children.filter((c: any) => c.nodeType === 12);
     assert.strictEqual(decodedMath.length, 13, 'Contains 13 display math blocks');
@@ -321,7 +296,6 @@ test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe f
 });
 
 test('Nested unknown node in list/table/blockquote fails closed to Markdown parser', async () => {
-    // 1. List with unsupported child: item 0 known, item 1 has unknown child, item 2 known
     const listConv = {
         id: 'c_nested_list',
         title: 'Nested List Unknown',
@@ -353,7 +327,6 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
         'List with unknown child must fail closed to markdown without silent item dropping'
     );
 
-    // 2. Table with unsupported cell child
     const tableConv = {
         id: 'c_nested_table',
         title: 'Nested Table Unknown',
@@ -388,7 +361,6 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
         'Table with unknown cell child must fail closed to markdown'
     );
 
-    // 3. Blockquote with unsupported child
     const bqConv = {
         id: 'c_nested_bq',
         title: 'Nested Blockquote Unknown',
@@ -462,15 +434,11 @@ test('Unknown annotation shape/type fails closed and is never coerced to bold', 
 test('Multi-candidate turn attaches structuredContent only to proven candidate 0', async () => {
     const wirePsi = loadProbeFixture('wire-turn-3-12-psi-table.json');
 
-    // Turn with 2 candidates: candidate 0 (primary) and candidate 1 (alternative draft)
     const multiCandTurn = [
         'r_multicand_turn',
         [1700000000, 0],
         [['What is a qubit?']],
         [
-            // Model payload:
-            // candidate 0: rc_0
-            // candidate 1: rc_1
             [
                 ['rc_0', [null, ['Draft 0 raw text']]],
                 ['rc_1', [null, ['Draft 1 raw text']]],
@@ -493,7 +461,6 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     const decodedTurn = decodeTurn(multiCandTurn);
     assert.ok(decodedTurn);
 
-    // Primary candidate (candidateIndex = 0)
     const struct0 = inspectStructuredContent({
         candidate: multiCandTurn[3][0][0],
         turnDocument: wirePsi,
@@ -503,7 +470,6 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     if (struct0.status !== 'decoded') throw new Error('Primary candidate structured decode failed');
     assert.strictEqual(struct0.document.children.length, 3);
 
-    // Alternative candidate (candidateIndex = 1)
     const struct1 = inspectStructuredContent({
         candidate: multiCandTurn[3][0][1],
         turnDocument: wirePsi,
@@ -511,7 +477,6 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     });
     assert.strictEqual(struct1.status, 'candidate_unmatched', 'Candidate 1+ must NOT receive turn[3][12] without proven evidence');
 
-    // Verify end-to-end normalization of multi-candidate messages
     const conv = {
         id: 'c_multicand',
         title: 'Multi-Candidate Normalization',
@@ -534,12 +499,10 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     const msg0 = res.conversation.detail.messages[0];
     const msg1 = res.conversation.detail.messages[1];
 
-    // msg0 used structured content (contains table block)
     const tableBlock0 = msg0.content.find((b: any) => b.type === 'table');
     assert.ok(tableBlock0?.type === 'table');
     assert.ok(tableBlock0, 'Candidate 0 has table block from structured path');
 
-    // msg1 used markdown fallback (contains paragraph with strong inline)
     assert.strictEqual(msg1.content.length, 1);
     assert.strictEqual(msg1.content[0].type, 'paragraph');
     assert.ok(msg1.content[0]?.type === 'paragraph');
@@ -550,17 +513,14 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
 });
 
 test('Wire JSPB decoding in Gemini parser layer', () => {
-    // Construct wire JSPB node for display math: field 34
     const wireMathNode = new Array(35).fill(null);
     wireMathNode[34] = ['\\sum_{i=1}^n i = \\frac{n(n+1)}{2}'];
 
-    // Construct wire JSPB node for paragraph with inline math annotation
     const wireTextNode = [
         null,
         [null, 0, 'The formula is \\alpha + \\beta', [[15, 30, [null, null, []]]]],
     ];
 
-    // Construct wire JSPB node for code block
     const wireCodeNode = [null, null, null, ['console.log(42);', 'typescript']];
 
     const wirePayload = [[[wireTextNode, wireMathNode, wireCodeNode]]];
@@ -738,7 +698,6 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     const bWire = loadProbeFixture('wire-turn-3-12-b-stack.json');
     const bRuntime = loadProbeFixture('b-stack-structured.json');
 
-    // 1. extractImages extracts the image attachment from both wire and runtime representations
     const wireImages = extractImages(bWire);
     assert.strictEqual(wireImages.length, 1, 'Wire fixture yields 1 image attachment');
     assert.strictEqual(wireImages[0].title, '贝尔测试实验示意图');
@@ -753,7 +712,6 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     assert.strictEqual(runtimeImages[0].height, 280);
     assert.strictEqual(runtimeImages[0].sourceUrl, wireImages[0].sourceUrl, 'Source URLs match between wire and runtime');
 
-    // 2. Normalizing message with structuredContent preserves the image in Domain content
     const conv = {
         id: 'c_attachment36_test',
         title: 'Attachment 36 Preservation Test',
@@ -776,7 +734,6 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     assert.strictEqual(imageBlocks.length, 1, 'Exactly 1 image block placed in Domain message');
     assert.equal(domain.detail.assets[0].name, '贝尔测试实验示意图');
 
-    // Exactly 1 asset in bundle (no duplicate)
     assert.strictEqual(domain.detail.assets.length, 1, 'Exactly 1 asset in bundle');
     const asset = domain.detail.assets[0];
     assert.strictEqual(asset.kind, 'image');
@@ -784,7 +741,6 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     assert.equal(Object.hasOwn(asset, 'dimensions'), false);
     assert.strictEqual(asset.id, imageBlocks[0], 'Block assetId links to bundle asset ID');
 
-    // Validate the canonical bundle
     assert.doesNotThrow(() => assertDomainClosure((domain).detail));
 });
 
@@ -792,14 +748,12 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
     const cand = loadProbeFixture('wire-case-b-cand.json');
     const bWire = loadProbeFixture('wire-turn-3-12-b-stack.json');
 
-    // 1. Candidate array itself contains the search image in its attachment slot
     const candImages = extractImages(cand);
     assert.strictEqual(candImages.length, 1, 'extractImages(cand) extracts 1 image');
     assert.strictEqual(candImages[0].width, 700);
     assert.strictEqual(candImages[0].height, 280);
     assert.ok(candImages[0].sourceUrl.startsWith('https://encrypted-tbn0.gstatic.com'));
 
-    // 2. Structured path normalization
     const convStructured = {
         id: 'c_cand_wire_test',
         title: 'Candidate Wire Test',
@@ -820,7 +774,6 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
     assert.strictEqual(imgBlocksStructured.length, 1, 'Structured path has exactly 1 image block');
     assert.strictEqual(resStructured.conversation.detail.assets.length, 1, 'Structured path has exactly 1 asset');
 
-    // 3. Fallback markdown path normalization (without structuredContent)
     const convFallback = {
         id: 'c_cand_fallback_test',
         title: 'Candidate Fallback Test',
@@ -844,11 +797,9 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
 test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to be skipped without creating unknown blocks or assets', async () => {
     const psiRuntime = loadProbeFixture('psi-table-stack-structured.json');
 
-    // extractImages on UI chips returns empty
     const imgs = extractImages(psiRuntime);
     assert.strictEqual(imgs.length, 0, 'UI chips do not extract as images');
 
-    // Normalizing conversation with UI chips produces 0 image blocks and 0 assets
     const conv = {
         id: 'c_chips_test',
         title: 'UI Chips Test',
@@ -868,7 +819,6 @@ test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to
     assert.strictEqual(imageBlocks.length, 0, 'UI chips create 0 image blocks');
     assert.strictEqual(domain.detail.assets.length, 0, 'UI chips create 0 assets');
 
-    // Only text paragraph and table blocks present
     assert.strictEqual(msg.content.length, 2);
     assert.strictEqual(msg.content[0].type, 'paragraph');
     assert.ok(msg.content[0]?.type === 'paragraph');

@@ -38,7 +38,6 @@ interface ExportRunDiagnostic {
     error?: string;
 }
 
-/** Main's complete workbench presentation, backed by the v2 Application/Runtime ports. */
 export async function initWorkbench(): Promise<void> {
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();

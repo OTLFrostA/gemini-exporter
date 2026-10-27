@@ -64,7 +64,6 @@ export interface GeminiProtocolModule {
 
 const PROTOCOL_VERSION = '2026-09-07';
 
-// batchexecute wrapper: every payload row is ["wrb.fr", "<rpc>", "<json string>", ...]
 const WRB = 'wrb.fr';
 
 // RPC endpoint names (compiled Google-side identifiers — rotate together
@@ -77,7 +76,6 @@ const RPCS: ProtocolRPCS = {
     DELETE: 'GzXR5e'       // conversation delete (deletion sniffing anchor)
 };
 
-// WIZ_global_data token key names.
 const TOKENS: ProtocolTokens = {
     AT: 'SNlM0e', // XSRF/at token
     BL: 'cfb2h'   // frontend build label key (the "bl" request param)

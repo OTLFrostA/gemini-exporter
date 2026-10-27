@@ -26,9 +26,7 @@ const TabService = require('../src/runtime/capabilities/tabService.js');
 const ConversationsStore = require('../src/ui/options/state/conversationsStore.js');
 
 
-// ---------------------------------------------------------------------------
 // 1. Account Sniffer Tests
-// ---------------------------------------------------------------------------
 test('accountSniffer - extractEmailFromText', () => {
     assert.strictEqual(extractEmailFromText('test.user+tag@gmail.com'), 'test.user+tag@gmail.com');
     assert.strictEqual(extractEmailFromText('Google Account: Alice (ALICE@GMAIL.COM)'), 'alice@gmail.com');
@@ -118,9 +116,7 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     assert.strictEqual(sniffUserProfileFromDom(mockDoc4), null);
 });
 
-// ---------------------------------------------------------------------------
 // 2. Credential Isolation Tests
-// ---------------------------------------------------------------------------
 test('credentialManager - resolveCred prevents cross-account token theft', async () => {
     const origChrome = (global as any).chrome;
     try {
@@ -160,9 +156,7 @@ test('credentialManager - resolveCred prevents cross-account token theft', async
     }
 });
 
-// ---------------------------------------------------------------------------
 // 3. Strict Tab Routing Tests
-// ---------------------------------------------------------------------------
 test('tabService - resolveAccountTab and sendToGeminiTab enforce strict slot matching', async () => {
     const origChrome = (global as any).chrome;
     try {
@@ -210,9 +204,7 @@ test('tabService - resolveAccountTab and sendToGeminiTab enforce strict slot mat
     }
 });
 
-// ---------------------------------------------------------------------------
 // 4. Conversations Store Empty Slot Isolation Tests
-// ---------------------------------------------------------------------------
 test('conversationsStore - refresh does not hijack a selected empty account', async () => {
     const accounts = [{ id: A, providerId: 'gemini', providerAccountId: 'main' }, { id: B, providerId: 'gemini', providerAccountId: 'empty' }];
     const state = new ConversationViewState({ listAccounts: async () => accounts,

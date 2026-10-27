@@ -12,7 +12,6 @@ test('p1_h2 - P1-102: con.md is rewritten, not left as a reserved name', () => {
     assert.ok(out.endsWith('.md'), `extension preserved, got ${out}`);
 });
 
-// ---------- P1-103: COM/LPT 1-99 ----------
 test('p1_h2 - P1-103: COM/LPT 1..99 are reserved', () => {
     for (const name of ['com1', 'com10', 'com99', 'lpt1', 'lpt42', 'lpt99']) {
         const out = pathUtils.sanitizeFileName(name);
@@ -23,7 +22,6 @@ test('p1_h2 - P1-103: COM/LPT 1..99 are reserved', () => {
     assert.ok(out.endsWith('.txt'));
 });
 
-// ---------- P1-104: truncate by code point, not UTF-16 unit ----------
 test('p1_h2 - P1-104: long emoji names truncate without lone surrogates', () => {
     const out = pathUtils.sanitizeFileName('😀'.repeat(100));
     assert.strictEqual([...out].length, 70);
@@ -33,7 +31,6 @@ test('p1_h2 - P1-104: long emoji names truncate without lone surrogates', () => 
     }
 });
 
-// ---------- P1-105: extension traversal sanitized ----------
 test('p1_h2 - P1-105: buildExportFileName strips path traversal from extension', () => {
     const out = pathUtils.buildExportFileName('title', 'c_123', '../../etc/passwd');
     assert.ok(!out.includes('/') && !out.includes('..'), `got ${out}`);
@@ -48,7 +45,6 @@ test('p1_h2 - P1-105b: buildExportFileName preserves _cid6 under downstream sani
     assert.strictEqual(cleaned, out, 'downstream sanitizeRelativePath must not truncate _cid6');
 });
 
-// ---------- P1-107: takeout fallback uses the same bar as tier 1 ----------
 test('p1_h2 - P1-107: takeout placeholder titles do not flow back in', () => {
     const bad = indexFixture({ id: 'c_1', titles: { takeout: 'Google Gemini' } });
     assert.strictEqual(bad.title, undefined, 'placeholder must not be selected as a title');
@@ -57,7 +53,6 @@ test('p1_h2 - P1-107: takeout placeholder titles do not flow back in', () => {
     assert.strictEqual(good.title, 'Weekend hiking plan');
 });
 
-// ---------- P1-108: canonical index merging preserves timestamps ----------
 test('p1_h2 - P1-108: mergeConversation honors digit-string updatedAt', () => {
     const oldC = { id: 'c_1', updatedAt: '2024-01-01T00:00:00.000Z', title: 'Old' };
     const inc = { id: 'c_1', updatedAt: '1726358400000', title: 'New' };
@@ -67,7 +62,6 @@ test('p1_h2 - P1-108: mergeConversation honors digit-string updatedAt', () => {
     assert.strictEqual(eff, 1726358400000);
 });
 
-// ---------- P1-110: code spans survive the residual tag strip ----------
 test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
     const html = '<pre><code class="language-html">&lt;div&gt;hi&lt;/div&gt;</code></pre>'
         + '<p>real <b>bold</b> text</p>'
@@ -80,8 +74,6 @@ test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
     assert.ok(out.includes('**bold**'), 'real bold outside code still converts');
 });
 
-// ---------- P1-112: no substring cross-file matching ----------
-// ---------- P1-115: ZipWriter 200MB hard fail ----------
 test('p1_h2 - P1-115: ZipWriter refuses beyond safe budget instead of warning', async () => {
     (globalThis as any).self = (globalThis as any).self || {};
     (globalThis as any).self.JSZip = (globalThis as any).self.JSZip || require('../lib/jszip.min.js');
@@ -93,7 +85,6 @@ test('p1_h2 - P1-115: ZipWriter refuses beyond safe budget instead of warning', 
     );
 });
 
-// ---------- P1-116: FsWriter serializes same-path writes ----------
 test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', async () => {
     const { FsWriter } = require('../src/l4/delivery/writers/fsWriter.js');
     const events: string[] = [];

@@ -8,14 +8,12 @@ test('errors - active TakeoutParseError extends GeminiError', () => {
         TakeoutParseError
     } = require('../src/shared/types/errors.js');
 
-    // 1. Root GeminiError
     const rootErr = new GeminiError('Root error');
     assert.ok(rootErr instanceof Error);
     assert.ok(rootErr instanceof GeminiError);
     assert.strictEqual(rootErr.name, 'GeminiError');
     assert.strictEqual(rootErr.message, 'Root error');
 
-    // 2. TakeoutParseError
     const takeoutErr = new TakeoutParseError('Structure changed', true, 'MyActivity.html');
     assert.ok(takeoutErr instanceof GeminiError);
     assert.strictEqual(takeoutErr.formatDrift, true);

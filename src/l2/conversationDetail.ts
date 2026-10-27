@@ -3,7 +3,6 @@ import type { ConversationKey } from './conversationKey.js';
 import type { ContentQuality } from './quality.js';
 import type { BlockNode } from './content/blocks.js';
 
-/** Provider-neutral description of a complete conversation detail. */
 export type DomainMessageRole =
     | 'user'
     | 'assistant'
@@ -52,7 +51,6 @@ export interface DomainMessage {
     /** Optional stable message identity; never synthesized from array position. */
     id?: string;
     role: DomainMessageRole;
-    /** Provider-authored model name, when supplied. */
     model?: string;
     content: BlockNode[];
     /** Unix epoch milliseconds; omit when missing or unknown. */

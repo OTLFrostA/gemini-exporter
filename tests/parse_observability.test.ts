@@ -17,12 +17,10 @@ const attachments = require('../src/l1/parsers/gemini/rpc/sourceAttachments.js')
 const pagination = require('../src/l1/client/gemini/api/pagination.js');
 const { contentQuality } = require('../src/l1/parsers/qualityEvidence.js');
 
-// ---------------------------------------------------------------- helpers
 function modelMessageOf(res: any): any {
     return res.messages.find((m: any) => m.role === "model");
 }
 
-// ---------------------------------------------------------------- P1-8: turnsRejected + schemaDrift
 test('P1-8a: 漂移夹具产出 turnsRejected=1 且 schemaDrift 非空', () => {
     const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_01'));
     assert.strictEqual(res.turnsRejected, 1, 'junk 元素应被计数为拒识');
@@ -64,7 +62,6 @@ test('P1-8e: pagination 跨页合并 turnsRejected 与 schemaDrift（去重）',
     assert.deepStrictEqual([...new Set(res.diagnostics.filter((d: { code: string }) => d.code === 'GEMINI_SCHEMA_DRIFT').map((d: { message: string }) => d.message))].sort(), ["drift-a", "drift-b"], 'schemaDrift 应跨页合并去重');
 });
 
-// ---------------------------------------------------------------- P1-9: 文档元数据来源标记
 const UUID = "123e4567-e89b-12d3-a456-426614174099";
 function strictDocItem(title = "Adequate Strict Title Here"): unknown[] {
     // DEEP_RESEARCH_DOC: [CHIP_URL:0, ?:1, ID:2, TITLE:3, CONTENT_ID:4, TIMESTAMP:5]
@@ -163,13 +160,11 @@ test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透
     const substringNode = ["prefix_docSubId_suffix", [[rawSection, "https://example.com/doc-link"]]];
     const root = [substringNode];
 
-    // 1. Matcher returns typed provenance without modifying the source array.
     const found = attachments.createDocumentReader(root).byId("docSubId");
     assert.ok(found);
     assert.strictEqual(found?.contentMatch, 'substring', 'substring 匹配必须标记为启发式');
     assert.equal(Object.hasOwn(substringNode, 'contentMatch'), false, '原始 RPC 节点不得被修改');
 
-    // 2. Parsed sections receive provenance as a separate, typed value.
     const res = found;
     assert.strictEqual(res.contentMatch, 'substring', 'parseDocSections 必须透传匹配依据');
     assert.ok(res.contentMarkdown.includes("这是一段用于测试文档段落的文字内容"), 'sections 内容应被正确解析为 markdown');

@@ -71,7 +71,6 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   <div id="popupPermissionControls"></div>
 </section>
 <div id="popupMain" hidden>
-<!-- Card 1: Active Chat Awareness -->
 <div id="chatInfoCard" class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
     <span id="currentChatLabel" class="label" style="margin:0;color:var(--current-chat-accent, #818cf8);" data-i18n="currentChatLabel">当前会话</span>
@@ -81,9 +80,7 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   </div>
 </div>
 
-<!-- Card 2: Export Options & Actions -->
 <div class="card">
-  <!-- Format Tabs -->
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
     <span class="label" style="margin:0;" data-i18n="format">格式</span>
     <span id="activeFormatLabel" style="font-size:10px;color:var(--accent2);font-weight:600;">Markdown</span>
@@ -95,7 +92,6 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
     <button type="button" class="tab-btn" data-value="json" data-format="json" data-i18n="fmtJsonStandardTab">JSON</button>
   </div>
 
-  <!-- Row 1: Export Current Page & Open Console Batch Export -->
   <div class="row" style="margin-bottom:0px;">
     <button id="btnCurrent" class="ghost" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnCurrent">📥 导出当前页面</button>
     <button id="btnOptions" class="primary" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnOptions">去控制台批量导出 ↗</button>

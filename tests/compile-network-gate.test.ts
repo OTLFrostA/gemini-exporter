@@ -21,7 +21,6 @@ const {
     NetworkGateBlockedError,
 } = require('./helpers/compileNetworkGate.js');
 
-// ------------------------------------------------------------------ fixtures
 
 /** 干净的桩编译器: 纯计算, 不触碰任何网络 API。 */
 async function StubPdfCompiler(payload: any): Promise<Uint8Array> {
@@ -47,7 +46,6 @@ class FakeXMLHttpRequest {
     send(): void { /* no-op */ }
 }
 
-// ------------------------------------------------------------------ self-tests
 
 test('gate passes a clean StubPdfCompiler with zero violations', async () => {
     const payload = { schemaVersion: 1, messages: [] };

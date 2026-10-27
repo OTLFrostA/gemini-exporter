@@ -18,9 +18,7 @@ const JSZip = require('../lib/jszip.min.js');
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
 const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
 
-// ---------------------------------------------------------------------------
 // Fixture helpers
-// ---------------------------------------------------------------------------
 
 function makeSample(idSuffix: string, title: string, marker?: string) {
     const c = JSON.parse(JSON.stringify(sample));
@@ -111,10 +109,8 @@ class TitleTextPdfCompiler {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Node-backed FileSystemDirectoryHandle adapter for the REAL FsWriter.
 // Only the browser platform API is adapted; FsWriter itself is untouched.
-// ---------------------------------------------------------------------------
 
 function makeNodeDirHandle(absDir: string): any {
     return {

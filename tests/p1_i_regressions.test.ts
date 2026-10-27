@@ -19,7 +19,6 @@ function fakeProvider(id: string, opts: { matchesUrl?: (u: string) => boolean; h
     return p;
 }
 
-// ---------------------------------------------------------------- P1-075
 test('P1-075 - second DELETION_ANCHOR requires the c_ prefix (anchored discipline)', () => {
     // Unquoted GzXR5e followed by a BARE hex token (no c_) must NOT match:
     // this is exactly the false-positive the old (?:c_)? allowed.
@@ -39,7 +38,6 @@ test('P1-075 - second DELETION_ANCHOR requires the c_ prefix (anchored disciplin
     assert.strictEqual(m0![1], 'aabbccdd11223344');
 });
 
-// ---------------------------------------------------------------- P1-077
 test('P1-077 - CJS test bridge preserves protocol exports without a globalThis mount', () => {
     assert.strictEqual(Proto.GeminiProtocol, Proto);
     assert.strictEqual(Proto.default, Proto);
@@ -47,7 +45,6 @@ test('P1-077 - CJS test bridge preserves protocol exports without a globalThis m
     assert.strictEqual((globalThis as any).GeminiProtocol, undefined);
 });
 
-// ------------------------------------------------------------- P1-078
 test('P1-078 - duplicate registration of a DIFFERENT instance warns loudly', () => {
     const registry = new ProviderRegistryClass();
     const warnings: string[] = [];
@@ -70,21 +67,16 @@ test('P1-078 - duplicate registration of a DIFFERENT instance warns loudly', () 
     }
 });
 
-// ------------------------------------------------------------- P1-081/082 (fixed by #356, locked here; Phase E: dormant)
-
-
-// ---------------------------------------------------------------- P1-085
 
 
 
 
-// ---------------------------------------------------------------- P1-086
 
 
-// ---------------------------------------------------------------- P1-087
 
 
-// ---------------------------------------------------------------- P1-088
+
+
 test('P1-088 - checkReadiness never passes the slot id off as the account name', async () => {
     // Runtime: stub credential resolution to force the ready:true branch.
     const credMgr = require('../src/l1/client/gemini/api/credentialManager.js').default;
@@ -103,7 +95,6 @@ test('P1-088 - checkReadiness never passes the slot id off as the account name',
     }
 });
 
-// ---------------------------------------------------------------- P1-089
 test('P1-089 - gemini hostPatterns cover everything matchesUrl accepts', () => {
     const gemini = new GeminiProvider();
     assert.ok(gemini.matchesUrl('https://gemini.google.com/app'), 'gemini host matches');
@@ -118,7 +109,6 @@ test('P1-089 - gemini hostPatterns cover everything matchesUrl accepts', () => {
     assert.ok(!gemini.matchesUrl('https://chatgpt.com'), 'unrelated host still refused');
 });
 
-// ------------------------------------------------------------- P1-043/044 (Phase E: dormant — no pagination walk left)
 
 
 

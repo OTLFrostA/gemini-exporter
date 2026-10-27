@@ -12,14 +12,11 @@ const {
 const { sourceConversation } = require('./helpers/l1SourceFixture.js');
 
 test('extractGroundingCitationMarkers extracts declared markers from JSPB candidate metadata', () => {
-    // Standard JSPB structure: cand[12] contains grounding array with field 44
     const cand = [
-        // cand[0] = body
         [
             null,
             [['Response text with [cite: 1]']],
             null, null, null, null, null, null, null, null, null, null,
-            // index 12: grounding metadata array
             [
                 {
                     '8': [],
@@ -36,7 +33,6 @@ test('extractGroundingCitationMarkers extracts declared markers from JSPB candid
     const markers = extractGroundingCitationMarkers(cand);
     assert.deepStrictEqual(markers.sort(), ['[cite: 1]', '[cite:2]'].sort());
 
-    // Null and empty safety
     assert.deepStrictEqual(extractGroundingCitationMarkers(null), []);
     assert.deepStrictEqual(extractGroundingCitationMarkers([]), []);
     assert.deepStrictEqual(extractGroundingCitationMarkers([['no metadata']]), []);
@@ -68,7 +64,6 @@ test('metadata-confirmed [cite: 1] transforms to citationRef with label [1]', as
     assert.strictEqual(citeRefs.length, 1);
     assert.strictEqual(citeRefs[0].label, '[1]');
 
-    // Citation entity is registered and referenced
     const citId = citeRefs[0].citationId;
     assert.ok(msg.citations?.some((citation: any) => citation.id === citId));
     const citEntity = domain.detail.messages[0].citations.find((c: any) => c.id === citId);
@@ -122,7 +117,6 @@ test('repeated citation marker in the same sentence both convert cleanly', async
     assert.strictEqual(citeRefs.length, 2);
     assert.strictEqual(citeRefs[0].label, '[1]');
     assert.strictEqual(citeRefs[1].label, '[1]');
-    // Both point to the same citation entity
     assert.strictEqual(citeRefs[0].citationId, citeRefs[1].citationId);
 });
 
@@ -160,7 +154,6 @@ test('model text with unconfirmed [cite: 1] (no matching metadata) is preserved 
                 id: 'm1',
                 role: 'model',
                 content: 'This model mentioned [cite: 1] and [cite: 2] without grounding metadata.',
-                // No groundingCitationMarkers
             },
         ],
     };
@@ -220,18 +213,15 @@ test('marker inside code block and inline code is preserved untouched', async ()
     const { conversation: domain, diagnostics } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
 
-    // Para 1: inline code
     const p1 = msg.content[0];
     const inlineCode = p1.children.find((c: any) => c.type === 'inlineCode');
     assert.ok(inlineCode);
     assert.strictEqual(inlineCode.code, '[cite: 1]');
 
-    // Para 2: code block
     const codeBlock = msg.content[1];
     assert.strictEqual(codeBlock.type, 'code');
     assert.ok(codeBlock.code.includes('[cite: 1]'));
 
-    // Para 3: confirmed text citation
     const p3 = msg.content[2];
     const citeRef = p3.children.find((c: any) => c.type === 'citationRef');
     assert.ok(citeRef);
@@ -292,12 +282,10 @@ test('orthogonal coexistence: both web [1] and grounding [cite: 1] in same messa
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
 
-    // [1] maps to web citation
     const webCit = domain.detail.messages[0].citations.find((c: any) => c.id === citeRefs[0].citationId);
     assert.strictEqual(webCit?.url, 'https://example.com/web');
     assert.ok(webCit);
 
-    // [cite: 1] maps to grounding citation with label [1]
     const groundCit = domain.detail.messages[0].citations.find((c: any) => c.id === citeRefs[1].citationId);
     assert.strictEqual(groundCit?.url, undefined);
     assert.ok(groundCit);
@@ -331,7 +319,6 @@ test('source AST replaces metadata-confirmed cite tokens with citation reference
 test('wire batchexecute decoding and source AST close citation references', async () => {
     const rawEnvelope = geminiDetailGen('G_GROUNDING_CITATION_MARKERS_01');
 
-    // 1. Parser stage
     const parsed = decodeGeminiDetail(rawEnvelope, '533ac8ca2ecb8bd7');
     assert.strictEqual(parsed.messages.length, 2);
 
@@ -339,7 +326,6 @@ test('wire batchexecute decoding and source AST close citation references', asyn
     assert.ok(modelMsg);
     assert.deepStrictEqual(modelMsg.groundingCitationMarkers, ['[cite: 1]']);
 
-    // 2. Domain parsing stage
     const convData = {
         id: parsed.id,
         title: parsed.title || 'Config Test',
@@ -352,7 +338,6 @@ test('wire batchexecute decoding and source AST close citation references', asyn
     const canMsg = domain.detail.messages.find((m: any) => m.role === 'assistant');
     assert.ok(canMsg);
 
-    // Verify citationRef inlines exist and label is [1]
     const refs = canMsg.content.flatMap((b: any) => b.children || []).filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(refs.length, 1);
     assert.strictEqual(refs[0].label, '[1]');

@@ -10,9 +10,6 @@ import {
 
 const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
-// ---------------------------------------------------------------------------
-// 3. interruptibleSleep (in retryPolicy.ts) & handleHttp429 Integration
-// ---------------------------------------------------------------------------
 
 test('retryPolicy - interruptibleSleep delegates to abortableSleep when isAborted is omitted', async (t: TestContext) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -36,12 +33,10 @@ test('retryPolicy - interruptibleSleep delegates to abortableSleep when isAborte
 test('retryPolicy - interruptibleSleep polling handles custom isAborted predicate', async (t: TestContext) => {
     t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
     try {
-        // 1. Initially aborted
         let abortedFlag = true;
         const resInit = await interruptibleSleep(5000, undefined, () => abortedFlag);
         assert.strictEqual(resInit, true, 'initially aborted returns true');
 
-        // 2. Aborted via polling mid-sleep
         abortedFlag = false;
         const pPoll = interruptibleSleep(5000, undefined, () => abortedFlag);
         t.mock.timers.tick(50);
@@ -50,7 +45,6 @@ test('retryPolicy - interruptibleSleep polling handles custom isAborted predicat
         const resPoll = await pPoll;
         assert.strictEqual(resPoll, true, 'polling aborted returns true');
 
-        // 3. Completes naturally with isAborted staying false
         abortedFlag = false;
         const pNormal = interruptibleSleep(5000, undefined, () => abortedFlag);
         t.mock.timers.tick(5000);
@@ -83,15 +77,9 @@ test('retryPolicy - handleHttp429 honors Retry-After header and backoff options'
     }
 });
 
-// ---------------------------------------------------------------------------
-// 4. RateLimiter re-exports & Parity
-// ---------------------------------------------------------------------------
 
 
 
-// ---------------------------------------------------------------------------
-// 5. Architectural Boundary Check: No Inverted Dependencies
-// ---------------------------------------------------------------------------
 
 test('architecture - retryPolicy.ts does not import export engine or rateLimiter', () => {
     const src = SRC('src/l1/client/gemini/api/retryPolicy.ts');

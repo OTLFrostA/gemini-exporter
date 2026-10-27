@@ -42,7 +42,6 @@ test('Parser Migration Corpus: Segmentation & admission policy assertions', () =
 });
 
 test('Parser Migration Corpus: Injectable runner executes with real Typst compilation gate', async () => {
-    // 1. Run with genuine Typst WASM compilation gate enabled
     const report = await runCorpus({
         corpusPath: CORPUS_PATH,
         outputPath: REPORT_PATH,
@@ -74,7 +73,6 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
     assert.strictEqual(diskReport.math.candidate?.conversionFailures, 0);
     assert.strictEqual(diskReport.math.candidate?.compileFailures, 0);
 
-    // 2. Test candidate parser injection capability
     let candidateParserCalled = false;
     let candidateConverterCalled = false;
     const diffReport = await runCorpus({
