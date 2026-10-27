@@ -8,6 +8,17 @@ import { updateSettings } from '../src/application/settings/index.js';
 import type { ExportRecord } from '../src/application/export/types.js';
 
 test.beforeEach(reset);
+test('folder basename survives title updates and intervening browser exports without crossing keys', async () => {
+    seed(); seed('second');
+    records.set(address(key()), { format: 'markdown', status: 'ok', exportedAt: 1, folderBaseName: 'First folder name' });
+    await runExport(request({ delivery: 'folderWriter', skipUnchanged: false }));
+    assert.equal(state.builtFiles.at(-1)?.plan.fileName, 'First folder name.markdown');
+    await runExport(request({ delivery: 'browserDownload', format: 'html' }));
+    assert.equal(records.get(address(key()))?.folderBaseName, 'First folder name');
+    await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }));
+    assert.equal(state.builtFiles.at(-2)?.plan.fileName, 'First folder name.markdown');
+    assert.equal(state.builtFiles.at(-1)?.plan.fileName, 'mock-second.markdown');
+});
 const previous: ExportRecord = { format: 'markdown', exportedAt: 999, chatTime: 100, status: 'ok' };
 test('Skip requires same format, ok record and comparable source versions; delivery options do not matter', () => {
     assert.equal(shouldSkipExport(previous, 100, request({ skipUnchanged: true })), true);

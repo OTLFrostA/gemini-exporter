@@ -52,7 +52,8 @@ _WEBPAGE_IMAGES = """(() => ({
         [...reply.querySelectorAll('model-response-content img')]
             .filter(img => !img.closest('thought-container, thought-box, [data-math], .katex, .katex-display, [aria-hidden="true"]'))
             .map(img => { img.scrollIntoView(); return {turn, src: img.currentSrc || img.src,
-                loaded: img.complete && img.naturalWidth > 0}; }))
+                loaded: img.complete && img.naturalWidth > 0,
+                failed: img.complete && img.naturalWidth === 0}; }))
 }))()"""
 
 
@@ -72,6 +73,7 @@ def capture_webpage_images(cdp, chat_id, timeout=30, provider_id='gemini', messa
     """Read browser-loaded resources, never extension storage or exported files."""
     cdp.call('Page.enable')
     deadline = time.monotonic() + timeout
+    reloaded = False
     while time.monotonic() < deadline:
         expression = _WEBPAGE_IMAGES
         if provider_id == 'chatgpt':
@@ -89,6 +91,13 @@ def capture_webpage_images(cdp, chat_id, timeout=30, provider_id='gemini', messa
             images = [image for image in images if any(mid in str(image.get('turn', '')).split() for mid in message_ids)]
         if state.get('chatId') == chat_id.removeprefix('c_') and images and all(image.get('loaded') and image.get('src') for image in images):
             break
+        if (provider_id == 'gemini' and not reloaded
+                and state.get('chatId') == chat_id.removeprefix('c_')
+                and any(image.get('failed') for image in images)):
+            # A completed request with no decoded pixels will not become loaded by waiting.
+            # Refresh the real page once; evidence still comes from its loaded resources.
+            cdp.call('Page.reload', {'ignoreCache': True})
+            reloaded = True
         time.sleep(.5)
     else:
         raise ValueError('Webpage images did not load for independent comparison')

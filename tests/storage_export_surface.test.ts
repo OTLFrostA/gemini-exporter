@@ -20,6 +20,14 @@ test('Storage exposes exactly the 24 agreed passive IO functions', () => {
     ].sort());
 });
 useIndexStorage();
+test('folder basename metadata persists separately for the same conversation ID in different accounts', async () => {
+    const first = fixtureKey('shared-folder-id', 'gemini');
+    const second = fixtureKey('shared-folder-id', 'chatgpt');
+    await storage.putExportRecord(first, { exportedAt: 1, format: 'markdown', status: 'ok', folderBaseName: 'Gemini file' });
+    await storage.putExportRecord(second, { exportedAt: 2, format: 'markdown', status: 'ok', folderBaseName: 'ChatGPT file' });
+    assert.equal((await storage.getExportRecord(first))?.folderBaseName, 'Gemini file');
+    assert.equal((await storage.getExportRecord(second))?.folderBaseName, 'ChatGPT file');
+});
 test('ExportRecord writes do not finalize or mutate Index/Detail', async () => {
     const key = fixtureKey('export');
     await storage.putIndexes([{ key, title: 'Authoritative', titleSource: 'provider', updatedAt: 1 }]);

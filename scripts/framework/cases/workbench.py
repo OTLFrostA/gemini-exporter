@@ -177,11 +177,14 @@ class LanguageToggleCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
         try:
+            before = CDPAssertions.assert_selection_state(cdp_opt)
             en_text = CDPActions.switch_workbench_language(cdp_opt, "en")
-            time.sleep(0.2)
+            after_en = CDPAssertions.assert_selection_state(cdp_opt)
             zh_text = CDPActions.switch_workbench_language(cdp_opt, "zh")
-            time.sleep(0.2)
-            if ("select all" in en_text.lower() or "all" in en_text.lower()) and ("全选" in zh_text):
+            after_zh = CDPAssertions.assert_selection_state(cdp_opt)
+            if any(set(state.get('selected', [])) != set(before.get('selected', [])) for state in (after_en, after_zh)):
+                return False, "语言切换改变了勾选集合", {"before": before, "en": after_en, "zh": after_zh}
+            if en_text in ("Select all visible conversations", "Clear selection") and zh_text in ("全选当前可见会话", "清空选择"):
                 return True, "多语言正确切换且UI渲染完备", {"en": en_text, "zh": zh_text}
             return False, f"多语言切换未匹配: en='{en_text}', zh='{zh_text}'", None
         finally:

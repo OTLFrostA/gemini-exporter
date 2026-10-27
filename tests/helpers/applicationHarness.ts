@@ -231,8 +231,10 @@ function plan(format: ExportFormat, conversation: ReadonlyDomain, prepared: Prep
 stubModule('../../src/l4/packaging/index.js', {
     createExportPathPlanner(format: ExportFormat) {
         state.folderPlannerCreations.push(format);
-        return (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>) =>
-            plan(format, conversation, prepared, fileIds, state.folderPlans);
+        return (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>, baseName?: string) => {
+            const planned = plan(format, conversation, prepared, fileIds, state.folderPlans);
+            return baseName ? { ...planned, fileName: `${baseName}.${format}` } : planned;
+        };
     },
     planExportPaths(inputs: readonly { conversation: ReadonlyDomain; prepared: PreparedResources;
         fileIds: ReadonlySet<string> }[], format: ExportFormat) {

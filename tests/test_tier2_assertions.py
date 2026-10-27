@@ -27,6 +27,7 @@ from scripts.framework.cases.export import (
     FastSkipExportedCase, StaleTabImageExportCase, select_format_targets,
 )
 from scripts.framework.cases.takeout import validate_takeout_records, TakeoutZipImportCase
+from scripts.framework.cases.workbench import LanguageToggleCase
 from scripts.framework.cases.sync import wait_for_prior_scan
 from scripts.framework.driver.platform_driver import TurnResult
 from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
@@ -46,7 +47,7 @@ class OnboardingConnectionContracts(unittest.TestCase):
         cdp = MagicMock()
         cdp.eval.side_effect = [
             {'active': True, 'needsConnection': True, 'ready': True}, True,
-            {'active': True}, {'active': False, 'url': 'chrome-extension://test/src/ui/options/options.html'},
+            {'active': True, 'finished': True}, {'active': False, 'url': 'chrome-extension://test/src/ui/options/options.html'}, None,
         ]
         with patch('scripts.framework.actions.get_tabs', return_value=[{
             'url': 'chrome-extension://test/src/ui/options/options.html', 'webSocketDebuggerUrl': 'ws://options'}]), \
@@ -62,7 +63,7 @@ class OnboardingConnectionContracts(unittest.TestCase):
                 cdp.eval.side_effect = [
                     {'active': True, 'needsConnection': True, 'ready': False},
                     {'active': True, 'needsConnection': True, 'ready': True}, True,
-                    {'active': True}, {'active': False, 'url': 'chrome-extension://test/src/ui/options/options.html'},
+                    {'active': True, 'finished': True}, {'active': False, 'url': 'chrome-extension://test/src/ui/options/options.html'}, None,
                 ]
                 with patch('scripts.framework.actions.get_tabs', return_value=[{
                     'url': 'chrome-extension://test/src/ui/options/options.html', 'webSocketDebuggerUrl': 'ws://options'}]), \
@@ -70,7 +71,7 @@ class OnboardingConnectionContracts(unittest.TestCase):
                      patch('scripts.framework.actions.time.sleep'):
                     self.assertTrue(CDPActions.verify_onboarding_tour(ext_id='test', provider_id=provider))
                 attempts = [call for call in cdp.eval.call_args_list if call.kwargs.get('user_gesture')]
-                self.assertEqual(len(attempts), 1)
+                self.assertEqual(len(attempts), 2)
                 self.assertIn('btnAuthorizePlatforms', attempts[0].args[0])
                 self.assertIn(f'input.value === "{provider}"', attempts[0].args[0])
                 cdp.close.assert_called_once()
@@ -85,6 +86,68 @@ class OnboardingConnectionContracts(unittest.TestCase):
              patch('scripts.framework.actions.time.sleep'):
             self.assertFalse(CDPActions.verify_onboarding_tour(ext_id='test', provider_id='claude'))
         self.assertEqual(sum(bool(call.kwargs.get('user_gesture')) for call in cdp.eval.call_args_list), 1)
+
+    def test_disappearing_or_replaced_tour_cannot_pass_before_final_button(self):
+        cdp = MagicMock()
+        cdp.eval.side_effect = [{'active': True}, {'active': False, 'url': 'chrome-extension://test/src/ui/options/options.html'}]
+        with patch('scripts.framework.actions.get_tabs', return_value=[{
+            'url': 'chrome-extension://test/src/ui/options/options.html', 'webSocketDebuggerUrl': 'ws://options'}]), \
+             patch('scripts.framework.actions.CDPConnection', return_value=cdp), \
+             patch('scripts.framework.actions.time.sleep'):
+            self.assertFalse(CDPActions.verify_onboarding_tour(ext_id='test'))
+
+
+class SelectionActionContracts(unittest.TestCase):
+    def test_late_guidance_cannot_turn_clear_into_select_all(self):
+        for selected in ([False, False], [True, False], [True, True]):
+            for action, expected in ((CDPActions.toggle_select_none, 0), (CDPActions.toggle_select_all, 2)):
+                with self.subTest(selected=selected, action=action.__name__):
+                    cdp = MagicMock()
+                    def evaluate(expression):
+                        # Model the real capture-phase guard: the first outside click
+                        # dismisses guidance without activating its target checkbox.
+                        script = '''
+                            let selected = ''' + json.dumps(selected) + ''';
+                            let guidance = true;
+                            const checkbox = {
+                                disabled: false,
+                                get checked() { return selected.every(Boolean); },
+                                get indeterminate() { return selected.some(Boolean) && !this.checked; },
+                                click() { if (guidance) { guidance = false; return; }
+                                    selected = selected.map(() => !this.checked); }
+                            };
+                            const document = {
+                                getElementById: () => guidance ? {click() {guidance = false;}} : null,
+                                querySelector: () => checkbox,
+                                querySelectorAll: () => selected.filter(Boolean)
+                            };
+                            process.stdout.write(JSON.stringify(eval(''' + json.dumps(expression) + ''')));
+                        '''
+                        return json.loads(subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True).stdout)
+                    cdp.eval.side_effect = evaluate
+                    self.assertEqual(action(cdp), expected)
+
+    def test_failed_clear_evaluation_is_not_silently_treated_as_zero(self):
+        cdp = MagicMock(); cdp.eval.return_value = None
+        with self.assertRaisesRegex(RuntimeError, 'selection was not cleared'):
+            CDPActions.toggle_select_none(cdp)
+
+
+class LanguageToggleContracts(unittest.TestCase):
+    def test_all_selected_labels_pass_and_selection_changes_fail(self):
+        for selected_after, expected in [([CID], True), ([], False)]:
+            ctx = MagicMock()
+            with patch.object(CDPActions, 'switch_workbench_language', side_effect=['Clear selection', '清空选择']), \
+                 patch.object(CDPAssertions, 'assert_selection_state', side_effect=[
+                     {'selected': [CID]}, {'selected': selected_after}, {'selected': [CID]}]):
+                self.assertEqual(LanguageToggleCase().execute(ctx)[0], expected)
+
+    def test_language_helper_reports_failed_evaluation_instead_of_returning_error_object(self):
+        cdp = MagicMock()
+        cdp.eval.return_value = {}
+        with patch('scripts.framework.actions.install_probe'):
+            with self.assertRaisesRegex(RuntimeError, 'verified UI text'):
+                CDPActions.switch_workbench_language(cdp, 'en')
 
 
 def document(evidence=EVIDENCE, cid=CID):
@@ -939,6 +1002,25 @@ class ImageOutcomeTests(unittest.TestCase):
         result = capture_webpage_images(cdp, CID)
         self.assertEqual(result, [dict(turn=1, **self.pixels())])
         self.assertNotIn('fetch(', cdp.eval.call_args.args[0])
+
+    def test_broken_target_image_refreshes_page_once_and_still_requires_pixels(self):
+        cdp = MagicMock()
+        broken = {'chatId': CID, 'images': [{'turn': 0, 'src': 'blob:broken', 'failed': True}]}
+        loaded = {'chatId': CID, 'images': [{'turn': 0, 'src': 'blob:loaded', 'loaded': True}]}
+        cdp.eval.side_effect = [broken, loaded, self.pixels()]
+        with patch('scripts.framework.image_evidence.time.sleep'):
+            self.assertEqual(capture_webpage_images(cdp, CID), [dict(turn=0, **self.pixels())])
+        self.assertEqual([call.args for call in cdp.call.call_args_list if call.args[0] == 'Page.reload'],
+                         [('Page.reload', {'ignoreCache': True})])
+
+    def test_persistently_broken_image_fails_after_one_refresh(self):
+        cdp = MagicMock()
+        cdp.eval.return_value = {'chatId': CID, 'images': [{'turn': 0, 'src': 'blob:broken', 'failed': True}]}
+        with patch('scripts.framework.image_evidence.time.monotonic', side_effect=[0, 0, .5, 2]), \
+             patch('scripts.framework.image_evidence.time.sleep'):
+            with self.assertRaises(ValueError): capture_webpage_images(cdp, CID, timeout=1)
+        self.assertEqual(sum(call.args[0] == 'Page.reload' for call in cdp.call.call_args_list), 1)
+        self.assertEqual(cdp.eval.call_count, 2)
 
     def test_remote_pixels_come_from_browser_resource_cache(self):
         cdp = MagicMock()

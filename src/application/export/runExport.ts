@@ -51,6 +51,7 @@ type PendingExport = PendingContent & {
     prepared: PreparedResources;
     refreshFailed: boolean;
     fileIds: ReadonlySet<string>;
+    folderBaseName?: string;
 }
 interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
 
@@ -170,6 +171,9 @@ export async function runExport(request: ExportRequest, options: {
         signal.throwIfAborted();
         const group: ExportGroup = { key, files: buildExportFiles(request.format, plan, content, prepared),
             record: { format: request.format, status: partial ? 'partial' : 'ok',
+                ...(request.delivery === 'folderWriter'
+                    ? { folderBaseName: plan.fileName.replace(/\.[^.]+$/, '') }
+                    : item.folderBaseName ? { folderBaseName: item.folderBaseName } : {}),
                 ...(partial ? { otherContentMissing } : {}),
                 ...(Object.keys(failures).length ? { attachmentIssues: Object.values(failures).map(failure => {
                     const asset = conversation.detail.assets.find(asset => asset.id === failure.resourceId);
@@ -197,7 +201,7 @@ export async function runExport(request: ExportRequest, options: {
                 // These local facts are independent; don't serialize three storage round trips.
                 const [account, localIndex, record] = await Promise.all([
                     getAccount(key.accountId), getIndex(key),
-                    request.skipUnchanged ? getExportRecord(key) : Promise.resolve(null),
+                    getExportRecord(key),
                 ]);
                 if (!account) throw new Error('Account unavailable');
                 if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
@@ -245,7 +249,8 @@ export async function runExport(request: ExportRequest, options: {
                     const fileIds = references.fileIds;
                     const prepared = await prepareExportResources(snapshot.detail.assets, requiredIds,
                         (asset, abort) => providerFor(account.providerId).acquireResource(key, asset, abort), signal);
-                    return { ...view, key, account, conversation: snapshot, prepared, fileIds, refreshFailed };
+                    return { ...view, key, account, conversation: snapshot, prepared, fileIds, refreshFailed,
+                        ...(record?.folderBaseName ? { folderBaseName: record.folderBaseName } : {}) };
                 };
                 let item = await prepare(conversation);
                 // Body timestamps do not establish whether signed resource URLs remain usable.
@@ -274,7 +279,7 @@ export async function runExport(request: ExportRequest, options: {
                 }
                 const { prepared, fileIds } = item;
                 if (folderPlanner && directory) {
-                    const group = await renderGroup(item, folderPlanner(conversation, prepared, fileIds));
+                    const group = await renderGroup(item, folderPlanner(conversation, prepared, fileIds, item.folderBaseName));
                     await writeToFolder(group.files, directory);
                     await finalize([group]);
                 } else pending.push(item);

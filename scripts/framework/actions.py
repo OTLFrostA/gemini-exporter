@@ -188,6 +188,7 @@ class ExtensionActions:
         cdp = CDPConnection(options_tab['webSocketDebuggerUrl'])
         try:
             shown = False
+            finished = False
             connection_attempted = False
             # Chrome's native optional-host prompt needs a real user grant.
             # Bound the entire Tour by the supplied timeout, including that wait.
@@ -196,15 +197,16 @@ class ExtensionActions:
                     break
                 state = cdp.eval("""(() => {
                     const popover = document.querySelector('.tour-popover');
-                    if (!popover) return {active:false, url:location.href};
-                    const button = [...popover.querySelectorAll('button')].find(btn => /^(Next|下一步|Start using|开始使用)$/.test(btn.textContent));
+                    const button = popover?.querySelector('#tourNextBtn');
+                    if (!button) return {active:false, url:location.href};
                     const authorize = popover.querySelector('#btnAuthorizePlatforms');
                     const selectedState = popover.querySelector('.platform-permission-row[data-platform="' + """ + json.dumps(provider_id) + """ + '"] .platform-permission-state');
                     const granted = selectedState?.dataset.authorized === 'true';
                     if (authorize && (!""" + json.dumps(connection_attempted) + """ || !granted || !button || button.disabled))
                         return {active:true, needsConnection:true, ready:!authorize.disabled};
-                    if (button && !button.disabled) button.click();
-                    return {active:true};
+                    const finished = !button.disabled && /^(Start using|开始使用)$/.test(button.textContent);
+                    if (!button.disabled) button.click();
+                    return {active:true, finished};
                 })()""") or {}
                 if state.get('needsConnection') and state.get('ready') and not connection_attempted:
                     # Request only the scenario platform, in one actual Chrome permission gesture.
@@ -218,9 +220,16 @@ class ExtensionActions:
                         if (!button || button.disabled) return false;
                         button.click(); return true;
                     })()""", user_gesture=True))
-                if state.get('active'): shown = True
+                if state.get('active'):
+                    shown = True
+                    finished = finished or state.get('finished', False)
                 elif shown:
-                    return 'startTour' not in state.get('url', '')
+                    if not finished or 'startTour' in state.get('url', ''):
+                        return False
+                    # Scan completion may immediately show separate Takeout guidance.
+                    # Acknowledge it only after actually finishing the installation Tour.
+                    cdp.eval("document.getElementById('tourTakeoutDismissBtn')?.click()", user_gesture=True)
+                    return True
                 time.sleep(0.25)
             return False
         finally:
@@ -305,8 +314,9 @@ class ExtensionActions:
         """点击全选按钮，返回勾选后的复选框总数"""
         return cdp_opt.eval(f"""
         (() => {{
+            document.getElementById('tourTakeoutDismissBtn')?.click();
             const btn = document.querySelector('{WorkbenchSelectors.BTN_SELECT_ALL}');
-            if (btn) btn.click();
+            if (btn && !btn.checked) btn.click();
             return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
         }})()
         """) or 0
@@ -314,16 +324,20 @@ class ExtensionActions:
     @staticmethod
     def toggle_select_none(cdp_opt) -> int:
         """点击取消全选按钮，返回勾选后的复选框总数"""
-        return cdp_opt.eval(f"""
+        result = cdp_opt.eval(f"""
         (() => {{
+            document.getElementById('tourTakeoutDismissBtn')?.click();
             const checkbox = document.querySelector('{WorkbenchSelectors.BTN_SELECT_ALL}');
-            if (checkbox && !checkbox.disabled) {{
+            if (checkbox && !checkbox.disabled && (checkbox.checked || checkbox.indeterminate)) {{
                 if (!checkbox.checked) checkbox.click();
-                checkbox.click();
+                if (checkbox.checked) checkbox.click();
             }}
             return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
         }})()
-        """) or 0
+        """)
+        if type(result) is not int or result != 0:
+            raise RuntimeError(f'Workbench selection was not cleared: {result!r}')
+        return result
 
     @staticmethod
     def switch_workbench_language(cdp_opt, lang: str = "en") -> str:
@@ -331,7 +345,7 @@ class ExtensionActions:
         if lang not in ("en", "zh"):
             raise ValueError("Tier 2 workbench language must be en or zh")
         install_probe(cdp_opt)
-        return cdp_opt.eval(f"""
+        result = cdp_opt.eval(f"""
         (async () => {{
             const toggle = document.getElementById('langToggle');
             if (!(toggle instanceof HTMLInputElement)) throw new Error('v2 language toggle missing');
@@ -346,13 +360,19 @@ class ExtensionActions:
                 const saved = await globalThis.__tier2V2.getSettings();
                 const button = document.getElementById('btnSelectAll');
                 const value = button?.getAttribute('aria-label') || '';
-                const expected = language === 'en' ? value === 'Select all visible conversations' : value === '全选当前可见会话';
+                const expectedValue = button?.checked
+                    ? (language === 'en' ? 'Clear selection' : '清空选择')
+                    : (language === 'en' ? 'Select all visible conversations' : '全选当前可见会话');
+                const expected = value === expectedValue;
                 if (document.body.dataset.busy === 'false' && saved.language === language && expected) return value;
                 await new Promise(resolve => setTimeout(resolve, 50));
             }}
             throw new Error('v2 language change was not committed or reflected by UI');
         }})()
         """, await_promise=True)
+        if not isinstance(result, str):
+            raise RuntimeError(f'Language change did not yield verified UI text: {result!r}')
+        return result
 
     @staticmethod
     def configure_export_controls(cdp_opt, format_type=None, skip_exported=None) -> Dict[str, Any]:
@@ -574,6 +594,14 @@ class ExtensionActions:
         if downloaded_file and not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
             print("❌ ZIP downloaded, but export UI/storage cleanup did not finish")
             return None
+        if not downloaded_file:
+            state = cdp_opt.eval("""({
+                busy: document.body.dataset.busy,
+                status: document.getElementById('status')?.textContent,
+                progress: document.getElementById('progText')?.textContent,
+                dialogs: [...document.querySelectorAll('dialog[open], .tour-popover')].map(el => el.textContent)
+            })""")
+            print(f"❌ Export download deadline reached: {state}")
         return downloaded_file
 
 
