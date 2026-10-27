@@ -13,8 +13,7 @@ const fixtureMap = {
     'G_REGRESSION_EMPTY_DELETE_RESPONSE_01': () => '',
     'G_DYNAMIC_DELETE_ECHO_01': () =>
         JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([null, 'c_8888abcd1234ef01'])]]),
-    'G_DYNAMIC_DELETE_VOID_01': () =>
-        JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([])]]),
+    'G_DYNAMIC_DELETE_VOID_01': () => nativeDelete.responseText,
     'G_DYNAMIC_DELETE_UNMATCHED_01': () =>
         JSON.stringify([['wrb.fr', 'GzXR5e', JSON.stringify([null, 'c_aaaaaaaaaaaaaaaa'])]]),
         'G_DELETE_SNIFFER_RESPONSE_01': () => JSON.stringify([

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { geminiRpcPacket, GEMINI_DETAIL_CAPTURE as expected } from './fixtures/providers/geminiRpcCapture.js';
+import { geminiRpcPacket, geminiDetailIdentityVariant, GEMINI_DETAIL_CAPTURE as expected } from './fixtures/providers/geminiRpcCapture.js';
 import { editCapturedRpc } from './fixtures/providers/geminiCaptureWire.js';
 import { geminiListPage, geminiListRow, geminiListVariant } from './fixtures/providers/geminiListCapture.js';
 import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
@@ -60,4 +60,21 @@ test('explicit List state variants preserve captured row slots and isolate mutat
         const lines = body.split('\n');
         for (let i = 2; i < lines.length - 1; i += 2) assert.equal(Number(lines[i]), lines[i + 1].length + 2);
     }
+});
+
+test('identity-only Detail variants retain every captured turn and native framing', () => {
+    const baseline = geminiRpcPacket('detail').responseBody;
+    const derived = geminiDetailIdentityVariant('isolated_account_chat');
+    const restored = editCapturedRpc(derived, 'hNvQHb', inner => {
+        const restore = (value: unknown): unknown => value === 'c_isolated_account_chat'
+            ? 'c_' + expected.conversationId : Array.isArray(value) ? value.map(restore) : value;
+        inner.splice(0, inner.length, ...inner.map(restore));
+    });
+    assert.equal(restored, baseline);
+    assert.equal(geminiRpcPacket('detail').responseBody, baseline);
+    const evidence = decodeGeminiDetail(derived);
+    assert.equal(evidence.messages.length, expected.messages);
+    assert.equal(evidence.messages[0].timestamp, expected.firstTimestamp);
+    assert.equal(evidence.messages.at(-1)?.timestamp, expected.lastTimestamp);
+    assert.equal(parseGeminiRpcConversation(derived, { providerId: 'gemini' }).conversationId, 'isolated_account_chat');
 });

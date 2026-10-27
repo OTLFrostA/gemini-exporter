@@ -2,11 +2,13 @@ import streamFrames from '../gemini_answered_stream.json';
 
 /** Native StreamGenerate response bodies, one immutable key per test wire variant. */
 function streamWire(answered = 2, responseId = 'r_abc123'): string {
-    const candidate = ['rc_abc123', ['latest reply'], null, null, null, null, null, null, [answered]];
-    const inner = Array(5).fill(null);
-    inner[1] = ['c_abcdef123456', responseId];
-    inner[4] = [candidate];
-    const frame = JSON.stringify([['wrb.fr', null, JSON.stringify(inner)]]);
+    // Derive status/request variations from the saved native frame, not a parallel schema.
+    const rows: unknown[][] = structuredClone(streamFrames.frames[0]);
+    const inner = JSON.parse(String(rows[0][2])) as unknown[];
+    (inner[1] as string[])[1] = responseId;
+    ((inner[4] as unknown[][])[0])[8] = [answered];
+    rows[0][2] = JSON.stringify(inner);
+    const frame = JSON.stringify(rows);
     return ")]}'\n\n" + Buffer.byteLength(frame) + '\n' + frame + '\n';
 }
 function inclusiveWire(): string {
@@ -31,7 +33,7 @@ function unicodeStream(): string {
     return ")]}'\n\n" + (frame.length + 2) + '\n\n' + frame + '\n';
 }
 function largeCumulativeStream(): string {
-    const progress = streamWire(1).replace('latest reply', 'x'.repeat(8192));
+    const progress = streamWire(1).replace('sanitized reply', 'x'.repeat(8192));
     const line = progress.split('\n').find(value => value.startsWith('[['));
     if (!line) throw new Error('Missing Gemini stream progress frame');
     return ")]}'\n\n" + ((line.length + 2) + '\n' + line + '\n').repeat(480)
@@ -46,7 +48,6 @@ const fixtureMap = {
     'G_STREAM_EXTRA_LENGTH_01': () => streamWire() + '50\n',
     'G_STREAM_ERROR_TRAILER_01': () => streamWire() + '[["er",7]]\n',
     'G_STREAM_OVER_101_MIB_01': () => streamWire() + ' '.repeat(101 * 1024 * 1024),
-    'G_STREAM_UNANSWERED_OVER_101_MIB_01': () => streamWire(1) + ' '.repeat(101 * 1024 * 1024),
     'G_STREAM_INCLUSIVE_01': () => inclusiveWire(),
     'G_STREAM_CORRUPT_LENGTH_01': () => inclusiveWire().replace(/\n(\d+)\n/,
         (_match, count) => '\n' + (Number(count) + 1) + '\n'),

@@ -25,6 +25,7 @@ function testSources(dir: string): string[] {
 test('Claude native response mocks use fixed endpoint Gen(key) samples', () => {
     const violations: string[] = [];
     const inlineMocks = [
+        /\bpayload\s*(?::\s*unknown\s*)?=\s*(?:\[\s*(?:null|\{)|\{\s*error\s*:)/g,
         /parseClaudeList\(\s*(?:\[|\{\s*items\s*:)/g,
         /parseClaudeConversation\(\s*(?:detail\s*\(|\{\s*uuid\s*:)/g,
         /new\s+Response\(\s*(?:['"]data:|status\s*===\s*204\s*\?\s*null)/g,
@@ -35,7 +36,7 @@ test('Claude native response mocks use fixed endpoint Gen(key) samples', () => {
         const path = relative(root, file).replaceAll('\\', '/');
         if (path.startsWith('fixtures/providers/') || path === 'claude_rpc_fixture_closure.test.ts') continue;
         const source = readFileSync(file, 'utf8');
-        if (!/\b(?:ClaudeProvider|parseClaudeConversation|parseClaudeList|installClaudeHook|readClaudeSource)\b/.test(source)) continue;
+        if (!/\b(?:ClaudeProvider|parseClaudeConversation|parseClaudeList|installClaudeHook|readClaudeSource|observeClaudeAccount)\b/.test(source)) continue;
         for (const pattern of inlineMocks) {
             for (const match of source.matchAll(pattern)) {
                 const line = source.slice(0, match.index).split('\n').length;

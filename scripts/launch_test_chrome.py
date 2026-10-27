@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch one isolated Chrome, retaining diagnostics outside disposable worktrees."""
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
@@ -16,11 +17,17 @@ from scripts.cdp_client import CDPConnection
 
 
 def ensure_port_free(port):
+    # Check the actual listening address without allocating an outbound ephemeral
+    # port. connect_ex can return EADDRNOTAVAIL under local port pressure even
+    # when the target is occupied, which used to incorrectly authorize launch.
     with socket.socket() as probe:
-        probe.settimeout(1)
-        if probe.connect_ex(('127.0.0.1', port)) == 0:
+        try:
+            probe.bind(('127.0.0.1', port))
+        except OSError as error:
+            if error.errno != errno.EADDRINUSE:
+                raise
             raise RuntimeError(f'Port {port} is already occupied. Use the existing test browser '
-                               'or quit it normally before launching again; no process was killed.')
+                               'or quit it normally before launching again; no process was killed.') from error
 
 
 def ensure_profile_free(profile):
