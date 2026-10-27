@@ -35,11 +35,29 @@ test('Claude discovery injection omits absent optional arguments for Chrome seri
         await readClaudeSource('/api/organizations');
         const organization = '11111111-1111-4111-8111-111111111111';
         await readClaudeSource(`/api/organizations/${organization}/chat_conversations`, organization);
+        const paginated = `/api/organizations/${organization}/chat_conversations_v2?limit=100&offset=0&consistency=strong`;
+        await readClaudeSource(paginated, organization);
         assert.deepEqual(calls, [['/api/organizations'],
-            [`/api/organizations/${organization}/chat_conversations`, organization]]);
+            [`/api/organizations/${organization}/chat_conversations`, organization],
+            [paginated, organization]]);
     } finally {
         if (original) Object.defineProperty(globalThis, 'chrome', original);
         else Reflect.deleteProperty(globalThis, 'chrome');
+    }
+});
+
+test('Claude source rejects malformed UUIDs in paths and account binding before any tab access', async () => {
+    const valid = '11111111-1111-4111-8111-111111111111';
+    for (const malformed of ['-'.repeat(36), '111111111-111-4111-8111-111111111111']) {
+        const paths = [
+            `/api/organizations/${malformed}/chat_conversations`,
+            `/api/organizations/${malformed}/chat_conversations_v2?limit=100&offset=0&consistency=strong`,
+            `/api/organizations/${valid}/chat_conversations/${malformed}?tree=true&rendering_mode=messages&render_all_tools=true`,
+        ];
+        for (const path of paths) {
+            await assert.rejects(readClaudeSource(path, valid), /Invalid Claude API request/, path);
+        }
+        await assert.rejects(readClaudeSource('/api/organizations', malformed), /Invalid Claude API request/);
     }
 });
 
