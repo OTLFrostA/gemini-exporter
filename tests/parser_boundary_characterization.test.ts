@@ -188,6 +188,30 @@ test('detail: metadata-only and undiscoverable-turn payloads retain distinct dri
     assert.ok(missingTurns.schemaDrift?.some(w => w.startsWith('Payload drift:')));
 });
 
+test('detail: metadata-only identity and title are decoded once without changing malformed fallbacks', () => {
+    const wire = (inner: unknown): string =>
+        JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
+    const valid = decodeGeminiDetail(wire([null, null, [[ID, '  Metadata title  ']]]));
+    assert.deepEqual(valid.metadataConversation, { id: ID, title: 'Metadata title' });
+    assert.equal(valid.bodyShape, 'metadata_only');
+    assert.deepEqual(valid.messages, []);
+    assert.ok(valid.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
+
+    for (const title of [null, 42, { wrong: 'shape' }, '', '   ']) {
+        const parsed = decodeGeminiDetail(wire([null, null, [[ID, title]]]));
+        assert.equal(parsed.metadataConversation, undefined);
+        assert.equal(parsed.bodyShape, 'metadata_only');
+        assert.ok(parsed.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
+    }
+    for (const id of [null, 42, 'r_not_a_conversation', 'wrong_prefix']) {
+        const parsed = decodeGeminiDetail(wire([null, null, [[id, 'Metadata title']]]));
+        assert.equal(parsed.metadataConversation, undefined);
+        assert.ok(!parsed.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
+    }
+    const notMetadataOnly = decodeGeminiDetail(wire([null, [], [[ID, 'Metadata title']]]));
+    assert.equal(notMetadataOnly.metadataConversation, undefined);
+});
+
 test('unidentified metadata cannot become a user message', () => {
     const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_07'));
     assert.equal(parsed.turnsRejected, 1);
