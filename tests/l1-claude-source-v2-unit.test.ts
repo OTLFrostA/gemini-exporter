@@ -275,8 +275,13 @@ test('Claude Detail decodes only safe nonnegative file sizes before rendering', 
         [0, 0], [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
     ] as const) {
         const raw = claudeDetailGen('CL_L1_SOURCE_GENERATED_FILE_01');
-        const entries: unknown = raw.chat_messages[0]?.files;
-        if (!Array.isArray(entries)) throw new Error('Missing Claude file fixture');
+        if (!('chat_messages' in raw) || !Array.isArray(raw.chat_messages))
+            throw new Error('Missing Claude conversation messages fixture');
+        const sourceMessage: unknown = raw.chat_messages[0];
+        if (!sourceMessage || typeof sourceMessage !== 'object' || !('files' in sourceMessage))
+            throw new Error('Missing Claude file fixture');
+        const entries: unknown = sourceMessage.files;
+        if (!Array.isArray(entries)) throw new Error('Invalid Claude files fixture');
         const file: unknown = entries[0];
         if (!file || typeof file !== 'object' || Array.isArray(file))
             throw new Error('Invalid Claude file fixture');
