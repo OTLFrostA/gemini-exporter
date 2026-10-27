@@ -88,8 +88,8 @@ test('unknown wire fields, absent payload, and uncorrelated candidate have disti
     assert.equal(missing?.severity, 'info');
     const rawTurn: unknown[] = [null, null, null, Object.assign(Array(13).fill(null), { 12: report })];
     const turn = decodeTurn(rawTurn);
-    assert.ok(turn);
-    assert.equal(Object.hasOwn(turn, 'rawAnswerDocument'), false);
+    // An uncorrelated document alone does not establish ownership of a message.
+    assert.equal(turn, null);
     assert.equal(inspectStructuredContent({
         turnDocument: report, candidateIndex: 1
     }).status, 'candidate_unmatched');

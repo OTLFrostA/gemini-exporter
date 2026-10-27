@@ -188,13 +188,10 @@ test('detail: metadata-only and undiscoverable-turn payloads retain distinct dri
     assert.ok(missingTurns.schemaDrift?.some(w => w.startsWith('Payload drift:')));
 });
 
-test('known behavior: rejected turn with a user payload still emits a user message', () => {
-    // Known mismatch: turnsRejected counts rejected recognizers, but the message
-    // loop does not skip them. Characterize here; fix separately from typing.
+test('unidentified metadata cannot become a user message', () => {
     const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_07'));
     assert.equal(parsed.turnsRejected, 1);
-    assert.equal(parsed.messages[0].content, 'Rejected recognizer prompt');
-    assert.equal(parsed.messages[0].role, 'user');
+    assert.ok(!parsed.messages.some(message => message.content === 'Rejected recognizer prompt'));
     assert.ok(parsed.schemaDrift?.some(w => w.includes('Turn ID meta')));
 });
 
@@ -256,7 +253,9 @@ test('single Turn decoder closes selected draft and user resources into typed me
         ['rc_selected', [['Selected answer']]]
     ];
     const raw = [[ID, 'r_AB12'], [1700000000, 500000000], [['Prompt']], [candidates, null, 'google', 'rc_selected']];
-    const messages = decodeGeminiTurn(raw, createDocumentReader(raw), new Set(), new Set(), ID);
+    const turn = decodeTurn(raw);
+    assert.ok(turn);
+    const messages = decodeGeminiTurn(turn, raw, createDocumentReader(raw), new Set(), new Set(), ID);
     assert.deepEqual(messages.map(({ role, id, content }) => [role, id, content]), [
         ['user', 'r_AB12', 'Prompt'],
         ['model', 'rc_selected', 'Selected answer']
@@ -264,7 +263,7 @@ test('single Turn decoder closes selected draft and user resources into typed me
     assert.ok(messages.every(message => !Object.hasOwn(message, 'source')
         && !Object.hasOwn(message, 'body') && !Object.hasOwn(message, 'turnDocument')),
         'downstream message evidence must not expose raw candidate wire slots');
-    assert.deepEqual(decodeGeminiTurn(null, createDocumentReader([]), new Set(), new Set(), ID), []);
+    assert.equal(decodeTurn(null), null);
 });
 
 test('Turn Decoder only attributes selected Candidate thoughts, citations and grounding metadata', () => {
@@ -341,7 +340,7 @@ test('Turn decoding keeps compact layouts, missing IDs, malformed fields and raw
     assert.equal(decodedPartial.candidate?.text, 'Text without an ID');
     assert.equal(decodedPartial.candidate?.source, partialCandidate);
     assert.equal(Object.hasOwn(decodedPartial.candidate ?? {}, 'raw'), false);
-    assert.equal(decodeTurn([null, null, null, { malformed: true }])?.candidate, null);
+    assert.equal(decodeTurn([null, null, null, { malformed: true }]), null);
 
     const mixedCandidates: unknown[] = [
         ['rc_first', [['Primary answer']]],

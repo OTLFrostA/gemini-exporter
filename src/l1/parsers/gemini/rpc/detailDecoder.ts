@@ -6,6 +6,7 @@ import type { TurnDriftReport, TitleResult } from "./extractors.js";
 import {
     GEMINI_JSPB_SCHEMA,
     detectTurnSchemaDrift,
+    decodeTurn,
     hasTurnContentMarkers,
     safeStructureClean,
     extractConversationId,
@@ -79,7 +80,6 @@ interface TurnsExtractionResult {
     turns: unknown[];
     inner: unknown;
     schemaDriftWarnings: string[];
-    turnsRejected: number;
 }
 
 function extractTurnsFromInner(
@@ -151,15 +151,7 @@ function extractTurnsFromInner(
         schemaDriftWarnings.push(`Payload drift: inner JSON array present (length ${activeInner.length}) but unable to locate turns array`);
     }
 
-    // P1-8: count elements the turn recognizer rejects. They are dropped from
-    // the exported messages, so the count must travel with the result instead
-    // of being silently lost. The array itself is left untouched.
-    let turnsRejected = 0;
-    for (const t of turns) {
-        if (!isTurn(t)) turnsRejected++;
-    }
-
-    return { turns, inner: activeInner, schemaDriftWarnings, turnsRejected };
+    return { turns, inner: activeInner, schemaDriftWarnings };
 }
 
 /** Source facts only: no archive destinations, unique names or synthetic image filenames. */
@@ -177,7 +169,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
 
         if (!extractedInner) throw new Error("invalid");
 
-        const { turns, inner, schemaDriftWarnings, turnsRejected } = extractTurnsFromInner(
+        const { turns, inner, schemaDriftWarnings } = extractTurnsFromInner(
             extractedInner,
             top,
             innerStr,
@@ -205,13 +197,21 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
         const rev = [...turns].reverse();
         const documents = createDocumentReader(inner);
 
+        let turnsRejected = 0;
+        let turnsRecovered = 0;
         for (const rawTurn of rev) {
             const drift: TurnDriftReport = detectTurnSchemaDrift(rawTurn, convId);
             if (drift.isDrifted) {
                 schemaDriftWarnings.push(...drift.warnings);
             }
 
-            allMsgs.push(...decodeGeminiTurn(rawTurn, documents, dedupSet, docDedupSet, convId));
+            const turn = decodeTurn(rawTurn);
+            if (!turn) {
+                turnsRejected++;
+                continue;
+            }
+            if (!isTurn(rawTurn)) turnsRecovered++;
+            allMsgs.push(...decodeGeminiTurn(turn, rawTurn, documents, dedupSet, docDedupSet, convId));
         }
 
         const metadata = findListConversationMetadata(response, convId === 'c_unknown' ? targetConvId ?? '' : convId);
@@ -260,6 +260,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
             attachmentCount: allMsgs.reduce((a, m) => a + (m.attachmentCount || 0), 0),
             schemaDrift: schemaDriftWarnings.length ? schemaDriftWarnings : void 0,
             turnsRejected: turnsRejected > 0 ? turnsRejected : void 0,
+            turnsRecovered: turnsRecovered > 0 ? turnsRecovered : void 0,
             bodyShape: classifyDetailBody(inner, convId),
             _raw: inner,
             _debug

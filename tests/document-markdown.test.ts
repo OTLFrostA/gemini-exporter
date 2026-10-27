@@ -3,6 +3,9 @@ import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { API } from 'typescript/unstable/sync';
+import { markdownBoundaryViolations } from './helpers/markdownBoundary.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import type { DocumentAst } from '../src/l3b/ast/ast.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
@@ -62,13 +65,15 @@ test('Markdown renderer owns unavailability and emits diagnostics without remote
 
 test('Markdown renderer cannot depend on provider, Domain or storage services', () => {
     const code = readFileSync('src/l4/format/markdown/renderMarkdown.ts', 'utf8');
-    // This is a module-boundary policy, not a check for literal words or function names.
-    const dependencies = [...code.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map(match => match[1]);
-    assert.ok(dependencies.length > 0, 'module import scan must find the real renderer dependencies');
-    for (const dependency of dependencies) {
-        assert.doesNotMatch(dependency, /(?:^|\/)(?:domain|parsers|storage|provider|api|engine)(?:\/|$)/,
-            'Markdown rendering must consume Document AST instead of source-side services');
-    }
+    const path = resolve('src/l4/format/markdown/renderMarkdown.ts');
+    const api = new API({ cwd: process.cwd() });
+    try {
+        const snapshot = api.updateSnapshot({ openFiles: [path] });
+        const source = snapshot.getDefaultProjectForFile(path)?.program.getSourceFile(path);
+        assert.ok(source, 'compiler must parse the actual renderer');
+        assert.deepEqual(markdownBoundaryViolations(source), []);
+        snapshot.dispose();
+    } finally { api.close(); }
     assert.doesNotMatch(code, /\bDate\.now\s*\(/, 'renderers must not invent export timestamps');
     assert.doesNotMatch(code, /\.storageRef\b/, 'renderers must not inspect storage-only fields');
 });
@@ -100,4 +105,47 @@ test('Markdown math fences outgrow source dollar runs without changing ordinary 
         const markdown = renderDocumentMarkdown(document, {});
         assert.ok(markdown.includes(fence + '\n' + source + '\n' + fence), 'math source needs safe fence ' + fence);
     }
+});
+
+test('Markdown dependency gate rejects independent syntax and path bypasses without matching inert text', () => {
+    const forbidden = [
+        `import '../../../l1/parsers/gemini/rpc/parseConversation.js';`,
+        `const load = () => import('../../../l2/conversation.js');`,
+        `const storage = require('../../../l3a/storageService.js');`,
+        `import storage = require('../../../l3a/storageService.js');`,
+        `export { getIndex as read } from '../../../l3a/storageService.js';`,
+        `export * from '../../../l2/conversation.js';`,
+        `import { getIndex as read } from '../../../l3a/storageService.js';`,
+        `import { value } from '../../../shared/../l2/conversation.js';`,
+        'const load = () => import(`../../../l2/conversation.js`);',
+        `import { type DomainMessage, value } from '../../../l2/conversation.js';`,
+        `const load = (path: string) => import(path);`,
+    ];
+    const safe = [
+        `import type { DomainMessage } from '../../../l2/conversationDetail.js';`,
+        `import { type DomainMessage } from '../../../l2/conversationDetail.js';`,
+        `import type Domain = require('../../../l2/conversation.js');`,
+        `type Message = import('../../../l2/conversationDetail.js').DomainMessage;`,
+        `export type { DomainMessage } from '../../../l2/conversationDetail.js';`,
+        `export { type DomainMessage } from '../../../l2/conversationDetail.js';`,
+        `import { renderDocumentMarkdown as render } from './renderMarkdown.js';`,
+        `// import '../../../l2/conversation.js';\nconst text = "require('../../../l3a/storageService.js')";`,
+    ];
+    const cases = [...forbidden, ...safe];
+    const virtual = new Map(cases.map((source, index) => [resolve(`tests/__markdown_boundary_${index}.ts`), source]));
+    const api = new API({ cwd: process.cwd(), fs: {
+        readFile: path => virtual.get(path), fileExists: path => virtual.has(path) ? true : undefined,
+    } });
+    try {
+        const snapshot = api.updateSnapshot({ openFiles: [...virtual.keys()] });
+        let index = 0;
+        for (const [path, code] of virtual) {
+            const source = snapshot.getDefaultProjectForFile(path)?.program.getSourceFile(path);
+            assert.ok(source);
+            const violations = markdownBoundaryViolations(source);
+            if (index++ < forbidden.length) assert.ok(violations.length, code);
+            else assert.deepEqual(violations, [], code);
+        }
+        snapshot.dispose();
+    } finally { api.close(); }
 });
