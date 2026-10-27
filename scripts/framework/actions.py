@@ -32,6 +32,7 @@ from scripts.framework.pipeline import (
 from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
 from scripts.framework.gateway import get_gateway
 from scripts.framework.v2_probe import install_probe, snapshot
+from scripts.framework.tab_cleanup import uninstall_extension
 
 SCAN_OBSERVER = r"""(() => {
     const btn = document.getElementById('btnSyncAll');
@@ -117,7 +118,7 @@ def remove_product_extensions(browser, repo_path, port):
         for tab in get_tabs(port):
             if tab.get('type') == 'page' and tab.get('url', '').startswith(f"chrome-extension://{entry['id']}/"):
                 browser.call('Target.closeTarget', {'targetId': tab['id']})
-        result = browser.call('Extensions.uninstall', {'id': entry['id']})
+        result = uninstall_extension(browser, entry['id'], port)
         if result.get('error'):
             raise ValueError(result['error'])
     after = browser.call('Extensions.getExtensions').get('result', {}).get('extensions')
@@ -149,13 +150,6 @@ class ExtensionActions:
         cdp = CDPConnection(browser_ws)
         try:
             with temporary_required_permissions(repo_path):
-                # Chrome's workspace load result is authoritative, even when the
-                # worker is asleep or another extension has similarly named pages.
-                identity = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
-                old_ext_id = identity.get("result", {}).get("id")
-                if not old_ext_id:
-                    print(f"❌ 无法确认工作区扩展身份，停止重装: {identity}")
-                    return None
                 removed = remove_product_extensions(cdp, repo_path, port)
                 print(f"   🗑️ 已清理 {removed} 个同产品测试副本")
 

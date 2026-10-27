@@ -77,6 +77,7 @@ class TestEnvironment:
         self.repo_path = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), "..", ".."))
         self.output_dir = os.path.abspath(output_dir or os.path.join(self.repo_path, "tests", "output", "live_export"))
         self.viewport_size = viewport_size
+        self._await_install_options = False
         self.ext_id: Optional[str] = None
         self.browser_cdp: Optional[CDPConnection] = None
         os.makedirs(self.output_dir, exist_ok=True)
@@ -126,6 +127,7 @@ class TestEnvironment:
         new_id = CDPActions.reinstall_extension(port=self.port, repo_path=self.repo_path)
         if new_id:
             self.ext_id = new_id
+            self._await_install_options = True
         return new_id
 
     def get_extension_id(self) -> Optional[str]:
@@ -174,6 +176,15 @@ class TestEnvironment:
     def ensure_options_tab(self) -> Optional[Dict[str, Any]]:
         """发现或幂等创建 Options 导出工作台标签页"""
         tab = self.get_options_tab()
+        if self._await_install_options:
+            # onInstalled opens the tour asynchronously; never race it with a duplicate.
+            deadline = time.monotonic() + 20
+            while not tab and time.monotonic() < deadline:
+                time.sleep(0.1)
+                tab = self.get_options_tab()
+            if not tab:
+                raise RuntimeError('Fresh installation did not open its onboarding page')
+            self._await_install_options = False
         if not tab:
             ext_id = self.get_extension_id()
             if not ext_id:

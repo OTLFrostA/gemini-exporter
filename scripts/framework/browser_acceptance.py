@@ -5,6 +5,7 @@ from scripts.cdp_client import CDPConnection, get_tabs
 from scripts.framework.actions import CDPActions, remove_product_extensions
 from scripts.framework.v2_probe import snapshot
 from scripts.framework.live_utils import wait_for
+from scripts.framework.tab_cleanup import uninstall_extension
 
 
 class BrowserAcceptance:
@@ -59,7 +60,7 @@ class BrowserAcceptance:
 
     def uninstall_lifecycle(self):
         old = self.ext_id
-        removed = self.browser.call('Extensions.uninstall', {'id': old})
+        removed = uninstall_extension(self.browser, old, self.port)
         if removed.get('error'):
             raise ValueError(removed['error'])
         wait_for(lambda: all(e['id'] != old for e in self.browser.call('Extensions.getExtensions')['result']['extensions']), 10)

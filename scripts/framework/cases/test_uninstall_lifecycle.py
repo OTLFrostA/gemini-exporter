@@ -10,6 +10,7 @@ from typing import Tuple, Optional, Dict, Any
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
+from scripts.framework.tab_cleanup import uninstall_extension
 
 try:
     from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
@@ -49,7 +50,7 @@ class UninstallLifecycleCase(FeatureTestCase):
         cdp = CDPConnection(browser_ws)
         try:
             # 1. 触发原生卸载
-            removed = cdp.call("Extensions.uninstall", {"id": curr_ext_id})
+            removed = uninstall_extension(cdp, curr_ext_id, ctx.port)
             if removed.get("error"):
                 return False, f"扩展卸载请求失败: {removed['error']}", None
 

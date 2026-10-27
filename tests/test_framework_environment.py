@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from scripts.framework.environment import TestEnvironment, EnvironmentContext
 from scripts.framework.cases.chat import InpageBadgeCase
+from tests.test_tab_cleanup import TabCleanupTests
 
 
 from scripts.framework.assertions import CDPAssertions
@@ -169,6 +170,19 @@ class TestFrameworkEnvironment(unittest.TestCase):
         self.assertEqual(request.full_url, "http://127.0.0.1:9222/json/new?" + created["url"])
         self.assertEqual(request.method, "PUT")
 
+    @patch("scripts.framework.environment.time.sleep")
+    @patch("scripts.framework.environment.urllib.request.urlopen")
+    @patch("scripts.framework.environment.get_tabs")
+    def test_waits_for_install_tour_instead_of_creating_duplicate(self, tabs, open_url, sleep):
+        self.env.ext_id = 'current_id'
+        self.env._await_install_options = True
+        tour = {'id': 'tour', 'type': 'page',
+                'url': 'chrome-extension://current_id/src/ui/options/options.html?startTour=1'}
+        tabs.side_effect = [[], [], [tour]]
+        self.assertEqual(self.env.ensure_options_tab(), tour)
+        open_url.assert_not_called()
+        self.assertFalse(self.env._await_install_options)
+
     def test_setup_and_clear_viewport(self):
         mock_cdp = MockCDP()
         self.env.setup_viewport(mock_cdp, (1920, 1080))
@@ -293,8 +307,11 @@ class InpageBadgeTests(unittest.TestCase):
         ctx.connect_gemini.return_value.close.assert_called_once()
 
 
+@patch("scripts.framework.tab_cleanup.get_tabs", return_value=[])
+@patch("scripts.framework.tab_cleanup.time.monotonic", side_effect=lambda: next(TestWorkspaceReinstall.clock))
 @patch("scripts.framework.actions.get_tabs", return_value=[])
 class TestWorkspaceReinstall(unittest.TestCase):
+    clock = iter(range(100000))
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -314,7 +331,7 @@ class TestWorkspaceReinstall(unittest.TestCase):
     @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
     @patch("scripts.framework.actions.CDPConnection")
     @patch("scripts.framework.actions.get_extension_id", return_value="unrelated-extension")
-    def test_reinstall_removes_old_worktree_copies_and_preserves_other_products(self, discover, connection, ws, sleep, build, tabs):
+    def test_reinstall_removes_old_worktree_copies_and_preserves_other_products(self, discover, connection, ws, sleep, build, tabs, clock, cleanup_tabs):
         from scripts.framework.actions import CDPActions
         client = connection.return_value
         installed = [
@@ -340,23 +357,24 @@ class TestWorkspaceReinstall(unittest.TestCase):
         self.assertEqual([call.args[1]['id'] for call in client.call.call_args_list
                           if call.args[0] == 'Extensions.uninstall'], ['workspace-id', 'stale-id'])
         self.assertEqual([entry['id'] for entry in installed], ['unrelated-extension'])
+        self.assertEqual(sum(c.args[0] == "Extensions.loadUnpacked" for c in client.call.call_args_list), 1)
         discover.assert_not_called()
         client.close.assert_called_once()
 
     @patch("subprocess.run")
     @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
     @patch("scripts.framework.actions.CDPConnection")
-    def test_missing_identity_or_uninstall_failure_never_claims_clean_install(self, connection, ws, build, tabs):
+    def test_missing_identity_or_uninstall_failure_never_claims_clean_install(self, connection, ws, build, tabs, clock, cleanup_tabs):
         from scripts.framework.actions import CDPActions
-        for responses in ([{"error": {"message": "unsupported"}}],
-                          [{"result": {"id": "workspace-id"}}, {"error": {"message": "inventory failed"}}],
-                          [{"result": {"id": "workspace-id"}},
-                           {"result": {"extensions": [{"id": "workspace-id", "name": "Gemini Exporter"}]}},
-                           {"error": {"message": "uninstall failed"}}]):
+        for responses in ([{"error": {"message": "inventory failed"}}],
+                          [{"result": {"extensions": [{"id": "workspace-id", "name": "Gemini Exporter"}]}},
+                           {"error": {"message": "uninstall failed"}}],
+                          [{"result": {"extensions": []}}, {"result": {"extensions": []}},
+                           {"error": {"message": "unsupported"}}]):
             client = connection.return_value
             client.reset_mock()
             client.call.side_effect = responses
-            if len(responses) == 1:
+            if len(responses) == 3:
                 self.assertIsNone(CDPActions.reinstall_extension(repo_path=self.repo_path))
             else:
                 with self.assertRaises(ValueError):
@@ -367,7 +385,7 @@ class TestWorkspaceReinstall(unittest.TestCase):
     @patch("subprocess.run")
     @patch("scripts.framework.actions.get_browser_ws_url", return_value="ws://browser")
     @patch("scripts.framework.actions.CDPConnection")
-    def test_exception_during_install_restores_manifest(self, connection, ws, build, tabs):
+    def test_exception_during_install_restores_manifest(self, connection, ws, build, tabs, clock, cleanup_tabs):
         from scripts.framework.actions import CDPActions
         connection.return_value.call.side_effect = RuntimeError('CDP disconnected')
         with self.assertRaisesRegex(RuntimeError, 'CDP disconnected'):
