@@ -1,170 +1,5 @@
 [
   {
-    "id": "semiconductor_abrupt_junction_depletion_audit",
-    "title": "Semiconductors: abrupt junction depletion widths and charge balance",
-    "domain": "semiconductor_junction_electrostatics",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of an abrupt silicon p-n junction, marking ionized dopants, depletion boundaries and electric-field direction. Label it schematic. Give a Markdown table of synthetic dopant densities, permittivity, temperature and intrinsic carrier density with consistent units.",
-      "Derive the depletion approximation using Poisson's equation in LaTeX. Obtain charge neutrality, built-in potential and the two depletion widths, and distinguish electrostatic potential from electron potential energy.",
-      "Write complete standard-library Python calculating depletion widths, peak field and junction capacitance for the stated example. Check finite inputs, positive parameters and the permitted bias range, with explicit SI conversion tests.",
-      "Give a Markdown table comparing symmetric doping and a strongly asymmetric junction under several reverse biases. Verify integrated charge neutrality and compare analytic capacitance with a numerical derivative of stored charge.",
-      "Write a Chinese-English reproducibility report with executable boundary tests, LaTeX formulas and dimensional checks. Explain limits from degeneracy, breakdown, forward injection and the depletion approximation without extrapolating the formulas beyond their assumptions."
-    ]
-  },
-  {
-    "id": "automata_dfa_partition_refinement_certificate",
-    "title": "Automata: DFA minimization and distinguishing-word certificates",
-    "domain": "automata_partition_refinement",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a complete deterministic finite automaton over a two-symbol alphabet with reachable equivalent states and one unreachable state. Give a Markdown transition table, start state and accepting set, and describe its language precisely.",
-      "Define state equivalence and right-language equivalence in LaTeX. Explain why removing unreachable states and merging equivalent reachable states are distinct operations.",
-      "Write complete standard-library Python validating the transition function, declared state set and alphabet. Reject missing transitions, foreign targets and undeclared accepting states.",
-      "Implement deterministic partition refinement with a Markdown trace of each split on the example. State the stability invariant and explain how the quotient transition function becomes well defined.",
-      "Produce the minimized transition table with reproducible state names. Check that all quotient states are reachable and that the accepting set is consistent on each block.",
-      "Implement a product-automaton equivalence checker that returns a shortest distinguishing word when languages differ. Test the original against its quotient and against a deliberately corrupted quotient.",
-      "For every pair of distinct minimized states, generate a distinguishing-word certificate and verify it independently. Include the empty word where relevant and explain why bounded brute force alone is not a complete equivalence proof.",
-      "Write a Chinese-English reproducibility audit with complete Python tests, LaTeX invariants and Markdown results. Include one-state automata, an empty accepting set and an empty alphabet, clearly specifying the representation contract."
-    ]
-  },
-  {
-    "id": "chemistry_diprotic_acid_titration_charge_balance",
-    "domain": "chemistry_acid_base_titration",
-    "title": "Diprotic acid titration: charge balance and certified equilibrium roots",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a diprotic acid titrated by a strong base at fixed temperature. Derive mass balance, charge balance and water autoionization in LaTeX. Explain every concentration and unit in English and Chinese.",
-      "Derive the alpha fractions and a scalar charge-balance residual in hydrogen concentration. Build a Markdown table covering initial solution, both equivalence points and excess base, without assuming Henderson-Hasselbalch is valid everywhere.",
-      "Write complete standard-library Python that solves equilibrium in log hydrogen concentration by bracketed bisection. Validate volumes, concentrations, equilibrium constants and temperature assumptions; return both pH and charge residual.",
-      "Cross-check the solver with an independent species-concentration calculation. Test dilution, nearly coincident dissociation constants, neutral water and extreme but physically meaningful concentrations. Explain when floating-point precision limits the residual certificate.",
-      "Produce a reproducible report with executable Python tests, a Markdown comparison of exact equilibrium and common approximations, and LaTeX error diagnostics. Distinguish mathematical solvability from ideal-solution validity."
-    ]
-  },
-  {
-    "id": "structures_planar_truss_stiffness_energy_certificates",
-    "domain": "structural_engineering_truss_stiffness",
-    "title": "Planar trusses: stiffness, rigid modes and energy certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a small planar pin-jointed triangular truss with rational node coordinates, axial stiffnesses and supports. Derive element stiffness matrices in LaTeX and explain translations, reactions and sign conventions in English and Chinese.",
-      "Assemble the global stiffness matrix for a concrete three-bar example. Show a Markdown table of node coordinates, degrees of freedom, supports, loads and units. Identify rigid-body modes before applying constraints.",
-      "Write complete standard-library Python to assemble and solve the constrained stiffness system. Use explicit node and element records, validate topology and lengths, and return displacement, member force and reaction tables.",
-      "Derive an independent total potential-energy formulation. Verify that its stationary point matches the stiffness solution and compute energy and force-equilibrium residuals using runnable Python.",
-      "Remove one support to create a mechanism and diagnose it with a null-space certificate. Distinguish a geometric mechanism from an ill-conditioned but stable structure in a Markdown table.",
-      "Apply prescribed nonzero support displacement and thermal strain. Derive the equivalent load terms, update the solver and test a zero-load constrained thermal expansion case.",
-      "Perform a reproducible sensitivity study for one member stiffness and one applied load. Compare finite differences against an analytic linear-system derivative, reporting tolerances and units.",
-      "Produce a self-contained engineering audit with executable Python tests, LaTeX stiffness and energy identities, Markdown result tables and explicit limitations concerning buckling, joint rigidity and geometric nonlinearity."
-    ]
-  },
-  {
-    "id": "coding_canonical_huffman_prefix_certificates",
-    "domain": "coding_canonical_huffman",
-    "title": "Canonical Huffman codes: prefix and decoding certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a Huffman code for six symbols with integer frequencies 5, 9, 12, 13, 16 and 45. State deterministic tie breaking, explain prefix codes in English and Chinese, and give a Markdown table of frequencies, lengths and codewords.",
-      "Derive canonical codewords from the code lengths. Show the Kraft sum and weighted bit count in LaTeX, and explain precisely which choices affect bit patterns without affecting compressed size.",
-      "Implement deterministic Huffman length construction, canonical assignment and a bitstream encoder and decoder using only the Python standard library. Include executable assertions for an explicit symbol sequence.",
-      "Test empty input, a one-symbol alphabet, tied frequencies, truncated codewords and invalid prefix tables. State a framing convention that distinguishes padding from real symbols and demonstrate round trips.",
-      "Produce an independent correctness audit: enumerate binary prefix trees for a small alphabet to verify optimal weighted length, compare the result with entropy bounds in LaTeX, and present a reproducible Markdown results table."
-    ]
-  },
-  {
-    "id": "thermodynamics_ideal_gas_mixing_entropy",
-    "domain": "thermodynamics_mixing_entropy",
-    "title": "Ideal gas mixing: entropy and reversible work audit",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define an insulated rigid vessel initially partitioned into two chambers containing different ideal gases at stated mole counts, volumes and temperatures. Give SI units, constant molar heat capacities, assumptions and a bilingual glossary.",
-      "Derive the final temperature and partial pressures after removing the partition using conservation of internal energy. Present the equations in LaTeX and work a numerical example with a Markdown state table.",
-      "Derive the total entropy change including both temperature equilibration and compositional mixing. Explain the reference-state cancellation and show explicitly why the result is nonnegative for the chosen example.",
-      "Implement a standard-library Python calculator for final temperature, partial pressures and entropy changes. Keep all units explicit and include executable checks of the energy residual and mole conservation.",
-      "Construct an independent reversible path using heat reservoirs and semipermeable membranes to calculate the same entropy difference. Distinguish the state-function calculation from the actual irreversible process.",
-      "Analyze equal initial temperatures, a vanishing amount of one component and the identical-gas case. Explain the Gibbs paradox and why relabeling a gas must not produce a physical mixing entropy.",
-      "Extend the audit to maximum useful work relative to an environment at a stated temperature. Separate exergy destruction from actual extracted work, with LaTeX relations and a Markdown comparison table.",
-      "Deliver runnable regression tests and a reproducible final audit. Use two independent entropy calculations, justified numerical tolerances and explicit limitations of the ideal-gas and constant-heat-capacity assumptions."
-    ]
-  },
-  {
-    "id": "signal_processing_aliasing_phase_recovery",
-    "domain": "signal_processing_sampling_aliasing",
-    "title": "Sampling aliasing: frequency equivalence and phase recovery",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a real sinusoid sampled uniformly at a stated rate. Choose two different continuous-time frequencies giving exactly the same discrete samples. State units, phase conventions and a bilingual glossary.",
-      "Derive the full alias-frequency equivalence class with LaTeX equations. Explain the distinction between frequency folding and phase inversion, and provide a Markdown table of representative aliases.",
-      "Implement a standard-library Python numerical experiment comparing the two sampled signals. Quantify maximum absolute sample error and explain the effect of floating-point roundoff.",
-      "Design a second sampling-rate experiment that disambiguates the two chosen frequencies under a stated finite prior frequency bound. Show the calculation and prove uniqueness within that bound.",
-      "Deliver reproducible regression tests for zero frequency, the Nyquist frequency, phase inversion and two-rate disambiguation. Summarize assumptions, numerical tolerances and the limitations of finite noiseless samples."
-    ]
-  },
-  {
-    "id": "projective_geometry_homography_normalization",
-    "domain": "projective_geometry_homography",
-    "title": "Planar homography: normalization and reprojection certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Specify four noncollinear source and target planar point correspondences with a known invertible projective homography. State coordinate conventions, units and a bilingual glossary.",
-      "Derive the homogeneous point mapping and linear constraints for all homography coefficients using LaTeX. Explain scale ambiguity and give a Markdown correspondence table.",
-      "Choose a scale convention and solve the eight independent equations for the concrete example. Explain what happens when the chosen scale coefficient is zero.",
-      "Implement a standard-library Python linear solver with pivoting for the example. Print per-point reprojection residuals and verify the result against the independently supplied homography.",
-      "Derive coordinate centering and scale normalization. Demonstrate how to denormalize the estimated transform and compare coefficient scale with geometric reprojection error.",
-      "Analyze degeneracy for collinear correspondences and points mapped near the line at infinity. Give explicit counterexamples and define failure criteria without silently replacing denominators.",
-      "Add a fifth correspondence as an independent validation point and perturb one observation. Explain why exact four-point fitting alone does not validate noisy measurements, using a Markdown residual table.",
-      "Deliver runnable regression tests for inverse mapping, scale invariance, normalization and degenerate inputs. State justified tolerances and explain the limits of the exact linear model."
-    ]
-  },
-  {
     "id": "materials_binary_phase_lever_rule_mass_balance",
     "title": "Binary alloy phase diagrams: lever rule and mass conservation",
     "domain": "materials_phase_equilibrium",
@@ -414,6 +249,174 @@
       "Add executable negative tests for a closed nonabsorbing class, invalid row sums, negative probabilities, repeated state labels and zero-step requests. Explain why a singular system is a modeling failure rather than a cue to invent a finite answer.",
       "Compare exact expectations with a seeded standard-library simulation, reporting sample count, observed means and uncertainty. Explain rare long tails and why a fixed seed improves reproducibility without proving the transition model.",
       "Write a Chinese-English reproducibility report including all definitions, LaTeX formulas, full Python tests and a limitations table. Separate transient visit counts, elapsed time units and economic repair costs; keep literal currency examples distinct from formulas."
+    ]
+  },
+  {
+    "id": "optics_paraxial_lens_matrix_audit",
+    "title": "Paraxial optics: lens matrices and image-plane consistency",
+    "domain": "optics_paraxial_ray_transfer",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of an object, a thin converging lens and its image plane in air. Label the optical axis, propagation direction and signed distances. Mark the drawing as schematic. Give a Markdown table of synthetic object distance, focal length and ray coordinates with explicit units.",
+      "Derive the paraxial propagation and thin-lens matrices in LaTeX for the ray vector (height, angle). State the sign convention and show how the zero upper-right matrix entry determines the image distance.",
+      "Write complete runnable standard-library Python for 2 by 2 ray-transfer matrices and thin-lens imaging. Include executable tests for a real image, a virtual image, an object at twice the focal length, and the singular focal-plane case. Reject nonfinite inputs.",
+      "Calculate a synthetic example independently using the thin-lens equation and matrix composition. Provide a Markdown table of three rays before the lens, after refraction and at the image plane; check magnification and determinant conservation.",
+      "Write a Chinese-English reproducibility audit with the LaTeX formulas, complete Python program and boundary tests. Explain why paraxial rays and a thin lens cannot establish diffraction resolution, chromatic correction or the accuracy of the schematic pixels."
+    ]
+  },
+  {
+    "id": "graphs_maxflow_mincut_residual_certificate",
+    "title": "Network flow: residual paths and exact min-cut certificates",
+    "domain": "graph_theory_flow_certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a small directed capacitated network for a synthetic warehouse routing example with six vertices, integer capacities and one source and sink. Supply a Markdown edge table and distinguish directed edges from their residual reverse edges.",
+      "Derive flow conservation, residual capacity and the max-flow min-cut inequality in LaTeX. Explain which invariants must hold after augmenting a path and why a saturated edge alone does not certify optimality.",
+      "Write a complete runnable standard-library Python Edmonds-Karp implementation returning both edge flows and a reachable residual cut. Validate capacities, source and sink and vertex identities; include executable tests.",
+      "Run a hand-checkable augmentation trace for the synthetic graph, using a Markdown table of paths, bottlenecks and total flow. Include a case requiring a reverse residual edge to correct an earlier routing choice.",
+      "Write an independent certificate checker that validates capacity constraints, conservation, total source flow and cut capacity without trusting the optimizer. Explain how equality of feasible flow and cut capacity certifies the optimum.",
+      "Add executable negative tests that mutate an edge flow above capacity, violate conservation at an internal vertex, corrupt the claimed cut and omit an isolated vertex. Ensure the checker rejects each invalid certificate.",
+      "Compare Edmonds-Karp with exhaustive enumeration of source-side cuts on tiny graphs. Provide complete standard-library code and a table of several deterministic graphs, including zero-capacity and disconnected cases.",
+      "Write a Chinese-English audit including the formulas, complete optimizer and checker, and boundary tests. Discuss parallel edges, self-loops, integer overflow assumptions and why an optimal synthetic flow does not prove real warehouse throughput."
+    ]
+  },
+  {
+    "id": "geodesy_spherical_arc_bearing_audit",
+    "title": "Spherical geodesy: arc distance and initial-bearing conventions",
+    "domain": "geodesy_spherical_navigation",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of two locations on a sphere, their meridians and the shorter great-circle arc. Mark the drawing as schematic and supply a Markdown table of explicitly synthetic latitude and longitude pairs, angle units and a chosen sphere radius.",
+      "Derive central angle, arc length and initial bearing in LaTeX using vector dot and cross products. State longitude wrapping, north-clockwise bearing and latitude conventions; explain the coincident and antipodal ambiguities.",
+      "Write complete runnable standard-library Python for great-circle distance and initial bearing. Validate finite latitude, longitude and positive radius. Include executable tests for identical points, equatorial quarter turns, dateline crossing and antipodal points.",
+      "Cross-check a synthetic example with a haversine calculation and a three-dimensional unit-vector calculation. Provide a Markdown table of distances and bearings, and explain why reverse bearing is not generally the forward bearing plus 180 degrees.",
+      "Write a Chinese-English reproducibility audit with the LaTeX formulas, complete Python program and negative tests. Discuss floating-point cancellation, pole conventions and why a sphere and schematic do not establish ellipsoidal survey precision."
+    ]
+  },
+  {
+    "id": "numerics_adaptive_simpson_error_budget",
+    "title": "Numerical integration: adaptive Simpson budgets and failure certificates",
+    "domain": "numerical_analysis_adaptive_quadrature",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define an adaptive numerical integration experiment using several explicitly specified smooth functions with known antiderivatives. Supply a Markdown table of intervals, exact integrals and requested absolute tolerances.",
+      "Derive Simpson quadrature and Richardson correction in LaTeX. State the differentiability assumptions and distinguish a local error estimator from a universal error guarantee.",
+      "Write complete runnable standard-library Python adaptive Simpson integration returning value, estimated error, evaluation count and convergence status. Cache shared samples, split the error budget and enforce a finite recursion limit.",
+      "Provide a hand-checkable subdivision trace for one polynomial and one exponential function, with a Markdown table of intervals, coarse estimates, refined estimates and local budgets.",
+      "Add independent verification against analytic integrals for constant, linear, cubic and exponential cases. Explain why passing these cases does not establish correctness for discontinuities or oscillatory functions.",
+      "Add executable negative tests for nonfinite samples, reversed intervals, a zero-width interval, invalid tolerances, recursion exhaustion and endpoint singularities. Failure status must not be mislabeled as convergence.",
+      "Compare adaptive and uniform composite Simpson integration under a fixed sample budget. Supply complete Python code and a Markdown results table with true and estimated errors for deterministic inputs.",
+      "Write a Chinese-English audit containing the formulas, complete implementation and boundary tests. Discuss cancellation, narrow peaks and aliasing, and explain which claimed error bounds require additional mathematical assumptions."
+    ]
+  },
+  {
+    "id": "robotics_planar_two_link_inverse_branches",
+    "title": "Planar robotics: inverse-kinematics branches and Jacobian checks",
+    "domain": "robotics_planar_inverse_kinematics",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of a two-link planar robot arm. Label joint angles, link lengths and the end-effector target, mark the drawing as schematic and supply a Markdown table of synthetic parameters with units.",
+      "Derive forward kinematics, the two elbow branches of inverse kinematics and the Jacobian determinant in LaTeX. State angle wrapping and reachable-workspace conventions, including singular and unreachable cases.",
+      "Write complete runnable standard-library Python for both inverse branches and forward reconstruction. Validate finite inputs and positive lengths, and include executable tests for interior, fully extended, folded and unreachable targets.",
+      "For synthetic targets, provide a Markdown table of inverse angles, reconstructed coordinates, residual errors and Jacobian determinants. Cross-check analytic derivatives with central finite differences away from singularities.",
+      "Write a Chinese-English reproducibility audit with formulas, complete Python and negative tests. Explain joint-limit and collision constraints omitted from this point-arm model and why a schematic cannot establish physical clearance."
+    ]
+  },
+  {
+    "id": "arithmetic_toy_rsa_crt_certificate",
+    "title": "Modular arithmetic: toy RSA and independent CRT certificates",
+    "domain": "number_theory_modular_exponentiation",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define an explicitly insecure educational RSA example using small distinct primes. Provide a Markdown table of the modulus, totient, candidate exponent and gcd conditions. Do not present these toy values as secure parameters.",
+      "Derive modular inverses with the extended Euclidean algorithm in LaTeX and explain why the exponent must be invertible modulo the selected totient.",
+      "Write complete runnable standard-library Python for extended gcd, modular inversion and square-and-multiply exponentiation. Include executable tests and reject invalid moduli and noninvertible inputs.",
+      "Work through encryption and decryption of a small integer message with a Markdown table of intermediate modular powers. Verify the result independently with Python pow and state the permitted message range.",
+      "Derive Chinese remainder recombination for the two-prime modulus, including the inverse condition and uniqueness of the residue class.",
+      "Implement independent CRT decryption and compare it with direct modular exponentiation for every message in the toy range. Supply complete runnable code and a summary table.",
+      "Add negative tests for repeated primes, an invalid exponent, out-of-range messages and a corrupted CRT coefficient. Explain which algebraic checks detect each failure and which require comparing independent computations.",
+      "Write a Chinese-English audit including the formulas, complete code and boundary tests. Explain why these arithmetic exercises provide no production security, padding design, side-channel protection or prime-generation guarantees."
+    ]
+  },
+  {
+    "id": "biology_logistic_growth_parameter_audit",
+    "title": "Population dynamics: logistic growth and parameter checks",
+    "domain": "biology_population_growth_models",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of a closed microbial culture and a qualitative population-versus-time curve. Mark the drawing as schematic. Give a Markdown table of explicitly synthetic population observations, time units and carrying-capacity assumptions.",
+      "Derive the logistic differential equation solution and its linearized parameter relation in LaTeX. State positivity conditions and distinguish exponential early growth from saturation.",
+      "Write complete runnable standard-library Python to evaluate the logistic curve and recover parameters from exact synthetic observations when identifiable. Include executable tests for the initial condition, equilibrium, monotonicity and invalid inputs.",
+      "Compare analytic predictions with a step-refined numerical integration, reporting a Markdown table of values and errors. Use synthetic data only and explain when a parameter estimate is not identifiable.",
+      "Write a Chinese-English reproducibility audit with formulas, complete code and negative tests. Explain why this closed-population model cannot establish clinical treatment outcomes, nutrient kinetics or the accuracy of schematic pixels."
+    ]
+  },
+  {
+    "id": "databases_conflict_serializability_cycle_certificate",
+    "title": "Database schedules: conflict graphs and serializability certificates",
+    "domain": "databases_conflict_serializability",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic interleaved schedule of three database transactions over named items with read and write operations. Give a Markdown operation table and distinguish conflict serializability from recovery properties.",
+      "Define conflicts and precedence edges in LaTeX. Prove why an acyclic conflict graph admits a topological serial ordering, and state which assumptions are needed for the equivalence claim.",
+      "Write complete runnable standard-library Python that validates a schedule, builds its conflict graph and returns either a topological order or an explicit directed cycle. Include executable tests.",
+      "Construct one acyclic schedule and one cyclic schedule. Provide a Markdown table of conflicting operation pairs and verify every edge against the original operation order.",
+      "Write an independent certificate checker for both topological orders and cycle witnesses. Reject missing transactions, repeated vertices, invented edges and invalid transaction identifiers.",
+      "Add exhaustive checks on tiny operation permutations to compare the graph classifier with enumeration of conflict-preserving serial orders. Supply complete deterministic Python code.",
+      "Add executable boundary tests for read-only transactions, repeated accesses, no transactions, one transaction, duplicate operation IDs and distinct items. Explain which schedules remain nonrecoverable despite conflict serializability.",
+      "Write a Chinese-English audit containing definitions, proof, full classifier and checker, and negative tests. Explain why this exercise does not establish database isolation guarantees, deadlock freedom or recoverability of a real engine."
     ]
   }
 ]

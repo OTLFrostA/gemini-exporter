@@ -23,6 +23,8 @@ export interface ExportAttachmentIssue {
     resourceId: string; name: string; sourceUrl?: string; code: string; httpStatus?: number;
 }
 export interface ExportRecord {
+    /** First successful folder document name, without extension; stable across title changes. */
+    folderBaseName?: string;
     exportedAt: number;
     format: ExportFormat;
     status: 'ok' | 'partial';

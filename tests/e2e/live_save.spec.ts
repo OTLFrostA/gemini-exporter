@@ -47,3 +47,33 @@ test('non-Markdown formats pause effective saving across Options, Popup and relo
     await page.reload();await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();const popup=await openPopup(context,extensionId);await popup.locator('[data-format="markdown"]').click();await expect(page.locator('#format')).toHaveValue('markdown');await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
     await popup.locator('[data-format="html"]').click();await expect(page.locator('#format')).toHaveValue('html');await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
 });
+
+test('title promotion updates the same physical Live Save document across separate tasks', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    const id = '0123456789abcdef';
+    await seedConversations(page, [{ id, title: 'Conversation with Gemini', titleSource: 'derived', body: 'Initial body' }]);
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.setDirectoryHandle(await navigator.storage.getDirectory());
+        await api.updateSettings({ enabledDisk: true, defaultFormat: 'markdown', skipExported: false, exportDelivery: 'folderWriter' });
+    });
+    const worker = context.serviceWorkers()[0];
+    await worker.evaluate(await uiProbeBundle());
+    const save = () => worker.evaluate(({ accountId, id }) => Reflect.get(globalThis, 'uiFixture').runLiveSave({ accountId, conversationId: id }), { accountId, id });
+    expect((await save()).exported).toBe(1);
+    await seedConversations(page, [{ id, title: 'Authoritative truss title', titleSource: 'provider', body: 'Updated complete body' }]);
+    expect((await save()).exported).toBe(1);
+    const files = await page.evaluate(async () => {
+        const directory = await navigator.storage.getDirectory();
+        const files: { name: string; text: string }[] = [];
+        for await (const [name, handle] of Reflect.get(directory, 'entries').call(directory)) {
+            if (handle.kind === 'file') files.push({ name, text: await (await (handle as FileSystemFileHandle).getFile()).text() });
+        }
+        return files;
+    });
+    expect(files).toHaveLength(1);
+    expect(files[0].name).toBe('Conversation with Gemini_abcdef.md');
+    expect(files[0].text).toContain('Authoritative truss title');
+    expect(files[0].text).toContain('Updated complete body');
+    expect(files[0].text).not.toContain('Initial body');
+});

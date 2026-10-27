@@ -24,7 +24,7 @@ const resourceExtensions: Readonly<Record<string, string>> = {
 
 /** Reuse one path namespace across a batch without retaining every resource byte. */
 export function createExportPathPlanner(format: ExportFormat):
-    (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>) => ExportPathPlan {
+    (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>, fileBaseName?: string) => ExportPathPlan {
     const used = new Set<string>();
     function reserve(directory: string, name: string): string {
         // Percent is literal source text, never a second encoded path supplied to a writer.
@@ -41,9 +41,10 @@ export function createExportPathPlanner(format: ExportFormat):
             if (!used.has(key)) { used.add(key); return candidate; }
         }
     }
-    return (conversation, prepared, fileIds) => {
+    return (conversation, prepared, fileIds, fileBaseName) => {
         const id = conversation.index.key.conversationId;
-        const fileName = reserve('', buildExportFileName(conversation.index.title, id, extensions[format]));
+        const fileName = reserve('', fileBaseName ? `${fileBaseName}.${extensions[format]}`
+            : buildExportFileName(conversation.index.title, id, extensions[format]));
         const resources: Record<string, string> = {};
         const externalResourceIds = new Set<string>();
         for (const asset of conversation.detail.assets) {
