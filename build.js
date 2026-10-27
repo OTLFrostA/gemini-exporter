@@ -1,12 +1,3 @@
-// build.js — esbuild pure bundle build pipeline for Gemini Exporter.
-//
-// Modern Architecture (Pure Bundle Pipeline):
-// Directly builds the 5 self-contained production IIFE bundles loaded by Chrome MV3:
-//   1. content/content    -> dist/content/content.js   (ISOLATED world content script)
-//   2. content/hook       -> dist/content/hook.js      (MAIN world network interceptor)
-//   3. background/background -> dist/background/background.js (Service Worker bundle)
-//   4. ui/popup          -> dist/ui/popup.js          (Popup modal coordinator)
-//   5. ui/options        -> dist/ui/options.js        (Options workbench coordinator)
 
 const esbuild = require('esbuild');
 const fs = require('fs');
@@ -78,17 +69,14 @@ async function build() {
         throw new Error('src/ directory not found');
     }
 
-    // Clean dist to ensure zero stale files
     fs.rmSync(DIST, { recursive: true, force: true });
 
-    // Validate that all 5 bundle entrypoint source files exist
     for (const [entryName, entryFile] of Object.entries(BUNDLE_ENTRIES)) {
         if (!fs.existsSync(entryFile)) {
             throw new Error(`Bundle entrypoint source missing for ${entryName}: ${entryFile}`);
         }
     }
 
-    // 1. Build all 5 production IIFE bundles in parallel
     const bundleResult = await esbuild.build({
         entryPoints: BUNDLE_ENTRIES,
         outdir: DIST,
@@ -113,7 +101,7 @@ async function build() {
         throw new Error(`esbuild bundle build failed with ${errors} error(s)`);
     }
 
-    // Build the Typst sandbox entry as ESM (loaded via <script type="module"> in the sandbox page)
+    // The Typst sandbox loads ESM; Chrome MV3 entrypoints are bundled separately as IIFEs.
     for (const [entryName, entryFile] of Object.entries(SANDBOX_ENTRIES)) {
         if (!fs.existsSync(entryFile)) {
             throw new Error(`Sandbox entrypoint source missing for ${entryName}: ${entryFile}`);
@@ -140,7 +128,6 @@ async function build() {
         throw new Error(`esbuild sandbox build failed with ${sandboxResult.errors.length} error(s)`);
     }
 
-    // 2. Verify all expected production bundles exist
     for (const bundle of EXPECTED_BUNDLES) {
         const fullPath = path.join(ROOT, bundle);
         if (!fs.existsSync(fullPath)) {

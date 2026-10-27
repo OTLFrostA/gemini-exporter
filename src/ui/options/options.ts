@@ -38,7 +38,6 @@ interface ExportRunDiagnostic {
     error?: string;
 }
 
-/** Main's complete workbench presentation, backed by the v2 Application/Runtime ports. */
 export async function initWorkbench(): Promise<void> {
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();
@@ -644,7 +643,7 @@ export async function initWorkbench(): Promise<void> {
     renderLog(); render();
     await ensureV2Ready();
     settings = await readSettings();
-    renderLog(); // Localize initial 'Ready' once; subsequent toggles never retranslate the log.
+    renderLog();
     await refresh();
     chrome.storage.onChanged.addListener(onOpenedAccountChange);
     await applyOpenedAccount((await chrome.storage.session.get('openOptionsAccountId')).openOptionsAccountId);

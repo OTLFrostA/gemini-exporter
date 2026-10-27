@@ -1,21 +1,8 @@
-/**
- * src/l1/parsers/gemini/shared/markdownCompatibility.ts
- *
- * Gemini Exporter - Parser Compatibility Rule Registry
- *
- * Enforces the Compatibility Rule Admission Policy (Section 4 & 31):
- * - Initial state: empty (0 speculative rules).
- * - Every rule must have:
- *   - A unique rule ID (e.g. GM-MD-001, GM-TEX-001).
- *   - Provenance evidence pointing to a minimal real reproduction fixture.
- *   - Clear description explaining why standard parser behavior is insufficient for real Gemini.
- *   - Narrow deterministic transformation.
- */
+// Admit compatibility rules only with source evidence: speculative rewrites can corrupt valid Markdown.
 
 import { inlineMathMarkdown } from '../../../../shared/utils/markdownMath.js';
 import { LATEX_COMPAT_RULES } from '../../../../shared/utils/latexCompatibility.js';
 
-/** Read the delimiter run already identified by the caller. */
 function delimiterRun(source: string, start: number): string {
     let end = start + 1;
     while (source[end] === source[start]) end++;
@@ -23,15 +10,10 @@ function delimiterRun(source: string, start: number): string {
 }
 
 interface CompatRuleMetadata {
-    /** Unique rule identifier, e.g. 'GM-MD-001' or 'GM-TEX-001' */
     readonly id: string;
-    /** Relative path to minimal reproduction test fixture with real provenance */
     readonly evidence: string;
-    /** Timestamp when this behavior was first observed on live Gemini */
     readonly observedAt: string;
-    /** Concise explanation of why standard parser is insufficient */
     readonly description: string;
-    /** Hash or fingerprint of the original minimal trigger input */
     readonly originalHash?: string;
 }
 
@@ -56,7 +38,7 @@ export const GM_TEX_003_BAR_ALIASES: TexCompatRule = Object.freeze({
 
 export const normalizeGeminiTexAliases = GM_TEX_003_BAR_ALIASES.transform;
 
-/** Contextual MDAST adaptation, rather than source rewriting. */
+/** Adapt parsed nodes so source-level rewrites cannot change literal code or escaping. */
 export const GM_MD_004_LINE_START_DISPLAY = Object.freeze({
     id: 'GM-MD-004', domain: 'markdown',
     evidence: 'tests/fixtures/provider/math/gm_md_004_evidence.md',
@@ -64,11 +46,7 @@ export const GM_MD_004_LINE_START_DISPLAY = Object.freeze({
     description: 'Live Gemini renders a $$ formula on its own line as a separate display block even without a blank line before it. Split its parsed paragraph, retaining preceding/following prose and list ownership; delimiters sharing a line with prose stay inline.',
 });
 
-/**
- * Normalizes multiline display-math fences ($$) where LaTeX environment keywords
- * (e.g. \\begin{aligned}, \\end{aligned}) are attached directly to $$ on the fence line.
- * Standard micromark mathFlow requires standalone $$ delimiters to open and close fences.
- */
+// Gemini attaches LaTeX to $$ fences that micromark expects to be standalone.
 function normalizeMathFences(source: string): string {
     if (!source || !source.includes('$$')) return source;
 
@@ -101,7 +79,6 @@ function normalizeMathFences(source: string): string {
             continue;
         }
 
-        // Match lines with optional blockquote prefix or indentation
         const prefixMatch = line.match(/^([ \t]*(?:>[ \t]*)*)(.*)$/);
         const prefix = prefixMatch ? prefixMatch[1] : '';
         const rest = prefixMatch ? prefixMatch[2] : line;
@@ -114,9 +91,6 @@ function normalizeMathFences(source: string): string {
                 continue;
             }
 
-            // Check if line starts with $$ followed by content, but does NOT contain another $$ on the same line
-            // e.g. "$$\begin{aligned}" -> opening multiline display math fence with attached content.
-            // If rest contains another $$ (e.g. "$$x^2$$" or "$$x^2$$ text" or "$$a$$ and $$b$$"), it is self-contained on this line.
             if (rest.startsWith('$$') && !rest.slice(2).trimStart().startsWith('$')) {
                 const restAfterOpen = rest.slice(2);
                 if (!restAfterOpen.includes('$$')) {
@@ -129,15 +103,12 @@ function normalizeMathFences(source: string): string {
 
             result.push(line);
         } else {
-            // Already inside multiline display math block
             if (restTrimmed === '$$') {
                 inDisplayMath = false;
                 result.push(line);
                 continue;
             }
 
-            // Check if line ends with $$ attached to math content (e.g. "\end{aligned}$$")
-            // Ensure this line does not contain an opening $$ earlier on the same line
             if (restTrimmed.endsWith('$$') && !restTrimmed.slice(0, -2).trimEnd().endsWith('$')) {
                 const restBeforeClose = restTrimmed.slice(0, -2);
                 if (!restBeforeClose.includes('$$')) {
@@ -168,10 +139,6 @@ export const GM_MD_001_FENCE_NORMALIZATION: MarkdownCompatRule = Object.freeze({
     transform: normalizeMathFences,
 });
 
-/**
- * Active Markdown compatibility rules.
- * Initial state was empty; GM-MD-001 admitted per Section 4 & 31 admission policy.
- */
 /** Real Gemini emits raw absolute-value bars inside table math, before GFM lexing. */
 export function normalizeTableMathPipes(source: string): string {
     const lines = source.split('\n');
@@ -304,10 +271,6 @@ export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Objec
     GM_MD_003_ESCAPED_DOLLAR_MATH,
 ]);
 
-/**
- * Preprocesses raw Gemini Markdown through registered compatibility rules.
- * When GEMINI_MARKDOWN_COMPAT_RULES is empty, this is an exact identity no-op.
- */
 export function preprocessGeminiMarkdown(source: string): string {
     if (!GEMINI_MARKDOWN_COMPAT_RULES.length) return source;
     let result = source;

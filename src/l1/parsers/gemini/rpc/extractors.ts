@@ -36,28 +36,15 @@ interface JspbListItemSchema {
     COUNT_ALT2: number;
 }
 
-/**
- * Inner payload structure after batchexecute envelope unwrap.
- * Used by both parseList and parseDetail to locate turns, title, conv-id, and pagination token.
- */
 interface JspbInnerSchema {
-    /** Primary index for turns array (detail) or conversation list (list) */
     TURNS_OR_LIST_PRIMARY: number;
-    /** Secondary index (fallback) for conversation list */
     LIST_SECONDARY: number;
-    /** Candidate indices for conversation title (scanned in order) */
     TITLE_CANDIDATES: number[];
-    /** Candidate indices for conversation ID */
     CONV_ID_CANDIDATES: number[];
-    /** Candidate indices for next-page token (scanned in order) */
     NEXT_TOKEN_CANDIDATES: number[];
-    /** Metadata-only detection: null/null sentinel then list-format row */
     METADATA_ONLY_LIST: number;
 }
 
-/**
- * Simple inline image tuple: [url, width, height, token?]
- */
 interface JspbInlineImageSchema {
     URL: number;
     WIDTH: number;
@@ -65,33 +52,23 @@ interface JspbInlineImageSchema {
     TOKEN: number;
 }
 
-/**
- * Generated / uploaded media node (complex format):
- *   [?, ?, filename, url, ?, token, ..., mimeType, ..., ?, ?, ?, dimensions]
- */
 interface JspbGeneratedImageSchema {
     FILENAME: number;
     URL: number;
     TOKEN: number;
     UPSCALE_FACTOR: number;
     MIME_TYPE: number;
-    DIMENSIONS: number;  // [width, height, size]
+    DIMENSIONS: number;
 }
 
-/**
- * Deep Research document metadata chip structure.
- */
 interface JspbDeepResearchDocSchema {
-    CHIP_URL: number;     // item[0][0]
+    CHIP_URL: number;
     ID: number;
     TITLE: number;
     CONTENT_ID: number;
-    TIMESTAMP: number;    // item[5] → [seconds, ...]
+    TIMESTAMP: number;
 }
 
-/**
- * BardErrorInfo position within the batchexecute envelope.
- */
 interface JspbErrorInfoSchema {
     ERROR_SLOT: number;
 }
@@ -127,14 +104,12 @@ export interface TitleResult {
 /** Selected Candidate facts decoded at the Turn boundary. Raw media evidence
  * stays private to Gemini resource decoders. */
 export interface DecodedGeminiCandidate {
-    /** Selected wire context; only the resource decoder interprets these remaining slots. */
     source: unknown[];
     body: unknown;
     turnDocument: unknown;
     index: number;
     id: string;
     text: string;
-    /** Source facts decoded once, before message assembly. */
     thoughts: string | null;
     citations: Citation[];
     sourceAttributions: GeminiSourceAttribution[];
@@ -181,75 +156,72 @@ import { isRealTitle, cleanTitle } from "../../../../shared/utils/titleText.js";
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../../../shared/utils/titleText.js";
 import { payloadToMs, extractCandidateValue } from "./payload.js";
 
-/**
- * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
- * Maps conceptual protobuf message fields directly to array index offsets.
- */
+// Gemini's undocumented JSPB positions belong in one schema, not as scattered numeric offsets.
 
     const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = Object.freeze({
         TURN: {
-            ID_META: 0,        // ["c_xxx", "r_xxx"]
-            TIMESTAMP: 1,      // [seconds, nanos]
-            USER_PAYLOAD: 2,   // User input block
-            MODEL_PAYLOAD: 3,  // Model payload container
-            REQUEST_ID_SLOT: 1 // Canonical request ID position in ID_META tuple: ["c_xxx", "r_xxx"][1]
+            ID_META: 0,
+            TIMESTAMP: 1,
+            USER_PAYLOAD: 2,
+            MODEL_PAYLOAD: 3,
+            REQUEST_ID_SLOT: 1
         },
         MODEL_PAYLOAD: {
-            CANDIDATES: 0,      // repeated Candidate: AI answer drafts
-            SEARCH_QUERIES: 1,  // repeated SearchQuery: Grounding search keywords
-            PROVIDER: 2,        // string: Grounding provider name ("google")
-            SELECTED_CANDIDATE_ID: 3, // "rc_xxxx": answer displayed for this request
-            TELEMETRY_START: 3, // Internal routing/status codes ("c", "S", 6, 6, ".")
-            STRUCTURED_CONTENT: 12 // repeated StructuredNode: Wire document tree
+            CANDIDATES: 0,
+            SEARCH_QUERIES: 1,
+            PROVIDER: 2,
+            SELECTED_CANDIDATE_ID: 3,
+            TELEMETRY_START: 3,
+            STRUCTURED_CONTENT: 12
         },
         CANDIDATE: {
-            ID: 0,             // "rc_xxxx"
-            BODY: 1,           // Candidate content structure
-            LANGUAGE_CODE: 2   // e.g. "zh", "en"
+            ID: 0,
+            BODY: 1,
+            LANGUAGE_CODE: 2
         },
         CANDIDATE_BODY: {
-            PARTS: 0           // Array of content parts: [ [textChunk, ...], null, ... ]
+            PARTS: 0
         },
         LIST_ITEM: {
-            ID: 0,             // string: "c_xxxx"
-            TITLE: 1,          // string: Conversation title
-            TIMESTAMP: 5,      // [seconds, nanos] Google server-side last updated time
-            UPDATE_TIME_ALT: 2,// Legacy/Alternative update timestamp array
-            CREATE_TIME_ALT: 3,// Legacy/Alternative create timestamp array
-            COUNT_ALT1: 4,     // Optional turn count if number
-            COUNT_ALT2: 9      // Optional turn count if number
+            ID: 0,
+            TITLE: 1,
+            TIMESTAMP: 5,
+            UPDATE_TIME_ALT: 2,
+            CREATE_TIME_ALT: 3,
+            COUNT_ALT1: 4,
+            COUNT_ALT2: 9
         },
         INNER: {
-            TURNS_OR_LIST_PRIMARY: 0,   // inner[0]: turns array (detail) or list items primary
-            LIST_SECONDARY: 1,          // inner[1]: list items secondary candidate (fallback)
-            TITLE_CANDIDATES: [2, 1],   // Scanned in order for string title
-            CONV_ID_CANDIDATES: [0, 1], // Scanned for "c_..." conversation ID
-            NEXT_TOKEN_CANDIDATES: [1, 2, 3], // Scanned for "tC..." pagination token
-            METADATA_ONLY_LIST: 2       // inner[2]: list-format metadata-only row
+            TURNS_OR_LIST_PRIMARY: 0,
+            LIST_SECONDARY: 1,
+            TITLE_CANDIDATES: [2, 1],
+            CONV_ID_CANDIDATES: [0, 1],
+            NEXT_TOKEN_CANDIDATES: [1, 2, 3],
+            METADATA_ONLY_LIST: 2
         },
         INLINE_IMAGE: {
-            URL: 0,            // string: Google media host URL
-            WIDTH: 1,          // number: pixel width
-            HEIGHT: 2,         // number: pixel height
-            TOKEN: 3           // string?: optional dedup token
+            URL: 0,
+            WIDTH: 1,
+            HEIGHT: 2,
+            TOKEN: 3
         },
         GENERATED_IMAGE: {
-            FILENAME: 2,       // string: original file name (e.g. "watermarked_img_*.png")
-            URL: 3,            // string: Google media host download URL
-            TOKEN: 5,          // string?: dedup token
-            UPSCALE_FACTOR: 8, // number?: e.g. 2 for 2x upscale derivative rendition
-            MIME_TYPE: 11,     // string: e.g. "image/png"
-            DIMENSIONS: 15     // [width, height, size]
+            FILENAME: 2,
+            URL: 3,
+            TOKEN: 5,
+            UPSCALE_FACTOR: 8,
+            MIME_TYPE: 11,
+            DIMENSIONS: 15
         },
         DEEP_RESEARCH_DOC: {
-            CHIP_URL: 0,       // item[0][0]: "...immersive_entry_chip..."
-            ID: 2,             // string: UUID or "rc_xxx"
-            TITLE: 3,          // string: document title
-            CONTENT_ID: 4,     // string?: content lookup key
-            TIMESTAMP: 5       // item[5][0] * 1000 → ms
+            CHIP_URL: 0,
+            ID: 2,
+            TITLE: 3,
+            CONTENT_ID: 4,
+            TIMESTAMP: 5
         },
         ERROR_INFO: {
-            ERROR_SLOT: 5      // item[5] → JSON.stringify checks for "BardErrorInfo"
+            ERROR_SLOT: 5
         }
     });
 
@@ -436,7 +408,6 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         return "";
     }
 
-    /** User text is a Turn-level fact, shared by user messages and generation prompts. */
     function extractUserText(userPayload: unknown): string {
         if (!isUnknownArray(userPayload) || userPayload.length === 0) return "";
         const first = userPayload[0];
@@ -515,7 +486,6 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
             }
         }
 
-        // O(N) single-pass bracket-balancing state machine for chunked / multiline payloads
         let allTop: unknown[] = [];
         const len = text.length;
         let inString = false;
@@ -569,7 +539,6 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
 
         if (allTop.length > 0) return allTop;
 
-        // Truncated / unclosed fallback
         if (depth > 0 && startIdx !== -1) {
             try {
                 const tail = text.slice(startIdx) + "]".repeat(depth);

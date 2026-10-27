@@ -1,6 +1,5 @@
 /**
  * Pure ChatGPT mapping-tree helpers, ported from pionxzh/chatgpt-exporter (MIT).
- * No fetch, no DOM — fully unit-testable.
  * @unverified-provider-scaffold Awaiting 9222 live-payload verification.
  */
 import { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
@@ -135,10 +134,6 @@ function copyChatGPTNode(node: ChatGPTConversationNode, snapshots?: Map<string, 
     };
 }
 
-/**
- * Walk from current_node back to root via parent links, skipping system and
- * hidden/tool messages. Returns oldest-first linear history.
- */
 export function extractChatGPTLinearNodes(
     mapping: ReadonlyMap<string, ChatGPTConversationNode>,
     startNodeId: string,
@@ -182,10 +177,7 @@ export function extractChatGPTModelSlug(
     return '';
 }
 
-/**
- * Linearize current_node -> root without auto-merging adjacent assistant turns
- * so per-turn structure, citations and model metadata stay intact.
- */
+/** Preserve individual turns so citations and model metadata cannot be merged away. */
 export function processChatGPTMapping(
     conversation: ChatGPTApiConversationWithId,
     snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>,
@@ -199,7 +191,6 @@ export function processChatGPTMapping(
     return extractChatGPTLinearNodes(conversation.mapping, startId, snapshots);
 }
 
-/** Text of a node for Domain conversion; non-text parts become empty. */
 function chatGPTNodeText(node: ChatGPTConversationNode): string {
     const content = node.message?.content;
     if (!content) return '';
@@ -278,7 +269,6 @@ export function chatGPTNodeSegments(node: ChatGPTConversationNode): ChatGPTNodeS
     return text.trim() ? [{ kind: 'text', text }] : [];
 }
 
-/** Role mapping into our neutral Domain vocabulary. */
 export function chatGPTNodeRole(node: ChatGPTConversationNode): 'user' | 'assistant' {
     return node.message?.author.role === 'user' ? 'user' : 'assistant';
 }

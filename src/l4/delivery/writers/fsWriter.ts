@@ -23,7 +23,7 @@ async function ensureSubDir(root: FileSystemDirectoryHandle, subPath: string): P
 class FsWriter implements IExportWriter {
     rootDirHandle: FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>;
     batchDirHandle: FileSystemDirectoryHandle | null;
-    // Serialize concurrent writes targeting the same target path
+    // Order writes to the same path so an older write cannot overtake a newer one.
     __writeChains: Map<string, Promise<void>>;
 
     constructor(dirHandle: (FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>) | null | undefined) {
@@ -45,10 +45,6 @@ class FsWriter implements IExportWriter {
     }
 
     async writeFile(relativePath: string, content?: WriteFileContent | null, options?: WriteFileOptions): Promise<string> {
-        // Single supported form: (relativePath, content, options?).
-        // The legacy (subDirPath, fileName, content) overload was retired:
-        // it had zero production callers (live-save uses the separate
-        // LiveSaveWriter facade, not this interface).
         assertExportPath(relativePath);
         const clean = relativePath;
         const lastSlash = clean.lastIndexOf('/');
@@ -78,7 +74,7 @@ class FsWriter implements IExportWriter {
             throw new Error(`[FsWriter] Invalid content object passed to writeFile for ${cleanName}`);
         }
 
-        // Serialize concurrent writes targeting the same path
+    // Order writes to the same path so an older write cannot overtake a newer one.
         const chainKey = (actualSubDir ? actualSubDir + '/' : '') + cleanName;
         const prev = this.__writeChains.get(chainKey) || Promise.resolve();
         let releaseGate!: () => void;

@@ -9,10 +9,7 @@ import type { ResourceBytes } from '../../../shared/resources/resourceResult.js'
 import type { ListEnd, PageEvidence } from '../aiProvider.js';
 import { ingestIndexes, ingestDetail } from '../../../l2/ingestion.js';
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
-/**
- * ChatGPT provider: acquisition only (session/list/detail/downloads).
- * Mapping parsing and Domain branding live in parsers/chatgpt, mirroring the
- * Gemini provider/client/parser split enforced by the trust boundary.
+/** Acquisition and Domain conversion remain separate so provider I/O cannot bypass parser trust boundaries.
  * @unverified-provider-scaffold Not registered by default; optional hosts only.
  */
 import type {

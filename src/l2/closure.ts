@@ -18,7 +18,6 @@ export function assertDomainClosure(conversation: Pick<DomainConversationDetail,
         const reference = (ref: string): void => {
             if (!assets.has(ref)) throw new TypeError(`Unregistered Domain asset '${ref}' in messages[${index}]`);
         };
-        // Check asset and citation references together over the validated AST.
         const checkInline = (node: InlineNode): void => {
             if (node.type === 'citationRef' && !citations.has(node.citationId)) {
                 throw new TypeError(`Unregistered Domain citation '${node.citationId}' in messages[${index}]`);

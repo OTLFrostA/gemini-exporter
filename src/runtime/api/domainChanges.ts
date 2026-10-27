@@ -9,7 +9,6 @@ function deliver(listener: DomainChangeListener, accountId: string): void {
     });
 }
 
-/** Subscribe to committed facts from this context and other trusted extension contexts. */
 export function observeDomainChanges(listener: DomainChangeListener): () => void {
     listeners.add(listener);
     const receive = (message: unknown, sender: chrome.runtime.MessageSender): void => {

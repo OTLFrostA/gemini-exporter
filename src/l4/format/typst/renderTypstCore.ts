@@ -10,13 +10,12 @@ import { safeExternalHref } from '../shared/safeLinks.js';
 import { defaultPdfLayout, applyLayout } from './layout.js';
 import type { TypstBlockNode, TypstConversationRenderPayload, TypstInlineNode, TypstTableCell, BlockLayout, TypstRenderMessage } from './transport.js';
 
-/** Internal technical hooks; no format-specific controls in the public Renderer. */
+/** Keep format internals outside the public Renderer so HTML and PDF share one contract. */
 interface TypstRuntimeHooks {
     convertMath?: (source: string, display: boolean) => string | undefined;
     onDiagnostic?: (diagnostic: Diagnostic) => void;
 }
 
-/** L4 Format-only lowerer shared by the passive Renderer and the PDF compiler. */
 export function renderDocumentTypstCore(
     document: DocumentAst,
     resources: ResourceBindings,

@@ -17,18 +17,7 @@ function escapeHtml(text: string): string {
         .replace(/'/g, '&#39;');
 }
 
-/**
- * Renders a LaTeX math expression into accessible, offline-safe MathML for HTML exports.
- *
- * Supported math:
- * - Typesets expressions (fractions, square roots, matrices, Greek symbols, scripts, operators, etc.)
- *   into native W3C MathML (<math xmlns="http://www.w3.org/1998/Math/MathML">...</math>).
- * - Requires ZERO external fonts, stylesheets, or network requests; fully offline-compatible.
- *
- * Unsupported or malformed math (e.g. TikZ diagrams, unknown LaTeX macros):
- * - Emits a diagnostic warning.
- * - Gracefully falls back to a readable, copyable source block with localized diagnostic label.
- */
+/** MathML avoids external fonts and requests; retain malformed source rather than silently losing author content. */
 export function renderMathHtml(
     source: string,
     display: boolean,
@@ -46,7 +35,6 @@ export function renderMathHtml(
         };
     }
 
-    // Detect known unsupported environments such as TikZ diagrams
     if (/\\begin\{(?:tikzpicture|pgfpicture)\}/i.test(source)) {
         return {
             html: renderFallback(source, display, fallbackLabel),
