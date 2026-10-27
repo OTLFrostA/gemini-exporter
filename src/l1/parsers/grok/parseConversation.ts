@@ -16,12 +16,13 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     const meta = grokObject(grokObject(metadata).conversation), graph = grokObject(tree), payload = grokObject(bodies);
     if (!grokUuid(requestedId) || meta.conversationId !== requestedId) throw new TypeError('Grok detail identity mismatch');
     if (!Array.isArray(graph.responseNodes) || !Array.isArray(payload.responses)) throw new TypeError('Invalid Grok response snapshot');
-    const nodes = new Map<string, Record<string, unknown>>(),
+    const nodes = new Map<string, { parentResponseId: string | null | undefined; sender: unknown }>(),
         responses = new Map<string, GrokWireResponse>();
     for (const value of graph.responseNodes) {
-        const node = grokObject(value);
-        if (!grokUuid(node.responseId) || nodes.has(node.responseId) || node.parentResponseId != null && !grokUuid(node.parentResponseId)) throw new TypeError('Invalid Grok response tree');
-        nodes.set(node.responseId, node);
+        const node = grokObject(value), parentResponseId = node.parentResponseId;
+        if (!grokUuid(node.responseId) || nodes.has(node.responseId)
+            || (parentResponseId != null && !grokUuid(parentResponseId))) throw new TypeError('Invalid Grok response tree');
+        nodes.set(node.responseId, { parentResponseId, sender: node.sender });
     }
     for (const value of payload.responses) {
         const response = grokObject(value), id = response.responseId;
