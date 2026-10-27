@@ -13,7 +13,7 @@ function ownedTypeScriptFiles(relativeDir) {
 // Typed business and downstream layers reject implicit any flow. The compiler-based
 // architecture gate additionally rejects all casts and non-null assertions in these owners.
 const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
-    .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout', 'src/l1/parsers/shared/resources'])
+    .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout', 'src/l1/imports/openai', 'src/l1/parsers/shared/resources'])
     .flatMap(ownedTypeScriptFiles)
     .concat(['src/shared/platformHosts.ts', 'src/runtime/api/accountRegistry.ts', 'src/runtime/api/domainIngestion.ts',
         'src/runtime/capabilities/platformAuthorization.ts', 'src/runtime/capabilities/platformInjection.ts',
@@ -27,6 +27,7 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
         'src/runtime/content/chatgptContent.ts', 'src/runtime/content/claudeContent.ts',
         'src/runtime/content/grokContent.ts', 'src/ui/badge/badgeView.ts',
         'src/runtime/content/liveSaveCoordinator.ts', 'src/l1/client/chatgpt/imageAssets.ts',
+        'src/l1/parsers/chatgpt/parseExportConversation.ts',
         'src/l1/parsers/claude/parseList.ts', 'src/l1/parsers/chatgpt/parseList.ts',
         'src/l1/client/chatgpt/accountObservation.ts', 'src/l1/parsers/chatgpt/dil/expression.ts']);
 

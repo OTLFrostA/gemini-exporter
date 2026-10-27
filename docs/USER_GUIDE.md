@@ -77,3 +77,11 @@ Takeout can supplement what Gemini exposes to an online scan. It cannot guarante
 **What happens to ChatGPT questionnaires and interactive cards?** Exports preserve the provider's full Markdown fallback. Dynamic syntax alone does not mark that textual export incomplete. For loop-generated forms, literal question/option data is also recovered from arrays referenced by the template, without running component code. A dynamic component without a usable fallback remains incomplete because literal recovery cannot establish full text coverage. Buttons become labels; exports do not reproduce interactive state, submit forms or run ChatGPT actions. Selected answers and calculated results are preserved when they are present in the source fallback or subsequent conversation messages.
 
 For developer documentation, see [v2 module architecture](../src/README.md) and the [testing guide](../tests/README.md). Read the [privacy policy](./PRIVACY_POLICY.md) for data-handling details.
+
+## Import an OpenAI / ChatGPT export ZIP
+
+1. Connect ChatGPT and select the intended ChatGPT account in the Workbench. The export does not identify a workspace, so choose the correct workspace account yourself; `user.json`, when present, must match its signed-in user.
+2. Open **More actions → Import OpenAI ZIP** and select the original OpenAI data-export ZIP. Manifest-listed conversation shards are supported.
+3. Select the imported conversations and export normally. The importer uses the current conversation branch and preserves available source times, model names, reasoning and citations. Existing local conversations use the normal merge rules.
+
+Keep the Workbench page open to export original ZIP attachments. After closing or reloading it, reimport the ZIP to restore its attachment readers. ZIP bytes stay outside stored conversation facts. Missing attachments produce a partial result; file-library records alone never become conversations. An export with an empty `conversations.json` reports that no conversation bodies were supplied.

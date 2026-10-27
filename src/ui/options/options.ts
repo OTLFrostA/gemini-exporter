@@ -9,6 +9,8 @@ import { ConversationViewState } from './state/conversationsStore.js';
 import { runExport, type UIExportRequest } from './controllers/exportController.js';
 import { startSync } from './controllers/syncController.js';
 import type { ScanResult } from '../../application/sync/scanController.js';
+import { importOpenAI } from '../../l1/imports/openai/importOpenAI.js';
+import { createSourceResourceContext } from '../../l1/resources/sourceResources.js';
 import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
@@ -41,6 +43,7 @@ interface ExportRunDiagnostic {
 export async function initWorkbench(): Promise<void> {
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();
+    const importedResources = createSourceResourceContext();
     let settings: GlobalSettings;
     let directoryAvailable = false;
     let busy = false;
@@ -148,7 +151,7 @@ export async function initWorkbench(): Promise<void> {
             ['select', ['accountIdSelect', 'format', 'chatFilterSelect']],
             ['input', ['skipExported', 'includeAssets', 'liveSaveDiskToggle', 'chatSearchInput', 'btnSelectAll']],
             ['button', ['btnSetDir', 'btnExport', 'btnRetryFailed', 'btnClearExported', 'btnClearScan',
-                'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnTourGuide', 'btnPlatformPermissions']],
+                'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnImportOpenAI', 'btnTourGuide', 'btnPlatformPermissions']],
         ] as const;
         for (const [tag, ids] of controls) for (const id of ids) control(tag, id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
@@ -184,6 +187,10 @@ export async function initWorkbench(): Promise<void> {
             ? account?.providerId === 'gemini' ? `→ ${name}` : text('Select Gemini', '请选择 Gemini')
             : text('First import', '首次导入');
         el('takeoutAccountName').title = state.accountId ? name : text('Creates a default Gemini account after choosing a ZIP', '选定 ZIP 后创建 Gemini 默认账户');
+        control('button', 'btnImportOpenAI').disabled = busy || !settings || account?.providerId !== 'chatgpt';
+        el('openaiImportHint').textContent = account?.providerId === 'chatgpt'
+            ? text('ZIP attachments stay available while this page is open.', '此页面保持打开时可导出 ZIP 附件。')
+            : text('Select a ChatGPT account to import.', '请选择 ChatGPT 账户后导入。');
         selector.title = name;
         el('ver').textContent = chrome.runtime.getManifest().version;
         if (settings) {
@@ -295,7 +302,7 @@ export async function initWorkbench(): Promise<void> {
                 throw new Error('Authorize a folder first');
             const processed = new Set<string>();
             let saved = 0;
-            const result = await runExport(request, { signal,
+            const result = await runExport(request, { signal, importedResources,
                 onDiagnostic: diagnostic => {
                     if (run.diagnostics.length >= 10000) { run.droppedDiagnostics++; return; }
                     run.diagnostics.push({ ...diagnostic, at: Date.now(), title: titleFor(diagnostic.key) });
@@ -508,6 +515,30 @@ export async function initWorkbench(): Promise<void> {
         const file = event.dataTransfer?.files[0];
         if (file && !busy) void importFile(file);
     });
+    const openaiInput = control('input', 'openaiFileInput');
+    const importOpenAIFile = (file: File) => perform('takeout', async () => {
+        try {
+            if (!state.accountId) throw new Error('Select a ChatGPT account before importing OpenAI ZIP');
+            status(() => text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…'));
+            const result = await importOpenAI(file, state.accountId,
+                percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent), importedResources);
+            if (result.status === 'empty') status(() => text(
+                'This OpenAI ZIP contains no conversation bodies. No conversations were imported.',
+                '此 OpenAI ZIP 没有聊天正文，未导入任何会话。'), 'warn');
+            else status(() => text(
+                `Imported ${result.imported} conversations; skipped ${result.skipped}; unavailable attachments ${result.missingAssets}.${result.status === 'partial' ? ' Import partially completed.' : ''}`,
+                `已导入 ${result.imported} 条会话；跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。${result.status === 'partial' ? '导入部分完成。' : ''}`),
+                result.status === 'partial' ? 'warn' : 'info');
+        } finally { openaiInput.value = ''; }
+    });
+    el('btnImportOpenAI').addEventListener('click', () => { if (!busy) openaiInput.click(); });
+    openaiInput.addEventListener('change', () => { const file = openaiInput.files?.[0]; if (file) void importOpenAIFile(file); });
+    el('btnImportOpenAI').addEventListener('dragover', event => event.preventDefault());
+    el('btnImportOpenAI').addEventListener('drop', event => {
+        event.preventDefault();
+        const file = event.dataTransfer?.files[0];
+        if (file && !busy) void importOpenAIFile(file);
+    });
     for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const)
         el(id).addEventListener('click', async () => {
             const accountId = state.accountId;
@@ -516,7 +547,11 @@ export async function initWorkbench(): Promise<void> {
             const name = account?.displayName || account?.email || account?.providerAccountId || accountId;
             if (!await confirmCleanup(scanRecords, name) || busy || state.accountId !== accountId) return;
             void perform('cleanup', async () => {
-                if (scanRecords) await Cleanup.clearLocalScanRecords(accountId);
+                if (scanRecords) {
+                    const keys = state.indexes.map(index => index.key);
+                    await Cleanup.clearLocalScanRecords(accountId);
+                    for (const key of keys) importedResources.releaseConversation(key);
+                }
                 else await Cleanup.clearLocalExportRecords(accountId);
                 failed = []; dismissedFailures = false;
                 status(() => text('Records cleared', '记录已清除'));
@@ -637,6 +672,7 @@ export async function initWorkbench(): Promise<void> {
     const stopDomainChanges = observeDomainChanges(() => refresh().catch(e => statusError(e)));
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
+        importedResources.release();
         stopSettings(); stopDomainChanges(); chrome.storage.onChanged.removeListener(onOpenedAccountChange);
         window.removeEventListener('focus', onFocus); TourGuide.destroy();
     }, { once: true });

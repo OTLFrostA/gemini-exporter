@@ -80,6 +80,8 @@ export const observeDomainChanges = listener => {h.domainListener=listener;retur
 export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');h.scanProgress=options.onProgress;options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
 export const clearLocalExportRecords = async id => {h.clears.push(['exports',id]);};
 export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);h.indexes=h.indexes.filter(row=>row.key.accountId!==id);delete h.records[id];};
+export const createSourceResourceContext = () => ({ retainParsed(){},retain(){},has(){return false;},release(){},releaseConversation(){},async acquire(){throw Error('No resource');} });
+export const importOpenAI = async (file,id,progress,resources) => {h.imports.push(id);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);return h.openaiResult ?? {imported:2,skipped:0,missingAssets:0,status:'ok'};};
 export const importTakeout = async (file,id,progress) => {h.imports.push(id);if(h.holdImport)await new Promise(resolve=>h.finishImport=resolve);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);return {imported:2,status:'partial'};};
 export const getDirectoryHandle = async () => h.directory;
 export const setDirectoryHandle = async handle => {h.directory=handle;};
