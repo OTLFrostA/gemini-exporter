@@ -141,13 +141,12 @@ interface ChatGPTUploadedFile {
 export function uploadedFilesOfChatGPTNode(node: ChatGPTConversationNode): ChatGPTUploadedFile[] {
     const out: ChatGPTUploadedFile[] = [];
     for (const a of node.message?.metadata?.attachments ?? []) {
-        if (!a.name || !a.id) continue;
         if (a.mime_type?.startsWith('image/')) continue;
         out.push({
             id: a.id,
             name: a.name,
             ...(a.mime_type ? { mediaType: a.mime_type } : {}),
-            ...(a.size !== undefined && Number.isFinite(a.size) ? { byteLength: Math.round(a.size) } : {}),
+            ...(a.size !== undefined ? { byteLength: a.size } : {}),
         });
     }
     return out;
