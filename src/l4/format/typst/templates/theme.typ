@@ -29,6 +29,10 @@
   "Noto Sans CJK SC",
   "Noto Sans",
   "DejaVu Sans",
+  // Reuse mounted code fonts for dotted circles and decomposed combining marks.
+  "Courier New",
+  "DejaVu Sans Mono",
+  "Noto Sans Mono",
   "Noto Emoji",
 )
 
