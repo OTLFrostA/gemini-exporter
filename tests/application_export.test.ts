@@ -103,6 +103,18 @@ for (const format of ['markdown', 'html', 'pdf'] as const) {
         else assert.equal(state.rendererCalls[0].locale, 'zh');
     });
 }
+test('Export defaults to the Chrome browser language when the user has no preference', async t => {
+    const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { language: 'zh-CN' } });
+    t.after(() => {
+        if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
+        else Reflect.deleteProperty(globalThis, 'navigator');
+    });
+    seed();
+    const result = await runExport(request({ format: 'markdown' }));
+    assert.equal(result.exported, 1);
+    assert.equal(state.rendererCalls[0].locale, 'zh');
+});
 test('Export resolves renderer language once per task and JSON does not read renderer preferences', async () => {
     await updateSettings({ language: 'en' });
     seed(); seed('second');

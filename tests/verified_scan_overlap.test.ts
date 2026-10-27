@@ -48,7 +48,8 @@ test('failed scan retains the bound parser diagnostics without establishing cove
     const store = indexStorage();
     const original = ProviderRegistry.get('gemini');
     const wire = geminiListGen('G_VERIFIED_SCAN_OVERLAP_01');
-    const provider = new GeminiProvider({ getConversationList: async () => parseList(wire),
+    const parsed = parseList(wire);
+    const provider = new GeminiProvider({ getConversationList: async () => parsed,
         getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     ProviderRegistry.unregister('gemini');
     ProviderRegistry.register(provider);
@@ -59,7 +60,7 @@ test('failed scan retains the bound parser diagnostics without establishing cove
         assert.equal(result.diagnostics?.page, 1);
         assert.equal(result.diagnostics?.requestCursor, null);
         assert.equal(result.diagnostics?.failure, 'invalid_response');
-        assert.equal(result.diagnostics?.details?.rawPreview, wire);
+        assert.deepEqual(result.diagnostics?.details, parsed._debug);
         assert.equal((await getCoverage(ACCOUNT_UUID, 'recent'))?.range ?? null, null);
     } finally {
         ProviderRegistry.unregister('gemini');

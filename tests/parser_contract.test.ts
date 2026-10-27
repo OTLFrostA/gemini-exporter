@@ -15,6 +15,7 @@ import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
 import type { GeminiProtocolModule, isConfirmedDeletedError, classifyDetailError } from '../src/l1/protocol/gemini/protocol.js';
 import type { ListFailureDiagnostics } from '../src/l1/client/aiProvider.js';
+import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
 
 import type { ChatGPTApiConversation, ChatGPTNodeMessage, ChatGPTConversationNode } from '../src/l1/parsers/chatgpt/chatgptTypes.js';
 
@@ -36,7 +37,7 @@ type OutputContracts = [
     Assert<Equal<DetailParseResult['transport']['decodedPayload'], unknown>>,
     Assert<Equal<DetailParseResult['transport']['bodyShape'], 'metadata_only' | 'empty_turn_array' | 'confirmed_empty_turns' | undefined>>,
     Assert<Equal<ListParseResult['_debug'], ListParseDiagnostics | undefined>>,
-    Assert<Equal<ListFailureDiagnostics['details'], Readonly<ListParseDiagnostics> | undefined>>,
+    Assert<Equal<ListFailureDiagnostics['details'], Diagnostic['details']>>,
     Assert<Equal<DetailParseResult['conversation']['detail']['messages'][number], DomainMessage>>,
     Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,
     Assert<Equal<ReturnType<typeof parseGeminiRpcConversation>, DetailParseResult>>,
@@ -48,6 +49,12 @@ const contracts: OutputContracts = [true, true, true, true, true, true, true, tr
 // The tuple already enforces these contracts at TypeScript compile time.
 // A runtime .every(Boolean) assertion on literal true values cannot detect a parser bug.
 void contracts;
+
+test('cross-provider list errors preserve JSON diagnostics without a Gemini-shaped contract', () => {
+    const failure = { providerId: 'claude', streamId: 'recent', page: 2, requestCursor: 'next',
+        failure: 'rate_limited', details: { retryAfterMs: 1000, code: 'throttled' } } satisfies ListFailureDiagnostics;
+    assert.deepEqual(failure.details, { retryAfterMs: 1000, code: 'throttled' });
+});
 
 test('malformed list and detail wire inputs fail closed without creating conversation evidence', () => {
     const previousWarn = console.warn;

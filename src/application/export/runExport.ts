@@ -189,7 +189,7 @@ export async function runExport(request: ExportRequest, options: {
         signal.throwIfAborted();
         // The user setting controls only renderer-owned text, not Domain, JSON, paths or records.
         const language = request.format === 'json' ? undefined : (await getSettings()).language;
-        locale = language ?? (typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
+        locale = language ?? (navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
         const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
         if (request.delivery === 'folderWriter' && !directory) throw new Error('Export directory unavailable');
         const folderPlanner = directory ? createExportPathPlanner(request.format) : undefined;
