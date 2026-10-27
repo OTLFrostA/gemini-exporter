@@ -1,4 +1,4 @@
-import { GEMINI_JSPB_SCHEMA, decodeTurn, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
+import { GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import {
@@ -346,15 +346,13 @@ function parseCandidateResponse(
 /** The Turn ingress closes all JSPB slots before message composition.
  * Context-dependent document binding and deduplication remain in this decoder. */
 export function decodeGeminiTurn(
+    turn: DecodedGeminiTurn,
     rawTurn: unknown,
     documents: GeminiDocumentReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     convId?: string
 ): GeminiMessageEvidence[] {
-    const turn = decodeTurn(rawTurn);
-    if (!turn) return [];
-
     const messages: GeminiMessageEvidence[] = [];
     const userMessage = buildUserMessage(turn, decodeGeminiUserResources(rawTurn), dedupSet, docDedupSet);
     if (userMessage) messages.push(userMessage);

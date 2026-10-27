@@ -151,7 +151,7 @@ export function auditGeminiEvidence(evidence: GeminiDetailEvidence) {
             semanticDifferences: semanticDelta, classification: !available ? 'unavailable' : !delta.length ? 'match' : semanticDelta.length ? 'content_or_metadata' : 'structure_or_format' });
     });
     return { conversationId: evidence.id, sourceMessages: evidence.messages.map(m => ({ id: m.id, role: m.role })),
-        complete: !evidence.nextPageToken && !(evidence.turnsRejected ?? 0),
+        complete: !evidence.nextPageToken && !(evidence.turnsRejected ?? 0) && !(evidence.turnsRecovered ?? 0),
         nextPageToken: evidence.nextPageToken, rejectedTurns: evidence.turnsRejected ?? 0,
         diagnostics: { structured: native.diagnostics, markdown: markdown.diagnostics }, messages };
 }

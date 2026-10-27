@@ -86,7 +86,10 @@ export interface GeminiDetailEvidence {
     nextPageToken: string | null;
     attachmentCount: number;
     schemaDrift?: string[];
+    /** Elements discarded because no request/conversation or candidate identity can be decoded. */
     turnsRejected?: number;
+    /** Decodable turns recovered despite a failed structural recognizer. */
+    turnsRecovered?: number;
     bodyShape?: ReturnType<typeof classifyDetailBody>;
     /** Opaque replay evidence for offline differential audits, never acquisition decisions. */
     _raw?: unknown;

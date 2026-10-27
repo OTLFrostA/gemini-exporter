@@ -141,12 +141,13 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             titleSource: metadata ? 'rpc' : evidence.titleSource,
             url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length }),
-        detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: 'unknown', rejectedTurns: evidence.turnsRejected,
+        detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: evidence.turnsRecovered ? 'partial' : 'unknown', rejectedTurns: evidence.turnsRejected,
             ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }),
             assets: resources.assets, messages: resources.messages },
     };
     const diagnostics: Diagnostic[] = (evidence.schemaDrift ?? []).map(message => ({ severity: 'warning', code: 'GEMINI_SCHEMA_DRIFT', message }));
-    if (rejected) diagnostics.push({ severity: 'warning', code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` });
+    if (rejected) diagnostics.push({ severity: 'warning', code: 'GEMINI_TURNS_REJECTED', message: `Discarded ${evidence.turnsRejected} undecodable source turns` });
+    if (evidence.turnsRecovered) diagnostics.push({ severity: 'warning', code: 'GEMINI_TURNS_RECOVERED', message: `Recovered ${evidence.turnsRecovered} structurally unrecognized source turns` });
     if (newerMessages.length) diagnostics.push({ severity: 'info', code: 'CONVERSATION_VERSION_MISMATCH', message: 'Detail contains activity newer than its metadata version',
         details: { sourceVersion: updatedAt, newerMessages } });
     diagnostics.push(...contentDiagnostics);

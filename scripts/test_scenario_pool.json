@@ -1,47 +1,5 @@
 [
   {
-    "id": "acoustics_rectangular_room_modes_inverse",
-    "title": "Room acoustics: mode frequencies and inverse dimension estimates",
-    "domain": "acoustics_room_eigenmodes",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of a rectangular acoustic chamber with labelled dimensions and a speaker and microphone. Mark the image as schematic. Give a Markdown table of synthetic dimensions, temperature and assumed sound speed with SI units.",
-      "Derive the rigid-wall rectangular-room mode frequencies in LaTeX. Explain axial, tangential and oblique modes, degeneracy and why the zero index triple is excluded.",
-      "Write complete standard-library Python enumerating all mode index triples up to a frequency limit with finite input checks, positive dimensions and deterministic sorting. Include executable tests for a cube and a noncubic room.",
-      "Use a clearly stated synthetic example to estimate one room dimension from three axial resonances. Give a Markdown table of noisy frequencies, inferred dimensions and residuals; explain identifiability when mode labels are unknown.",
-      "Write a Chinese-English reproducibility audit with LaTeX uncertainty propagation, complete Python boundary tests and limits of the rigid-wall model. Distinguish predicted eigenfrequencies from reverberation time and do not infer absorption from frequency alone."
-    ]
-  },
-  {
-    "id": "finite_fields_shamir_threshold_reconstruction",
-    "title": "Finite fields: threshold interpolation and reconstruction checks",
-    "domain": "finite_field_threshold_interpolation",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a small educational threshold-sharing example over an explicitly chosen prime field. Give a Markdown table of secret, polynomial degree, distinct nonzero evaluation points and deterministic toy coefficients. Explain that fixed toy coefficients are for reproducibility only.",
-      "Derive reconstruction at zero using Lagrange interpolation in LaTeX. State why denominator inverses exist and separate field arithmetic from ordinary rational arithmetic.",
-      "Write complete runnable standard-library Python for modular inversion, share generation and interpolation. Validate the prime modulus for the toy range, distinct nonzero share coordinates and field element bounds.",
-      "Reconstruct the example from every threshold-sized subset and give a Markdown table of subsets and results. Include executable assertions that all such subsets recover the same secret.",
-      "Demonstrate with exhaustive tiny-field enumeration that fewer than the threshold shares can correspond to multiple secrets. Count consistent polynomials and explain the assumptions behind the privacy statement.",
-      "Add executable negative tests for repeated coordinates, zero coordinates, a composite modulus, out-of-range values and insufficient shares. Explain why an unauthenticated corrupted share is not automatically detectable with exactly the threshold count.",
-      "Compare interpolation through all shares with interpolation through subsets when one share is corrupted. Give a concrete trace and Markdown table without claiming that majority voting always identifies a malicious participant.",
-      "Write a Chinese-English reproducibility report containing the formulas, complete Python tests and implementation limits. Explain unbiased random coefficients, secure random generation and why the educational program is not a production secret-management system."
-    ]
-  },
-  {
     "id": "semiconductor_abrupt_junction_depletion_audit",
     "title": "Semiconductors: abrupt junction depletion widths and charge balance",
     "domain": "semiconductor_junction_electrostatics",
@@ -414,6 +372,48 @@
       "Add executable tests for cost shifting, row and column permutations, negative costs and tied optima. Include an invalid certificate that must be rejected.",
       "Provide a Markdown table of each assignment, primal cost, dual bound and gap. Explain why checking only the chosen edges is insufficient to establish dual feasibility.",
       "Write a bilingual reproducibility report linking the proof, certificate, table and tests. Give a fractional-capacity variant and explain which integrality argument no longer applies without additional structure."
+    ]
+  },
+  {
+    "id": "geometry_polygon_clipping_area_audit",
+    "title": "Computational geometry: polygon clipping and area conservation",
+    "domain": "computational_geometry_polygon_clipping",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of a convex polygon intersecting an axis-aligned rectangular viewport. Label all coordinates and mark the drawing as schematic. Supply a Markdown table of synthetic vertices in counterclockwise order with explicit coordinate units.",
+      "Derive signed polygon area and segment-boundary intersection formulas in LaTeX. State winding, parallel-edge and boundary-inclusion conventions, and distinguish exact geometry from the schematic pixels.",
+      "Write complete runnable standard-library Python for Sutherland-Hodgman clipping against a rectangle. Validate finite coordinates and positive viewport dimensions. Include executable tests for disjoint, contained, boundary-touching and clipped polygons.",
+      "Work through the synthetic coordinates with a Markdown table after each clipping boundary. Verify output area is nonnegative and no greater than either the input polygon area or the viewport area; explain why those bounds alone do not prove correct vertex order.",
+      "Write a Chinese-English reproducibility audit containing the formulas, the complete Python program and negative tests. Discuss floating-point tolerance, duplicate vertices, degenerate polygons and why this algorithm must not be generalized to arbitrary nonconvex clipping windows without changes."
+    ]
+  },
+  {
+    "id": "probability_absorbing_chain_first_passage",
+    "title": "Probability: absorbing Markov chains and exact first-passage checks",
+    "domain": "probability_absorbing_markov_chains",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a small absorbing Markov chain for a repairable machine with two transient states and one absorbing retired state. Give a Markdown table of exact rational transition probabilities, row sums and state meanings. Use explicitly synthetic numbers.",
+      "Derive the fundamental matrix and expected absorption times in LaTeX, explaining the spectral and reachability assumptions and distinguishing expected time from a guaranteed retirement deadline.",
+      "Write complete runnable standard-library Python using fractions.Fraction and Gaussian elimination to compute expected absorption times. Validate square matrices, nonnegative entries, exact row sums and transient-state reachability.",
+      "Compute the synthetic example by hand and in code. Give a Markdown table of linear-system residuals and expected times for every transient state, with assertions that the two calculations agree exactly.",
+      "Derive the probability of not yet being absorbed after n steps and the first-passage distribution in LaTeX. Produce a table of exact probabilities for the first eight steps and verify the sum plus the survival mass is one.",
+      "Add executable negative tests for a closed nonabsorbing class, invalid row sums, negative probabilities, repeated state labels and zero-step requests. Explain why a singular system is a modeling failure rather than a cue to invent a finite answer.",
+      "Compare exact expectations with a seeded standard-library simulation, reporting sample count, observed means and uncertainty. Explain rare long tails and why a fixed seed improves reproducibility without proving the transition model.",
+      "Write a Chinese-English reproducibility report including all definitions, LaTeX formulas, full Python tests and a limitations table. Separate transient visit counts, elapsed time units and economic repair costs; keep literal currency examples distinct from formulas."
     ]
   }
 ]

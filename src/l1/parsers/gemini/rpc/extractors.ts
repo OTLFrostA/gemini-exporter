@@ -811,6 +811,12 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
             }
             : null;
 
+        // Text in a neighboring metadata row is not proof of a message role.
+        // Keep recoverable header drift when a request or selected candidate still owns it.
+        const headId = isUnknownArray(idMeta) ? idMeta[0] : idMeta;
+        const hasTurnIdentity = [headId, userMessageId].some(id => typeof id === 'string' && /^(?:c_|r_).+/.test(id));
+        if (!hasTurnIdentity && !candidate?.id.startsWith('rc_')) return null;
+
         return {
             userText: extractUserText(rawUserPayload),
             timestamp: extractTurnTimestamp(turn),

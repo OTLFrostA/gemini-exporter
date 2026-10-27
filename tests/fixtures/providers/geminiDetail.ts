@@ -27,6 +27,12 @@ function domainTurn(prompt = 'Question', seconds: number | null = 1700000000,
     return [[DOMAIN_ID, request], seconds === null ? null : [seconds, 0], [[prompt]], [candidates]];
 }
 
+/** Independent admission counterexamples based on the saved regression3 Turn layout. */
+function admissionWire(extra: unknown): string {
+    const valid = [['c_admission', 'r_request'], [1700000000, 0], [['Real question']], [[['rc_answer', [['Real answer']]]]]];
+    return rpc([[valid, extra]]);
+}
+
 /** Raw observability probes previously in parse_observability.test.ts. */
 function observabilityTurn(id = 'c_abc123def456', userPayload: unknown = [['hello']]): unknown[] {
     return [[id], [1700000000, 0], userPayload, [[['rc_cand000001', ['world'], 'en']]]];
@@ -728,6 +734,11 @@ const fixtureMap = {
     },
     'G_BOUNDARY_DETAIL_05': () => rpc([null, null, [[BOUNDARY_ID, 'Metadata title']]]),
     'G_BOUNDARY_DETAIL_06': () => rpc([null, { extra: true }]),
+    'G_TURN_ADMISSION_METADATA': () => admissionWire([null, null, [['METADATA_NOT_A_USER_PROMPT']], null]),
+    'G_TURN_ADMISSION_SCALAR': () => admissionWire(42),
+    'G_TURN_ADMISSION_UNOWNED': () => admissionWire([['x_not_a_turn'], null, [['Unowned prose']]]),
+    'G_TURN_ADMISSION_REQUEST_RECOVERY': () => admissionWire([['changed_conversation_prefix', 'r_recovered'], null, [['Recovered question']]]),
+    'G_TURN_ADMISSION_CANDIDATE_RECOVERY': () => admissionWire([null, null, null, [[['rc_recovered', [['Recovered answer']]]]]]),
     'G_BOUNDARY_DETAIL_07': () => rpc([[boundaryTurn(), [['x_not_a_turn'], null, [['Rejected recognizer prompt']]]]]),
     'G_BOUNDARY_DETAIL_08': () => rpc([[boundaryTurn('Missing body prompt', null, [['rc_missing']])]]),
     'G_RPC_DOMAIN_01': () => {
