@@ -44,7 +44,8 @@ function unicodeHex(text: string): string {
  * GPOS-split clusters it can instead map the complete cluster more than once.
  * The bundled Mono font keeps each affected cluster inside one ActualText span;
  * its authoritative source and glyph sequence provide the per-glyph mapping.
- * Only unambiguous, one-codepoint-per-glyph NFC decompositions are rewritten.
+ * Only Latin/dotted-circle clusters with unambiguous one-codepoint-per-glyph
+ * NFC decompositions are rewritten. Complex scripts need shaping-order metadata.
  * Content streams, glyph positions, original ActualText and tagging are retained.
  */
 export async function repairUnicodeMaps(bytes: Uint8Array): Promise<Uint8Array> {
@@ -52,6 +53,8 @@ export async function repairUnicodeMaps(bytes: Uint8Array): Promise<Uint8Array> 
     const assignments = new Map<PDFDict, Map<number, string | null>>();
     const record = (span: Span): void => {
         if (span.text === undefined || !/\p{M}/u.test(span.text) || !span.glyphs.length) return;
+        if (!/^[\p{Script=Latin}\p{M}\u25cc\s]+$/u.test(span.text)
+            || span.glyphs.some(glyph => glyph.cid === 0)) return;
         const points = Array.from(span.text.normalize('NFC'));
         const parts = span.glyphs.length === 1 ? [span.text] : points;
         if (parts.length !== span.glyphs.length) return;
