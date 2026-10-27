@@ -10,7 +10,7 @@ import sourceJson6 from '../provider/structured_rpc/live-source-attributions.jso
 import sourceJson7 from '../provider/structured_rpc/live-source-table.json';
 import sourceJson8 from '../provider/structured_rpc/live-range-coder.json';
 import sourceJson9 from '../provider/structured_rpc/live-imagen-panel.json';
-import { decodeGeminiStructuredPayload } from '../../../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { geminiDetailIdentityVariant } from './geminiRpcCapture.js';
 import { listGen as geminiListGen } from './gemini.js';
 /** Native batchexecute response bodies containing Gemini's hNvQHb Detail RPC. */
 const DOMAIN_ID = 'c_native12345678';
@@ -212,12 +212,6 @@ function e2eProductionMixed(id: string, question: string, answer: string, title:
         ]])],
     ]);
 }
-/** Fixed Detail responses used to verify request-UUID ownership across Gaia switches. */
-function e2eUuidDetail(id: string): string {
-    const turn = [['c_' + id, 'r_turn'], [1700000000, 0],
-        [['Question']], [[['rc_turn', [['Answer']]]]]];
-    return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Source title'])]]);
-}
 /** Original L1 mixed Detail+List source response; the List half is the existing List key. */
 function l1ContractWire(prompt = 'Question', next: string | null = null): string {
     const frame = JSON.stringify([
@@ -267,11 +261,12 @@ function citationCompositeWire(kind: 'paragraph' | 'list' | 'table' | 'quote'): 
     return citationWire({ children: [node] });
 }
 function citationInlineCombinedWire(): string {
-    const decoded = decodeGeminiStructuredPayload(citationFile('live-combined-file-citations'));
-    if (!decoded) throw new Error('Invalid captured citation source fixture');
-    return citationWire({ children: [{ nodeType: 'paragraph', children: [
-        { nodeType: 18, text: 'Before ' }, ...decoded.children, { nodeType: 18, text: ' after.' },
-    ] }] });
+    // Embed the saved native citation nodes directly; never decode them to
+    // manufacture a second input for the production decoder under test.
+    const captured = citationFile('live-combined-file-citations') as unknown[][][];
+    return citationWire([[[citationField(13, [[
+        citationText('Before '), ...captured[0][0], citationText(' after.'),
+    ]])]]]);
 }
 
 
@@ -395,8 +390,8 @@ const fixtureMap = {
         e2eProductionMixed('production', 'Question production', 'Current native answer', 'Current title'),
     'G_E2E_PRODUCTION_CONTINUED_MIXED_01': () =>
         e2eProductionMixed('abcdef123456', 'Final prompt', 'Final appended answer', 'Current continued title'),
-    'G_E2E_UUID_DETAIL_STALE_01': () => e2eUuidDetail('staleuuid123'),
-    'G_E2E_UUID_DETAIL_CURRENT_01': () => e2eUuidDetail('currentuuid123'),
+    'G_E2E_UUID_DETAIL_STALE_01': () => geminiDetailIdentityVariant('staleuuid123'),
+    'G_E2E_UUID_DETAIL_CURRENT_01': () => geminiDetailIdentityVariant('currentuuid123'),
     'G_L1_CONTRACT_DETAIL_DEFAULT_01': () => l1ContractWire(),
     'G_L1_CONTRACT_DETAIL_NEWER_01': () => l1ContractWire('Newer', 'tC_NEXT_PAGE_123456789'),
     'G_L1_CONTRACT_DETAIL_OLDER_01': () => l1ContractWire('Older'),
@@ -533,17 +528,9 @@ const fixtureMap = {
             [[['rc_answer', [['Answer ![image](data:image/png;base64,AQID)']]]]]];
         return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Canonical detail'])]]);
     },
-    'G_MESSAGE_BRIDGE_DETAIL_01': () => JSON.stringify([['wrb.fr', 'hNvQHb',
-        JSON.stringify([[[['c_bridge_chat_123', 'r_1'], [1700000000, 0], [['Question']],
-            [[['rc_1', [['Answer']]]]]]]])]]),
-    'G_LIVE_SAVE_OBSERVER_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
-        [[['c_passive123', 'r_question'], [1700000000, 0], [['Question']],
-            [[['rc_answer', [['Answer']]]]]]], null,
-    ])]]),
-    'G_MESSAGE_ROUTER_LIVE_SAVE_01': () => JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
-        [[['c_source_sniff_123', 'r_question'], [1700000000, 0], [['Question']],
-            [[['rc_answer', [['Answer']]]]]]], null,
-    ])]]),
+    'G_MESSAGE_BRIDGE_DETAIL_01': () => geminiDetailIdentityVariant('bridge_chat_123'),
+    'G_LIVE_SAVE_OBSERVER_01': () => geminiDetailIdentityVariant('passive123'),
+    'G_MESSAGE_ROUTER_LIVE_SAVE_01': () => geminiDetailIdentityVariant('source_sniff_123'),
     'G_STRUCTURED_CITATIONS_38': () => {
         const good = citationField(31, [[['[cite: 1]', 0], [[null, [[null, 0, 'file.json', null, null, null, null, null, 1, null, null, 'application/json'], null, null, null, null, null, 'file.json']]], ['quote', 0]]]);
         good[32] = 'unknown visible payload';
@@ -861,18 +848,6 @@ const fixtureMap = {
     'G_OBSERVABILITY_02': () => rpc([[observabilityTurn(), observabilityTurn('c_abc123def457')]]),
     'G_OBSERVABILITY_03': () => rpc([[observabilityTurn(), [['x_123'], [1, 0], [['u']]]]]),
     'G_OBSERVABILITY_04': () => rpc([[observabilityTurn(), [['x_123'], [1, 0], [['u']]]]]),
-
-    // Static native Detail bodies used by E2E source acquisition probes.
-    'G_E2E_TIER2_DETAIL_01': () => {
-        const turn = [['c_probe', 'r_question'], [1700000000, 0], [['Question']],
-            [[['rc_question', [['Answer']]]]]];
-        return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Probe title'])]]);
-    },
-    'G_E2E_DOMAIN_STORAGE_DETAIL_01': () =>
-        JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
-            [[['c_cross_origin_native', 'r_1'], [1700000000, 0], [['Persist this question']],
-                [[['rc_1', [['**Persist this answer**']]]]]]], null,
-        ])]]),
 
     // Static hNvQHb fragments used to verify selective sniffer broadcasts.
     'G_REGRESSION_LOCK_FILTER_DETAIL_01': () =>

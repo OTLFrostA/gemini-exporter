@@ -1,5 +1,6 @@
 """Regression checks for browser identity loss, reporting and launch isolation."""
 import json
+import errno
 from pathlib import Path
 import socket
 import tempfile
@@ -20,6 +21,25 @@ class TestChromeDiagnostics(unittest.TestCase):
             server.listen()
             with self.assertRaisesRegex(RuntimeError, 'already occupied'):
                 ensure_port_free(server.getsockname()[1])
+
+    def test_bound_port_is_rejected_before_it_starts_listening(self):
+        with socket.socket() as server:
+            server.bind(('127.0.0.1', 0))
+            with self.assertRaisesRegex(RuntimeError, 'already occupied'):
+                ensure_port_free(server.getsockname()[1])
+
+    def test_port_probe_does_not_connect_and_preserves_other_bind_errors(self):
+        probe = Mock()
+        probe.__enter__ = Mock(return_value=probe)
+        probe.__exit__ = Mock(return_value=False)
+        with patch('scripts.launch_test_chrome.socket.socket', return_value=probe):
+            ensure_port_free(9222)
+            probe.bind.assert_called_once_with(('127.0.0.1', 9222))
+            probe.connect_ex.assert_not_called()
+            probe.bind.side_effect = OSError(errno.EACCES, 'denied')
+            with self.assertRaises(OSError) as raised:
+                ensure_port_free(9222)
+            self.assertEqual(raised.exception.errno, errno.EACCES)
 
     def test_replacement_stays_failed_after_original_endpoint_returns(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -56,6 +56,7 @@ test('uncorrelated Detail remains usable unknown source facts and never requests
     await handleWindowMessage(sourceCapture(detail));
     const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'bridge_chat_123' });
     assert.ok(stored); assert.equal(stored.quality.status, 'unknown');
+    assert.equal(stored.messages.length, 14);
 });
 test('task resource capture receives the same account/conversation binding as L2', async () => {
     const resources = createSourceResourceContext(); let observed: unknown;

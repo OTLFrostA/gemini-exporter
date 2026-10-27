@@ -44,8 +44,7 @@ function e2eIncrementalList(prefix: string, values: readonly number[], cursor: s
         (prefix === 'chat' ? 'Chat ' : 'Rebuild ') + time, 1700000000 + time)), cursor);
 }
 function e2eUuidList(id: string): string {
-    return JSON.stringify([['wrb.fr', 'MaZiqc',
-        JSON.stringify([null, [['c_' + id, 'Source title', null, null, null, [1700000000, 0]]], null])]]);
+    return wire([sourceRow(id, 'Source title', 1700000000)]);
 }
 
 const fixtureMap = {

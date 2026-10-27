@@ -4,7 +4,9 @@ import { GrokProvider } from '../src/l1/client/grok/grokProvider.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { detailGen as grokDetailGen, metadataGen, treeGen, responsesGen } from './fixtures/providers/grokDetail.js';
+import { listGen as grokListGen } from './fixtures/providers/grokList.js';
+import { userGen as grokUserGen } from './fixtures/providers/grokUser.js';
 import { parseGrokConversation } from '../src/l1/parsers/grok/parseConversation.js';
 import { compatibleGrokBodies } from '../src/l1/parsers/grok/wireCompatibility.js';
 import { parseGrokList } from '../src/l1/parsers/grok/parseList.js';
@@ -15,11 +17,7 @@ import { grokRequest } from '../src/l1/sniffer/grok/observation.js';
 import { contentComposer } from '../src/l3b/compose/composeContent.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
-const fixture = () => JSON.parse(readFileSync(__dirname + '/fixtures/providers/grokDetail.json', 'utf8')) as {
-    id: string; metadata: { conversation: { conversationId: string; title: string; modifyTime: string } };
-    tree: { responseNodes: { responseId: string; parentResponseId: string; sender: string }[]; inflightResponses: unknown[] };
-    bodies: { responses: { responseId: string; parentResponseId: string; message: string; partial: boolean; generatedImageUrls: string[] }[] };
-};
+const fixture = () => grokDetailGen('GR_DETAIL_TEXT_01');
 
 test('observed Grok tree and batch payload preserve text, table, Python and TeX in Markdown and HTML', () => {
     const f = fixture(), copy = structuredClone(f);
@@ -141,18 +139,18 @@ test('Grok ignores unsupported senders without passing invalid text to Loominary
 
 test('Grok list uses native activity and cursor and rejects invalid records', () => {
     const f = fixture(); const row = { ...f.metadata.conversation, createTime: '2026-10-25T05:10:31.525Z' };
-    const parsed = parseGrokList({ conversations: [row], nextPageToken: f.id });
+    const parsed = parseGrokList(grokListGen('GR_LIST_CONTINUATION_01'));
     assert.equal(parsed.keys[0].time, Date.parse(row.modifyTime));
     assert.equal(parsed.nextCursor, f.id);
-    assert.equal(parseGrokList({ conversations: [] }).nextCursor, null);
-    assert.equal(parseGrokList({ conversations: [], nextPageToken: '' }).nextCursor, null);
-    assert.throws(() => parseGrokList({ conversations: [], nextPageToken: null }), /token/);
-    assert.throws(() => parseGrokList({ conversations: [], nextPageToken: 12 }), /token/);
-    assert.equal(parseGrokList({ conversations: [{ ...row, title: '   ' }] }).conversations[0].title, undefined);
-    assert.equal(parseGrokList({ conversations: [{ ...row, title: 12 }] }).conversations[0].title, undefined);
-    assert.throws(() => parseGrokList({ conversations: [row, row] }), /duplicate/);
-    assert.throws(() => parseGrokList({ conversations: [{ ...row, modifyTime: null }] }), /timestamp/);
-    assert.throws(() => parseGrokList({ conversations: [], nextPageToken: '../foreign' }), /token/);
+    assert.equal(parseGrokList(grokListGen('GR_LIST_EMPTY_01')).nextCursor, null);
+    assert.equal(parseGrokList(grokListGen('GR_LIST_EMPTY_TOKEN_01')).nextCursor, null);
+    assert.throws(() => parseGrokList(grokListGen('GR_LIST_NULL_TOKEN_01')), /token/);
+    assert.throws(() => parseGrokList(grokListGen('GR_LIST_NUMBER_TOKEN_01')), /token/);
+    assert.equal(parseGrokList(grokListGen('GR_LIST_BLANK_TITLE_01')).conversations[0].title, undefined);
+    assert.equal(parseGrokList(grokListGen('GR_LIST_NUMBER_TITLE_01')).conversations[0].title, undefined);
+    assert.throws(() => parseGrokList(grokListGen('GR_LIST_DUPLICATE_01')), /duplicate/);
+    assert.throws(() => parseGrokList(grokListGen('GR_LIST_MISSING_TIME_01')), /timestamp/);
+    assert.throws(() => parseGrokList(grokListGen('GR_LIST_FOREIGN_TOKEN_01')), /token/);
 });
 
 test('Grok account comes from userId and TeX normalization preserves code literals', () => {
@@ -179,7 +177,7 @@ test('Grok source allowlist rejects writes and extension injection serializes di
         permissions: { contains: async () => true }, tabs: { query: async () => [{ id: 1 }] },
         scripting: { executeScript: async (injection: { args: unknown[] }) => {
             assert.ok(injection.args.every(v => v !== undefined));
-            return [{ result: { userId: f.id } }];
+            return [{ result: grokUserGen('GR_USER_PROVIDER_01') }];
         } },
     } });
     try { await readGrokSource('/rest/auth/get-user'); }
@@ -197,12 +195,12 @@ test('Grok provider commits verified source pages and detail, rejects account mi
         const calls: string[] = [];
         const provider = new GrokProvider({ images: async () => [], apiRead: async (path, owner, body) => {
             assert.equal(owner, account.providerAccountId); calls.push(path);
-            if (path === '/rest/auth/get-user') return { userId: account.providerAccountId };
-            if (path.includes('pageSize')) return { conversations: [f.metadata.conversation] };
-            if (path.includes('conversations_v2')) return f.metadata;
-            if (path.endsWith('response-node?includeThreads=true')) return f.tree;
+            if (path === '/rest/auth/get-user') return grokUserGen('GR_USER_PROVIDER_01');
+            if (path.includes('pageSize')) return grokListGen('GR_LIST_TERMINAL_01');
+            if (path.includes('conversations_v2')) return metadataGen('GR_METADATA_01');
+            if (path.endsWith('response-node?includeThreads=true')) return treeGen('GR_TREE_STABLE_01');
             assert.deepEqual(body?.responseIds.sort(), f.tree.responseNodes.map(n => n.responseId).sort());
-            return f.bodies;
+            return responsesGen('GR_RESPONSES_01');
         } });
         assert.equal((await provider.checkReadiness(account.id)).ready, true);
         assert.equal(await provider.listConversations({ accountId: account.id, streamId: 'recent' }), 'source_end');
@@ -212,13 +210,13 @@ test('Grok provider commits verified source pages and detail, rejects account mi
         assert.ok(calls.filter(p => p.endsWith('response-node?includeThreads=true')).length === 2);
         const abort = new AbortController(); abort.abort();
         await assert.rejects(provider.fetchConversationDetail(account.id, f.id, abort.signal), { name: 'AbortError' });
-        const cycling = new GrokProvider({ images: async () => [], apiRead: async () => ({ conversations: [f.metadata.conversation], nextPageToken: f.id }) });
+        const cycling = new GrokProvider({ images: async () => [], apiRead: async () => grokListGen('GR_LIST_CONTINUATION_01') });
         await assert.rejects(cycling.listConversations({ accountId: account.id, streamId: 'recent' }), /Unverified/);
         let treeReads = 0;
         const changing = new GrokProvider({ images: async () => [], apiRead: async (path) => {
-            if (path.includes('conversations_v2')) return f.metadata;
-            if (path.endsWith('load-responses')) return f.bodies;
-            return treeReads++ % 2 ? f.tree : { ...f.tree, inflightResponses: [{}] };
+            if (path.includes('conversations_v2')) return metadataGen('GR_METADATA_01');
+            if (path.endsWith('load-responses')) return responsesGen('GR_RESPONSES_01');
+            return treeGen(treeReads++ % 2 ? 'GR_TREE_STABLE_01' : 'GR_TREE_INFLIGHT_01');
         } });
         await assert.rejects(changing.fetchConversationDetail(account.id, f.id), /changed/);
         assert.equal(provider.matchesUrl('https://grok.com.evil.test/'), false);
@@ -259,7 +257,7 @@ test('Loominary captured image bytes stay in task hints and missing file locator
 });
 
 test('current live Grok generated-image cards reuse upstream media parsing without needing an open DOM', () => {
-    const f = JSON.parse(readFileSync(__dirname + '/fixtures/providers/grokImageDetail.json', 'utf8')) as ReturnType<typeof fixture>;
+    const f = grokDetailGen('GR_DETAIL_IMAGE_01');
     const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
     assert.equal(parsed.conversation.detail.quality.status, 'complete', JSON.stringify(parsed.diagnostics));
     assert.equal(parsed.conversation.detail.messages.length, 6);

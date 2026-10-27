@@ -11,16 +11,9 @@ const fixtureMap = {
     'G_HOOK_LIST_CURSOR_REQUEST_01': () => new URLSearchParams({
         'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([31, 'cursor', [0, null, 1]]), null, 'generic']]]),
     }).toString(),
-    'G_HOOK_FALLBACK_CREDENTIAL_REQUEST_01': () => 'f.req=at=fallback_at_token&f.sid=fallback_sid',
     'G_HOOK_OVERRIDE_CREDENTIAL_REQUEST_01': () => 'f.req=payload&at=override_at_token&f.sid=override_sid',
     'G_REGRESSION_DECOY_LIST_REQUEST_01': () => 'f.req=[["MaZiqc",null]]',
     'G_PROTOCOL_NO_DELETE_ANCHOR_REQUEST_01': () => 'f.req=[["MaZiqc","aabbccdd11223344"]]',
-    'G_E2E_PRODUCTION_LIST_REQUEST_01': () => new URLSearchParams({
-        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]),
-    }).toString(),
-    'G_E2E_INCREMENTAL_PASSIVE_LIST_REQUEST_01': () => new URLSearchParams({
-        'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, 'tC_segment', [0, null, 1]]), null, 'generic']]]),
-    }).toString(),
     'G_E2E_UUID_LIST_REQUEST_01': () => new URLSearchParams({
         'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, null, [0, null, 1]]), null, 'generic']]]),
     }).toString(),

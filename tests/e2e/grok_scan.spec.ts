@@ -1,11 +1,12 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, accountId } from './uiFixture';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-const wire = JSON.parse(readFileSync(path.resolve(__dirname, '../fixtures/providers/grokDetail.json'), 'utf8'));
+import { detailGen as grokDetailGen, metadataGen, treeGen, responsesGen } from '../fixtures/providers/grokDetail.js';
+import { listGen as grokListGen } from '../fixtures/providers/grokList.js';
+import { userGen as grokUserGen } from '../fixtures/providers/grokUser.js';
+const wire = grokDetailGen('GR_DETAIL_TEXT_01');
 
 async function grokBoundary(page: import('@playwright/test').Page, allow: boolean) {
-    await page.evaluate(({ allow, wire }) => {
+    await page.evaluate(({ allow, replies }) => {
         let granted = false;
         const origin = 'https://grok.com/*';
         Object.defineProperty(chrome.permissions, 'contains', { configurable: true,
@@ -26,14 +27,15 @@ async function grokBoundary(page: import('@playwright/test').Page, allow: boolea
         Object.defineProperty(chrome.scripting, 'executeScript', { configurable: true,
             value: async (request: { args?: unknown[] }) => {
                 const apiPath = String(request.args?.[0]); calls.push(apiPath);
-                if (apiPath === '/rest/auth/get-user') return [{ result: { userId: wire.id, givenName: 'Grok fixture account' } }];
-                if (apiPath.includes('pageSize=60')) return [{ result: { conversations: [wire.metadata.conversation] } }];
-                if (apiPath.includes('conversations_v2')) return [{ result: wire.metadata }];
-                if (apiPath.includes('response-node')) return [{ result: wire.tree }];
-                if (apiPath.includes('load-responses')) return [{ result: wire.bodies }];
-                return [{ result: [] }];
+                if (apiPath === '/rest/auth/get-user') return [{ result: replies.user }];
+                if (apiPath.includes('pageSize=60')) return [{ result: replies.list }];
+                if (apiPath.includes('conversations_v2')) return [{ result: replies.metadata }];
+                if (apiPath.includes('response-node')) return [{ result: replies.tree }];
+                if (apiPath.includes('load-responses')) return [{ result: replies.bodies }];
+                throw new Error('Unexpected Grok fixture endpoint: ' + apiPath);
             } });
-    }, { allow, wire });
+    }, { allow, replies: { user: grokUserGen('GR_USER_E2E_01'), list: grokListGen('GR_LIST_TERMINAL_01'),
+        metadata: metadataGen('GR_METADATA_01'), tree: treeGen('GR_TREE_STABLE_01'), bodies: responsesGen('GR_RESPONSES_01') } });
 }
 
 for (const allow of [true, false]) test(`Grok site authorization ${allow ? 'connects and syncs its native history' : 'denial leaves its account absent'}`, async ({ context, extensionId }) => {

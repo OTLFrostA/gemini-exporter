@@ -2974,18 +2974,55 @@
           "classification": "P2"
         }
       ]
+    },
+    {
+      "file": "tests/provider-fixture-contract.test.ts",
+      "domain": "provider",
+      "classification": "P2",
+      "provenanceSource": "Project fixture ownership, source independence and fresh captured input contracts; synthetic transport variants are not claimed as raw source evidence.",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Inventory includes Python-embedded Node probes. Generator guards and mutation isolation preserve independent parser inputs.",
+      "testCount": 2,
+      "tests": [
+        {
+          "name": "provider fixture references resolve and generators never execute a production parser",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Grok endpoint fixtures isolate provider mutations from subsequent reads",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/grok_rpc_fixture_closure.test.ts",
+      "domain": "provider",
+      "classification": "P2",
+      "provenanceSource": "Project fixture ownership, source independence and fresh captured input contracts; synthetic transport variants are not claimed as raw source evidence.",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Inventory includes Python-embedded Node probes. Generator guards and mutation isolation preserve independent parser inputs.",
+      "testCount": 1,
+      "tests": [
+        {
+          "name": "Grok source and browser mocks use matching native endpoint generators",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 49,
-    "totalTests": 504,
+    "totalSuites": 51,
+    "totalTests": 507,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 484,
+      "P2": 487,
       "P3": 2,
       "P4": 0
     }
   },
-  "lastAudited": "2026-10-17"
+  "lastAudited": "2026-10-27"
 }

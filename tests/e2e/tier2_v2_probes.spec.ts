@@ -6,7 +6,7 @@ import { buildSync } from 'esbuild';
 import { resolve } from 'node:path';
 import { readGeminiAuditInput, auditGeminiEvidence } from '../helpers/geminiDualParse';
 import { openOptions } from './uiFixture';
-import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
+import { geminiRpcPacket, GEMINI_DETAIL_CAPTURE } from '../fixtures/providers/geminiRpcCapture.js';
 
 const root = resolve(__dirname, '../..');
 const accountId = '10000000-0000-4000-8000-000000000001';
@@ -99,21 +99,21 @@ test('Tier 2 scan observer sees real UI → Application → Recent RPC completio
 
 test('Tier 2 raw fetch probe captures the actual export RPC without consuming its response', async ({ context, extensionId }) => {
     test.setTimeout(60000);
-    // An invalid synthetic Gemini response must fail before any browser UI wait.
+    // Validate the captured seven-turn response before any browser UI wait.
     const nativeEnvelope = (pages: { requestCursor: null; text: string }[]) => JSON.stringify({
-        schemaVersion: 1, source: 'raw_rpc_pages', conversationId: 'probe', pages,
+        schemaVersion: 1, source: 'raw_rpc_pages', conversationId: GEMINI_DETAIL_CAPTURE.conversationId, pages,
     });
-    const audit = readGeminiAuditInput(nativeEnvelope([{requestCursor:null,text:geminiDetailGen('G_E2E_TIER2_DETAIL_01')}]), 'native_envelope');
-    expect(auditGeminiEvidence(audit.evidence).sourceMessages).toHaveLength(2);
+    const audit = readGeminiAuditInput(nativeEnvelope([{requestCursor:null,text:geminiRpcPacket('detail').responseBody}]), 'native_envelope');
+    expect(auditGeminiEvidence(audit.evidence).sourceMessages).toHaveLength(GEMINI_DETAIL_CAPTURE.messages);
 
     const page = await workbench(context,extensionId);
     await source(context);
     // The v2 Provider rejects an unverified tab, even when the URL looks right.
     await expectVerifiedSource(page);
 
-    await page.evaluate(async accountId => Reflect.get(globalThis,'probeFixture').putIndexes([{
-        key:{accountId,conversationId:'probe'},title:'Probe title',titleSource:'provider',updatedAt:1700000000000,
-    }]),accountId);
+    await page.evaluate(async ({accountId, id}) => Reflect.get(globalThis,'probeFixture').putIndexes([{
+        key:{accountId,conversationId:id},title:'Probe title',titleSource:'provider',updatedAt:1700000000000,
+    }]),{accountId, id:GEMINI_DETAIL_CAPTURE.conversationId});
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(page.locator('#list .item')).toHaveCount(1);
     const detailRequests: string[] = [];
@@ -126,7 +126,7 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
                 detailRequests.push(String(args[0]));
             }
         } catch { detailRequests.push('unrecognized request'); }
-        return route.fulfill({contentType:'application/json',body:geminiDetailGen('G_E2E_TIER2_DETAIL_01')});
+        return route.fulfill({contentType:'application/json',body:geminiRpcPacket('detail').responseBody});
     });
     await page.locator('#btnSelectAll').click();
     await expect(page.locator('#btnExport')).toBeEnabled();
@@ -153,20 +153,20 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
             JSON.stringify({detailRequests, ...diagnostics, cause:String(error)}));
     }
     expect(downloaded.suggestedFilename()).toMatch(/\.md$/);
-    expect(detailRequests).toContain('c_probe');
+    expect(detailRequests).toContain('c_' + GEMINI_DETAIL_CAPTURE.conversationId);
     const pages = await page.evaluate(async () => {
         const state = Reflect.get(window,'__geminiDualCapture'); await Promise.all(state.pending);
-        return state.replies.probe;
+        return state.replies['0000000000000001'];
     });
-    expect(pages).toEqual([{requestCursor:null,text:geminiDetailGen('G_E2E_TIER2_DETAIL_01')}]);
+    expect(pages).toEqual([{requestCursor:null,text:geminiRpcPacket('detail').responseBody}]);
     const read = readGeminiAuditInput(nativeEnvelope(pages), 'native_envelope');
-    expect(auditGeminiEvidence(read.evidence).sourceMessages).toHaveLength(2);
-    await expect.poll(async () => page.evaluate(async accountId =>
-        Reflect.get(globalThis,'probeFixture').getExportRecord({accountId,conversationId:'probe'}),accountId))
+    expect(auditGeminiEvidence(read.evidence).sourceMessages).toHaveLength(GEMINI_DETAIL_CAPTURE.messages);
+    await expect.poll(async () => page.evaluate(async ({accountId,id}) =>
+        Reflect.get(globalThis,'probeFixture').getExportRecord({accountId,conversationId:id}),{accountId,id:GEMINI_DETAIL_CAPTURE.conversationId}))
         .toMatchObject({format:'markdown',status:'ok'});
-    const [stored] = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').conversations(['probe']));
+    const [stored] = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').conversations(['0000000000000001']));
     expect(stored.ok).toBe(true);
-    expect(stored.domain.detail.messages).toHaveLength(2);
+    expect(stored.domain.detail.messages).toHaveLength(GEMINI_DETAIL_CAPTURE.messages);
 });
 
 test('Tier 2 Scan observer preserves provider and local page limit reasons and rejects changed accounts', async ({ context }) => {
