@@ -54,14 +54,56 @@ test('Detail: complete source chain reverses pages, keeps source version and exp
     assert.equal(result.conversation.detail.savedAt, 1700000000000);
     assert.equal('account' in result, false); assert.equal('key' in result.conversation.detail, false);
 });
-test('Detail: token loop and twenty-page safety limit keep partial quality', async () => {
-    const looping = sourceDetail({ nextPageToken: 'loop' });
-    const loop = await getConversationDetail(detailClient([looping, looping]), 'source_chat_123');
-    assert.equal(loop.conversation.detail.quality.status, 'partial');
-    const pages = Array.from({ length: 20 }, (_, i) => sourceDetail({ messages: [sourceMessage('m' + i)], nextPageToken: 'next' + i }));
-    const limit = await getConversationDetail(detailClient(pages), 'source_chat_123');
-    assert.equal(limit.conversation.detail.messages.length, 20); assert.equal(limit.conversation.detail.quality.status, 'partial');
-});
+for (const retry of [false, true]) {
+    const mode = retry ? 'metadata-only retry' : 'normal';
+    function paginatedClient(count: number, terminal: 'end' | 'loop' | 'error' | 'abort' | 'budget', controller?: AbortController) {
+        let calls = 0;
+        const cursors: (string | null | undefined)[] = [];
+        const client: GeminiPaginationDetailClient = { async fetchConversationPage(_id, cursor, _slot, opts) {
+            cursors.push(cursor);
+            if (retry && calls++ === 0) return sourceDetail({ messages: [], _raw: [null, null, [['c_source_chat_123']]] });
+            assert.equal(opts?.altParams, retry ? true : undefined);
+            const index = cursors.length - (retry ? 2 : 1);
+            if (terminal === 'error' && index === count - 1) throw new Error('HTTP 429');
+            if (terminal === 'abort' && index === count - 1) controller?.abort();
+            return sourceDetail({ messages: [sourceMessage('m' + index)], nextPageToken: index === count - 1
+                ? terminal === 'end' ? null : terminal === 'loop' ? 'next1' : 'next' + index
+                : 'next' + index });
+        } };
+        return { client, cursors };
+    }
+    test(`Detail: ${mode} reads 25 pages through natural end without losing oldest messages`, async () => {
+        const { client, cursors } = paginatedClient(25, 'end');
+        const result = await getConversationDetail(client, 'source_chat_123');
+        assert.equal(cursors.length, 25 + Number(retry));
+        assert.deepEqual(result.conversation.detail.messages.map(m => m.id), Array.from({ length: 25 }, (_, i) => 'm' + (24 - i)));
+        assert.equal(result.conversation.detail.quality.status, 'complete');
+        assert.equal(result.transport.nextPageToken, null);
+    });
+    test(`Detail: ${mode} detects late token loops and preserves partial evidence`, async () => {
+        const { client, cursors } = paginatedClient(25, 'loop');
+        const result = await getConversationDetail(client, 'source_chat_123');
+        assert.equal(cursors.length, 25 + Number(retry));
+        assert.equal(result.conversation.detail.quality.status, 'partial');
+        assert.equal(result.evidence?.truncation, 'token_loop');
+    });
+    test(`Detail: ${mode} propagates late errors and cancellation`, async () => {
+        const { client } = paginatedClient(25, 'error');
+        await assert.rejects(getConversationDetail(client, 'source_chat_123'), /429/);
+        const controller = new AbortController();
+        const aborted = paginatedClient(25, 'abort', controller);
+        await assert.rejects(getConversationDetail(aborted.client, 'source_chat_123', 'u0', undefined, controller.signal), { name: 'AbortError' });
+        assert.equal(aborted.cursors.length, 25 + Number(retry));
+    });
+    test(`Detail: ${mode} stops runaway unique tokens with explicit incomplete evidence`, async () => {
+        const { client, cursors } = paginatedClient(2000, 'budget');
+        const result = await getConversationDetail(client, 'source_chat_123');
+        assert.equal(cursors.length, 2000 + Number(retry));
+        assert.equal(result.conversation.detail.quality.status, 'partial');
+        assert.equal(result.evidence?.truncation, 'max_turns_page_limit_2000');
+        assert.ok(result.transport.nextPageToken);
+    });
+}
 test('Detail: identity mismatch and transport errors reject instead of inventing completion', async () => {
     await assert.rejects(getConversationDetail(detailClient([sourceDetail({ id: 'other' })]), 'source_chat_123'), /identity/);
     await assert.rejects(getConversationDetail({ fetchConversationPage: async () => { throw new Error('offline'); } }, 'source_chat_123'), /offline/);
