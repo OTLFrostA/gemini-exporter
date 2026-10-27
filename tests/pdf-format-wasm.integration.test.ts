@@ -104,3 +104,19 @@ test('live negated implication has a real PDF formula instead of a raw-LaTeX fal
         assert.equal(result.diagnostics.some(d => d.code === 'TYPST_MATH_CONVERT_FAILED'), false);
     } finally { compiler.dispose(); }
 });
+
+// Prose must have the same bundled combining-mark coverage as code, without local fonts.
+test('real PDF preserves dotted circles and NFD graphemes in ordinary prose offline', async () => {
+    const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
+    const sample = '◌̧ ◌̈ ä ä ş ş';
+    try {
+        const result = await compileDocumentPdf(v2Document([
+            { type: 'paragraph', children: [{ type: 'text', text: sample }] },
+        ]), {}, new Map(), compiler, context());
+        const text = extractPdfText(result.pdfBytes).text;
+        assert.ok(!text.includes('\0') && !text.includes('\uFFFD'), 'no missing glyphs in prose');
+        for (const grapheme of sample.normalize('NFC').split(' ')) {
+            assert.ok(text.normalize('NFC').includes(grapheme), 'selectable grapheme: ' + grapheme);
+        }
+    } finally { compiler.dispose(); }
+});
