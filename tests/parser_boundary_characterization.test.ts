@@ -189,26 +189,35 @@ test('detail: metadata-only and undiscoverable-turn payloads retain distinct dri
 });
 
 test('detail: metadata-only identity and title are decoded once without changing malformed fallbacks', () => {
-    const wire = (inner: unknown): string =>
-        JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]]);
-    const valid = decodeGeminiDetail(wire([null, null, [[ID, '  Metadata title  ']]]));
+    const valid = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_METADATA_TRIMMED_01'));
     assert.deepEqual(valid.metadataConversation, { id: ID, title: 'Metadata title' });
     assert.equal(valid.bodyShape, 'metadata_only');
     assert.deepEqual(valid.messages, []);
     assert.ok(valid.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
 
-    for (const title of [null, 42, { wrong: 'shape' }, '', '   ']) {
-        const parsed = decodeGeminiDetail(wire([null, null, [[ID, title]]]));
+    for (const key of [
+        'G_BOUNDARY_METADATA_TITLE_NULL_01',
+        'G_BOUNDARY_METADATA_TITLE_NUMBER_01',
+        'G_BOUNDARY_METADATA_TITLE_OBJECT_01',
+        'G_BOUNDARY_METADATA_TITLE_EMPTY_01',
+        'G_BOUNDARY_METADATA_TITLE_BLANK_01',
+    ] as const) {
+        const parsed = decodeGeminiDetail(geminiDetailGen(key));
         assert.equal(parsed.metadataConversation, undefined);
         assert.equal(parsed.bodyShape, 'metadata_only');
         assert.ok(parsed.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
     }
-    for (const id of [null, 42, 'r_not_a_conversation', 'wrong_prefix']) {
-        const parsed = decodeGeminiDetail(wire([null, null, [[id, 'Metadata title']]]));
+    for (const key of [
+        'G_BOUNDARY_METADATA_ID_NULL_01',
+        'G_BOUNDARY_METADATA_ID_NUMBER_01',
+        'G_BOUNDARY_METADATA_ID_REQUEST_01',
+        'G_BOUNDARY_METADATA_ID_PREFIX_01',
+    ] as const) {
+        const parsed = decodeGeminiDetail(geminiDetailGen(key));
         assert.equal(parsed.metadataConversation, undefined);
         assert.ok(!parsed.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
     }
-    const notMetadataOnly = decodeGeminiDetail(wire([null, [], [[ID, 'Metadata title']]]));
+    const notMetadataOnly = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_METADATA_NON_METADATA_01'));
     assert.equal(notMetadataOnly.metadataConversation, undefined);
 });
 
