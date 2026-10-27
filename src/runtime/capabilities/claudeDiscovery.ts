@@ -2,6 +2,7 @@ import { syncPlatformContentScripts } from './platformInjection.js';
 import { getOrCreateAccount } from '../api/accountRegistry.js';
 import { hasClaudeAccess, readClaudeSource, ensureClaudeRegistered } from '../../l1/client/claude/claudeAccess.js';
 import type { Account } from '../../l2/accountRegistry.js';
+import { claudeUuid } from '../../l1/sniffer/claude/observation.js';
 
 /** Read only chat-capable Claude organizations; never invent an account from a tab URL. */
 export async function discoverClaudeAccounts(): Promise<Account[]> {
@@ -10,7 +11,7 @@ export async function discoverClaudeAccounts(): Promise<Account[]> {
     if (!Array.isArray(raw)) throw new TypeError('Claude organization response changed');
     const verified = raw.flatMap((value: unknown) => {
         if (!value || typeof value !== 'object' || Array.isArray(value) || !('uuid' in value)
-            || typeof value.uuid !== 'string' || !/^[\da-f-]{36}$/i.test(value.uuid)) return [];
+            || typeof value.uuid !== 'string' || !claudeUuid(value.uuid)) return [];
         const name = 'name' in value && typeof value.name === 'string' ? value.name.trim() : '';
         const chat = 'capabilities' in value && Array.isArray(value.capabilities) && value.capabilities.includes('chat');
         return [{ uuid: value.uuid, name, chat }];
