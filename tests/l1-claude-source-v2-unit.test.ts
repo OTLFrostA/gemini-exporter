@@ -268,6 +268,33 @@ test('Claude delivers generated files by stable file identity, never inventing b
 });
 
 
+test('Claude Detail decodes only safe nonnegative file sizes before rendering', () => {
+    for (const [size, expected] of [
+        [-1, undefined], [1.5, undefined], [Number.MAX_SAFE_INTEGER + 1, undefined],
+        [NaN, undefined], [Infinity, undefined], ['8', undefined], [null, undefined],
+        [0, 0], [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+    ] as const) {
+        const raw = claudeDetailGen('CL_L1_SOURCE_GENERATED_FILE_01');
+        const entries: unknown = raw.chat_messages[0]?.files;
+        if (!Array.isArray(entries)) throw new Error('Missing Claude file fixture');
+        const file: unknown = entries[0];
+        if (!file || typeof file !== 'object' || Array.isArray(file))
+            throw new Error('Invalid Claude file fixture');
+        Object.assign(file, { size_bytes: size });
+
+        const decoded = decodeClaudeDetail(raw, c1).messages[0]?.files[0];
+        assert.ok(decoded);
+        assert.equal(decoded.sizeBytes, expected, String(size));
+
+        const parsed = parseClaudeConversation(raw, c1);
+        const assetId = 'claude-file:' + c2;
+        assert.deepEqual(parsed.conversation.detail.assets, [{ id: assetId, kind: 'file', name: 'result.py',
+            sourceUri: assetId, ...(expected !== undefined ? { byteLength: expected } : {}) }], String(size));
+        assert.equal(parsed.conversation.detail.messages[0]?.content.at(-1)?.type, 'file', String(size));
+        assert.equal(parsed.conversation.detail.quality.status, 'complete', String(size));
+    }
+});
+
 test('Claude passive request routing binds exact origin, organization and native endpoint', () => {
     const base = `https://claude.ai/api/organizations/${c1}/chat_conversations`;
     for (const endpoint of ['completion', 'completion2', 'retry_completion', 'retry_completion2'])

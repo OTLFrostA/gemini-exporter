@@ -85,7 +85,7 @@ function contentOf(message: ClaudeSourceMessage, ctx: MarkdownParseContext, tool
         if (generated && file.success && file.fileKind === 'blob' && file.downloadSource === 'files-api' && fileId) {
             const assetId = 'claude-file:' + fileId;
             if (!assets.some(asset => asset.id === assetId)) assets.push({ id: assetId, kind: 'file', name,
-                sourceUri: assetId, ...(file.sizeBytes !== undefined && Number.isSafeInteger(file.sizeBytes) && file.sizeBytes >= 0 ? { byteLength: file.sizeBytes } : {}) });
+                sourceUri: assetId, ...(file.sizeBytes !== undefined ? { byteLength: file.sizeBytes } : {}) });
             content.push({ type: 'file', assetId, label: name });
             continue;
         }

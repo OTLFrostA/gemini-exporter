@@ -81,7 +81,8 @@ function decodeFile(raw: unknown): ClaudeSourceFile | null {
         success: source.success === true,
         ...(text(source.file_kind) !== undefined ? { fileKind: text(source.file_kind) } : {}),
         ...(text(source.download_source) !== undefined ? { downloadSource: text(source.download_source) } : {}),
-        ...(typeof source.size_bytes === 'number' ? { sizeBytes: source.size_bytes } : {}),
+        ...(typeof source.size_bytes === 'number' && Number.isSafeInteger(source.size_bytes)
+            && source.size_bytes >= 0 ? { sizeBytes: source.size_bytes } : {}),
     };
 }
 function decodeResultPart(raw: unknown): ClaudeResultPart {
