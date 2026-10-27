@@ -895,10 +895,9 @@ test('Claude discovery admits normalized organizations, not raw remote JSON reco
         'the single-org fallback must not pass unvalidated names');
 
     for (const malformed of ['invalid', '-'.repeat(36), '111111111-111-4111-8111-111111111111']) {
-        const before = registered.length;
         raw = [{ uuid: malformed, name: 'wrong', capabilities: ['chat'] }];
         assert.deepEqual(await discoverClaudeAccounts(), [], 'invalid UUID must not become an Account');
-        assert.equal(registered.length, before, 'invalid UUID must never reach the Registry');
+        assert.equal(registered.length, 2, 'invalid UUID must never reach the Registry');
     }
 });
 
