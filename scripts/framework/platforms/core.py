@@ -80,6 +80,7 @@ def feature_spec(case):
 def run_session(session, report, persist=lambda: None):
     """One lifecycle for every plugin; errors and missing dependencies block success."""
     diagnostics = None
+    tab_scope = None
     port = getattr(session.context, 'port', None)
     output_dir = getattr(session.context, 'output_dir', None)
     if output_dir is None:
@@ -87,6 +88,8 @@ def run_session(session, report, persist=lambda: None):
         output_dir = getattr(runtime, 'output_dir', None) or getattr(runtime, 'output', None)
     try:
         if port is not None and output_dir is not None:
+            from scripts.framework.tab_cleanup import TestTabScope
+            tab_scope = TestTabScope(port)
             from scripts.chrome_diagnostics import BrowserDiagnostics
             diagnostics = BrowserDiagnostics(port, output_dir)
             session.context.browser_checkpoint = diagnostics.checkpoint
@@ -127,6 +130,13 @@ def run_session(session, report, persist=lambda: None):
             session.close()
         except Exception as error:
             report.update(passed=False, cleanup_error=str(error))
+        if tab_scope:
+            try:
+                runtime = getattr(session.context, 'runtime', None)
+                ext_id = getattr(session.context, 'ext_id', None) or getattr(runtime, 'ext_id', None)
+                tab_scope.close(ext_id)
+            except Exception as error:
+                report.update(passed=False, tab_cleanup_error=str(error))
         if diagnostics:
             try:
                 try:
