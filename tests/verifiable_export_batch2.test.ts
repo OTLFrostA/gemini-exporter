@@ -6,10 +6,10 @@ import { mount, read } from './helpers/uiPortHarness.js';
 import { v2LiveSaveHost, seedLiveDetail, liveKey } from './helpers/v2LiveSaveHost.js';
 import { runLiveSave } from '../src/runtime/background/liveSaveHandler.js';
 import { getDetail } from '../src/l3a/storageService.js';
-for(const loop of [false,true]) test('D3: Detail pagination reports '+(loop?'cursor loop':'20-page safety truncation'),async()=>{
+for(const loop of [false,true]) test('D3: Detail pagination reports '+(loop?'cursor loop':'2000-page safety truncation'),async()=>{
     let calls=0;const id=loop?'chat_loop':'chat_long';
     const result=await getConversationDetail({fetchConversationPage:async()=>sourceDetail({id,messages:[sourceMessage('m'+ ++calls)],nextPageToken:loop?'repeat':'page'+calls})},id);
-    assert.equal(calls,loop?2:20);assert.equal(result.evidence?.truncation,loop?'token_loop':'max_turns_page_limit_20');
+    assert.equal(calls,loop?2:2000);assert.equal(result.evidence?.truncation,loop?'token_loop':'max_turns_page_limit_2000');
     assert.equal(result.conversation.detail.quality.status,'partial');assert.equal(result.conversation.detail.messages.length,calls);
 });
 // Failure is a transient task outcome, never a persisted failed ExportRecord.

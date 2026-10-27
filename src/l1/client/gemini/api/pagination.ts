@@ -38,6 +38,9 @@ export interface PaginatedDetailResult extends SourceConversationParseResult {
 }
 interface GeminiClientPaginationModule { getConversationDetail: typeof getConversationDetail }
 
+// Match the list-sync runaway budget; ordinary long histories follow tokens to source end.
+const MAX_DETAIL_PAGES = 2000;
+
 /** Empty messages are trustworthy only when the native Detail body explicitly contains empty turns. */
 function isExplicitlyEmptyDetail(page: DetailParseResult): boolean {
     return page.conversation.detail.messages.length === 0 && !page.transport.nextPageToken
@@ -50,7 +53,7 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
     const pages: DetailParseResult[] = [];
     const seenTokens = new Set<string>();
     let token: string | null = null;
-    let truncateReason: 'token_loop' | 'max_turns_page_limit_20' | undefined;
+    let truncateReason: 'token_loop' | 'max_turns_page_limit_2000' | undefined;
     do {
         signal?.throwIfAborted();
         const page = await client.fetchConversationPage(conversationId, token, targetSid, { account, signal });
@@ -58,14 +61,15 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
         token = page.transport.nextPageToken;
         if (token && seenTokens.has(token)) { truncateReason = 'token_loop'; break; }
         if (token) seenTokens.add(token);
-    } while (token && pages.length < 20);
-    if (token && !truncateReason) truncateReason = 'max_turns_page_limit_20';
+    } while (token && pages.length < MAX_DETAIL_PAGES);
+    if (token && !truncateReason) truncateReason = 'max_turns_page_limit_2000';
     let first = pages[0];
     if (!first) throw new Error('no data');
     const metadataOnly = !pages.some(page => page.conversation.detail.messages.length)
         && first.transport.bodyShape === 'metadata_only';
     if (metadataOnly) {
         try {
+            signal?.throwIfAborted();
             const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true, account, signal });
             if (retry.conversation.detail.messages.length || isExplicitlyEmptyDetail(retry)) {
                 // The retry replaces the original metadata-only source, including its transport evidence.
@@ -74,14 +78,15 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
                 seenTokens.clear();
                 truncateReason = undefined;
                 token = retry.transport.nextPageToken;
-                while (token && pages.length < 20) {
+                while (token && pages.length < MAX_DETAIL_PAGES) {
                     if (seenTokens.has(token)) { truncateReason = 'token_loop'; break; }
                     seenTokens.add(token);
+                    signal?.throwIfAborted();
                     const next = await client.fetchConversationPage(conversationId, token, targetSid, { detailOnly: true, altParams: true, account, signal });
                     pages.push(next);
                     token = next.transport.nextPageToken;
                 }
-                if (token && !truncateReason) truncateReason = 'max_turns_page_limit_20';
+                if (token && !truncateReason) truncateReason = 'max_turns_page_limit_2000';
             }
         } catch (error: unknown) {
             signal?.throwIfAborted();
