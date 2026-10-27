@@ -1,8 +1,10 @@
 import { hasPlatformAccess } from '../platformAccess.js';
 import { PLATFORM_HOSTS } from '../../../shared/platformHosts.js';
+import { claudeUuid } from '../../sniffer/claude/observation.js';
 export const CLAUDE_ORIGIN = PLATFORM_HOSTS.claude.pages[0];
 export function hasClaudeAccess(): Promise<boolean> { return hasPlatformAccess('claude'); }
-const allowedPath = /^\/api\/organizations(?:\/[\da-f-]{36}\/chat_conversations(?:\/[\da-f-]{36})?(?:\?tree=true&rendering_mode=messages&render_all_tools=true)?)?$/i;
+const allowedPath = /^\/api\/organizations(?:\/([\da-f-]{36})\/chat_conversations(?:\/([\da-f-]{36}))?(?:\?tree=true&rendering_mode=messages&render_all_tools=true)?)?$/i;
+const paginatedPath = /^\/api\/organizations\/([\da-f-]{36})\/chat_conversations_v2\?limit=100&offset=\d+&consistency=strong$/i;
 
 /**
  * Execute authenticated, same-origin API reads in a logged-in Claude tab.
@@ -10,8 +12,14 @@ const allowedPath = /^\/api\/organizations(?:\/[\da-f-]{36}\/chat_conversations(
  * An expected organization is rechecked in the same injected execution.
  */
 export async function readClaudeSource(path: string, expectedOrganization?: string): Promise<unknown> {
-    if (!(allowedPath.test(path) || /^\/api\/organizations\/[\da-f-]{36}\/chat_conversations_v2\?limit=100&offset=\d+&consistency=strong$/i.test(path)) || expectedOrganization !== undefined
-        && !/^[\da-f-]{36}$/i.test(expectedOrganization)) throw new TypeError('Invalid Claude API request');
+    const standard = allowedPath.exec(path);
+    const paginated = paginatedPath.exec(path);
+    const validPath = standard
+        ? (standard[1] === undefined || claudeUuid(standard[1]))
+            && (standard[2] === undefined || claudeUuid(standard[2]))
+        : paginated !== null && claudeUuid(paginated[1]);
+    if (!validPath || (expectedOrganization !== undefined && !claudeUuid(expectedOrganization)))
+        throw new TypeError('Invalid Claude API request');
     if (!await hasClaudeAccess()) throw new Error('Claude host permission unavailable');
     const tabs = await chrome.tabs.query({ url: [CLAUDE_ORIGIN] });
     const ordered = tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active))
