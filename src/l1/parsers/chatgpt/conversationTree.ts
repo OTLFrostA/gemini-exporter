@@ -1,6 +1,5 @@
 /**
- * Pure ChatGPT mapping-tree helpers, ported from pionxzh/chatgpt-exporter (MIT).
- * @unverified-provider-scaffold Awaiting 9222 live-payload verification.
+ * Adapted from pionxzh/chatgpt-exporter (MIT); retain upstream provenance.
  */
 import { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
 import type {

@@ -7,8 +7,7 @@
 :root[data-theme-bootstrap] *::before,
 :root[data-theme-bootstrap] *::after { transition: none !important; }
 
-/* Shared theme overrides for extension Popup, Options and Tour.
-   Dark and light palettes are independently scoped; the light design stays unchanged. */
+/* Do not let dark palette overrides change the independent light theme. */
 .theme-switch {
   flex: none;
   width: 30px;
@@ -105,7 +104,6 @@
   background: #fff0f2;
 }
 
-/* Newbie Tour inherits the extension choice, including open overlays. */
 :root[data-theme="light"] .tour-popover {
   box-shadow: 0 16px 36px rgba(27, 39, 62, 0.2), 0 0 0 1px rgba(35, 45, 70, 0.05);
 }
@@ -329,7 +327,6 @@
   background: #4a4a53 !important;
 }
 
-/* Popup, tour and release notice use the same softened charcoal layering. */
 :root[data-theme="dark"] .tour-title {
   color: var(--tour-text);
 }

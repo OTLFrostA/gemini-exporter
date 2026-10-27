@@ -10,7 +10,6 @@ import type { ListEnd, PageEvidence } from '../aiProvider.js';
 import { ingestIndexes, ingestDetail } from '../../../l2/ingestion.js';
 import { getAccount } from '../../../runtime/api/accountRegistry.js';
 /** Acquisition and Domain conversion remain separate so provider I/O cannot bypass parser trust boundaries.
- * @unverified-provider-scaffold Not registered by default; optional hosts only.
  */
 import type {
     AIProvider,

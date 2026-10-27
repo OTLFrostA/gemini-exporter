@@ -56,7 +56,6 @@
   .cleanup-actions .destructive{background:var(--card-inner);color:var(--destructive-text,#ff8a8a);border:1px solid currentColor}
   .cleanup-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   .feedback-arrow{font-size:12px;opacity:0.6;flex:none;transition:opacity 0.15s ease,transform 0.15s ease,color 0.15s ease;}
-  /* Both export destinations are always visible as radio cards, not tabs. */
   .export-preferences{display:flex;flex-direction:column;gap:10px;background:var(--card-inner);padding:12px;border-radius:10px;border:1px solid var(--border)}
   .export-format-row{display:flex;align-items:center;gap:12px;font-size:13px;min-height:32px}
   .export-format-row select{flex:1;min-width:0;height:32px;padding:4px 8px}
@@ -137,7 +136,7 @@
   /* Dev alone uses an inverted direction: ON is left, beside its label. */
   #devToggle::after { transform: translateX(14px); }
   #devToggle:checked::after { transform: translateX(0); }
-  /* Modern Sleek WebKit Scrollbars (No standard scrollbar-color/width to avoid Chrome disabling WebKit engine) */
+  /* Chrome disables WebKit scrollbar styling when standard scrollbar-color/width is set. */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -222,7 +221,6 @@
   #list .status-partial {color:#fca5a5;border-color:#713b3b;background:#351b23;}
   #list .meta {font-size:11px;color:var(--muted)}
 
-  /* One compact source/action toolbar, followed by a small list-selection line. */
   .conversation-toolbar{display:flex;align-items:center;gap:8px;flex:none;min-height:34px;}
   .conversation-toolbar #btnSyncAll{height:32px;flex:none;padding:4px 11px;font-size:12px;border-radius:8px;}
   .conversation-source{width:clamp(132px,16vw,188px);min-width:120px;flex:none;}
@@ -459,7 +457,7 @@
     <button id="btnCleanupConfirm" type="button" class="destructive">清除记录</button>
   </div>
 </dialog>
-<!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->
+<!-- JSZip must load before the bundle because Options uses its external UMD global. -->
 <script src="/lib/jszip.min.js"></script>
 <script src="/dist/ui/options.js"></script>
 </body>

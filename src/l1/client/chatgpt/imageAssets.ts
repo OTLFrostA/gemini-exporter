@@ -1,8 +1,5 @@
 /**
- * ChatGPT image-asset resolution, ported from pionxzh/chatgpt-exporter (MIT).
- * Chain: `sediment://<fileId>` -> `GET /backend-api/files/download/:id`
- * -> signed estuary `download_url` -> bytes -> base64 Domain asset.
- * @unverified-provider-scaffold Verified live via 9222 (2.1MB PNG, 2026-10-14).
+ * Adapted from pionxzh/chatgpt-exporter (MIT); signed download URLs are transient.
  */
 
 interface ChatGPTParsedDownload {
@@ -12,14 +9,12 @@ interface ChatGPTParsedDownload {
     mimeType?: string;
 }
 
-/** `sediment://file_abc` -> `file_abc`; non-sediment pointers yield null. */
 export function fileIdFromPointer(pointer: string): string | null {
     if (!pointer.startsWith('sediment://')) return null;
     const id = pointer.slice('sediment://'.length);
     return id ? id : null;
 }
 
-/** Backend path for the signed-URL exchange. */
 export function buildFileDownloadPath(fileId: string): string {
     return `/files/download/${encodeURIComponent(fileId)}`;
 }
