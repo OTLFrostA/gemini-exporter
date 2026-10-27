@@ -390,3 +390,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+### PDF Unicode mapping repair
+
+- **pdf-lib 1.17.1**: Copyright (c) 2019 Andrew Dillon; MIT License. The complete license is shipped in `src/l4/format/pdf/typst/LICENSE-pdf-lib.txt`. Used to decode and rewrite ToUnicode dictionaries while preserving the page drawing and source ActualText.
+- **DejaVu Sans Mono**: unmodified font from matplotlib commit `39b27ddaafe636f06776a2044b5df05d07648dc4`; Bitstream Vera / DejaVu license. Font provenance and hashes are in `src/l4/format/pdf/sandbox/fonts/README.md`, and the complete original license is shipped as `LICENSE-DejaVu.txt` in that directory.

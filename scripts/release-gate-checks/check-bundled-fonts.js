@@ -11,6 +11,8 @@ const FONT_EXTS = new Set(['.ttf', '.otf', '.ttc', '.otc', '.woff', '.woff2', '.
 const FONT_DIR = 'src/l4/format/pdf/sandbox/fonts/';
 const TOTAL_FONT_BUDGET_BYTES = 22 * 1024 * 1024;
 const APPROVED_FONTS = [
+    { file: 'DejaVuSansMono.ttf', sha256: '602ec86b8948cfcd956482fe64f94c36c867770149ef2f791d4613f443bcecb3',
+      license: 'LICENSE-DejaVu.txt', licenseSha256: 'd75938dec098f06f0ac3c00853065d94f020be1c3c62ef1dc2975ba15b4d9b0e' },
     { file: 'NotoEmoji-Variable.ttf', sha256: 'de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551',
       license: 'OFL-NotoEmoji.txt', licenseSha256: '500bb1ccf43df7bbb522112f9133a52b16e1c35e809632f5d8609b179152de5b' },
     { file: 'NewCMMath-Regular.otf', sha256: '5e82df214f99cc7057e8236f3dab06f8fac95a23ddc2f0fd41ddeb2f38ea72fe',

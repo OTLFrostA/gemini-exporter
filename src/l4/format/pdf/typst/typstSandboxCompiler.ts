@@ -1,3 +1,4 @@
+import { repairUnicodeMaps } from './repairUnicodeMaps.js';
 import { PdfResourceError, isAbortError } from '../errors.js';
 import { missingResource, type ResourceFailure } from '../../../../shared/resources/resourceResult.js';
 import type { Diagnostic as RenderDiagnostic } from '../../../../shared/diagnostics/diagnostic.js';
@@ -439,8 +440,10 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 `Typst compile returned ${pdfBytes.length} bytes that do not start with %PDF-; refusing to treat them as a PDF`,
             );
         }
+        const selectableBytes = /\p{M}/u.test(payloadText) ? await repairUnicodeMaps(pdfBytes) : pdfBytes;
+        context.signal.throwIfAborted();
         context.reportProgress('typst-done', 4, 4);
-        return { pdfBytes, diagnostics };
+        return { pdfBytes: selectableBytes, diagnostics };
     }
 
     private async loadFontBytes(): Promise<Uint8Array[]> {

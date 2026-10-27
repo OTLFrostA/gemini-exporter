@@ -274,7 +274,7 @@ interface ExtractedPdf {
 }
 
 /** Extract selectable text from a PDF. */
-export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
+export function extractPdfText(pdfBytes: Uint8Array, honorActualText = true): ExtractedPdf {
     const data = Buffer.from(pdfBytes);
     const objs = parseObjects(data);
 
@@ -395,7 +395,7 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
                     if (t === 'BDC' || t === 'BMC') {
                         let actualText: string | null = null;
                         const actIdx = stack.lastIndexOf('/ActualText');
-                        if (actIdx !== -1 && actIdx + 1 < stack.length) {
+                        if (honorActualText && actIdx !== -1 && actIdx + 1 < stack.length) {
                             actualText = parseActualTextString(stack[actIdx + 1]);
                         }
                         const mcidIndex = stack.lastIndexOf('/MCID');
