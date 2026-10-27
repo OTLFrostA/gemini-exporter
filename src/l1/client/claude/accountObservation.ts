@@ -1,4 +1,4 @@
-import { activeClaudeOrganization } from '../../sniffer/claude/observation.js';
+import { activeClaudeOrganization, claudeUuid } from '../../sniffer/claude/observation.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 
 interface ClaudeOrganization { uuid: string; name?: string }
@@ -15,7 +15,7 @@ export async function observeClaudeAccount(): Promise<Omit<Account, 'id'> | null
                 const raw: unknown = response.ok ? await response.json() : null;
                 organizations = Array.isArray(raw) ? raw.flatMap((item: unknown): ClaudeOrganization[] => {
                     if (!item || typeof item !== 'object' || !('uuid' in item)
-                        || typeof item.uuid !== 'string') return [];
+                        || typeof item.uuid !== 'string' || !claudeUuid(item.uuid)) return [];
                     const name = 'name' in item && typeof item.name === 'string' ? item.name.trim() : '';
                     return [{ uuid: item.uuid, ...(name ? { name } : {}) }];
                 }) : [];
