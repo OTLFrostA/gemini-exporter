@@ -320,6 +320,8 @@ export function request(patch: Partial<ExportRequest> = {}): ExportRequest {
         includeAssets: true, skipUnchanged: false, ...patch };
 }
 export function reset(): void {
+    // Production Export runs in Chrome; model its browser language in this Node-only harness.
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { language: 'en-US' } });
     indexes.clear(); details.clear(); records.clear(); references.clear();
     events.length = 0; deliveries.length = 0; contexts.length = 0; settings = {};
     Object.assign(state, {
