@@ -47,7 +47,8 @@ export class ClaudeProvider implements AIProvider {
         try {
             const account = await this.account(accountId);
             const raw = await this.get('/api/organizations', account);
-            if (!Array.isArray(raw) || !raw.some(o => o && typeof o === 'object' && o.uuid === account.providerAccountId))
+            if (!Array.isArray(raw) || !raw.some((org: unknown) => org !== null
+                && typeof org === 'object' && 'uuid' in org && org.uuid === account.providerAccountId))
                 return { ready: false, error: 'Claude organization/account unavailable' };
             return { ready: true, accountName: account.displayName };
         } catch (error) {
@@ -64,7 +65,9 @@ export class ClaudeProvider implements AIProvider {
             const raw = await this.get('/api/organizations/' + account.providerAccountId
                 + '/chat_conversations_v2?limit=100&offset=' + offset + '&consistency=strong', account, options.signal);
             if (!raw || typeof raw !== 'object' || !('data' in raw) || !('has_more' in raw)
-                || typeof raw.has_more !== 'boolean') throw new TypeError('Invalid Claude paginated list');
+                || typeof raw.has_more !== 'boolean'
+                || ('search_incomplete' in raw && typeof raw.search_incomplete !== 'boolean'))
+                throw new TypeError('Invalid Claude paginated list');
             const parsed = parseClaudeList(raw.data);
             const count = parsed.conversations.length;
             const sourceEnd = raw.has_more === false;
