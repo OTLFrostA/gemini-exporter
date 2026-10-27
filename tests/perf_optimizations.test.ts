@@ -6,18 +6,14 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-// Ensure parser is available in global for geminiClient in Node environment
-// 1. Test 429 rate limit backoff in GeminiAPIClient
 test('perf - geminiClient 429 backoff retries and recovers on transient rate limit', async () => {
     const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
     const client = new GeminiAPIClient();
 
-    // Mock global fetch
     const originalFetch = (global as any).fetch;
     let callCount = 0;
     const recordedDelays: number[] = [];
 
-    // Save and mock setTimeout to avoid real delays in test
     const originalSetTimeout = (global as any).setTimeout;
     (global as any).setTimeout = (fn: any, delay: any) => {
         recordedDelays.push(delay);
@@ -36,7 +32,6 @@ test('perf - geminiClient 429 backoff retries and recovers on transient rate lim
                     text: async () => 'Rate limit exceeded'
                 };
             }
-            // 3rd call succeeds with minimal valid batchexecute list
             return {
                 ok: true,
                 status: 200,
@@ -94,7 +89,6 @@ test('perf - geminiClient 429 throws after exceeding maxRetries', async () => {
     }
 });
 
-// 2. Test Takeout HTML parsing time-slicing and progress
 test('perf - Takeout import yields to the event loop and reports monotonic progress for 120 conversations', async (t: import('node:test').TestContext) => {
     const { importTakeout } = require('../src/l1/imports/takeout/importTakeout.js');
     const { listIndexes } = require('../src/l3a/storageService.js');
@@ -116,7 +110,6 @@ test('perf - Takeout import yields to the event loop and reports monotonic progr
     assert.ok(reports.some(percent => percent > 70 && percent < 100));
 });
 
-// 3. Test AssetFetcher ArrayBuffer transfer
 test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true', async () => {
     const { AssetFetcher } = require('../src/runtime/capabilities/assetFetcher.js');
 
