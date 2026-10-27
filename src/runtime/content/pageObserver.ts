@@ -1,11 +1,10 @@
 import { registerCleanup } from './cleanupRegistry.js';
 
-let __lastObservedUrl = typeof location !== 'undefined' ? location.href : '';
+let __lastObservedUrl = '';
 let __historyUrlCallback: (() => void) | null = null;
 let __locationPoll: ReturnType<typeof setInterval> | null = null;
 
 function __handleLocationChange(): void {
-    if (typeof location === 'undefined') return;
     if (location.href !== __lastObservedUrl) {
         __lastObservedUrl = location.href;
         __historyUrlCallback?.();
@@ -24,7 +23,6 @@ export function cleanup(): void {
 }
 
 export function hookHistoryEvents(onUrlChanged: () => void): void {
-
     const w = window;
     if (!w.__gemExporterHistoryHooked) {
         w.__gemExporterHistoryHooked = true;

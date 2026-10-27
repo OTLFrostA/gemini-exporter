@@ -193,8 +193,6 @@ export async function initPopup(): Promise<void> {
     }
     render();
 }
-if (typeof document !== 'undefined') {
-    const start = () => { void initPopup(); };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
-    else start();
-}
+const start = () => { void initPopup(); };
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+else start();
