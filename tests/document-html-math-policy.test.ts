@@ -1,4 +1,10 @@
-/** Preserve original LaTeX for accessibility; unsupported math must degrade visibly, not silently disappear. */
+/**
+ * 2. Original LaTeX source is preserved inside MathML <annotation encoding="application/x-tex">
+ *    for accessibility and copyability.
+ * 3. Unsupported LaTeX environments (TikZ) are detected and fail gracefully with diagnostic warnings
+ *    and copyable fallback blocks.
+ * 4. Unknown LaTeX commands / syntax errors trigger graceful diagnostic fallback blocks.
+ */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');

@@ -104,12 +104,14 @@ export interface TitleResult {
 /** Selected Candidate facts decoded at the Turn boundary. Raw media evidence
  * stays private to Gemini resource decoders. */
 export interface DecodedGeminiCandidate {
+    /** Selected wire context; only the resource decoder interprets these remaining slots. */
     source: unknown[];
     body: unknown;
     turnDocument: unknown;
     index: number;
     id: string;
     text: string;
+    /** Source facts decoded once, before message assembly. */
     thoughts: string | null;
     citations: Citation[];
     sourceAttributions: GeminiSourceAttribution[];
@@ -156,7 +158,6 @@ import { isRealTitle, cleanTitle } from "../../../../shared/utils/titleText.js";
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../../../shared/utils/titleText.js";
 import { payloadToMs, extractCandidateValue } from "./payload.js";
 
-// Gemini's undocumented JSPB positions belong in one schema, not as scattered numeric offsets.
 
     const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = Object.freeze({
         TURN: {
@@ -164,7 +165,7 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
             TIMESTAMP: 1,
             USER_PAYLOAD: 2,
             MODEL_PAYLOAD: 3,
-            REQUEST_ID_SLOT: 1
+            REQUEST_ID_SLOT: 1 // Canonical request ID position in ID_META tuple: ["c_xxx", "r_xxx"][1]
         },
         MODEL_PAYLOAD: {
             CANDIDATES: 0,
@@ -408,6 +409,7 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         return "";
     }
 
+    /** User text is a Turn-level fact, shared by user messages and generation prompts. */
     function extractUserText(userPayload: unknown): string {
         if (!isUnknownArray(userPayload) || userPayload.length === 0) return "";
         const first = userPayload[0];

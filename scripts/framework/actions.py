@@ -540,7 +540,7 @@ class ExtensionActions:
             return None
         # TestEnvironment routes downloads to output_dir. Avoid scanning the user's
         # Downloads folder, where cloud-backed entries can block directory reads.
-        # Snapshot pre-existing ZIPs so a stale file cannot satisfy this export's success check.
+        # 记录导出触发前已存在的 ZIP 文件与修改时间戳，杜绝旧文件误命中。
         baseline_files = {}
         for check_d in [output_dir]:
             if os.path.isdir(check_d):
@@ -733,7 +733,7 @@ class CDPActions(ExtensionActions):
     @staticmethod
     def delete_conversation_via_web(cdp_gemini, chat_id: str) -> bool:
         """在 Gemini 网页端侧边栏执行真实会话删除链路"""
-        # A collapsed sidebar hides the target menu; expand it before searching.
+        # 0. 确保侧边栏处于展开状态 (若处于折叠状态则主动点击展开按钮)
         cdp_gemini.eval(f"""
         (() => {{
             const openBtn = document.querySelector('{GeminiSelectors.OPEN_SIDEBAR_BTN}');
@@ -747,6 +747,7 @@ class CDPActions(ExtensionActions):
         time.sleep(0.6)
 
         nav_sel = GeminiSelectors.nav_item_by_chat_id(chat_id)
+        # 触发悬停使三点菜单显示
         rect = cdp_gemini.eval(f"""
         (() => {{
             const a = document.querySelector('{nav_sel}');

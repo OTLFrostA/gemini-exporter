@@ -23,7 +23,7 @@ from typing import Set, List, Dict, Tuple, Optional
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Global build/config changes invalidate the full dependency graph and require a full test run.
+# 全局核心文件：任一文件变更均触发全量测试
 GLOBAL_FILES = {
     "package.json",
     "package-lock.json",
@@ -43,6 +43,7 @@ STATIC_DOCS_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+# Import/Require/Dynamic-Import 语句正则 (严格忽略仅类型导入 import type / export type)
 IMPORT_PATTERN = re.compile(
     r"""(?:import|export)\s+(?!type\s)(?:[\s\w{},*]+\s+from\s+)?[\x27\x22]([^\x27\x22]+)[\x27\x22]|(?:require|import)\s*\(\s*[\x27\x22]([^\x27\x22]+)[\x27\x22]\s*\)"""
 )
@@ -199,6 +200,7 @@ def get_git_changed_files(base_ref: Optional[str] = None, base_dir: str = REPO_D
         for f in run_cmd(["git", "diff", "--name-only", f"{base_ref}...HEAD"]):
             changed.add(normalize_repo_path(f, base_dir))
 
+    # 过滤空值与不存在的文件（已删除的文件保留其相对路径以追溯影响）
     return {f for f in changed if f}
 
 
@@ -240,7 +242,7 @@ class ImpactAnalysisResult:
                 if f.startswith("tests/e2e/") and f.endswith(".spec.ts"):
                     e2e_set.add(f)
 
-        # A shared core change can affect any browser entrypoint, including implicit bundle imports.
+            # 如果影响到 core 模块，则所有 E2E 均可能受影响
             if any(f.startswith(_CORE_PREFIXES) and not f.startswith((*_CONTENT_PREFIXES, "src/l4/format/pdf/sandbox/")) for f in self.affected_files):
                 e2e_set.update(self.all_e2e_specs)
             else:

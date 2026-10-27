@@ -10,7 +10,7 @@ import { safeExternalHref } from '../shared/safeLinks.js';
 import { defaultPdfLayout, applyLayout } from './layout.js';
 import type { TypstBlockNode, TypstConversationRenderPayload, TypstInlineNode, TypstTableCell, BlockLayout, TypstRenderMessage } from './transport.js';
 
-/** Keep format internals outside the public Renderer so HTML and PDF share one contract. */
+/** Internal technical hooks; no format-specific controls in the public Renderer. */
 interface TypstRuntimeHooks {
     convertMath?: (source: string, display: boolean) => string | undefined;
     onDiagnostic?: (diagnostic: Diagnostic) => void;

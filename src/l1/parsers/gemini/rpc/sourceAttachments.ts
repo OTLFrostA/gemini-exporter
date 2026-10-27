@@ -304,7 +304,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                     warnWhitelistDropOnce(warnedHosts, raw.sourceUrl, raw.detectorKind);
                     return null;
                 }
-    // Bound captured evidence to avoid retaining arbitrary raw payloads beyond extraction.
+                // Retain a bounded JSON-only snapshot of the matched tuple.
                 const evidenceJson = JSON.stringify(node);
                 const snapshot: unknown = evidenceJson.length <= 12000
                     ? JSON.parse(evidenceJson) : { truncated: true, preview: evidenceJson.slice(0, 12000) };
@@ -557,7 +557,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
             }
         }
 
-    // Only exact ownership paths can produce trusted resources.
+        // Pass 1: strict path only — typed indices, never marked heuristic.
         deepWalk([root], (node) => {
             if (isUnknownArray(node)) {
                 const entries = node;
@@ -585,7 +585,8 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         });
         if (out.length > 0) return out;
 
-    // Mark flat fallback as heuristic so inferred files never masquerade as verified.
+        // Pass 2: flat fallback, only when the strict path produced nothing.
+        // Heuristic by construction — results are marked source: 'heuristic-flat'.
         deepWalk([root], (node) => {
             if (isUnknownArray(node)) {
                 const entries = node;

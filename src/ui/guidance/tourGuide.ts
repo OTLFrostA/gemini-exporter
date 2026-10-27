@@ -36,7 +36,7 @@ function modalOpen(): boolean { return isActive() || !!document.querySelector('d
 
 type Placement = 'top' | 'bottom' | 'left' | 'right';
 
-/** Keep the physical click cutout so the Tour cannot accidentally activate unrelated controls. */
+/** Render the original main Tour card and highlight, retaining v2's physical click cutout. */
 function overlay(
     target: HTMLElement | null | (() => HTMLElement | null), title: string, description: string | HTMLElement, interactive: boolean,
     related: HTMLElement[] = [], placement: Placement = 'bottom', badgeText?: string, hint?: string,
@@ -282,6 +282,7 @@ function mountAuthorization(
     return () => { stop(); host.remove(); };
 }
 
+/** Reopen the same authorization view without starting or advancing the tutorial. */
 function showPlatformAuthorization(connected?: (accountId: string) => Promise<void>): void {
     if (modalOpen()) return;
     destroy(); mode = 'authorization'; onConnected = connected;

@@ -64,7 +64,6 @@ export interface GeminiProtocolModule {
 
 const PROTOCOL_VERSION = '2026-09-07';
 
-// Gemini wraps batchexecute rows; check the wrapper before interpreting positional fields.
 const WRB = 'wrb.fr';
 
 // RPC endpoint names (compiled Google-side identifiers — rotate together

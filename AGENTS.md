@@ -138,11 +138,4 @@ python3 scripts/test_visual_agent.py --playground [--target options|popup|gemini
 python3 scripts/test_visual_agent.py --api --endpoint <url> [--ai-review]
 ```
 
----
 
-## 四、注释准则：只说明 Why
-
-- 只保留无法从命名、类型和代码结构推断的原因，例如信任边界、协议限制、历史兼容、时序约束、取舍和已知风险。
-- 删除复述函数用途、字段名称、执行步骤或流程的 What 注释；优先让代码本身表达行为。
-- 保留许可证和署名、TypeScript / ESLint / 构建指令以及保护外部协议不变量的必要注释；为协议常量写清限制的原因，而非逐项翻译字段。
-- 仅清理真实注释，不触碰字符串、fixture、嵌入式脚本和测试数据中的注释样文本；注释清理 PR 不应改变执行行为。

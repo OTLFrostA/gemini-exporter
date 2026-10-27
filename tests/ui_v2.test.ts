@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assertUiNodeIsolation, installUiV2Mocks } from './helpers/uiV2Mocks.js';
 
-// UI modules resolve transitive owners at import time, so mocks must be installed first.
+// Stub external owners before loading any UI module (including its transitive imports).
 installUiV2Mocks();
 const { ConversationViewState } = require('../src/ui/options/state/conversationsStore.js') as
     typeof import('../src/ui/options/state/conversationsStore.js');

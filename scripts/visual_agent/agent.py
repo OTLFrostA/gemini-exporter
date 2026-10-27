@@ -406,5 +406,5 @@ class AutonomousVisualAgent:
         )
 
 
-# Keep this old name for callers that have not migrated to the new entry point.
+# Backward compatibility alias
 VisualQAAgent = AutonomousVisualAgent

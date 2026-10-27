@@ -643,7 +643,7 @@ export async function initWorkbench(): Promise<void> {
     renderLog(); render();
     await ensureV2Ready();
     settings = await readSettings();
-    renderLog();
+    renderLog(); // Localize initial 'Ready' once; subsequent toggles never retranslate the log.
     await refresh();
     chrome.storage.onChanged.addListener(onOpenedAccountChange);
     await applyOpenedAccount((await chrome.storage.session.get('openOptionsAccountId')).openOptionsAccountId);

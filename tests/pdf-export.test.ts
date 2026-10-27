@@ -1,4 +1,10 @@
-/** Keep the Application and AST path real; double only external sandbox/compiler boundaries. */
+/**
+ * Application.runExport owns item failures, batch delivery and ExportRecord.
+ * L3b builds the AST; L4 PDF Format accepts an IPdfCompiler boundary and L4
+ * Packaging/Delivery owns the output. The old PdfExporter / StorageService,
+ * writer callbacks, session aliases and manual ZIP finalization no longer exist.
+ * Only the external Typst sandbox compiler and browser surfaces are doubled.
+ */
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import type { BlockNode } from '../src/l2/content/blocks.js';

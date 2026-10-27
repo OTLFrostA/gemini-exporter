@@ -1,5 +1,15 @@
 import { sourceConversation } from './helpers/l1SourceFixture.js';
-/** Guard the structured-RPC path against silent Markdown fallback and invalid Domain closure. */
+/**
+ * 1. Structured path is actively used (decision point prioritized over Markdown parser).
+ * 2. #705 Divergence cases:
+ *    - Display math (multiline and after prose) mapped directly to Canonical math block.
+ *    - Table + math pipe ($|\alpha|^2$ and $\|\psi\rangle$) preserving intact cells and math.
+ * 5. Fallback semantics:
+ *    - Missing structuredContent -> fallback to Markdown parser.
+ *    - Unknown nodeType -> fallback to Markdown parser.
+ *    - Malformed node / crossing annotations -> fallback to Markdown parser.
+ *    - Empty structured doc with non-empty raw markdown -> fallback to Markdown parser.
+ */
 export {};
 const test = require('node:test');
 import assert from 'node:assert/strict';
@@ -383,10 +393,12 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
 });
 
 test('Unknown annotation shape/type fails closed and is never coerced to bold', async () => {
+    // 1. Direct decoder checks: unknown annotation type must return null, never 0 (bold)
     assert.strictEqual(decodeGeminiAnnotation({ start: 0, end: 5, type: 999 }), null);
     assert.strictEqual(decodeGeminiAnnotation([0, 5, [[null, null, null, null, 999]]]), null);
     assert.strictEqual(decodeGeminiAnnotation([0, 5, [null, 'unknown-shape']]), null);
 
+    // 2. Integration check: text node with unknown annotation falls back to raw markdown
     const conv = {
         id: 'c_unknown_annot',
         title: 'Unknown Annotation Test',

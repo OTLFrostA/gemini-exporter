@@ -51,7 +51,6 @@ export interface DomainMessage {
     /** Optional stable message identity; never synthesized from array position. */
     id?: string;
     role: DomainMessageRole;
-    /** Never synthesize a model identity when the provider omits it. */
     model?: string;
     content: BlockNode[];
     /** Unix epoch milliseconds; omit when missing or unknown. */

@@ -1,5 +1,7 @@
 /**
- * Adapted from pionxzh/chatgpt-exporter (MIT); retain upstream provenance.
+ * Pure ChatGPT mapping-tree helpers, ported from pionxzh/chatgpt-exporter (MIT).
+ * No fetch, no DOM — fully unit-testable.
+ * @unverified-provider-scaffold Awaiting 9222 live-payload verification.
  */
 import { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
 import type {
@@ -176,7 +178,10 @@ export function extractChatGPTModelSlug(
     return '';
 }
 
-/** Preserve individual turns so citations and model metadata cannot be merged away. */
+/**
+ * Linearize current_node -> root without auto-merging adjacent assistant turns
+ * so per-turn structure, citations and model metadata stay intact.
+ */
 export function processChatGPTMapping(
     conversation: ChatGPTApiConversationWithId,
     snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>,

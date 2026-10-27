@@ -1,5 +1,8 @@
 /**
- * Adapted from pionxzh/chatgpt-exporter (MIT); signed download URLs are transient.
+ * ChatGPT image-asset resolution, ported from pionxzh/chatgpt-exporter (MIT).
+ * Chain: `sediment://<fileId>` -> `GET /backend-api/files/download/:id`
+ * -> signed estuary `download_url` -> bytes -> base64 Domain asset.
+ * @unverified-provider-scaffold Verified live via 9222 (2.1MB PNG, 2026-10-14).
  */
 
 interface ChatGPTParsedDownload {

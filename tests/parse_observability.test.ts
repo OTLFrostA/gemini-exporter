@@ -169,7 +169,7 @@ test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透
     assert.strictEqual(res.contentMatch, 'substring', 'parseDocSections 必须透传匹配依据');
     assert.ok(res.contentMarkdown.includes("这是一段用于测试文档段落的文字内容"), 'sections 内容应被正确解析为 markdown');
 
-// An exact-match control must not be mislabeled as a heuristic content match.
+    // 3. 对照组：全等匹配节点不标记 contentMatch，经 parseDocSections 后 contentMatch 保持 undefined
     const exactNode = ["docExactId", [[rawSection, "https://example.com/doc-link"]]];
     const exactFound = attachments.createDocumentReader([exactNode]).byId("docExactId");
     assert.ok(exactFound);

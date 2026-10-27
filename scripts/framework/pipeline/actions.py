@@ -240,10 +240,12 @@ class UniversalInputAction:
         """)
         time.sleep(0.05)
 
+        # 2. 原生底层 CDP Input.insertText 插入文本（完全遵循物理级真实键盘事件，杜绝 execCommand 脱节）
         if text:
             cdp.call("Input.insertText", {"text": text})
             time.sleep(0.05)
 
+        # 3. 派发 input 与 change 事件保证框架数据绑定感知与 Quill delta 刷新
         target_selector_json = json.dumps(selector or "")
         cdp.eval(f"""
         (() => {{
@@ -388,6 +390,7 @@ class SingleClickSendAction(AtomicAction):
 
             time.sleep(0.5)
 
+        # 超时后收集 DOM 诊断详情，便于精准定位原因
         diag = cdp.eval(f"""
         (() => {{
             const btns = Array.from(document.querySelectorAll({selector_json})).map(b => ({{

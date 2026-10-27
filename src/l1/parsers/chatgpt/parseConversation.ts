@@ -3,7 +3,11 @@ import type { Account } from '../../../l2/accountRegistry.js';
 import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
 import { contentQuality } from '../qualityEvidence.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
-/** Provider data stays untrusted until this parser has validated the ChatGPT Domain boundary. */
+/**
+ * Acquisition (session/list/detail/downloads) stays in the provider; only this
+ * parser module may call validateParserDomain for ChatGPT payloads, mirroring
+ * the Gemini rpc/dom/takeout parser ownership in the trust boundary.
+ */
 import type {
     DomainAsset,
     DomainMessage,

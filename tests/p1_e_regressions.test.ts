@@ -1,4 +1,9 @@
-/** P1-061 needs a source-level assertion because downstream trimming hides the old regexp bug. */
+/**
+ * 每个用例均为 red-by-design：修复前失败、修复后通过，外加边界锁定用例。
+ * P1-061a 注：rc_ 行首正则的 \\s*→\s* 在行为上被下游 .trim() 掩盖
+ * （旧正则实际是死代码，匹配字面反斜杠+s），故用源码级断言锁定；
+ * P1-061b/c 用真实行级清理的行为差异断言。
+ */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -101,7 +106,8 @@ test('P1-064b: 标准 [[text]] 形态的用户文本提取不变', () => {
 });
 
 test('P1-065a: 启发式跳过仅含 "c_" 子串的错误 chunk（decodeGeminiDetail）', () => {
-// A music_ substring is not evidence of a valid c_ conversation identity.
+    // 触发条件：无标准 WRB 信封；错误 chunk 排在正确 chunk 之前；
+    // 错误 chunk 含 "c_" 子串（music_）但无完整会话 ID 格式，且内藏假 turn。
     const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_LEADING_DECOY_DETAIL_01'));
     assert.strictEqual(res.messages.length, 2, '应解析出正确 chunk 的 user+model 两条消息');
     assert.strictEqual(userMessageOf(res).content, "hello");

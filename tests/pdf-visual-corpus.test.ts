@@ -1,4 +1,26 @@
-/** Use real Typst WASM and structural PDF checks: pixel diff stability is insufficient for layout regressions. */
+/**
+ * The corpus lives in tests/fixtures/visual-corpus/ (12 JSON fixtures). Each
+ * fixture carries a neutral Document AST, base64 binaries, and an `expect` block.
+ * This test compiles every fixture with the REAL vendored Typst WASM
+ * (TypstSandboxCompiler + RealWasmSandboxHost, no mocks) and runs
+ * programmatic checks instead of pixel diffs:
+ *   - page count >= expect.minPages (catches broken pagination)
+ *   - key phrases present, exactlyOnce phrases appear exactly once
+ *     (catches duplicated / dropped content)
+ *   - no U+FFFD tofu (catches unreadable text)
+ *   - per-page content bounds (catches overflow / clipping)
+ *   - blank-page detection (catches large empty regions / broken breaks)
+ *   - duplicated-run detection across pages (catches duplicated content)
+ *   - image XObject counts + draw rects inside page bounds
+ *     (catches image overflow)
+ *   - table cell text presence (catches unreadable tables)
+ *   - CJK + math needles (catches font/coverage regressions)
+ *   - missing-asset warning diagnostics (catches crash-on-missing)
+ * If PDF_VISUAL_REVIEW_DIR is set, the test additionally writes the 12 PDFs
+ * plus a Markdown review report there (durable review package). The review
+ * package is never committed to Git.
+ * This is NOT a human visual sign-off; the PDFs are kept for real review.
+ */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');

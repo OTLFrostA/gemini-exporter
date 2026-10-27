@@ -5,11 +5,11 @@ const assert = require('node:assert');
 
 // PR-6 hygiene sweep regressions (core-vocab audit, low-priority batch).
 //
-// Never preserve a legacy garbage timestamp as an authoritative source fact.
+// 1. bestTimestamp must never keep a legacy garbage string verbatim: the raw
 //    `.timestamp` fallbacks are now routed through canonical source timestamp normalization, mirroring
 //    the cUpdated/oldUpdated normalization directly above. (Old code kept
 //    e.g. 'not-a-date' as the authoritative timestamp.)
-// One storage-key registry prevents previously scattered callers from drifting.
+// 2. The two previously scattered storage keys live in STORAGE_KEYS.
 
 const { mergeConversationIndex } = require('../src/l2/conversationIndex.js');
 const { STORAGE_KEYS } = require('../src/shared/utils/constants.js');

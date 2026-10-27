@@ -89,6 +89,7 @@ test('gemini_parser - JSPB schema and candidate extraction filters telemetry and
 
     const parsed = decodeGeminiDetail(rawText, '024c7ad5d90f4db8');
 
+    // MUST be exactly 2 messages (1 user, 1 model), NOT 8 or 9!
     assert.strictEqual(parsed.messages.length, 2, `Expected exactly 2 messages, got ${parsed.messages.length}`);
     assert.strictEqual(parsed.messages[0].role, 'user');
     assert.strictEqual(parsed.messages[0].content, '如果cas不带机枪的话能抢制空么');
@@ -119,7 +120,7 @@ test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns'
     assert.strictEqual(healthyCheck.isDrifted, false);
     assert.strictEqual(healthyCheck.warnings.length, 0);
 
-// A damaged metadata slot must not erase healthy adjacent turns.
+    // Drifting turn: missing turn ID meta and corrupted model payload
     const driftedTurn = [
         ["corrupted_meta"],
         null
@@ -167,7 +168,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     assert.strictEqual(attachments.isInternalChipUrl("https://googleusercontent.com/immersive_entry_chip/abc"), true);
     assert.strictEqual(attachments.isInternalChipUrl("https://example.com/normal.png"), false);
 
-// Keep source timestamp interpretation in the LIST decoder rather than a generic parser.
+    // 4. The production LIST row decoder owns timestamp interpretation.
     const mockItem = ["c_test", "Title", null, null, null, [1720000000, 500000000]];
     const decoded = parseListMod.decodeGeminiListRow(mockItem);
     assert.strictEqual(decoded?.id, 'test');

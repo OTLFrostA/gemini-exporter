@@ -135,6 +135,7 @@ test('single-pass decode: mixed heterogeneous hierarchy (Table -> Cell -> Quote 
     assert.strictEqual(accessCounts.get('hetero_ordered_list'), 1);
     assert.strictEqual(accessCounts.get('hetero_text'), 1);
 
+    // Verify AST structural integrity without type assertions
     if (decoded.nodeType === 17) {
         const firstRow = decoded.rows[0];
         const firstCell = firstRow?.cells[0];

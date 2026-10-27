@@ -152,7 +152,6 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
             if (sourceIds) return { start, end, type, sourceIds };
         }
         if (typeof start === "number" && typeof end === "number" && typeof type === "number") {
-// Only characterized numeric annotation tags may be rendered; unknown tags must fail closed.
             if ([0, 2, 4, 5, 6, 7, 12].includes(type)) {
                 return {
                     start,

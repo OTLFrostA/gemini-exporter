@@ -22,7 +22,7 @@ test('source resource - readTakeoutBytes boundaries and validation', async () =>
 
 
 
-// A rejected resource read must propagate rather than masquerade as missing media.
+    // 5. Rejection preserves error propagation to caller
     const fileError = {
         async: async () => { throw new Error('ZIP read failure'); }
     };

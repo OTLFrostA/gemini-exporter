@@ -57,6 +57,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     await expect(optionsPage.locator('#list .item')).toHaveCount(0);
     await optionsPage.click('#btnSyncAll');
 
+    // 4. Ordinary Scan All admits Recent; the separate pinned item stays absent.
     const listItems = optionsPage.locator('#list .item');
     await expect(listItems).toHaveCount(3, { timeout: 10000 });
     await expect(optionsPage.locator('[data-chat-id="scan_pinned"]')).toHaveCount(0);

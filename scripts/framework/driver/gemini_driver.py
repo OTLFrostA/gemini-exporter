@@ -55,6 +55,7 @@ class GeminiChatSession:
             self.driver.upload_file(file_attachment)
             time.sleep(1.0)
 
+        # 通过 Driver 单飞原子流水线发帖 (受网关速率控制与主动熔断保护)
         ok, msg = self.driver.execute_turn_pipeline(prompt_text, max_wait=max_wait)
         duration = time.time() - t0
 
@@ -132,7 +133,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
         """
         cdp = self.cdp
-        # The SPA can render the picker late; wait for the real button rather than clicking a stale target.
+        # 1. 首先缓冲等待模型切换按钮挂载就绪并包含文本（最多等待 15 秒，避免 SPA 路由切换瞬间 DOM 未就绪）
         wait_btn_start = time.time()
         while time.time() - wait_btn_start < 15.0:
             btn_info = cdp.eval(f"""
@@ -657,7 +658,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         return session
 
 
-        # Retain historical aliases for existing Tier 2 callers.
+# 保持 100% 向后兼容别名
 GeminiDriver = GeminiPlatformDriver
 
 PlatformRegistry.register("gemini", GeminiPlatformDriver)

@@ -28,7 +28,7 @@ test('P2-1: empty terminal page is a natural end', async () => {
     }finally{env.restore();}
 });
 
-// A 401 must attempt a fresh credential before invalidating the stored token.
+// ---------- P2-3: 401 先刷新 at，刷新失败才删凭证 ----------
 function make401Deps(map: Record<string, any>, onWrite = () => {}) {
     return {
         updateCredential: async (sid: string | number, decide: () => { patch: { at?: string; bl?: string } | null }) => {
@@ -126,7 +126,7 @@ test('P2-3: 401 但 map 中无此 sid → 两条路径都是 no-op（不写不�
     }
 });
 
-// The observed bootstrap p.bl takes precedence over a stale fallback build label.
+// ---------- P2-4: bootstrap hook payload 的 p.bl 优先 ----------
 test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值', async () => {
     const previous = new Map(['chrome', 'window', 'document', 'location'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
     const store: Record<string, any> = {};

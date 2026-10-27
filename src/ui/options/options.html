@@ -136,7 +136,7 @@
   /* Dev alone uses an inverted direction: ON is left, beside its label. */
   #devToggle::after { transform: translateX(14px); }
   #devToggle:checked::after { transform: translateX(0); }
-  /* Chrome disables WebKit scrollbar styling when standard scrollbar-color/width is set. */
+  /* Modern Sleek WebKit Scrollbars (No standard scrollbar-color/width to avoid Chrome disabling WebKit engine) */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -457,7 +457,7 @@
     <button id="btnCleanupConfirm" type="button" class="destructive">清除记录</button>
   </div>
 </dialog>
-<!-- JSZip must load before the bundle because Options uses its external UMD global. -->
+<!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->
 <script src="/lib/jszip.min.js"></script>
 <script src="/dist/ui/options.js"></script>
 </body>

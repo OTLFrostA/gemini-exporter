@@ -17,7 +17,12 @@ function escapeHtml(text: string): string {
         .replace(/'/g, '&#39;');
 }
 
-/** MathML avoids external fonts and requests; retain malformed source rather than silently losing author content. */
+/**
+ * Renders a LaTeX math expression into accessible, offline-safe MathML for HTML exports.
+ * - Requires ZERO external fonts, stylesheets, or network requests; fully offline-compatible.
+ * Unsupported or malformed math (e.g. TikZ diagrams, unknown LaTeX macros):
+ * - Gracefully falls back to a readable, copyable source block with localized diagnostic label.
+ */
 export function renderMathHtml(
     source: string,
     display: boolean,

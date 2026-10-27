@@ -7,7 +7,8 @@
 :root[data-theme-bootstrap] *::before,
 :root[data-theme-bootstrap] *::after { transition: none !important; }
 
-/* Do not let dark palette overrides change the independent light theme. */
+/* Shared theme overrides for extension Popup, Options and Tour.
+   Dark and light palettes are independently scoped; the light design stays unchanged. */
 .theme-switch {
   flex: none;
   width: 30px;

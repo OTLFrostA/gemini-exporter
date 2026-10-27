@@ -1,4 +1,3 @@
-/** Keep provider-specific Markdown dialect rules outside the shared semantic AST adapter. */
 
 import type {
     Root,
@@ -80,7 +79,9 @@ function textWithSoftBreaks(text: string): InlineNode[] {
     return nodes;
 }
 
-/** CommonMark gives the first definition precedence when an identifier repeats. */
+/**
+ * Follows CommonMark precedence: the first definition for a given identifier takes precedence.
+ */
 export function collectDefinitions(
     node: Root | RootContent,
     definitions: Map<string, { url: string; title?: string }>,
@@ -504,7 +505,8 @@ function adaptBlockNode(
         }
 
         case 'definition':
-// CommonMark definitions resolve references but do not produce visible blocks.
+            // Link reference definitions are resolved into linkReference / imageReference inlines
+            // and produce no visual block elements per CommonMark / GFM specification.
             return [];
 
         default: {

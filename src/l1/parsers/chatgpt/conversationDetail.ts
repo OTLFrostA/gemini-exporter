@@ -1,5 +1,9 @@
 /**
- * Adapted from pionxzh/chatgpt-exporter (MIT); hidden reasoning cannot be exported as ordinary visible turns.
+ * ChatGPT detail enrichment: thinking -> reasoning blocks, web citations,
+ * uploaded-file records. Pure functions ported from pionxzh/chatgpt-exporter
+ * (MIT), shaped into our neutral Domain vocabulary like the Gemini parser.
+ * @unverified-provider-scaffold Citations verified present in live payloads;
+ * thoughts/reasoning_recap verified present; upload round-trip still open.
  */
 import type { DomainCitation } from '../../../l2/conversationDetail.js';
 import type {

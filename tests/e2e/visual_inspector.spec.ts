@@ -3,7 +3,11 @@ import { openOptions, seedConversations, accountId, exposeUIStorage } from './ui
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-/** Screenshots are diagnostic only; geometry and hit testing establish UI correctness. */
+/**
+ * Visual integration exercises the shipped Options UI, real L2 admission and
+ * L3a IndexedDB. It does not re-create retired v1 storage or Tour controls.
+ * Screenshots remain diagnostic; the assertions use geometry/hit testing.
+ */
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 const outputDir = path.resolve(__dirname, '../../tests/output/visual_audit');
 const steps = [
@@ -42,6 +46,7 @@ async function screenshot(page: import('@playwright/test').Page, name: string) {
     await page.screenshot({ path: dest });
     expect(fs.existsSync(dest)).toBe(true);
 }
+/** Gemini is authorized in the real fixture, so the tour never requests it again. */
 async function connectTourGemini(page: import('@playwright/test').Page) {
     await expect(page.locator('.platform-permission-row[data-platform="gemini"]')).toBeHidden();
     await expect(page.locator('#tourNextBtn')).toBeEnabled();

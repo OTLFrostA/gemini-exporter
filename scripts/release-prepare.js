@@ -1,4 +1,7 @@
-// Keep release-time version sync out of build.js so ordinary builds cannot modify tracked sources.
+// Syncs package.json "version" and the README version badges from manifest.json
+// (the version Single Source of Truth). This used to run inside build.js on every
+// build; it was moved here so that `node build.js` is pure and never mutates the
+// tracked source tree.
 
 const fs = require('fs');
 const path = require('path');
@@ -20,6 +23,7 @@ const EXT_VERSION = (() => {
     }
 })();
 
+// Keep package.json version in sync with manifest.json (Single Source of Truth)
 try {
     if (fs.existsSync(PKG_PATH)) {
         const pkg = JSON.parse(fs.readFileSync(PKG_PATH, 'utf8'));

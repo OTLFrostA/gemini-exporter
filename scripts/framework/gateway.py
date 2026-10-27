@@ -198,7 +198,7 @@ class SafeInteractionGateway:
             self.record_audit("SEND_TURN", p_preview, "BLOCKED", error=err_msg)
             raise CircuitBreakerError(err_msg)
 
-        # A streaming reply may look settled before the server releases the turn; cool down to avoid throttling.
+        # 3. 强制冷却防抖 (避免流式刚结束瞬间连续秒发)
         cooldown = custom_cooldown if custom_cooldown is not None else self.min_turn_interval
         now = time.time()
         elapsed = now - self._last_turn_ts

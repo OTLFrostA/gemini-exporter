@@ -1,6 +1,5 @@
 import { fixtureAccount, fixtureKey } from '../../tests/helpers/domainFixture.js';
 import { historicalFixture } from '../../tests/helpers/nativeFixture.js';
-/** Compare the exact outputs of isolated parser/converter runs to avoid hiding divergent failures. */
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -42,7 +41,7 @@ interface CorpusReport {
             fallbacks: number;
             blockDistribution: Record<string, number>;
         };
-    // Legacy report consumers still read these baseline aliases.
+        // Backwards-compatible aliases reflecting baseline:
         parseFailures: number;
         fallbacks: number;
         blockDistribution: Record<string, number>;
@@ -63,7 +62,7 @@ interface CorpusReport {
             conversionFailures: number;
             compileFailures: number;
         };
-    // Legacy report consumers still read these baseline aliases.
+        // Backwards-compatible aliases reflecting baseline:
         converted: number;
         conversionFailures: number;
         compileFailures: number;
@@ -231,7 +230,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             });
         }
 
-    // Run the candidate even when baseline parsing fails, so asymmetrical failures remain observable.
+        // 1b. Run Candidate parser in isolated try/catch (runs REGARDLESS of baseline)
         if (activeCandidateParser) {
             try {
                 candRes = await activeCandidateParser(doc.text, doc.id);
@@ -312,7 +311,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     const mdEnd = Date.now();
     report.markdown.totalDurationMs = mdEnd - mdStart;
     report.markdown.avgDurationMs = documents.length > 0 ? (mdEnd - mdStart) / documents.length : 0;
-    // Keep legacy top-level report aliases synchronized for existing consumers.
+    // Keep top-level aliases synchronized with baseline
     report.markdown.parseFailures = report.markdown.baseline.parseFailures;
     report.markdown.fallbacks = report.markdown.baseline.fallbacks;
     report.markdown.blockDistribution = report.markdown.baseline.blockDistribution;
@@ -358,7 +357,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             });
         }
 
-    // Run the candidate even when baseline conversion fails, so asymmetrical failures remain observable.
+        // 2b. Run Candidate converter in isolated try/catch (runs REGARDLESS of baseline)
         if (activeCandidateConverter) {
             try {
                 candRes = activeCandidateConverter(expr.latex, !!expr.display);
@@ -441,10 +440,11 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     const mathEnd = Date.now();
     report.math.totalDurationMs = mathEnd - mathStart;
     report.math.avgDurationMs = mathExpressions.length > 0 ? (mathEnd - mathStart) / mathExpressions.length : 0;
-    // Keep legacy top-level report aliases synchronized for existing consumers.
+    // Keep top-level aliases synchronized with baseline
     report.math.converted = report.math.baseline.converted;
     report.math.conversionFailures = report.math.baseline.conversionFailures;
 
+    // 3. Genuine Typst WASM compilation gate (100% of expressions evaluated, no truncation)
     // Compiles the EXACT output obtained from conversion phase; never re-invokes converters.
     if (options.compileTypst) {
         if (baselineSuccessful.length > 0) {

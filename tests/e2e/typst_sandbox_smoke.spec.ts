@@ -1,4 +1,14 @@
-/** Compile with real vendored Typst WASM to enforce offline PDF output, not just mocked protocol behavior. */
+/**
+ * drives the REAL typst.ts 0.7.0 WASM compiler inside the MV3 sandbox page
+ * (init + font install + compile of a minimal v8-template document) and
+ * asserts:
+ * - the compile returns bytes starting with %PDF-
+ * - zero external (http/https) requests happen during the whole flow
+ *   (the P0 "no remote" gate)
+ *
+ * This mirrors the P0 probe's verified recipe: extension page -> iframe ->
+ * postMessage with transferred ArrayBuffers.
+ */
 import { test, expect } from './fixtures';
 
 test.describe('Typst sandbox compile container (P1b smoke)', () => {

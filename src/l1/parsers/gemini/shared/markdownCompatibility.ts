@@ -1,4 +1,12 @@
-// Admit compatibility rules only with source evidence: speculative rewrites can corrupt valid Markdown.
+/**
+ * Enforces the Compatibility Rule Admission Policy (Section 4 & 31):
+ * - Initial state: empty (0 speculative rules).
+ * - Every rule must have:
+ *   - A unique rule ID (e.g. GM-MD-001, GM-TEX-001).
+ *   - Provenance evidence pointing to a minimal real reproduction fixture.
+ *   - Clear description explaining why standard parser behavior is insufficient for real Gemini.
+ *   - Narrow deterministic transformation.
+ */
 
 import { inlineMathMarkdown } from '../../../../shared/utils/markdownMath.js';
 import { LATEX_COMPAT_RULES } from '../../../../shared/utils/latexCompatibility.js';
@@ -38,7 +46,7 @@ export const GM_TEX_003_BAR_ALIASES: TexCompatRule = Object.freeze({
 
 export const normalizeGeminiTexAliases = GM_TEX_003_BAR_ALIASES.transform;
 
-/** Adapt parsed nodes so source-level rewrites cannot change literal code or escaping. */
+/** Contextual MDAST adaptation, rather than source rewriting. */
 export const GM_MD_004_LINE_START_DISPLAY = Object.freeze({
     id: 'GM-MD-004', domain: 'markdown',
     evidence: 'tests/fixtures/provider/math/gm_md_004_evidence.md',
@@ -46,7 +54,9 @@ export const GM_MD_004_LINE_START_DISPLAY = Object.freeze({
     description: 'Live Gemini renders a $$ formula on its own line as a separate display block even without a blank line before it. Split its parsed paragraph, retaining preceding/following prose and list ownership; delimiters sharing a line with prose stay inline.',
 });
 
-// Gemini attaches LaTeX to $$ fences that micromark expects to be standalone.
+/**
+ * Standard micromark mathFlow requires standalone $$ delimiters to open and close fences.
+ */
 function normalizeMathFences(source: string): string {
     if (!source || !source.includes('$$')) return source;
 
@@ -139,6 +149,9 @@ export const GM_MD_001_FENCE_NORMALIZATION: MarkdownCompatRule = Object.freeze({
     transform: normalizeMathFences,
 });
 
+/**
+ * Initial state was empty; GM-MD-001 admitted per Section 4 & 31 admission policy.
+ */
 /** Real Gemini emits raw absolute-value bars inside table math, before GFM lexing. */
 export function normalizeTableMathPipes(source: string): string {
     const lines = source.split('\n');
@@ -271,6 +284,9 @@ export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Objec
     GM_MD_003_ESCAPED_DOLLAR_MATH,
 ]);
 
+/**
+ * When GEMINI_MARKDOWN_COMPAT_RULES is empty, this is an exact identity no-op.
+ */
 export function preprocessGeminiMarkdown(source: string): string {
     if (!GEMINI_MARKDOWN_COMPAT_RULES.length) return source;
     let result = source;

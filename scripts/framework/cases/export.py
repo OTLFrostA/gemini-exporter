@@ -135,6 +135,7 @@ class LiveSaveNewChatCase(FeatureTestCase):
             if not disk_ok:
                 return False, f"场景一物理磁盘落盘断言失败: {disk_msg}", disk_data
 
+            # 3. Options 展示实际完成后的 ExportRecord；选择保持显式
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.5)
             badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s2_id, "exported")
@@ -764,6 +765,7 @@ class HtmlExportDownloadCase(FeatureTestCase):
                 if 'generator" content="Gemini Exporter"' not in content:
                     return False, f"HTML 导出文件缺少 Gemini Exporter 生成元数据: {hf}", None
 
+                # 校验包含真实会话消息节点（防止空文档假通过）
                 has_turns = 'class="gem-turn' in content or '<div class="bubble' in content or 'gem-user-bubble' in content
                 if not has_turns:
                     return False, f"HTML 导出文件缺少对话轮次节点 (未渲染真实对话消息): {hf}", None

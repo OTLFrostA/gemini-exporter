@@ -1,6 +1,10 @@
 import { composeFixture } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-/** Exercise the canonical Domain-to-AST HTML path to prevent retired renderer behavior leaking back. */
+/**
+ * Item 2 (P0): the legacy sync toHtml() / formatContent(chat, 'html') path
+ * was removed; these tests now exercise the canonical renderer, which
+ * shares GEM_HTML_CSS / GEM_HTML_SCRIPT from htmlTemplate.ts.
+ */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
